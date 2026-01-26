@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseProgressEventLine } from '../src/shared/cli/progress-events.js';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'shard-progress-determinism');
@@ -43,7 +44,7 @@ const result = spawnSync(
 );
 
 if (result.status !== 0) {
-  console.error(result.stderr || result.stdout || 'build_index failed');
+  console.error(getCombinedOutput(result) || 'build_index failed');
   process.exit(result.status ?? 1);
 }
 
@@ -51,7 +52,9 @@ const fileIndexByPath = new Map();
 let lastIndex = 0;
 let progressCount = 0;
 
-for (const line of String(result.stderr || '').split(/\r?\n/)) {
+const outputLines = getCombinedOutput(result)
+  .split(/\r?\n/);
+for (const line of outputLines) {
   const event = parseProgressEventLine(line);
   if (!event || event.event !== 'log') continue;
   const meta = event.meta || null;

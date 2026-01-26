@@ -234,7 +234,7 @@ await fsPromises.writeFile(metaPath, JSON.stringify(summary, null, 2));
 if (argv.json) {
   console.log(JSON.stringify(summary, null, 2));
 } else {
-  console.log(`SCIP ingest: ${stats.occurrences} occurrences (${stats.errors} parse errors)`);
-  console.log(`- output: ${outputPath}`);
-  console.log(`- meta: ${metaPath}`);
+  console.error(`SCIP ingest: ${stats.occurrences} occurrences (${stats.errors} parse errors)`);
+  console.error(`- output: ${outputPath}`);
+  console.error(`- meta: ${metaPath}`);
 }

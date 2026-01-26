@@ -131,4 +131,4 @@ lines.push('}');
 lines.push('');
 
 await fs.writeFile(outPath, `${lines.join('\n')}\n`, 'utf8');
-console.log(`Wrote ${outPath}`);
+console.error(`Wrote ${outPath}`);

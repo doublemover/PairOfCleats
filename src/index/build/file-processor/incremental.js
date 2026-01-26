@@ -25,7 +25,10 @@ export async function writeBundleForFile({
   fileStat,
   fileHash,
   fileChunks,
-  fileRelations
+  fileRelations,
+  fileEncoding = null,
+  fileEncodingFallback = null,
+  fileEncodingConfidence = null
 }) {
   return runIo(() => writeIncrementalBundle({
     enabled: incrementalState.enabled,
@@ -35,6 +38,9 @@ export async function writeBundleForFile({
     fileHash,
     fileChunks,
     fileRelations,
-    bundleFormat: incrementalState.bundleFormat
+    bundleFormat: incrementalState.bundleFormat,
+    fileEncoding,
+    fileEncodingFallback,
+    fileEncodingConfidence
   }));
 }

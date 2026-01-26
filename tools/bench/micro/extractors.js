@@ -89,14 +89,14 @@ if (argv.json) {
 } else {
   if (pdfFiles.length) {
     if (!results.pdf.available) {
-      console.log('- pdf: unavailable (install optional "pdfjs-dist" dependency)');
+      console.error('- pdf: unavailable (install optional "pdfjs-dist" dependency)');
     } else {
       printSummary('pdf', results.pdf.files);
     }
   }
   if (docxFiles.length) {
     if (!results.docx.available) {
-      console.log('- docx: unavailable (install optional "mammoth" dependency)');
+      console.error('- docx: unavailable (install optional "mammoth" dependency)');
     } else {
       printSummary('docx', results.docx.files);
     }
@@ -197,8 +197,8 @@ function printSummary(label, files) {
     const stats = entry.stats ? formatStats(entry.stats) : 'n/a';
     const rssMb = entry.maxRss ? (entry.maxRss / (1024 * 1024)).toFixed(1) : 'n/a';
     const heapMb = entry.maxHeapUsed ? (entry.maxHeapUsed / (1024 * 1024)).toFixed(1) : 'n/a';
-    console.log(`[${label}] ${entry.file}`);
-    console.log(`- bytes=${entry.bytes} | ${stats}`);
-    console.log(`- max RSS ${rssMb} MB | max heap ${heapMb} MB`);
+    console.error(`[${label}] ${entry.file}`);
+    console.error(`- bytes=${entry.bytes} | ${stats}`);
+    console.error(`- max RSS ${rssMb} MB | max heap ${heapMb} MB`);
   }
 }

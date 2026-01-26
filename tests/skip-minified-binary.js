@@ -72,7 +72,7 @@ if (!minifiedSkip || minifiedSkip.reason !== 'minified') {
 }
 const binarySkip = skippedSample.find((entry) => entry?.file && entry.file.endsWith('binary.png'));
 if (!binarySkip || binarySkip.reason !== 'binary') {
-  console.error('Expected binary skip entry for binary.js');
+  console.error('Expected binary skip entry for binary.png');
   process.exit(1);
 }
 

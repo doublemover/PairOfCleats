@@ -66,12 +66,12 @@ if (wantsOnnx) {
   }
 }
 
-console.log(`Downloaded model ${modelId} to ${cacheDir}`);
+console.error(`Downloaded model ${modelId} to ${cacheDir}`);
 if (wantsOnnx) {
   if (onnxResolvedPath) {
-    console.log(`ONNX model available at ${onnxResolvedPath}`);
-    console.log('Config: set indexing.embeddings.provider=onnx and indexing.embeddings.onnx.modelPath to that path.');
+    console.error(`ONNX model available at ${onnxResolvedPath}`);
+    console.error('Config: set indexing.embeddings.provider=onnx and indexing.embeddings.onnx.modelPath to that path.');
   } else {
-    console.log('ONNX model path not found. Run with --onnx-path or set indexing.embeddings.onnx.modelPath.');
+    console.error('ONNX model path not found. Run with --onnx-path or set indexing.embeddings.onnx.modelPath.');
   }
 }

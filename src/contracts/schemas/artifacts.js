@@ -292,7 +292,10 @@ export const ARTIFACT_SCHEMA_DEFS = {
       properties: {
         id: intId,
         file: { type: 'string' },
-        ext: nullableString
+        ext: nullableString,
+        encoding: nullableString,
+        encodingFallback: { type: ['boolean', 'null'] },
+        encodingConfidence: { type: ['number', 'null'] }
       },
       additionalProperties: true
     }

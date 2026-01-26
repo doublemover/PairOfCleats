@@ -77,7 +77,7 @@ for (const dir of lmdbDirs) {
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
 for (const target of uniqueTargets) {
   if (!fs.existsSync(target)) {
-    console.log(`skip: ${target} (missing)`);
+    console.error(`skip: ${target} (missing)`);
     continue;
   }
   if (isRootPath(target)) {
@@ -86,12 +86,12 @@ for (const target of uniqueTargets) {
   }
 
   if (argv['dry-run']) {
-    console.log(`dry-run: would delete ${path.resolve(target)}`);
+    console.error(`dry-run: would delete ${path.resolve(target)}`);
     continue;
   }
 
   await fsPromises.rm(target, { recursive: true, force: true });
-  console.log(`deleted: ${path.resolve(target)}`);
+  console.error(`deleted: ${path.resolve(target)}`);
 }
 
-console.log('\nCleanup complete.');
+console.error('\nCleanup complete.');

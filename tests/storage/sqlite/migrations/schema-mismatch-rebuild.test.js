@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
+import { getCombinedOutput } from '../../../helpers/stdio.js';
 
 const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncrementalRepo({
   name: 'schema-mismatch-rebuild'
@@ -36,7 +37,7 @@ const rebuildResult = runCapture(
   [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (schema mismatch)'
 );
-const rebuildOutput = `${rebuildResult.stdout || ''}\n${rebuildResult.stderr || ''}`;
+const rebuildOutput = getCombinedOutput(rebuildResult);
 if (!rebuildOutput.includes('schema mismatch')) {
   console.error('Expected schema mismatch rebuild warning for incremental sqlite update.');
   process.exit(1);

@@ -2,9 +2,15 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { execa } from 'execa';
+import { spawnSubprocess } from '../src/shared/subprocess.js';
 import { createCli } from '../src/shared/cli.js';
-import { resolveToolRoot } from './dict-utils.js';
+import {
+  getRuntimeConfig,
+  loadUserConfig,
+  resolveRepoRoot,
+  resolveRuntimeEnv,
+  resolveToolRoot
+} from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'parity-matrix',
@@ -25,6 +31,9 @@ const argv = createCli({
 }).parse();
 
 const scriptRoot = resolveToolRoot();
+const repoRoot = resolveRepoRoot(process.cwd());
+const userConfig = loadUserConfig(repoRoot);
+const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
 const parityScript = path.join(scriptRoot, 'tests', 'parity.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(
@@ -214,8 +223,8 @@ async function main() {
     const logFile = path.join(logRoot, `${config.id}.log`);
     const args = configToArgs(config, queryInfo.path, outFile, top, limit);
 
-    console.log(`\n[parity-matrix] ${label}`);
-    console.log(
+    console.error(`\n[parity-matrix] ${label}`);
+    console.error(
       `node ${args.map((arg) => (arg.includes(' ') ? `"${arg}"` : arg)).join(' ')}`
     );
 
@@ -225,9 +234,24 @@ async function main() {
     }
 
     try {
-      const child = await execa(process.execPath, args, { all: true });
-      if (child.all) process.stdout.write(child.all);
-      await fsPromises.writeFile(logFile, child.all || '');
+      const outputChunks = [];
+      const recordChunk = (chunk) => {
+        if (chunk) outputChunks.push(chunk);
+      };
+      const result = await spawnSubprocess(process.execPath, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        rejectOnNonZeroExit: false,
+        captureStdout: true,
+        captureStderr: true,
+        outputMode: 'string',
+        env: runtimeEnv,
+        onStdout: recordChunk,
+        onStderr: recordChunk
+      });
+      const combinedOutput = outputChunks.join('')
+        || `${result.stdout || ''}${result.stderr || ''}`;
+      if (combinedOutput) process.stderr.write(combinedOutput);
+      await fsPromises.writeFile(logFile, combinedOutput || '');
 
       let summary = null;
       try {
@@ -237,17 +261,29 @@ async function main() {
         summary = null;
       }
 
-      results.push({ ...config, outFile, logFile, status: 'ok', summary });
+      if (result.exitCode === 0) {
+        results.push({ ...config, outFile, logFile, status: 'ok', summary });
+      } else {
+        results.push({
+          ...config,
+          outFile,
+          logFile,
+          status: 'failed',
+          exitCode: result.exitCode ?? null,
+          error: `exit ${result.exitCode ?? 'unknown'}`
+        });
+        if (argv['fail-fast']) break;
+      }
     } catch (err) {
-      const output = err?.all || err?.stdout || err?.stderr || String(err);
-      if (output) process.stdout.write(output);
+      const output = err?.result?.stdout || err?.result?.stderr || err?.message || String(err);
+      if (output) process.stderr.write(output);
       await fsPromises.writeFile(logFile, output || '');
       results.push({
         ...config,
         outFile,
         logFile,
         status: 'failed',
-        exitCode: err?.exitCode ?? null,
+        exitCode: err?.result?.exitCode ?? null,
         error: err?.message || String(err)
       });
       if (argv['fail-fast']) break;
@@ -268,7 +304,7 @@ async function main() {
   };
   const matrixPath = path.join(runRoot, 'matrix.json');
   await fsPromises.writeFile(matrixPath, JSON.stringify(matrix, null, 2));
-  console.log(`\n[parity-matrix] summary written to ${matrixPath}`);
+  console.error(`\n[parity-matrix] summary written to ${matrixPath}`);
 }
 
 main().catch((err) => {

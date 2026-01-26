@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSubprocessSync } from '../../shared/subprocess.js';
 import {
   hasIndexMeta,
   loadFileRelations,
@@ -15,7 +15,7 @@ import { MAX_JSON_BYTES, readCompatibilityKey, readJsonFile } from '../../shared
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
-import { resolveToolRoot } from '../../../tools/dict-utils.js';
+import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/dict-utils.js';
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 
@@ -50,6 +50,8 @@ export async function loadSearchIndexes({
 }) {
   const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
   const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
+  const runtimeConfig = getRuntimeConfig(rootDir, userConfig);
+  const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
@@ -94,12 +96,16 @@ export async function loadSearchIndexes({
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
     const scriptPath = path.join(toolRoot, 'tools', 'build-tantivy-index.js');
-    const result = spawnSync(
+    const result = spawnSubprocessSync(
       process.execPath,
       [scriptPath, '--mode', mode, '--repo', rootDir],
-      { stdio: emitOutput ? 'inherit' : 'ignore' }
+      {
+        stdio: emitOutput ? 'inherit' : 'ignore',
+        rejectOnNonZeroExit: false,
+        env: runtimeEnv
+      }
     );
-    if (result.status !== 0) {
+    if (result.exitCode !== 0) {
       throw new Error(`Tantivy index build failed for mode=${mode}.`);
     }
     return resolveTantivyAvailability(mode, indexDir);

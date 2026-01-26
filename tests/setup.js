@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -37,7 +38,7 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const output = `${result.stdout || ''}${result.stderr || ''}`;
+const output = getCombinedOutput(result);
 if (!output.includes('Setup complete.')) {
   console.error('setup test failed: missing completion message');
   process.exit(1);

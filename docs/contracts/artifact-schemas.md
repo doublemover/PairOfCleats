@@ -23,7 +23,7 @@ Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `repo_map
 All artifacts below are JSON unless noted. Required fields are listed.
 
 - `chunk_meta` (array): entries require `id`, `start`, `end` (ints). Optional: `fileId`, `startLine`, `endLine`, `kind`, `name`, `ext`, `metaV2`. Additional properties allowed.
-- `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`.
+- `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
 - `file_relations` (array): entries require `file`, `relations` (object).
 - `token_postings` (object): requires `vocab`, `postings`, `docLengths`. Optional: `avgDocLen`, `totalDocs`.

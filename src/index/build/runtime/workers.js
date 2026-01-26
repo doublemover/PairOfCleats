@@ -12,6 +12,8 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     rawArgv,
     envConfig,
     configConcurrency,
+    configConcurrencySource: 'config.indexing.concurrency',
+    configSourceTag: 'config',
     importConcurrencyConfig,
     ioConcurrencyCapConfig
   });
@@ -57,7 +59,8 @@ export const createRuntimeQueues = ({
   ioConcurrency,
   cpuConcurrency,
   fileConcurrency,
-  embeddingConcurrency
+  embeddingConcurrency,
+  pendingLimits
 }) => {
   // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
   //
@@ -71,20 +74,34 @@ export const createRuntimeQueues = ({
   //
   // Keep a small, CPU-scaled window to cap worst-case buffering without requiring
   // users to tweak configuration.
-  const maxFilePending = Math.min(256, Math.max(32, fileConcurrency * 4));
-  const maxIoPending = Math.min(512, Math.max(64, Math.max(ioConcurrency, fileConcurrency) * 4));
+  const maxFilePending = Number.isFinite(pendingLimits?.cpu?.maxPending)
+    ? pendingLimits.cpu.maxPending
+    : Math.max(16, cpuConcurrency * 4);
+  const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
+    ? pendingLimits.io.maxPending
+    : Math.max(8, ioConcurrency * 4);
   const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
     ? embeddingConcurrency
     : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
-  const maxEmbeddingPending = Math.min(64, Math.max(16, effectiveEmbeddingConcurrency * 8));
+  const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
+    ? pendingLimits.embedding.maxPending
+    : Math.max(16, effectiveEmbeddingConcurrency * 4);
+  const procConcurrency = Number.isFinite(pendingLimits?.proc?.concurrency)
+    ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
+    : null;
+  const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
+    ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
+    : null;
 
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency,
     embeddingConcurrency,
+    procConcurrency,
     ioPendingLimit: maxIoPending,
     cpuPendingLimit: maxFilePending,
-    embeddingPendingLimit: maxEmbeddingPending
+    embeddingPendingLimit: maxEmbeddingPending,
+    procPendingLimit
   });
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
 };

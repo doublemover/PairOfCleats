@@ -119,11 +119,12 @@ const results = {
   components: {}
 };
 
-const log = argv.json ? () => {} : console.log;
+const log = argv.json ? () => {} : (message) => {
+  if (message != null) console.error(message);
+};
 const logCompare = (message) => {
   if (!message) return;
-  const sink = argv.json ? console.error : console.log;
-  sink(message);
+  console.error(message);
 };
 
 await maybeBuildIndexes();

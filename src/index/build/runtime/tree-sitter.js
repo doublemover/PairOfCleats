@@ -48,8 +48,12 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterLanguagePasses = treeSitterConfig.languagePasses !== false;
   const treeSitterDeferMissing = treeSitterConfig.deferMissing !== false;
   const hasDeferMissingMax = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'deferMissingMax');
+  const deferMissingRaw = treeSitterConfig.deferMissingMax;
+  const normalizedDeferMissingMax = normalizeOptionalLimit(deferMissingRaw);
   const treeSitterDeferMissingMax = hasDeferMissingMax
-    ? normalizeOptionalLimit(treeSitterConfig.deferMissingMax) ?? 0
+    ? (normalizedDeferMissingMax == null
+      ? (deferMissingRaw === 0 || deferMissingRaw === false ? null : DEFAULT_DEFER_MISSING_MAX)
+      : normalizedDeferMissingMax)
     : DEFAULT_DEFER_MISSING_MAX;
 
   // IMPORTANT: Tree-sitter WASM grammar loading can consume non-trivial memory.

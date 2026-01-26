@@ -48,26 +48,26 @@ if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPat
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
 if (!uniqueTargets.length) {
-  console.log('No uninstall targets found.');
+  console.error('No uninstall targets found.');
   process.exit(0);
 }
 
 if (!argv.yes) {
-  console.log('This will delete all PairOfCleats caches, dictionaries, model files, and extensions.');
-  console.log('Targets:');
-  uniqueTargets.forEach((target) => console.log(`- ${target}`));
+  console.error('This will delete all PairOfCleats caches, dictionaries, model files, and extensions.');
+  console.error('Targets:');
+  uniqueTargets.forEach((target) => console.error(`- ${target}`));
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const answer = await rl.question('Type "yes" to confirm: ');
   rl.close();
   if (answer.trim().toLowerCase() !== 'yes') {
-    console.log('Uninstall cancelled.');
+    console.error('Uninstall cancelled.');
     process.exit(1);
   }
 }
 
 for (const target of uniqueTargets) {
   if (!fs.existsSync(target)) {
-    console.log(`skip: ${target} (missing)`);
+    console.error(`skip: ${target} (missing)`);
     continue;
   }
   if (isRootPath(target)) {
@@ -76,12 +76,12 @@ for (const target of uniqueTargets) {
   }
 
   if (argv['dry-run']) {
-    console.log(`dry-run: would delete ${target}`);
+    console.error(`dry-run: would delete ${target}`);
     continue;
   }
 
   await fsPromises.rm(target, { recursive: true, force: true });
-  console.log(`deleted: ${target}`);
+  console.error(`deleted: ${target}`);
 }
 
-console.log('\nUninstall complete.');
+console.error('\nUninstall complete.');

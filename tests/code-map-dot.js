@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'code-map-dot');
@@ -63,7 +64,7 @@ if (mapResult.status !== 0) {
   process.exit(mapResult.status ?? 1);
 }
 
-const output = mapResult.stdout || '';
+const output = getCombinedOutput(mapResult);
 if (!output.includes('PORT=')) {
   console.error('Failed: dot output missing ports');
   process.exit(1);

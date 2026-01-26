@@ -59,4 +59,4 @@ if (requireBreaking) {
   }
 }
 
-console.log(`release-check: changelog entry ok for v${version}.`);
+console.error(`release-check: changelog entry ok for v${version}.`);

@@ -85,7 +85,7 @@ const run = async () => {
     process.exit(1);
   }
 
-  console.log('Critical dependency validation passed.');
+  console.error('Critical dependency validation passed.');
 };
 
 run().catch((err) => {

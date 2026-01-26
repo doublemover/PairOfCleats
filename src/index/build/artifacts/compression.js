@@ -15,6 +15,10 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
   const compressionMode = resolveCompressionMode(compressionConfig.mode);
   const compressionEnabled = compressionConfig.enabled === true && compressionMode;
   const compressionKeepRaw = compressionConfig.keepRaw === true;
+  const compressionGzipOptions = compressionConfig.gzipOptions
+    && typeof compressionConfig.gzipOptions === 'object'
+    ? { ...compressionConfig.gzipOptions }
+    : null;
   const compressibleArtifacts = new Set([
     'chunk_meta',
     'file_relations',
@@ -33,6 +37,7 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
     compressionEnabled,
     compressionMode,
     compressionKeepRaw,
+    compressionGzipOptions,
     compressibleArtifacts
   };
 };

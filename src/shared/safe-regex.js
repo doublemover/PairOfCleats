@@ -5,7 +5,7 @@ export const DEFAULT_SAFE_REGEX_CONFIG = {
   maxPatternLength: 512,
   maxInputLength: 10000,
   maxProgramSize: 2000,
-  timeoutMs: 25,
+  timeoutMs: null,
   flags: ''
 };
 
@@ -16,16 +16,17 @@ const normalizeLimit = (value, fallback) => {
   return fallback;
 };
 
+const FLAG_ORDER = ['g', 'i', 'm', 's'];
+const FLAG_SET = new Set(FLAG_ORDER);
+
 const normalizeFlags = (raw) => {
   if (!raw) return '';
   const seen = new Set();
-  const out = [];
   for (const ch of String(raw)) {
-    if (!'gimsu'.includes(ch) || seen.has(ch)) continue;
+    if (!FLAG_SET.has(ch)) continue;
     seen.add(ch);
-    out.push(ch);
   }
-  return out.join('');
+  return FLAG_ORDER.filter((flag) => seen.has(flag)).join('');
 };
 
 const mergeFlags = (explicit, fallback) => {
@@ -33,14 +34,7 @@ const mergeFlags = (explicit, fallback) => {
   const defaults = normalizeFlags(fallback);
   if (!defaults) return primary;
   if (!primary) return defaults;
-  const merged = [];
-  const seen = new Set();
-  for (const ch of `${defaults}${primary}`) {
-    if (seen.has(ch)) continue;
-    seen.add(ch);
-    merged.push(ch);
-  }
-  return merged.join('');
+  return normalizeFlags(`${defaults}${primary}`);
 };
 
 const re2jsBackend = createRe2jsBackend();
@@ -86,7 +80,7 @@ class SafeRegex {
       if (this.isGlobal) this.lastIndex = 0;
       return null;
     }
-    const { maxInputLength, timeoutMs } = this.config || {};
+    const { maxInputLength } = this.config || {};
     if (maxInputLength && text.length > maxInputLength) {
       if (this.isGlobal) this.lastIndex = 0;
       return null;
@@ -94,12 +88,7 @@ class SafeRegex {
     const startIndex = this.isGlobal && Number.isFinite(this.lastIndex)
       ? Math.max(0, this.lastIndex)
       : 0;
-    const started = timeoutMs ? Date.now() : 0;
     const outcome = this.backend.exec(this.compiled, text, startIndex, this.isGlobal);
-    if (timeoutMs && Date.now() - started > timeoutMs) {
-      if (this.isGlobal) this.lastIndex = 0;
-      return null;
-    }
     if (!outcome || !outcome.match) {
       if (this.isGlobal) this.lastIndex = 0;
       return null;
@@ -126,14 +115,122 @@ export function normalizeSafeRegexConfig(raw = {}, defaults = {}) {
     maxPatternLength: normalizeLimit(config.maxPatternLength, base.maxPatternLength),
     maxInputLength: normalizeLimit(config.maxInputLength, base.maxInputLength),
     maxProgramSize: normalizeLimit(config.maxProgramSize, base.maxProgramSize),
-    timeoutMs: normalizeLimit(config.timeoutMs, base.timeoutMs),
+    timeoutMs: null,
     flags: normalizeFlags(hasFlagOverride ? config.flags : base.flags)
   };
 }
 
+const buildUnsupportedFlags = (explicit, defaults) => {
+  const invalid = new Set();
+  const combined = `${explicit || ''}${defaults || ''}`;
+  for (const ch of combined) {
+    if (!FLAG_SET.has(ch)) invalid.add(ch);
+  }
+  return Array.from(invalid);
+};
+
+const tryCompileWithoutSize = (backend, source, flags, config) => {
+  try {
+    return backend.compile({
+      source,
+      flags,
+      maxProgramSize: null
+    });
+  } catch {
+    return null;
+  }
+};
+
+export function compileSafeRegex(pattern, flags = '', config = {}) {
+  const configInput = config && typeof config === 'object' ? config : {};
+  const normalized = normalizeSafeRegexConfig(configInput);
+  const engine = normalizeEngine(configInput?.engine);
+  const source = String(pattern ?? '');
+  if (!source) {
+    return { regex: null, error: { code: 'EMPTY_PATTERN', message: 'Pattern is empty.' } };
+  }
+  if (normalized.maxPatternLength && source.length > normalized.maxPatternLength) {
+    return {
+      regex: null,
+      error: {
+        code: 'PATTERN_TOO_LONG',
+        message: `Pattern exceeds max length (${source.length} > ${normalized.maxPatternLength}).`
+      }
+    };
+  }
+  const unsupportedFlags = buildUnsupportedFlags(flags, configInput?.flags);
+  if (unsupportedFlags.length) {
+    return {
+      regex: null,
+      error: {
+        code: 'UNSUPPORTED_FLAGS',
+        message: `Unsupported regex flags: ${unsupportedFlags.join('')}`
+      }
+    };
+  }
+  const combinedFlags = mergeFlags(flags, normalized.flags);
+  const backend = selectBackend(engine);
+  if (!backend || !backend.compile) {
+    return {
+      regex: null,
+      error: { code: 'ENGINE_UNAVAILABLE', message: 'Regex engine unavailable.' }
+    };
+  }
+  if (backend.name === 're2' && normalized.maxProgramSize) {
+    if (!checkProgramSize(source, combinedFlags, normalized.maxProgramSize)) {
+      const probe = tryCompileWithoutSize(backend, source, combinedFlags, normalized);
+      if (!probe) {
+        return {
+          regex: null,
+          error: { code: 'INVALID_PATTERN', message: 'Invalid regex pattern.' }
+        };
+      }
+      return {
+        regex: null,
+        error: { code: 'PROGRAM_TOO_LARGE', message: 'Regex program exceeds size cap.' }
+      };
+    }
+  }
+  if (backend.name !== 're2' && normalized.maxProgramSize) {
+    if (!checkProgramSize(source, combinedFlags, normalized.maxProgramSize)) {
+      const probe = tryCompileWithoutSize(backend, source, combinedFlags, normalized);
+      if (!probe) {
+        return {
+          regex: null,
+          error: { code: 'INVALID_PATTERN', message: 'Invalid regex pattern.' }
+        };
+      }
+      return {
+        regex: null,
+        error: { code: 'PROGRAM_TOO_LARGE', message: 'Regex program exceeds size cap.' }
+      };
+    }
+  }
+  try {
+    const compiled = backend.compile({
+      source,
+      flags: combinedFlags,
+      maxProgramSize: normalized.maxProgramSize
+    });
+    if (!compiled) {
+      return {
+        regex: null,
+        error: { code: 'INVALID_PATTERN', message: 'Invalid regex pattern.' }
+      };
+    }
+    return { regex: new SafeRegex(backend, compiled, source, combinedFlags, normalized), error: null };
+  } catch {
+    return {
+      regex: null,
+      error: { code: 'INVALID_PATTERN', message: 'Invalid regex pattern.' }
+    };
+  }
+}
+
 export function createSafeRegex(pattern, flags = '', config = {}) {
-  const normalized = normalizeSafeRegexConfig(config);
-  const engine = normalizeEngine(config?.engine);
+  const configInput = config && typeof config === 'object' ? config : {};
+  const normalized = normalizeSafeRegexConfig(configInput);
+  const engine = normalizeEngine(configInput?.engine);
   const source = String(pattern ?? '');
   if (!source) return null;
   if (normalized.maxPatternLength && source.length > normalized.maxPatternLength) {
@@ -146,13 +243,17 @@ export function createSafeRegex(pattern, flags = '', config = {}) {
       return null;
     }
   }
-  const compiled = backend.compile({
-    source,
-    flags: combinedFlags,
-    maxProgramSize: normalized.maxProgramSize
-  });
-  if (!compiled) {
+  try {
+    const compiled = backend.compile({
+      source,
+      flags: combinedFlags,
+      maxProgramSize: normalized.maxProgramSize
+    });
+    if (!compiled) {
+      return null;
+    }
+    return new SafeRegex(backend, compiled, source, combinedFlags, normalized);
+  } catch {
     return null;
   }
-  return new SafeRegex(backend, compiled, source, combinedFlags, normalized);
 }

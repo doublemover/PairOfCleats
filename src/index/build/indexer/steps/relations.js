@@ -1,4 +1,5 @@
 import { log } from '../../../../shared/progress.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRelationGraphs } from '../../graphs.js';
 import { scanImports } from '../../imports.js';
@@ -24,8 +25,10 @@ export const preScanImports = async ({
   crashLogger,
   timing,
   incrementalState,
-  fileTextByFile
+  fileTextByFile,
+  abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
   const scanPlan = resolveImportScanPlan({ runtime, mode, relationsEnabled });
   let importResult = { importsByFile: {}, durationMs: 0, stats: null };
   if (scanPlan.shouldScan && scanPlan.usePreScan) {
@@ -39,7 +42,8 @@ export const preScanImports = async ({
       importConcurrency: runtime.importConcurrency,
       queue: runtime.queues.io,
       incrementalState,
-      fileTextByFile
+      fileTextByFile,
+      abortSignal
     });
     timing.importsMs = importResult.durationMs;
     if (importResult?.stats) {
@@ -111,8 +115,10 @@ export const runCrossFileInference = async ({
   state,
   crashLogger,
   featureMetrics,
-  relationsEnabled
+  relationsEnabled,
+  abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
   const policy = runtime.analysisPolicy || {};
   const typeInferenceEnabled = typeof policy?.typeInference?.local?.enabled === 'boolean'
     ? policy.typeInference.local.enabled
@@ -129,6 +135,7 @@ export const runCrossFileInference = async ({
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
+  const enableCrossFileTypeInference = typeInferenceEnabled && typeInferenceCrossFileEnabled;
   const crossFileEnabled = typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled;
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
@@ -139,7 +146,7 @@ export const runCrossFileInference = async ({
       enabled: true,
       log,
       useTooling,
-      enableTypeInference: typeInferenceEnabled,
+      enableTypeInference: enableCrossFileTypeInference,
       enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
       fileRelations: state.fileRelations
     });

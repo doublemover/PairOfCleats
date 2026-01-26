@@ -29,6 +29,7 @@ import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRecordsConfig } from '../records.js';
+import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
@@ -36,7 +37,6 @@ import { normalizeLimit, normalizeRatio, normalizeDepth, resolveFileCapsAndGuard
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
-  resolveThreadLimitsConfig,
   createRuntimeQueues,
   resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
@@ -96,6 +96,31 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const envelope = resolveRuntimeEnvelope({
+    argv,
+    rawArgv,
+    userConfig,
+    autoPolicy,
+    env: process.env,
+    execArgv: process.execArgv,
+    cpuCount: os.cpus().length,
+    processInfo: {
+      pid: process.pid,
+      argv: process.argv,
+      execPath: process.execPath,
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpuCount: os.cpus().length
+    },
+    toolVersion: getToolVersion()
+  });
+  if (Array.isArray(envelope.warnings) && envelope.warnings.length) {
+    for (const warning of envelope.warnings) {
+      if (!warning?.message) continue;
+      log(`[warn] ${warning.message}`);
+    }
+  }
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
@@ -253,7 +278,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const twoStageBackground = twoStageConfig.background === true;
   const twoStageQueue = twoStageConfig.queue !== false && twoStageBackground;
 
-  const threadLimits = resolveThreadLimitsConfig({ argv, rawArgv, envConfig, indexingConfig, log });
   const {
     cpuCount,
     maxConcurrencyCap,
@@ -261,7 +285,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     importConcurrency,
     ioConcurrency,
     cpuConcurrency
-  } = threadLimits;
+  } = {
+    cpuCount: envelope.concurrency.cpuCount,
+    maxConcurrencyCap: envelope.concurrency.maxConcurrencyCap,
+    fileConcurrency: envelope.concurrency.fileConcurrency.value,
+    importConcurrency: envelope.concurrency.importConcurrency.value,
+    ioConcurrency: envelope.concurrency.ioConcurrency.value,
+    cpuConcurrency: envelope.concurrency.cpuConcurrency.value
+  };
 
   const embeddingRuntime = await resolveEmbeddingRuntime({
     rootDir: root,
@@ -294,7 +325,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ioConcurrency,
     cpuConcurrency,
     fileConcurrency,
-    embeddingConcurrency
+    embeddingConcurrency,
+    pendingLimits: envelope.queues
   });
   const { queues } = queueConfig;
   const pythonAstRuntimeConfig = {
@@ -576,6 +608,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   } catch {}
 
   return {
+    envelope,
     root,
     argv,
     rawArgv,
@@ -583,6 +616,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     repoCacheRoot,
     buildId,
     buildRoot,
+    recordsDir: triageConfig.recordsDir,
+    recordsConfig,
     currentIndexRoot,
     configHash,
     repoProvenance,

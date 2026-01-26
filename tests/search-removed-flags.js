@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const searchPath = path.join(root, 'search.js');
@@ -24,7 +25,7 @@ for (const entry of cases) {
     console.error(`Expected non-zero exit for ${entry.flag}.`);
     process.exit(1);
   }
-  const output = `${result.stderr || ''}${result.stdout || ''}`;
+  const output = getCombinedOutput(result);
   if (!output.toLowerCase().includes('removed') || !output.includes(entry.flag)) {
     console.error(`Expected actionable error for ${entry.flag}.`);
     process.exit(1);

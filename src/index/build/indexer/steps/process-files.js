@@ -4,6 +4,7 @@ import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { pruneTreeSitterLanguages, resetTreeSitterParser } from '../../../../lang/tree-sitter.js';
 import { createBuildCheckpoint } from '../../build-state.js';
@@ -38,8 +39,10 @@ export const processFiles = async ({
   incrementalState,
   relationsEnabled,
   shardPerfProfile,
-  fileTextCache
+  fileTextCache,
+  abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
   log('Processing and indexing files...');
   crashLogger.updatePhase('processing');
   const processStart = Date.now();
@@ -48,7 +51,7 @@ export const processFiles = async ({
     `Imports: ${runtime.importConcurrency}, IO: ${runtime.ioConcurrency}, CPU: ${runtime.cpuConcurrency}`
   );
   const envConfig = getEnvConfig();
-  const showFileProgress = envConfig.verbose === true;
+  const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -148,6 +151,7 @@ export const processFiles = async ({
       relationsEnabled,
       skippedFiles: stateRef.skippedFiles,
       fileCaps: runtimeRef.fileCaps,
+      maxFileBytes: runtimeRef.maxFileBytes,
       fileScan: runtimeRef.fileScan,
       featureMetrics: runtimeRef.featureMetrics
     });
@@ -155,10 +159,11 @@ export const processFiles = async ({
       await runWithQueue(
         runtimeRef.queues.cpu,
         batchEntries,
-        async (entry, fileIndex) => {
+        async (entry, ctx) => {
+          const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
           const stableFileIndex = Number.isFinite(entry?.fileIndex)
             ? entry.fileIndex
-            : (Number.isFinite(fileIndex) ? fileIndex + 1 : null);
+            : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
           if (showFileProgress) {
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
@@ -207,9 +212,11 @@ export const processFiles = async ({
         },
         {
           collectResults: false,
-          onResult: (result, index) => {
-            const entry = batchEntries[index];
-            const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
+          signal: abortSignal,
+          onResult: (result, ctx) => {
+            const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+            const entry = batchEntries[entryIndex];
+            const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex;
             if (result?.defer) {
               deferredEntries.push({
                 entry,

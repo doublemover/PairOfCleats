@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { parseBuildArgs } from '../../index/build/args.js';
 import { buildIndexForMode } from '../../index/build/indexer.js';
@@ -24,8 +23,12 @@ import { shutdownTreeSitterWorkerPool } from '../../lang/tree-sitter.js';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
 import { buildAutoPolicy } from '../../shared/auto-policy.js';
+import { resolveRuntimeEnvelope, resolveRuntimeEnv } from '../../shared/runtime-envelope.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { spawnSubprocess } from '../../shared/subprocess.js';
 import { buildRawArgs, buildSearchArgs, buildStage2Args, normalizeStage } from './args.js';
 import { updateEnrichmentState } from './enrichment-state.js';
+import os from 'node:os';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
@@ -133,59 +136,52 @@ const teardownRuntime = async (runtime) => {
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 
-const pipeOutputLines = (stream, onLine) => {
-  if (!stream || !onLine) return () => {};
+const createLineEmitter = (onLine) => {
   let buffer = '';
-  const flushLine = (line) => {
+  const emitLine = (line) => {
     const trimmed = line.trimEnd();
     if (trimmed) onLine(trimmed);
   };
-  const onData = (chunk) => {
-    buffer += chunk.toString();
+  const handleChunk = (chunk) => {
+    buffer += chunk;
     const parts = buffer.split(/\r?\n/);
     buffer = parts.pop() || '';
-    for (const line of parts) flushLine(line);
+    for (const line of parts) emitLine(line);
   };
-  const onEnd = () => {
-    if (buffer) flushLine(buffer);
+  const flush = () => {
+    if (buffer) emitLine(buffer);
     buffer = '';
   };
-  stream.on('data', onData);
-  stream.on('end', onEnd);
-  return () => {
-    stream.off('data', onData);
-    stream.off('end', onEnd);
-    if (buffer) flushLine(buffer);
-  };
+  return { handleChunk, flush };
 };
 
-const runEmbeddingsTool = (args, extraEnv = null, options = {}) => new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: extraEnv ? { ...process.env, ...extraEnv } : process.env
-  });
+const runEmbeddingsTool = async (args, options = {}) => {
   const onLine = typeof options.onLine === 'function' ? options.onLine : null;
-  const detachStdout = pipeOutputLines(child.stdout, onLine);
-  const detachStderr = pipeOutputLines(child.stderr, onLine);
-  child.on('error', (err) => {
-    detachStdout();
-    detachStderr();
-    reject(err);
+  const emitter = onLine ? createLineEmitter(onLine) : null;
+  const baseEnv = options.baseEnv && typeof options.baseEnv === 'object'
+    ? options.baseEnv
+    : process.env;
+  const extraEnv = options.extraEnv && typeof options.extraEnv === 'object'
+    ? options.extraEnv
+    : null;
+  const env = extraEnv ? { ...baseEnv, ...extraEnv } : baseEnv;
+  const result = await spawnSubprocess(process.execPath, args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env,
+    signal: options.signal || null,
+    rejectOnNonZeroExit: false,
+    onStdout: emitter ? emitter.handleChunk : null,
+    onStderr: emitter ? emitter.handleChunk : null
   });
-  child.on('close', (code, signal) => {
-    detachStdout();
-    detachStderr();
-    if (code === 0) {
-      resolve({ ok: true });
-      return;
-    }
-    if (signal || code === EMBEDDINGS_CANCEL_CODE) {
-      resolve({ cancelled: true, code: code ?? null, signal: signal || null });
-      return;
-    }
-    reject(new Error(`build-embeddings exited with code ${code ?? 'unknown'}`));
-  });
-});
+  emitter?.flush();
+  if (result.exitCode === 0) {
+    return { ok: true };
+  }
+  if (result.signal || result.exitCode === EMBEDDINGS_CANCEL_CODE) {
+    return { cancelled: true, code: result.exitCode ?? null, signal: result.signal || null };
+  }
+  throw new Error(`build-embeddings exited with code ${result.exitCode ?? 'unknown'}`);
+};
 
 /**
  * Build file-backed indexes for a repo.
@@ -208,6 +204,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
   const warn = typeof options.warn === 'function' ? options.warn : ((message) => log(`[warn] ${message}`));
+  const abortSignal = options.abortSignal || null;
   const sqliteLogger = { log, warn, error: logError };
   const metricsMode = mode || 'all';
   const recordIndexMetric = (stage, status, start) => {
@@ -217,10 +214,32 @@ export async function buildIndex(repoRoot, options = {}) {
     } catch {}
   };
 
+  throwIfAborted(abortSignal);
   const userConfig = loadUserConfig(root);
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+  const envelope = resolveRuntimeEnvelope({
+    argv,
+    rawArgv,
+    userConfig,
+    autoPolicy: policy,
+    env: process.env,
+    execArgv: process.execArgv,
+    cpuCount: os.cpus().length,
+    processInfo: {
+      pid: process.pid,
+      argv: process.argv,
+      execPath: process.execPath,
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpuCount: os.cpus().length
+    },
+    toolVersion: getToolVersion()
+  });
+  const runtimeEnv = resolveRuntimeEnv(envelope, process.env);
+  throwIfAborted(abortSignal);
 
   if (argv.watch) {
     const runtime = await createBuildRuntime({ root, argv, rawArgv, policy });
@@ -228,13 +247,14 @@ export async function buildIndex(repoRoot, options = {}) {
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
-      await watchIndex({ runtime, modes, pollMs, debounceMs });
+      await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal });
       return { modes, watch: true };
     } finally {
       await teardownRuntime(runtime);
     }
   }
 
+  throwIfAborted(abortSignal);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
@@ -264,13 +284,16 @@ export async function buildIndex(repoRoot, options = {}) {
       recordIndexMetric('stage3', 'ok', started);
       return result;
     };
-    if (!embeddingRuntime.embeddingEnabled) {
-      log('Embeddings disabled; skipping stage3.');
-      return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
-    }
-    const lock = await acquireIndexLock({ repoCacheRoot, log });
-    if (!lock) throw new Error('Index lock unavailable.');
     try {
+      throwIfAborted(abortSignal);
+      if (!embeddingRuntime.embeddingEnabled) {
+        log('Embeddings disabled; skipping stage3.');
+        return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
+      }
+      const lock = await acquireIndexLock({ repoCacheRoot, log });
+      if (!lock) throw new Error('Index lock unavailable.');
+      try {
+        throwIfAborted(abortSignal);
       const embedTotal = embedModes.length;
       let embedIndex = 0;
       if (embedTotal) {
@@ -283,6 +306,7 @@ export async function buildIndex(repoRoot, options = {}) {
         await ensureQueueDir(queueDir);
         const jobs = [];
         for (const modeItem of embedModes) {
+          throwIfAborted(abortSignal);
           const jobId = crypto.randomUUID();
           const result = await enqueueJob(
             queueDir,
@@ -327,13 +351,16 @@ export async function buildIndex(repoRoot, options = {}) {
         return recordOk({ modes: embedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
       }
       for (const modeItem of embedModes) {
+        throwIfAborted(abortSignal);
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeItem];
         if (Number.isFinite(Number(argv.dims))) {
           args.push('--dims', String(argv.dims));
         }
         if (embeddingRuntime.useStubEmbeddings) args.push('--stub-embeddings');
         args.push('--progress', 'off');
-        const embedResult = await runEmbeddingsTool(args, null, {
+        const embedResult = await runEmbeddingsTool(args, {
+          baseEnv: runtimeEnv,
+          signal: abortSignal,
           onLine: (line) => {
             if (line.includes('lance::dataset::write::insert')
               || line.includes('No existing dataset at')) {
@@ -389,11 +416,16 @@ export async function buildIndex(repoRoot, options = {}) {
         }
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
+      } finally {
+        await lock.release();
+      }
     } catch (err) {
+      if (isAbortError(err)) {
+        recordIndexMetric('stage3', 'aborted', started);
+        throw err;
+      }
       recordIndexMetric('stage3', 'error', started);
       throw err;
-    } finally {
-      await lock.release();
     }
   };
   const runSqliteStage = async () => {
@@ -402,36 +434,45 @@ export async function buildIndex(repoRoot, options = {}) {
       recordIndexMetric('stage4', 'ok', started);
       return result;
     };
-    if (!shouldBuildSqlite) {
-      log('SQLite disabled; skipping stage4.');
-      return recordOk({ modes: sqliteModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
-    }
-    const lock = await acquireIndexLock({ repoCacheRoot, log });
-    if (!lock) throw new Error('Index lock unavailable.');
     try {
-      if (!sqliteModes.length) return recordOk({ modes: sqliteModes, sqlite: null, repo: root, stage: 'stage4' });
-      let sqliteResult = null;
-      const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
-      for (const mode of sqliteModeList) {
-        sqliteResult = await buildSqliteIndex(root, {
-          mode,
-          incremental: argv.incremental === true,
-          emitOutput: options.emitOutput !== false,
-          exitOnError: false,
-          logger: sqliteLogger
-        });
+      throwIfAborted(abortSignal);
+      if (!shouldBuildSqlite) {
+        log('SQLite disabled; skipping stage4.');
+        return recordOk({ modes: sqliteModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
       }
-      if (includeSqlite && overallProgress?.advance) {
-        for (const modeItem of sqliteModes) {
-          overallProgress.advance({ message: `${modeItem} sqlite` });
+      const lock = await acquireIndexLock({ repoCacheRoot, log });
+      if (!lock) throw new Error('Index lock unavailable.');
+      try {
+        throwIfAborted(abortSignal);
+        if (!sqliteModes.length) return recordOk({ modes: sqliteModes, sqlite: null, repo: root, stage: 'stage4' });
+        let sqliteResult = null;
+        const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
+        for (const mode of sqliteModeList) {
+          throwIfAborted(abortSignal);
+          sqliteResult = await buildSqliteIndex(root, {
+            mode,
+            incremental: argv.incremental === true,
+            emitOutput: options.emitOutput !== false,
+            exitOnError: false,
+            logger: sqliteLogger
+          });
         }
+        if (includeSqlite && overallProgress?.advance) {
+          for (const modeItem of sqliteModes) {
+            overallProgress.advance({ message: `${modeItem} sqlite` });
+          }
+        }
+        return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
+      } finally {
+        await lock.release();
       }
-      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
     } catch (err) {
+      if (isAbortError(err)) {
+        recordIndexMetric('stage4', 'aborted', started);
+        throw err;
+      }
       recordIndexMetric('stage4', 'error', started);
       throw err;
-    } finally {
-      await lock.release();
     }
   };
   const runStage = async (stage, { allowSqlite = true } = {}) => {
@@ -441,6 +482,7 @@ export async function buildIndex(repoRoot, options = {}) {
     let runtime = null;
     let result = null;
     try {
+      throwIfAborted(abortSignal);
       runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
       phaseStage = runtime.stage || phaseStage;
       runtime.featureMetrics = createFeatureMetrics({
@@ -469,145 +511,158 @@ export async function buildIndex(repoRoot, options = {}) {
         ? startBuildHeartbeat(runtime.buildRoot, phaseStage)
         : () => {};
       try {
-      await initBuildState({
-        buildRoot: runtime.buildRoot,
-        buildId: runtime.buildId,
-        repoRoot: runtime.root,
-        modes,
-        stage: phaseStage,
-        configHash: runtime.configHash,
-        toolVersion: getToolVersion(),
-        repoProvenance: runtime.repoProvenance,
-        signatureVersion: SIGNATURE_VERSION
-      });
-      if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
-        await updateBuildState(runtime.buildRoot, {
-          ignore: {
-            files: runtime.ignoreFiles || [],
-            warnings: runtime.ignoreWarnings?.length ? runtime.ignoreWarnings : null
-          }
+        throwIfAborted(abortSignal);
+        await initBuildState({
+          buildRoot: runtime.buildRoot,
+          buildId: runtime.buildId,
+          repoRoot: runtime.root,
+          modes,
+          stage: phaseStage,
+          configHash: runtime.configHash,
+          toolVersion: getToolVersion(),
+          repoProvenance: runtime.repoProvenance,
+          signatureVersion: SIGNATURE_VERSION
         });
-      }
-      await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
-      let sharedDiscovery = null;
-      const preprocessModes = modes.filter((modeItem) => (
-        modeItem === 'code'
-        || modeItem === 'prose'
-        || modeItem === 'extracted-prose'
-        || modeItem === 'records'
-      ));
-      if (preprocessModes.length) {
-        await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
-        const preprocess = await preprocessFiles({
-          root: runtime.root,
-          modes: preprocessModes,
-          recordsDir: runtime.recordsDir,
-          recordsConfig: runtime.recordsConfig,
-          ignoreMatcher: runtime.ignoreMatcher,
-          maxFileBytes: runtime.maxFileBytes,
-          fileCaps: runtime.fileCaps,
-          maxDepth: runtime.guardrails?.maxDepth ?? null,
-          maxFiles: runtime.guardrails?.maxFiles ?? null,
-          fileScan: runtime.fileScan,
-          lineCounts: true,
-          concurrency: runtime.ioConcurrency,
-          log
-        });
-        await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
-        await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
-        sharedDiscovery = {};
-        for (const modeItem of preprocessModes) {
-          sharedDiscovery[modeItem] = {
-            entries: preprocess.entriesByMode[modeItem] || [],
-            skippedFiles: preprocess.skippedByMode[modeItem] || [],
-            lineCounts: preprocess.lineCountsByMode[modeItem] || new Map()
-          };
-        }
-      }
-      computeCompatibilityKey({ runtime, modes, sharedDiscovery });
-      await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
-      await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
-      for (const modeItem of modes) {
-        const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
-        await buildIndexForMode({ mode: modeItem, runtime, discovery });
-      }
-      if (runtime.featureMetrics) {
-        await writeFeatureMetrics({
-          metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
-          featureMetrics: runtime.featureMetrics
-        });
-      }
-      await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
-      const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
-      const sqliteModes = modes.filter((modeItem) => (
-        modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose' || modeItem === 'records'
-      ));
-      const shouldBuildSqlite = allowSqlite
-        && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
-      const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
-      if (shouldBuildSqlite && sqliteModes.length) {
-        const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
-        const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
-        const extractedProseDir = getIndexDir(root, 'extracted-prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
-        const recordsDir = getIndexDir(root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
-        const sqliteOut = path.join(runtime.buildRoot, 'index-sqlite');
-        const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
-        for (const mode of sqliteModeList) {
-          sqliteResult = await buildSqliteIndex(root, {
-            mode,
-            incremental: stageArgv.incremental === true,
-            out: sqliteOut,
-            codeDir,
-            proseDir,
-            extractedProseDir,
-            recordsDir,
-            emitOutput: options.emitOutput !== false,
-            exitOnError: false,
-            logger: sqliteLogger
+        if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
+          await updateBuildState(runtime.buildRoot, {
+            ignore: {
+              files: runtime.ignoreFiles || [],
+              warnings: runtime.ignoreWarnings?.length ? runtime.ignoreWarnings : null
+            }
           });
         }
-      }
-      await markBuildPhase(runtime.buildRoot, 'validation', 'running');
-      const validation = await validateIndexArtifacts({
-        root: runtime.root,
-        indexRoot: runtime.buildRoot,
-        modes,
-        userConfig: runtime.userConfig,
-        sqliteEnabled: sqliteEnabledForValidation
-      });
-      const validationSummary = {
-        ok: validation.ok,
-        issueCount: validation.issues.length,
-        warningCount: validation.warnings.length,
-        issues: validation.ok ? null : validation.issues.slice(0, 10)
-      };
-      await updateBuildState(runtime.buildRoot, {
-        validation: validationSummary
-      });
-      if (!validation.ok) {
-        await markBuildPhase(runtime.buildRoot, 'validation', 'failed');
-        throw new Error('Index validation failed; see index-validate output for details.');
-      }
-      await markBuildPhase(runtime.buildRoot, 'validation', 'done');
-      await markBuildPhase(runtime.buildRoot, 'promote', 'running');
-      await promoteBuild({
-        repoRoot: runtime.root,
-        userConfig: runtime.userConfig,
-        buildId: runtime.buildId,
-        buildRoot: runtime.buildRoot,
-        stage: phaseStage,
-        modes,
-        configHash: runtime.configHash,
-        repoProvenance: runtime.repoProvenance
-      });
-      await markBuildPhase(runtime.buildRoot, 'promote', 'done');
-      result = { modes, sqlite: sqliteResult, repo: runtime.root, stage };
+        await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
+        let sharedDiscovery = null;
+        const preprocessModes = modes.filter((modeItem) => (
+          modeItem === 'code'
+          || modeItem === 'prose'
+          || modeItem === 'extracted-prose'
+          || modeItem === 'records'
+        ));
+        if (preprocessModes.length) {
+          await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
+          throwIfAborted(abortSignal);
+          const preprocess = await preprocessFiles({
+            root: runtime.root,
+            modes: preprocessModes,
+            recordsDir: runtime.recordsDir,
+            recordsConfig: runtime.recordsConfig,
+            ignoreMatcher: runtime.ignoreMatcher,
+            maxFileBytes: runtime.maxFileBytes,
+            fileCaps: runtime.fileCaps,
+            maxDepth: runtime.guardrails?.maxDepth ?? null,
+            maxFiles: runtime.guardrails?.maxFiles ?? null,
+            fileScan: runtime.fileScan,
+            lineCounts: true,
+            concurrency: runtime.ioConcurrency,
+            log,
+            abortSignal
+          });
+          throwIfAborted(abortSignal);
+          await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
+          await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
+          sharedDiscovery = {};
+          for (const modeItem of preprocessModes) {
+            sharedDiscovery[modeItem] = {
+              entries: preprocess.entriesByMode[modeItem] || [],
+              skippedFiles: preprocess.skippedByMode[modeItem] || [],
+              lineCounts: preprocess.lineCountsByMode[modeItem] || new Map()
+            };
+          }
+        }
+        computeCompatibilityKey({ runtime, modes, sharedDiscovery });
+        await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
+        await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
+        for (const modeItem of modes) {
+          throwIfAborted(abortSignal);
+          const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
+          await buildIndexForMode({ mode: modeItem, runtime, discovery, abortSignal });
+        }
+        if (runtime.featureMetrics) {
+          await writeFeatureMetrics({
+            metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
+            featureMetrics: runtime.featureMetrics
+          });
+        }
+        await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
+        const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
+        const sqliteModes = modes.filter((modeItem) => (
+          modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose' || modeItem === 'records'
+        ));
+        const shouldBuildSqlite = allowSqlite
+          && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
+        const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
+        if (shouldBuildSqlite && sqliteModes.length) {
+          throwIfAborted(abortSignal);
+          const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
+          const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
+          const extractedProseDir = getIndexDir(root, 'extracted-prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
+          const recordsDir = getIndexDir(root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
+          const sqliteOut = path.join(runtime.buildRoot, 'index-sqlite');
+          const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
+          for (const mode of sqliteModeList) {
+            throwIfAborted(abortSignal);
+            sqliteResult = await buildSqliteIndex(root, {
+              mode,
+              incremental: stageArgv.incremental === true,
+              out: sqliteOut,
+              codeDir,
+              proseDir,
+              extractedProseDir,
+              recordsDir,
+              emitOutput: options.emitOutput !== false,
+              exitOnError: false,
+              logger: sqliteLogger
+            });
+          }
+        }
+        await markBuildPhase(runtime.buildRoot, 'validation', 'running');
+        throwIfAborted(abortSignal);
+        const validation = await validateIndexArtifacts({
+          root: runtime.root,
+          indexRoot: runtime.buildRoot,
+          modes,
+          userConfig: runtime.userConfig,
+          sqliteEnabled: sqliteEnabledForValidation
+        });
+        const validationSummary = {
+          ok: validation.ok,
+          issueCount: validation.issues.length,
+          warningCount: validation.warnings.length,
+          issues: validation.ok ? null : validation.issues.slice(0, 10)
+        };
+        await updateBuildState(runtime.buildRoot, {
+          validation: validationSummary
+        });
+        if (!validation.ok) {
+          await markBuildPhase(runtime.buildRoot, 'validation', 'failed');
+          throw new Error('Index validation failed; see index-validate output for details.');
+        }
+        await markBuildPhase(runtime.buildRoot, 'validation', 'done');
+        await markBuildPhase(runtime.buildRoot, 'promote', 'running');
+        throwIfAborted(abortSignal);
+        await promoteBuild({
+          repoRoot: runtime.root,
+          userConfig: runtime.userConfig,
+          buildId: runtime.buildId,
+          buildRoot: runtime.buildRoot,
+          stage: phaseStage,
+          modes,
+          configHash: runtime.configHash,
+          repoProvenance: runtime.repoProvenance
+        });
+        await markBuildPhase(runtime.buildRoot, 'promote', 'done');
+        result = { modes, sqlite: sqliteResult, repo: runtime.root, stage };
       } finally {
         stopHeartbeat();
         await lock.release();
         await teardownRuntime(runtime);
       }
     } catch (err) {
+      if (isAbortError(err)) {
+        recordIndexMetric(phaseStage, 'aborted', started);
+        throw err;
+      }
       recordIndexMetric(phaseStage, 'error', started);
       throw err;
     }
@@ -693,7 +748,17 @@ export async function buildIndex(repoRoot, options = {}) {
       }
     }
     const stage2ArgsWithScript = [path.join(toolRoot, 'build_index.js'), ...stage2Args];
-    spawn(process.execPath, stage2ArgsWithScript, { stdio: 'ignore', detached: true }).unref();
+    void spawnSubprocess(process.execPath, stage2ArgsWithScript, {
+      stdio: 'ignore',
+      env: runtimeEnv,
+      detached: true,
+      unref: true,
+      rejectOnNonZeroExit: false,
+      captureStdout: false,
+      captureStderr: false
+    }).catch((err) => {
+      log(`[stage2] background spawn failed: ${err?.message || err}`);
+    });
     return { modes, stage1: stage1Result, stage2: { background: true }, repo: root };
   }
 

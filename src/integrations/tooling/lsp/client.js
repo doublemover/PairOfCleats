@@ -70,7 +70,7 @@ export function createLspClient(options) {
   const pending = new Map();
 
   const send = (payload) => {
-    if (!writer || writerClosed) return;
+    if (!writer || writerClosed) return false;
     const pendingWrite = writer.write(payload);
     if (pendingWrite && typeof pendingWrite.catch === 'function') {
       pendingWrite.catch((err) => {
@@ -81,6 +81,7 @@ export function createLspClient(options) {
         log(`[lsp] write error: ${err?.message || err}`);
       });
     }
+    return true;
   };
 
   const handleResponse = (message) => {
@@ -135,61 +136,73 @@ export function createLspClient(options) {
 
   const start = () => {
     if (proc) return proc;
-    proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
-    parser = createFramedJsonRpcParser({
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
+    proc = child;
+    const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
       onError: (err) => {
         log(`[lsp] parse error: ${err.message}`);
-        proc?.kill();
+        child?.kill();
       },
       maxBufferBytes,
       maxHeaderBytes,
       maxMessageBytes
     });
-    writer = getJsonRpcWriter(proc.stdin);
+    parser = childParser;
+    writer = getJsonRpcWriter(child.stdin);
     writerClosed = false;
     const markWriterClosed = () => {
+      if (proc !== child) return;
       writerClosed = true;
-      if (proc?.stdin) closeJsonRpcWriter(proc.stdin);
+      if (child?.stdin) closeJsonRpcWriter(child.stdin);
     };
-    proc.stdin?.on('close', markWriterClosed);
-    proc.stdin?.on('error', markWriterClosed);
-    proc.stdout?.on('data', (chunk) => parser?.push(chunk));
-    proc.stdout?.on('close', () => log('[lsp] reader closed'));
-    proc.stdout?.on('error', (err) => log(`[lsp] stdout error: ${err?.message || err}`));
-    proc.stderr.on('data', (chunk) => {
+    child.stdin?.on('close', markWriterClosed);
+    child.stdin?.on('error', markWriterClosed);
+    child.stdout?.on('data', (chunk) => {
+      if (proc !== child) return;
+      childParser?.push(chunk);
+    });
+    child.stdout?.on('close', () => {
+      if (proc !== child) return;
+      log('[lsp] reader closed');
+    });
+    child.stdout?.on('error', (err) => {
+      if (proc !== child) return;
+      log(`[lsp] stdout error: ${err?.message || err}`);
+    });
+    child.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8').trim();
       if (text) log(`[lsp] ${text}`);
     });
-    proc.on('error', (err) => {
-      const currentProc = proc;
+    child.on('error', (err) => {
+      if (proc !== child) return;
       for (const entry of pending.values()) {
         if (entry.timeout) clearTimeout(entry.timeout);
         entry.reject(err);
       }
       pending.clear();
       proc = null;
-      parser?.dispose();
+      childParser?.dispose();
       parser = null;
       writer = null;
       writerClosed = true;
-      if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
+      if (child?.stdin) closeJsonRpcWriter(child.stdin);
     });
-    proc.on('exit', (code, signal) => {
-      const currentProc = proc;
+    child.on('exit', (code, signal) => {
+      if (proc !== child) return;
       for (const entry of pending.values()) {
         if (entry.timeout) clearTimeout(entry.timeout);
         entry.reject(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
       }
       pending.clear();
       proc = null;
-      parser?.dispose();
+      childParser?.dispose();
       parser = null;
       writer = null;
       writerClosed = true;
-      if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
+      if (child?.stdin) closeJsonRpcWriter(child.stdin);
     });
-    return proc;
+    return child;
   };
 
   const request = (method, params, { timeoutMs } = {}) => {
@@ -204,7 +217,11 @@ export function createLspClient(options) {
         }, timeoutMs);
       }
       pending.set(id, entry);
-      send({ jsonrpc: '2.0', id, method, params });
+      if (!send({ jsonrpc: '2.0', id, method, params })) {
+        pending.delete(id);
+        if (entry.timeout) clearTimeout(entry.timeout);
+        entry.reject(new Error(`LSP writer unavailable (${method}).`));
+      }
     });
   };
 

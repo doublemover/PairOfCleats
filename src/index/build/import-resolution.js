@@ -410,7 +410,39 @@ export function resolveImportLinks({
   }
 
   if (enableGraph) {
-    graph.nodes = Array.from(graphNodes.values());
+    graph.nodes = Array.from(graphNodes.values()).sort((a, b) => sortStrings(a.id, b.id));
+    if (Array.isArray(edges)) {
+      edges.sort((a, b) => {
+        const aKey = [
+          a.from || '',
+          a.to || '',
+          a.rawSpecifier || '',
+          a.resolvedType || '',
+          a.resolvedPath || '',
+          a.packageName || '',
+          a.tsconfigPath || '',
+          a.tsPathPattern || ''
+        ].join('|');
+        const bKey = [
+          b.from || '',
+          b.to || '',
+          b.rawSpecifier || '',
+          b.resolvedType || '',
+          b.resolvedPath || '',
+          b.packageName || '',
+          b.tsconfigPath || '',
+          b.tsPathPattern || ''
+        ].join('|');
+        return sortStrings(aKey, bKey);
+      });
+    }
+    if (Array.isArray(warningList)) {
+      warningList.sort((a, b) => {
+        const aKey = `${a?.importer || ''}|${a?.specifier || ''}|${a?.reason || ''}`;
+        const bKey = `${b?.importer || ''}|${b?.specifier || ''}|${b?.reason || ''}`;
+        return sortStrings(aKey, bKey);
+      });
+    }
     graph.stats = {
       files: importsEntries.length,
       edges: edgeTotal,

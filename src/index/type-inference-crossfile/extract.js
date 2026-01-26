@@ -1,17 +1,14 @@
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
+import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
 import { RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
 
 export const extractReturnTypes = (chunk) => {
   const docmeta = chunk?.docmeta || {};
   const types = [];
-  if (docmeta.returnType) types.push(docmeta.returnType);
-  if (Array.isArray(docmeta.returns)) {
-    for (const value of docmeta.returns) {
-      if (value) types.push(value);
-    }
-  } else if (docmeta.returns) {
-    types.push(docmeta.returns);
+  const declaredReturns = collectDeclaredReturnTypes(docmeta);
+  for (const value of declaredReturns) {
+    if (value) types.push(value);
   }
   if (Array.isArray(docmeta.inferredTypes?.returns)) {
     for (const entry of docmeta.inferredTypes.returns) {

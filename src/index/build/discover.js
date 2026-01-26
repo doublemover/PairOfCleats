@@ -1,3 +1,4 @@
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -13,13 +14,27 @@ import {
 import { getLanguageForFile } from '../language-registry.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { createRecordsClassifier } from './records.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
  * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>}
  */
-export async function discoverFiles({ root, mode, recordsDir = null, recordsConfig = null, ignoreMatcher, skippedFiles, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+export async function discoverFiles({
+  root,
+  mode,
+  recordsDir = null,
+  recordsConfig = null,
+  ignoreMatcher,
+  skippedFiles,
+  maxFileBytes = null,
+  fileCaps = null,
+  maxDepth = null,
+  maxFiles = null,
+  abortSignal = null
+}) {
   const { entries, skippedCommon } = await discoverEntries({
     root,
     recordsDir,
@@ -28,7 +43,8 @@ export async function discoverFiles({ root, mode, recordsDir = null, recordsConf
     maxFileBytes,
     fileCaps,
     maxDepth,
-    maxFiles
+    maxFiles,
+    abortSignal
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
   return filterEntriesByMode(entries, mode, skippedFiles);
@@ -39,7 +55,19 @@ export async function discoverFiles({ root, mode, recordsDir = null, recordsConf
  * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
  * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>>}
  */
-export async function discoverFilesForModes({ root, modes, recordsDir = null, recordsConfig = null, ignoreMatcher, skippedByMode, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+export async function discoverFilesForModes({
+  root,
+  modes,
+  recordsDir = null,
+  recordsConfig = null,
+  ignoreMatcher,
+  skippedByMode,
+  maxFileBytes = null,
+  fileCaps = null,
+  maxDepth = null,
+  maxFiles = null,
+  abortSignal = null
+}) {
   const { entries, skippedCommon } = await discoverEntries({
     root,
     recordsDir,
@@ -48,7 +76,8 @@ export async function discoverFilesForModes({ root, modes, recordsDir = null, re
     maxFileBytes,
     fileCaps,
     maxDepth,
-    maxFiles
+    maxFiles,
+    abortSignal
   });
   const output = {};
   for (const mode of modes) {
@@ -59,7 +88,18 @@ export async function discoverFilesForModes({ root, modes, recordsDir = null, re
   return output;
 }
 
-export async function discoverEntries({ root, recordsDir = null, recordsConfig = null, ignoreMatcher, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+export async function discoverEntries({
+  root,
+  recordsDir = null,
+  recordsConfig = null,
+  ignoreMatcher,
+  maxFileBytes = null,
+  fileCaps = null,
+  maxDepth = null,
+  maxFiles = null,
+  abortSignal = null
+}) {
+  throwIfAborted(abortSignal);
   const maxBytes = Number.isFinite(Number(maxFileBytes)) && Number(maxFileBytes) > 0
     ? Number(maxFileBytes)
     : null;
@@ -76,22 +116,9 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
     skippedCommon.push({ file: filePath, reason, ...extra });
   };
   const minifiedNameRegex = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
-  const normalizeCapValue = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  };
-  const resolveMaxBytesForExt = (ext) => {
-    const extKey = ext ? ext.toLowerCase() : '';
-    const defaultCap = fileCaps?.default?.maxBytes;
-    const extCap = extKey ? fileCaps?.byExt?.[extKey]?.maxBytes : null;
-    const capValue = normalizeCapValue(extCap ?? defaultCap);
-    if (!Number.isFinite(capValue) || capValue <= 0) {
-      return maxBytes;
-    }
-    if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
-      return capValue;
-    }
-    return Math.min(maxBytes, capValue);
+  const resolveMaxBytesForFile = (ext, languageId) => {
+    const caps = resolveFileCaps(fileCaps, ext, languageId, null);
+    return pickMinLimit(maxBytes, caps.maxBytes);
   };
   const normalizeRoot = (value) => {
     const resolved = path.resolve(value || '');
@@ -111,12 +138,30 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
       if (rootCheck.status !== 0) return null;
       const gitRoot = String(rootCheck.stdout || '').trim();
       if (!gitRoot) return null;
-      if (normalizeRoot(gitRoot) !== normalizedRoot) return null;
-      const result = spawnSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' });
+      const normalizedGitRoot = normalizeRoot(gitRoot);
+      const rootRel = normalizedRoot === normalizedGitRoot
+        ? ''
+        : (normalizedRoot.startsWith(`${normalizedGitRoot}${path.sep}`)
+          ? path.relative(gitRoot, root)
+          : null);
+      if (rootRel == null) return null;
+      const args = ['-C', gitRoot, 'ls-files', '-z'];
+      if (rootRel) args.push('--', rootRel);
+      const result = spawnSync('git', args, { encoding: 'utf8' });
       if (result.status !== 0) return null;
       const output = String(result.stdout || '');
-      if (!output) return [];
-      return output.split('\u0000').filter(Boolean);
+      if (!output) {
+        const rootIsGitRoot = normalizedRoot === normalizedGitRoot;
+        const hasGitDir = fsSync.existsSync(path.join(root, '.git'));
+        if (rootIsGitRoot || hasGitDir) {
+          return { gitRoot, files: [] };
+        }
+        return null;
+      }
+      return {
+        gitRoot,
+        files: output.split('\u0000').filter(Boolean)
+      };
     } catch {
       return null;
     }
@@ -127,30 +172,33 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
     return crawler.withPromise();
   };
 
-  const relPaths = listGitFiles();
-  const candidates = Array.isArray(relPaths)
-    ? relPaths.map((rel) => path.join(root, rel))
+  const gitResult = listGitFiles();
+  const candidates = gitResult && Array.isArray(gitResult.files)
+    ? gitResult.files.map((rel) => path.join(gitResult.gitRoot || root, rel))
     : await listFdirFiles();
 
   const entries = [];
-  for (const absPath of candidates) {
+  let acceptedCount = 0;
+  let reservedCount = 0;
+  const statConcurrency = Math.min(64, Math.max(4, Number(process.env.PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY) || 32));
+  const processCandidate = async (absPath) => {
+    throwIfAborted(abortSignal);
     const relPosix = toPosix(path.relative(root, absPath));
-    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) continue;
+    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return;
     const normalizedAbs = normalizeRoot(absPath);
     const inRecordsRoot = recordsRoot
       ? normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)
       : false;
+    let reserved = false;
+    let accepted = false;
     if (maxDepthValue != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthValue) {
         recordSkip(absPath, 'max-depth', { depth, maxDepth: maxDepthValue });
-        continue;
+        return;
       }
     }
-    if (maxFilesValue && entries.length >= maxFilesValue) {
-      recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
-      break;
-    }
+    throwIfAborted(abortSignal);
     const baseName = path.basename(absPath);
     const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     const isManifest = isManifestFile(baseName);
@@ -160,43 +208,81 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
     const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
     if (minifiedNameRegex.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
-      continue;
+      return;
     }
     if (ignoreMatcher.ignores(relPosix)) {
       recordSkip(absPath, 'ignored');
-      continue;
+      return;
     }
-    let stat;
+    if (maxFilesValue) {
+      if (reservedCount >= maxFilesValue) {
+        recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
+        return;
+      }
+      reservedCount += 1;
+      reserved = true;
+    }
     try {
-      stat = await fs.lstat(absPath);
-    } catch {
-      recordSkip(absPath, 'stat-failed');
-      continue;
+      let stat;
+      try {
+        stat = await fs.lstat(absPath);
+      } catch {
+        recordSkip(absPath, 'stat-failed');
+        return;
+      }
+      throwIfAborted(abortSignal);
+      if (stat.isSymbolicLink()) {
+        recordSkip(absPath, 'symlink');
+        return;
+      }
+      const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null);
+      if (maxBytesForFile && stat.size > maxBytesForFile) {
+        recordSkip(absPath, 'oversize', {
+          stage: 'discover',
+          capSource: 'maxBytes',
+          bytes: stat.size,
+          maxBytes: maxBytesForFile
+        });
+        return;
+      }
+      const record = inRecordsRoot
+        ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
+        : (recordsClassifier
+          ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
+          : null);
+      entries.push({
+        abs: absPath,
+        rel: relPosix,
+        stat,
+        ext,
+        isSpecial,
+        isManifest,
+        isLock,
+        ...(record ? { record } : {})
+      });
+      accepted = true;
+      acceptedCount += 1;
+    } finally {
+      if (reserved && !accepted) {
+        reservedCount = Math.max(0, reservedCount - 1);
+      }
     }
-    if (stat.isSymbolicLink()) {
-      recordSkip(absPath, 'symlink');
-      continue;
-    }
-    const maxBytesForExt = resolveMaxBytesForExt(ext);
-    if (maxBytesForExt && stat.size > maxBytesForExt) {
-      recordSkip(absPath, 'oversize', { bytes: stat.size, maxBytes: maxBytesForExt });
-      continue;
-    }
-    const record = inRecordsRoot
-      ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
-      : (recordsClassifier
-        ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
-        : null);
-    entries.push({
-      abs: absPath,
-      rel: relPosix,
-      stat,
-      ext,
-      isSpecial,
-      isManifest,
-      isLock,
-      ...(record ? { record } : {})
-    });
+  };
+  const workerCount = Math.min(statConcurrency, candidates.length || 0);
+  if (!workerCount) {
+    // no candidates
+  } else {
+    let cursor = 0;
+    const workers = Array.from({ length: workerCount }, () => (async () => {
+      while (true) {
+        throwIfAborted(abortSignal);
+        const idx = cursor;
+        cursor += 1;
+        if (idx >= candidates.length) break;
+        await processCandidate(candidates[idx]);
+      }
+    })());
+    await Promise.all(workers);
   }
 
   entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));

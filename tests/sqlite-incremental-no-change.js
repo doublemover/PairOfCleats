@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
@@ -89,7 +90,7 @@ const initialSqlite = runCapture(
   [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot],
   'build sqlite index'
 );
-const initialOutput = `${initialSqlite.stdout || ''}\n${initialSqlite.stderr || ''}`;
+const initialOutput = getCombinedOutput(initialSqlite);
 if (!initialOutput.includes('Validation (smoke) ok for code')) {
   console.error('Expected sqlite smoke validation for code build.');
   process.exit(1);
@@ -122,7 +123,7 @@ const noChangeResult = runCapture(
   [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (no change)'
 );
-const noChangeOutput = `${noChangeResult.stdout || ''}\n${noChangeResult.stderr || ''}`;
+const noChangeOutput = getCombinedOutput(noChangeResult);
 if (!noChangeOutput.toLowerCase().includes('sqlite indexes updated')) {
   console.error('Expected incremental sqlite update output for no-change run.');
   process.exit(1);

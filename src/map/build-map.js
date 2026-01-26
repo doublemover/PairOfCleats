@@ -22,6 +22,7 @@ import {
   normalizeModifiers
 } from './build-map/normalize.js';
 import { buildSymbolId, buildMemberIndex, upsertMember } from './build-map/symbols.js';
+import { resolveChunkId } from '../index/chunk-id.js';
 import {
   buildAliasEdges,
   buildEdgesFromCallSummaries,
@@ -63,6 +64,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
 
   const membersByFile = new Map();
   const memberById = new Map();
+  const aliasById = new Map();
   let hasDataflow = false;
   let hasControlFlow = false;
 
@@ -93,13 +95,17 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     const file = normalizePath(meta?.file || chunk?.file || '');
     const name = meta?.name || chunk?.name || null;
     if (!file || !name) continue;
+    const resolvedChunkId = resolveChunkId(chunk);
     const symbolId = buildSymbolId({
       file,
       name,
       kind: meta?.kind || chunk?.kind || null,
       startLine: meta?.range?.startLine || chunk?.startLine,
-      chunkId: meta?.chunkId || null
+      chunkId: resolvedChunkId || meta?.chunkId || null
     });
+    if (resolvedChunkId && resolvedChunkId !== symbolId) {
+      aliasById.set(resolvedChunkId, symbolId);
+    }
     const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow);
     const controlFlow = normalizeControlFlow(meta?.controlFlow || chunk?.docmeta?.controlFlow);
     if (dataflow) hasDataflow = true;
@@ -150,7 +156,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   }
 
   const callEdges = graphRelations?.callGraph
-    ? buildEdgesFromGraph({ graph: graphRelations.callGraph, type: 'call', memberById })
+    ? buildEdgesFromGraph({ graph: graphRelations.callGraph, type: 'call', memberById, aliasById })
     : [];
   if (includes.includes('calls')) {
     edges.push(...callEdges);
@@ -160,7 +166,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   }
 
   const usageEdges = graphRelations?.usageGraph
-    ? buildEdgesFromGraph({ graph: graphRelations.usageGraph, type: 'usage', memberById })
+    ? buildEdgesFromGraph({ graph: graphRelations.usageGraph, type: 'usage', memberById, aliasById })
     : [];
   if (includes.includes('usages')) {
     edges.push(...usageEdges);

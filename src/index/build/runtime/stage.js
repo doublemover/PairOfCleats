@@ -30,6 +30,7 @@ export const buildStageOverrides = (twoStageConfig, stage) => {
       }
       : stage === 'stage3'
       ? {
+        embeddings: { enabled: true, mode: 'auto' },
         treeSitter: { enabled: false },
         lint: false,
         complexity: false,

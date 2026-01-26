@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, 'tests', '.cache', 'assemble-pieces-no-guess');
@@ -46,7 +47,7 @@ const result = spawnSync(
 );
 
 assert.notEqual(result.status, 0, 'expected assemble-pieces to fail without manifest');
-const combined = `${result.stdout || ''}\n${result.stderr || ''}`;
+const combined = getCombinedOutput(result);
 assert.ok(combined.toLowerCase().includes('manifest'), 'expected manifest-related error');
 
 console.log('assemble-pieces manifest requirement test passed');

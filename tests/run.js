@@ -20,6 +20,7 @@ import { runTests } from './run-execution.js';
 import { summarizeResults } from './run-results.js';
 import {
   buildJsonReport,
+  createInitReporter,
   createOrderedReporter,
   renderHeader,
   renderSummary,
@@ -107,13 +108,38 @@ const resolveLogDir = ({ cli, env }) => {
 };
 
 const BORDER_PATTERN = '╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴';
+const normalizeLaneArgs = (values) => {
+  const raw = splitCsv(values.length ? values : ['ci']);
+  let includeDestructive = false;
+  let includeAll = false;
+  const normalized = raw.map((lane) => {
+    if (lane === 'all-with-destructive') {
+      includeDestructive = true;
+      includeAll = true;
+      return 'all';
+    }
+    if (lane.endsWith('-with-destructive')) {
+      includeDestructive = true;
+      return lane.slice(0, -'-with-destructive'.length);
+    }
+    if (lane === 'all') {
+      includeAll = true;
+    }
+    return lane;
+  });
+  if (includeAll) {
+    return { requested: ['all'], includeDestructive, includeAll };
+  }
+  return { requested: normalized, includeDestructive, includeAll };
+};
 const main = async () => {
   const argv = parseArgs();
   const selectors = argv._.map((value) => String(value));
   const includePatterns = [...selectors, ...argv.match];
   const excludePatterns = [...argv.exclude];
   const tagInclude = splitCsv(argv.tag);
-  const requestedLanes = splitCsv(argv.lane.length ? argv.lane : ['ci']);
+  const laneInfo = normalizeLaneArgs(argv.lane);
+  const requestedLanes = laneInfo.requested;
   const runRules = loadRunRules({ root: ROOT });
 
   if (argv['list-lanes'] || argv['list-tags']) {
@@ -139,17 +165,28 @@ const main = async () => {
   const configOverride = typeof argv.config === 'string' && argv.config.trim() ? argv.config.trim() : '';
   const runConfig = loadRunConfig({ root: ROOT, configPath: configOverride || undefined });
   const tagExclude = splitCsv(argv['exclude-tag']);
-  const configExclude = new Set(
-    Array.isArray(runConfig.excludeTags) ? runConfig.excludeTags.map((tag) => String(tag)) : []
-  );
+  const ignoreConfigExcludes = laneInfo.includeAll;
+  const configExclude = new Set();
+  if (!ignoreConfigExcludes) {
+    const baseExcludes = Array.isArray(runConfig.excludeTags)
+      ? runConfig.excludeTags.map((tag) => String(tag))
+      : [];
+    baseExcludes.forEach((tag) => configExclude.add(tag));
+  } else if (!laneInfo.includeDestructive) {
+    configExclude.add('destructive');
+  }
   const laneConfig = runConfig.lanes && typeof runConfig.lanes === 'object' ? runConfig.lanes : {};
   for (const lane of requestedLanes) {
+    if (lane === 'all' || ignoreConfigExcludes) continue;
     const entry = laneConfig[lane];
     if (!entry || typeof entry !== 'object') continue;
     const laneExcludes = Array.isArray(entry.excludeTags)
       ? entry.excludeTags.map((tag) => String(tag))
       : [];
     laneExcludes.forEach((tag) => configExclude.add(tag));
+  }
+  if (laneInfo.includeDestructive) {
+    configExclude.delete('destructive');
   }
   for (const tag of configExclude) {
     if (!tag || tagInclude.includes(tag) || tagExclude.includes(tag)) continue;
@@ -304,6 +341,8 @@ const main = async () => {
     borderPattern: BORDER_PATTERN
   };
 
+  context.initReporter = createInitReporter({ context });
+
   const { border, innerPadding } = renderHeader({
     context,
     lanesList,
@@ -311,25 +350,28 @@ const main = async () => {
     jobs
   });
 
-  const ordered = createOrderedReporter({
+  const ordered = context.initReporter ? null : createOrderedReporter({
     size: selection.length,
     onReport: (result) => reportTestResult({ context, result })
   });
+  const reportResult = ordered
+    ? ordered.report
+    : ((result) => reportTestResult({ context, result }));
 
-  await runTests({
+  const results = await runTests({
     selection,
     context,
-    reportResult: ordered.report
+    reportResult
   });
 
-  const results = ordered.results;
+  const finalResults = ordered ? ordered.results : results;
   const totalMs = Date.now() - startedAt;
-  const summary = summarizeResults(results, totalMs);
+  const summary = summarizeResults(finalResults, totalMs);
   if (showSummary) {
     renderSummary({
       context,
       summary,
-      results,
+      results: finalResults,
       runLogDir,
       border,
       innerPadding
@@ -339,7 +381,7 @@ const main = async () => {
   if (argv.json) {
     const payload = buildJsonReport({
       summary,
-      results,
+      results: finalResults,
       root: ROOT,
       runLogDir,
       junitPath: argv.junit || ''
@@ -349,11 +391,11 @@ const main = async () => {
 
   if (argv.junit) {
     const junitPath = path.resolve(ROOT, argv.junit);
-    await writeJUnit({ junitPath, results, totalMs });
+    await writeJUnit({ junitPath, results: finalResults, totalMs });
   }
 
   if (timingsPath) {
-    await writeTimings({ timingsPath, results, totalMs, runId });
+    await writeTimings({ timingsPath, results: finalResults, totalMs, runId });
   }
 
   process.exit(summary.failed > 0 ? 1 : 0);

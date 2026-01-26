@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, 'tests', '.cache', 'cli');
@@ -26,7 +27,8 @@ if (versionResult.status !== 0) {
   console.error('cli --version failed');
   process.exit(versionResult.status ?? 1);
 }
-if (!String(versionResult.stdout || '').trim().includes(version)) {
+const versionOutput = getCombinedOutput(versionResult, { trim: true });
+if (!versionOutput.includes(version)) {
   console.error('cli --version did not output expected version');
   process.exit(1);
 }
@@ -36,7 +38,8 @@ if (helpResult.status !== 0) {
   console.error('cli --help failed');
   process.exit(helpResult.status ?? 1);
 }
-if (!String(helpResult.stdout || '').includes('Usage: pairofcleats')) {
+const helpOutput = getCombinedOutput(helpResult);
+if (!helpOutput.includes('Usage: pairofcleats')) {
   console.error('cli --help missing usage banner');
   process.exit(1);
 }

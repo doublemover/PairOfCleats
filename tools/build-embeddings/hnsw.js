@@ -79,7 +79,10 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     const tempHnswPath = createTempPath(indexPath);
     try {
       index.writeIndexSync(tempHnswPath);
-      await replaceFile(tempHnswPath, indexPath);
+      try {
+        await fs.rm(`${indexPath}.bak`, { force: true });
+      } catch {}
+      await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
     } catch (err) {
       try {
         await fs.rm(tempHnswPath, { force: true });

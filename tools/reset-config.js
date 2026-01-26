@@ -60,8 +60,8 @@ result.reset = true;
 if (argv.json) {
   console.log(JSON.stringify(result, null, 2));
 } else {
-  console.log(`[reset-config] Wrote default config to ${configPath}`);
+  console.error(`[reset-config] Wrote default config to ${configPath}`);
   if (result.backupPath) {
-    console.log(`[reset-config] Backup saved to ${result.backupPath}`);
+    console.error(`[reset-config] Backup saved to ${result.backupPath}`);
   }
 }

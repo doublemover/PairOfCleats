@@ -22,6 +22,8 @@ import {
   setWatchBacklog
 } from '../../shared/metrics.js';
 import { fileExt, toPosix } from '../../shared/files.js';
+import { runWithQueue } from '../../shared/concurrency.js';
+import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getCapabilities } from '../../shared/capabilities.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { getLanguageForFile } from '../language-registry.js';
@@ -220,20 +222,9 @@ export function isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, mod
 }
 
 
-const resolveMaxBytesForExt = (ext, maxFileBytes, fileCaps) => {
-  const extKey = ext ? ext.toLowerCase() : '';
-  const defaultCap = fileCaps?.default?.maxBytes;
-  const extCap = extKey ? fileCaps?.byExt?.[extKey]?.maxBytes : null;
-  const capValue = Number.isFinite(Number(extCap ?? defaultCap))
-    ? Number(extCap ?? defaultCap)
-    : null;
-  if (!Number.isFinite(Number(maxFileBytes)) || Number(maxFileBytes) <= 0) {
-    return capValue;
-  }
-  if (!Number.isFinite(capValue) || capValue <= 0) {
-    return Number(maxFileBytes);
-  }
-  return Math.min(Number(maxFileBytes), capValue);
+const resolveMaxBytesForFile = (ext, languageId, maxFileBytes, fileCaps) => {
+  const caps = resolveFileCaps(fileCaps, ext, languageId, null);
+  return pickMinLimit(maxFileBytes, caps.maxBytes);
 };
 
 
@@ -312,6 +303,7 @@ export async function watchIndex({
   const trackedCounts = new Map();
   const trackedFiles = new Set();
   const pendingPaths = new Set();
+  const pendingUpdates = new Set();
   const burstWindowMs = 1000;
   const burstThreshold = 25;
   let burstStart = 0;
@@ -319,6 +311,8 @@ export async function watchIndex({
   let burstMax = 0;
   let scheduler;
   let stabilityGuard = null;
+  let updateScheduled = false;
+  let updateRunning = false;
 
   const stop = () => {
     if (resolveExit) {
@@ -369,6 +363,63 @@ export async function watchIndex({
   const scheduleBuild = () => {
     if (shouldExit) return;
     scheduler?.schedule();
+  };
+
+  const applyTrackedUpdates = async (absPaths) => {
+    const updateQueue = runtimeRef.queues?.io;
+    const handleUpdate = async (absPath) => {
+      const beforeTracked = trackedCounts.get(absPath) || 0;
+      const changed = await updateTrackedEntry(absPath);
+      const afterTracked = trackedCounts.get(absPath) || 0;
+      if (beforeTracked > 0 || afterTracked > 0 || changed) scheduleBuild();
+    };
+    if (!updateQueue) {
+      await Promise.all(absPaths.map((absPath) => handleUpdate(absPath)));
+      return;
+    }
+    await runWithQueue(
+      updateQueue,
+      absPaths,
+      async (absPath) => handleUpdate(absPath),
+      {
+        collectResults: false,
+        bestEffort: true,
+        signal: abortSignal,
+        onError: (err, ctx) => {
+          log(`[watch] Update failed for ${ctx?.item || 'file'}: ${err?.message || err}`);
+        }
+      }
+    );
+  };
+
+  const flushPendingUpdates = async () => {
+    if (updateRunning) return;
+    updateRunning = true;
+    try {
+      while (pendingUpdates.size) {
+        const batch = Array.from(pendingUpdates);
+        pendingUpdates.clear();
+        await applyTrackedUpdates(batch);
+      }
+    } catch (err) {
+      if (!abortSignal?.aborted) {
+        log(`[watch] Update queue failed: ${err?.message || err}`);
+      }
+    } finally {
+      updateRunning = false;
+    }
+    if (pendingUpdates.size) {
+      scheduleUpdateFlush();
+    }
+  };
+
+  const scheduleUpdateFlush = () => {
+    if (updateScheduled) return;
+    updateScheduled = true;
+    setImmediate(() => {
+      updateScheduled = false;
+      void flushPendingUpdates();
+    });
   };
 
   const ensureModeMap = (mode) => {
@@ -452,11 +503,20 @@ export async function watchIndex({
     if (stat.isSymbolicLink()) {
       return { skip: true, reason: 'symlink' };
     }
-    const maxBytesForExt = resolveMaxBytesForExt(ext, maxFileBytes, fileCaps);
-    if (maxBytesForExt && stat.size > maxBytesForExt) {
-      return { skip: true, reason: 'oversize', extra: { bytes: stat.size, maxBytes: maxBytesForExt } };
-    }
     const language = getLanguageForFile(ext, relPosix);
+    const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null, maxFileBytes, fileCaps);
+    if (maxBytesForFile && stat.size > maxBytesForFile) {
+      return {
+        skip: true,
+        reason: 'oversize',
+        extra: {
+          stage: 'watch',
+          capSource: 'maxBytes',
+          bytes: stat.size,
+          maxBytes: maxBytesForFile
+        }
+      };
+    }
     const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
     const isSpecial = isSpecialCodeFile(baseName) || isManifestFile(baseName) || isLockFile(baseName) || isSpecialLanguage;
     let record = null;
@@ -708,10 +768,8 @@ export async function watchIndex({
     }
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
-    const beforeTracked = trackedCounts.get(absPath) || 0;
-    await updateTrackedEntry(absPath);
-    const afterTracked = trackedCounts.get(absPath) || 0;
-    if (beforeTracked > 0 || afterTracked > 0) scheduleBuild();
+    pendingUpdates.add(absPath);
+    scheduleUpdateFlush();
   };
 
   const recordRemove = (absPath) => {

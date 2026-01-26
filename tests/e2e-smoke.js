@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'e2e-smoke');
@@ -93,7 +94,8 @@ const mapDot = runNode('map dot', [
   '--repo',
   repoRoot
 ]);
-if (!String(mapDot.stdout || '').includes('digraph')) {
+const mapDotOutput = getCombinedOutput(mapDot);
+if (!mapDotOutput.includes('digraph')) {
   console.error('Failed: map dot output missing digraph');
   process.exit(1);
 }
@@ -107,7 +109,8 @@ if (dotCheck.status === 0) {
     '--repo',
     repoRoot
   ]);
-  if (!String(mapSvg.stdout || '').includes('<svg')) {
+  const mapSvgOutput = getCombinedOutput(mapSvg);
+  if (!mapSvgOutput.includes('<svg')) {
     console.error('Failed: map svg output missing <svg>');
     process.exit(1);
   }

@@ -64,7 +64,7 @@ if (!hasTokenPostings) {
   console.error(`Expected token postings artifacts in ${tokenPostingsShardsDir}`);
   process.exit(1);
 }
-const sqlitePaths = resolveSqlitePaths(repoRoot, {});
+const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
 if (previousCacheRoot === undefined) {
   delete process.env.PAIROFCLEATS_CACHE_ROOT;
 } else {

@@ -151,13 +151,13 @@ const collectMissing = (required, probes) => {
 };
 
 const renderSummary = (report, requiredMissing) => {
-  console.log(`Capability gate (${report.mode})`);
+  console.error(`Capability gate (${report.mode})`);
   for (const [name, probe] of Object.entries(report.probes)) {
     const status = probe.available ? 'available' : `missing (${probe.reason})`;
-    console.log(`- ${name}: ${status}`);
+    console.error(`- ${name}: ${status}`);
   }
   if (requiredMissing.length) {
-    console.log(`Required missing: ${requiredMissing.map((entry) => entry.capability).join(', ')}`);
+    console.error(`Required missing: ${requiredMissing.map((entry) => entry.capability).join(', ')}`);
   }
 };
 

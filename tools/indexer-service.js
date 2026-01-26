@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { spawnSubprocess } from '../src/shared/subprocess.js';
 import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './service/queue.js';
@@ -186,7 +186,7 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
     }
     if (!active) {
       if (!waitingLogged) {
-        console.log(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for build state...`);
+        console.error(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for build state...`);
         waitingLogged = true;
       }
       return;
@@ -195,7 +195,7 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
     if (loaded?.state) active.state = loaded.state;
     const line = formatProgressLine({ jobId: job.id, stage, state: active.state });
     if (line && line !== lastLine) {
-      console.log(line);
+      console.error(line);
       lastLine = line;
     }
   };
@@ -206,26 +206,39 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
   return () => clearInterval(timer);
 };
 
-const spawnWithLog = (args, extraEnv = {}, logPath = null) => new Promise((resolve) => {
+const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
   const useLog = typeof logPath === 'string' && logPath.trim();
   const stdio = useLog ? ['ignore', 'pipe', 'pipe'] : 'inherit';
-  const child = spawn(process.execPath, args, { stdio, env: { ...process.env, ...extraEnv } });
-  let stream = null;
-  if (useLog) {
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    stream = fs.createWriteStream(logPath, { flags: 'a' });
-    stream.write(`[${new Date().toISOString()}] job start\n`);
-    child.stdout.pipe(stream);
-    child.stderr.pipe(stream);
-  }
-  child.on('close', (code) => {
-    if (stream) {
-      stream.write(`[${new Date().toISOString()}] job exit ${code ?? 1}\n`);
-      stream.end();
+  try {
+    const result = await spawnSubprocess(process.execPath, args, {
+      stdio,
+      env: { ...process.env, ...extraEnv },
+      rejectOnNonZeroExit: false,
+      captureStdout: useLog,
+      captureStderr: useLog,
+      outputMode: 'string'
+    });
+    if (useLog) {
+      fs.mkdirSync(path.dirname(logPath), { recursive: true });
+      const parts = [];
+      parts.push(`[${new Date().toISOString()}] job start`);
+      const stdoutText = typeof result.stdout === 'string' ? result.stdout : '';
+      const stderrText = typeof result.stderr === 'string' ? result.stderr : '';
+      if (stdoutText) parts.push(stdoutText.trimEnd());
+      if (stderrText) parts.push(stderrText.trimEnd());
+      parts.push(`[${new Date().toISOString()}] job exit ${result.exitCode ?? 1}`);
+      fs.appendFileSync(logPath, `${parts.join('\n')}\n`);
     }
-    resolve(code ?? 1);
-  });
-});
+    return result.exitCode ?? 1;
+  } catch (err) {
+    if (useLog) {
+      fs.mkdirSync(path.dirname(logPath), { recursive: true });
+      const message = err?.message || String(err);
+      fs.appendFileSync(logPath, `[${new Date().toISOString()}] job error ${message}\n`);
+    }
+    return 1;
+  }
+};
 
 const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
   const buildPath = path.join(toolRoot, 'build_index.js');
@@ -402,8 +415,12 @@ const handleServe = async () => {
   const userConfig = loadUserConfig(repoArg);
   const runtimeConfig = getRuntimeConfig(repoArg, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, process.env);
-  const child = spawn(process.execPath, [apiPath, '--repo', repoArg], { stdio: 'inherit', env });
-  child.on('exit', (code) => process.exit(code ?? 0));
+  const result = await spawnSubprocess(process.execPath, [apiPath, '--repo', repoArg], {
+    stdio: 'inherit',
+    env,
+    rejectOnNonZeroExit: false
+  });
+  process.exit(result.exitCode ?? 0);
 };
 
 if (command === 'sync') {

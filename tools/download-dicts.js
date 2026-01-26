@@ -7,6 +7,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
+import { replaceFile } from '../src/shared/json-stream.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
@@ -277,8 +278,7 @@ async function downloadSource(source) {
   if (lastByte !== 10) {
     await fs.appendFile(tempPath, '\n');
   }
-  await fs.rm(outputPath, { force: true });
-  await fs.rename(tempPath, outputPath);
+  await replaceFile(tempPath, outputPath);
 
   manifest[source.name] = {
     url: source.url,
@@ -325,4 +325,4 @@ await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
 const downloaded = results.filter((r) => !r.skipped).length;
 const skipped = results.filter((r) => r.skipped).length;
-console.log(`Done. downloaded=${downloaded} skipped=${skipped}`);
+console.error(`Done. downloaded=${downloaded} skipped=${skipped}`);

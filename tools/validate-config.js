@@ -31,7 +31,7 @@ if (!fs.existsSync(configPath)) {
   if (argv.json) {
     console.log(JSON.stringify({ ok: true, found: false, configPath, message }, null, 2));
   } else {
-    console.log(message);
+    console.error(message);
   }
   process.exit(0);
 }
@@ -64,7 +64,7 @@ const result = validateConfig(schema, config);
 if (argv.json) {
   console.log(JSON.stringify({ ok: result.ok, found: true, configPath, errors: result.errors }, null, 2));
 } else if (result.ok) {
-  console.log(`Config OK: ${configPath}`);
+  console.error(`Config OK: ${configPath}`);
 } else {
   console.error(`Config errors in ${configPath}:`);
   for (const error of result.errors) {

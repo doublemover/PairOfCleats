@@ -11,11 +11,16 @@ export function resolveThreadLimits(input = {}) {
     rawArgv = [],
     envConfig = {},
     configConcurrency = null,
+    configConcurrencySource = 'config.indexing.concurrency',
+    configSourceTag = 'config',
     importConcurrencyConfig = null,
     ioConcurrencyCapConfig = null,
-    defaultMultiplier = 4
+    defaultMultiplier = 4,
+    cpuCount: cpuCountInput,
+    uvThreadpoolSize = null,
+    ioOversubscribe = false
   } = input;
-  const cpuCount = os.cpus().length;
+  const cpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0 ? Math.floor(cpuCountInput) : os.cpus().length;
   const defaultFileConcurrency = Math.max(1, Math.min(cpuCount, 64));
   const defaultThreads = Math.max(1, defaultFileConcurrency * defaultMultiplier);
   const rawCliThreads = Number(argv.threads);
@@ -23,55 +28,75 @@ export function resolveThreadLimits(input = {}) {
   const threadsArgPresent = Array.isArray(rawArgv)
     && rawArgv.some((arg) => arg === '--threads' || String(arg).startsWith('--threads='));
   const envThreadsProvided = Number.isFinite(envThreads) && envThreads > 0;
-  const cliThreadsProvided = threadsArgPresent
-    || (Number.isFinite(rawCliThreads) && rawCliThreads !== defaultThreads);
-  const cliConcurrency = envThreadsProvided
-    ? envThreads
-    : (cliThreadsProvided ? rawCliThreads : null);
-  const requestedConcurrency = Number.isFinite(cliConcurrency)
-    ? Math.floor(cliConcurrency)
-    : Number.isFinite(configConcurrency)
+  const cliThreadsProvided = threadsArgPresent && Number.isFinite(rawCliThreads) && rawCliThreads > 0;
+  const configThreadsProvided = Number.isFinite(configConcurrency) && configConcurrency > 0;
+  const requestedThreads = cliThreadsProvided
+    ? Math.floor(rawCliThreads)
+    : configThreadsProvided
       ? Math.floor(configConcurrency)
-      : defaultFileConcurrency;
-  const cappedConcurrency = Math.max(1, Math.min(cpuCount, requestedConcurrency));
-  const maxConcurrencyCap = Math.max(defaultFileConcurrency, cappedConcurrency);
-  const fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, cappedConcurrency));
-  const importConcurrency = Math.max(
+      : envThreadsProvided
+        ? Math.floor(envThreads)
+        : defaultThreads;
+  const cappedThreads = Math.max(1, Math.min(cpuCount, requestedThreads));
+  const maxConcurrencyCap = Math.max(defaultFileConcurrency, cappedThreads);
+  let fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, cappedThreads));
+  let importConcurrency = Math.max(
     1,
     Math.min(
       maxConcurrencyCap,
-      Number.isFinite(cliConcurrency)
+      cliThreadsProvided
         ? fileConcurrency
         : Number.isFinite(Number(importConcurrencyConfig))
           ? Number(importConcurrencyConfig)
           : fileConcurrency
     )
   );
-  const ioPlatformCap = process.platform === 'win32' ? 32 : 64;
+  const ioPlatformCap = 64;
+  const effectiveUv = Number.isFinite(Number(uvThreadpoolSize)) && uvThreadpoolSize > 0
+    ? Math.floor(uvThreadpoolSize)
+    : 4;
+  const ioDefaultCap = Math.min(ioPlatformCap, Math.max(1, effectiveUv * 4));
+  if (!ioOversubscribe) {
+    fileConcurrency = Math.min(fileConcurrency, ioDefaultCap);
+    importConcurrency = Math.min(importConcurrency, ioDefaultCap);
+  }
   const ioBase = Math.max(fileConcurrency, importConcurrency);
   const configuredIoCap = Number.isFinite(Number(ioConcurrencyCapConfig)) && Number(ioConcurrencyCapConfig) > 0
     ? Math.floor(Number(ioConcurrencyCapConfig))
     : null;
-  const ioDerived = Math.max(1, Math.min(ioPlatformCap, ioBase * 4));
-  const ioConcurrency = configuredIoCap !== null
-    ? Math.max(1, Math.min(ioDerived, configuredIoCap))
-    : ioDerived;
+  let ioConcurrency = ioOversubscribe
+    ? Math.max(1, Math.min(ioPlatformCap, ioBase))
+    : Math.max(1, Math.min(ioPlatformCap, ioDefaultCap));
+  if (configuredIoCap !== null) {
+    ioConcurrency = Math.max(1, Math.min(ioConcurrency, configuredIoCap));
+  }
   const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency));
-  const source = envThreadsProvided
-    ? 'env'
-    : cliThreadsProvided
-      ? 'cli'
-      : Number.isFinite(configConcurrency)
-        ? 'config'
+  const procConcurrency = Math.max(1, Math.min(8, Math.min(4, cpuCount)));
+  const source = cliThreadsProvided
+    ? 'cli'
+    : configThreadsProvided
+      ? (configSourceTag || 'config')
+      : envThreadsProvided
+        ? 'env'
+        : 'default';
+  const sourceDetail = cliThreadsProvided
+    ? '--threads'
+    : configThreadsProvided
+      ? configConcurrencySource
+      : envThreadsProvided
+        ? 'PAIROFCLEATS_THREADS'
         : 'default';
   return {
     cpuCount,
     defaultThreads,
     maxConcurrencyCap,
+    threads: cappedThreads,
     fileConcurrency,
     importConcurrency,
     ioConcurrency,
     cpuConcurrency,
-    source
+    procConcurrency,
+    source,
+    sourceDetail
   };
 }

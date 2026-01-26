@@ -17,6 +17,30 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('finish', resolve);
 });
 
+const warnOnce = (() => {
+  const seen = new Set();
+  return (key, message) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    try {
+      process.stderr.write(`${message}\n`);
+    } catch {}
+  };
+})();
+
+const createAbortError = () => {
+  const err = new Error('Operation aborted');
+  err.name = 'AbortError';
+  err.code = 'ABORT_ERR';
+  return err;
+};
+
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
+};
+
 export const createTempPath = (filePath) => {
   const suffix = `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   const tempPath = `${filePath}${suffix}`;
@@ -29,9 +53,31 @@ export const createTempPath = (filePath) => {
   return path.join(dir, shortName);
 };
 
+const normalizeGzipOptions = (input) => {
+  const output = input && typeof input === 'object' ? { ...input } : {};
+  const supported = new Set(['level', 'mem', 'mtime']);
+  for (const key of Object.keys(output)) {
+    if (!supported.has(key)) {
+      warnOnce(`gzip-option-${key}`, `[json-stream] ignoring unsupported gzip option: ${key}`);
+      delete output[key];
+    }
+  }
+  const levelRaw = output.level;
+  let level = Number.isFinite(Number(levelRaw)) ? Math.floor(Number(levelRaw)) : 6;
+  if (level < 0 || level > 9) {
+    warnOnce('gzip-option-level', '[json-stream] gzip level must be between 0-9; clamping.');
+    level = Math.min(9, Math.max(0, level));
+  }
+  output.level = level;
+  if (!Number.isFinite(Number(output.mtime))) {
+    output.mtime = 0;
+  }
+  return output;
+};
+
 const createFflateGzipStream = (options = {}) => {
-  const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 6;
-  const gzip = new Gzip({ level });
+  const gzipOptions = normalizeGzipOptions(options.gzipOptions);
+  const gzip = new Gzip(gzipOptions);
   const stream = new Transform({
     transform(chunk, encoding, callback) {
       try {
@@ -120,7 +166,8 @@ const createZstdStream = (options = {}) => {
 
 const getBakPath = (filePath) => `${filePath}.bak`;
 
-export const replaceFile = async (tempPath, finalPath) => {
+export const replaceFile = async (tempPath, finalPath, options = {}) => {
+  const keepBackup = options.keepBackup === true;
   const bakPath = getBakPath(finalPath);
   const finalExists = fs.existsSync(finalPath);
   let backupAvailable = fs.existsSync(bakPath);
@@ -145,6 +192,9 @@ export const replaceFile = async (tempPath, finalPath) => {
   }
   try {
     await fsPromises.rename(tempPath, finalPath);
+    if (!keepBackup && backupAvailable) {
+      try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+    }
   } catch (err) {
     if (err?.code !== 'EEXIST'
       && err?.code !== 'EPERM'
@@ -162,6 +212,9 @@ export const replaceFile = async (tempPath, finalPath) => {
     } catch {}
     try {
       await fsPromises.rename(tempPath, finalPath);
+      if (!keepBackup && backupAvailable) {
+        try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+      }
     } catch (renameErr) {
       if (await copyFallback()) return;
       throw renameErr;
@@ -169,16 +222,51 @@ export const replaceFile = async (tempPath, finalPath) => {
   }
 };
 
+const createByteCounter = () => {
+  let bytes = 0;
+  const counter = new Transform({
+    transform(chunk, _encoding, callback) {
+      bytes += chunk.length;
+      callback(null, chunk);
+    }
+  });
+  return {
+    counter,
+    getBytes: () => bytes
+  };
+};
+
 const createJsonWriteStream = (filePath, options = {}) => {
-  const { compression = null, atomic = false } = options;
+  const { compression = null, atomic = false, signal = null } = options;
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
   const targetPath = atomic ? createTempPath(filePath) : filePath;
   const fileStream = fs.createWriteStream(targetPath);
+  const { counter, getBytes } = createByteCounter();
+  let writer = null;
+  const streams = [];
+  const attachAbortHandler = () => {
+    if (!signal) return () => {};
+    const handler = () => {
+      const err = createAbortError();
+      if (writer) writer.destroy(err);
+      counter.destroy(err);
+      fileStream.destroy(err);
+    };
+    signal.addEventListener('abort', handler, { once: true });
+    return () => signal.removeEventListener('abort', handler);
+  };
+  const detachAbort = attachAbortHandler();
   if (compression === 'gzip') {
-    const gzip = createFflateGzipStream();
-    gzip.pipe(fileStream);
+    const gzip = createFflateGzipStream(options);
+    writer = gzip;
+    gzip.pipe(counter).pipe(fileStream);
+    streams.push(gzip, counter, fileStream);
     return {
       stream: gzip,
-      done: Promise.all([waitForFinish(gzip), waitForFinish(fileStream)])
+      getBytesWritten: getBytes,
+      done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
         .then(async () => {
           if (atomic) {
             await replaceFile(targetPath, filePath);
@@ -190,14 +278,18 @@ const createJsonWriteStream = (filePath, options = {}) => {
           }
           throw err;
         })
+        .finally(detachAbort)
     };
   }
   if (compression === 'zstd') {
     const zstd = createZstdStream(options);
-    zstd.pipe(fileStream);
+    writer = zstd;
+    zstd.pipe(counter).pipe(fileStream);
+    streams.push(zstd, counter, fileStream);
     return {
       stream: zstd,
-      done: Promise.all([waitForFinish(zstd), waitForFinish(fileStream)])
+      getBytesWritten: getBytes,
+      done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
         .then(async () => {
           if (atomic) {
             await replaceFile(targetPath, filePath);
@@ -209,11 +301,16 @@ const createJsonWriteStream = (filePath, options = {}) => {
           }
           throw err;
         })
+        .finally(detachAbort)
     };
   }
+  writer = counter;
+  counter.pipe(fileStream);
+  streams.push(counter, fileStream);
   return {
-    stream: fileStream,
-    done: waitForFinish(fileStream)
+    stream: counter,
+    getBytesWritten: getBytes,
+    done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
       .then(async () => {
         if (atomic) {
           await replaceFile(targetPath, filePath);
@@ -225,6 +322,7 @@ const createJsonWriteStream = (filePath, options = {}) => {
         }
         throw err;
       })
+      .finally(detachAbort)
   };
 };
 
@@ -324,9 +422,10 @@ const stringifyJsonValue = (value) => {
   return `{${entries.join(',')}}`;
 };
 
-const writeArrayItems = async (stream, items) => {
+const writeArrayItems = async (stream, items, signal = null) => {
   let first = true;
   for (const item of items) {
+    throwIfAborted(signal);
     if (!first) await writeChunk(stream, ',');
     await writeJsonValue(stream, item);
     first = false;
@@ -337,23 +436,40 @@ const writeArrayItems = async (stream, items) => {
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
-  const { compression = null, atomic = false } = options;
-  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
-  for (const item of items) {
-    await writeJsonValue(stream, item);
-    await writeChunk(stream, '\n');
+  const {
+    compression = null,
+    atomic = false,
+    gzipOptions = null,
+    signal = null
+  } = options;
+  const { stream, done } = createJsonWriteStream(filePath, {
+    compression,
+    atomic,
+    gzipOptions,
+    signal
+  });
+  try {
+    for (const item of items) {
+      throwIfAborted(signal);
+      await writeJsonValue(stream, item);
+      await writeChunk(stream, '\n');
+    }
+    stream.end();
+    await done;
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await done; } catch {}
+    throw err;
   }
-  stream.end();
-  await done;
 }
 
 /**
  * Stream JSON lines into sharded JSONL files.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean}} input
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,signal?:AbortSignal}} input
  * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null}>}
  */
 export async function writeJsonLinesSharded(input) {
@@ -365,7 +481,9 @@ export async function writeJsonLinesSharded(input) {
     maxBytes,
     maxItems = 0,
     atomic = false,
-    compression = null
+    compression = null,
+    gzipOptions = null,
+    signal = null
   } = input || {};
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
@@ -416,33 +534,60 @@ export async function writeJsonLinesSharded(input) {
     parts.push(relPath);
     counts.push(0);
     bytes.push(0);
-    current = createJsonWriteStream(absPath, { atomic, compression });
+    current = createJsonWriteStream(absPath, {
+      atomic,
+      compression,
+      gzipOptions,
+      signal
+    });
     currentPath = absPath;
   };
 
-  for (const item of items) {
-    const line = stringifyJsonValue(item);
-    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-    if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
-      throw new Error(
-        `JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`
-      );
-    }
-    const needsNewPart = current
-      && ((resolvedMaxItems && partCount >= resolvedMaxItems)
-        || (resolvedMaxBytes && (partBytes + lineBytes) > resolvedMaxBytes));
-    if (!current || needsNewPart) {
-      await closePart();
-      openPart();
-    }
-    await writeChunk(current.stream, line);
-    await writeChunk(current.stream, '\n');
-    partCount += 1;
-    partBytes += lineBytes;
-    total += 1;
-    counts[counts.length - 1] = partCount;
+  const iterator = items?.[Symbol.iterator] ? items[Symbol.iterator]() : null;
+  if (!iterator) {
+    throw new Error('writeJsonLinesSharded requires a synchronous iterable.');
   }
-  await closePart();
+  let next = iterator.next();
+  try {
+    while (!next.done) {
+      throwIfAborted(signal);
+      const item = next.value;
+      next = iterator.next();
+      const hasMore = !next.done;
+      const line = stringifyJsonValue(item);
+      const needsNewPart = current
+        && ((resolvedMaxItems && partCount >= resolvedMaxItems)
+          || (resolvedMaxBytes && partBytes >= resolvedMaxBytes));
+      if (!current || needsNewPart) {
+        await closePart();
+        openPart();
+      }
+      await writeChunk(current.stream, line);
+      await writeChunk(current.stream, '\n');
+      partCount += 1;
+      partBytes = current.getBytesWritten();
+      total += 1;
+      counts[counts.length - 1] = partCount;
+      if (resolvedMaxBytes && partBytes > resolvedMaxBytes && partCount === 1) {
+        const err = new Error(
+          `JSONL entry exceeds maxBytes (${partBytes} > ${resolvedMaxBytes}) in ${partsDirName}`
+        );
+        err.code = 'ERR_JSON_TOO_LARGE';
+        throw err;
+      }
+      if (resolvedMaxBytes && partBytes >= resolvedMaxBytes && hasMore) {
+        await closePart();
+        openPart();
+      }
+    }
+    await closePart();
+  } catch (err) {
+    if (current?.stream) {
+      try { current.stream.destroy(err); } catch {}
+      try { await current.done; } catch {}
+    }
+    throw err;
+  }
 
   const maxPartRecords = counts.length ? Math.max(...counts) : 0;
   const maxPartBytes = bytes.length ? Math.max(...bytes) : 0;
@@ -464,24 +609,41 @@ export async function writeJsonLinesSharded(input) {
  * Stream a JSON array to disk without holding the full string in memory.       
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonArrayFile(filePath, items, options = {}) {
-  const { trailingNewline = true, compression = null, atomic = false } = options;
-  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
-  await writeChunk(stream, '[');
-  await writeArrayItems(stream, items);
-  await writeChunk(stream, ']');
-  if (trailingNewline) await writeChunk(stream, '\n');
-  stream.end();
-  await done;
+  const {
+    trailingNewline = true,
+    compression = null,
+    atomic = false,
+    gzipOptions = null,
+    signal = null
+  } = options;
+  const { stream, done } = createJsonWriteStream(filePath, {
+    compression,
+    atomic,
+    gzipOptions,
+    signal
+  });
+  try {
+    await writeChunk(stream, '[');
+    await writeArrayItems(stream, items, signal);
+    await writeChunk(stream, ']');
+    if (trailingNewline) await writeChunk(stream, '\n');
+    stream.end();
+    await done;
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await done; } catch {}
+    throw err;
+  }
 }
 
 /**
  * Stream a JSON object with one or more array fields to disk.
  * @param {string} filePath
- * @param {{fields?:object,arrays?:object,trailingNewline?:boolean}} input
+ * @param {{fields?:object,arrays?:object,trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} input
  * @returns {Promise<void>}
  */
 export async function writeJsonObjectFile(filePath, input = {}) {
@@ -490,26 +652,41 @@ export async function writeJsonObjectFile(filePath, input = {}) {
     arrays = {},
     trailingNewline = true,
     compression = null,
-    atomic = false
+    atomic = false,
+    gzipOptions = null,
+    signal = null
   } = input;
-  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
-  await writeChunk(stream, '{');
-  let first = true;
-  for (const [key, value] of Object.entries(fields)) {
-    if (!first) await writeChunk(stream, ',');
-    await writeChunk(stream, `${JSON.stringify(key)}:`);
-    await writeJsonValue(stream, value);
-    first = false;
+  const { stream, done } = createJsonWriteStream(filePath, {
+    compression,
+    atomic,
+    gzipOptions,
+    signal
+  });
+  try {
+    await writeChunk(stream, '{');
+    let first = true;
+    for (const [key, value] of Object.entries(fields)) {
+      throwIfAborted(signal);
+      if (!first) await writeChunk(stream, ',');
+      await writeChunk(stream, `${JSON.stringify(key)}:`);
+      await writeJsonValue(stream, value);
+      first = false;
+    }
+    for (const [key, items] of Object.entries(arrays)) {
+      throwIfAborted(signal);
+      const header = `${JSON.stringify(key)}:[`;
+      await writeChunk(stream, `${first ? '' : ','}${header}`);
+      first = false;
+      await writeArrayItems(stream, items, signal);
+      await writeChunk(stream, ']');
+    }
+    await writeChunk(stream, '}');
+    if (trailingNewline) await writeChunk(stream, '\n');
+    stream.end();
+    await done;
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await done; } catch {}
+    throw err;
   }
-  for (const [key, items] of Object.entries(arrays)) {
-    const header = `${JSON.stringify(key)}:[`;
-    await writeChunk(stream, `${first ? '' : ','}${header}`);
-    first = false;
-    await writeArrayItems(stream, items);
-    await writeChunk(stream, ']');
-  }
-  await writeChunk(stream, '}');
-  if (trailingNewline) await writeChunk(stream, '\n');
-  stream.end();
-  await done;
 }

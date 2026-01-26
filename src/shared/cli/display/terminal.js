@@ -5,6 +5,8 @@ const terminalKit = terminalKitModule?.default || terminalKitModule;
 export const normalizeProgressMode = (value) => {
   if (value === false || value === 'false' || value === 'off' || value === 'none') return 'off';
   if (value === 'jsonl' || value === 'json') return 'jsonl';
+  if (value === 'tty') return 'tty';
+  if (value === 'log') return 'log';
   return 'auto';
 };
 

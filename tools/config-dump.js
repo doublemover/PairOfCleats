@@ -37,8 +37,8 @@ if (argv.json) {
   process.exit(0);
 }
 
-console.log('Config dump');
-console.log(`- repo: ${repoRoot}`);
-console.log(`- cache root: ${payload.derived.cacheRoot}`);
-console.log(`- repo cache: ${payload.derived.repoCacheRoot}`);
-console.log(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);
+console.error('Config dump');
+console.error(`- repo: ${repoRoot}`);
+console.error(`- cache root: ${payload.derived.cacheRoot}`);
+console.error(`- repo cache: ${payload.derived.repoCacheRoot}`);
+console.error(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);

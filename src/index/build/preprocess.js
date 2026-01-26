@@ -5,15 +5,10 @@ import { getLanguageForFile } from '../language-registry.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
 import { toPosix } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
-
-const normalizeLimit = (value, fallback) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
 
 const hasMaxLinesCaps = (fileCaps) => {
   const defaultMax = fileCaps?.default?.maxLines;
@@ -88,8 +83,10 @@ export async function preprocessFiles({
   fileScan = null,
   lineCounts = false,
   concurrency = 8,
-  log = null
+  log = null,
+  abortSignal = null
 }) {
+  throwIfAborted(abortSignal);
   const { entries, skippedCommon } = await discoverEntries({
     root,
     recordsDir,
@@ -98,7 +95,8 @@ export async function preprocessFiles({
     maxFileBytes,
     fileCaps,
     maxDepth,
-    maxFiles
+    maxFiles,
+    abortSignal
   });
   const fileScanner = createFileScanner(fileScan);
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
@@ -108,6 +106,7 @@ export async function preprocessFiles({
     entries,
     Math.max(1, Math.floor(concurrency)),
     async (entry) => {
+      throwIfAborted(abortSignal);
       if (!entry) return;
       const scanResult = await fileScanner.scanFile({
         absPath: entry.abs,
@@ -150,7 +149,7 @@ export async function preprocessFiles({
         checkedMinified: scanResult?.checkedMinified === true
       };
     },
-    { collectResults: false }
+    { collectResults: false, signal: abortSignal }
   );
   if (scanSkips.length) skippedCommon.push(...scanSkips);
 
@@ -159,9 +158,11 @@ export async function preprocessFiles({
     && (isSupportedEntry(entry, 'code') || isSupportedEntry(entry, 'prose') || isSupportedEntry(entry, 'records')));
   let lineCountMap = new Map();
   if (needsLines && supportedEntries.length) {
+    throwIfAborted(abortSignal);
     lineCountMap = await countLinesForEntries(supportedEntries, {
       concurrency: Math.max(1, Math.floor(concurrency))
     });
+    throwIfAborted(abortSignal);
     for (const entry of supportedEntries) {
       const lines = lineCountMap.get(toPosix(entry.rel || ''));
       if (Number.isFinite(lines)) entry.lines = lines;

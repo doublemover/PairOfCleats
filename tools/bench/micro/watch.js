@@ -86,14 +86,14 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
-  console.log(`[watch] bursts=${bursts} size=${burstSize} debounce=${debounceMs}ms`);
+  console.error(`[watch] bursts=${bursts} size=${burstSize} debounce=${debounceMs}ms`);
   if (summary) {
-    console.log(`- schedule: ${formatStats(summary.scheduleMs)}`);
-    console.log(`- total:    ${formatStats(summary.totalMs)}`);
+    console.error(`- schedule: ${formatStats(summary.scheduleMs)}`);
+    console.error(`- total:    ${formatStats(summary.totalMs)}`);
     if (summary.fireDelayMs.count) {
-      console.log(`- fire:     ${formatStats(summary.fireDelayMs)}`);
+      console.error(`- fire:     ${formatStats(summary.fireDelayMs)}`);
     }
-    console.log(`- cancels:  avg ${(summary.cancelMean || 0).toFixed(1)} per burst`);
+    console.error(`- cancels:  avg ${(summary.cancelMean || 0).toFixed(1)} per burst`);
   }
 }
 

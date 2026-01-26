@@ -283,6 +283,7 @@ export async function createIndexerWorkerPool(input = {}) {
     let restartAtMs = 0;
     let restarting = null;
     let activeTasks = 0;
+    let shutdownWhenIdle = false;
     let pendingRestart = false;
     const workerExecArgv = buildWorkerExecArgv();
     const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers);
@@ -333,6 +334,8 @@ export async function createIndexerWorkerPool(input = {}) {
       if (reason) log(`Worker pool disabled permanently: ${reason}`);
       if (activeTasks === 0) {
         await shutdownPool();
+      } else {
+        shutdownWhenIdle = true;
       }
     };
     const scheduleRestart = async (reason) => {
@@ -343,7 +346,14 @@ export async function createIndexerWorkerPool(input = {}) {
       incWorkerRetries({ pool: poolLabel });
       if (restartAttempts > maxRestartAttempts) {
         pendingRestart = false;
+        permanentlyDisabled = true;
+        disabled = true;
         if (reason) log(`Worker pool disabled: ${reason}`);
+        if (activeTasks === 0) {
+          await shutdownPool();
+        } else {
+          shutdownWhenIdle = true;
+        }
         return;
       }
       const delayMs = Math.min(
@@ -354,6 +364,8 @@ export async function createIndexerWorkerPool(input = {}) {
       pendingRestart = true;
       if (activeTasks === 0) {
         await shutdownPool();
+      } else {
+        shutdownWhenIdle = true;
       }
       if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
     };
@@ -523,7 +535,9 @@ export async function createIndexerWorkerPool(input = {}) {
           const reason = isCloneError
             ? (detail ? `data-clone error: ${detail}` : 'data-clone error')
             : (detail ? `worker failure: ${detail}` : 'worker failure');
-          if (opaqueFailure) {
+          if (isCloneError) {
+            await disablePermanently(reason || 'data-clone error');
+          } else if (opaqueFailure) {
             await disablePermanently(reason || 'worker failure');
           } else {
             await scheduleRestart(reason);
@@ -571,6 +585,10 @@ export async function createIndexerWorkerPool(input = {}) {
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
           if (activeTasks === 0) {
+            if (shutdownWhenIdle) {
+              shutdownWhenIdle = false;
+              await shutdownPool();
+            }
             await maybeRestart();
           }
         }
@@ -657,6 +675,10 @@ export async function createIndexerWorkerPool(input = {}) {
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
           if (activeTasks === 0) {
+            if (shutdownWhenIdle) {
+              shutdownWhenIdle = false;
+              await shutdownPool();
+            }
             await maybeRestart();
           }
         }

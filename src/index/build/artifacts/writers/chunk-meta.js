@@ -171,6 +171,7 @@ export const enqueueChunkMetaArtifacts = async ({
   chunkMetaPlan,
   maxJsonBytes = MAX_JSON_BYTES,
   compression = null,
+  gzipOptions = null,
   enqueueJsonArray,
   enqueueWrite,
   addPieceFile,
@@ -283,7 +284,8 @@ export const enqueueChunkMetaArtifacts = async ({
             maxBytes: resolvedMaxJsonBytes,
             maxItems: chunkMetaShardSize,
             atomic: true,
-            compression
+            compression,
+            gzipOptions
           });
           const parts = result.parts.map((part, index) => ({
             path: part,
@@ -326,7 +328,7 @@ export const enqueueChunkMetaArtifacts = async ({
         () => writeJsonLinesFile(
           jsonlPath,
           chunkMetaIterator(),
-          { atomic: true, compression }
+          { atomic: true, compression, gzipOptions }
         )
       );
       addPieceFile({

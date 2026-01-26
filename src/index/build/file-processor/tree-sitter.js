@@ -1,5 +1,6 @@
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
+import { resolveSegmentExt } from '../../segments/config.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -48,7 +49,8 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ex
   if (Array.isArray(segments)) {
     for (const segment of segments) {
       if (!segment || segment.type !== 'embedded') continue;
-      add(resolveTreeSitterLanguageForSegment(segment.languageId, ext));
+      const segmentExt = resolveSegmentExt(ext, segment);
+      add(resolveTreeSitterLanguageForSegment(segment.languageId, segmentExt));
     }
   }
   return Array.from(languages);

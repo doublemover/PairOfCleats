@@ -173,12 +173,12 @@ const censusRepo = async (repoPath, label) => {
   });
 
   const concurrency = Math.max(1, Math.min(32, os.cpus().length * 2));
-  console.log(`\n${label}`);
-  console.log(`Repo: ${repoPath}`);
+  console.error(`\n${label}`);
+  console.error(`Repo: ${repoPath}`);
   for (const mode of modes) {
     const entries = entriesByMode[mode] || [];
     if (!entries.length) {
-      console.log(`Mode ${mode}: no files`);
+      console.error(`Mode ${mode}: no files`);
       continue;
     }
     const lineCounts = await countLinesForEntries(entries, { concurrency });
@@ -205,11 +205,11 @@ const censusRepo = async (repoPath, label) => {
     });
     const totalFiles = entries.length;
     const totalLines = shardStats.reduce((sum, shard) => sum + shard.lines, 0);
-    console.log(
+    console.error(
       `Mode ${mode}: ${shardStats.length} shards, ${formatNumber(totalFiles)} files, ${formatNumber(totalLines)} lines`
     );
     for (const shard of shardStats) {
-      console.log(
+      console.error(
         `- ${shard.label} | files ${formatNumber(shard.files)} | lines ${formatNumber(shard.lines)}`
       );
     }
@@ -219,11 +219,11 @@ const censusRepo = async (repoPath, label) => {
         resolveTieBreaker: (shard) => shard.label || shard.id || ''
       });
       if (shardBatches.length) {
-        console.log(`Batch plan (${shardBatches.length} workers):`);
+        console.error(`Batch plan (${shardBatches.length} workers):`);
         shardBatches.forEach((batch, index) => {
           const batchFiles = batch.reduce((sum, shard) => sum + shard.entries.length, 0);
           const batchLines = batch.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
-          console.log(
+          console.error(
             `- batch ${index + 1} | shards ${batch.length} | files ${formatNumber(batchFiles)} | lines ${formatNumber(batchLines)}`
           );
         });

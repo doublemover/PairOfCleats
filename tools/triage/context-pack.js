@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { execaSync } from 'execa';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
 
@@ -244,7 +244,14 @@ function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   if (annFlagPresent && argv.ann === false) args.push('--no-ann');
   const env = { ...baseEnv };
   if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  const result = execaSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8', reject: false });
+  const result = spawnSubprocessSync(process.execPath, args, {
+    cwd: repoRoot,
+    env,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false
+  });
   if (result.exitCode !== 0) {
     return { ok: false, error: result.stderr || result.stdout || 'search failed', payload: null };
   }

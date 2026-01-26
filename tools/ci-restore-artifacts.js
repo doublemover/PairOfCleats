@@ -147,8 +147,8 @@ try {
   process.exit(1);
 }
 
-console.log('CI artifacts restored');
-console.log(`- code index: ${copied.code ? 'ok' : 'missing'}`);
-console.log(`- prose index: ${copied.prose ? 'ok' : 'missing'}`);
-console.log(`- sqlite code index: ${copied.sqlite.code ? 'ok' : 'missing'}`);
-console.log(`- sqlite prose index: ${copied.sqlite.prose ? 'ok' : 'missing'}`);
+console.error('CI artifacts restored');
+console.error(`- code index: ${copied.code ? 'ok' : 'missing'}`);
+console.error(`- prose index: ${copied.prose ? 'ok' : 'missing'}`);
+console.error(`- sqlite code index: ${copied.sqlite.code ? 'ok' : 'missing'}`);
+console.error(`- sqlite prose index: ${copied.sqlite.prose ? 'ok' : 'missing'}`);

@@ -2,10 +2,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
-const root = process.cwd();
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tempRoot = path.join(root, 'tests', '.cache', 'lsp-enrichment');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -44,13 +45,14 @@ const env = {
   PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
 };
 process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,
   [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stub-embeddings'],
-  { env, encoding: 'utf8' }
+  { cwd: repoRoot, env, encoding: 'utf8' }
 );
 
 if (buildResult.status !== 0) {

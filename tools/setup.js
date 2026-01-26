@@ -11,9 +11,11 @@ import {
   getIndexDir,
   getModelConfig,
   getRepoCacheRoot,
+  getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
   resolveRepoRoot,
+  resolveRuntimeEnv,
   resolveToolRoot
 } from './dict-utils.js';
 import { runCommand as runCommandBase } from './cli-utils.js';
@@ -53,7 +55,7 @@ const rl = nonInteractive ? null : readline.createInterface({ input: process.std
 const log = (msg) => {
   const line = `[setup] ${msg}`;
   if (jsonOutput) console.error(line);
-  else console.log(line);
+  else console.error(line);
 };
 const warn = (msg) => {
   const line = `[setup] ${msg}`;
@@ -100,7 +102,7 @@ async function promptChoice(question, choices, defaultChoice) {
   return match || defaultChoice;
 }
 
-let runtimeEnv = { ...process.env };
+let runtimeEnv = resolveRuntimeEnv(null, process.env);
 
 function runCommand(cmd, args, options = {}) {
   const spawnOptions = {
@@ -166,6 +168,7 @@ if (shouldValidateConfig && configExists) {
 }
 
 let userConfig = loadUserConfig(root);
+runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(root, userConfig), runtimeEnv);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
 const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);

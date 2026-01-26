@@ -1,161 +1,134 @@
-# Metadata Schema v2
+# Metadata Schema v2 (Updated)
 
-This document defines the v2 per-chunk metadata contract. It is the canonical schema for rich metadata and provenance across indexing stages.
+This document defines the v2 per-chunk metadata contract. `metaV2` is stored inside `chunk_meta` entries.
 
-## Versioning
+Schema version: **2.0.0**
 
-- **Schema version:** 2.0.0
-- **Container:** Stored inside `chunk_meta` entries as `metaV2`.
-- **Compatibility:** Readers must tolerate missing v2 metadata until migration completes.
+This updated version aligns the contract with:
+- segment-aware indexing (embedded code inside container formats),
+- Phase 5 “container vs effective” language identity, and
+- current implementation realities in PairOfCleats-main (39).
 
-## Core fields (stable)
+## 1) Core identity
 
-These fields identify the chunk and its location.
+### 1.1 chunk identity fields
 
-- `chunkId` (string): Stable chunk identifier (derived from file + segment + range + content hash rules).
-- `file` (string): Repo-relative file path.
-- `fileHash` (string|null): Hash of the source file contents for this chunk.
-- `fileHashAlgo` (string|null): Hash algorithm identifier (e.g. `sha1`).
-- `segment` (object):
-  - `segmentId` (string)
-  - `type` (code|prose|config|comment|embedded)
-  - `languageId` (string)
-  - `parentSegmentId` (string|null)
-- `range` (object):
-  - `start` (number)
-  - `end` (number)
-  - `startLine` (number)
-  - `endLine` (number)
-- `lang` (string): Canonical language id.
-- `ext` (string|null): File extension.
-- `kind` (string|null): Symbol kind (function/class/etc).
-- `name` (string|null): Symbol name.
+- `chunkId` (string): stable identifier for the chunk span within a container file.
+  - Current implementation derives it from the container file path, segment id, and the chunk range. Legacy builds may incorporate `kind`/`name`; do not assume `chunkId` is immune to chunker naming changes unless the implementation explicitly removes that dependency.
+- `file` (string): repo-relative container path (POSIX separators).
+- `fileHash` (string|null): hash of the decoded container file contents (if computed).
+- `fileHashAlgo` (string|null): hash algorithm identifier (e.g., `sha1`).
 
-## Provenance
+### 1.2 range
 
-Each derived signal includes explicit provenance.
+`range` describes the chunk span in the **container file text**.
 
-- `generatedBy` (string): Indexer version or build ID.
-- `tooling` (object):
-  - `tool` (string)
-  - `version` (string)
-  - `configHash` (string)
-- `parser` (object):
-  - `name` (string)
-  - `version` (string|null)
-- `confidence` (number|null): 0–1 confidence for derived metadata (when applicable).
+- `range.start` (number): UTF-16 code unit offset (0-based, inclusive)
+- `range.end` (number): UTF-16 code unit offset (0-based, exclusive)
+- `range.startLine` (number): 1-based
+- `range.endLine` (number): 1-based
 
-## Naming conventions
+Offsets must be compatible with `text.slice(start, end)`.
 
-- `chunk.name`: The symbol name captured from the parser/segmenter. Preserve source spelling and
-  casing. It may be fully qualified (e.g., `Namespace.Type.method`) when emitted by tooling.
-- `tooling` symbols: Provider names are treated as authoritative for that provider; they are not
-  normalized to match `chunk.name` (resolution happens during linking).
-- `generatedBy`: Pure provenance (build/tool version), never used as a stable identifier.
+## 2) Segment identity (embedded content)
 
-## Doc metadata
+`segment` describes the segment from which this chunk was produced.
 
+- `segment.segmentId` (string)
+- `segment.type` (string): `code | prose | config | comment | embedded`
+- `segment.languageId` (string|null): raw segment language hint (e.g., fence/lang attribute).  
+  This is NOT guaranteed to match the language registry id.
+- `segment.parentSegmentId` (string|null)
+- `segment.start` / `segment.end` (number): container offsets for the segment span
+- `segment.embeddingContext` (string|null): `code | prose | ...` (best-effort)
+
+## 3) Container vs effective language identity (Phase 5)
+
+A chunk originates from a **container file** (physical file on disk) but may be interpreted under an **effective** language (the language used to parse/tokenize/enrich the chunk content).
+
+### 3.1 Canonical fields
+
+- `container` (object):
+  - `ext` (string|null): container file extension (e.g., `.md`, `.vue`)
+  - `languageId` (string|null): container language id (registry id when known)
+- `effective` (object):
+  - `ext` (string|null): effective extension used for parsing/tokenization (e.g., `.ts`, `.tsx`)
+  - `languageId` (string|null): effective language registry id (e.g., `typescript`)
+
+### 3.2 Legacy compatibility
+
+- Older builds may only populate `ext` and `lang` without `container/effective`.
+- Readers should treat:
+  - `metaV2.ext` as container extension (legacy),
+  - `metaV2.lang` as “best available language id” (legacy), and
+  - derive effective identity from `segment.languageId` + mapping tables when `effective` is missing.
+
+### 3.3 `lang` and `ext` top-level fields
+
+For new builds (Phase 5+), the following interpretation is recommended:
+
+- `lang`: effective language registry id (same as `effective.languageId`)
+- `ext`: container extension (same as `container.ext`)
+
+These are retained for compatibility with older readers that expect `lang/ext` at the top level.
+
+## 4) Symbol descriptor fields
+
+- `kind` (string|null): function/class/etc
+- `name` (string|null): symbol name (may be qualified)
 - `signature` (string|null)
-- `doc` (string|null): Summary/docstring.
-- `annotations` (string[]): Decorators/attributes.
-- `modifiers` (string[] | object): Modifier tokens such as `public`, `private`, `static`, `abstract`, `async`, `generator`, `readonly`. Legacy object form may include boolean flags and `visibility` string.
-- `params` (string[]): Parameter names.
-- `returns` (string|null): Declared return type/name.
-- `docComments` (object):
-  - `summary` (string|null)
-  - `tags` (array)
+- `doc` (string|null)
+- `annotations` (string[]): decorators/attributes
+- `modifiers` (string[] | object): canonical is string array; legacy object map tolerated
+- `params` (string[]): parameter names
+- `returns` (string|null): a single declared return type string when available (legacy convenience; prefer `types.declared.returns[]`)
 
-## Embedded segments
+## 5) Types
 
-Embedded segments capture code/prose inside container formats (Markdown fences, Vue/Svelte/Astro).
+`types` is an object with optional `declared`, `inferred`, and `tooling` buckets.
 
-- `embedded.parentSegmentId`: Links to the owning container segment.
-- `embedded.languageId`: Language of the embedded segment (e.g., `javascript` for a fenced block).
-- `embedded.context`: Embedding context hint (`code` or `prose`).
+- `types.<bucket>.returns`: array of type entries
+- `types.<bucket>.params`: canonical is an object map `{ paramName: TypeEntry[] }`
+  - legacy form may be an array (loses param name); readers should tolerate it
 
-## Control-flow summary
+Type entry shape (minimum):
 
-- `controlFlow` (object):
-  - `branches` (number)
-  - `loops` (number)
-  - `breaks` (number)
-  - `continues` (number)
-  - `returns` (number)
-  - `throws` (number)
-  - `awaits` (number)
-  - `yields` (number)
-  - `async` (boolean)
-  - `generator` (boolean)
+```ts
+type TypeEntry = {
+  type: string;
+  source?: string | null;
+  confidence?: number | null;
+  shape?: string | null;
+  elements?: string[] | null;
+  evidence?: string[] | null;
+};
+```
 
-## Dataflow summary
+## 6) Relations (summary)
 
-- `dataflow` (object):
-  - `reads` (string[])
-  - `writes` (string[])
-  - `mutations` (string[])
-  - `aliases` (string[])
+- `relations.calls` / `relations.usages`: light-weight edge lists (legacy)
+- `relations.callLinks` / `relations.usageLinks`: cross-file linked targets (post-inference)
+- `relations.callSummaries`: bounded, explainable summaries (post-inference)
 
-## Dependencies
+Phase 6 introduces a dedicated `call_sites` artifact for evidence-rich callsites; do not bloat `metaV2` with full callsite payloads.
 
-- `dependencies` (object):
-  - `imports` (string[])
-  - `requires` (string[])
-  - `includes` (string[])
-  - `references` (string[])
+## 7) Mapping from `docmeta`
 
-## Risk metadata
+Key mapping (non-exhaustive):
 
-- `risk` (object):
-  - `sources` (array of `{ id, label, confidence }`)
-  - `sinks` (array of `{ id, label, confidence }`)
-  - `sanitizers` (array of `{ id, label, confidence }`)
-  - `flows` (array of `{ from, to, confidence }`)
+- `docmeta.signature` → `metaV2.signature`
+- `docmeta.doc` → `metaV2.doc`
+- `docmeta.decorators` → `metaV2.annotations`
+- `docmeta.modifiers` → `metaV2.modifiers`
+- `docmeta.params` → `metaV2.params`
+- `docmeta.paramTypes` → `metaV2.types.declared.params`
+- `docmeta.returnType` and `docmeta.returns` → `metaV2.types.declared.returns`
+- `docmeta.inferredTypes.*` → `metaV2.types.inferred.*`
+- `docmeta.risk.*` → `metaV2.risk.*`
+- `docmeta.controlFlow.*` → `metaV2.controlFlow.*`
+- `docmeta.dataflow.*` → `metaV2.dataflow.*`
 
-## Type metadata
+## 8) Contract notes
 
-- `types` (object|null):
-  - `declared` (object)
-  - `inferred` (object)
-  - `tooling` (object)
-  - Each entry includes `{ type, source, confidence }`.
-  - Buckets map **symbol names** to arrays of entries. For parameter types, `types.*.params` may be either:
-    - an array of entries (legacy, loses parameter name), or
-    - an object of `{ paramName: entry[] }` (canonical, preserves names).
-
-## Embedded metadata
-
-- `embedded` (object):
-  - `parentSegmentId` (string|null)
-  - `languageId` (string|null)
-  - `context` (string|null)
-
-## Mapping from current `docmeta`
-
-Current `docmeta` fields map to v2 as follows:
-
-- `docmeta.signature` -> `metaV2.signature`
-- `docmeta.doc` -> `metaV2.doc`
-- `docmeta.decorators` -> `metaV2.annotations`
-- `docmeta.modifiers` -> `metaV2.modifiers`
-- `docmeta.params` -> `metaV2.params`
-- `docmeta.paramTypes` -> `metaV2.types.declared.params`
-- `docmeta.paramDefaults` -> `metaV2.types.declared.defaults`
-- `docmeta.returnType` -> `metaV2.types.declared.returns`
-- `docmeta.returnsValue` -> `metaV2.controlFlow.returns`
-- `docmeta.throws` -> `metaV2.controlFlow.throws`
-- `docmeta.awaits` -> `metaV2.controlFlow.awaits`
-- `docmeta.yields` -> `metaV2.controlFlow.yields`
-- `docmeta.controlFlow.*` -> `metaV2.controlFlow.*`
-- `docmeta.dataflow.*` -> `metaV2.dataflow.*`
-- `docmeta.risk.*` -> `metaV2.risk.*`
-- `docmeta.inferredTypes.*` -> `metaV2.types.inferred.*`
-- `docmeta.record` -> `metaV2.record` (legacy passthrough until record schema v2)
-
-## Deprecation schedule
-
-- **Phase 2:** Publish schema v2 and begin emitting `metaV2` alongside legacy `docmeta`.
-- **Phase 3:** Readers accept both `metaV2` and `docmeta`.
-- **Phase 4:** Writers deprecate legacy-only fields and emit v2 as canonical.
-- **Phase 5:** Readers treat `docmeta` as legacy and prefer v2 fields by default.
-
-No removal occurs before Phase 5 gates are met and migration coverage is verified.
+- Offsets are in decoded text (UTF-16 code units). If tooling uses byte offsets, it must translate.
+- Any fields not defined above must be placed under `extensions` when strict schema enforcement is enabled.

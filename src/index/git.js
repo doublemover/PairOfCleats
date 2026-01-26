@@ -21,6 +21,16 @@ let gitBlameCache = createLruCache({
   sizeCalculation: estimateJsonBytes
 });
 
+const warnedGitRoots = new Set();
+
+const warnGitUnavailable = (repoRoot, message = 'Git metadata unavailable.') => {
+  const key = repoRoot || 'unknown';
+  if (warnedGitRoots.has(key)) return;
+  warnedGitRoots.add(key);
+  const suffix = repoRoot ? ` (${repoRoot})` : '';
+  console.warn(`[git] ${message}${suffix}`);
+};
+
 /**
  * Configure git metadata cache settings.
  * @param {{maxMb?:number,ttlMs?:number}|null} cacheConfig
@@ -99,6 +109,7 @@ export async function getGitMetaForFile(file, options = {}) {
       lineAuthors
     };
   } catch {
+    warnGitUnavailable(baseDir);
     return {};
   }
 }
@@ -153,6 +164,7 @@ export async function getRepoBranch(repoRoot) {
     const status = await git.status();
     return { branch: status.current || null, isRepo: true };
   } catch {
+    warnGitUnavailable(repoRoot, 'Git repo status unavailable.');
     return { branch: null, isRepo: false };
   }
 }
@@ -174,6 +186,7 @@ export async function getRepoProvenance(repoRoot) {
     const branch = status?.current || null;
     return { commit, dirty, branch, isRepo: true };
   } catch {
+    warnGitUnavailable(repoRoot, 'Git provenance unavailable.');
     return { commit: null, dirty: null, branch: null, isRepo: false };
   }
 }

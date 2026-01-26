@@ -1,18 +1,26 @@
 import { normalizePath } from '../utils.js';
 import { buildSymbolId, resolveMemberByName } from './symbols.js';
 
-export const buildEdgesFromGraph = ({ graph, type, memberById }) => {
+export const buildEdgesFromGraph = ({ graph, type, memberById, aliasById = null }) => {
   if (!graph || !Array.isArray(graph.nodes)) return [];
   const edges = [];
+  const resolveId = (id) => {
+    if (!id) return null;
+    if (memberById.has(id)) return id;
+    return aliasById?.get(id) || null;
+  };
   for (const node of graph.nodes) {
     if (!node?.id || !Array.isArray(node.out)) continue;
+    const sourceId = resolveId(node.id);
+    if (!sourceId) continue;
     for (const target of node.out) {
       if (!target) continue;
-      if (!memberById.has(node.id) || !memberById.has(target)) continue;
+      const targetId = resolveId(target);
+      if (!targetId) continue;
       edges.push({
         type,
-        from: { member: node.id },
-        to: { member: target },
+        from: { member: sourceId },
+        to: { member: targetId },
         label: null
       });
     }

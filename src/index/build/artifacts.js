@@ -67,6 +67,7 @@ export async function writeIndexArtifacts(input) {
     compressionEnabled,
     compressionMode,
     compressionKeepRaw,
+    compressionGzipOptions,
     compressibleArtifacts
   } = resolveCompressionConfig(indexingConfig);
   const resolveShardCompression = (base) => (
@@ -272,6 +273,7 @@ export async function writeIndexArtifacts(input) {
     compressionEnabled,
     compressionMode,
     compressionKeepRaw,
+    compressionGzipOptions,
     compressibleArtifacts
   });
   if (state.importResolutionGraph) {
@@ -352,6 +354,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaPlan,
     maxJsonBytes,
     compression: chunkMetaCompression,
+    gzipOptions: chunkMetaCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
@@ -435,7 +438,8 @@ export async function writeIndexArtifacts(input) {
           items: repoMapIterator(),
           maxBytes: maxJsonBytes,
           atomic: true,
-          compression: repoMapCompression
+          compression: repoMapCompression,
+          gzipOptions: repoMapCompression === 'gzip' ? compressionGzipOptions : null
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
@@ -589,6 +593,7 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes,
     log,
     compression: fileRelationsCompression,
+    gzipOptions: fileRelationsCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel

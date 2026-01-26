@@ -2,6 +2,7 @@ import { parse as parseYaml } from 'yaml';
 import { parse as parseToml } from 'smol-toml';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { offsetToLine } from '../shared/lines.js';
+import { createSafeRegex } from '../shared/safe-regex.js';
 
 const DEFAULT_COMMENT_CONFIG = {
   extract: 'doc',
@@ -200,12 +201,22 @@ const normalizeLimit = (value, fallback) => {
   return Math.max(0, Math.floor(num));
 };
 
-const normalizePattern = (value, fallback) => {
+const COMMENT_REGEX_CONFIG = { flags: 'i' };
+
+const compilePattern = (value, fallback) => {
   if (value === null || value === undefined) return fallback;
-  if (value instanceof RegExp) return value;
-  if (typeof value === 'string' && value.trim()) return new RegExp(value, 'i');
+  if (value instanceof RegExp) {
+    return createSafeRegex(value.source, value.flags, COMMENT_REGEX_CONFIG) || fallback;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return createSafeRegex(value, 'i', COMMENT_REGEX_CONFIG) || fallback;
+  }
   return fallback;
 };
+
+const DEFAULT_LICENSE_PATTERN = createSafeRegex(DEFAULT_COMMENT_CONFIG.licensePattern, 'i', COMMENT_REGEX_CONFIG);
+const DEFAULT_GENERATED_PATTERN = createSafeRegex(DEFAULT_COMMENT_CONFIG.generatedPattern, 'i', COMMENT_REGEX_CONFIG);
+const DEFAULT_LINTER_PATTERN = createSafeRegex(DEFAULT_COMMENT_CONFIG.linterPattern, 'i', COMMENT_REGEX_CONFIG);
 
 export function normalizeCommentConfig(input = {}) {
   const cfg = input && typeof input === 'object' ? input : {};
@@ -221,9 +232,9 @@ export function normalizeCommentConfig(input = {}) {
     maxPerChunk: normalizeLimit(cfg.maxPerChunk, DEFAULT_COMMENT_CONFIG.maxPerChunk),
     maxBytesPerChunk: normalizeLimit(cfg.maxBytesPerChunk, DEFAULT_COMMENT_CONFIG.maxBytesPerChunk),
     headerMaxLines: normalizeLimit(cfg.headerMaxLines, DEFAULT_COMMENT_CONFIG.headerMaxLines),
-    licensePattern: normalizePattern(cfg.licensePattern, new RegExp(DEFAULT_COMMENT_CONFIG.licensePattern, 'i')),
-    generatedPattern: normalizePattern(cfg.generatedPattern, new RegExp(DEFAULT_COMMENT_CONFIG.generatedPattern, 'i')),
-    linterPattern: normalizePattern(cfg.linterPattern, new RegExp(DEFAULT_COMMENT_CONFIG.linterPattern, 'i')),
+    licensePattern: compilePattern(cfg.licensePattern, DEFAULT_LICENSE_PATTERN),
+    generatedPattern: compilePattern(cfg.generatedPattern, DEFAULT_GENERATED_PATTERN),
+    linterPattern: compilePattern(cfg.linterPattern, DEFAULT_LINTER_PATTERN),
     skipGenerated: cfg.skipGenerated !== false,
     skipLinter: cfg.skipLinter !== false
   };

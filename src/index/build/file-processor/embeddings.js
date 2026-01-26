@@ -1,4 +1,6 @@
+import PQueue from 'p-queue';
 import { normalizeVec, quantizeVecUint8 } from '../../embedding.js';
+import { runWithQueue } from '../../../shared/concurrency.js';
 import { isVectorLike, mergeEmbeddingVectors } from '../../../shared/embedding-utils.js';
 import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
 
@@ -39,6 +41,7 @@ const createBatcher = (embed, batchSize) => {
   let scheduled = false;
   let needsFlush = false;
   const size = Math.max(1, Math.floor(batchSize));
+  const batchQueue = new PQueue({ concurrency: 1 });
 
   const flush = async () => {
     if (flushing) {
@@ -48,23 +51,35 @@ const createBatcher = (embed, batchSize) => {
     flushing = true;
     do {
       needsFlush = false;
+      if (!queue.length) continue;
+      const batches = [];
       while (queue.length) {
-        const batch = queue.splice(0, size);
-        const payload = batch.map((item) => item.text);
-        try {
-          const outputs = await embed(payload);
-          if (!Array.isArray(outputs) || outputs.length !== batch.length) {
-            throw new Error(`embedding batch size mismatch (expected ${batch.length}, got ${outputs?.length ?? 0})`);
-          }
-          for (let i = 0; i < batch.length; i += 1) {
-            batch[i].resolve(outputs[i] ?? []);
-          }
-        } catch (err) {
-          for (const item of batch) {
-            item.reject(err);
-          }
-        }
+        batches.push(queue.splice(0, size));
       }
+      await runWithQueue(
+        batchQueue,
+        batches,
+        async (batch) => {
+          const payload = batch.map((item) => item.text);
+          try {
+            const outputs = await embed(payload);
+            if (!Array.isArray(outputs) || outputs.length !== batch.length) {
+              throw new Error(`embedding batch size mismatch (expected ${batch.length}, got ${outputs?.length ?? 0})`);
+            }
+            for (let i = 0; i < batch.length; i += 1) {
+              batch[i].resolve(outputs[i] ?? []);
+            }
+          } catch (err) {
+            for (const item of batch) {
+              item.reject(err);
+            }
+          }
+        },
+        {
+          collectResults: false,
+          bestEffort: true
+        }
+      );
     } while (needsFlush || queue.length);
     flushing = false;
   };
@@ -220,10 +235,12 @@ export async function attachEmbeddings({
 
     // Normalize + quantize immediately. Holding full float embeddings for every chunk
     // dramatically increases peak heap usage during indexing.
+    const codeNorm = embedCode.length ? normalizeVec(embedCode) : null;
+    const docNorm = hasDoc ? normalizeVec(rawDoc) : null;
     const mergedNorm = merged.length ? normalizeVec(merged) : null;
     const mergedU8 = mergedNorm && mergedNorm.length ? quantizeVecUint8(mergedNorm) : zeroU8;
-    const codeU8 = embedCode.length ? quantizeVecUint8(embedCode) : mergedU8;
-    const docU8 = hasDoc ? quantizeVecUint8(rawDoc) : EMPTY_U8;
+    const codeU8 = codeNorm && codeNorm.length ? quantizeVecUint8(codeNorm) : mergedU8;
+    const docU8 = docNorm && docNorm.length ? quantizeVecUint8(docNorm) : EMPTY_U8;
 
     chunk.embedding_u8 = mergedU8;
     chunk.embed_code_u8 = codeU8;

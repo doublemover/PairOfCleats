@@ -115,23 +115,23 @@ const dashboard = {
   }
 };
 
-console.log(`Repometrics dashboard (${path.resolve(metricsDir)})`);
-console.log(`- Queries: ${dashboard.search.totalQueries} (avg ${avgMs.toFixed(1)} ms)`);
-console.log(`- No-result queries: ${dashboard.search.noResultCount}`);
+console.error(`Repometrics dashboard (${path.resolve(metricsDir)})`);
+console.error(`- Queries: ${dashboard.search.totalQueries} (avg ${avgMs.toFixed(1)} ms)`);
+console.error(`- No-result queries: ${dashboard.search.noResultCount}`);
 if (indexMetrics.code) {
-  console.log(`- Code index: ${indexMetrics.code.chunks?.total || 0} chunks, ${indexMetrics.code.tokens?.total || 0} tokens`);
+  console.error(`- Code index: ${indexMetrics.code.chunks?.total || 0} chunks, ${indexMetrics.code.tokens?.total || 0} tokens`);
 }
 if (indexMetrics.prose) {
-  console.log(`- Prose index: ${indexMetrics.prose.chunks?.total || 0} chunks, ${indexMetrics.prose.tokens?.total || 0} tokens`);
+  console.error(`- Prose index: ${indexMetrics.prose.chunks?.total || 0} chunks, ${indexMetrics.prose.tokens?.total || 0} tokens`);
 }
 if (queryRows.length) {
-  console.log(`- Top queries: ${queryRows.slice(0, topN).map((q) => `${q.query} (${q.count})`).join(', ')}`);
+  console.error(`- Top queries: ${queryRows.slice(0, topN).map((q) => `${q.query} (${q.count})`).join(', ')}`);
 }
 if (fileRows.length) {
-  console.log(`- Top files: ${fileRows.slice(0, topN).map((row) => `${row.file} (${row.total})`).join(', ')}`);
+  console.error(`- Top files: ${fileRows.slice(0, topN).map((row) => `${row.file} (${row.total})`).join(', ')}`);
 }
 if (termRows.length) {
-  console.log(`- Top terms: ${termRows.slice(0, topN).map((row) => `${row.term} (${row.count})`).join(', ')}`);
+  console.error(`- Top terms: ${termRows.slice(0, topN).map((row) => `${row.term} (${row.count})`).join(', ')}`);
 }
 
 if (argv.json) {
@@ -142,5 +142,5 @@ if (argv.out) {
   const outPath = path.resolve(argv.out);
   await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
   await fsPromises.writeFile(outPath, JSON.stringify(dashboard, null, 2));
-  console.log(`\nJSON written to ${outPath}`);
+  console.error(`\nJSON written to ${outPath}`);
 }

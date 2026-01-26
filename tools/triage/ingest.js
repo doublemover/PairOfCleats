@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { execaSync } from 'execa';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
@@ -92,7 +92,12 @@ if (argv['build-index']) {
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
   const env = { ...baseEnv };
   if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  const result = execaSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit', env, reject: false });
+  const result = spawnSubprocessSync(process.execPath, args, {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env,
+    rejectOnNonZeroExit: false
+  });
   if (result.exitCode !== 0) process.exit(result.exitCode ?? 1);
 }
 

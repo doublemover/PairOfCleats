@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { createDisplay } from '../src/shared/cli/display.js';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
@@ -72,11 +72,15 @@ const sanitizeRemoteUrl = (value) => {
  * @param {string} label
  */
 function run(cmd, args, label) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit', env: baseEnv });
-  if (result.status !== 0) {
+  const result = spawnSubprocessSync(cmd, args, {
+    stdio: 'inherit',
+    env: baseEnv,
+    rejectOnNonZeroExit: false
+  });
+  if (result.exitCode !== 0) {
     logger.error(`Failed: ${label || cmd}`);
     display.close();
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
 }
 

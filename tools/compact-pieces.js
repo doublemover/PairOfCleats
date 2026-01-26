@@ -419,9 +419,9 @@ for (const mode of modes) {
     await updateManifest(indexDir, updates);
   }
   if (!updates.length) {
-    console.log(`[pieces] ${mode}: no compaction needed.`);
+    console.error(`[pieces] ${mode}: no compaction needed.`);
   } else {
-    console.log(`[pieces] ${mode}: compaction ${dryRun ? 'planned' : 'complete'}.`);
+    console.error(`[pieces] ${mode}: compaction ${dryRun ? 'planned' : 'complete'}.`);
   }
   if (argv.perf && updates.length) {
     const formatPerf = (label, update) => {
@@ -432,9 +432,9 @@ for (const mode of modes) {
     };
     for (const update of updates) {
       if (update.name === 'chunk_meta') {
-        console.log(formatPerf('chunk_meta', update));
+        console.error(formatPerf('chunk_meta', update));
       } else if (update.name === 'token_postings') {
-        console.log(formatPerf('token_postings', update));
+        console.error(formatPerf('token_postings', update));
       }
     }
   }

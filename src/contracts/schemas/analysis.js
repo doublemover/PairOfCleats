@@ -185,6 +185,14 @@ export const RISK_RULES_BUNDLE_SCHEMA = {
         sourcePath: nullableString
       },
       additionalProperties: true
+    },
+    diagnostics: {
+      type: ['object', 'null'],
+      properties: {
+        warnings: { type: ['array', 'null'], items: { type: 'object' } },
+        errors: { type: ['array', 'null'], items: { type: 'object' } }
+      },
+      additionalProperties: true
     }
   },
   additionalProperties: true

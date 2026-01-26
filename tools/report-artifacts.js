@@ -129,45 +129,45 @@ const records = repo.sqlite?.records;
 const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
-console.log('Repo artifacts');
-console.log(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
-console.log(`- index-code: ${formatBytesWithRaw(repo.artifacts.indexCode)}`);
-console.log(`- index-prose: ${formatBytesWithRaw(repo.artifacts.indexProse)}`);
-console.log(`- index-extracted-prose: ${formatBytesWithRaw(repo.artifacts.indexExtractedProse)}`);
-console.log(`- index-records: ${formatBytesWithRaw(repo.artifacts.indexRecords)}`);
-console.log(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
-console.log(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
-console.log(`- sqlite code db: ${code ? formatBytesWithRaw(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
-console.log(`- sqlite prose db: ${prose ? formatBytesWithRaw(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
-console.log(`- sqlite extracted-prose db: ${extractedProse ? formatBytesWithRaw(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
-console.log(`- sqlite records db: ${records ? formatBytesWithRaw(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
-console.log(`- lmdb code db: ${lmdbCode ? formatBytesWithRaw(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
-console.log(`- lmdb prose db: ${lmdbProse ? formatBytesWithRaw(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
+console.error('Repo artifacts');
+console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
+console.error(`- index-code: ${formatBytesWithRaw(repo.artifacts.indexCode)}`);
+console.error(`- index-prose: ${formatBytesWithRaw(repo.artifacts.indexProse)}`);
+console.error(`- index-extracted-prose: ${formatBytesWithRaw(repo.artifacts.indexExtractedProse)}`);
+console.error(`- index-records: ${formatBytesWithRaw(repo.artifacts.indexRecords)}`);
+console.error(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
+console.error(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
+console.error(`- sqlite code db: ${code ? formatBytesWithRaw(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
+console.error(`- sqlite prose db: ${prose ? formatBytesWithRaw(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
+console.error(`- sqlite extracted-prose db: ${extractedProse ? formatBytesWithRaw(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
+console.error(`- sqlite records db: ${records ? formatBytesWithRaw(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
+console.error(`- lmdb code db: ${lmdbCode ? formatBytesWithRaw(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
+console.error(`- lmdb prose db: ${lmdbProse ? formatBytesWithRaw(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
 if (repo.sqlite?.legacy) {
-  console.log(`- legacy sqlite db: ${repo.sqlite.legacy.path}`);
+  console.error(`- legacy sqlite db: ${repo.sqlite.legacy.path}`);
 }
 
-console.log('\nOverall');
-console.log(`- cache root: ${formatBytes(overall.cacheBytes)} (${overall.cacheRoot})`);
-console.log(`- dictionaries: ${formatBytes(overall.dictionaryBytes)}`);
+console.error('\nOverall');
+console.error(`- cache root: ${formatBytes(overall.cacheBytes)} (${overall.cacheRoot})`);
+console.error(`- dictionaries: ${formatBytes(overall.dictionaryBytes)}`);
 if (overall.sqliteOutsideCacheBytes) {
-  console.log(`- sqlite outside cache: ${formatBytes(overall.sqliteOutsideCacheBytes)}`);
+  console.error(`- sqlite outside cache: ${formatBytes(overall.sqliteOutsideCacheBytes)}`);
 }
 if (overall.lmdbOutsideCacheBytes) {
-  console.log(`- lmdb outside cache: ${formatBytes(overall.lmdbOutsideCacheBytes)}`);
+  console.error(`- lmdb outside cache: ${formatBytes(overall.lmdbOutsideCacheBytes)}`);
 }
-console.log(`- total: ${formatBytes(overall.totalBytes)}`);
+console.error(`- total: ${formatBytes(overall.totalBytes)}`);
 
 if (status.health?.issues?.length) {
-  console.log('\nHealth');
-  status.health.issues.forEach((issue) => console.log(`- issue: ${issue}`));
-  status.health.hints.forEach((hint) => console.log(`- hint: ${hint}`));
+  console.error('\nHealth');
+  status.health.issues.forEach((issue) => console.error(`- issue: ${issue}`));
+  status.health.hints.forEach((hint) => console.error(`- hint: ${hint}`));
 }
 
 if (status.throughput) {
   const formatRate = (value, unit) => (Number.isFinite(value) ? `${value.toFixed(1)} ${unit}/s` : 'n/a');
   const formatMs = (value) => (Number.isFinite(value) ? `${value.toFixed(0)} ms` : 'n/a');
-  console.log('\nThroughput');
+  console.error('\nThroughput');
   const entries = [
     ['code', status.throughput.code],
     ['prose', status.throughput.prose],
@@ -178,7 +178,7 @@ if (status.throughput) {
   ];
   for (const [mode, entry] of entries) {
     if (!entry) continue;
-    console.log(
+    console.error(
       `- ${mode}: files ${formatRate(entry.filesPerSec, 'files')}, ` +
       `chunks ${formatRate(entry.chunksPerSec, 'chunks')}, ` +
       `tokens ${formatRate(entry.tokensPerSec, 'tokens')}, ` +
@@ -190,22 +190,22 @@ if (status.throughput) {
 if (status.corruption) {
   const validation = status.corruption;
   const statusLabel = validation.ok ? 'ok' : 'issues';
-  console.log('\nIntegrity');
-  console.log(`- index-validate: ${statusLabel}`);
+  console.error('\nIntegrity');
+  console.error(`- index-validate: ${statusLabel}`);
   if (!validation.ok && validation.issues?.length) {
-    validation.issues.forEach((issue) => console.log(`- issue: ${issue}`));
+    validation.issues.forEach((issue) => console.error(`- issue: ${issue}`));
   }
   if (validation.warnings?.length) {
-    validation.warnings.forEach((warning) => console.log(`- warning: ${warning}`));
+    validation.warnings.forEach((warning) => console.error(`- warning: ${warning}`));
   }
 }
 
 if (status.allRepos) {
   const repos = status.allRepos.repos.slice().sort((a, b) => b.bytes - a.bytes);
-  console.log('\nAll repos');
-  console.log(`- root: ${status.allRepos.root}`);
-  console.log(`- total: ${formatBytes(status.allRepos.totalBytes)}`);
+  console.error('\nAll repos');
+  console.error(`- root: ${status.allRepos.root}`);
+  console.error(`- total: ${formatBytes(status.allRepos.totalBytes)}`);
   for (const repoEntry of repos) {
-    console.log(`- ${repoEntry.id}: ${formatBytes(repoEntry.bytes)} (${repoEntry.path})`);
+    console.error(`- ${repoEntry.id}: ${formatBytes(repoEntry.bytes)} (${repoEntry.path})`);
   }
 }

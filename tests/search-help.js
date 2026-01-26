@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const result = spawnSync(process.execPath, [path.join(root, 'search.js')], { encoding: 'utf8' });
@@ -9,7 +10,7 @@ if (result.status === 0) {
   process.exit(1);
 }
 
-const output = `${result.stdout || ''}${result.stderr || ''}`;
+const output = getCombinedOutput(result);
 const requiredFlags = ['--calls', '--uses', '--author', '--import', '--explain'];
 for (const flag of requiredFlags) {
   if (!output.includes(flag)) {

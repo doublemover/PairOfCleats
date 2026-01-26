@@ -7,10 +7,12 @@ export const pickMinLimit = (...values) => {
   return candidates.length ? Math.min(...candidates) : null;
 };
 
-export const resolveFileCaps = (fileCaps, ext, languageId = null) => {
+export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) => {
   const extKey = typeof ext === 'string' ? ext.toLowerCase() : '';
   const languageKey = typeof languageId === 'string' ? languageId.toLowerCase() : '';
-  const defaultCaps = fileCaps?.default || {};
+  const modeKey = typeof mode === 'string' ? mode.toLowerCase() : '';
+  const modeCaps = modeKey ? fileCaps?.byMode?.[modeKey] : null;
+  const defaultCaps = modeCaps || fileCaps?.default || {};
   const extCaps = extKey ? fileCaps?.byExt?.[extKey] : null;
   const langCaps = languageKey ? fileCaps?.byLanguage?.[languageKey] : null;
   return {

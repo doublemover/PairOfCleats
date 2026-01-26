@@ -1,0 +1,333 @@
+# WTFBRO
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: comment tokenization fast-path suggestion (file-processor.js). Skipped for now: current flow uses token counts to enforce minTokens and commentSegments, and changing tokenization behavior risks altering comment inclusion semantics without a clear spec; needs design decision before optimization.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define correctness vs performance tradeoffs for file discovery and binary/comment handling, including when fast paths are acceptable.
+  - Questions: What is the acceptable false-positive/false-negative rate for binary detection and comment inclusion?
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: file-scan binary detection sampleMinBytes short-circuit suggestion. Skipped: current detector intentionally samples for file-type and heuristic even when wantsBinary is false; changing this could miss binary identification without a clear requirement.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define correctness vs performance tradeoffs for file discovery and binary/comment handling, including when fast paths are acceptable.
+  - Questions: What is the acceptable false-positive/false-negative rate for binary detection and comment inclusion?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js stylesheet languages coerced to .css. Skipped for now: changing ext/language handling without SCSS/SASS/LESS grammar support needs a decision on parser fallback vs. language fidelity; requires design input.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js parse failures for Vue/Svelte/Astro are silent. Skipped for now: adding warnings needs a consistent warning/telemetry strategy (throttling, surface, config) that isn't defined.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js offset invariants not tested. Skipped: requires new fixtures/spec for segment slicing expectations before adding tests.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: babel-parser TSX enablement is extension-only. Skipped: needs a detection heuristic or explicit segment language propagation plan beyond current ext/mode plumbing.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: babel-parser parse failures return null without reasons. Skipped: needs standardized parse-error reporting path (structured warnings or diagnostics).
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: TypeScript chunking/parser TSX selection depends on ext. Skipped: requires segment language override integration across TS chunkers.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter config lacks SCSS/LESS/SASS grammars. Skipped: requires adding new optional grammars and deciding fallback behavior.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter chunking hard-fails when maxChunkNodes exceeded. Skipped: needs a partial-chunking strategy design.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter name extraction depth limit may miss deep names. Skipped: needs language-specific tuning or field-based extraction strategy.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+  - Decision: Define the language-fidelity contract: whether per-segment language drives parser/grammar selection, acceptable fallback behavior, and how parse failures are surfaced (warn vs fail) with throttling/telemetry rules.
+  - Questions: Which languages require first-class grammars now (e.g., SCSS/LESS/SASS), and should unsupported languages be coerced or preserved?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: type-inference-crossfile uses file::name keys (collisions) and call summary de-dup is too coarse. Skipped: fixing this needs schema/key changes (chunkId/range) and changes to relation/link payloads.
+  - Roadmap: Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Choose a canonical identity (stableChunkId + range) and a migration strategy for all artifacts/graphs to eliminate file::name collisions without breaking consumers.
+  - Questions: Do we need a versioned artifact migration step (and for how long do we support legacy IDs)?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: high-impact file::name collisions across graphs/tooling. Skipped: resolving requires changing keying to chunkId/range across multiple artifact schemas.
+  - Roadmap: Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Choose a canonical identity (stableChunkId + range) and a migration strategy for all artifacts/graphs to eliminate file::name collisions without breaking consumers.
+  - Questions: Do we need a versioned artifact migration step (and for how long do we support legacy IDs)?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tooling filters keyed by file extension (embedded segments missing tooling). Skipped: needs segment-language-aware tooling selection design.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: metaV2 built before cross-file/tooling enrichment. Skipped: requires rebuilding or incremental metaV2 updates after enrichment steps.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Decide when MetaV2 is built (pre/post enrichment) and whether updates are full rebuilds or incremental merges; define completeness criteria.
+  - Questions: Should MetaV2 be strictly post-enrichment, and do we version it separately from chunk-meta?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tooling skip heuristic (hasToolingReturn) too coarse and tooling mutations not reflected in metaV2. Skipped: needs a completeness predicate and a post-tooling metaV2 rebuild strategy.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Decide when MetaV2 is built (pre/post enrichment) and whether updates are full rebuilds or incremental merges; define completeness criteria.
+  - Questions: Should MetaV2 be strictly post-enrichment, and do we version it separately from chunk-meta?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: file-processor assemble builds metaV2 before enrichment. Skipped: requires shifting metaV2 construction or adding a finalize step across pipeline stages.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Decide when MetaV2 is built (pre/post enrichment) and whether updates are full rebuilds or incremental merges; define completeness criteria.
+  - Questions: Should MetaV2 be strictly post-enrichment, and do we version it separately from chunk-meta?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: relations step lacks post-pass meta normalization. Skipped: would require new metadata finalize step and schema decision.
+  - Roadmap: Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
+  - Decision: Decide when relation/meta normalization occurs (pre/post enrichment) and whether relations require a new schema version or incremental recompute strategy.
+  - Questions: Should relations be rebuilt after enrichment every time or only when inputs change?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: graphs use file::name legacy keys and adjacency-heavy serialization. Skipped: needs schema/key redesign and output format changes to avoid collisions/size bloat.
+  - Roadmap: Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Choose a canonical identity (stableChunkId + range) and a migration strategy for all artifacts/graphs to eliminate file::name collisions without breaking consumers.
+  - Questions: Do we need a versioned artifact migration step (and for how long do we support legacy IDs)?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: process-files ordering/deferral semantics. Skipped: requires ordering guarantee spec and pipeline refactor to preserve orderIndex.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define ordering guarantees for file processing and how deferral affects orderIndex/docId stability.
+  - Questions: Is stable ordering required across builds or only within a single build?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: artifact-io maxJsonBytes is implicit/test-only. Skipped: needs config schema changes and CLI/config surface design.
+  - Roadmap: Phase 14 — Documentation and Configuration Hardening
+  - Decision: Decide whether size caps are a formal config surface vs internal defaults, and how caps/estimates are represented in schemas and validation.
+  - Questions: Do we need per-artifact overrides and how should caps be documented/exposed?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: artifacts maxJsonBytes plumbing and graph size estimation heuristics. Skipped: needs artifact writer config plumb and serialization strategy review.
+  - Roadmap: Phase 14 — Documentation and Configuration Hardening
+  - Decision: Decide whether size caps are a formal config surface vs internal defaults, and how caps/estimates are represented in schemas and validation.
+  - Questions: Do we need per-artifact overrides and how should caps be documented/exposed?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: chunk-meta size clamps and estimateJsonBytes heuristics. Skipped: requires config exposure and shard planning redesign.
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Define docId stability guarantees, shard planning invariants, and integrity/manifest timing (compute-last vs incremental).
+  - Questions: Should docId be derived from stableChunkId ordering and do we require join validation on load?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: risk dedupeMatches and assignment heuristic issues. Skipped: needs risk evidence strategy and AST-based assignment detection plan.
+  - Roadmap: Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
+  - Decision: Decide when relation/meta normalization occurs (pre/post enrichment) and whether relations require a new schema version or incremental recompute strategy.
+  - Questions: Should relations be rebuilt after enrichment every time or only when inputs change?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: ESLint v9 compatibility risk. Skipped: requires pinned ESLint strategy and fixture-based test update.
+  - Roadmap: Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
+  - Decision: Define the risk evidence model (AST vs heuristic signals), dedupe strategy, and how assignment heuristics are validated and surfaced in outputs.
+  - Questions: Which evidence sources are authoritative, and do we need explicit confidence scoring?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: git metadata completeness gap (committer/branch/issue refs). Skipped: needs expanded SCM schema and provider abstraction.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: TypeScript tooling provider gaps (jsconfig, .js/.jsx, destructuring names, large project guardrails). Skipped: requires tooling policy decisions and performance guard design.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: pyright provider diagnostics timing + encoding handling. Skipped: needs LSP lifecycle changes and shared decode integration.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: clangd/sourcekit key collisions + encoding offsets. Skipped: needs chunkId/range keying and shared decode integration.
+  - Roadmap: Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Choose a canonical identity (stableChunkId + range) and a migration strategy for all artifacts/graphs to eliminate file::name collisions without breaking consumers.
+  - Questions: Do we need a versioned artifact migration step (and for how long do we support legacy IDs)?
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: default skip lists in constants are aggressive. Skipped: needs tiered skip policy and user-visible diagnostics.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: two-stage indexing queue reuses embeddings queue config. Skipped: requires new config surface and status reporting changes.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define the runtime envelope and cancellation/queue semantics that apply across builds, watch, and tooling spawns.
+  - Questions: Which runtime limits are hard caps vs soft recommendations?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: MCP schema vs CLI arg coverage. Skipped: needs contract decision and conformance testing plan.
+  - Roadmap: Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Define authoritative contracts (schema vs CLI behavior), versioning strategy, and conformance tests for breaking changes.
+  - Questions: Which contracts are required for compatibility and how are version bumps communicated?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: isometric viewer JSON/error handling + absolute paths. Skipped: requires UI error-state design and asset path strategy.
+  - Roadmap: Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking)
+  - Decision: Define map/graph format invariants (edge encoding, escaping, layout stability) and viewer error-handling + path normalization strategy.
+  - Questions: Do we standardize DOT/SVG escaping and path normalization now or version the format?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: LSP client error policy and provider gaps (languageId coverage, multi-chunk mapping, signature heuristics, file::name keys). Skipped: needs broader LSP contract updates.
+  - Roadmap: Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Define authoritative contracts (schema vs CLI behavior), versioning strategy, and conformance tests for breaking changes.
+  - Questions: Which contracts are required for compatibility and how are version bumps communicated?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: tooling providers shared circuit-breaker and merge semantics. Skipped: requires decision on retry accounting and conflict resolution.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: LSP UTF-16 offset and symbol URI gaps. Skipped: needs shared text position policy.
+  - Roadmap: Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware)
+  - Decision: Define a segment-aware tooling provider contract (availability reporting, diagnostics encoding/offset rules, merge semantics) and the authoritative schema for provider output.
+  - Questions: Should provider availability be required or best-effort per language, and what is the canonical output schema we will version?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: triage normalize helpers (references normalization, stable record IDs) and render raw payload size. Skipped: needs triage schema normalization plan.
+  - Roadmap: Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking)
+  - Decision: Define the normalized triage schema and payload size limits (including raw payload storage policy) to prevent unbounded outputs.
+  - Questions: What is the minimal required triage schema and how do we cap raw payload size?
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: map edge encoding assumptions, DOT/SVG escaping, routing cost, layout stability, name-key collisions, texture disposal. Skipped: requires map format + viewer behavior decisions.
+  - Roadmap: Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Choose a canonical identity (stableChunkId + range) and a migration strategy for all artifacts/graphs to eliminate file::name collisions without breaking consumers.
+  - Questions: Do we need a versioned artifact migration step (and for how long do we support legacy IDs)?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_SHARDS_SMOKE_SQLITE_TESTS.md: remaining test suite reliability items (deterministic sqlite-ann-fallback, spawnSync timeouts, smoke artifact drift, log-string brittleness, sqlite-cache mtime flake, candidate-set thresholds). Skipped: requires broader test harness policy and capability toggles.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_MISC_VSCODE_WATCH_WORKERPOOL.md: remaining VS Code extension robustness, unicode-offset artifact reader, timer jitter, env leakage, watch/worker pool policy items. Skipped: needs broader test harness and extension contract decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_MISC.md: remaining P0/P1 test hermeticity and smoke/sqlite fixes (ann fallback, auto-backend cache root, smoke artifacts, subprocess quoting, WAL/SHM assertions, cwd dependence, portability). Skipped: requires broader test harness policy and config support.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_STORAGE.md: remaining test harness root discovery, artifact format drift, optional-deps gating, WAL/SHM portability, and log-string brittleness. Skipped: requires test harness refactor and policy alignment.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS.md: remaining spawnSync timeout, smoke artifact drift, progress determinism strictness, and smoke runner instrumentation. Skipped: requires test runner policy changes.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_TOOLING_TREESITTER_TRIAGE.md: tooling/tree-sitter/triage test improvements not addressed. Skipped: needs larger tooling/test policy decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TYPE_INFERENCE_TESTS.md: type inference test suite suggestions not addressed. Skipped: requires test harness and inference policy work.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS2.md / PASS3.md / PASS3B.md: broad codebase sweep findings not addressed in this pass. Skipped: require deeper design/architecture review beyond current scope.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_BUILD_PIPELINE.md / PASS4_ENTRYPOINTS_LINT.md / PASS4_FILE_PROCESSOR.md / PASS4_INDEX_CHUNKING.md: remaining build/indexing findings not addressed here. Skipped: overlap with ongoing pipeline changes and need targeted design decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_*: artifact/chunking/lang-registry/risk/ANN findings not addressed. Skipped: require schema and pipeline-level decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_*: shared foundations/CLI/policy/storage findings not addressed. Skipped: needs broader infra decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_*: tooling/bench/MCP ingest findings not addressed. Skipped: needs tooling policy and perf budget decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_*: test-suite findings (fixtures, indexing, graph/git/hnsw/incremental, MCP/LSIF/perf) not addressed. Skipped: requires test harness policy and CI tiering decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_*: retrieval/search/script-coverage/service test findings not addressed. Skipped: requires test harness policy and product decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_TESTS_SEARCH_SCRIPT_COVERAGE.md: skipped remaining findings (script-coverage covers unknown scripts, scoreBreakdown policy mismatch, process.cwd assumptions, determinism normalization, includeLicense no-op). Needs contract/policy decisions before refactor.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_RETRIEVAL_FILTERS_TEST_RUNNER.md: skipped remaining findings (skip-as-pass coverage holes, filter predicate assertions, git timestamp drift, phrase order brittleness, runner timeout semantics, timing ledger). Needs test-runner policy decisions.
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS3.md: skipped remaining findings (broad architecture sweep requires larger design decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS3B.md: skipped remaining findings (follow-on architecture sweep requires design alignment).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_ENTRYPOINTS_LINT.md: skipped remaining findings (linting/entrypoint policy work).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_FILE_PROCESSOR.md: skipped remaining findings (file processor refactors overlap larger pipeline work).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_INDEX_CHUNKING.md: skipped remaining findings (chunking/indexer contract decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGREG.md: skipped remaining findings (artifact/chunking registry policy work).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGREG_MISC.md: skipped remaining findings (lang registry/chunking misc policy work).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGUAGE_REGISTRY_RISK_ANN.md: skipped remaining findings (risk/ANN registry design).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_REGISTRY_RETRIEVAL.md: skipped remaining findings (retrieval registry design decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_POSTINGS_SHARDS.md: skipped remaining findings (postings/shards format decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_CHUNKING_COMMENTS_EMBEDDING.md: skipped remaining findings (comments/embedding pipeline decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_LANGUAGE_RETRIEVAL_CHUNKING.md: skipped remaining findings (language retrieval/chunking design).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_RETRIEVAL_CONTEXT_FILTER_OUTPUT.md: skipped remaining findings (retrieval output contracts need product decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED.md: skipped remaining findings (shared subsystem policy work).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_CLI_POLICY.md: skipped remaining findings (CLI policy/contracts pending).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_FOUNDATIONS.md: skipped remaining findings (foundations refactors require design).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_STORAGE.md: skipped remaining findings (storage policy decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS.md: skipped remaining findings (tooling surface policies).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_API_BENCH.md: skipped remaining findings (bench contract/policy).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_BENCH_EMBEDDINGS.md: skipped remaining findings (bench/embedding policy decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_BENCH_SERVICE.md: skipped remaining findings (bench service contracts).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_MCP_INGEST.md: skipped remaining findings (MCP ingest policy decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment-Aware); Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking; Phase 10 — Interprocedural Risk Flows (taint summaries + propagation); Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Identify which subset of findings should be lifted into upcoming roadmap phases and define scope boundaries/sequencing.
+  - Questions: Which items are blocking upcoming phases and must be pulled forward?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS.md: skipped remaining findings (test harness policy/tiering).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_FIXTURES.md: skipped remaining findings (fixture policy/tiering decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_GRAPH_GIT_HNSW_INCREMENTAL.md: skipped remaining findings (graph/git/hnsw/incremental policy decisions).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_INDEXING.md: skipped remaining findings (indexing test policy).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_LANG_LMDB.md: skipped remaining findings (LMDB/lang test policy).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_MCP_LSIF_PERF_MISC.md: skipped remaining findings (MCP/LSIF/perf test policy).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_QUERY_RETRIEVAL.md: skipped remaining findings (query/retrieval test policy).
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define skip/timeout policy, CI tiering, and default exclusions so test outcomes are explicit (skip vs pass) and reproducible.
+  - Questions: Which lanes must be strict in CI and which can be nightly or allow skips?

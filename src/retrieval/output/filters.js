@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { extractNgrams, tri } from '../../shared/tokenize.js';
-import { createSafeRegex, normalizeSafeRegexConfig } from '../../shared/safe-regex.js';
+import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../shared/docmeta.js';
+import { compileSafeRegex } from '../../shared/safe-regex.js';
 import {
   bitmapToSet,
   createBitmapFromIds,
@@ -67,14 +68,22 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     excludePhraseRange
   } = filters;
   const normalize = (value) => String(value || '').toLowerCase();
+  const resolveReturnTypes = (chunk) => {
+    const declared = collectDeclaredReturnTypes(chunk?.docmeta);
+    const metaDeclared = collectMetaV2ReturnTypes(chunk?.metaV2);
+    if (!declared.length && !metaDeclared.length) return [];
+    return Array.from(new Set([...declared, ...metaDeclared]));
+  };
   const normalizeFilePath = (value) => String(value || '').replace(/\\/g, '/');
   const normalizeFile = (value) => (
     caseFile ? normalizeFilePath(value) : normalize(normalizeFilePath(value))
   );
   const normalizeFilePrefilter = (value) => normalizeFilePath(value).toLowerCase();
-  const safeRegexConfig = normalizeSafeRegexConfig(filters.regexConfig || {}, {
-    flags: caseFile ? '' : 'i'
-  });
+  const regexConfigRaw = filters.regexConfig || {};
+  const regexConfig = regexConfigRaw && typeof regexConfigRaw === 'object' ? { ...regexConfigRaw } : {};
+  if (!Object.prototype.hasOwnProperty.call(regexConfig, 'flags')) {
+    regexConfig.flags = caseFile ? '' : 'i';
+  }
   const normalizeList = (value) => {
     if (!value) return [];
     const entries = Array.isArray(value) ? value : [value];
@@ -109,9 +118,9 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     if (regexMatch) {
       const pattern = regexMatch[1];
       const flags = regexMatch[2] || '';
-      const matcher = createSafeRegex(pattern, flags, safeRegexConfig);
-      if (matcher) return { type: 'regex', value: matcher };
-      return { type: 'substring', value: normalizeFile(raw) };
+      const matcher = compileSafeRegex(pattern, flags, regexConfig);
+      if (matcher.regex) return { type: 'regex', value: matcher.regex };
+      return { type: 'substring', value: normalizeFile(pattern) };
     }
     return { type: 'substring', value: normalizeFile(raw) };
   };
@@ -594,8 +603,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     }
     if (decorator && !matchList(c.docmeta?.decorators, decorator)) return false;
     if (returnType) {
-      const foundReturnType = c.docmeta?.returnType || null;
-      if (!foundReturnType || !normalize(foundReturnType).includes(normalize(returnType))) {
+      const returnTypes = resolveReturnTypes(c);
+      if (!returnTypes.length || !returnTypes.some((entry) => normalize(entry).includes(normalize(returnType)))) {
         return false;
       }
     }
@@ -669,7 +678,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       if (!(c.docmeta?.modifiers?.generator || c.docmeta?.yields)) return false;
     }
     if (truthy(returnsOnly)) {
-      if (!(c.docmeta?.returnsValue || c.docmeta?.returns)) return false;
+      const returnTypes = resolveReturnTypes(c);
+      if (!(c.docmeta?.returnsValue || c.docmeta?.returns || returnTypes.length)) return false;
     }
     return true;
   });

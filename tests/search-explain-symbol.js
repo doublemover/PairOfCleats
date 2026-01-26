@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'explain-symbol');
@@ -54,7 +55,7 @@ if (searchResult.status !== 0) {
   process.exit(searchResult.status ?? 1);
 }
 
-const output = searchResult.stdout || '';
+const output = getCombinedOutput(searchResult);
 if (!output.includes('Symbol')) {
   console.error('Expected explain output to include symbol boost details.');
   process.exit(1);

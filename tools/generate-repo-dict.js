@@ -126,4 +126,4 @@ await fs.mkdir(path.dirname(outputPath), { recursive: true });
 const output = sorted.map(([word]) => word).join('\n');
 await fs.writeFile(outputPath, output ? `${output}\n` : '');
 
-console.log(`Wrote ${sorted.length} entries to ${outputPath}`);
+console.error(`Wrote ${sorted.length} entries to ${outputPath}`);

@@ -274,13 +274,13 @@ if (argv.list) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.log('Benchmark targets');
-    console.log(`- config: ${configPath}`);
-    console.log(`- repos: ${reposRoot}`);
-    console.log(`- cache: ${cacheRoot}`);
-    console.log(`- results: ${resultsRoot}`);
+    console.error('Benchmark targets');
+    console.error(`- config: ${configPath}`);
+    console.error(`- repos: ${reposRoot}`);
+    console.error(`- cache: ${cacheRoot}`);
+    console.error(`- results: ${resultsRoot}`);
     for (const task of tasks) {
-      console.log(`- ${task.language} ${task.tier} ${task.repo}`);
+      console.error(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
   exitWithDisplay(0);
@@ -611,7 +611,7 @@ const output = buildReportOutput({
 display.close();
 
 if (!quietMode) {
-  console.log('\nGrouped summary');
+  console.error('\nGrouped summary');
   for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;
     printSummary(payload.label, payload.summary, payload.count, quietMode);
@@ -628,6 +628,6 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(output, null, 2));
 } else {
-  console.log(`\nCompleted ${results.length} benchmark runs.`);
-  if (argv.out) console.log(`Summary written to ${path.resolve(argv.out)}`);
+  console.error(`\nCompleted ${results.length} benchmark runs.`);
+  if (argv.out) console.error(`Summary written to ${path.resolve(argv.out)}`);
 }

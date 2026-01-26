@@ -368,18 +368,18 @@ function formatDelta(value) {
 }
 
 function printSummary(results, comparison) {
-  console.log('[tinybench] Results');
+  console.error('[tinybench] Results');
   for (const [name, stats] of Object.entries(results.components || {})) {
-    console.log(`- ${name}: mean ${formatMs(stats.meanMs)} | p50 ${formatMs(stats.p50Ms)} | p95 ${formatMs(stats.p95Ms)} | p99 ${formatMs(stats.p99Ms)} | n=${stats.samples}`);
+    console.error(`- ${name}: mean ${formatMs(stats.meanMs)} | p50 ${formatMs(stats.p50Ms)} | p95 ${formatMs(stats.p95Ms)} | p99 ${formatMs(stats.p99Ms)} | n=${stats.samples}`);
     if (comparison?.deltas?.[name]) {
       const delta = comparison.deltas[name];
-      console.log(`  delta: mean ${formatDelta(delta.meanPct)} | p50 ${formatDelta(delta.p50Pct)} | p95 ${formatDelta(delta.p95Pct)} | p99 ${formatDelta(delta.p99Pct)}`);
+      console.error(`  delta: mean ${formatDelta(delta.meanPct)} | p50 ${formatDelta(delta.p50Pct)} | p95 ${formatDelta(delta.p95Pct)} | p99 ${formatDelta(delta.p99Pct)}`);
     }
   }
   if (argv['write-baseline']) {
-    console.log(`- baseline saved: ${baselinePath}`);
+    console.error(`- baseline saved: ${baselinePath}`);
   } else if (comparison?.path) {
-    console.log(`- baseline: ${comparison.path}`);
+    console.error(`- baseline: ${comparison.path}`);
   }
 }
 

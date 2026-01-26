@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execaSync } from 'execa';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../src/shared/onnx-embeddings.js';
@@ -235,7 +235,11 @@ function ensureIndex(modelCacheRoot) {
  */
 function runCommand(args, env, label) {
   const stdio = argv.json ? ['ignore', 'ignore', 'ignore'] : 'inherit';
-  const result = execaSync(process.execPath, args, { env, stdio, reject: false });
+  const result = spawnSubprocessSync(process.execPath, args, {
+    env,
+    stdio,
+    rejectOnNonZeroExit: false
+  });
   if (result.exitCode !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.exitCode ?? 1);
@@ -266,11 +270,17 @@ function runSearch(query, env) {
     args.push('--mode', modeArg);
   }
   const start = Date.now();
-  const result = execaSync(process.execPath, args, { env, encoding: 'utf8', reject: false });
+  const result = spawnSubprocessSync(process.execPath, args, {
+    env,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false
+  });
   const wallMs = Date.now() - start;
   if (result.exitCode !== 0) {
     console.error(`Search failed for query="${query}" (model=${env.PAIROFCLEATS_MODEL})`);
-    if (result.stderr) console.error(result.stderr.trim());
+    if (result.stderr) console.error(String(result.stderr).trim());
     process.exit(result.exitCode ?? 1);
   }
   const payload = JSON.parse(result.stdout || '{}');
@@ -584,22 +594,22 @@ const output = {
 if (argv.json) {
   console.log(JSON.stringify(output, null, 2));
 } else {
-  console.log('Model comparison summary');
-  console.log(`- Backend: ${backend}`);
-  console.log(`- Queries: ${selectedQueries.length}`);
-  console.log(`- TopN: ${topN}`);
-  console.log(`- Ann: ${annEnabled}`);
-  console.log(`- Baseline: ${baseline}`);
+  console.error('Model comparison summary');
+  console.error(`- Backend: ${backend}`);
+  console.error(`- Queries: ${selectedQueries.length}`);
+  console.error(`- TopN: ${topN}`);
+  console.error(`- Ann: ${annEnabled}`);
+  console.error(`- Baseline: ${baseline}`);
   for (const modelId of models) {
     const stats = summaryByModel[modelId];
-    console.log(`- ${modelId}: avg ${stats.elapsedMsAvg.toFixed(1)} ms (wall ${stats.wallMsAvg.toFixed(1)} ms)`);
+    console.error(`- ${modelId}: avg ${stats.elapsedMsAvg.toFixed(1)} ms (wall ${stats.wallMsAvg.toFixed(1)} ms)`);
   }
   for (const modelId of models) {
     if (modelId === baseline) continue;
     const cmp = comparisonSummary[modelId];
     const codeLabel = cmp.code ? `code overlap ${cmp.code.overlapAvg.toFixed(3)}` : 'code n/a';
     const proseLabel = cmp.prose ? `prose overlap ${cmp.prose.overlapAvg.toFixed(3)}` : 'prose n/a';
-    console.log(`- ${modelId} vs ${baseline}: ${codeLabel}, ${proseLabel}`);
+    console.error(`- ${modelId} vs ${baseline}: ${codeLabel}, ${proseLabel}`);
   }
 }
 
@@ -608,6 +618,6 @@ if (argv.out) {
   await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
   await fsPromises.writeFile(outPath, JSON.stringify(output, null, 2));
   if (!argv.json) {
-    console.log(`Report written to ${outPath}`);
+    console.error(`Report written to ${outPath}`);
   }
 }

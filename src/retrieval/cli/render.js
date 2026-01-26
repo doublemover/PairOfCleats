@@ -178,11 +178,11 @@ export function renderSearchOutput({
     }
 
     if (runProse) {
-      console.log(color.bold(`\n===== Markdown Results (${backendLabel}) =====`));
+      console.error(color.bold(`\n===== Markdown Results (${backendLabel}) =====`));
       const summaryState = { lastCount: 0 };
       proseHitsFinal.slice(0, showProse).forEach((hit, index) => {
         if (index < 2) {
-          process.stdout.write(formatFullChunk({
+          process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
             mode: 'prose',
@@ -197,7 +197,7 @@ export function renderSearchOutput({
             summaryState
           }));
         } else {
-          process.stdout.write(formatShortChunk({
+          process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
             mode: 'prose',
@@ -211,15 +211,15 @@ export function renderSearchOutput({
           }));
         }
       });
-      console.log('\n');
+      console.error('\n');
     }
 
     if (runExtractedProse) {
-      console.log(color.bold(`===== Extracted Prose Results (${backendLabel}) =====`));
+      console.error(color.bold(`===== Extracted Prose Results (${backendLabel}) =====`));
       const summaryState = { lastCount: 0 };
       extractedProseHitsFinal.slice(0, showExtractedProse).forEach((hit, index) => {
         if (index < 2) {
-          process.stdout.write(formatFullChunk({
+          process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
             mode: 'extracted-prose',
@@ -234,7 +234,7 @@ export function renderSearchOutput({
             summaryState
           }));
         } else {
-          process.stdout.write(formatShortChunk({
+          process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
             mode: 'extracted-prose',
@@ -248,15 +248,15 @@ export function renderSearchOutput({
           }));
         }
       });
-      console.log('\n');
+      console.error('\n');
     }
 
     if (runCode) {
-      console.log(color.bold(`===== Code Results (${backendLabel}) =====`));
+      console.error(color.bold(`===== Code Results (${backendLabel}) =====`));
       const summaryState = { lastCount: 0 };
       codeHitsFinal.slice(0, showCode).forEach((hit, index) => {
         if (index < 1) {
-          process.stdout.write(formatFullChunk({
+          process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
             mode: 'code',
@@ -271,7 +271,7 @@ export function renderSearchOutput({
             summaryState
           }));
         } else {
-          process.stdout.write(formatShortChunk({
+          process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
             mode: 'code',
@@ -285,14 +285,14 @@ export function renderSearchOutput({
           }));
         }
       });
-      console.log('\n');
+      console.error('\n');
     }
 
     if (runRecords) {
-      console.log(color.bold(`===== Records Results (${backendLabel}) =====`));
+      console.error(color.bold(`===== Records Results (${backendLabel}) =====`));
       recordHitsFinal.slice(0, showRecords).forEach((hit, index) => {
         if (index < 2) {
-          process.stdout.write(formatFullChunk({
+          process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
             mode: 'records',
@@ -307,7 +307,7 @@ export function renderSearchOutput({
             summaryState: null
           }));
         } else {
-          process.stdout.write(formatShortChunk({
+          process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
             mode: 'records',
@@ -321,7 +321,7 @@ export function renderSearchOutput({
           }));
         }
       });
-      console.log('\n');
+      console.error('\n');
     }
 
     if (showStats) {
@@ -341,7 +341,7 @@ export function renderSearchOutput({
         statsParts.push(`backend=${backendLabel}`);
         statsParts.push(`policy=${backendPolicyInfo.reason}`);
       }
-      console.log(color.gray(`Stats: ${statsParts.join(', ')}`));
+      console.error(color.gray(`Stats: ${statsParts.join(', ')}`));
     }
   }
 

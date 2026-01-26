@@ -113,19 +113,19 @@ const payload = {
 if (argv.json) {
   console.log(JSON.stringify(payload, null, 2));
 } else {
-  console.log('SQLite extension verification');
-  console.log(`- provider: ${config.provider}`);
-  console.log(`- annMode: ${config.annMode}`);
-  console.log(`- platform: ${config.platformKey}`);
-  console.log(`- path: ${resolvedPath || 'unset'}`);
-  console.log(`- exists: ${exists ? 'yes' : 'no'}`);
+  console.error('SQLite extension verification');
+  console.error(`- provider: ${config.provider}`);
+  console.error(`- annMode: ${config.annMode}`);
+  console.error(`- platform: ${config.platformKey}`);
+  console.error(`- path: ${resolvedPath || 'unset'}`);
+  console.error(`- exists: ${exists ? 'yes' : 'no'}`);
   if (loadResult.attempted) {
-    console.log(`- load: ${loadResult.ok ? 'ok' : `failed (${loadResult.reason})`}`);
+    console.error(`- load: ${loadResult.ok ? 'ok' : `failed (${loadResult.reason})`}`);
   } else {
-    console.log('- load: skipped');
+    console.error('- load: skipped');
   }
   if (smoke.attempted) {
-    console.log(`- smoke: ${smoke.ok ? 'ok' : `failed (${smoke.reason})`}`);
+    console.error(`- smoke: ${smoke.ok ? 'ok' : `failed (${smoke.reason})`}`);
   }
 }
 

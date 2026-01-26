@@ -113,10 +113,10 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
-  console.log(`[regex] iterations=${iterations} samples=${samples} warmup=${warmup}`);
+  console.error(`[regex] iterations=${iterations} samples=${samples} warmup=${warmup}`);
   printEngine('re2js', results.engines.re2js);
   if (results.engines.re2.available === false) {
-    console.log('- re2: unavailable (install optional "re2" dependency to compare)');
+    console.error('- re2: unavailable (install optional "re2" dependency to compare)');
   } else {
     printEngine('re2', results.engines.re2);
   }
@@ -175,5 +175,5 @@ function printEngine(name, payload) {
   const stats = payload.stats || null;
   const ops = Number.isFinite(payload.opsPerSec) ? payload.opsPerSec.toFixed(0) : 'n/a';
   const summary = stats ? formatStats(stats) : 'n/a';
-  console.log(`- ${name}: ${summary} | ops/sec ${ops}`);
+  console.error(`- ${name}: ${summary} | ops/sec ${ops}`);
 }

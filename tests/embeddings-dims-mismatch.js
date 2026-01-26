@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 import { getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
@@ -102,7 +103,7 @@ if (secondRun.status === 0) {
   console.error('embeddings dims mismatch test failed: expected dims mismatch error');
   process.exit(1);
 }
-const output = `${secondRun.stdout || ''}${secondRun.stderr || ''}`;
+const output = getCombinedOutput(secondRun);
 if (!output.includes('embedding dims mismatch')) {
   console.error('embeddings dims mismatch test failed: missing mismatch error message');
   process.exit(1);

@@ -71,53 +71,53 @@ async function runCli() {
     process.exit(report.ok ? 0 : 1);
   }
 
-  console.log('Index validation');
-  console.log(`- strict: ${report.strict ? 'yes' : 'no'}`);
-  console.log(`- repo: ${report.root}`);
+  console.error('Index validation');
+  console.error(`- strict: ${report.strict ? 'yes' : 'no'}`);
+  console.error(`- repo: ${report.root}`);
   for (const mode of modes) {
     const entry = report.modes[mode];
     if (!entry) {
-      console.log(`- ${mode}: missing (no report entry)`);
+      console.error(`- ${mode}: missing (no report entry)`);
       continue;
     }
     const status = entry.ok ? 'ok' : 'missing';
-    console.log(`- ${mode}: ${status} (${entry.path})`);
+    console.error(`- ${mode}: ${status} (${entry.path})`);
     if (entry.missing.length) {
-      console.log(`  - missing: ${entry.missing.join(', ')}`);
+      console.error(`  - missing: ${entry.missing.join(', ')}`);
     }
     if (entry.warnings.length) {
-      console.log(`  - optional: ${entry.warnings.join(', ')}`);
+      console.error(`  - optional: ${entry.warnings.join(', ')}`);
     }
   }
   if (report.sqlite.enabled) {
     const status = report.sqlite.ok ? 'ok' : 'issues';
-    console.log(`- sqlite: ${status} (mode=${report.sqlite.mode})`);
+    console.error(`- sqlite: ${status} (mode=${report.sqlite.mode})`);
     if (report.sqlite.issues.length) {
-      report.sqlite.issues.forEach((issue) => console.log(`  - ${issue}`));
+      report.sqlite.issues.forEach((issue) => console.error(`  - ${issue}`));
     }
   }
   if (report.lmdb?.enabled) {
     const status = report.lmdb.ok ? 'ok' : 'issues';
-    console.log(`- lmdb: ${status}`);
+    console.error(`- lmdb: ${status}`);
     if (report.lmdb.issues.length) {
-      report.lmdb.issues.forEach((issue) => console.log(`  - ${issue}`));
+      report.lmdb.issues.forEach((issue) => console.error(`  - ${issue}`));
     }
     if (report.lmdb.warnings.length) {
-      report.lmdb.warnings.forEach((warning) => console.log(`  - warning: ${warning}`));
+      report.lmdb.warnings.forEach((warning) => console.error(`  - warning: ${warning}`));
     }
   }
 
   if (report.warnings.length && report.ok) {
-    console.log('Warnings:');
-    report.warnings.forEach((warning) => console.log(`- ${warning}`));
+    console.error('Warnings:');
+    report.warnings.forEach((warning) => console.error(`- ${warning}`));
   }
   if (!report.ok) {
-    console.log('Issues:');
-    report.issues.forEach((issue) => console.log(`- ${issue}`));
+    console.error('Issues:');
+    report.issues.forEach((issue) => console.error(`- ${issue}`));
   }
   if (report.hints?.length) {
-    console.log('Hints:');
-    report.hints.forEach((hint) => console.log(`- ${hint}`));
+    console.error('Hints:');
+    report.hints.forEach((hint) => console.error(`- ${hint}`));
   }
   process.exit(report.ok ? 0 : 1);
 }

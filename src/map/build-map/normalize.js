@@ -22,10 +22,12 @@ export const normalizeDataflow = (dataflow) => {
   const reads = normalizeArray(dataflow.reads);
   const writes = normalizeArray(dataflow.writes);
   const metadata = normalizeArray(dataflow.metadata);
-  if (!reads && !writes && !metadata) return null;
+  const mutations = normalizeArray(dataflow.mutations || dataflow.mutates);
+  if (!reads && !writes && !metadata && !mutations) return null;
   return {
     reads,
     writes,
-    metadata
+    metadata,
+    mutations
   };
 };

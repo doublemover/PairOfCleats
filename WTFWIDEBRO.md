@@ -1,0 +1,1751 @@
+# WTFWIDEBRO
+- /CODEBASE_WIDE_SWEEP_ARTIFACTS_SHARDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Define docId stability guarantees, shard planning invariants, and integrity/manifest timing (compute-last vs incremental).
+  - Questions: Should docId be derived from stableChunkId ordering and do we require join validation on load?
+
+`
+# Codebase Static Review Findings — Wide Sweep C (Final, Merged)
+
+**Scope / focus:** Artifact emission + postings correctness + shard planning + embedding materialization (format correctness, determinism, and high-risk silent degradation).
+
+## Severity key
+
+- **P0 / Critical**: silent corruption risk, non-deterministic docId joins, or artifacts that look valid but are inconsistent.
+- **P1 / High**: correctness loss at scale, partial/invalid artifacts, or major performance cliffs.
+- **P2 / Medium**: quality/maintainability debt, observability gaps.
+
+## Executive summary
+
+The build pipeline currently treats artifacts/postings/shards/embeddings as “later materialization,” but several implicit assumptions make this fragile:
+
+1. **Work deferral (tree-sitter missing WASM) can reorder processing mid-build**, changing docId assignment and artifact ordering. Multiple consumers assume docId is stable and/or dense.
+2. **Shard planning is not segment-aware** and does not enforce language grouping constraints needed for tree-sitter WASM loading and throughput.
+3. **Integrity artifacts (checksums / manifests) are computed early but can become stale** after later stages mutate artifacts (e.g., stage 3/4 emissions), undermining incremental validation.
+4. **Several joins are effectively implicit array-index joins by docId**, but the pipeline does not validate alignment across chunk-meta, postings, filter-index, vectors, and fts — a high-risk silent degradation.
+5. **Embedding materialization is not first-class**: dims/model/stage boundaries and JSON serialization hazards can silently degrade retrieval.
+
+---
+
+## Findings
+
+### P0 — Tree-sitter language deferral can reorder file processing mid-build, destabilizing docId assignment
+
+**Where**
+- File processing and deferral:
+  - `src/index/build/indexer/steps/process-files.js` (e.g., `discoverAndDeferMissingWasmLanguages(...)`)
+  - `src/index/build/runtime/tree-sitter.js`
+  - `src/lang/tree-sitter/runtime.js`
+
+**What’s wrong**
+- When a missing tree-sitter WASM language is discovered, processing is deferred and potentially re-queued.
+- If docIds are assigned as files are processed, this changes ordering and can break any assumption that:
+  - docId assignment is deterministic,
+  - docId is stable across builds,
+  - docId maps 1:1 to the Nth row in arrays emitted later.
+
+**Suggested fix**
+- Decouple docId allocation from traversal order:
+  - allocate docId based on stableChunkId ordering (canonical sort),
+  - or assign docIds only after a complete FileSet + segment plan is known.
+- Prefer “language-grouped processing” so WASM availability is known up front.
+
+**Tests**
+- A fixture that triggers a missing WASM deferral; verify:
+  - stableChunkIds unchanged,
+  - docId→stableChunkId mapping is consistent and validated.
+
+---
+
+### P0 — Integrity artifacts (checksums/manifests) can become stale after later-stage writes
+
+**Where**
+- Checksums and integrity:
+  - `src/index/build/artifacts/checksums.js`
+  - `src/index/build/artifacts/writer.js`
+- Chunk-meta writer and later-stage emissions:
+  - `src/index/build/artifacts/writers/chunk-meta.js`
+
+**What’s wrong**
+- Integrity metadata is computed for a stage boundary, but subsequent stages may write/append artifacts that are not reflected in the integrity metadata.
+- Incremental validation and “fail closed” checks can therefore pass while the promoted index has internally inconsistent parts.
+
+**Suggested fix**
+- Treat integrity artifacts as the final stage output:
+  - compute checksums only after all writers have completed,
+  - stamp integrity with `{buildSignature, schemaVersion, artifactSetHash}`.
+- Alternatively: incremental checksums per artifact, re-computed on append.
+
+**Tests**
+- Run a build that writes stage3/4 artifacts after checksums computed; assert:
+  - validate detects mismatch and fails closed.
+
+---
+
+### P0 — DocId alignment is assumed but not validated (implicit array-index joins across artifacts)
+
+**Where**
+- Postings and related materializations:
+  - `src/index/build/postings.js`
+  - `src/index/build/indexer/steps/postings.js`
+- Retrieval and bitmap joins:
+  - `src/retrieval/bitmap.js`
+  - `src/retrieval/fts.js`
+- SQLite ingestion from artifacts:
+  - `src/storage/sqlite/build/from-artifacts.js`
+
+**What’s wrong**
+- Multiple components implicitly assume:
+  - docId is dense 0..N-1,
+  - docId corresponds to array index in multiple arrays (chunk meta, postings vectors, fts rows).
+- The system does not enforce or validate this alignment across artifact sets.
+- Any reordering (deferrals, incremental reuse, shard merges) can produce *silent wrong joins*.
+
+**Suggested fix**
+- Emit explicit join tables:
+  - `docId -> stableChunkId`
+  - per-artifact row indices -> stableChunkId
+- Validate at load time:
+  - verify that all required stableChunkIds exist exactly once across artifact sets.
+- Never use docId as an implicit join key without verification.
+
+**Tests**
+- Add a contract test that loads all artifacts and asserts:
+  - join completeness and bijection,
+  - stableChunkId exists in chunk-meta and postings and vectors.
+
+---
+
+### P0 — Shard planning is not segment-aware and cannot enforce language-group processing
+
+**Where**
+- Shard planning:
+  - `src/index/build/shards.js`
+  - shard writers and emission:
+    - `src/index/build/artifacts/writers/*` (chunk-meta, repo-map, file-relations)
+- Language/segment logic:
+  - `src/index/segments.js`
+
+**What’s wrong**
+- Shards appear to be derived primarily from file-level keys and/or file ordering.
+- Segment-level language can differ from file-level extension, but shard planning does not operate at segment/chunk granularity.
+- This makes “process all TS chunks with TS tooling / tree-sitter TS wasm” infeasible and increases deferral/retry behavior.
+
+**Suggested fix**
+- Shard by canonical `(languageId, stableChunkId range)` not by file extension.
+- Create a shard plan that can guarantee:
+  - for each shard, required WASM/tooling dependencies are installed/available.
+
+---
+
+### P1 — Artifact size policy and writer boundaries are not tuned for throughput and correctness
+
+**Where**
+- Artifact size policy:
+  - `src/index/build/artifacts/metrics.js`
+  - `src/index/build/artifacts/compression.js`
+- Writers:
+  - `src/index/build/artifacts/writer.js`
+
+**What’s wrong**
+- Very large JSONL pieces can cause:
+  - high memory spikes,
+  - slow GC,
+  - slow streaming reads,
+  - partial-write risk windows.
+- Writer boundaries appear to be set without a consistent “target piece size” contract.
+
+**Suggested fix**
+- Enforce a target piece size (e.g., 8–32 MB), per artifact type.
+- Use newline-delimited streaming with strict flush points and atomic “piece finalize” markers.
+
+---
+
+### P1 — Embedding materialization semantics are not first-class (dims/model/stage boundaries)
+
+**Where**
+- Embedding processing:
+  - `src/index/build/file-processor/embeddings.js`
+  - `src/index/embedding.js`
+  - `src/index/build/tokenization.js` (inputs to embeddings)
+- Retrieval ANN providers and dims expectations:
+  - `src/retrieval/ann/providers/*`
+  - `src/retrieval/ann/types.js`
+
+**What’s wrong**
+- Dims/model identity may be validated in some places, but not treated as a hard “build signature” component everywhere.
+- There are hazards around:
+  - mixing embeddings across stages,
+  - fallback behavior when dims mismatch,
+  - JSON serialization of embedding vectors / metrics.
+
+**Suggested fix**
+- Make embeddings a stage artifact with a manifest:
+  - `embeddings.manifest.json` contains modelId, dims, chunkSetHash.
+- Require retrieval to verify manifest matches index signature.
+
+---
+
+### P1 — JSON hazards: NaN/Infinity and non-JSON values can silently break downstream readers
+
+**Where**
+- Any JSON/JSONL emission that might serialize metrics/vectors:
+  - `src/shared/json-stream.js`
+  - `src/index/build/artifacts/writers/*`
+
+**What’s wrong**
+- Standard `JSON.stringify` will serialize `NaN` and `Infinity` as `null`, silently corrupting numeric fields.
+
+**Suggested fix**
+- Centralize JSON serialization with a strict replacer that:
+  - rejects non-finite numbers (fail closed) or encodes them explicitly with a tagged representation.
+
+---
+
+### P2 — Shard plan language keys may not match analysis/runtime keys (file-language vs engine-language)
+
+**Where**
+- Shard planning and metadata:
+  - `src/index/build/shards.js`
+
+**Suggested fix**
+- Define `languageId` as the canonical language key in all shard plans and artifacts.
+- Do not use file extension as the shard language key.
+
+---
+
+## “Keep it right” invariants for artifacts/shards
+
+1. Artifact sets must be internally join-consistent (docId/stableChunkId mapping validated).
+2. Checksums/manifests must reflect the final artifact set (computed last).
+3. Shard plans must be segment-aware and language-grouped.
+4. Embedding artifacts must be manifest-stamped and validated by retrieval.
+`
+
+- /CODEBASE_WIDE_SWEEP_BUILD_RUNTIME_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define the runtime envelope and cancellation/queue semantics that apply across builds, watch, and tooling spawns.
+  - Questions: Which runtime limits are hard caps vs soft recommendations?
+
+`
+# Codebase Static Review Findings — Wide Sweep B (Final, Merged)
+
+**Scope / focus:** Build/runtime orchestration and operational robustness (watch mode, workers, promotion/current.json, signature hashing, entrypoint/lint drift), plus file discovery + file processor correctness and scaling (preprocess/read/scan, incremental reuse/cached bundles, caps, context windows, experimental structural boundary checks).
+
+## Severity key
+
+- **P0 / Critical**: can corrupt builds, promote partial indexes, mix artifacts across runs, or silently degrade correctness.
+- **P1 / High**: operational drift or correctness loss at scale; common failure modes.
+- **P2 / Medium**: maintainability debt or edge-case correctness issues that become P0 as throughput increases.
+- **P3 / Low**: polish.
+
+## Executive summary
+
+The codebase has the right *pieces* for a robust index build lifecycle (locking, staging, artifacts, promotion, incremental reuse), but there are several cross-cutting orchestration failures that make the system fragile:
+
+1. **Background embedding jobs are not pinned to a build root** and can cross-contaminate between runs. This is the single largest “silent corruption” risk in the build path.
+2. **Promotion is not transactionally end-to-end**: `current.json` can point at a build whose artifacts are incomplete or internally inconsistent, especially when later stages run after “promotion-like” state updates.
+3. **Stage semantics and signatures drift**: multiple signature algorithms and stage override paths exist, but are not enforced as part of a single canonical build contract.
+4. **Discovery is not canonical**: multiple file scanning/preprocess/discover/watch paths can yield different file sets for the same repo, breaking determinism and incremental reuse.
+
+The best forward direction is to model the build as a strict **BuildRoot transaction**:
+- create → stage1 → stage2 → stage3 → stage4 → validate → finalize → promote (atomic pointer flip) → cleanup.
+
+---
+
+## Findings
+
+### P0 — Background embedding jobs are not bound to a build root (cross-run mixing risk)
+
+**Why this is critical**
+- Embeddings are expensive and often run concurrently. If embedding jobs are not scoped to a single build root, the system can write embeddings that belong to a *different* index build into the currently promoted index.
+
+**Where**
+- Embedding job queue / scheduling:
+  - `src/index/build/indexer/embedding-queue.js`
+  - `src/shared/embedding-batch.js`
+  - `src/shared/onnx-embeddings.js` (session/queue semantics)
+- Integrations that enqueue build-side work:
+  - `src/integrations/core/index.js`
+- Promotion/runtime orchestration:
+  - `src/index/build/promotion.js`
+  - `src/index/build/build-state.js`
+
+**What’s wrong**
+- The queue appears to be keyed to a process-level epoch / runtime rather than a concrete build root artifact directory.
+- The promotion layer does not appear to “join” on embedding completion (or validate that embedding outputs correspond to the same build signature).
+
+**Suggested fix**
+- Make embedding work a first-class stage in the build DAG:
+  - `BuildRoot/<id>/embeddings/…`
+  - embedding outputs stamped with `{buildId, buildSignature, modelId, dims}`
+- Introduce a strict rule:
+  - **No promotion** until embedding materialization has either completed or been explicitly marked as “skipped with reason”.
+- If you keep background embedding:
+  - require all writes to go through an atomic, build-root–scoped writer that refuses mismatched `{buildId, signature}`.
+
+**Keep-it-right tests**
+- Start two builds concurrently (different repos or different build roots) and ensure:
+  - embeddings written in each build root match only that build’s manifest,
+  - promotion never points to an index with mixed embedding metadata.
+
+---
+
+### P0 — Promotion (`current.json`) is not end-to-end transactional across all artifacts
+
+**Why this is critical**
+- The system relies on `current.json` (and/or a promoted pointer) as the “what is current” source of truth.
+- If promotion happens before all artifacts are stable, readers can observe incomplete or inconsistent indexes.
+
+**Where**
+- Promotion logic:
+  - `src/index/build/promotion.js`
+  - `src/index/build/runtime/runtime.js`
+  - `src/index/build/records.js` (if promotion touches record state)
+- Writer behavior:
+  - `src/index/build/artifacts/writer.js`
+  - `src/shared/artifact-io.js` / atomic replace paths
+
+**What’s wrong**
+- Promotion does not appear to be a two-phase commit covering:
+  - piece manifests,
+  - chunk-meta/relations/graphs,
+  - postings / filter-index,
+  - embeddings materialization,
+  - integrity checksums.
+- There are multiple “partial promote” states (e.g., stage 2 promoted, later stage writes still occurring).
+
+**Suggested fix**
+- Implement a strict promote transaction:
+  1) write all artifacts in `BuildRoot/tmp`  
+  2) run `validate(BuildRoot)` (includes internal checksums + schema validation)  
+  3) write `BuildRoot/READY` marker  
+  4) atomic rename/symlink swap to `current` (or atomic update of `current.json`)  
+  5) never mutate artifacts under `current` after the pointer flip.
+
+**Keep-it-right tests**
+- Kill the build process at random points; verify:
+  - `current` always points to a validated build,
+  - incomplete builds are never visible as current.
+
+---
+
+### P0 — Stage semantics and signature hashing are not canonical (drift across entrypoints)
+
+**Where**
+- Stage overrides and gating:
+  - `src/index/build/runtime/stage.js`
+  - `src/index/build/runtime/runtime.js`
+- Signature hashing:
+  - `src/index/build/signatures.js`
+  - `src/index/build/indexer/signatures.js`
+- Entrypoints:
+  - `build_index.js`, `bin/pairofcleats.js`, `tools/*`
+
+**What’s wrong**
+- Multiple “signature” concepts exist (plan signature, build signature, index signature), but not all of them are enforced as hard gates for incremental reuse or promotion.
+- Stage override paths can allow running later stages with inputs that do not match the earlier stage’s signature.
+
+**Suggested fix**
+- Define one canonical `BuildSignature` computed from:
+  - repo state (commit-ish / worktree hash),
+  - config (including policy),
+  - model ids / dims,
+  - chunking options,
+  - tooling versions,
+  - shard plan inputs.
+- Store `BuildSignature` in build root and stamp every artifact with it.
+- If stage overrides are allowed, require explicitly passing and validating the signature.
+
+---
+
+### P1 — Watch mode rebuilds can drift: overlapping builds, inconsistent change sets, and worker lifecycle issues
+
+**Where**
+- Watch orchestrators:
+  - `src/index/build/watch.js`
+  - backends: `src/index/build/watch/backends/chokidar.js`, `src/index/build/watch/backends/parcel.js`
+- Worker pool:
+  - `src/index/build/worker-pool.js`
+  - `src/index/build/runtime/workers.js`
+
+**What’s wrong**
+- Watch rebuilds are susceptible to:
+  - re-entrant triggers while previous stages are still running,
+  - partial change-set processing without a strict “rebase onto new snapshot” semantics,
+  - long-lived workers holding stale config, stale caches, or stale stage overrides.
+
+**Suggested fix**
+- Move watch mode to a snapshot queue model:
+  - each watch “tick” produces a snapshot `{fileSetHash, changedPaths, timestamp}`,
+  - the builder processes snapshots sequentially and cancels superseded ones.
+- Add explicit worker lifecycle management:
+  - workers must subscribe to a build root, and be torn down or reinitialized when the build root changes.
+
+---
+
+### P1 — File discovery is not canonical (multiple pipelines can disagree about what is indexed)
+
+**Where**
+- Discovery/preprocess:
+  - `src/index/build/preprocess.js`
+  - `src/index/build/discover.js`
+  - `src/index/build/file-scan.js`
+  - `src/index/build/ignore.js`
+
+**What’s wrong**
+- There are multiple “enumerate files” passes, and not all of them share the same ignore policy / overrides / path normalization.
+- This breaks:
+  - determinism (different ordering and membership),
+  - incremental reuse (signature computed from different inputs),
+  - user expectations (“why wasn’t file X indexed?”).
+
+**Suggested fix**
+- Implement a single `FileSet` contract:
+  - `FileSet = { canonicalRoot, files: [{path, size, mtime, hash?}], ignored: [...] }`
+- Ensure all stages (preprocess, discover, watch, incremental) consume the same `FileSet` artifact.
+- Make ignore overrides part of the signature.
+
+**Tests**
+- Fixture repo with ignore overrides, symlinks, and generated files:
+  - assert preprocess/discover/watch all produce the same FileSet.
+
+---
+
+### P1 — Cached bundles and incremental reuse boundaries are under-specified
+
+**Where**
+- Cached bundle:
+  - `src/index/build/file-processor/cached-bundle.js`
+- Incremental reuse:
+  - `src/index/build/incremental.js`
+  - `src/index/build/file-processor/incremental.js`
+- Locking:
+  - `src/index/build/lock.js`
+
+**What’s wrong**
+- Reuse decisions depend on signatures and manifests, but:
+  - not all relevant inputs are included in signatures,
+  - stale bundles can be reused if validity checks are too shallow.
+
+**Suggested fix**
+- Require every cached bundle to carry:
+  - `bundleInputsHash` including tooling versions, chunking options, and language registry selection.
+- Fail closed: if bundle cannot be proven valid, rebuild.
+
+---
+
+### P2 — Symlink/realpath handling can cause duplicate indexing or ignored files
+
+**Where**
+- Discovery and ignore:
+  - `src/index/build/discover.js`
+  - `src/index/build/ignore.js`
+- Watch backends:
+  - `src/index/build/watch/backends/*`
+
+**Suggested fix**
+- Canonicalize paths early:
+  - `canonicalPath = realpath + normalized separators`
+- Decide explicitly whether symlinks are allowed; if allowed, treat them as separate roots with explicit policy.
+
+---
+
+### P2 — Operational observability is fragmented (metrics, crash logs, failure taxonomy)
+
+**Where**
+- Metrics & profiling:
+  - `src/index/build/feature-metrics.js`
+  - `src/index/build/perf-profile.js`
+- Crash logs:
+  - `src/index/build/crash-log.js`
+  - `src/index/build/failure-taxonomy.js`
+
+**Suggested fix**
+- Produce one build “run report” artifact per build:
+  - stages + durations,
+  - workers utilized,
+  - cache hits/misses,
+  - errors/warnings with stable codes.
+
+---
+
+
+
+### P2 — Build summaries and downstream reporting depend on preprocess artifacts that may be stale
+
+**Where**
+- Preprocess summary:
+  - `src/index/build/preprocess.js`
+- Build summary/reporting:
+  - `src/index/build/summary.js`
+  - `src/index/build/report.js` (if present)
+
+**What’s wrong**
+- Some “what happened” summaries rely on preprocess-time outputs (`preprocess.json`, file counts, sizes, ignore decisions).
+- If discovery/reprocessing changes the effective FileSet after preprocess (or watch mode mutates it), summaries can misreport what was actually indexed.
+
+**Suggested fix**
+- Make reporting consume the canonical `FileSet` artifact produced for the build root (post-discovery), not preprocess scratch outputs.
+
+---
+
+### P2 — Context-window / budget selection is computed late but not enforced as a signature input
+
+**Where**
+- Context expansion budget and config:
+  - `src/index/build/context-window.js`
+  - `src/retrieval/context-expansion.js`
+
+**What’s wrong**
+- If context budgets are derived from prescan/import metadata but not included in `BuildSignature`, you can:
+  - reuse cached bundles that were built under different budgets,
+  - promote indexes whose retrieval behavior differs from the build’s intended constraints.
+
+**Suggested fix**
+- Treat context budgets and normalization knobs as signature inputs.
+- Stamp them into the build manifest and require retrieval to honor them.
+
+---
+
+### P2 — `current.json`/manifest schema drift: multiple shapes and partial back-compat increase risk
+
+**Where**
+- Current pointer and manifest loading:
+  - `src/index/build/promotion.js`
+  - `src/index/build/runtime/runtime.js`
+
+**What’s wrong**
+- Allowing multiple shapes for current pointers and manifests makes it easy to accidentally ship a writer that emits a new field (or drops an old one) without readers noticing until later.
+
+**Suggested fix**
+- Version `current.json` (or replace it with a versioned manifest file).
+- Validate schema on both write and read; fail closed on unknown major versions.
+
+
+## “Keep it right” build invariants
+
+1. `current.json` must only point to a build root with a `READY` marker and a validated manifest.
+2. Every artifact must be stamped with `{buildId, buildSignature, schemaVersion}`.
+3. Watch mode must never run overlapping build roots simultaneously.
+4. File discovery must produce a canonical FileSet artifact consumed by all later stages.
+5. Incremental reuse must be provably safe (fail closed if uncertain).
+`
+
+- /CODEBASE_WIDE_SWEEP_CONTRACTS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Define authoritative contracts (schema vs CLI behavior), versioning strategy, and conformance tests for breaking changes.
+  - Questions: Which contracts are required for compatibility and how are version bumps communicated?
+
+`
+# Codebase Static Review Findings — Wide Sweep A (Final, Merged)
+
+**Scope / focus:** Canonical contracts + cross-cutting correctness (metadata/type fields, chunk/symbol identity, segment language fidelity, invariants).
+
+**This document is a merged “final copy”** of the recent wide-sweep drafts below, with duplicated items collapsed and unique items preserved:
+
+- `CODEBASE_WIDE_SWEEP_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12_WIDE_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12_WIDE_CANONICAL_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12A_WIDE_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12A_WIDE_CANONICAL_CONTRACTS.md`
+
+## Severity key
+
+- **P0 / Critical**: can silently corrupt results, produce wrong joins/edges, or make indexes non-deterministic.
+- **P1 / High**: materially degrades correctness/precision; likely to cause user-visible inconsistencies.
+- **P2 / Medium**: correctness debt, drift risk, or “footgun” behavior that becomes P0 at scale.
+- **P3 / Low**: polish, maintainability, or documentation drift.
+
+## Executive summary
+
+There are several *contract fractures* that cut across indexing, artifact emission, storage backends, retrieval, and UX:
+
+1. **Segment-derived language/extension is computed correctly, but later overwritten/discarded** when the chunk payload is assembled. This turns segment-aware analysis into file-extension–driven behavior downstream. The blast radius includes: chunk IDs, parser selection, type-inference keys, language filters, and graph edges.
+2. **Identity is not canonical** (docId vs chunkId vs multiple “stable” keys). Several subsystems rely on “implicit joins” (e.g., array-index joins by docId) or ad-hoc IDs; this is a silent-degradation risk.
+3. **`metaV2` is computed early, then treated as authoritative even after later enrichment passes mutate/augment the underlying chunk** (cross-file inference, call links, risk, etc.). This creates systematic “looks indexed but missing fields” behavior.
+4. **Return-type and signature metadata is fragmented** (`docmeta.returns` vs `docmeta.returnType`, inconsistent shapes, and even non-type values). Some consumers only read one field, so the system can appear to “have no return types” even when extraction produced them.
+5. **SQLite build path reconstructs a minimal `metaV2`**, breaking parity with JSONL artifacts and causing retrieval-time behavior to differ by backend.
+
+The best systemic fix is to introduce a **single canonical contract layer** (schemas + canonicalization functions + contract tests) that every producer/consumer must go through.
+
+---
+
+## Findings
+
+### P0 — Segment language/extension fidelity is computed, but later discarded/overwritten
+
+**Why this is critical**
+- The system already has segment-aware language detection (script segments, mixed files, embedded languages).
+- But in later assembly the chunk payload reverts to file-level `ext/lang`, causing:
+  - incorrect parser selection (tree-sitter vs TS parser vs heuristics),
+  - incorrect chunk IDs (because many IDs incorporate ext/lang),
+  - incorrect retrieval language filters,
+  - incorrect cross-file inference keying and graph edges.
+
+**Where**
+- Segment detection and language resolution:
+  - `src/index/segments.js` (e.g., `resolveSegmentExt`, `resolveSegmentLanguage`)
+- Chunk payload assembly that overwrites:
+  - `src/index/build/file-processor/assemble.js` (notably `buildChunkPayload(...)`)
+    - the wide sweeps observed the pattern: `const ext = ctx.fileMeta.ext` / `const lang = ctx.fileMeta.lang` applied to *all* chunks even when a segment-derived language exists.
+
+**Symptoms / risks**
+- A Vue/React SFC script segment can be analyzed as “vue/html” at segment time but stored/retrieved as “js” (or the reverse), depending on container extension.
+- Language-scoped features (risk rules, type inference, filters, call-args extraction) behave inconsistently between artifact paths and SQLite paths, because each may consult different fields (`chunk.ext`, `metaV2.lang`, file ext).
+
+**Recommendation**
+- Make `segment.languageId` (or canonical `chunk.languageId`) the *single* source of truth.
+- Enforce a rule: “file-level ext/lang may only be used when there are no segments.”
+- Add a `canonicalizeChunkLanguage(chunk, ctx)` step used by:
+  - chunk-id computation,
+  - parser selection,
+  - `metaV2` derivation,
+  - shard planning language grouping,
+  - retrieval language filtering.
+
+**Tests to add**
+- Fixture with embedded segments (Vue SFC, HTML with `<script>`, Markdown code-fences if supported) verifying:
+  - emitted `chunk.ext/lang` match segment-derived values,
+  - retrieval `--lang` filters use segment-derived values (not container extension),
+  - cross-file inference keys differ between segments as expected.
+
+---
+
+### P0 — Tree-sitter runtime/parser selection is keyed to container extension, not the canonical segment language
+
+**Why this is critical**
+- Even if segment language is detected, *downstream* parser selection can still consult a mismatched `chunk.ext` and pick the wrong parser (or no parser), producing malformed relations/types.
+
+**Where**
+- Tree-sitter selection logic:
+  - `src/index/build/file-processor/tree-sitter.js`
+  - `src/lang/tree-sitter/*` (selection/config and chunking)
+- Language selection can be affected by chunk payload fields:
+  - `src/index/build/file-processor/assemble.js` (see previous finding)
+
+**Recommendation**
+- Replace “extension-driven selection” with “canonical languageId-driven selection”.
+- Treat extension as a fallback **only** if languageId is unknown.
+- Introduce a `ParserSelector` contract: `(languageId, segmentExt?, fileExt?) -> parser`.
+
+**Tests to add**
+- A segment-fixture where the container extension is *different* from the embedded segment language (e.g., `.vue` containing TS script).
+- Assert the selected parser matches the segment language, and emitted relations/types match the correct language.
+
+---
+
+### P0 — Stable identity is not canonical across artifacts/graphs/retrieval/storage
+
+**Why this is critical**
+- Multiple identities are used interchangeably:
+  - `docId` (often treated as dense `[0..N)` index),
+  - `chunkId` / `stableChunkKey`,
+  - file+chunkIndex composites,
+  - “implicit joins” across arrays keyed by docId.
+- This enables silent wrong-joins when ordering changes (e.g., deferred tree-sitter languages reorder work) or when incremental builds reuse partial artifacts.
+
+**Where**
+- Chunk ID generation:
+  - `src/index/chunk-id.js`
+- Artifact writers and graph emissions:
+  - `src/index/build/artifacts/writers/chunk-meta.js`
+  - `src/index/build/graphs.js`
+- Retrieval loaders / caches:
+  - `src/retrieval/index-cache.js`
+- SQLite build/import path:
+  - `src/storage/sqlite/build/from-artifacts.js`
+
+**Recommendation**
+- Define **one canonical stable key**:
+  - `stableChunkId = hash(repoId, canonicalPath, segmentId, chunkOrdinalWithinSegment, contentHash?)`
+- Make `docId` a *storage-local surrogate* only (never used as an implicit join key without validation).
+- Emit an explicit join map in artifacts:
+  - `docId -> stableChunkId`
+  - `stableChunkId -> {file, segment, chunkIndex}`
+
+**Tests to add**
+- Determinism test: same repo indexed twice with different file traversal order → stableChunkIds identical.
+- Deferred-language test: trigger a missing tree-sitter WASM deferral mid-run → stableChunkIds and joins remain correct.
+
+---
+
+### P0 — `metaV2` is built early and becomes stale after later enrichment passes
+
+**Why this is critical**
+- `metaV2` is treated as the retrieval-time contract, but enrichment stages mutate the underlying chunk after `metaV2` was computed.
+- The system can therefore “have” relations/types/risk flows, but retrieval filters/output shape operate on stale `metaV2`.
+
+**Where**
+- `metaV2` derivation:
+  - `src/index/build/file-processor/meta.js`
+  - `src/index/metadata-v2.js`
+- Enrichment after metaV2:
+  - `src/index/type-inference-crossfile/*`
+  - `src/index/build/indexer/steps/relations.js`
+  - `src/index/risk.js`
+
+**Recommendation**
+- Move to a model where `metaV2` is either:
+  1) computed **after** all enrichment, or  
+  2) incrementally updated (re-canonicalized) whenever enrichment adds fields.
+- Add a `metaV2Version` and `metaV2InputsHash` so loaders can detect staleness.
+
+**Tests to add**
+- Cross-file inference integration test should assert `metaV2.types` present in emitted chunk-meta after inference.
+- Risk enrichment test should assert `metaV2.risk` reflects computed risk tags/flows.
+
+---
+
+### P0 — Return type / signature metadata is fragmented and can accept non-type values
+
+**Why this is critical**
+- Producers emit return types in multiple places (`docmeta.returns` vs `docmeta.returnType`) and with inconsistent shapes.
+- Some extractors accept non-type values (boolean/object) as “return type”, which can poison downstream normalization.
+- Consumers often look only at `returnType`, so you can appear to have “no return types” even when they exist.
+
+**Where**
+- Return-type extraction (varies by language):
+  - JS/TS docmeta: `src/lang/javascript/docmeta.js`
+  - C-like extractors: `src/lang/clike.js` (commonly emits `docmeta.returns`)
+- Meta normalization / consumption:
+  - `src/index/metadata-v2.js`
+  - retrieval filters/types: `src/retrieval/filters.js`, `src/retrieval/output/*`
+
+**Recommendation**
+- Create one canonical representation:
+  - `signature: { params: [...], returns: { type: string|null, raw: string|null, confidence } }`
+- Add a strict validator: reject boolean/object/etc for `returns.type` (store them under `returns.raw` if needed).
+- Teach all consumers to read only the canonical field.
+
+**Tests to add**
+- Unit tests for `metadata-v2` normalization:
+  - accepts `{returns: "Foo"}` and `{returnType: "Foo"}` but emits canonical `signature.returns.type = "Foo"`,
+  - rejects `{returnType: true}` (or normalizes to `null` with `raw`).
+- Fixture-based end-to-end test for a C-like function with explicit return type.
+
+---
+
+### P1 — Signature parameter metadata (`docmeta.params`) has inconsistent shapes and is not schema-validated
+
+**Why this matters**
+- Several language extractors emit parameter metadata, but the shape is not consistent (array vs object vs missing), and there is no canonical normalization step.
+- Downstream consumers (type inference decorators, filters, output formatters) risk either crashing on unexpected shapes or silently dropping parameter information.
+
+**Where**
+- Language docmeta emitters:
+  - `src/lang/*` (language-specific docmeta modules)
+- Meta normalization:
+  - `src/index/metadata-v2.js`
+
+**Suggested fix**
+- Expand the canonical signature contract (introduced in the return-type finding) to include `params` with a strict schema:
+  - `params: [{ name, type, optional, defaultValueRaw?, position }]`
+- Add a normalizer that accepts legacy shapes and produces the canonical array.
+- Add schema validation for `signature` at artifact-write time.
+
+**Tests to add**
+- Contract tests that feed multiple legacy param shapes through normalization and assert stable canonical output.
+
+---
+
+### P1 — Symbol identity collisions and text-only linking inflate false edges
+
+**Why this matters**
+- Callgraph/usage edges are often keyed by display name or textual callee rather than a symbol identifier.
+- Overloaded functions, method receivers, namespaces, and imports can produce false edges that later drive context expansion, risk flows, and “who calls what” features.
+
+**Where**
+- Relations emitters (language-specific):
+  - `src/lang/*/relations.js` (notably JS/Python vs TS differences)
+- Graph construction:
+  - `src/index/build/graphs.js`
+
+**Recommendation**
+- Introduce a symbol ID contract:
+  - `symbolId = hash(languageId, canonicalPath, containerSymbol, localName, kind, signatureFingerprint)`
+- Where possible, augment via tooling (LSP/SCIP/LSIF) to resolve definitions/references and attach authoritative symbol IDs.
+- Track confidence on edges (`resolved`, `heuristic`, `text-only`).
+
+**Tests**
+- Fixture with overloaded names and imports; assert edges include confidence + do not merge unrelated symbols.
+
+---
+
+### P1 — Retrieval language filtering is extension-centric and will be wrong in mixed/segmented files
+
+**Where**
+- Retrieval filters / CLI:
+  - `src/retrieval/filters.js`
+  - `src/retrieval/cli/*` (lang filters)
+- Filter-index artifacts:
+  - `src/index/build/artifacts/filter-index.js`
+
+**Why it matters**
+- If `chunk.ext` was overwritten with file ext, language filters become inaccurate.
+- Even if `metaV2.lang` is correct, filters may not consult it.
+
+**Recommendation**
+- Make `metaV2.lang` the canonical filter key.
+- Ensure `filter-index` uses the same key that retrieval uses (avoid “build-time ext, retrieval-time lang” drift).
+
+**Tests**
+- Mixed-language fixture with container ext not matching segment language.
+- Validate `--lang ts` returns only TS chunks inside `.vue`/`.md`/`.html` where applicable.
+
+---
+
+### P1 — SQLite `metaV2` reconstruction is minimal, causing backend-dependent behavior
+
+**Where**
+- SQLite build/import:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
+
+**Why it matters**
+- Features that rely on `metaV2` fields (types, risk tags, relations metadata) behave differently depending on whether retrieval loads JSONL artifacts or SQLite.
+
+**Recommendation**
+- Store canonical `metaV2` (or a canonical subset) directly in SQLite at ingest time.
+- Validate a parity contract: “SQLite and JSONL produce the same `metaV2` for a given chunk”.
+
+---
+
+### P2 — Offset units are not canonicalized across languages/parsers
+
+**Why it matters**
+- Some parts of the system treat offsets as bytes, others as UTF-16 code units, others as code points.
+- This causes subtle breakage in:
+  - callsite locations,
+  - risk evidence references,
+  - “open in editor” line/col mapping.
+
+**Where**
+- TS parsing/positions:
+  - `src/lang/typescript/parser.js`
+- Python AST scripts:
+  - `src/lang/python/ast-script.js`
+- Tree-sitter AST:
+  - `src/lang/tree-sitter/ast.js`
+
+**Recommendation**
+- Define a canonical position contract:
+  - `pos: { line, colUtf16, byteOffset? }` (or pick one, but be explicit)
+- Require each language adapter to supply a converter to canonical positions.
+
+---
+
+### P2 — Chunk record shape drifts across pipelines (internal chunk vs artifact chunk vs SQLite reconstruction)
+
+**Why it matters**
+- Different parts of the system treat “the chunk record” differently:
+  - internal file-processor chunk objects,
+  - JSONL `chunk-meta` artifact rows,
+  - SQLite ingested rows and reconstructed `metaV2`.
+- Without a canonical shape and explicit versioning, it’s easy to introduce drift where:
+  - a field exists in one backend but not another,
+  - a field is renamed (or duplicated) but only partially aliased,
+  - consumers silently fall back to defaults.
+
+**Where**
+- Internal file processing and assembly:
+  - `src/index/build/file-processor/*`
+- Artifact writing:
+  - `src/index/build/artifacts/writers/chunk-meta.js`
+- SQLite reconstruction:
+  - `src/storage/sqlite/build/from-artifacts.js`
+
+**Suggested fix**
+- Define and version a single `ChunkMetaV2` schema used for:
+  - JSONL emission,
+  - SQLite storage,
+  - retrieval contracts.
+- Require all pipelines to pass through the same `canonicalizeChunkMetaV2(...)` function.
+
+
+### P2 — Contract casing duplication and partial aliasing (snake_case vs camelCase)
+
+**Where**
+- Multiple artifact and retrieval layers:
+  - `chunk_authors` vs `chunkAuthors`, `last_author` vs `lastAuthor`, etc.
+
+**Recommendation**
+- Pick one canonical JSON shape for public artifacts and APIs.
+- Provide a single “compat decoder” that normalizes legacy shapes at load time, and delete ad-hoc per-field aliasing over time.
+
+---
+
+## “Keep it right” recommendations (contract gates)
+
+1. **Introduce JSON Schemas as the *only* supported contract** for:
+   - chunk payload (internal),
+   - chunk-meta JSONL,
+   - metaV2,
+   - graphs/relations edges.
+2. Add a **contract test suite** that:
+   - runs a small fixture repo through build → validate → SQLite import → retrieval,
+   - asserts parity across backends for canonical fields,
+   - asserts stable IDs across two different traversal orders.
+3. Add a **segment fidelity gate**:
+   - if segment-derived `languageId` exists, it must be the emitted language key everywhere.
+4. Add a **metaV2 freshness gate**:
+   - `metaV2InputsHash` must match the final enriched chunk state.
+5. Add a **return-type normalization gate**:
+   - no booleans/objects in `returnType`; `docmeta.returns` must normalize into canonical signature.
+`
+
+- /CODEBASE_WIDE_SWEEP_RETRIEVAL_UX_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 16 — Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
+  - Decision: Define retrieval UX contracts (output fields, explainability, routing defaults) and how they align with roadmap phases.
+  - Questions: Which output fields are mandatory for downstream tools, and what is the stability guarantee?
+
+`
+# Codebase Static Review Findings — Wide Sweep D (Final, Merged)
+
+**Scope / focus:** Retrieval semantics and UX (ranking, filters, context shaping, output formats, CLI normalization, backend/provider selection).
+
+## Severity key
+
+- **P0 / Critical**: can return wrong results due to mis-joins, mis-filtering, or silent semantic drift.
+- **P1 / High**: major UX/correctness inconsistencies; ranking/filter surprises; backend parity breaks.
+- **P2 / Medium**: determinism, explainability, and maintainability gaps.
+
+## Executive summary
+
+Retrieval features are extensive, but correctness is undermined by a lack of a single “semantic kernel” that all providers and outputs must obey. The most serious risks are:
+
+1. **docId alignment is assumed** across multiple retrieval paths (implicit array-index joins), but not validated — a silent corruption risk.
+2. **Backend/provider selection and capability gating is scattered**, enabling silent fallback behavior (especially around SQLite/ANN).
+3. **Language and filter semantics drift** (extension-based language filtering, filter-index drift between build and retrieval).
+4. **Ranking/boosting rules lack strong guards**, notably export boosting.
+5. **Context expansion and output shaping** are collision-prone and can exhaust budgets without a clear policy contract.
+
+---
+
+## Findings
+
+### P0 — docId is treated as a universal join key without alignment validation (implicit array-index joins)
+
+**Where**
+- Retrieval joins and ranking:
+  - `src/retrieval/bitmap.js`
+  - `src/retrieval/fts.js`
+  - `src/retrieval/filter-index.js`
+- SQLite cache/helpers:
+  - `src/retrieval/sqlite-cache.js`
+  - `src/retrieval/sqlite-helpers.js`
+
+**What’s wrong**
+- Retrieval frequently assumes:
+  - `docId` is dense and stable,
+  - arrays from different sources align by docId index (chunk meta arrays, score arrays, postings bitmaps).
+- The system does not validate that:
+  - all artifact sets share the same docId→chunk mapping,
+  - providers return docIds that map to the same chunk-meta ordering.
+
+**Impact**
+- Returning incorrect snippet/metadata for a match (silent corruption).
+- Incorrect filters and context expansion because “match points to wrong chunk”.
+
+**Suggested fix**
+- Make stableChunkId the universal join key; docId becomes storage-local only.
+- Require an explicit join map and validate alignment at index load time (fail closed if inconsistent).
+
+---
+
+### P1 — Provider selection and capability gating are not centralized (semantic drift + silent fallback)
+
+**Where**
+- Backend/provider selection:
+  - `src/retrieval/backend-policy.js`
+  - `src/retrieval/sqlite-fts-eligibility.js`
+  - `src/retrieval/ann/providers/*`
+- CLI normalization and backend context:
+  - `src/retrieval/cli/backend-context.js`
+  - `src/retrieval/cli/policy.js`
+
+**What’s wrong**
+- The “same query” can be routed to different providers depending on:
+  - local dependency availability,
+  - inferred eligibility thresholds,
+  - CLI flags and defaults.
+- Capability gating is not enforced as a strict manifest-backed contract, so silent fallback is possible.
+
+**Suggested fix**
+- Centralize routing in one `RetrievalPlan` builder that requires:
+  - index manifest capabilities,
+  - local environment capabilities,
+  - explicit policy rules.
+- If capabilities don’t match, fail closed (or require explicit “allow fallback” policy).
+
+---
+
+### P1 — Context expansion is collision-prone when identity is weak (can merge unrelated chunks)
+
+**Where**
+- Context shaping:
+  - `src/retrieval/context-expansion.js`
+  - `src/retrieval/query-cache-extracted-prose.js` (if used for reuse)
+
+**What’s wrong**
+- Context expansion often aggregates matches by coarse keys (file paths, chunk ordinals, docIds).
+- If stable IDs are not canonical (see Wide Sweep A), collisions can occur and context blocks can contain wrong/merged data.
+
+**Suggested fix**
+- Use stableChunkId for all expansion grouping.
+- Attach confidence and provenance for “expanded-by” relationships.
+
+---
+
+### P1 — SQLite hydration can return a reduced shape compared to JSONL artifacts (backend parity break)
+
+**Where**
+- SQLite hydration:
+  - `src/retrieval/sqlite-helpers.js`
+  - `src/storage/sqlite/*` (schema and readers)
+
+**What’s wrong**
+- Some retrieval paths reconstruct minimal chunk metadata for SQLite rows.
+- This makes output shapes and filter behavior backend-dependent.
+
+**Suggested fix**
+- Store canonical `metaV2` (or canonical subset) in SQLite at ingest time.
+- Validate parity via contract tests.
+
+---
+
+### P1 — Export boosting appears to apply broadly across languages (missing guards)
+
+**Where**
+- Ranking:
+  - `src/retrieval/rank.js`
+
+**What’s wrong**
+- “Exported symbol” boost logic is not clearly gated to a language/kind model; in practice, many chunks can appear “exported” by heuristic.
+- This biases ranking and can degrade relevance for non-TS/JS repositories.
+
+**Suggested fix**
+- Gate export boosts by canonical `metaV2.lang` and `metaV2.kind`.
+- Require explicit language support to enable this boost.
+- Surface boost application in explain output.
+
+---
+
+### P1 — Language filtering is extension-centric; must pivot to `metaV2.lang` (segment-aware)
+
+**Where**
+- Filters and query parsing:
+  - `src/retrieval/filters.js`
+  - `src/retrieval/query-parse.js`
+  - `src/retrieval/query.js`
+
+**What’s wrong**
+- Filters consult file extensions or `chunk.ext` rather than canonical `metaV2.lang`.
+- This is incorrect for segmented files and also interacts with the build-side bug where segment language can be overwritten.
+
+**Suggested fix**
+- Define `metaV2.lang` as the only filter key.
+- Ensure filter-index uses the same key.
+
+---
+
+### P1 — Filter-index semantics drift between build-time and retrieval-time implementations
+
+**Where**
+- Build:
+  - `src/index/build/artifacts/filter-index.js`
+- Retrieval:
+  - `src/retrieval/filter-index.js`
+
+**What’s wrong**
+- Normalization rules (case, punctuation, tokenization, strictness defaults) are not guaranteed to match.
+- This produces “filter exists but doesn’t apply” confusion.
+
+**Suggested fix**
+- Centralize normalization in shared code and version the filter-index contract.
+
+---
+
+### P1 — Token semantics collapse when `tokenMode: none` (filters and scoring degrade)
+
+**Where**
+- Query parsing and scoring:
+  - `src/retrieval/query-parse.js`
+  - `src/retrieval/rank.js`
+
+**What’s wrong**
+- If tokenization is disabled/altered, features built on token boundaries (filters, scoring, phrase matching) degrade in ways that can appear as “random relevance loss”.
+
+**Suggested fix**
+- Treat tokenMode as a hard policy and signature input; emit warnings or refuse to run incompatible queries.
+
+---
+
+### P2 — Output verbosity and explainability need a budgeted, policy-driven contract
+
+**Where**
+- Output shaping:
+  - `src/retrieval/output/*`
+  - `src/retrieval/context-expansion.js`
+
+**What’s wrong**
+- Without a single “verbosity budget” policy (max matches, max context, max snippet bytes), different commands can emit unexpectedly large payloads and perform poorly.
+
+**Suggested fix**
+- Implement a retrieval output policy:
+  - budgets + defaults,
+  - CLI normalization,
+  - stable JSON schema.
+
+---
+
+### P2 — Query plan / explain output does not describe normalization and rewrites
+
+**Where**
+- Query plan / explain:
+  - `src/retrieval/cli/query-plan.js`
+  - `src/retrieval/output/explain.js`
+
+**Suggested fix**
+- Explain must include:
+  - normalized tokens,
+  - applied filters,
+  - boosts and reasons,
+  - provider selection decisions,
+  - fallback decisions (if any).
+
+---
+
+## “Keep it right” retrieval invariants
+
+1. Retrieval must fail closed if docId alignment cannot be proven.
+2. Provider selection must be manifest + policy driven (no silent fallback).
+3. Language and filter semantics must be canonical (`metaV2.lang`, shared normalization).
+4. Ranking boosts must be gated and explainable.
+5. Context expansion and output shaping must obey a single policy budget.
+`
+
+- /CODEBASE_WIDE_SWEEP_SCORCHED_EARTH_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Decide which breaking changes are acceptable, what gets hard-reset, and how we stage the migration.
+  - Questions: What is the acceptable compatibility window (if any) for scorched-earth changes?
+
+`
+# Codebase Static Review Findings — Wide Sweep G (Final, Merged)
+
+**Scope / focus:** Architecture-level roadmap for a scorched-earth rebuild and a policy-kernel / streaming-first indexer future.
+
+**Additional incorporation (still limited to wide sweeps):**
+- This “final copy” also folds in the *highest-severity systemic observations* from Wide Sweeps A–F (contracts, build/runtime, artifacts/shards, retrieval UX, shared foundations, storage/policy) to ensure the rebuild roadmap directly addresses the observed failure modes.
+
+---
+
+## Executive diagnosis (what must change)
+
+A scorched-earth rebuild is justified because multiple correctness and operability issues are **structural**, not patch-level:
+
+1. **Contracts are not canonical**:
+   - segment-derived language/ext is computed but later overwritten (Wide Sweep A),
+   - identity is non-canonical and docId joins are implicit/unvalidated (Wide Sweeps A/C/D).
+2. **Build lifecycle is not transactionally safe**:
+   - promotion can expose partial indexes,
+   - embedding work can cross-contaminate builds (Wide Sweep B).
+3. **Serialization/canonicalization is not centralized**:
+   - JSONL output can silently serialize typed arrays incorrectly,
+   - signature inputs are not uniformly canonicalized (Wide Sweep E).
+4. **Backend policy is distributed and fallbacks are not explicit**:
+   - build and retrieval can disagree on backend/capabilities,
+   - missing deps can silently degrade features (Wide Sweep F).
+
+The “correct from first principles” solution is a **policy kernel** + **streaming-first indexer** with strict contracts and promotion gating.
+
+---
+
+## Non-negotiable invariants (must hold in the new system)
+
+1. **Single identity system**
+   - `stableChunkId` is the only cross-stage key.
+   - `docId` is a storage-local surrogate and never used as an implicit join key without validation.
+2. **Segment fidelity is end-to-end**
+   - segment languageId is the canonical language key everywhere (parsing, shard planning, retrieval filters).
+3. **Canonical serialization**
+   - one JSON/JSONL encoder for artifacts, with typed-array support and non-finite number handling.
+4. **BuildRoot transaction**
+   - every build produces a BuildRoot with a manifest (signature, schema versions, backend capabilities).
+   - promotion is an atomic pointer flip to a validated BuildRoot.
+5. **Fail-closed capability model**
+   - if a backend feature (ANN, vector extension, tooling) is missing, it is recorded and enforced by policy; no silent fallback unless explicitly allowed.
+
+---
+
+## Roadmap phases (scorched-earth rebuild)
+
+### Phase 0 — Define contracts and guardrails first
+
+**Deliverables**
+- Contract schemas:
+  - `ChunkRecord` (internal),
+  - `ChunkMetaV2` (external/retrieval contract),
+  - `RelationsEdge`, `GraphNode`,
+  - `FilterIndex` contract,
+  - `IndexManifest` (backend + capabilities + signature),
+  - `BuildReport` (metrics + durations + errors).
+- Canonical libraries:
+  - `canon/serialize` (JSON/JSONL, typed arrays),
+  - `canon/identity` (stableChunkId, symbolId),
+  - `canon/positions` (offset/line/col contract),
+  - `canon/policy` (backend selection + gating).
+
+**Exit criteria**
+- Every existing producer/consumer path can be validated against schemas in “dev mode”.
+- A minimal fixture repo can be built and validated end-to-end with no warnings.
+
+---
+
+### Phase 1 — Policy kernel (centralize all cross-cutting decisions)
+
+**Goal**
+- Make “policy” a single, testable, versioned module — not scattered across CLI/retrieval/build/storage.
+
+**Policy kernel responsibilities**
+- backend selection + capability detection (sqlite/lmdb/lancedb/ann provider)
+- artifact size targets and shard planning rules
+- filter normalization rules (case, tokenization, regex engine)
+- embedding policy (models/dims/batching)
+- determinism knobs (ordering, tie-breaking)
+
+**Deliverables**
+- `policy.resolve(config, envCaps) -> ResolvedPolicy`
+- `IndexManifest` stamping of resolved policy and environment caps.
+- A strict “fail closed unless policy says allow fallback” mechanism.
+
+**Exit criteria**
+- Build + retrieval must consume the same `ResolvedPolicy` and produce the same behavior.
+
+---
+
+### Phase 2 — Streaming-first indexer core (remove multi-stage “rescue” complexity)
+
+**Goal**
+- Replace multi-stage artifact patchwork with a streaming pipeline that produces consistent artifacts once.
+
+**Design**
+- Inputs:
+  - canonical FileSet + SegmentPlan (stable ordering and membership)
+- Streaming stages:
+  1) read → segment → tokenize/chunk (segment-aware)
+  2) per-chunk meta extraction (language adapters)
+  3) optional enrichment (cross-file inference / risk / call links) as explicit steps that update canonical meta
+  4) postings/fts materialization in a single writer path
+  5) embedding materialization as an explicit stage with manifest stamping
+- Outputs:
+  - BuildRoot with complete artifacts + manifest + checksums
+
+**Exit criteria**
+- No stage can mutate artifacts after checksums.
+- Re-running produces byte-identical artifacts (or explicitly versioned differences).
+
+---
+
+### Phase 3 — Storage layer rebuild (SQLite and LMDB as implementations, not semantic engines)
+
+**Goal**
+- Storage backends should not define semantics; they should store canonical contracts and support efficient query.
+
+**Deliverables**
+- SQLite:
+  - store canonical `metaV2` (or canonical subset) as JSON column,
+  - store stableChunkId and explicit joins,
+  - ANN support recorded as capability in manifest.
+- LMDB:
+  - explicit sizing policy stamped,
+  - corruption detection and fail-closed recovery semantics.
+
+**Exit criteria**
+- Backend parity tests pass (same queries → same results and metadata).
+
+---
+
+### Phase 4 — Retrieval semantics layer (single canonical plan)
+
+**Goal**
+- One canonical retrieval semantics engine; providers are implementation details.
+
+**Deliverables**
+- Canonical query normalization and plan:
+  - tokens/phrases/negation,
+  - filter application,
+  - ranking with explainability.
+- Provider adapters:
+  - sqlite-fts, tantivy, js-bm25, dense ANN
+  - all must output stableChunkIds and validated joins.
+- Output shaping:
+  - context expansion policy,
+  - summarization policy,
+  - consistent JSON output schema.
+
+**Exit criteria**
+- Explain output shows normalization + boosts + filters + provider selection.
+- Deterministic tie-breaking.
+
+---
+
+### Phase 5 — Operational robustness and developer UX
+
+**Deliverables**
+- Build reports with timings per stage, cache hits/misses, and stable error codes.
+- CI test tiers:
+  - smoke (fast),
+  - contract suite (medium),
+  - full e2e (slow) with scheduled cadence.
+- Hard gates:
+  - schema validation gate,
+  - manifest parity gate,
+  - deterministic build gate.
+
+---
+
+### Phase 6 — Productization (TUI + API + integrations)
+
+**Deliverables**
+- A truly excellent TUI built on canonical APIs (not ad-hoc CLI parsing).
+- Stable API server with SSE streaming using canonical progress events.
+- Integration hooks (MCP, editor extensions) consuming the same contracts.
+
+---
+
+## Immediate “first principles” deletions (reduce dead code surface)
+
+1. Delete or quarantine any pipeline that:
+   - writes artifacts outside a BuildRoot transaction,
+   - computes metaV2 early and never refreshes it after enrichment,
+   - uses file extension as a substitute for segment languageId.
+2. Remove duplicate backend selection code paths; policy kernel only.
+3. Remove ad-hoc JSON stringify paths; canonical serializer only.
+
+---
+
+## Success metrics (what “done” looks like)
+
+- Deterministic builds: byte-identical artifacts across two runs on same repo state.
+- Backend parity: sqlite vs jsonl retrieval returns same stableChunkIds + metaV2.
+- Observability: every build produces a report with stage timings + error taxonomy.
+- Fail-closed correctness: no silent fallback without policy allowing it.
+`
+
+- /CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 14 — Documentation and Configuration Hardening; Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+  - Decision: Define shared foundations (config, serialization, error contracts) and the governance for cross-cutting primitives.
+  - Questions: Which shared primitives must be finalized before later phases proceed?
+
+`
+# Codebase Static Review Findings — Wide Sweep E (Final, Merged)
+
+**Scope / focus:** Shared foundations/utilities underpinning correctness and determinism (concurrency runner, progress/JSONL envelopes, logging, JSON streaming, cache semantics, embedding helpers, safety utilities).
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12E_WIDE_SHARED_FOUNDATIONS.md`
+
+## Severity key
+
+- **P0 / Critical**: can corrupt artifacts or make builds/retrieval silently inconsistent.
+- **P1 / High**: deterministic correctness risks; common operational failures at scale.
+- **P2 / Medium**: maintainability and observability debt.
+
+## Executive summary
+
+The codebase has a lot of shared infrastructure (caches, JSONL streaming, progress envelopes, concurrency runners, hashing utilities). The biggest systemic problem is that **serialization and canonicalization are not centralized**, so different parts of the system can:
+
+- serialize the “same” structure differently,
+- hash the “same” inputs differently,
+- cache the “same” key differently,
+- log/progress-report the “same” events differently.
+
+These are not just cleanliness problems: in an indexing system, they become *determinism and correctness* issues.
+
+---
+
+## Findings
+
+### P0 — JSONL serialization is not canonical; typed arrays / buffers can silently serialize incorrectly
+
+**Where**
+- JSON streaming/writing:
+  - `src/shared/json-stream.js`
+  - `src/shared/jsonl.js`
+  - sharded writer utilities (as used by artifact writers)
+
+**What’s wrong**
+- Some code paths call `JSON.stringify` directly.
+- `JSON.stringify(Uint8Array)` and other typed arrays do not serialize as “the intended bytes”; they serialize as objects with numeric keys or empty objects depending on runtime behavior.
+- This can silently corrupt:
+  - hashed content,
+  - embedding vectors or binary-ish payloads,
+  - integrity checksums if computed over corrupted JSON.
+
+**Suggested fix**
+- Provide a **single canonical JSON serializer** for the whole codebase:
+  - handles typed arrays via base64 or explicit `{__type:"u8", b64:"..."}` encoding,
+  - rejects non-finite numbers unless explicitly encoded,
+  - stable key ordering for objects used in hashing/signatures.
+- Ban direct `JSON.stringify` in artifact emission code via lint rule.
+
+**Tests**
+- Round-trip test: serialize then parse canonical JSON for:
+  - Buffer, Uint8Array, Float32Array,
+  - objects containing these types nested.
+- Ensure stable output across Node versions.
+
+---
+
+### P1 — Hashing/signature inputs are not consistently canonicalized
+
+**Where**
+- Hash utilities:
+  - `src/shared/hash.js`
+  - `src/shared/hash/xxhash-backend.js`
+  - `src/shared/stable-json.js`
+- Signature computation:
+  - `src/index/build/signatures.js`
+  - `src/index/build/indexer/signatures.js`
+
+**What’s wrong**
+- The system uses multiple hashing backends and JSON canonicalizers, but does not guarantee that:
+  - the same object produces the same serialized bytes everywhere,
+  - the same set of inputs is included in every signature.
+- This undermines incremental reuse safety and determinism.
+
+**Suggested fix**
+- Define a single `signatureInput()` function that:
+  - canonicalizes objects via stable-json,
+  - forbids non-canonical types unless explicitly supported,
+  - stamps versions (schema + tool versions).
+- Use it everywhere signatures are computed.
+
+---
+
+### P1 — Cancellation/abort semantics are not unified; partial results can “look successful”
+
+**Where**
+- Concurrency runner:
+  - `src/shared/concurrency.js`
+  - `src/shared/threads.js`
+- Worker pools and build runtime:
+  - `src/index/build/worker-pool.js`
+  - `src/index/build/runtime/workers.js`
+
+**What’s wrong**
+- Some async workflows can be interrupted/cancelled but still emit partial outputs (or partial progress events) that appear valid.
+- In a pipeline with promotion, partial outputs are dangerous unless clearly marked.
+
+**Suggested fix**
+- Standardize on a cancellation token propagated through:
+  - file processor,
+  - shard writers,
+  - embedding queue.
+- Require writers to either:
+  - finalize atomically, or
+  - fail closed (no partial artifact visibility).
+
+---
+
+### P1 — Cache semantics are inconsistent (immutability assumptions and invalidation triggers)
+
+**Where**
+- Cache:
+  - `src/shared/cache.js`
+  - `src/shared/cache-lru.js` (if present)
+  - retrieval cache layers: `src/retrieval/sqlite-cache.js`
+
+**What’s wrong**
+- Some caches assume keys are immutable and values are safe to reuse across stages/runs, but the system frequently changes config, policy, and stage semantics.
+- Invalidation triggers are not consistently tied to a canonical signature.
+
+**Suggested fix**
+- Tie every cache entry to:
+  - `{buildSignature, schemaVersion, toolVersions}`
+- Fail closed when signatures mismatch.
+
+---
+
+### P1 — Logging/progress event envelopes are not strictly versioned contracts
+
+**Where**
+- Progress and CLI:
+  - `src/shared/progress.js`
+  - `src/shared/bench-progress.js`
+  - `src/shared/cli/display/*`
+
+**What’s wrong**
+- Multiple parts of the system emit progress events; not all use a single schema.
+- This can break dashboards, benches, and long-running jobs when fields drift.
+
+**Suggested fix**
+- Define a `ProgressEvent` schema with explicit versions.
+- Provide `emitProgress(event)` helper that validates shape at runtime in dev/test.
+
+---
+
+### P1 — Safe-regex engine selection is a policy decision but is scattered
+
+**Where**
+- Regex policy and backends:
+  - `src/shared/safe-regex.js`
+  - `src/shared/safe-regex/backends/re2.js`
+  - `src/shared/safe-regex/backends/re2js.js`
+
+**What’s wrong**
+- Backend selection affects correctness and performance (re2 vs re2js behavior differences).
+- If policy is scattered, retrieval and indexing filters may diverge.
+
+**Suggested fix**
+- Make safe-regex backend selection part of centralized policy and part of the build signature.
+
+---
+
+
+
+### P1 — Atomic replace / `.bak` recovery semantics are not centralized (risk of partial reads)
+
+**Where**
+- Atomic writes:
+  - `src/shared/fs/atomic.js`
+  - `src/shared/artifact-io.js` (if present)
+- Promotion pointer writing:
+  - `src/index/build/promotion.js`
+
+**What’s wrong**
+- Different writers appear to implement “atomic replace” slightly differently (tmp files, `.bak`, rename strategy).
+- If a reader ever observes a `.bak` or half-written file during promotion, behavior is undefined unless centralized.
+
+**Suggested fix**
+- Provide a single `atomicWriteFile(path, bytes, {mode})` helper used everywhere.
+- Standardize `.bak` semantics:
+  - either never exposed to readers,
+  - or always cleaned up and never treated as valid.
+
+---
+
+### P2 — Progress/JSONL event envelopes are not strictly centralized
+
+**Where**
+- Progress events:
+  - `src/shared/progress.js`
+  - `src/shared/bench-progress.js`
+- JSONL writing:
+  - `src/shared/jsonl.js`
+
+**What’s wrong**
+- Multiple subsystems can emit “progress-like” events with slightly different fields.
+- Without schema validation, dashboards and long-running tools can break with minor drift.
+
+**Suggested fix**
+- Version and validate progress envelopes at runtime (in dev/test).
+- Provide a single `emitProgress(event)` wrapper.
+
+---
+
+### P2 — Queue error semantics (retry vs fail-closed) are inconsistent across subsystems
+
+**Where**
+- Embedding queue and other queues:
+  - `src/index/build/indexer/embedding-queue.js`
+  - `src/shared/concurrency.js`
+
+**What’s wrong**
+- Some queues may swallow errors, others throw, others “warn and continue”.
+- Without a consistent policy, pipelines can complete with missing work.
+
+**Suggested fix**
+- Adopt one queue contract:
+  - retries are explicit and bounded,
+  - failure modes are recorded in build report,
+  - promotion is gated on required queues.
+
+
+## “Keep it right” foundations checklist
+
+1. Ban direct `JSON.stringify` for artifacts; require canonical serializer.
+2. Ensure one canonical signature input builder is used everywhere.
+3. Cancellation token must propagate through all long-running tasks.
+4. Caches must be signature-stamped and fail closed on mismatch.
+5. Progress/log event envelopes must be schema-validated and versioned.
+`
+
+- /CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 18 — Vector-Only Profile (Build + Search Without Sparse Postings); Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+  - Decision: Define backend parity requirements, fallback policy, and which storage profiles are first-class.
+  - Questions: Which backends are required for CI vs optional, and how do we validate parity?
+
+`
+# Codebase Static Review Findings — Wide Sweep F (Final, Merged)
+
+**Scope / focus:** Storage backend implementations and policy (SQLite build/incremental, LMDB sizing/limits, vector extension integration, format evolution).
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12F_WIDE_STORAGE_BACKENDS_POLICY.md`
+
+## Severity key
+
+- **P0 / Critical**: can open the wrong backend, silently fall back, or promote an index that cannot be reliably queried.
+- **P1 / High**: backend parity gaps and incremental correctness risks.
+- **P2 / Medium**: operational robustness and maintainability.
+
+## Executive summary
+
+Storage backend behavior is effectively part of the system’s “policy kernel”, but it is currently distributed and partially implicit. The highest-risk issues are:
+
+1. **Backend identity and policy labels are not stored/validated consistently**, enabling “open wrong backend” behavior and silent fallback when dependencies are missing.
+2. **Backend selection logic is duplicated across build and retrieval**, and the two can disagree.
+3. **SQLite parity gaps (notably `metaV2`) create backend-dependent semantics**.
+4. **Incremental build/manifest and schema evolution are not enforced as strict contracts** (risk of silent rebuild loops or stale reads).
+
+---
+
+## Findings
+
+### P0 — Backend identity/policy can mismatch and silently fall back
+
+**Where**
+- Backend policy resolution:
+  - `src/storage/backend-policy.js`
+  - `src/shared/auto-policy.js`
+- Retrieval backend selection:
+  - `src/retrieval/cli/auto-sqlite.js`
+  - `src/retrieval/cli/backend-context.js`
+- Index current pointer / runtime:
+  - `src/index/build/promotion.js`
+  - `src/index/build/runtime/runtime.js`
+
+**What’s wrong**
+- Policies can resolve to a backendId (e.g., `sqlite`) even when that backend is not actually usable (missing extension, missing deps), and fallback behavior can occur without a strong “fail closed” contract.
+- Backend identity is not always stamped into the index in a way that retrieval validates before opening.
+
+**Impact**
+- User thinks they are querying a SQLite-backed index, but retrieval may be:
+  - silently using LMDB,
+  - silently dropping ANN features,
+  - or failing in inconsistent ways depending on local deps.
+
+**Suggested fix**
+- Stamp backend identity into the promoted index as a required contract:
+  - `index.manifest.json` includes `{backendId, backendCapabilities, schemaVersion, buildSignature}`
+- Retrieval must:
+  - read manifest,
+  - validate local capability matrix,
+  - fail closed with a clear error if requirements are not met.
+
+---
+
+### P0 — Build and retrieval can disagree about backend selection and capabilities
+
+**Where**
+- Build-time policy application:
+  - `src/storage/backend-policy.js`
+  - `src/shared/capabilities.js`
+- Retrieval-time policy application:
+  - `src/retrieval/cli/policy.js`
+  - `src/retrieval/cli/backend-context.js`
+
+**What’s wrong**
+- The same conceptual decision (backend selection) is repeated in multiple layers with different fallbacks and defaults.
+
+**Suggested fix**
+- Centralize backend policy in one module (a “policy kernel”):
+  - one resolver,
+  - one capability detector,
+  - one manifest stamp.
+- Make the resolved policy part of the build signature.
+
+---
+
+### P1 — SQLite `metaV2` parity gap causes backend-dependent semantics
+
+**Where**
+- SQLite ingest/build:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
+
+**What’s wrong**
+- SQLite may store only a minimal subset of `metaV2` compared to JSONL artifacts.
+- Retrieval behavior differs by backend (types/relations/risk fields missing).
+
+**Suggested fix**
+- Store canonical `metaV2` (or a canonical subset) as JSON in SQLite.
+- Add parity tests comparing JSONL and SQLite retrieval for the same chunk.
+
+---
+
+### P1 — Vector extension integration and fallback behavior must be explicit and durable
+
+**Where**
+- Vector extension integration:
+  - `src/storage/sqlite/vector.js`
+  - `src/shared/optional-deps.js`
+  - `src/shared/lancedb.js` (if used as alternative ANN)
+- Retrieval ANN providers:
+  - `src/retrieval/ann/providers/sqlite-vec.js`
+  - `src/retrieval/ann/providers/hnsw.js`
+
+**What’s wrong**
+- If vector extension is missing or fails to load, fallback behavior may occur without:
+  - durable recording in the manifest,
+  - user-visible warnings,
+  - consistent ranking behavior.
+
+**Suggested fix**
+- Require a manifest-stamped capability:
+  - `{annProvider: "sqlite-vec"|"hnsw"|"none", dims, metric}`
+- Retrieval must refuse ANN queries if the index was built without ANN support (unless explicitly allowed by policy).
+
+---
+
+### P1 — SQLite incremental build and schema evolution should be treated as explicit contracts
+
+**Where**
+- SQLite incremental/migrations:
+  - `src/storage/sqlite/incremental.js`
+  - `src/storage/sqlite/schema.js`
+  - `src/storage/sqlite/build/validate.js`
+  - `src/storage/sqlite/build/manifest.js`
+
+**What’s wrong**
+- Incremental behavior depends on schema versions and manifest hashes, but:
+  - migration authority is split,
+  - rebuild triggers may be inconsistent,
+  - validation is not always staged/promotion-gated.
+
+**Suggested fix**
+- Introduce a single schema authority:
+  - `schemaVersion` increments with explicit migration steps,
+  - validation and rebuild behavior is deterministic.
+- Treat “schema mismatch rebuild” as a staged operation that cannot be promoted until complete.
+
+---
+
+### P2 — LMDB sizing/limits should be policy-driven and stamped
+
+**Where**
+- LMDB schema and sizing:
+  - `src/storage/lmdb/schema.js`
+  - `src/shared/disk-space.js`
+
+**Suggested fix**
+- Compute LMDB map size and growth policy from:
+  - repo size estimate,
+  - expected postings/vectors scale.
+- Stamp map size policy into manifest for reproducibility.
+
+---
+
+## “Keep it right” backend invariants
+
+1. Promoted indexes must include a manifest with backendId + capabilities.
+2. Retrieval must validate manifest vs local capabilities and fail closed.
+3. Backend selection must be centralized and part of the build signature.
+4. SQLite parity must be tested (metaV2, postings, ANN).
+5. Incremental/migrations must be explicit contracts and promotion-gated.
+`
+

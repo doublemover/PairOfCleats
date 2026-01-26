@@ -260,7 +260,11 @@ if (argv.json) {
 }
 
 if (!outputPath) {
-  process.stdout.write(output);
+  if (resolvedFormat === 'json') {
+    process.stdout.write(output);
+  } else {
+    process.stderr.write(output);
+  }
 } else if (!argv.json) {
-  console.log(`Wrote ${resolvedFormat} map to ${outputPath}`);
+  console.error(`Wrote ${resolvedFormat} map to ${outputPath}`);
 }

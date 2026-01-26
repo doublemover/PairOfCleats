@@ -24,9 +24,9 @@ const main = async () => {
   tests.sort((a, b) => (b.durationMs || 0) - (a.durationMs || 0));
   const top = Math.max(1, Math.floor(argv.top));
 
-  console.log(`Run: ${payload.runId || 'unknown'} | Total: ${payload.totalMs || 0}ms`);
+  console.error(`Run: ${payload.runId || 'unknown'} | Total: ${payload.totalMs || 0}ms`);
   for (const entry of tests.slice(0, top)) {
-    console.log(`- ${entry.id}: ${entry.durationMs || 0}ms (${entry.status || 'unknown'})`);
+    console.error(`- ${entry.id}: ${entry.durationMs || 0}ms (${entry.status || 'unknown'})`);
   }
 };
 

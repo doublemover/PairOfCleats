@@ -16,6 +16,8 @@ import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js'
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
 import { getLanguageForFile } from '../language-registry.js';
+
+let warnedNoWorkerPool = false;
 /**
  * Create a file processor with shared caches.
  * @param {object} options
@@ -55,6 +57,7 @@ export function createFileProcessor(options) {
     embeddingBatchSize = 0,
     crashLogger = null,
     fileCaps = null,
+    maxFileBytes = null,
     fileScan = null,
     skippedFiles = null,
     embeddingEnabled = true,
@@ -93,6 +96,30 @@ export function createFileProcessor(options) {
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
   const showLineProgress = getEnvConfig().verbose === true;
+  const encodingWarnings = {
+    seen: new Set(),
+    count: 0,
+    limit: 50
+  };
+  const warnEncodingFallback = (fileKey, info) => {
+    if (!info?.encodingFallback) return;
+    const key = fileKey || info?.file || '';
+    if (!key || encodingWarnings.seen.has(key)) return;
+    if (encodingWarnings.count >= encodingWarnings.limit) return;
+    encodingWarnings.seen.add(key);
+    encodingWarnings.count += 1;
+    const confidence = Number.isFinite(info.encodingConfidence)
+      ? info.encodingConfidence.toFixed(2)
+      : null;
+    const details = info.encoding
+      ? ` (${info.encoding}${confidence ? `, conf=${confidence}` : ''})`
+      : '';
+    log(`[encoding] fallback decode used for ${key}${details}.`);
+  };
+  if (!workerPool && !warnedNoWorkerPool) {
+    warnedNoWorkerPool = true;
+    log('[tokenization] Worker pool unavailable; using main thread.');
+  }
   const tokenDictWords = dictShared || dictWords;
   const tokenContext = createTokenizationContext({
     dictWords: tokenDictWords,
@@ -195,7 +222,10 @@ export function createFileProcessor(options) {
       ext,
       fileCaps,
       fileScanner,
-      runIo
+      runIo,
+      languageId: fileLanguageId,
+      mode,
+      maxFileBytes
     });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;
@@ -209,6 +239,9 @@ export function createFileProcessor(options) {
     let fileHash = null;
     let fileHashAlgo = null;
     let fileBuffer = null;
+    let fileEncoding = null;
+    let fileEncodingFallback = null;
+    let fileEncodingConfidence = null;
     if (fileTextCache?.get && relKey) {
       const cached = fileTextCache.get(relKey);
       if (cached && typeof cached === 'object') {
@@ -218,17 +251,26 @@ export function createFileProcessor(options) {
           fileHash = cached.hash;
           fileHashAlgo = 'sha1';
         }
+        if (typeof cached.encoding === 'string') fileEncoding = cached.encoding;
+        if (typeof cached.encodingFallback === 'boolean') fileEncodingFallback = cached.encodingFallback;
+        if (Number.isFinite(cached.encodingConfidence)) fileEncodingConfidence = cached.encodingConfidence;
         if (Number.isFinite(cached.size) && cached.size !== fileStat.size) {
           text = null;
           fileBuffer = null;
           fileHash = null;
           fileHashAlgo = null;
+          fileEncoding = null;
+          fileEncodingFallback = null;
+          fileEncodingConfidence = null;
         }
         if (Number.isFinite(cached.mtimeMs) && cached.mtimeMs !== fileStat.mtimeMs) {
           text = null;
           fileBuffer = null;
           fileHash = null;
           fileHashAlgo = null;
+          fileEncoding = null;
+          fileEncodingFallback = null;
+          fileEncodingConfidence = null;
         }
       } else if (typeof cached === 'string') {
         text = cached;
@@ -245,6 +287,17 @@ export function createFileProcessor(options) {
     fileHash = cachedResult.fileHash;
     if (fileHash) fileHashAlgo = 'sha1';
     fileBuffer = cachedResult.buffer;
+    if (cachedBundle && typeof cachedBundle === 'object') {
+      if (!fileEncoding && typeof cachedBundle.encoding === 'string') {
+        fileEncoding = cachedBundle.encoding;
+      }
+      if (typeof cachedBundle.encodingFallback === 'boolean') {
+        fileEncodingFallback = cachedBundle.encodingFallback;
+      }
+      if (Number.isFinite(cachedBundle.encodingConfidence)) {
+        fileEncodingConfidence = cachedBundle.encodingConfidence;
+      }
+    }
 
     const cachedOutcome = reuseCachedBundle({
       abs,
@@ -255,6 +308,7 @@ export function createFileProcessor(options) {
       fileHashAlgo,
       ext,
       fileCaps,
+      maxFileBytes,
       cachedBundle,
       incrementalState,
       fileStructural,
@@ -262,7 +316,8 @@ export function createFileProcessor(options) {
       analysisPolicy: resolvedAnalysisPolicy,
       fileStart,
       knownLines,
-      fileLanguageId
+      fileLanguageId,
+      mode
     });
     if (cachedOutcome?.skip) {
       const { reason, ...extra } = cachedOutcome.skip;
@@ -270,6 +325,7 @@ export function createFileProcessor(options) {
       return null;
     }
     if (cachedOutcome?.result) {
+      warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
 
@@ -305,20 +361,35 @@ export function createFileProcessor(options) {
         fileHash = decoded.hash;
         fileHashAlgo = 'sha1';
       }
+      fileEncoding = decoded.encoding || fileEncoding;
+      fileEncodingFallback = decoded.usedFallback;
+      fileEncodingConfidence = decoded.confidence;
+      warnEncodingFallback(relKey, {
+        encoding: fileEncoding,
+        encodingFallback: fileEncodingFallback,
+        encodingConfidence: fileEncodingConfidence
+      });
     }
 
     const fileInfo = {
       size: fileStat.size,
       hash: fileHash,
-      hashAlgo: fileHashAlgo || null
+      hashAlgo: fileHashAlgo || null,
+      encoding: fileEncoding || null,
+      encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
+      encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     };
+    warnEncodingFallback(relKey, fileInfo);
     if (fileTextCache?.set && relKey && (text || fileBuffer)) {
       fileTextCache.set(relKey, {
         text,
         buffer: fileBuffer,
         hash: fileHash,
         size: fileStat.size,
-        mtimeMs: fileStat.mtimeMs
+        mtimeMs: fileStat.mtimeMs,
+        encoding: fileEncoding || null,
+        encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
+        encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
       });
     }
 
@@ -413,7 +484,10 @@ export function createFileProcessor(options) {
       fileStat,
       fileHash,
       fileChunks,
-      fileRelations
+      fileRelations,
+      fileEncoding: fileEncoding || null,
+      fileEncodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
+      fileEncodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     });
 
     const fileDurationMs = Date.now() - fileStart;

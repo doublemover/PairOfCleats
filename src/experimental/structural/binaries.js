@@ -38,10 +38,21 @@ const findOnPath = (candidate) => {
 
 const fsExists = (target) => {
   try {
-    return !!target && !!path.resolve(target) && fs.statSync(target);
+    if (!target) return false;
+    const resolved = path.resolve(target);
+    const stat = fs.statSync(resolved);
+    return stat.isFile();
   } catch {
     return false;
   }
+};
+
+const resolvePowerShell = () => {
+  const pwsh = findOnPath('pwsh');
+  if (pwsh.path) return pwsh.path;
+  const powershell = findOnPath('powershell');
+  if (powershell.path) return powershell.path;
+  return 'powershell';
 };
 
 export const resolveBinary = (engine) => {
@@ -58,6 +69,16 @@ export const resolveBinary = (engine) => {
       checkedPaths = checkedPaths.concat(resolved.checked || []);
       if (!resolved.path) continue;
       const ext = path.extname(resolved.path).toLowerCase();
+      if (ext === '.ps1') {
+        const shell = resolvePowerShell();
+        const output = {
+          command: shell,
+          argsPrefix: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolved.path],
+          checkedPaths
+        };
+        binaryCache.set(engine, output);
+        return output;
+      }
       if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
         const output = { command: process.execPath, argsPrefix: [resolved.path], checkedPaths };
         binaryCache.set(engine, output);

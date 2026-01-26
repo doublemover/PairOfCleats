@@ -174,14 +174,14 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(summary, null, 2));
 } else {
-  console.log('Dictionary segmentation benchmark');
-  console.log(`- Dict: ${dictPath}`);
-  console.log(`- Words: ${dictWords.size}`);
-  console.log(`- Tokens: ${tokens.length}`);
-  console.log(`- dpMaxTokenLength: ${dpMaxTokenLength}`);
+  console.error('Dictionary segmentation benchmark');
+  console.error(`- Dict: ${dictPath}`);
+  console.error(`- Words: ${dictWords.size}`);
+  console.error(`- Tokens: ${tokens.length}`);
+  console.error(`- dpMaxTokenLength: ${dpMaxTokenLength}`);
   for (const [name, stats] of Object.entries(summary.strategies)) {
-    console.log(`- ${name} avg segments: ${stats.avgSegmentsPerToken.toFixed(2)}`);
-    console.log(`- ${name} coverage: ${(stats.coverage * 100).toFixed(1)}%`);
-    console.log(`- ${name} duration: ${stats.durationMs} ms`);
+    console.error(`- ${name} avg segments: ${stats.avgSegmentsPerToken.toFixed(2)}`);
+    console.error(`- ${name} coverage: ${(stats.coverage * 100).toFixed(1)}%`);
+    console.error(`- ${name} duration: ${stats.durationMs} ms`);
   }
 }

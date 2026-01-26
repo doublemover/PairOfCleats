@@ -107,7 +107,7 @@ if (!fs.existsSync(resultsRoot)) {
 
 const folders = listDirs(resultsRoot).filter((dir) => dir.name !== 'logs');
 if (!folders.length) {
-  console.log('No benchmark results folders found.');
+  console.error('No benchmark results folders found.');
   process.exit(0);
 }
 
@@ -118,8 +118,8 @@ const totalThroughput = {
 const languageTotals = new Map();
 const reposWithMetrics = new Set();
 
-console.log(color.bold(color.cyan('Benchmark Performance Overview')));
-console.log(color.gray(`Root: ${resultsRoot}`));
+console.error(color.bold(color.cyan('Benchmark Performance Overview')));
+console.error(color.gray(`Root: ${resultsRoot}`));
 
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
@@ -147,11 +147,11 @@ for (const dir of folders) {
   }
 
   const header = `${dir.name} (${runs.length} run${runs.length === 1 ? '' : 's'})`;
-  console.log('');
-  console.log(color.bold(color.blue(header)));
+  console.error('');
+  console.error(color.bold(color.blue(header)));
 
   if (!runs.length) {
-    console.log(color.gray('  No benchmark JSON files found.'));
+    console.error(color.gray('  No benchmark JSON files found.'));
     continue;
   }
 
@@ -159,7 +159,7 @@ for (const dir of folders) {
   const prose = throughputs.map((t) => t.prose).filter(Boolean);
 
   if (code.length) {
-    console.log(
+    console.error(
       `  ${color.bold('Code throughput')}: ` +
       `${formatNumber(mean(collect(code, (c) => c.chunksPerSec)))} chunks/s | ` +
       `${formatNumber(mean(collect(code, (c) => c.tokensPerSec)))} tokens/s | ` +
@@ -169,7 +169,7 @@ for (const dir of folders) {
   }
 
   if (prose.length) {
-    console.log(
+    console.error(
       `  ${color.bold('Prose throughput')}: ` +
       `${formatNumber(mean(collect(prose, (c) => c.chunksPerSec)))} chunks/s | ` +
       `${formatNumber(mean(collect(prose, (c) => c.tokensPerSec)))} tokens/s | ` +
@@ -183,7 +183,7 @@ for (const dir of folders) {
     const wallPerQuery = mean(collect(summaries, (s) => s.queryWallMsPerQuery));
     const wallPerSearch = mean(collect(summaries, (s) => s.queryWallMsPerSearch));
     if (wallPerQuery || wallPerSearch) {
-      console.log(
+      console.error(
         `  ${color.bold('Query wall time')}: ` +
         `avg/query ${formatMs(wallPerQuery)} | avg/search ${formatMs(wallPerSearch)}`
       );
@@ -204,20 +204,20 @@ for (const dir of folders) {
       ))
       .join(' | ');
     if (latencyLine) {
-      console.log(`  ${color.bold('Latency')}: ${latencyLine}`);
+      console.error(`  ${color.bold('Latency')}: ${latencyLine}`);
     }
 
     const buildIndexMs = mean(collect(summaries, (s) => s.buildMs?.index));
     const buildSqliteMs = mean(collect(summaries, (s) => s.buildMs?.sqlite));
     if (buildIndexMs || buildSqliteMs) {
-      console.log(
+      console.error(
         `  ${color.bold('Build time')}: ` +
         `index ${formatMs(buildIndexMs)} | sqlite ${formatMs(buildSqliteMs)}`
       );
     }
   }
 
-  console.log(color.gray('  Runs:'));
+  console.error(color.gray('  Runs:'));
   for (const run of runs) {
     const repoLabel = run.file.replace(/\.json$/, '');
     const codeStats = run.throughput?.code || {};
@@ -229,7 +229,7 @@ for (const dir of folders) {
       `prose ${formatNumber(proseStats.chunksPerSec)} ch/s`,
       `query ${formatMs(summary.queryWallMsPerQuery)}`
     ].join(' | ');
-    console.log(`    ${line}`);
+    console.error(`    ${line}`);
   }
 }
 
@@ -250,9 +250,9 @@ const totalBytesPerSec = sumRates(
   rateFromTotals(totalThroughput.prose, 'bytes')
 );
 
-console.log('');
-console.log(color.bold(color.green('Totals')));
-console.log(
+console.error('');
+console.error(color.bold(color.green('Totals')));
+console.error(
   `  ${color.bold('Files')}: ${formatNumber(totalFilesPerSec)} files/s | ` +
   `${color.bold('Chunks')}: ${formatNumber(totalChunksPerSec)} chunks/s | ` +
   `${color.bold('Tokens')}: ${formatNumber(totalTokensPerSec)} tokens/s | ` +
@@ -261,8 +261,8 @@ console.log(
 if (languageTotals.size) {
   const sortedLanguages = Array.from(languageTotals.entries())
     .sort((a, b) => b[1] - a[1]);
-  console.log(`  ${color.bold('Lines by language')}:`);
+  console.error(`  ${color.bold('Lines by language')}:`);
   for (const [language, lines] of sortedLanguages) {
-    console.log(`    ${language}: ${formatCount(lines)} lines`);
+    console.error(`    ${language}: ${formatCount(lines)} lines`);
   }
 }

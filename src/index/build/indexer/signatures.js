@@ -82,7 +82,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       enabled: runtime.embeddingEnabled || runtime.embeddingService,
       mode: runtime.embeddingMode,
       service: runtime.embeddingService === true,
-      batchSize: runtime.embeddingBatchSize
+      batchSize: runtime.embeddingBatchSize,
+      identityKey: runtime.embeddingIdentityKey || null
     },
     fileCaps: runtime.fileCaps,
     fileScan: runtime.fileScan,

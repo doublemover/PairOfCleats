@@ -65,16 +65,16 @@ if (argv['dry-run']) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.log('[tooling-install] Dry run. Planned actions:');
+    console.error('[tooling-install] Dry run. Planned actions:');
     for (const action of actions) {
-      console.log(`- ${action.id}: ${action.cmd} ${action.args.join(' ')}`);
+      console.error(`- ${action.id}: ${action.cmd} ${action.args.join(' ')}`);
     }
   }
   process.exit(0);
 }
 
 for (const action of actions) {
-  console.log(`[tooling-install] Installing ${action.id} (${action.scope})...`);
+  console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
   const env = action.env ? { ...process.env, ...action.env } : process.env;
   const result = spawnSync(action.cmd, action.args, { stdio: 'inherit', env });
   if (result.status !== 0) {
@@ -90,8 +90,8 @@ if (argv.json) {
 } else {
   const failed = results.filter((entry) => entry.status === 'failed');
   if (failed.length) {
-    console.log('[tooling-install] Some installs failed.');
+    console.error('[tooling-install] Some installs failed.');
   } else {
-    console.log('[tooling-install] Completed.');
+    console.error('[tooling-install] Completed.');
   }
 }

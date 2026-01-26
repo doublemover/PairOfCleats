@@ -9,8 +9,9 @@ export function createDisplay(options = {}) {
   const verbose = options.verbose === true;
   const quiet = options.quiet === true;
   const json = options.json === true;
-  const progressMode = normalizeProgressMode(options.progressMode || 'auto');
-  const interactive = progressMode === 'auto' && isTTY && !json;
+  const requestedProgressMode = normalizeProgressMode(options.progressMode || 'auto');
+  const progressMode = (requestedProgressMode === 'tty' && !isTTY) ? 'log' : requestedProgressMode;
+  const interactive = (progressMode === 'auto' || progressMode === 'tty') && isTTY && !json;
   const jsonl = progressMode === 'jsonl';
   const progressEnabled = progressMode !== 'off';
   const term = interactive ? resolveTerminal(stream) : null;

@@ -24,6 +24,7 @@ export const enqueueFileRelationsArtifacts = ({
   maxJsonBytes = null,
   log = null,
   compression = null,
+  gzipOptions = null,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel
@@ -85,7 +86,7 @@ export const enqueueFileRelationsArtifacts = ({
         await writeJsonArrayFile(
           relationsPath,
           fileRelationsIterator(),
-          { atomic: true, compression }
+          { atomic: true, compression, gzipOptions }
         );
       }
     );
@@ -114,7 +115,8 @@ export const enqueueFileRelationsArtifacts = ({
         items: fileRelationsIterator(),
         maxBytes: resolvedMaxBytes,
         atomic: true,
-        compression
+        compression,
+        gzipOptions
       });
       const parts = result.parts.map((part, index) => ({
         path: part,

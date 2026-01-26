@@ -75,6 +75,8 @@ analysis (no rule evaluation for that chunk).
 Builds serialize the effective rule bundle into `index_state.json` as `riskRules` so validation
 and debugging can confirm the exact rule set and limits used. Serialized rules store regex
 sources as strings (compiled SafeRegex objects are not persisted).
+The bundle also includes `diagnostics` with bounded `warnings`/`errors` for any patterns
+that fail SafeRegex compilation (code, message, ruleId, ruleName, field, pattern, flags).
 
 ## Phase 3 notes
 - Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).

@@ -10,6 +10,7 @@ import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 import { log, showProgress } from '../../shared/progress.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
@@ -17,7 +18,8 @@ import { promoteRecordFields } from './record-utils.js';
  * @param {{runtime:object,discovery?:{entries:Array}}} input
  * @returns {Promise<void>}
  */
-export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
+export async function buildRecordsIndexForRepo({ runtime, discovery = null, abortSignal = null }) {
+  throwIfAborted(abortSignal);
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
   const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -32,6 +34,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
   const seenAbs = new Set();
   const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];
   for (const entry of discoveredEntries) {
+    throwIfAborted(abortSignal);
     if (!entry?.abs || entry.skip || !entry.record) continue;
     if (seenAbs.has(entry.abs)) continue;
     seenAbs.add(entry.abs);
@@ -45,6 +48,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
   const triageFiles = await listMarkdownFiles(recordsDir);
   triageFiles.sort();
   for (const absPath of triageFiles) {
+    throwIfAborted(abortSignal);
     if (seenAbs.has(absPath)) continue;
     seenAbs.add(absPath);
     recordSources.push({
@@ -61,6 +65,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
   let processed = 0;
   const progressMeta = { stage: 'records', mode: 'records' };
   for (const recordEntry of recordSources) {
+    throwIfAborted(abortSignal);
     const started = Date.now();
     const absPath = recordEntry.absPath;
     const relPath = recordEntry.relPath;
@@ -151,9 +156,11 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
     showProgress('Records', processed, recordSources.length, progressMeta);
   }
   showProgress('Records', recordSources.length, recordSources.length, progressMeta);
+  throwIfAborted(abortSignal);
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
+  throwIfAborted(abortSignal);
   const postings = await buildPostings({
     chunks: state.chunks,
     df: state.df,
@@ -203,6 +210,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
       : { enabled: false }
   };
 
+  throwIfAborted(abortSignal);
   await writeIndexArtifacts({
     outDir,
     mode: 'records',
@@ -252,11 +260,15 @@ async function loadRecordJson(recordsDir, mdPath) {
   }
 }
 
-function buildDocMeta(record, triageConfig) {
+function buildDocMeta(record, triageConfig, recordMeta = null) {
   const docmeta = {};
-  if (record) {
-    docmeta.record = promoteRecordFields(record, triageConfig.promoteFields);
-    const summary = record.vuln?.title || record.vuln?.description || record.decision?.justification;
+  const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : null;
+  const mergedRecord = record && meta ? { ...meta, ...record } : (record || meta);
+  if (mergedRecord) {
+    docmeta.record = promoteRecordFields(mergedRecord, triageConfig.promoteFields);
+    const summary = mergedRecord.vuln?.title
+      || mergedRecord.vuln?.description
+      || mergedRecord.decision?.justification;
     if (summary) docmeta.doc = String(summary);
   }
   return docmeta;

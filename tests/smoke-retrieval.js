@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 import { cleanup, root } from './smoke-utils.js';
 
 const tempRoot = path.join(root, 'tests', '.cache', 'smoke-retrieval');
@@ -52,7 +53,7 @@ try {
   if (helpResult.status === 0) {
     fail('Expected search help to exit non-zero with no query.');
   }
-  const helpOutput = `${helpResult.stdout || ''}${helpResult.stderr || ''}`;
+  const helpOutput = getCombinedOutput(helpResult);
   const requiredFlags = ['--filter', '--explain', '--json', '--mode'];
   for (const flag of requiredFlags) {
     if (!helpOutput.includes(flag)) {
@@ -112,7 +113,7 @@ try {
     'search explain',
     [searchPath, 'return', '--mode', 'code', '--no-ann', '--repo', repoRoot, '--explain']
   );
-  const explainOutput = stripAnsi(`${explainResult.stdout || ''}${explainResult.stderr || ''}`);
+  const explainOutput = stripAnsi(getCombinedOutput(explainResult));
   if (!explainOutput.includes('Score:')) {
     fail('Explain output missing Score breakdown.');
   }

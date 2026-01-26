@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { Packr, Unpackr } from 'msgpackr';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/storage/lmdb/schema.js';
 import { resolveLmdbPaths } from '../tools/dict-utils.js';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 let open = null;
 try {
@@ -111,7 +112,7 @@ if (badSearch.status === 0) {
   console.error('Expected lmdb search to fail on schema mismatch.');
   process.exit(1);
 }
-const badOutput = `${badSearch.stdout || ''}\n${badSearch.stderr || ''}`;
+const badOutput = getCombinedOutput(badSearch);
 if (!badOutput.includes('schema mismatch')) {
   console.error('Expected lmdb schema mismatch error message.');
   process.exit(1);

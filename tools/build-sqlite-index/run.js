@@ -1,19 +1,21 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parseBuildSqliteArgs } from './cli.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
 import { createTempPath } from './temp-path.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../src/shared/env.js';
-import { resolveThreadLimits } from '../../src/shared/threads.js';
+import { resolveRuntimeEnvelope } from '../../src/shared/runtime-envelope.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../src/index/build/build-state.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../src/shared/disk-space.js';
 import {
   getIndexDir,
   getModelConfig,
   getRepoCacheRoot,
+  getToolVersion,
   loadUserConfig,
   resolveIndexRoot,
   resolveRepoRoot,
@@ -147,13 +149,36 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     const buildStatePath = resolveBuildStatePath(indexRoot);
     const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
     stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
-    const threadLimits = resolveThreadLimits({
+    const envelope = resolveRuntimeEnvelope({
       argv,
       rawArgv: parsedRawArgs,
-      envConfig,
-      configConcurrency: userConfig?.indexing?.concurrency,
-      importConcurrencyConfig: userConfig?.indexing?.importConcurrency
+      userConfig,
+      env: process.env,
+      execArgv: process.execArgv,
+      cpuCount: os.cpus().length,
+      processInfo: {
+        pid: process.pid,
+        argv: process.argv,
+        execPath: process.execPath,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        cpuCount: os.cpus().length
+      },
+      toolVersion: getToolVersion()
     });
+    const threadLimits = {
+      cpuCount: envelope.concurrency.cpuCount,
+      maxConcurrencyCap: envelope.concurrency.maxConcurrencyCap,
+      threads: envelope.concurrency.threads.value,
+      fileConcurrency: envelope.concurrency.fileConcurrency.value,
+      importConcurrency: envelope.concurrency.importConcurrency.value,
+      ioConcurrency: envelope.concurrency.ioConcurrency.value,
+      cpuConcurrency: envelope.concurrency.cpuConcurrency.value,
+      procConcurrency: envelope.queues?.proc?.concurrency ?? null,
+      source: envelope.concurrency.threads.source,
+      sourceDetail: envelope.concurrency.threads.detail
+    };
     if (emitOutput && argv.verbose === true) {
       log(
         `[sqlite] Thread limits (${threadLimits.source}): ` +

@@ -9,6 +9,7 @@ export const createArtifactWriter = ({
   compressionEnabled,
   compressionMode,
   compressionKeepRaw,
+  compressionGzipOptions,
   compressibleArtifacts
 }) => {
   const compressedSuffix = compressionMode === 'zstd' ? 'json.zst' : 'json.gz';
@@ -29,6 +30,7 @@ export const createArtifactWriter = ({
         () => writeJsonObjectFile(gzPath, {
           ...payload,
           compression: compressionMode,
+          gzipOptions: compressionGzipOptions,
           atomic: true
         })
       );
@@ -64,6 +66,7 @@ export const createArtifactWriter = ({
         formatArtifactLabel(gzPath),
         () => writeJsonArrayFile(gzPath, items, {
           compression: compressionMode,
+          gzipOptions: compressionGzipOptions,
           atomic: true
         })
       );

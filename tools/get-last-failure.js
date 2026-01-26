@@ -106,4 +106,4 @@ if (!selected || !fsSync.existsSync(selected.path)) {
   console.error('No log files found.');
   process.exit(1);
 }
-console.log(selected.path);
+console.error(selected.path);

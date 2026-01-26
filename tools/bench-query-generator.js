@@ -90,7 +90,7 @@ const payload = {
 if (argv.json) {
   const outPath = argv.out ? path.resolve(argv.out) : path.join(root, 'docs', 'benchmarks-queries.json');
   await fs.writeFile(outPath, JSON.stringify(payload, null, 2));
-  console.log(`Wrote ${queries.length} queries to ${outPath}`);
+  console.error(`Wrote ${queries.length} queries to ${outPath}`);
   process.exit(0);
 }
 
@@ -105,4 +105,4 @@ const lines = [
 ];
 await fs.mkdir(path.dirname(outPath), { recursive: true });
 await fs.writeFile(outPath, lines.join('\n'));
-console.log(`Wrote ${queries.length} queries to ${outPath}`);
+console.error(`Wrote ${queries.length} queries to ${outPath}`);

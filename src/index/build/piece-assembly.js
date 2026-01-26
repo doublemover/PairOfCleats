@@ -75,8 +75,20 @@ const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
         const size = Number.isFinite(entry.size) ? entry.size : null;
         const hash = entry.hash || null;
         const hashAlgo = entry.hash_algo || entry.hashAlgo || null;
-        if (size !== null || hash || hashAlgo) {
-          fileInfoByPath.set(entry.file, { size, hash, hashAlgo });
+        const encoding = entry.encoding || null;
+        const encodingFallback = typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null;
+        const encodingConfidence = Number.isFinite(entry.encodingConfidence)
+          ? entry.encodingConfidence
+          : null;
+        if (size !== null || hash || hashAlgo || encoding || encodingFallback !== null || encodingConfidence !== null) {
+          fileInfoByPath.set(entry.file, {
+            size,
+            hash,
+            hashAlgo,
+            encoding,
+            encodingFallback,
+            encodingConfidence
+          });
         }
       }
     }
@@ -89,7 +101,8 @@ const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     if (!chunk.ext) chunk.ext = meta.ext;
     if (!chunk.fileSize && Number.isFinite(meta.size)) chunk.fileSize = meta.size;
     if (!chunk.fileHash && meta.hash) chunk.fileHash = meta.hash;
-    if (!chunk.fileHashAlgo && meta.hashAlgo) chunk.fileHashAlgo = meta.hashAlgo;
+    const metaHashAlgo = meta.hashAlgo || meta.hash_algo;
+    if (!chunk.fileHashAlgo && metaHashAlgo) chunk.fileHashAlgo = metaHashAlgo;
     if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
     if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
     if (!chunk.last_author) chunk.last_author = meta.last_author;
@@ -517,10 +530,12 @@ export async function assembleIndexPieces({
   }
 
   const indexingConfig = userConfig?.indexing || {};
-  const typeInferenceEnabled = indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
-  const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
-  const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
+  const isCodeMode = mode === 'code';
+  const typeInferenceEnabled = isCodeMode && indexingConfig.typeInference !== false;
+  const typeInferenceCrossFileEnabled = isCodeMode && indexingConfig.typeInferenceCrossFile === true;
+  const riskAnalysisEnabled = isCodeMode && indexingConfig.riskAnalysis !== false;
+  const riskAnalysisCrossFileEnabled = isCodeMode
+    && riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
   if (typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled) {
     await applyCrossFileInference({

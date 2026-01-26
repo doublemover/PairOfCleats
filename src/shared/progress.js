@@ -143,14 +143,15 @@ export function configureLogger(options = {}) {
     : 'info';
   const redact = normalizeRedact(options.redact);
   const destinationTarget = normalizeDestinationTarget(options.destination);
-  const destinationStream = options.pretty ? null : resolveDestinationStream(options.destination);
+  const resolvedDestination = destinationTarget ?? 2;
+  const destinationStream = options.pretty ? null : resolveDestinationStream(resolvedDestination);
   const transport = options.pretty
     ? pino.transport({
       target: 'pino-pretty',
       options: {
         colorize: true,
         translateTime: 'SYS:standard',
-        ...(destinationTarget != null ? { destination: destinationTarget } : {})
+        ...(resolvedDestination != null ? { destination: resolvedDestination } : {})
       }
     })
     : null;

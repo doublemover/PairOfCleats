@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'search-missing-index');
@@ -29,7 +30,7 @@ if (result.status === 0) {
   process.exit(1);
 }
 
-const output = `${result.stdout || ''}${result.stderr || ''}`;
+const output = getCombinedOutput(result);
 if (!output.includes('build-index')) {
   console.error('Expected missing index message to include build-index hint.');
   process.exit(1);

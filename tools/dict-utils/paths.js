@@ -2,10 +2,13 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../src/shared/cache.js';
 import { DEFAULT_MODEL_ID, DEFAULT_TRIAGE_PROMOTE_FIELDS } from './constants.js';
 import { getCacheRoot, getDictConfig, loadUserConfig } from './config.js';
+import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../../src/shared/runtime-envelope.js';
+import { getToolVersion } from './tool.js';
 import { getDefaultCacheRoot } from './cache.js';
 export function getRepoId(repoRoot) {
   const resolved = path.resolve(repoRoot);
@@ -233,8 +236,32 @@ export function getModelConfig(repoRoot, userConfig = null) {
  * @returns {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}}
  */
 export function getRuntimeConfig(repoRoot, userConfig = null) {
-  loadUserConfig(repoRoot);
-  return { maxOldSpaceMb: null, nodeOptions: '', uvThreadpoolSize: null };
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const envelope = resolveRuntimeEnvelope({
+    argv: {},
+    rawArgv: [],
+    userConfig: cfg,
+    env: process.env,
+    execArgv: process.execArgv,
+    cpuCount: os.cpus().length,
+    processInfo: {
+      pid: process.pid,
+      argv: process.argv,
+      execPath: process.execPath,
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpuCount: os.cpus().length
+    },
+    toolVersion: getToolVersion()
+  });
+  return {
+    maxOldSpaceMb: envelope.runtime?.maxOldSpaceMb?.requested?.value ?? null,
+    nodeOptions: envelope.runtime?.nodeOptions?.requested?.value ?? '',
+    uvThreadpoolSize: envelope.runtime?.uvThreadpoolSize?.requested?.value ?? null,
+    ioOversubscribe: envelope.runtime?.ioOversubscribe?.value ?? false,
+    envelope
+  };
 }
 
 /**
@@ -294,7 +321,10 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
  * @param {Record<string, string|undefined>} [baseEnv]
  * @returns {Record<string, string|undefined>}
  */
-export function resolveRuntimeEnv(runtimeConfig, baseEnv = process.env) {
+export function resolveRuntimeEnv(runtimeConfig, baseEnv = {}) {
+  if (runtimeConfig?.envelope) {
+    return resolveRuntimeEnvFromEnvelope(runtimeConfig.envelope, baseEnv);
+  }
   const env = { ...baseEnv };
   const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, env.NODE_OPTIONS || '');
   if (resolvedNodeOptions) {

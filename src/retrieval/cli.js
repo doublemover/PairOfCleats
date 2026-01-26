@@ -315,7 +315,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       if (runProse) {
         stats.push({ mode: 'prose', ...resolveIndexStats(resolveIndexDir(rootDir, 'prose', userConfig)) });
       }
-      if (runExtractedProse) {
+      if (runExtractedProseRaw) {
         stats.push({
           mode: 'extracted-prose',
           ...resolveIndexStats(resolveIndexDir(rootDir, 'extracted-prose', userConfig))

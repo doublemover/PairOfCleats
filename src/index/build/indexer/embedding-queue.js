@@ -2,10 +2,12 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { getCacheRoot } from '../../../../tools/dict-utils.js';
 import { log } from '../../../shared/progress.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 
-export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null }) => {
+export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null, abortSignal = null }) => {
   if (!runtime.embeddingService) return null;
+  throwIfAborted(abortSignal);
   try {
     const queueDir = runtime.embeddingQueue?.dir
       ? path.resolve(runtime.embeddingQueue.dir)
@@ -15,6 +17,7 @@ export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null }) =
       : 10;
     const jobId = crypto.randomUUID();
     await ensureQueueDir(queueDir);
+    throwIfAborted(abortSignal);
     const result = await enqueueJob(
       queueDir,
       {

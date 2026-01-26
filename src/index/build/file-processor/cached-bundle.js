@@ -1,7 +1,7 @@
 import { sha1 } from '../../../shared/hash.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
-import { resolveFileCaps } from './read.js';
+import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
 
 export function reuseCachedBundle({
@@ -13,6 +13,7 @@ export function reuseCachedBundle({
   fileHashAlgo,
   ext,
   fileCaps,
+  maxFileBytes = null,
   cachedBundle,
   incrementalState,
   fileStructural,
@@ -20,7 +21,8 @@ export function reuseCachedBundle({
   analysisPolicy,
   fileStart,
   knownLines,
-  fileLanguageId
+  fileLanguageId,
+  mode = null
 }) {
   if (!cachedBundle || !Array.isArray(cachedBundle.chunks)) return { result: null, skip: null };
   const hasValidChunks = cachedBundle.chunks.every((chunk) => {
@@ -30,29 +32,64 @@ export function reuseCachedBundle({
     return Number.isFinite(start) && Number.isFinite(end) && start <= end;
   });
   if (!hasValidChunks) return { result: null, skip: null };
-  const cachedCaps = resolveFileCaps(fileCaps, ext);
+  const cachedCaps = resolveFileCaps(fileCaps, ext, fileLanguageId, mode);
+  const effectiveMaxBytes = pickMinLimit(maxFileBytes, cachedCaps.maxBytes);
+  if (effectiveMaxBytes && fileStat.size > effectiveMaxBytes) {
+    return {
+      result: null,
+      skip: {
+        reason: 'oversize',
+        stage: 'cached-reuse',
+        capSource: 'maxBytes',
+        bytes: fileStat.size,
+        maxBytes: effectiveMaxBytes
+      }
+    };
+  }
   if (cachedCaps.maxLines) {
     const maxLine = cachedBundle.chunks.reduce((max, chunk) => {
       const endLine = Number(chunk?.endLine) || 0;
       return endLine > max ? endLine : max;
     }, 0);
     if (maxLine > cachedCaps.maxLines) {
-      return { result: null, skip: { reason: 'oversize', lines: maxLine, maxLines: cachedCaps.maxLines } };
+      return {
+        result: null,
+        skip: {
+          reason: 'oversize',
+          stage: 'cached-reuse',
+          capSource: 'maxLines',
+          lines: maxLine,
+          maxLines: cachedCaps.maxLines
+        }
+      };
     }
   }
   const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
   const resolvedHash = fileHash || cachedEntry?.hash || null;
   const resolvedHashAlgo = fileHashAlgo || cachedEntry?.hashAlgo || null;
+  const resolvedEncoding = cachedBundle.encoding || cachedEntry?.encoding || null;
+  const resolvedEncodingFallback = typeof cachedBundle.encodingFallback === 'boolean'
+    ? cachedBundle.encodingFallback
+    : (typeof cachedEntry?.encodingFallback === 'boolean' ? cachedEntry.encodingFallback : null);
+  const resolvedEncodingConfidence = Number.isFinite(cachedBundle.encodingConfidence)
+    ? cachedBundle.encodingConfidence
+    : (Number.isFinite(cachedEntry?.encodingConfidence) ? cachedEntry.encodingConfidence : null);
   const fileInfo = {
     size: fileStat.size,
     hash: resolvedHash,
-    hashAlgo: resolvedHashAlgo
+    hashAlgo: resolvedHashAlgo,
+    encoding: resolvedEncoding,
+    encodingFallback: resolvedEncodingFallback,
+    encodingConfidence: resolvedEncodingConfidence
   };
   const manifestEntry = cachedEntry ? {
     hash: resolvedHash,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
-    bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
+    bundle: cachedEntry.bundle || `${sha1(relKey)}.json`,
+    encoding: resolvedEncoding,
+    encodingFallback: resolvedEncodingFallback,
+    encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;
   if (!fileRelations) return { result: null, skip: null };

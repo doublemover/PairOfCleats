@@ -3,7 +3,9 @@ import path from 'node:path';
 import {
   DEFAULT_MODEL_ID,
   getModelConfig,
+  getRuntimeConfig,
   loadUserConfig,
+  resolveRuntimeEnv,
   resolveToolRoot
 } from '../dict-utils.js';
 import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../../src/integrations/core/index.js';
@@ -11,6 +13,10 @@ import { clearRepoCaches, configStatus, getRepoCaches, indexStatus, refreshRepoC
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from './runner.js';
 
 const toolRoot = resolveToolRoot();
+const resolveRepoRuntimeEnv = (repoPath, userConfig) => {
+  const runtimeConfig = getRuntimeConfig(repoPath, userConfig);
+  return resolveRuntimeEnv(runtimeConfig, process.env);
+};
 
 /**
  * Normalize meta filters into CLI-friendly key/value strings.
@@ -47,7 +53,7 @@ function normalizeMetaFilters(meta) {
  * @param {string} artifactsDir
  * @returns {boolean}
  */
-function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
+function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeEnv) {
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
   if (progress) {
@@ -56,7 +62,11 @@ function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
       phase: 'start'
     });
   }
-  runNodeSync(repoPath, [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir]);
+  runNodeSync(
+    repoPath,
+    [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
+    { env: runtimeEnv }
+  );
   if (progress) {
     progress({
       message: 'CI artifacts restored.',
@@ -74,6 +84,7 @@ function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
 export async function buildIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const shouldUseSqlite = typeof args.sqlite === 'boolean' ? args.sqlite : sqliteConfigured;
   const mode = args.mode || 'all';
@@ -85,7 +96,7 @@ export async function buildIndex(args = {}, context = {}) {
 
   let restoredArtifacts = false;
   if (useArtifacts) {
-    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, progress);
+    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, progress, runtimeEnv);
   }
 
   if (!restoredArtifacts) {
@@ -288,6 +299,7 @@ export async function runSearch(args = {}, context = {}) {
 export async function downloadModels(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(toolRoot, 'tools', 'download-models.js'), '--model', model, '--repo', repoPath];
@@ -301,7 +313,8 @@ export async function downloadModels(args = {}, context = {}) {
   }
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
-    onLine: progressLine
+    onLine: progressLine,
+    env: runtimeEnv
   });
   if (progress) {
     progress({ message: `Model download complete (${model}).`, phase: 'done' });
@@ -316,6 +329,7 @@ export async function downloadModels(args = {}, context = {}) {
  */
 export async function downloadDictionaries(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'download-dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
@@ -328,7 +342,8 @@ export async function downloadDictionaries(args = {}, context = {}) {
     scriptArgs,
     context,
     startMessage: 'Downloading dictionaries.',
-    doneMessage: 'Dictionary download complete.'
+    doneMessage: 'Dictionary download complete.',
+    env: runtimeEnv
   });
   const summary = parseCountSummary(stdout);
   return {
@@ -345,6 +360,7 @@ export async function downloadDictionaries(args = {}, context = {}) {
  */
 export async function downloadExtensions(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'download-extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
@@ -360,7 +376,8 @@ export async function downloadExtensions(args = {}, context = {}) {
     scriptArgs,
     context,
     startMessage: 'Downloading extensions.',
-    doneMessage: 'Extension download complete.'
+    doneMessage: 'Extension download complete.',
+    env: runtimeEnv
   });
   const summary = parseCountSummary(stdout);
   const resolvedPath = parseExtensionPath(stdout);
@@ -379,6 +396,7 @@ export async function downloadExtensions(args = {}, context = {}) {
  */
 export function verifyExtensions(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
@@ -392,7 +410,7 @@ export function verifyExtensions(args = {}) {
   if (args.options) scriptArgs.push('--options', String(args.options));
   if (args.annMode) scriptArgs.push('--ann-mode', String(args.annMode));
   if (args.load === false) scriptArgs.push('--no-load');
-  const stdout = runNodeSync(repoPath, scriptArgs);
+  const stdout = runNodeSync(repoPath, scriptArgs, { env: runtimeEnv });
   try {
     return JSON.parse(stdout || '{}');
   } catch {
@@ -435,6 +453,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
  */
 export async function compactSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'compact-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.dryRun === true) scriptArgs.push('--dry-run');
@@ -444,7 +463,8 @@ export async function compactSqliteIndex(args = {}, context = {}) {
     scriptArgs,
     context,
     startMessage: 'Compacting SQLite index.',
-    doneMessage: 'SQLite compaction complete.'
+    doneMessage: 'SQLite compaction complete.',
+    env: runtimeEnv
   });
   return { repoPath, output: stdout.trim() };
 }
@@ -456,12 +476,13 @@ export async function compactSqliteIndex(args = {}, context = {}) {
  */
 export function cacheGc(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'cache-gc.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
   if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
   if (Number.isFinite(Number(args.maxAgeDays))) scriptArgs.push('--max-age-days', String(args.maxAgeDays));
-  const stdout = runNodeSync(repoPath, scriptArgs);
+  const stdout = runNodeSync(repoPath, scriptArgs, { env: runtimeEnv });
   try {
     return JSON.parse(stdout || '{}');
   } catch {
@@ -476,6 +497,7 @@ export function cacheGc(args = {}) {
  */
 export async function cleanArtifacts(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
   if (args.dryRun === true) scriptArgs.push('--dry-run');
@@ -484,7 +506,8 @@ export async function cleanArtifacts(args = {}, context = {}) {
     scriptArgs,
     context,
     startMessage: 'Cleaning artifacts.',
-    doneMessage: 'Artifact cleanup complete.'
+    doneMessage: 'Artifact cleanup complete.',
+    env: runtimeEnv
   });
   return { repoPath, output: stdout.trim() };
 }
@@ -496,6 +519,7 @@ export async function cleanArtifacts(args = {}, context = {}) {
  */
 export async function runBootstrap(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const scriptArgs = [path.join(toolRoot, 'tools', 'bootstrap.js'), '--repo', repoPath];
   if (args.skipInstall === true) scriptArgs.push('--skip-install');
   if (args.skipDicts === true) scriptArgs.push('--skip-dicts');
@@ -509,7 +533,8 @@ export async function runBootstrap(args = {}, context = {}) {
     scriptArgs,
     context,
     startMessage: 'Bootstrapping repo.',
-    doneMessage: 'Bootstrap complete.'
+    doneMessage: 'Bootstrap complete.',
+    env: runtimeEnv
   });
   return { repoPath, output: stdout.trim() };
 }
@@ -531,6 +556,7 @@ export async function reportArtifacts(args = {}) {
  */
 export async function triageIngest(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const source = String(args.source || '').trim();
   const inputPath = String(args.inputPath || '').trim();
   if (!source || !inputPath) {
@@ -550,7 +576,11 @@ export async function triageIngest(args = {}, context = {}) {
   if (progress) {
     progress({ message: `Ingesting ${source} findings.`, phase: 'start' });
   }
-  const { stdout } = await runNodeAsync(repoPath, ingestArgs, { streamOutput: true, onLine: progressLine });
+  const { stdout } = await runNodeAsync(repoPath, ingestArgs, {
+    streamOutput: true,
+    onLine: progressLine,
+    env: runtimeEnv
+  });
   let payload = {};
   try {
     payload = JSON.parse(stdout || '{}');
@@ -579,6 +609,7 @@ export async function triageIngest(args = {}, context = {}) {
  */
 export function triageDecision(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const finding = String(args.finding || '').trim();
   const status = String(args.status || '').trim();
   if (!finding || !status) {
@@ -597,7 +628,7 @@ export function triageDecision(args = {}) {
   const evidence = Array.isArray(args.evidence) ? args.evidence : (args.evidence ? [args.evidence] : []);
   codes.filter(Boolean).forEach((code) => decisionArgs.push('--code', String(code)));
   evidence.filter(Boolean).forEach((item) => decisionArgs.push('--evidence', String(item)));
-  const stdout = runNodeSync(repoPath, decisionArgs);
+  const stdout = runNodeSync(repoPath, decisionArgs, { env: runtimeEnv });
   return JSON.parse(stdout || '{}');
 }
 
@@ -608,6 +639,7 @@ export function triageDecision(args = {}) {
  */
 export async function triageContextPack(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
   const recordId = String(args.recordId || '').trim();
   if (!recordId) throw new Error('recordId is required.');
   const contextArgs = [path.join(toolRoot, 'tools', 'triage', 'context-pack.js'), '--record', recordId];
@@ -623,7 +655,11 @@ export async function triageContextPack(args = {}, context = {}) {
   if (progress) {
     progress({ message: 'Building triage context pack.', phase: 'start' });
   }
-  const { stdout } = await runNodeAsync(repoPath, contextArgs, { streamOutput: true, onLine: progressLine });
+  const { stdout } = await runNodeAsync(repoPath, contextArgs, {
+    streamOutput: true,
+    onLine: progressLine,
+    env: runtimeEnv
+  });
   if (progress) {
     progress({ message: 'Context pack ready.', phase: 'done' });
   }

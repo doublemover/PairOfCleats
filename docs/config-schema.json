@@ -15,6 +15,120 @@
       "type": "string",
       "enum": ["auto", "fast", "balanced", "max"]
     },
+    "threads": {
+      "type": "number"
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uvThreadpoolSize": { "type": "number" },
+        "maxOldSpaceMb": { "type": "number" },
+        "nodeOptions": { "type": "string" },
+        "ioOversubscribe": { "type": "boolean" }
+      }
+    },
+    "indexing": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "concurrency": { "type": "number" },
+        "importConcurrency": { "type": "number" },
+        "ioConcurrencyCap": { "type": "number" },
+        "maxFileBytes": { "type": "number" },
+        "maxFileLines": { "type": "number" },
+        "fileCaps": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxBytes": { "type": "number" },
+                "maxLines": { "type": "number" }
+              }
+            },
+            "byMode": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxBytes": { "type": "number" },
+                    "maxLines": { "type": "number" }
+                  }
+                },
+                "prose": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxBytes": { "type": "number" },
+                    "maxLines": { "type": "number" }
+                  }
+                },
+                "extracted-prose": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxBytes": { "type": "number" },
+                    "maxLines": { "type": "number" }
+                  }
+                },
+                "records": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxBytes": { "type": "number" },
+                    "maxLines": { "type": "number" }
+                  }
+                }
+              }
+            },
+            "byExt": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" }
+                }
+              }
+            },
+            "byLanguage": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "embeddings": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "concurrency": { "type": "number" },
+            "provider": { "type": "string" },
+            "onnx": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "intraOpNumThreads": { "type": "number" },
+                "interOpNumThreads": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    },
     "search": {
       "type": "object",
       "additionalProperties": false,

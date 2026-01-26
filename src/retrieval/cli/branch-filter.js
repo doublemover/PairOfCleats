@@ -55,7 +55,7 @@ export const applyBranchFilter = async ({
       if (jsonOutput) {
         console.log(JSON.stringify(payload, null, 2));
       } else {
-        console.log(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
+        console.error(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
       }
     }
     if (recordSearchMetrics) {

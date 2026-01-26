@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'search-explain');
@@ -40,7 +41,7 @@ const runSearch = (args, label) => {
     if (result.stderr) console.error(result.stderr.trim());
     process.exit(result.status ?? 1);
   }
-  return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`);
+  return stripAnsi(getCombinedOutput(result));
 };
 
 const runSearchJson = (args, label) => {

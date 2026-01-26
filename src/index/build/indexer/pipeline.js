@@ -4,6 +4,7 @@ import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-rec
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { createCrashLogger } from '../crash-log.js';
 import { updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
@@ -63,9 +64,10 @@ const buildFeatureSettings = (runtime, mode) => {
  * Build indexes for a given mode.
  * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
  */
-export async function buildIndexForMode({ mode, runtime, discovery = null }) {
+export async function buildIndexForMode({ mode, runtime, discovery = null, abortSignal = null }) {
+  throwIfAborted(abortSignal);
   if (mode === 'records') {
-    await buildRecordsIndexForRepo({ runtime, discovery });
+    await buildRecordsIndexForRepo({ runtime, discovery, abortSignal });
     if (runtime?.overallProgress?.advance) {
       runtime.overallProgress.advance({ message: 'records' });
     }
@@ -159,8 +161,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     discovery,
     state,
     timing,
-    stageNumber: stageIndex
+    stageNumber: stageIndex,
+    abortSignal
   });
+  throwIfAborted(abortSignal);
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const runtimeRef = dictConfig === runtime.dictConfig
     ? runtime
@@ -202,8 +206,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     crashLogger,
     timing,
     incrementalState,
-    fileTextByFile
+    fileTextByFile,
+    abortSignal
   });
+  throwIfAborted(abortSignal);
 
   const contextWin = await estimateContextWindow({
     files: allEntries.map((entry) => entry.abs),
@@ -229,8 +235,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     incrementalState,
     relationsEnabled,
     shardPerfProfile,
-    fileTextCache
+    fileTextCache,
+    abortSignal
   });
+  throwIfAborted(abortSignal);
   const { tokenizationStats, shardSummary } = processResult;
   await updateBuildState(runtimeRef.buildRoot, {
     counts: {
@@ -261,8 +269,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     state,
     crashLogger,
     featureMetrics,
-    relationsEnabled
+    relationsEnabled,
+    abortSignal
   });
+  throwIfAborted(abortSignal);
   if (mode === 'code' && crossFileEnabled) {
     await updateIncrementalBundles({
       runtime: runtimeRef,
@@ -288,9 +298,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
   advanceStage(stagePlan[4]);
+  throwIfAborted(abortSignal);
   const postings = await buildIndexPostings({ runtime: runtimeRef, state });
 
   advanceStage(stagePlan[5]);
+  throwIfAborted(abortSignal);
   await writeIndexArtifactsForMode({
     runtime: runtimeRef,
     mode,
@@ -303,11 +315,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     graphRelations,
     shardSummary
   });
+  throwIfAborted(abortSignal);
   if (runtimeRef?.overallProgress?.advance) {
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
-  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexRoot: outDir });
+  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexRoot: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();
 }

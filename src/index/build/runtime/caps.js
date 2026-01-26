@@ -62,6 +62,20 @@ export const normalizeCapsByLanguage = (raw) => {
   return output;
 };
 
+export const normalizeCapsByMode = (raw) => {
+  const input = raw && typeof raw === 'object' ? raw : {};
+  const output = {};
+  const allowed = new Set(['code', 'prose', 'extracted-prose', 'records']);
+  for (const [key, value] of Object.entries(input)) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (!allowed.has(normalizedKey)) continue;
+    const entry = normalizeCapEntry(value);
+    if (entry.maxBytes == null && entry.maxLines == null) continue;
+    output[normalizedKey] = entry;
+  }
+  return output;
+};
+
 export const normalizeOptionalLimit = (value) => {
   if (value === 0 || value === false) return null;
   if (value === undefined || value === null) return null;
@@ -89,7 +103,8 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
   const fileCaps = {
     default: normalizeCapEntry(fileCapsConfig.default || {}),
     byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
+    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {}),
+    byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
   const untrustedConfig = indexingConfig.untrusted || {};
   const untrustedEnabled = untrustedConfig.enabled === true;
@@ -111,6 +126,13 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
     maxLines: null
   };
   let resolvedMaxFileBytes = maxFileBytes;
+  const clampEntry = (entry) => {
+    if (!entry || typeof entry !== 'object') return entry;
+    return {
+      maxBytes: pickMinLimit(entry.maxBytes, untrustedMaxFileBytes),
+      maxLines: pickMinLimit(entry.maxLines, untrustedMaxLines)
+    };
+  };
   if (untrustedEnabled) {
     guardrails = {
       enabled: true,
@@ -123,11 +145,15 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
     if (nextMaxFileBytes != null) {
       resolvedMaxFileBytes = nextMaxFileBytes;
     }
-    if (untrustedMaxFileBytes) {
-      fileCaps.default.maxBytes = pickMinLimit(fileCaps.default.maxBytes, untrustedMaxFileBytes);
+    fileCaps.default = clampEntry(fileCaps.default);
+    for (const key of Object.keys(fileCaps.byExt)) {
+      fileCaps.byExt[key] = clampEntry(fileCaps.byExt[key]);
     }
-    if (untrustedMaxLines) {
-      fileCaps.default.maxLines = pickMinLimit(fileCaps.default.maxLines, untrustedMaxLines);
+    for (const key of Object.keys(fileCaps.byLanguage)) {
+      fileCaps.byLanguage[key] = clampEntry(fileCaps.byLanguage[key]);
+    }
+    for (const key of Object.keys(fileCaps.byMode)) {
+      fileCaps.byMode[key] = clampEntry(fileCaps.byMode[key]);
     }
   }
   return { maxFileBytes: resolvedMaxFileBytes, fileCaps, guardrails };

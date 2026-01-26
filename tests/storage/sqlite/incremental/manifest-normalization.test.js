@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../../../../tools/dict-utils.js';
 import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
+import { getCombinedOutput } from '../../../helpers/stdio.js';
 
 const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncrementalRepo({
   name: 'manifest-normalization'
@@ -40,7 +41,7 @@ const normalizedResult = runCapture(
   [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (normalized manifest)'
 );
-const normalizedOutput = `${normalizedResult.stdout || ''}\n${normalizedResult.stderr || ''}`;
+const normalizedOutput = getCombinedOutput(normalizedResult);
 if (!normalizedOutput.includes('SQLite indexes updated')) {
   console.error('Expected incremental sqlite update with normalized manifest.');
   process.exit(1);

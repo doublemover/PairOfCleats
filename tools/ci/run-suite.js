@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
+import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../dict-utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_JUNIT = path.join(ROOT, 'artifacts', 'junit.xml');
@@ -55,20 +56,19 @@ const renderCommand = (command, args) => [command, ...args].join(' ');
 const runStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
   if (dryRun) {
-    console.log(`[dry-run] ${step.label}: ${commandLine}`);
+    console.error(`[dry-run] ${step.label}: ${commandLine}`);
     return;
   }
-  console.log(`\n==> ${step.label}`);
-  const result = await new Promise((resolve) => {
-    const child = spawn(step.command, step.args, {
-      stdio: 'inherit',
-      cwd: step.cwd || ROOT,
-      env
-    });
-    child.on('close', (code) => resolve(code));
+  console.error(`\n==> ${step.label}`);
+  const result = await spawnSubprocess(step.command, step.args, {
+    stdio: 'inherit',
+    cwd: step.cwd || ROOT,
+    env,
+    detached: false,
+    rejectOnNonZeroExit: false
   });
-  if (result !== 0) {
-    throw new Error(`step failed (${step.label}): exit ${result}`);
+  if (result.exitCode !== 0) {
+    throw new Error(`step failed (${step.label}): exit ${result.exitCode ?? 'unknown'}`);
   }
 };
 
@@ -79,7 +79,10 @@ const ensureDir = async (dir) => {
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
-  const env = buildSuiteEnv(mode);
+  const baseEnv = buildSuiteEnv(mode);
+  const userConfig = loadUserConfig(ROOT);
+  const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
+  const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
 
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
@@ -129,10 +132,10 @@ const main = async () => {
     }
   ];
 
-  console.log(`Suite mode: ${mode}`);
-  console.log(`Diagnostics: ${diagnosticsDir}`);
-  console.log(`JUnit: ${junitPath}`);
-  console.log(`Logs: ${logDir}`);
+  console.error(`Suite mode: ${mode}`);
+  console.error(`Diagnostics: ${diagnosticsDir}`);
+  console.error(`JUnit: ${junitPath}`);
+  console.error(`Logs: ${logDir}`);
 
   for (const step of steps) {
     await runStep(step, env, argv['dry-run']);

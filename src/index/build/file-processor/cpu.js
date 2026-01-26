@@ -365,12 +365,18 @@ export const processFileCpu = async (context) => {
   const lineIndex = buildLineIndex(text);
   const totalLines = lineIndex.length || 1;
   fileLineCount = totalLines;
-  const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
+  const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id, mode);
   if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
     return {
       chunks: [],
       fileRelations: null,
-      skip: { reason: 'oversize', lines: totalLines, maxLines: capsByLanguage.maxLines }
+      skip: {
+        reason: 'oversize',
+        stage: 'cpu',
+        capSource: 'maxLines',
+        lines: totalLines,
+        maxLines: capsByLanguage.maxLines
+      }
     };
   }
   let rawRelations = null;

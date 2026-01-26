@@ -75,7 +75,7 @@ if (!maxBytes && !maxAgeDays) {
   if (argv.json) {
     console.log(JSON.stringify({ ok: false, message }, null, 2));
   } else {
-    console.log(message);
+    console.error(message);
   }
   process.exit(0);
 }
@@ -85,7 +85,7 @@ if (!fsSync.existsSync(repoRoot)) {
   if (argv.json) {
     console.log(JSON.stringify({ ok: false, message }, null, 2));
   } else {
-    console.log(message);
+    console.error(message);
   }
   process.exit(0);
 }
@@ -182,8 +182,8 @@ const payload = {
 if (argv.json) {
   console.log(JSON.stringify(payload, null, 2));
 } else {
-  console.log(`Cache GC: ${removals.length} repo(s) removed, freed ${formatBytes(freedBytes)}.`);
+  console.error(`Cache GC: ${removals.length} repo(s) removed, freed ${formatBytes(freedBytes)}.`);
   for (const repo of removals) {
-    console.log(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
+    console.error(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
   }
 }

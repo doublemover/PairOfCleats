@@ -183,7 +183,7 @@ await fsPromises.writeFile(metaPath, JSON.stringify(summary, null, 2));
 if (argv.json) {
   console.log(JSON.stringify(summary, null, 2));
 } else {
-  console.log(`LSIF ingest: ${stats.vertices} vertices, ${stats.edges} edges`);
-  console.log(`- output: ${outputPath}`);
-  console.log(`- meta: ${metaPath}`);
+  console.error(`LSIF ingest: ${stats.vertices} vertices, ${stats.edges} edges`);
+  console.error(`- output: ${outputPath}`);
+  console.error(`- meta: ${metaPath}`);
 }

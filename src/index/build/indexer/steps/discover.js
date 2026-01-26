@@ -1,6 +1,7 @@
 import { log, logLine } from '../../../../shared/progress.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { discoverFiles } from '../../discover.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 const MODE_LABEL_WIDTH = 'Extracted Prose'.length;
 
@@ -13,7 +14,16 @@ const formatModeLabel = (value) => {
     .join(' ');
 };
 
-export const runDiscovery = async ({ runtime, mode, discovery, state, timing, stageNumber = 1 }) => {
+export const runDiscovery = async ({
+  runtime,
+  mode,
+  discovery,
+  state,
+  timing,
+  stageNumber = 1,
+  abortSignal = null
+}) => {
+  throwIfAborted(abortSignal);
   if (discovery && Array.isArray(discovery.skippedFiles) && state?.skippedFiles) {
     for (const file of discovery.skippedFiles) {
       state.skippedFiles.push(file);
@@ -38,13 +48,13 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing, st
       maxFileBytes: runtime.maxFileBytes,
       fileCaps: runtime.fileCaps,
       maxDepth: runtime.guardrails?.maxDepth ?? null,
-      maxFiles: runtime.guardrails?.maxFiles ?? null
+      maxFiles: runtime.guardrails?.maxFiles ?? null,
+      abortSignal
     }));
   }
+  throwIfAborted(abortSignal);
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
-  entries.forEach((entry, index) => {
-    entry.orderIndex = index;
-  });
+  entries = entries.map((entry, index) => ({ ...entry, orderIndex: index }));
   log(`→ Found ${entries.length} files.`);
   if (timing) timing.discoverMs = Date.now() - discoverStart;
   return entries;

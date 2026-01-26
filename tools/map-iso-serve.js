@@ -2,10 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
-import { spawnSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import selfsigned from 'selfsigned';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -24,6 +26,9 @@ const argv = createCli({
 const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = argv.repo ? path.resolve(argv.repo)
   : (argv.dir ? path.resolve(argv.dir) : process.cwd());
+const userConfig = loadUserConfig(repoRoot);
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const mapsDir = path.join(repoRoot, '.pairofcleats', 'maps');
 const outPath = argv.out ? path.resolve(argv.out) : path.join(mapsDir, 'map.iso.html');
 const threeUrl = argv['three-url'] || '/three/three.module.js';
@@ -60,9 +65,14 @@ const runReport = () => {
   if (argv['open-uri-template']) {
     args.push('--open-uri-template', argv['open-uri-template']);
   }
-  const result = spawnSync(process.execPath, args, { cwd: toolRoot, stdio: 'inherit' });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+  const result = spawnSubprocessSync(process.execPath, args, {
+    cwd: toolRoot,
+    stdio: 'inherit',
+    rejectOnNonZeroExit: false,
+    env: runtimeEnv
+  });
+  if (result.exitCode !== 0) {
+    process.exit(result.exitCode ?? 1);
   }
 };
 
@@ -173,6 +183,6 @@ server.listen(port, '127.0.0.1', () => {
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
   const url = `https://localhost:${actualPort}/map.iso.html`;
-  console.log(`Serving map: ${url}`);
+  console.error(`Serving map: ${url}`);
   openBrowser(url);
 });

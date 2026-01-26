@@ -6,10 +6,30 @@ import { parseBuildArgs } from './src/index/build/args.js';
 import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
 import { setProgressHandlers } from './src/shared/progress.js';
-import { getCurrentBuildInfo, getRepoCacheRoot, resolveRepoRoot } from './tools/dict-utils.js';
+import { buildAutoPolicy } from './src/shared/auto-policy.js';
+import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
+import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
+import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/dict-utils.js';
 
-const { argv, modes } = parseBuildArgs(process.argv.slice(2));
+const rawArgs = process.argv.slice(2);
+const { argv, modes } = parseBuildArgs(rawArgs);
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+if (argv['config-dump'] === true) {
+  const resolvedRoot = rootArg || resolveRepoRoot(process.cwd());
+  const userConfig = loadUserConfig(resolvedRoot);
+  const policy = await buildAutoPolicy({ repoRoot: resolvedRoot, config: userConfig });
+  const envelope = resolveRuntimeEnvelope({
+    argv,
+    rawArgv: rawArgs,
+    userConfig,
+    autoPolicy: policy,
+    env: process.env,
+    toolVersion: getToolVersion()
+  });
+  const output = argv.json === true ? JSON.stringify(envelope) : JSON.stringify(envelope, null, 2);
+  process.stdout.write(`${output}\n`);
+  process.exit(0);
+}
 if (argv.verbose === true) {
   process.env.PAIROFCLEATS_VERBOSE = '1';
 }
@@ -67,11 +87,17 @@ const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
 const crashLogPath = repoCacheRoot
   ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
   : null;
+const abortController = createAbortControllerWithHandlers();
+const handleSigint = () => abortController.abort('SIGINT');
+const handleSigterm = () => abortController.abort('SIGTERM');
+process.on('SIGINT', handleSigint);
+process.on('SIGTERM', handleSigterm);
 try {
   result = await buildIndex(resolvedRoot, {
     ...argv,
     modes,
-    rawArgv: process.argv
+    rawArgv: process.argv,
+    abortSignal: abortController.signal
   });
   const buildInfo = getCurrentBuildInfo(resolvedRoot);
   const buildStatePath = buildInfo?.buildRoot
@@ -132,11 +158,17 @@ try {
     }
   }
 } catch (err) {
-  display.error(`Index build failed: ${err?.message || err}`);
+  if (isAbortError(err)) {
+    display.error('Index build aborted.');
+  } else {
+    display.error(`Index build failed: ${err?.message || err}`);
+  }
   if (crashLogPath) {
     display.error(`Crash log: ${crashLogPath}`);
   }
   process.exitCode = 1;
 } finally {
+  process.off('SIGINT', handleSigint);
+  process.off('SIGTERM', handleSigterm);
   closeDisplay();
 }

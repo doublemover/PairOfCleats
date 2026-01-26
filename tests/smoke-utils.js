@@ -3,9 +3,25 @@ import { spawnSync } from 'node:child_process';
 
 export const root = process.cwd();
 
+const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES']);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function cleanup(paths) {
   for (const dir of paths) {
-    await fsPromises.rm(dir, { recursive: true, force: true });
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await fsPromises.rm(dir, { recursive: true, force: true });
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        if (!RETRYABLE_RM_CODES.has(err?.code)) break;
+        await sleep(50 * (attempt + 1));
+      }
+    }
+    if (lastError) throw lastError;
   }
 }
 

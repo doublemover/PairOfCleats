@@ -117,6 +117,7 @@ function normalizeUserConfig(baseConfig) {
     if (runtime.nodeOptions) normalizedRuntime.nodeOptions = runtime.nodeOptions;
     if (runtime.maxOldSpaceMb !== undefined) normalizedRuntime.maxOldSpaceMb = runtime.maxOldSpaceMb;
     if (runtime.uvThreadpoolSize !== undefined) normalizedRuntime.uvThreadpoolSize = runtime.uvThreadpoolSize;
+    if (runtime.ioOversubscribe !== undefined) normalizedRuntime.ioOversubscribe = runtime.ioOversubscribe;
     if (Object.keys(normalizedRuntime).length) normalized.runtime = normalizedRuntime;
   }
   if (isPlainObject(baseConfig.sqlite)) {

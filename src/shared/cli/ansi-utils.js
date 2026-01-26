@@ -15,12 +15,18 @@ export const ANSI = {
   fgPinkMuted: '\x1b[38;5;176m',
   fgPinkDark: '\x1b[38;5;168m',
   fgDarkGreen: '\x1b[38;5;22m',
+  fgOrangeDeep: '\x1b[38;5;166m',
   fgOrange: '\x1b[38;5;214m',
   fgDarkOrange: '\x1b[38;5;172m',
+  fgTimeoutUnit: '\x1b[38;5;124m',
   fgBrown: '\x1b[38;5;130m',
   fgBrownDark: '\x1b[38;5;94m',
   bgBlack: '\x1b[40m',
   bgDarkPurple: '\x1b[48;5;18m',
+  bgFailLine: '\x1b[48;5;17m',
+  bgLogLine: '\x1b[48;5;18m',
+  bgOutputLine: '\x1b[48;5;21m',
+  bgOutputTail: '\x1b[48;5;20m',
   dim: '\x1b[2m',
   bold: '\x1b[1m'
 };

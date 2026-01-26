@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getCombinedOutput } from './helpers/stdio.js';
 import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
@@ -90,7 +91,7 @@ if (sqliteBuild.status !== 0) {
   if (sqliteBuild.stderr) console.error(sqliteBuild.stderr.trim());
   process.exit(sqliteBuild.status ?? 1);
 }
-const output = `${sqliteBuild.stdout || ''}\n${sqliteBuild.stderr || ''}`;
+const output = getCombinedOutput(sqliteBuild);
 if (!output.includes('falling back to file-backed artifacts')) {
   console.error('Expected bundle fallback warning not found in output.');
   process.exit(1);

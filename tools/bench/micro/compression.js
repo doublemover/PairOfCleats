@@ -99,7 +99,7 @@ if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
   for (const backend of backends) {
-    console.log(`[compression:${backend.label}]`);
+    console.error(`[compression:${backend.label}]`);
     const sizesEntries = results.backends[backend.label] || {};
     for (const size of sizes) {
       const entry = sizesEntries[String(size)];
@@ -107,13 +107,13 @@ if (argv.json) {
       const ratio = Number.isFinite(entry.ratio) ? entry.ratio.toFixed(3) : 'n/a';
       const compress = entry.compress?.stats ? formatStats(entry.compress.stats) : 'n/a';
       const decompress = entry.decompress?.stats ? formatStats(entry.decompress.stats) : 'n/a';
-      console.log(`- size=${size} ratio=${ratio}`);
-      console.log(`  compress:   ${compress}`);
-      console.log(`  decompress: ${decompress}`);
+      console.error(`- size=${size} ratio=${ratio}`);
+      console.error(`  compress:   ${compress}`);
+      console.error(`  decompress: ${decompress}`);
     }
   }
   if (!zstd) {
-    console.log('- zstd: unavailable (install optional "@mongodb-js/zstd" dependency)');
+    console.error('- zstd: unavailable (install optional "@mongodb-js/zstd" dependency)');
   }
 }
 

@@ -21,7 +21,7 @@ export function validateSqliteDatabase(db, mode, options = {}) {
       logger.log(message);
       return;
     }
-    console.log(message);
+    console.error(message);
   };
 
   const errors = [];

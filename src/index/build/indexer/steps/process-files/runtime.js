@@ -1,4 +1,3 @@
-import os from 'node:os';
 import { createTaskQueues } from '../../../../../shared/concurrency.js';
 
 export const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
@@ -18,16 +17,26 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
   const baseWorkerPools = baseRuntime.workerPools;
   const baseWorkerPool = baseRuntime.workerPool;
   const baseQuantizePool = baseRuntime.quantizePool;
-  const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
-  const cpuLimit = Math.max(1, os.cpus().length * 2);
-  const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));
+  const ioConcurrency = Number.isFinite(baseRuntime.ioConcurrency)
+    ? Math.max(1, Math.floor(baseRuntime.ioConcurrency))
+    : Math.max(fileConcurrency, importConcurrency);
+  const cpuConcurrency = Number.isFinite(baseRuntime.cpuConcurrency)
+    ? Math.max(1, Math.floor(baseRuntime.cpuConcurrency))
+    : Math.max(1, fileConcurrency);
   // Keep shard workers from running too far ahead of the ordered append cursor.
   // Large pending windows can accumulate many completed-but-unappended file results
   // (especially when one earlier file is slow), which is a common source of V8 OOM
   // that often disappears under `--inspect`.
-  const maxFilePending = Math.min(256, Math.max(32, fileConcurrency * 4));
-  const maxIoPending = Math.min(512, Math.max(64, ioConcurrency * 4));
-  const maxEmbeddingPending = Math.min(64, Math.max(16, embeddingConcurrency * 8));
+  const pendingLimits = baseRuntime?.envelope?.queues || null;
+  const maxFilePending = Number.isFinite(pendingLimits?.cpu?.maxPending)
+    ? pendingLimits.cpu.maxPending
+    : Math.max(16, cpuConcurrency * 4);
+  const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
+    ? pendingLimits.io.maxPending
+    : Math.max(8, ioConcurrency * 4);
+  const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
+    ? pendingLimits.embedding.maxPending
+    : Math.max(16, embeddingConcurrency * 4);
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency,

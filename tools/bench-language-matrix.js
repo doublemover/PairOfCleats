@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { execa } from 'execa';
+import { spawnSubprocess } from '../src/shared/subprocess.js';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
-import { resolveToolRoot } from './dict-utils.js';
+import {
+  getRuntimeConfig,
+  loadUserConfig,
+  resolveRepoRoot,
+  resolveRuntimeEnv,
+  resolveToolRoot
+} from './dict-utils.js';
 
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,
@@ -38,6 +44,10 @@ const argv = createCli({
 validateBenchArgs(argv, { allowedOptions: benchOptions });
 
 const scriptRoot = resolveToolRoot();
+const repoRoot = argv.root ? path.resolve(argv.root) : resolveRepoRoot(process.cwd());
+const userConfig = loadUserConfig(repoRoot);
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const benchScript = path.join(scriptRoot, 'tools', 'bench-language-repos.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
@@ -159,8 +169,8 @@ async function main() {
     const logFile = path.join(logRoot, `${config.id}.log`);
     const args = configToArgs(config, outFile, logFile);
 
-    console.log(`\n[bench-matrix] ${label}`);
-    console.log(`node ${args.map((arg) => (arg.includes(' ') ? `"${arg}"` : arg)).join(' ')}`);
+    console.error(`\n[bench-matrix] ${label}`);
+    console.error(`node ${args.map((arg) => (arg.includes(' ') ? `"${arg}"` : arg)).join(' ')}`);
 
     if (argv['dry-run']) {
       results.push({ ...config, outFile, logFile, status: 'dry-run' });
@@ -168,8 +178,11 @@ async function main() {
     }
 
     try {
-      const child = execa(process.execPath, args, { stdio: 'inherit' });
-      await child;
+      await spawnSubprocess(process.execPath, args, {
+        stdio: 'inherit',
+        env: runtimeEnv,
+        rejectOnNonZeroExit: true
+      });
       results.push({ ...config, outFile, logFile, status: 'ok' });
     } catch (err) {
       results.push({
@@ -194,7 +207,7 @@ async function main() {
   };
   const summaryPath = path.join(runRoot, 'matrix.json');
   await fsPromises.writeFile(summaryPath, JSON.stringify(summary, null, 2));
-  console.log(`\n[bench-matrix] Summary written to ${summaryPath}`);
+  console.error(`\n[bench-matrix] Summary written to ${summaryPath}`);
 }
 
 main().catch((err) => {

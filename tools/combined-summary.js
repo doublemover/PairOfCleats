@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
@@ -70,10 +70,15 @@ const reportPaths = {
  * @returns {void}
  */
 function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit', cwd: root, env: baseEnv });
-  if (result.status !== 0) {
+  const result = spawnSubprocessSync(process.execPath, args, {
+    stdio: 'inherit',
+    cwd: root,
+    env: baseEnv,
+    rejectOnNonZeroExit: false
+  });
+  if (result.exitCode !== 0) {
     console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
 }
 
@@ -248,5 +253,5 @@ await fsPromises.writeFile(outPath, JSON.stringify(combined, null, 2));
 if (argv.json) {
   console.log(JSON.stringify(combined, null, 2));
 } else {
-  console.log(`Combined summary written to ${outPath}`);
+  console.error(`Combined summary written to ${outPath}`);
 }

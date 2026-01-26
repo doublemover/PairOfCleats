@@ -1,14 +1,20 @@
 #!/usr/bin/env node
-import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {
+  getAutoPolicy,
   getRuntimeConfig,
+  getToolVersion,
   loadUserConfig,
   resolveRepoRoot,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../tools/dict-utils.js';
+import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../src/shared/runtime-envelope.js';
+import { createCli } from '../src/shared/cli.js';
+import { INDEX_BUILD_OPTIONS } from '../src/shared/cli-options.js';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 
 const ROOT = resolveToolRoot();
 
@@ -21,7 +27,7 @@ if (!command || isHelpCommand(command)) {
 }
 
 if (isVersionCommand(command)) {
-  console.log(readVersion());
+  console.error(readVersion());
   process.exit(0);
 }
 
@@ -33,30 +39,27 @@ if (!resolved) {
   process.exit(1);
 }
 
-runScript(resolved.script, resolved.extraArgs, resolved.args);
+runScript(resolved.script, resolved.extraArgs, resolved.args).catch((err) => {
+  console.error(err?.message || err);
+  process.exit(1);
+});
 
 function resolveCommand(primary, rest) {
   if (primary === 'index') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      validateArgs(rest, ['repo', 'mode', 'quality', 'watch'], ['repo', 'mode', 'quality']);
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'build') {
-      validateArgs(rest, ['repo', 'mode', 'quality', 'watch'], ['repo', 'mode', 'quality']);
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
-      validateArgs(rest, ['repo', 'mode', 'quality'], ['repo', 'mode', 'quality']);
       return { script: 'build_index.js', extraArgs: ['--watch'], args: rest };
     }
     if (sub === 'validate') {
-      validateArgs(rest, ['repo'], ['repo']);
       return { script: 'tools/index-validate.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown index subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
     validateArgs(rest, ['repo', 'mode', 'top', 'json', 'explain', 'filter', 'backend'], ['repo', 'mode', 'top', 'filter', 'backend']);
@@ -161,7 +164,7 @@ function readFlagValue(args, name) {
   return null;
 }
 
-function runScript(scriptPath, extraArgs, restArgs) {
+async function runScript(scriptPath, extraArgs, restArgs) {
   const resolved = path.join(ROOT, scriptPath);
   if (!fs.existsSync(resolved)) {
     console.error(`Script not found: ${resolved}`);
@@ -170,12 +173,43 @@ function runScript(scriptPath, extraArgs, restArgs) {
   const repoOverride = extractRepoArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
   const userConfig = loadUserConfig(repoRoot);
-  const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-  const env = resolveRuntimeEnv(runtimeConfig, process.env);
-  const result = execaSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
+  let env = process.env;
+  if (scriptPath === 'build_index.js') {
+    const rawArgs = [...extraArgs, ...restArgs];
+    const cli = createCli({
+      argv: ['node', 'build_index.js', ...rawArgs],
+      options: INDEX_BUILD_OPTIONS
+    }).help(false).version(false).exitProcess(false);
+    const argv = typeof cli.parseSync === 'function' ? cli.parseSync() : cli.parse();
+    const autoPolicy = await getAutoPolicy(repoRoot, userConfig);
+    const envelope = resolveRuntimeEnvelope({
+      argv,
+      rawArgv: rawArgs,
+      userConfig,
+      autoPolicy,
+      env: process.env,
+      execArgv: process.execArgv,
+      cpuCount: os.cpus().length,
+      processInfo: {
+        pid: process.pid,
+        argv: process.argv,
+        execPath: process.execPath,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        cpuCount: os.cpus().length
+      },
+      toolVersion: getToolVersion()
+    });
+    env = resolveRuntimeEnvFromEnvelope(envelope, process.env);
+  } else {
+    const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+    env = resolveRuntimeEnv(runtimeConfig, process.env);
+  }
+  const result = spawnSubprocessSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
     env,
-    reject: false
+    rejectOnNonZeroExit: false
   });
   process.exit(result.exitCode ?? 1);
 }
@@ -204,7 +238,7 @@ function readVersion() {
 }
 
 function printHelp() {
-  console.log(`Usage: pairofcleats <command> [args]
+  process.stderr.write(`Usage: pairofcleats <command> [args]
 
 Core:
   setup                   Guided setup flow

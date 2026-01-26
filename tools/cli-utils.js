@@ -1,4 +1,5 @@
 import { execaSync } from 'execa';
+import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 
 /**
  * Run a command and return a normalized result.
@@ -8,6 +9,24 @@ import { execaSync } from 'execa';
  * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
+  if (cmd === process.execPath) {
+    const result = spawnSubprocessSync(cmd, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: options.stdio,
+      shell: options.shell,
+      captureStdout: true,
+      captureStderr: true,
+      outputMode: 'string',
+      rejectOnNonZeroExit: false
+    });
+    return {
+      ok: result.exitCode === 0,
+      status: result.exitCode ?? null,
+      stdout: typeof result.stdout === 'string' ? result.stdout : '',
+      stderr: typeof result.stderr === 'string' ? result.stderr : ''
+    };
+  }
   const result = execaSync(cmd, args, { reject: false, ...options });
   return {
     ok: result.exitCode === 0,

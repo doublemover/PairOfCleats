@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   buildTreeSitterChunks,
   preloadTreeSitterLanguages,
@@ -8,7 +9,7 @@ import {
   shutdownTreeSitterWorkerPool
 } from '../src/lang/tree-sitter.js';
 
-const root = path.resolve('tests', 'fixtures', 'tree-sitter');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'tree-sitter');
 const fixtures = [
   { id: 'swift', file: 'swift.swift', languageId: 'swift', expect: ['Widget', 'Widget.greet'] },
   { id: 'kotlin', file: 'kotlin.kt', languageId: 'kotlin', expect: ['Widget', 'Widget.greet'] },

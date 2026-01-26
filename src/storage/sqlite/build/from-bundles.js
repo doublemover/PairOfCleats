@@ -36,7 +36,7 @@ export async function buildDatabaseFromBundles({
       logger.log(message);
       return;
     }
-    console.log(message);
+    console.error(message);
   };
   const warn = (message) => {
     if (!emitOutput || !message) return;

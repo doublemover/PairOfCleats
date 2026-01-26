@@ -24,7 +24,11 @@ export const mergeEmbeddingVectors = ({ codeVector, docVector }) => {
   }
   const merged = new Float32Array(codeLen);
   for (let i = 0; i < merged.length; i += 1) {
-    merged[i] = (Number(code[i] ?? 0) + Number(doc[i] ?? 0)) / 2;
+    const codeVal = Number(code[i] ?? 0);
+    const docVal = Number(doc[i] ?? 0);
+    const safeCode = Number.isFinite(codeVal) ? codeVal : 0;
+    const safeDoc = Number.isFinite(docVal) ? docVal : 0;
+    merged[i] = (safeCode + safeDoc) / 2;
   }
   return merged;
 };

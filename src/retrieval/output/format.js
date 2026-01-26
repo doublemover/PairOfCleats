@@ -1,3 +1,4 @@
+import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
 import { cleanContext } from './context.js';
 import { formatScoreBreakdown } from './explain.js';
 import { getBodySummary } from './summary.js';
@@ -230,8 +231,9 @@ export function formatFullChunk({
   if (Array.isArray(bases) && bases.length) {
     out += c.magenta('   Extends: ') + bases.join(', ') + '\n';
   }
-  if (chunk.docmeta?.returnType) {
-    out += c.cyan('   Return Type: ') + chunk.docmeta.returnType + '\n';
+  const declaredReturns = collectDeclaredReturnTypes(chunk.docmeta);
+  if (declaredReturns.length) {
+    out += c.cyan('   Return Type: ') + declaredReturns.join(' | ') + '\n';
   } else if (chunk.docmeta?.returnsValue) {
     out += c.cyan('   Returns: ') + 'value' + '\n';
   }

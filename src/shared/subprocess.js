@@ -1,0 +1,359 @@
+import { spawn, spawnSync } from 'node:child_process';
+
+const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
+const DEFAULT_KILL_GRACE_MS = 5000;
+
+export class SubprocessError extends Error {
+  constructor(message, result, cause) {
+    super(message);
+    this.name = 'SubprocessError';
+    this.code = 'SUBPROCESS_FAILED';
+    this.result = result;
+    if (cause) this.cause = cause;
+  }
+}
+
+export class SubprocessTimeoutError extends Error {
+  constructor(message, result) {
+    super(message);
+    this.name = 'SubprocessTimeoutError';
+    this.code = 'SUBPROCESS_TIMEOUT';
+    this.result = result;
+  }
+}
+
+export class SubprocessAbortError extends Error {
+  constructor(message, result) {
+    super(message);
+    this.name = 'AbortError';
+    this.code = 'ABORT_ERR';
+    this.result = result;
+  }
+}
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const resolveMaxOutputBytes = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_OUTPUT_BYTES;
+  return Math.floor(parsed);
+};
+
+const resolveKillGraceMs = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_KILL_GRACE_MS;
+  return Math.floor(parsed);
+};
+
+const resolveExpectedExitCodes = (value) => {
+  if (Array.isArray(value) && value.length) {
+    return value.filter((entry) => Number.isFinite(Number(entry)));
+  }
+  return [0];
+};
+
+const coerceOutputMode = (value) => (value === 'lines' ? 'lines' : 'string');
+
+const coerceStdio = (value) => value ?? 'pipe';
+
+const shouldCapture = (stdio, captureFlag, streamIndex) => {
+  if (captureFlag === false) return false;
+  if (captureFlag === true) return true;
+  if (stdio === 'pipe') return true;
+  if (Array.isArray(stdio)) return stdio[streamIndex] === 'pipe';
+  return false;
+};
+
+const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
+  const chunks = [];
+  let totalBytes = 0;
+  const push = (chunk) => {
+    if (!enabled) return;
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
+    if (!buffer.length) return;
+    chunks.push(buffer);
+    totalBytes += buffer.length;
+    while (totalBytes > maxOutputBytes && chunks.length) {
+      const overflow = totalBytes - maxOutputBytes;
+      const head = chunks[0];
+      if (head.length <= overflow) {
+        chunks.shift();
+        totalBytes -= head.length;
+      } else {
+        chunks[0] = head.subarray(overflow);
+        totalBytes -= overflow;
+      }
+    }
+  };
+  const toOutput = (mode) => {
+    if (!enabled) return undefined;
+    if (!chunks.length) return mode === 'lines' ? [] : '';
+    const text = Buffer.concat(chunks).toString(encoding);
+    if (mode !== 'lines') return text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines;
+  };
+  return { push, toOutput };
+};
+
+const killProcessTree = (child, { killTree, killSignal, killGraceMs, detached }) => {
+  if (!child || !child.pid) return;
+  if (process.platform === 'win32') {
+    if (killTree !== false) {
+      try {
+        spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      } catch {}
+    }
+    try {
+      child.kill();
+    } catch {}
+    return;
+  }
+  const useProcessGroup = killTree !== false && detached === true;
+  try {
+    if (useProcessGroup) {
+      process.kill(-child.pid, killSignal);
+    } else {
+      child.kill(killSignal);
+    }
+  } catch {}
+  if (killGraceMs > 0) {
+    setTimeout(() => {
+      try {
+        if (useProcessGroup) {
+          process.kill(-child.pid, 'SIGKILL');
+        } else {
+          child.kill('SIGKILL');
+        }
+      } catch {}
+    }, killGraceMs).unref?.();
+  }
+};
+
+const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr }) => ({
+  pid,
+  exitCode,
+  signal,
+  durationMs: Math.max(0, Date.now() - startedAt),
+  stdout,
+  stderr
+});
+
+const trimOutput = (value, maxBytes, encoding, mode) => {
+  if (value == null) return mode === 'lines' ? [] : '';
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(String(value), encoding);
+  if (buffer.length <= maxBytes) {
+    const text = buffer.toString(encoding);
+    if (mode !== 'lines') return text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines;
+  }
+  const tail = buffer.subarray(buffer.length - maxBytes);
+  const text = tail.toString(encoding);
+  if (mode !== 'lines') return text;
+  const lines = text.split(/\r?\n/);
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+};
+
+export function spawnSubprocess(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const stdio = coerceStdio(options.stdio);
+    const encoding = options.outputEncoding || 'utf8';
+    const outputMode = coerceOutputMode(options.outputMode);
+    const maxOutputBytes = resolveMaxOutputBytes(options.maxOutputBytes);
+    const captureStdout = shouldCapture(stdio, options.captureStdout, 1);
+    const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
+    const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
+    const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
+    const detached = typeof options.detached === 'boolean'
+      ? options.detached
+      : process.platform !== 'win32';
+    const killTree = options.killTree !== false;
+    const killSignal = options.killSignal || 'SIGTERM';
+    const killGraceMs = resolveKillGraceMs(options.killGraceMs);
+    const abortSignal = options.signal || null;
+    if (abortSignal?.aborted) {
+      const result = buildResult({
+        pid: null,
+        exitCode: null,
+        signal: null,
+        startedAt,
+        stdout: undefined,
+        stderr: undefined
+      });
+      reject(new SubprocessAbortError('Operation aborted', result));
+      return;
+    }
+    const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
+    const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio,
+      shell: options.shell === true,
+      detached
+    });
+    if (options.input != null && child.stdin) {
+      try {
+        child.stdin.write(options.input);
+        child.stdin.end();
+      } catch {}
+    }
+  if (typeof options.onSpawn === 'function') {
+    try {
+      options.onSpawn(child);
+    } catch {}
+  }
+    if (options.unref === true) {
+      child.unref();
+    }
+    let settled = false;
+    let timeoutId = null;
+    let abortHandler = null;
+    const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
+    const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
+    const handleOutput = (collector, handler) => (chunk) => {
+      collector.push(chunk);
+      if (handler) {
+        handler(Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk));
+      }
+    };
+    const onStdoutData = captureStdout || onStdout
+      ? handleOutput(stdoutCollector, onStdout)
+      : null;
+    const onStderrData = captureStderr || onStderr
+      ? handleOutput(stderrCollector, onStderr)
+      : null;
+    if (onStdoutData && child.stdout) {
+      child.stdout.on('data', onStdoutData);
+    }
+    if (onStderrData && child.stderr) {
+      child.stderr.on('data', onStderrData);
+    }
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (abortHandler && abortSignal) {
+        abortSignal.removeEventListener('abort', abortHandler);
+      }
+      if (onStdoutData && child.stdout) child.stdout.off('data', onStdoutData);
+      if (onStderrData && child.stderr) child.stderr.off('data', onStderrData);
+    };
+    const finalize = (exitCode, signal) => {
+      const result = buildResult({
+        pid: child.pid,
+        exitCode,
+        signal,
+        startedAt,
+        stdout: stdoutCollector.toOutput(outputMode),
+        stderr: stderrCollector.toOutput(outputMode)
+      });
+      if (!rejectOnNonZeroExit || expectedExitCodes.includes(exitCode ?? -1)) {
+        resolve(result);
+        return;
+      }
+      const name = options.name ? `${options.name} ` : '';
+      reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));
+    };
+    if (Number.isFinite(toNumber(options.timeoutMs))) {
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+        cleanup();
+        const result = buildResult({
+          pid: child.pid,
+          exitCode: null,
+          signal: null,
+          startedAt,
+          stdout: stdoutCollector.toOutput(outputMode),
+          stderr: stderrCollector.toOutput(outputMode)
+        });
+        reject(new SubprocessTimeoutError('Subprocess timeout', result));
+      }, Math.max(0, toNumber(options.timeoutMs) || 0));
+    }
+    abortHandler = () => {
+      if (settled) return;
+      settled = true;
+      killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+      cleanup();
+      const result = buildResult({
+        pid: child.pid,
+        exitCode: null,
+        signal: null,
+        startedAt,
+        stdout: stdoutCollector.toOutput(outputMode),
+        stderr: stderrCollector.toOutput(outputMode)
+      });
+      reject(new SubprocessAbortError('Operation aborted', result));
+    };
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', abortHandler, { once: true });
+    }
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      const result = buildResult({
+        pid: child.pid,
+        exitCode: null,
+        signal: null,
+        startedAt,
+        stdout: stdoutCollector.toOutput(outputMode),
+        stderr: stderrCollector.toOutput(outputMode)
+      });
+      reject(new SubprocessError(err?.message || 'Subprocess failed', result, err));
+    });
+    child.on('close', (code, signal) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      finalize(code, signal);
+    });
+  });
+}
+
+export function spawnSubprocessSync(command, args, options = {}) {
+  const startedAt = Date.now();
+  const stdio = coerceStdio(options.stdio);
+  const encoding = options.outputEncoding || 'utf8';
+  const outputMode = coerceOutputMode(options.outputMode);
+  const maxOutputBytes = resolveMaxOutputBytes(options.maxOutputBytes);
+  const captureStdout = shouldCapture(stdio, options.captureStdout, 1);
+  const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
+  const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
+  const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio,
+    shell: options.shell === true,
+    input: options.input,
+    encoding: captureStdout || captureStderr ? 'buffer' : undefined
+  });
+  const stdout = captureStdout
+    ? trimOutput(result.stdout, maxOutputBytes, encoding, outputMode)
+    : undefined;
+  const stderr = captureStderr
+    ? trimOutput(result.stderr, maxOutputBytes, encoding, outputMode)
+    : undefined;
+  const normalized = buildResult({
+    pid: result.pid ?? null,
+    exitCode: result.status ?? null,
+    signal: result.signal ?? null,
+    startedAt,
+    stdout,
+    stderr
+  });
+  if (!rejectOnNonZeroExit || expectedExitCodes.includes(normalized.exitCode ?? -1)) {
+    return normalized;
+  }
+  const name = options.name ? `${options.name} ` : '';
+  throw new SubprocessError(`${name}exited with code ${normalized.exitCode ?? 'unknown'}`, normalized);
+}

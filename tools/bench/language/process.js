@@ -1,4 +1,5 @@
-import { execa, execaSync } from 'execa';
+import { execaSync } from 'execa';
+import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
 export const createProcessRunner = ({
@@ -47,10 +48,9 @@ export const createProcessRunner = ({
     const spawnOptions = {
       ...spawnOptionsRest,
       stdio: ['ignore', 'pipe', 'pipe'],
-      reject: false
+      rejectOnNonZeroExit: false
     };
-    const child = execa(cmd, args, spawnOptions);
-    setActiveChild(child, label);
+    setActiveChild({ pid: null }, label);
     writeLog(`[start] ${label}`);
     const carry = { stdout: '', stderr: '' };
     const handleLine = (line) => {
@@ -68,15 +68,18 @@ export const createProcessRunner = ({
       carry[key] = parts.pop() || '';
       for (const line of parts) handleLine(line);
     };
-    child.stdout?.on('data', (chunk) => handleChunk(chunk, 'stdout'));
-    child.stderr?.on('data', (chunk) => handleChunk(chunk, 'stderr'));
     try {
-      const result = await child;
+      const result = await spawnSubprocess(cmd, args, {
+        ...spawnOptions,
+        onSpawn: (child) => setActiveChild(child, label),
+        onStdout: (chunk) => handleChunk(chunk, 'stdout'),
+        onStderr: (chunk) => handleChunk(chunk, 'stderr')
+      });
       if (carry.stdout) handleLine(carry.stdout);
       if (carry.stderr) handleLine(carry.stderr);
       const code = result.exitCode;
       writeLog(`[finish] ${label} code=${code}`);
-      clearActiveChild(child);
+      clearActiveChild({ pid: result.pid });
       if (code === 0) {
         return { ok: true };
       }
@@ -101,9 +104,9 @@ export const createProcessRunner = ({
       }
       return { ok: false, code: code ?? 1 };
     } catch (err) {
-      const message = err?.shortMessage || err?.message || err;
+      const message = err?.message || err;
       writeLog(`[error] ${label} spawn failed: ${message}`);
-      clearActiveChild(child);
+      clearActiveChild({ pid: err?.result?.pid ?? null });
       console.error(`Failed: ${label}`);
       console.error(`Log: ${logPath}`);
       console.error(logPath);

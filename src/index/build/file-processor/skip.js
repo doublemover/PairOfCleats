@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { resolveFileCaps } from './read.js';
+import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 
 export async function resolvePreReadSkip({
@@ -9,23 +9,44 @@ export async function resolvePreReadSkip({
   ext,
   fileCaps,
   fileScanner,
-  runIo
+  runIo,
+  languageId = null,
+  mode = null,
+  maxFileBytes = null
 }) {
-  const capsByExt = resolveFileCaps(fileCaps, ext);
-  if (capsByExt.maxBytes && fileStat.size > capsByExt.maxBytes) {
-    return { reason: 'oversize', bytes: fileStat.size, maxBytes: capsByExt.maxBytes };
+  const capsByExt = resolveFileCaps(fileCaps, ext, languageId, mode);
+  const effectiveMaxBytes = pickMinLimit(maxFileBytes, capsByExt.maxBytes);
+  if (effectiveMaxBytes && fileStat.size > effectiveMaxBytes) {
+    return {
+      reason: 'oversize',
+      stage: 'pre-read',
+      capSource: 'maxBytes',
+      bytes: fileStat.size,
+      maxBytes: effectiveMaxBytes
+    };
   }
   const scanState = typeof fileEntry === 'object' ? fileEntry.scan : null;
   if (scanState?.skip) {
     const { reason, ...extra } = scanState.skip;
-    return { reason: reason || 'oversize', ...extra };
+    const resolvedReason = reason || 'oversize';
+    return {
+      reason: resolvedReason,
+      ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
+      ...extra
+    };
   }
   if (isMinifiedName(path.basename(abs))) {
     return { reason: 'minified', method: 'name' };
   }
   const knownLines = Number(fileEntry?.lines);
   if (capsByExt.maxLines && Number.isFinite(knownLines) && knownLines > capsByExt.maxLines) {
-    return { reason: 'oversize', lines: knownLines, maxLines: capsByExt.maxLines };
+    return {
+      reason: 'oversize',
+      stage: 'pre-read',
+      capSource: 'maxLines',
+      lines: knownLines,
+      maxLines: capsByExt.maxLines
+    };
   }
   if (!scanState?.checkedBinary || !scanState?.checkedMinified) {
     const scanResult = await runIo(() => fileScanner.scanFile({
@@ -36,7 +57,12 @@ export async function resolvePreReadSkip({
     }));
     if (scanResult?.skip) {
       const { reason, ...extra } = scanResult.skip;
-      return { reason: reason || 'oversize', ...extra };
+      const resolvedReason = reason || 'oversize';
+      return {
+        reason: resolvedReason,
+        ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
+        ...extra
+      };
     }
   }
   return null;

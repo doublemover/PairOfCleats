@@ -72,10 +72,10 @@ if (argv.out) {
 if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
-  console.log(`[hash] size=${size} bytes iterations=${iterations}`);
+  console.error(`[hash] size=${size} bytes iterations=${iterations}`);
   printBackend('wasm', results.backends.wasm);
   if (results.backends.native.available === false) {
-    console.log('- native: unavailable (install optional "@node-rs/xxhash" dependency)');
+    console.error('- native: unavailable (install optional "@node-rs/xxhash" dependency)');
   } else {
     printBackend('native', results.backends.native);
   }
@@ -114,5 +114,5 @@ function printBackend(name, payload) {
   const stats = payload.stats || null;
   const rate = Number.isFinite(payload.mbPerSec) ? payload.mbPerSec.toFixed(1) : 'n/a';
   const summary = stats ? formatStats(stats) : 'n/a';
-  console.log(`- ${name}: ${summary} | MB/sec ${rate}`);
+  console.error(`- ${name}: ${summary} | MB/sec ${rate}`);
 }

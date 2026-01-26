@@ -45,7 +45,7 @@ const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
 const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
 if (useIncremental) {
-  console.log('[bootstrap] Incremental indexing enabled.');
+  console.error('[bootstrap] Incremental indexing enabled.');
 }
 const artifactsDir = path.join(root, 'ci-artifacts');
 let restoredArtifacts = false;
@@ -75,7 +75,7 @@ if (!argv['skip-dicts']) {
   }
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   if (dictionaryPaths.length) {
-    console.log(`[bootstrap] Wordlists enabled (${dictionaryPaths.length} file(s)).`);
+    console.error(`[bootstrap] Wordlists enabled (${dictionaryPaths.length} file(s)).`);
   } else {
     console.warn('[bootstrap] No wordlists found; identifier splitting will be limited.');
   }
@@ -86,7 +86,7 @@ if (vectorExtension.enabled) {
   if (!extPath || !fs.existsSync(extPath)) {
     console.warn('[bootstrap] SQLite ANN extension missing; run npm run download-extensions to install.');
   } else {
-    console.log(`[bootstrap] SQLite ANN extension found (${extPath}).`);
+    console.error(`[bootstrap] SQLite ANN extension found (${extPath}).`);
   }
 }
 
@@ -108,7 +108,7 @@ if (!argv['skip-tooling']) {
         if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
         run(process.execPath, installArgs, 'install tooling');
       } else if (missingTools.length) {
-        console.log('[bootstrap] Optional tooling missing. Run npm run tooling-install to install.');
+        console.error('[bootstrap] Optional tooling missing. Run npm run tooling-install to install.');
       }
     } catch {
       console.warn('[bootstrap] Failed to parse tooling detection output.');
@@ -139,5 +139,5 @@ if (argv['with-sqlite']) {
   run(process.execPath, sqliteArgs, 'build sqlite index');
 }
 
-console.log('[bootstrap] Tip: run npm run index-validate to verify index artifacts.');
-console.log('\nBootstrap complete.');
+console.error('[bootstrap] Tip: run npm run index-validate to verify index artifacts.');
+console.error('\nBootstrap complete.');

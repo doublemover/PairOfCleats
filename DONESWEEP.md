@@ -1,0 +1,80 @@
+# Done Sweep\n
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: validate.js now enforces required/additionalProperties without properties; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: sort comments before assigning to chunks; updated comment-boundary test for shuffled input.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: treat .ps1 binaries via PowerShell wrapper and make fsExists strictly file-based.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: enable git discovery for subdirs and add bounded lstat concurrency in discover.js.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: emit a once-per-run warning when tokenization worker pool is unavailable.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: skipped comment tokenization fast-path suggestion; logged in WTFBRO.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: skipped file-scan binary detection short-circuit; logged in WTFBRO.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed structural runner stderr suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed context-window split allocation note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed failure-taxonomy test suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed compare/config fixture note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed build args test suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed crash-log test suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed embedding-batch test suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed failure-taxonomy snapshot suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed feature-metrics note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed incremental reuse test note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed meta docs path test note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed UTF-8 truncation test note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed relations schema check note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed timings summary note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: defer worker pool shutdown until idle after failures; added restart regression test.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: watch backoff and incremental discovery already implemented; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: normalize hash_algo and gate cross-file inference to code mode; postings optionality deferred.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: stage3 defaults now enable embeddings to prevent no-op stages.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: guard ignore config defaults when userConfig is missing.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: promotion build-root validation already enforced; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: default invalid deferMissingMax to safe value; added runtime config test.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: embedding queue already best-effort with identity fields; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: stage invariants largely enforced via defaults; explicit validation deferred.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed pipeline stage progress note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed pipeline reuse note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: add embedding identity to incremental signature.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: avoid mutating shared discovery entries when assigning orderIndex.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: stale lock logging already present; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: removed unused preprocess normalizeLimit helper.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed preprocess language ordering note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed untrusted caps disable note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: runtime hash already uses canonical/stable serialization; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed logging format note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed parcel watcher ignore stats note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed cloneable validation overhead note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: watch shutdown already guards scheduler cancel; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: add recordsDir/recordsConfig to build runtime; added runtime test.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: regex flags already included in signature canonicalization; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: signatures already use stable serialization; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: adaptive dict config already returns new object; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: ignore file path validation already enforced; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed repo lock scope note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: disable pool on clone errors and shutdown when max restarts exceeded.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed dictionary memory note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed piece assembly memory note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed incremental reuse progress note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: runtime hash normalization already uses canonicalized stable serialization; removed stale note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: incremental/tokenization signature nondeterminism addressed; removed stale summary finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: waitForStableFile already returns false when stability is not achieved; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: promotion now validates buildRoot within repo cache root; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: Node engine policy already covers crypto.randomUUID; removed compatibility note and empty sections.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: normalized declared return types across metadata, inference, and output to avoid boolean/string drift.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: preserve jsx/tsx fence languages instead of collapsing to js/ts.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: resolve tree-sitter languages using per-segment ext to avoid embedded jsx/tsx misses.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: align tree-sitter HTML config nameTypes to match chunker expectations.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: risk caps already short-circuit on maxBytes/maxLines; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: gate cross-file type inference on the explicit cross-file toggle.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: emit once-per-repo warnings when git metadata/provenance lookups fail.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: guard LSP client lifecycle handlers to avoid cross-session cleanup and fail fast on writer loss.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: merge recordMeta into triage docmeta when building records index.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: preserve CVSS score 0 during triage normalization.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: normalize map dataflow mutations and align legend key.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: remove unused status helpers to reduce drift.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: make map symbol ids include chunkId or startLine to avoid collisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: triage recordsDir is already resolved to an absolute path; removed stale normalization note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_SHARDS_SMOKE_SQLITE_TESTS.md: read shard progress from combined stdout/stderr and fix sqlite path and skip-minified-binary messaging.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_MISC_VSCODE_WATCH_WORKERPOOL.md: add tmp dir cleanup in watch-stability-guard and xxhash-backends tests.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_STORAGE.md: corrected skip-minified-binary error message; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS.md: removed stale skip-minified-binary error string finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_TOOLING_TREESITTER_TRIAGE.md: make tree-sitter fixture paths independent of cwd.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TYPE_INFERENCE_TESTS.md: align type inference integration tests with build cwd and test config.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_TESTS_SERVICES.md: setup-index-detection already uses POSIX manifest paths; removed stale OS separator finding.

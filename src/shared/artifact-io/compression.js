@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { spawnSync } from 'node:child_process';
+import { spawnSubprocessSync } from '../subprocess.js';
 import { tryRequire } from '../optional-deps.js';
+import { resolveRuntimeEnv } from '../runtime-envelope.js';
 import { getBakPath } from './cache.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
 
@@ -32,18 +33,24 @@ const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
     '  }',
     '});'
   ].join('');
-  const result = spawnSync(process.execPath, ['-e', script], {
+  const env = resolveRuntimeEnv(null, process.env);
+  const result = spawnSubprocessSync(process.execPath, ['-e', script], {
+    stdio: ['pipe', 'pipe', 'pipe'],
     input: buffer,
-    maxBuffer: maxBytes + 1024
+    maxOutputBytes: maxBytes + 1024,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false,
+    env
   });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    const detail = result.stderr ? result.stderr.toString('utf8').trim() : '';
+  if (result.exitCode !== 0) {
+    const detail = result.stderr ? String(result.stderr).trim() : '';
     throw new Error(`zstd decompress failed: ${detail || 'unknown error'}`);
   }
-  const outBuffer = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout || '');
+  const outBuffer = Buffer.isBuffer(result.stdout)
+    ? result.stdout
+    : Buffer.from(result.stdout || '');
   if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
     throw toJsonTooLargeError(sourcePath, outBuffer.length);
   }

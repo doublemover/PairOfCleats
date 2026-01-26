@@ -31,7 +31,7 @@ export const createProgressRenderer = ({
 
   const truncateDisplay = (line) => {
     if (!line) return '';
-    const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
+    const width = Number.isFinite(process.stderr.columns) ? process.stderr.columns : 120;
     if (line.length <= width) return line;
     return `${line.slice(0, Math.max(0, width - 1))}\u2026`;
   };
@@ -119,12 +119,12 @@ export const createProgressRenderer = ({
   const renderStatus = () => {
     if (!interactive) return;
     if (!state.statusRendered) {
-      process.stdout.write('\n'.repeat(state.logWindowSize + 3));
+      process.stderr.write('\n'.repeat(state.logWindowSize + 3));
       state.statusRendered = true;
     }
-    readline.moveCursor(process.stdout, 0, -(state.logWindowSize + 3));
+    readline.moveCursor(process.stderr, 0, -(state.logWindowSize + 3));
     const lines = [...state.logLines];
-    const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
+    const width = Number.isFinite(process.stderr.columns) ? process.stderr.columns : 120;
     while (lines.length < state.logWindowSize) lines.push('');
     lines.push(state.metricsLine);
     lines.push(state.fileProgressLine);
@@ -132,12 +132,12 @@ export const createProgressRenderer = ({
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
       const isBar = i >= state.logWindowSize;
-      readline.clearLine(process.stdout, 0);
+      readline.clearLine(process.stderr, 0);
       const output = isBar
         ? formatBarLine(line || '', width)
         : formatLogLine(truncateDisplay(line || ''));
-      process.stdout.write(output);
-      process.stdout.write('\n');
+      process.stderr.write(output);
+      process.stderr.write('\n');
     }
   };
 
@@ -225,7 +225,7 @@ export const createProgressRenderer = ({
       state.lastProgressLogged = line;
     }
     if (log && !interactive && !quietMode && line !== state.lastProgressMessage) {
-      console.log(line);
+      console.error(line);
       state.lastProgressMessage = line;
     }
   };
@@ -243,7 +243,7 @@ export const createProgressRenderer = ({
       state.lastMetricsLogged = message;
     }
     if (!interactive && !quietMode && message) {
-      console.log(message);
+      console.error(message);
     }
   };
 
@@ -455,7 +455,7 @@ export const createProgressRenderer = ({
       if (interactive) {
         pushLogWindowLine(cleaned);
       } else if (!quietMode) {
-        console.log(cleaned);
+        console.error(cleaned);
       }
       return;
     }
@@ -479,7 +479,7 @@ export const createProgressRenderer = ({
         if (interactive) {
           pushLogWindowLine(formatted);
         } else if (!quietMode) {
-          console.log(formatted);
+          console.error(formatted);
         }
       }
       return;
@@ -494,7 +494,7 @@ export const createProgressRenderer = ({
       if (interactive) {
         pushLogWindowLine(formattedLine, { tag });
       } else if (!quietMode) {
-        console.log(formattedLine);
+        console.error(formattedLine);
       }
       return;
     }
@@ -507,7 +507,7 @@ export const createProgressRenderer = ({
     if (interactive) {
       pushLogWindowLine(cleaned);
     } else if (!quietMode) {
-      console.log(cleaned);
+      console.error(cleaned);
     }
   };
 
