@@ -4,7 +4,6 @@ import {
   getBuildsRoot,
   getRepoRoot,
   loadUserConfig,
-  resolveLmdbPaths,
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
@@ -12,23 +11,12 @@ import {
   loadChunkMeta,
   loadGraphRelations,
   loadJsonArrayArtifact,
-  loadPiecesManifest,
   loadTokenPostings,
   readJsonFile
 } from '../shared/artifact-io.js';
-import { checksumFile, sha1File } from '../shared/hash.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
-import {
-  ARTIFACT_SURFACE_VERSION,
-  isSupportedVersion
-} from '../contracts/versioning.js';
-import {
-  LMDB_ARTIFACT_KEYS,
-  LMDB_META_KEYS,
-  LMDB_REQUIRED_ARTIFACT_KEYS,
-  LMDB_SCHEMA_VERSION
-} from '../storage/lmdb/schema.js';
-import { normalizeManifestPath, resolveIndexDir } from './validate/paths.js';
+import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
+import { resolveIndexDir } from './validate/paths.js';
 import {
   extractArray,
   normalizeDenseVectors,
@@ -38,10 +26,12 @@ import {
   normalizePhrasePostings,
   normalizeTokenPostings
 } from './validate/normalize.js';
-import { decode, hasLmdbStore } from './validate/lmdb.js';
 import { addIssue } from './validate/issues.js';
-import { validateManifestEntries, validateSchema } from './validate/schema.js';
+import { validateSchema } from './validate/schema.js';
 import { createArtifactPresenceHelpers } from './validate/presence.js';
+import { loadAndValidateManifest } from './validate/manifest.js';
+import { buildLmdbReport } from './validate/lmdb-report.js';
+import { buildSqliteReport } from './validate/sqlite-report.js';
 import {
   validateChunkIds,
   validateFileNameCollisions,
@@ -113,102 +103,13 @@ export async function validateIndexArtifacts(input = {}) {
       missing: [],
       warnings: []
     };
-    let manifest = null;
-    const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-    if (!fs.existsSync(manifestPath)) {
-      const message = 'pieces/manifest.json missing';
-      if (strict) {
-        modeReport.ok = false;
-        modeReport.missing.push(message);
-        report.issues.push(`[${mode}] ${message}`);
-      } else {
-        modeReport.warnings.push(message);
-        report.warnings.push(`[${mode}] ${message}`);
-      }
-    } else {
-      try {
-        manifest = loadPiecesManifest(dir, { strict });
-        validateSchema(
-          report,
-          mode,
-          'pieces_manifest',
-          manifest,
-          'Rebuild index artifacts for this mode.',
-          { strictSchema: strict }
-        );
-        if (strict) {
-          if (!isSupportedVersion(manifest?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
-            addIssue(
-              report,
-              mode,
-              `artifactSurfaceVersion unsupported: ${manifest?.artifactSurfaceVersion ?? 'missing'}`,
-              'Rebuild index artifacts for this mode.'
-            );
-          }
-          validateManifestEntries(report, mode, dir, manifest, { strictSchema: true });
-        }
-        if (!manifest || !Array.isArray(manifest.pieces)) {
-          const issue = 'pieces/manifest.json invalid';
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        } else {
-          for (const piece of manifest.pieces) {
-            const relPath = piece?.path;
-            if (!relPath) continue;
-            const absPath = path.join(dir, normalizeManifestPath(relPath).split('/').join(path.sep));
-            if (!fs.existsSync(absPath)) {
-              const issue = `piece missing: ${relPath}`;
-              modeReport.ok = false;
-              modeReport.missing.push(issue);
-              report.issues.push(`[${mode}] ${issue}`);
-              continue;
-            }
-            const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
-            if (checksum) {
-              const [algo, expected] = checksum.split(':');
-              if (!algo || !expected) {
-                const warning = `piece checksum invalid: ${relPath}`;
-                modeReport.warnings.push(warning);
-                report.warnings.push(`[${mode}] ${warning}`);
-                continue;
-              }
-              if (algo === 'sha1') {
-                const actual = await sha1File(absPath);
-                if (actual !== expected) {
-                  const issue = `piece checksum mismatch: ${relPath}`;
-                  modeReport.ok = false;
-                  modeReport.missing.push(issue);
-                  report.issues.push(`[${mode}] ${issue}`);
-                  report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
-                }
-              } else if (algo === 'xxh64') {
-                const actual = await checksumFile(absPath);
-                if (!actual || actual.value !== expected) {
-                  const issue = `piece checksum mismatch: ${relPath}`;
-                  modeReport.ok = false;
-                  modeReport.missing.push(issue);
-                  report.issues.push(`[${mode}] ${issue}`);
-                  report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
-                }
-              } else {
-                const warning = `piece checksum unsupported: ${relPath}`;
-                modeReport.warnings.push(warning);
-                report.warnings.push(`[${mode}] ${warning}`);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        const issue = 'pieces/manifest.json invalid';
-        modeReport.ok = false;
-        modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
-        if (strict) {
-          report.hints.push('Rebuild index artifacts for this mode.');
-        }
-      }
-    }
+    const { manifest } = await loadAndValidateManifest({
+      report,
+      mode,
+      dir,
+      strict,
+      modeReport
+    });
 
     const {
       resolvePresence,
@@ -646,174 +547,23 @@ export async function validateIndexArtifacts(input = {}) {
     }
   }
 
-  const lmdbEnabled = typeof input.lmdbEnabled === 'boolean'
-    ? input.lmdbEnabled
-    : userConfig.lmdb?.use !== false;
-  const lmdbPaths = resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const lmdbTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
-  const lmdbReport = {
-    enabled: lmdbEnabled,
-    ok: true,
-    code: lmdbPaths.codePath,
-    prose: lmdbPaths.prosePath,
-    issues: [],
-    warnings: []
-  };
-  lmdbReport.enabled = lmdbReport.enabled && lmdbTargets.size > 0;
+  const lmdbReport = await buildLmdbReport({
+    root,
+    userConfig,
+    indexRoot,
+    modes,
+    report,
+    lmdbEnabled: input.lmdbEnabled
+  });
 
-  if (lmdbReport.enabled) {
-    let openLmdb = null;
-    try {
-      ({ open: openLmdb } = await import('lmdb'));
-    } catch {}
-    const addLmdbIssue = (label, message, hint) => {
-      lmdbReport.ok = false;
-      lmdbReport.issues.push(`${label}: ${message}`);
-      addIssue(report, `lmdb/${label}`, message, hint);
-    };
-    const addLmdbWarning = (label, message) => {
-      lmdbReport.warnings.push(`${label}: ${message}`);
-      report.warnings.push(`[lmdb/${label}] ${message}`);
-    };
-    const validateStore = (label, storePath) => {
-      if (!hasLmdbStore(storePath)) {
-        addLmdbWarning(label, 'db missing');
-        return;
-      }
-      if (!openLmdb) {
-        addLmdbWarning(label, 'lmdb dependency unavailable; integrity check skipped');
-        return;
-      }
-      const db = openLmdb({ path: storePath, readOnly: true });
-      try {
-        const version = decode(db.get(LMDB_META_KEYS.schemaVersion));
-        if (version !== LMDB_SCHEMA_VERSION) {
-          addLmdbIssue(
-            label,
-            `schema mismatch (expected ${LMDB_SCHEMA_VERSION}, got ${version ?? 'missing'})`,
-            'Run `npm run build-lmdb-index` to rebuild LMDB artifacts.'
-          );
-        }
-        const modeValue = decode(db.get(LMDB_META_KEYS.mode));
-        if (modeValue && modeValue !== label) {
-          addLmdbIssue(
-            label,
-            `mode mismatch (expected ${label}, got ${modeValue})`,
-            'Run `npm run build-lmdb-index` to rebuild LMDB artifacts.'
-          );
-        }
-        const chunkCount = decode(db.get(LMDB_META_KEYS.chunkCount));
-        if (chunkCount != null && !Number.isFinite(Number(chunkCount))) {
-          addLmdbWarning(label, 'meta:chunkCount invalid');
-        }
-        const artifacts = decode(db.get(LMDB_META_KEYS.artifacts));
-        if (!Array.isArray(artifacts)) {
-          addLmdbIssue(
-            label,
-            'meta:artifacts missing or invalid',
-            'Run `npm run build-lmdb-index` to rebuild LMDB artifacts.'
-          );
-          return;
-        }
-        for (const key of LMDB_REQUIRED_ARTIFACT_KEYS) {
-          if (!artifacts.includes(key)) {
-            addLmdbIssue(
-              label,
-              `missing artifact key ${key}`,
-              'Run `npm run build-lmdb-index` to rebuild LMDB artifacts.'
-            );
-          }
-          if (db.get(key) == null) {
-            addLmdbIssue(
-              label,
-              `artifact missing: ${key}`,
-              'Run `npm run build-lmdb-index` to rebuild LMDB artifacts.'
-            );
-          }
-        }
-      } finally {
-        db.close();
-      }
-    };
-    if (lmdbTargets.has('code')) validateStore('code', lmdbPaths.codePath);
-    if (lmdbTargets.has('prose')) validateStore('prose', lmdbPaths.prosePath);
-  }
-
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const sqliteMode = userConfig.sqlite?.scoreMode === 'fts' ? 'fts' : 'bm25';
-  const sqliteTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
-  const requireCodeDb = sqliteTargets.has('code');
-  const requireProseDb = sqliteTargets.has('prose');
-  const sqliteRequiredTables = sqliteMode === 'fts'
-    ? ['chunks', 'chunks_fts', 'minhash_signatures', 'dense_vectors', 'dense_meta']
-    : [
-      'chunks',
-      'token_vocab',
-      'token_postings',
-      'doc_lengths',
-      'token_stats',
-      'phrase_vocab',
-      'phrase_postings',
-      'chargram_vocab',
-      'chargram_postings',
-      'minhash_signatures',
-      'dense_vectors',
-      'dense_meta'
-    ];
-
-  const sqliteReport = {
-    enabled: report.sqlite.enabled,
-    mode: sqliteMode,
-    ok: true,
-    code: sqlitePaths.codePath,
-    prose: sqlitePaths.prosePath,
-    issues: []
-  };
-  sqliteReport.enabled = sqliteReport.enabled && sqliteTargets.size > 0;
-
-  if (sqliteReport.enabled) {
-    const sqliteIssues = [];
-    if (requireCodeDb && !fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('code db missing');
-    if (requireProseDb && !fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('prose db missing');
-    if (sqliteIssues.length) {
-      sqliteReport.ok = false;
-      sqliteReport.issues.push(...sqliteIssues);
-      sqliteIssues.forEach((issue) => report.issues.push(`[sqlite] ${issue}`));
-      report.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite artifacts.');
-    } else {
-      let Database = null;
-      try {
-        ({ default: Database } = await import('better-sqlite3'));
-      } catch {
-        sqliteReport.ok = false;
-        const issue = 'better-sqlite3 not available';
-        sqliteReport.issues.push(issue);
-        report.issues.push(`[sqlite] ${issue}`);
-        report.hints.push('Run `npm install` to install better-sqlite3.');
-      }
-      if (Database) {
-        const checkTables = (dbPath, label) => {
-          const db = new Database(dbPath, { readonly: true });
-          try {
-            const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-            const tableNames = new Set(rows.map((row) => row.name));
-            const missing = sqliteRequiredTables.filter((name) => !tableNames.has(name));
-            if (missing.length) {
-              sqliteReport.ok = false;
-              const issue = `${label} missing tables: ${missing.join(', ')}`;
-              sqliteReport.issues.push(issue);
-              report.issues.push(`[sqlite] ${issue}`);
-              report.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite artifacts.');
-            }
-          } finally {
-            db.close();
-          }
-        };
-        if (requireCodeDb) checkTables(sqlitePaths.codePath, 'code');
-        if (requireProseDb) checkTables(sqlitePaths.prosePath, 'prose');
-      }
-    }
-  }
+  const sqliteReport = await buildSqliteReport({
+    root,
+    userConfig,
+    indexRoot,
+    modes,
+    report,
+    sqliteEnabled: report.sqlite.enabled
+  });
 
   report.lmdb = lmdbReport;
   report.sqlite = sqliteReport;
