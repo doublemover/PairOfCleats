@@ -21,11 +21,12 @@ def add(a: int, b: int) -> int:
     return a + b
 `;
 
-const ast = await getPythonAst(sample, null, {
+const result = await getPythonAst(sample, null, {
   dataflow: true,
   controlFlow: true,
   pythonAst: { workerCount: 1, maxWorkers: 1, taskTimeoutMs: 5000 }
 });
+const ast = result?.ast ?? result;
 
 if (!ast || !Array.isArray(ast.defs)) {
   console.error('Python AST worker returned no defs.');

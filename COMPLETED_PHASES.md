@@ -10,8 +10,6 @@ Completed phase snapshots are archived here after being removed from GIGAROADMAP
 
 ---
 
-
-
 ## Phase 0 -- CI, Test Harness, and Developer Workflow Baseline [x]
 
 ### Objective
@@ -577,25 +575,19 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 - [x] Tighten artifact schemas where appropriate
   - At minimum:
     - top-level objects (`pieces/manifest.json`, `index_state.json`, `builds/current.json`, sharded meta sidecars) should not silently accept arbitrary fields unless explicitly allowed by extension policy
-
   - Where additional properties are required for forward compatibility:
     - enforce extension namespace rules rather than "anything goes"
-
 - [x] Make config schema validation robust even when `schema.properties` is missing
   - Current bug:
     - object validation path skips required/additionalProperties checks when `schema.properties` is absent
-
   - Required behavior:
     - enforce:
       - required keys
       - additionalProperties policy
       - type checks
-
     - regardless of presence of `schema.properties`
-
   - Files:
     - `src/config/validate.js`
-
 - [x] Eliminate CLI schema drift between option definitions and schemas
   - Ensure `INDEX_BUILD_SCHEMA` and `BENCH_SCHEMA` (and any other exported schemas) include every defined option
   - Decide + enforce unknown CLI option policy (warn vs error) consistently
@@ -607,10 +599,8 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 
 - [x] Add `tests/contracts/schema-registry-single-source.test.js`
   - Ensures build-time schema hash and validate-time schema registry are derived from the same objects
-
 - [x] Add `tests/contracts/n-minus-one-adapter.test.js`
   - Ensures N-1 payloads adapt or fail closed as intended
-
 - [x] Add `tests/config/validate-object-without-properties.test.js`
 - [x] Add `tests/cli/cli-options-schema-drift.test.js`
 - [x] Add `tests/contracts/additional-properties-policy.test.js`
@@ -635,13 +625,11 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
     - `src/index/validate.js`
     - `src/shared/artifact-io.js`
     - schema registry (`src/contracts/*` or existing `src/shared/artifact-schemas.js` until migrated)
-
 - [x] Harden `tools/index-validate.js` mode parsing
   - Unknown modes must be rejected early with a clear error message and a non-zero exit code
   - Must not crash due to undefined report entries
   - File:
     - `tools/index-validate.js`
-
 - [x] Add an explicit validation check for identity collision footguns relevant to upcoming graph work
   - Example: detect ambiguous `file::name` collisions early and report them deterministically
   - If full remediation is out of scope here:
@@ -673,14 +661,12 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
     - `src/integrations/core/index.js` (or wherever promotion is orchestrated)
     - `src/index/build/indexer/pipeline.js` if the gate belongs inside the pipeline
     - `src/index/build/promotion.js`
-
 - [x] Fix path traversal risk in promotion/current resolution
   - Promotion must refuse to write a `buildRoot` that resolves outside the repo cache root
   - Consumers must refuse to follow a `buildRoot` outside repo cache root
   - Files:
     - `src/index/build/promotion.js`
     - `tools/dict-utils.js` (e.g., `resolveIndexRoot`, `getCurrentBuildInfo`)
-
 - [x] Disambiguate `buildRoots` semantics in current.json
   - If the intent is "per mode":
     - keep `buildRootsByMode` only
@@ -715,7 +701,6 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
   - Files:
     - contract module (new): `src/contracts/compat/*` or similar
     - build emission: `src/index/build/indexer/steps/write.js`, `src/index/build/artifacts/checksums.js`, `src/index/build/promotion.js`
-
 - [x] Enforce compatibilityKey in consumers
   - Retrieval/index loading must detect mismatch and error (or refuse federation)
   - `assemble-pieces` / any bundling must ensure all combined indexes are compatible
@@ -763,7 +748,6 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 - [x] Add/extend `tests/artifact-formats.js` (if it is the canonical place for format coverage)
 
 ---
-
 
 ## Phase 1 -- P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
 
@@ -994,10 +978,6 @@ Eliminate known "silent correctness" failures and fragile invariants in the core
 
 ---
 
-
-
-
-
 # Phase 3 Plan -- Correctness Endgame (imports • signatures • watch • build state)
 
 Intent: complete Phase 3 with correctness-first sequencing. Parts 1-3 are core correctness work; Part 4 consolidates E/F and all P2 follow-ons. Any new behavior must ship with an initial doc/spec.
@@ -1144,7 +1124,6 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/shared/stable-json.js` (serializer)
   - Notes:
     - This is a correctness change (reproducibility + "explainability" of reuse), even if it increases invalidations.
-
 - [x] Spec integration: Signature canonicalization utilities + version bump (make hashing reproducible and explainable)
   - [x] Add a canonicalizer used **only** for signature-bearing hashes:
     - Implement `canonicalizeForSignature(value)` to convert non-JSON / order-unstable values into stable JSON-friendly forms:
@@ -1189,7 +1168,6 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/build/incremental.js` (manifest/state format markers)
   - Notes:
     - Bump a `signatureVersion` or `bundleFormat`/manifest marker and treat mismatches as "do not reuse."
-
 - [x] Add an "explain reuse decision" diagnostic path for incremental reuse failures (safe-by-default; useful in CI and field debugging).
   - Primary touchpoints:
     - `src/index/build/indexer/steps/incremental.js`

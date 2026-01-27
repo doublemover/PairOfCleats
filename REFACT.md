@@ -276,7 +276,7 @@ Tests potentially affected:
 Top-level:
 - `chunkSegmentsWithTreeSitterPasses` **25-114**
 - `validateChunkBounds` **115-136**
-- `sanitizeChunkBounds` **137-151**
+- `sanitizeChunkBou nds` **137-151**
 - `processFileCpu` **152-705**
 
 Refactor tasks:

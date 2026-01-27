@@ -24,7 +24,8 @@ const cachedBundle = {
       metaV2: { chunkId: 'c1', chunkUid: 'ck:cached-ts', virtualPath: 'cached.ts' }
     }
   ],
-  fileRelations: {}
+  fileRelations: {},
+  vfsManifestRows: []
 };
 
 const fileCaps = {
