@@ -191,7 +191,7 @@ This phase explicitly targets:
 
 ### Phase 6.5 -- Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
 
-- [ ] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
+- [x] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (symbol resolution / linking)
     - `src/index/build/indexer/steps/relations.js` (where cross-file inference is orchestrated)
@@ -201,14 +201,14 @@ This phase explicitly targets:
       - record bounded `targetCandidates` (or similar) and keep `targetChunkUid=null`
       - never silently drop the callsite edge
     - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 -- Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
-- [ ] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
+- [x] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (today uses `chunkByKey` keyed by `${file}::${name}`)
     - `src/index/build/graphs.js` (today uses `legacyKey = "${file}::${name}"`)
   - Requirements:
     - Maintain a non-unique secondary index by `(file,name)` only as a best-effort hint.
     - Where multiple candidates exist, propagate ambiguity rather than picking arbitrarily.
-- [ ] Update graph construction to prefer `call_sites` when available.
+- [x] Update graph construction to prefer `call_sites` when available.
   - Touchpoints:
     - `src/index/build/graphs.js`
     - artifact loading helpers (reader side), if graph build is performed after artifact load
@@ -225,11 +225,11 @@ This phase explicitly targets:
 
 #### Tests / Verification
 
-- [ ] Add a graph integration test that:
-  - [ ] builds a small fixture repo
-  - [ ] asserts the call graph edges exist using `call_sites` (preferred path)
-  - [ ] validates fallback behavior when `call_sites` is absent/disabled
-- [ ] Add a regression test that demonstrates `file::name` collisions do not corrupt graph joins (ambiguity is handled deterministically and visibly).
+- [x] Add a graph integration test that:
+  - [x] builds a small fixture repo
+  - [x] asserts the call graph edges exist using `call_sites` (preferred path)
+  - [x] validates fallback behavior when `call_sites` is absent/disabled
+- [x] Add a regression test that demonstrates `file::name` collisions do not corrupt graph joins (ambiguity is handled deterministically and visibly).
 
 ---
 

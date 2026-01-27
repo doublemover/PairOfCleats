@@ -6,14 +6,19 @@ const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
 
-const buildLegacyChunkKey = (chunk) => `${chunk.file}::${chunk.name}`;
+const buildLegacyChunkKey = (chunk) => {
+  if (!chunk?.file || !chunk?.name) return null;
+  return `${chunk.file}::${chunk.name}`;
+};
+const resolveChunkUid = (chunk) => chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
 
 const recordGraphSample = (guard, context) => {
   if (!guard || !context) return;
   if (guard.samples.length >= GRAPH_SAMPLE_LIMIT) return;
   guard.samples.push({
     file: context.file || null,
-    chunkId: context.chunkId || null
+    chunkId: context.chunkId || null,
+    chunkUid: context.chunkUid || null
   });
 };
 
@@ -75,7 +80,7 @@ const serializeGraph = (graph) => {
   };
 };
 
-export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) {
+export function buildRelationGraphs({ chunks = [], fileRelations = null, callSites = null } = {}) {
   const callGraph = new Graph({ type: 'directed' });
   const usageGraph = new Graph({ type: 'directed' });
   const importGraph = new Graph({ type: 'directed' });
@@ -83,24 +88,38 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
   const usageGuard = createGraphGuard('usageGraph');
   const importGuard = createGraphGuard('importGraph');
   const chunkById = new Map();
-  const chunkIdByKey = new Map();
+  const chunkByUid = new Map();
+  const nodeIdByChunkUid = new Map();
+  const legacyCandidates = new Map();
 
   for (const chunk of chunks) {
-    if (!chunk?.file || !chunk?.name) continue;
+    if (!chunk?.file) continue;
     const legacyKey = buildLegacyChunkKey(chunk);
     const chunkId = resolveChunkId(chunk);
-    const nodeId = chunkId || legacyKey;
+    const chunkUid = resolveChunkUid(chunk);
+    const nodeId = chunkUid || chunkId || legacyKey;
     if (!nodeId) continue;
     chunkById.set(nodeId, chunk);
-    if (legacyKey) {
-      chunkIdByKey.set(legacyKey, nodeId);
+    if (chunkUid) {
+      chunkByUid.set(chunkUid, chunk);
+      nodeIdByChunkUid.set(chunkUid, nodeId);
     }
-    const context = { file: chunk.file, chunkId: chunkId || chunk.metaV2?.chunkId || null };
+    if (legacyKey) {
+      const list = legacyCandidates.get(legacyKey) || new Set();
+      list.add(nodeId);
+      legacyCandidates.set(legacyKey, list);
+    }
+    const context = {
+      file: chunk.file,
+      chunkId: chunkId || chunk.metaV2?.chunkId || null,
+      chunkUid
+    };
     const attrs = {
       file: chunk.file,
       name: chunk.name,
       kind: chunk.kind || null,
       chunkId: chunkId || null,
+      chunkUid: chunkUid || null,
       legacyKey
     };
     mergeNode(callGraph, nodeId, attrs, callGuard, context);
@@ -110,7 +129,14 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
   const resolveNodeId = (file, name) => {
     if (!file || !name) return null;
     const legacyKey = `${file}::${name}`;
-    return chunkIdByKey.get(legacyKey) || legacyKey;
+    const candidates = legacyCandidates.get(legacyKey);
+    if (!candidates || candidates.size !== 1) return null;
+    return Array.from(candidates)[0];
+  };
+
+  const resolveNodeIdByChunkUid = (chunkUid) => {
+    if (!chunkUid) return null;
+    return nodeIdByChunkUid.get(chunkUid) || chunkUid;
   };
 
   const resolveNodeAttrs = (nodeId, fallback) => {
@@ -122,19 +148,46 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
       name: chunk.name,
       kind: chunk.kind || null,
       chunkId: resolveChunkId(chunk) || null,
+      chunkUid: resolveChunkUid(chunk) || null,
       legacyKey
     };
   };
 
+  const callSiteEdges = [];
+  if (Array.isArray(callSites) && callSites.length) {
+    for (const site of callSites) {
+      if (!site?.callerChunkUid || !site?.targetChunkUid) continue;
+      callSiteEdges.push({ source: site.callerChunkUid, target: site.targetChunkUid });
+    }
+  } else {
+    for (const chunk of chunks) {
+      const callerUid = resolveChunkUid(chunk);
+      if (!callerUid) continue;
+      const relations = chunk.codeRelations || {};
+      if (!Array.isArray(relations.callDetails)) continue;
+      for (const detail of relations.callDetails) {
+        if (!detail?.targetChunkUid) continue;
+        callSiteEdges.push({ source: callerUid, target: detail.targetChunkUid });
+      }
+    }
+  }
+
   for (const chunk of chunks) {
-    if (!chunk?.file || !chunk?.name) continue;
+    if (!chunk?.file) continue;
     const legacyKey = buildLegacyChunkKey(chunk);
-    const sourceKey = chunkIdByKey.get(legacyKey) || legacyKey;
-    const context = { file: chunk.file, chunkId: resolveChunkId(chunk) || null };
+    const sourceKey = resolveChunkUid(chunk) || resolveNodeId(chunk.file, chunk.name) || legacyKey;
+    if (!sourceKey) continue;
+    const context = {
+      file: chunk.file,
+      chunkId: resolveChunkId(chunk) || null,
+      chunkUid: resolveChunkUid(chunk) || null
+    };
     const relations = chunk.codeRelations || {};
-    if (Array.isArray(relations.callLinks)) {
+    if (!callSiteEdges.length && Array.isArray(relations.callLinks)) {
       for (const link of relations.callLinks) {
-        const targetKey = resolveNodeId(link?.file, link?.target);
+        const targetKey = link?.targetChunkUid
+          ? resolveNodeIdByChunkUid(link.targetChunkUid)
+          : resolveNodeId(link?.file, link?.target);
         if (!targetKey) continue;
         mergeNode(callGraph, targetKey, resolveNodeAttrs(targetKey, {
           file: link.file || null,
@@ -147,7 +200,9 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
     }
     if (Array.isArray(relations.usageLinks)) {
       for (const link of relations.usageLinks) {
-        const targetKey = resolveNodeId(link?.file, link?.target);
+        const targetKey = link?.targetChunkUid
+          ? resolveNodeIdByChunkUid(link.targetChunkUid)
+          : resolveNodeId(link?.file, link?.target);
         if (!targetKey) continue;
         mergeNode(usageGraph, targetKey, resolveNodeAttrs(targetKey, {
           file: link.file || null,
@@ -157,6 +212,27 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
         addDirectedEdge(usageGraph, sourceKey, targetKey, usageGuard, context);
         if (usageGuard.disabled) break;
       }
+    }
+  }
+
+  if (callSiteEdges.length) {
+    for (const edge of callSiteEdges) {
+      const sourceKey = resolveNodeIdByChunkUid(edge.source);
+      const targetKey = resolveNodeIdByChunkUid(edge.target);
+      if (!sourceKey || !targetKey) continue;
+      const sourceChunk = chunkByUid.get(edge.source) || null;
+      const context = {
+        file: sourceChunk?.file || null,
+        chunkId: resolveChunkId(sourceChunk) || null,
+        chunkUid: edge.source
+      };
+      mergeNode(callGraph, targetKey, resolveNodeAttrs(targetKey, {
+        file: null,
+        name: null,
+        kind: null
+      }), callGuard, context);
+      addDirectedEdge(callGraph, sourceKey, targetKey, callGuard, context);
+      if (callGuard.disabled) break;
     }
   }
 

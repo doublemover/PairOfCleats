@@ -49,20 +49,50 @@ export async function applyCrossFileInference({
   const entryByKey = new Map();
   const entryByUid = new Map();
   const chunkByKey = new Map();
+  const chunkByUid = new Map();
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
   const callSampleLimit = 25;
   const paramTypeLimit = 5;
   const callSampleCounts = new Map();
   const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
+  const resolveChunkByKey = (key) => {
+    const list = chunkByKey.get(key);
+    if (!list || list.length !== 1) return null;
+    return list[0];
+  };
+  const formatCandidate = (entry) => {
+    if (!entry) return null;
+    if (entry.chunkUid) return entry.chunkUid;
+    if (entry.file && entry.name) return `${entry.file}::${entry.name}`;
+    return null;
+  };
+  const resolveSymbolCandidates = (name) => {
+    if (!name) return { resolved: null, candidates: [] };
+    const direct = symbolIndex.get(name) || [];
+    if (direct.length === 1) return { resolved: direct[0], candidates: direct };
+    if (direct.length > 1) return { resolved: null, candidates: direct };
+    const leaf = leafName(name);
+    if (!leaf || leaf === name) return { resolved: null, candidates: [] };
+    const leafMatches = symbolIndex.get(leaf) || [];
+    if (leafMatches.length === 1) return { resolved: leafMatches[0], candidates: leafMatches };
+    if (leafMatches.length) return { resolved: null, candidates: leafMatches };
+    return { resolved: null, candidates: [] };
+  };
 
   for (const chunk of chunks) {
     if (!chunk?.name) continue;
-    chunkByKey.set(`${chunk.file}::${chunk.name}`, chunk);
+    const legacyKey = `${chunk.file}::${chunk.name}`;
+    const legacyList = chunkByKey.get(legacyKey) || [];
+    legacyList.push(chunk);
+    chunkByKey.set(legacyKey, legacyList);
+    const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
+    if (chunkUid) chunkByUid.set(chunkUid, chunk);
     const { paramNames, paramTypes } = extractParamTypes(chunk);
     const entry = {
       name: chunk.name,
       file: chunk.file,
       kind: chunk.kind || null,
+      chunkUid,
       returnTypes: extractReturnTypes(chunk),
       typeDeclaration: isTypeDeclaration(chunk.kind),
       paramNames,
@@ -70,8 +100,8 @@ export async function applyCrossFileInference({
     };
     symbolEntries.push(entry);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
-    if (chunk.chunkUid) {
-      entryByUid.set(chunk.chunkUid, entry);
+    if (chunkUid) {
+      entryByUid.set(chunkUid, entry);
     }
     addSymbol(symbolIndex, chunk.name, entry);
     const leaf = leafName(chunk.name);
@@ -140,7 +170,9 @@ export async function applyCrossFileInference({
           if (addInferredReturn(chunk.docmeta, typeName, FLOW_SOURCE, FLOW_CONFIDENCE)) {
             inferredReturns += 1;
           }
-          const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
+          const entry = chunk.chunkUid
+            ? entryByUid.get(chunk.chunkUid)
+            : entryByKey.get(`${chunk.file}::${chunk.name}`);
           if (entry) {
             entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
           }
@@ -214,7 +246,7 @@ export async function applyCrossFileInference({
 
     if (Array.isArray(relations.calls)) {
       for (const [, callee] of relations.calls) {
-        const resolved = resolveUniqueSymbol(symbolIndex, callee);
+        const { resolved } = resolveSymbolCandidates(callee);
         if (!resolved) continue;
         if (resolved.file === chunk.file && resolved.name === chunk.name) continue;
         const link = {
@@ -223,6 +255,7 @@ export async function applyCrossFileInference({
           file: resolved.file,
           kind: resolved.kind
         };
+        if (resolved.chunkUid) link.targetChunkUid = resolved.chunkUid;
         if (resolved.returnTypes?.length) link.returnTypes = resolved.returnTypes;
         if (resolved.paramNames?.length) link.paramNames = resolved.paramNames;
         if (resolved.paramTypes && Object.keys(resolved.paramTypes).length) link.paramTypes = resolved.paramTypes;
@@ -234,9 +267,15 @@ export async function applyCrossFileInference({
       for (const detail of relations.callDetails) {
         const callee = detail?.callee;
         if (!callee) continue;
-        const resolved = resolveUniqueSymbol(symbolIndex, callee);
+        const { resolved, candidates } = resolveSymbolCandidates(callee);
+        if (resolved && resolved.file === chunk.file && resolved.name === chunk.name) continue;
+        if (resolved?.chunkUid && !detail.targetChunkUid) {
+          detail.targetChunkUid = resolved.chunkUid;
+        } else if (!resolved?.chunkUid && !detail.targetChunkUid && Array.isArray(candidates) && candidates.length) {
+          const candidateIds = candidates.map(formatCandidate).filter(Boolean);
+          if (candidateIds.length) detail.targetCandidates = candidateIds;
+        }
         if (!resolved) continue;
-        if (resolved.file === chunk.file && resolved.name === chunk.name) continue;
         const args = Array.isArray(detail.args) ? detail.args : [];
         const summary = {
           name: callee,
@@ -245,6 +284,7 @@ export async function applyCrossFileInference({
           kind: resolved.kind,
           args
         };
+        if (resolved.chunkUid) summary.targetChunkUid = resolved.chunkUid;
         if (resolved.returnTypes?.length) summary.returnTypes = resolved.returnTypes;
         if (resolved.paramNames?.length) summary.params = resolved.paramNames;
         if (resolved.paramTypes && Object.keys(resolved.paramTypes).length) summary.paramTypes = resolved.paramTypes;
@@ -266,15 +306,17 @@ export async function applyCrossFileInference({
       : (Array.isArray(fileRelation?.usages) ? fileRelation.usages : null);
     if (Array.isArray(usageSource)) {
       for (const usage of usageSource) {
-        const resolved = resolveUniqueSymbol(symbolIndex, usage);
+        const { resolved } = resolveSymbolCandidates(usage);
         if (!resolved) continue;
         if (resolved.file === chunk.file && resolved.name === chunk.name) continue;
-        addLink(usageLinks, {
+        const link = {
           name: usage,
           target: resolved.name,
           file: resolved.file,
           kind: resolved.kind
-        });
+        };
+        if (resolved.chunkUid) link.targetChunkUid = resolved.chunkUid;
+        addLink(usageLinks, link);
       }
     }
 
@@ -294,11 +336,14 @@ export async function applyCrossFileInference({
     if (enableTypeInference && callSummaries.length) {
       for (const summary of callSummaries) {
         const calleeKey = `${summary.file}::${summary.target}`;
-        const calleeChunk = chunkByKey.get(calleeKey);
+        const calleeChunk = summary.targetChunkUid
+          ? chunkByUid.get(summary.targetChunkUid)
+          : resolveChunkByKey(calleeKey);
         if (!calleeChunk) continue;
-        const currentSamples = callSampleCounts.get(calleeKey) || 0;
+        const sampleKey = summary.targetChunkUid || calleeKey;
+        const currentSamples = callSampleCounts.get(sampleKey) || 0;
         if (currentSamples >= callSampleLimit) continue;
-        callSampleCounts.set(calleeKey, currentSamples + 1);
+        callSampleCounts.set(sampleKey, currentSamples + 1);
         const args = Array.isArray(summary.args) ? summary.args : [];
         const paramNames = Array.isArray(summary.params)
           ? summary.params
@@ -315,7 +360,9 @@ export async function applyCrossFileInference({
           const type = inferArgType(argValue);
           if (!type) continue;
           if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
-            const entry = entryByKey.get(calleeKey);
+            const entry = summary.targetChunkUid
+              ? entryByUid.get(summary.targetChunkUid)
+              : entryByKey.get(calleeKey);
             if (entry) {
               const existing = entry.paramTypes?.[name] || [];
               entry.paramTypes = entry.paramTypes || {};
@@ -330,7 +377,7 @@ export async function applyCrossFileInference({
       const chunkText = await getChunkText(chunk);
       const { calls: returnCalls } = extractReturnCalls(chunkText);
       for (const callName of returnCalls) {
-        const resolved = resolveUniqueSymbol(symbolIndex, callName);
+        const { resolved } = resolveSymbolCandidates(callName);
         if (!resolved || !resolved.returnTypes?.length) continue;
         const hopCount = resolved.file !== chunk.file ? 1 : 0;
         const confidence = confidenceForHop(hopCount);
@@ -347,7 +394,9 @@ export async function applyCrossFileInference({
       const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
       if (callerSources.length) {
         for (const link of callLinks) {
-          const calleeChunk = chunkByKey.get(`${link.file}::${link.target}`);
+          const calleeChunk = link.targetChunkUid
+            ? chunkByUid.get(link.targetChunkUid)
+            : resolveChunkByKey(`${link.file}::${link.target}`);
           const calleeRisk = calleeChunk?.docmeta?.risk;
           const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
           if (!calleeSinks.length) continue;

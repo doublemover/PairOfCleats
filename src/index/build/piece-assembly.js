@@ -102,6 +102,7 @@ const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
     denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
     fileRelations: await loadJsonArrayArtifact(dir, 'file_relations', { manifest, strict }).catch(() => null),
+    callSites: await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict }).catch(() => null),
     indexState: readJsonOptional(dir, 'index_state.json'),
     fileInfoByPath
   };
@@ -132,6 +133,7 @@ export async function assembleIndexPieces({
   const mergedDense = [];
   const mergedDenseDoc = [];
   const mergedDenseCode = [];
+  const mergedCallSites = [];
   let denseModel = null;
   let denseDims = 0;
   let denseScale = null;
@@ -177,6 +179,10 @@ export async function assembleIndexPieces({
     state.docLengths.push(...docLengths);
     for (const len of docLengths) {
       if (Number.isFinite(len)) state.totalTokens += len;
+    }
+
+    if (Array.isArray(input.callSites) && input.callSites.length) {
+      mergedCallSites.push(...input.callSites);
     }
 
     const vocab = Array.isArray(input.tokenPostings?.vocab) ? input.tokenPostings.vocab : [];
@@ -438,7 +444,11 @@ export async function assembleIndexPieces({
   }
   const timing = { start: Date.now() };
   const graphRelations = mode === 'code'
-    ? buildRelationGraphs({ chunks: state.chunks, fileRelations: state.fileRelations })
+    ? buildRelationGraphs({
+      chunks: state.chunks,
+      fileRelations: state.fileRelations,
+      callSites: mergedCallSites.length ? mergedCallSites : null
+    })
     : null;
   state.fileRelations = state.fileRelations || new Map();
   state.scannedFilesTimes = [];
