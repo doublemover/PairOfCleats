@@ -26,6 +26,7 @@ export async function writeBundleForFile({
   fileHash,
   fileChunks,
   fileRelations,
+  vfsManifestRows,
   fileEncoding = null,
   fileEncodingFallback = null,
   fileEncodingConfidence = null
@@ -38,6 +39,7 @@ export async function writeBundleForFile({
     fileHash,
     fileChunks,
     fileRelations,
+    vfsManifestRows,
     bundleFormat: incrementalState.bundleFormat,
     fileEncoding,
     fileEncodingFallback,

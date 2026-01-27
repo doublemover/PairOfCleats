@@ -1,88 +1,10 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { buildLineIndex } from '../../shared/lines.js';
-import { createLspClient, languageIdForFileExt, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
-import { rangeToOffsets } from '../../integrations/tooling/lsp/positions.js';
-import { flattenSymbols } from '../../integrations/tooling/lsp/symbols.js';
-import { createToolingEntry, createToolingGuard, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
-import { parseClikeSignature } from './signature-parse/clike.js';
+import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
+import { hashProviderConfig } from './provider-contract.js';
 
 export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
-
-const leafName = (value) => {
-  if (!value) return null;
-  const parts = String(value).split(/::|\./).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : value;
-};
-
-const normalizeHoverContents = (contents) => {
-  if (!contents) return '';
-  if (typeof contents === 'string') return contents;
-  if (Array.isArray(contents)) {
-    return contents.map((entry) => normalizeHoverContents(entry)).filter(Boolean).join('\n');
-  }
-  if (typeof contents === 'object') {
-    if (typeof contents.value === 'string') return contents.value;
-    if (typeof contents.language === 'string' && typeof contents.value === 'string') return contents.value;
-  }
-  return '';
-};
-
-const parseObjcSignature = (detail) => {
-  if (!detail || !detail.includes(':')) return null;
-  const signature = detail.trim();
-  const returnMatch = signature.match(/\(([^)]+)\)\s*[^:]+/);
-  const returnType = returnMatch ? returnMatch[1].trim() : null;
-  const paramTypes = {};
-  const paramNames = [];
-  const paramRe = /:\s*\(([^)]+)\)\s*([A-Za-z_][\w]*)/g;
-  let match;
-  while ((match = paramRe.exec(signature)) !== null) {
-    const type = match[1]?.trim();
-    const name = match[2]?.trim();
-    if (!type || !name) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  if (!returnType && !paramNames.length) return null;
-  return { signature, returnType, paramTypes, paramNames };
-};
-
-const parseSignature = (detail, languageId, symbolName) => {
-  if (!detail || typeof detail !== 'string') return null;
-  const trimmed = detail.trim();
-  if (!trimmed) return null;
-  if (languageId === 'objective-c' || languageId === 'objective-cpp') {
-    const objc = parseObjcSignature(trimmed);
-    if (objc) return objc;
-  }
-  return parseClikeSignature(trimmed, symbolName);
-};
-
-const findChunkForOffsets = (chunks, offsets, symbolName) => {
-  if (!offsets) return null;
-  const symbolLeaf = leafName(symbolName);
-  let best = null;
-  let bestRank = -1;
-  let bestSpan = Infinity;
-  for (const chunk of chunks || []) {
-    if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) continue;
-    const overlaps = offsets.end >= chunk.start && offsets.start <= chunk.end;
-    if (!overlaps) continue;
-    const contains = offsets.start >= chunk.start && offsets.end <= chunk.end;
-    const nameMatch = symbolLeaf && leafName(chunk.name) === symbolLeaf;
-    const span = chunk.end - chunk.start;
-    const rank = (contains ? 2 : 1) + (nameMatch ? 2 : 0);
-    if (rank > bestRank || (rank === bestRank && span < bestSpan)) {
-      best = chunk;
-      bestRank = rank;
-      bestSpan = span;
-    }
-  }
-  return best;
-};
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 
@@ -113,144 +35,153 @@ const resolveCommand = (cmd) => {
   return cmd;
 };
 
-export async function collectClangdTypes({
-  rootDir,
-  chunksByFile,
-  fileTextByFile = null,
-  log = () => {},
-  cmd = 'clangd',
-  args = [],
-  timeoutMs = 15000,
-  retries = 2,
-  breakerThreshold = 3
-}) {
-  const resolvedCmd = resolveCommand(cmd);
-  const useShell = shouldUseShell(resolvedCmd);
-  const files = Array.from(chunksByFile.keys());
-  if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
-
-  if (!canRunClangd(resolvedCmd)) {
-    log('[index] clangd not detected; skipping tooling-based types.');
-    return { typesByChunk: new Map(), enriched: 0 };
+const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
+  const candidates = [];
+  if (clangdConfig?.compileCommandsDir) {
+    const value = clangdConfig.compileCommandsDir;
+    candidates.push(path.isAbsolute(value) ? value : path.join(rootDir, value));
+  } else {
+    candidates.push(rootDir);
+    candidates.push(path.join(rootDir, 'build'));
+    candidates.push(path.join(rootDir, 'out'));
+    candidates.push(path.join(rootDir, 'cmake-build-debug'));
+    candidates.push(path.join(rootDir, 'cmake-build-release'));
   }
-
-  const client = createLspClient({ cmd: resolvedCmd, args, cwd: rootDir, log, shell: useShell });
-  const guard = createToolingGuard({
-    name: 'clangd',
-    timeoutMs,
-    retries,
-    breakerThreshold,
-    log
-  });
-  const rootUri = pathToFileUri(rootDir);
-  try {
-    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
-      rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
-      timeoutMs: guardTimeout
-    }), { label: 'initialize' });
-  } catch (err) {
-    log(`[index] clangd initialize failed: ${err?.message || err}`);
-    client.kill();
-    return { typesByChunk: new Map(), enriched: 0 };
+  for (const dir of candidates) {
+    const candidate = path.join(dir, 'compile_commands.json');
+    if (fsSync.existsSync(candidate)) return dir;
   }
+  return null;
+};
 
-  const typesByChunk = new Map();
-  let enriched = 0;
-  for (const file of files) {
-    const absPath = path.join(rootDir, file);
-    let text = typeof fileTextByFile?.get(file) === 'string' ? fileTextByFile.get(file) : null;
-    if (typeof text !== 'string') {
-      try {
-        text = await fs.readFile(absPath, 'utf8');
-      } catch {
-        continue;
-      }
-      if (fileTextByFile) fileTextByFile.set(file, text);
+const parseObjcSignature = (detail) => {
+  if (!detail || !detail.includes(':')) return null;
+  const signature = detail.trim();
+  const returnMatch = signature.match(/\(([^)]+)\)\s*[^:]+/);
+  const returnType = returnMatch ? returnMatch[1].trim() : null;
+  const paramTypes = {};
+  const paramNames = [];
+  const paramRe = /:\s*\(([^)]+)\)\s*([A-Za-z_][\w]*)/g;
+  let match;
+  while ((match = paramRe.exec(signature)) !== null) {
+    const type = match[1]?.trim();
+    const name = match[2]?.trim();
+    if (!type || !name) continue;
+    paramNames.push(name);
+    paramTypes[name] = type;
+  }
+  if (!returnType && !paramNames.length) return null;
+  return { signature, returnType, paramTypes, paramNames };
+};
+
+const parseClikeSignature = (detail, symbolName) => {
+  if (!detail || typeof detail !== 'string') return null;
+  const open = detail.indexOf('(');
+  const close = detail.lastIndexOf(')');
+  if (open === -1 || close === -1 || close < open) return null;
+  const signature = detail.trim();
+  const before = detail.slice(0, open).trim();
+  const paramsText = detail.slice(open + 1, close).trim();
+  let returnType = null;
+  if (before) {
+    let idx = -1;
+    if (symbolName) {
+      idx = before.lastIndexOf(symbolName);
+      if (idx === -1) idx = before.lastIndexOf(`::${symbolName}`);
+      if (idx !== -1 && before[idx] === ':' && before[idx - 1] === ':') idx -= 1;
     }
-    const uri = pathToFileUri(absPath);
-    const languageId = languageIdForFileExt(path.extname(file));
-    client.notify('textDocument/didOpen', {
-      textDocument: {
-        uri,
-        languageId,
-        version: 1,
-        text
-      }
+    returnType = idx > 0 ? before.slice(0, idx).trim() : before;
+    returnType = returnType.replace(/\b(static|inline|constexpr|virtual|extern|friend)\b/g, '').trim();
+  }
+  const paramTypes = {};
+  const paramNames = [];
+  const parts = paramsText.split(',');
+  for (const part of parts) {
+    const cleaned = part.trim();
+    if (!cleaned || cleaned === 'void' || cleaned === '...') continue;
+    const noDefault = cleaned.split('=').shift().trim();
+    const nameMatch = noDefault.match(/([A-Za-z_][\w]*)\s*(?:\[[^\]]*\])?$/);
+    if (!nameMatch) continue;
+    const name = nameMatch[1];
+    const type = noDefault.slice(0, nameMatch.index).trim();
+    if (!name || !type) continue;
+    paramNames.push(name);
+    paramTypes[name] = type;
+  }
+  return { signature, returnType, paramTypes, paramNames };
+};
+
+const parseSignature = (detail, languageId, symbolName) => {
+  if (!detail || typeof detail !== 'string') return null;
+  const trimmed = detail.trim();
+  if (!trimmed) return null;
+  if (languageId === 'objective-c' || languageId === 'objective-cpp') {
+    const objc = parseObjcSignature(trimmed);
+    if (objc) return objc;
+  }
+  return parseClikeSignature(trimmed, symbolName);
+};
+
+export const createClangdProvider = () => ({
+  id: 'clangd',
+  version: '2.0.0',
+  label: 'clangd',
+  priority: 20,
+  languages: ['c', 'cpp', 'objective-c', 'objective-cpp'],
+  kinds: ['types'],
+  requires: { cmd: 'clangd' },
+  capabilities: {
+    supportsVirtualDocuments: true,
+    supportsSegmentRouting: true,
+    supportsJavaScript: false,
+    supportsTypeScript: false,
+    supportsSymbolRef: false
+  },
+  getConfigHash(ctx) {
+    return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {} });
+  },
+  async run(ctx, inputs) {
+    const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+    const docs = Array.isArray(inputs?.documents)
+      ? inputs.documents.filter((doc) => CLIKE_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
+      : [];
+    const targets = Array.isArray(inputs?.targets)
+      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
+      : [];
+    if (!docs.length || !targets.length) {
+      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    }
+    const clangdConfig = ctx?.toolingConfig?.clangd || {};
+    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
+    if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
+      log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
+      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    }
+    const resolvedCmd = resolveCommand('clangd');
+    if (!canRunClangd(resolvedCmd)) {
+      log('[index] clangd not detected; skipping tooling-based types.');
+      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    }
+    const clangdArgs = [];
+    if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+    const result = await collectLspTypes({
+      rootDir: ctx.repoRoot,
+      documents: docs,
+      targets,
+      log,
+      cmd: resolvedCmd,
+      args: clangdArgs,
+      timeoutMs: ctx?.toolingConfig?.timeoutMs || 15000,
+      retries: ctx?.toolingConfig?.maxRetries ?? 2,
+      breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
+      parseSignature,
+      strict: ctx?.strict !== false,
+      vfsRoot: ctx?.buildRoot || ctx.repoRoot
     });
-
-    let symbols = null;
-    try {
-      symbols = await guard.run(
-        ({ timeoutMs: guardTimeout }) => client.request(
-          'textDocument/documentSymbol',
-          { textDocument: { uri } },
-          { timeoutMs: guardTimeout }
-        ),
-        { label: 'documentSymbol' }
-      );
-    } catch (err) {
-      log(`[index] clangd documentSymbol failed (${file}): ${err?.message || err}`);
-      client.notify('textDocument/didClose', { textDocument: { uri } });
-      if (guard.isOpen()) break;
-      continue;
-    }
-
-    const flattened = flattenSymbols(symbols || []);
-    if (!flattened.length) {
-      client.notify('textDocument/didClose', { textDocument: { uri } });
-      continue;
-    }
-
-    const lineIndex = buildLineIndex(text);
-    const fileChunks = chunksByFile.get(file) || [];
-
-    for (const symbol of flattened) {
-      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
-      const target = findChunkForOffsets(fileChunks, offsets, symbol.name);
-      if (!target) continue;
-      let info = parseSignature(symbol.detail, languageId, symbol.name);
-      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
-      if (!info || !info.returnType || !hasParamTypes) {
-        try {
-          const hover = await guard.run(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
-              textDocument: { uri },
-              position: symbol.selectionRange?.start || symbol.range?.start
-            }, { timeoutMs: guardTimeout }),
-            { label: 'hover', timeoutOverride: 8000 }
-          );
-          const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = parseSignature(hoverText, languageId, symbol.name);
-          if (hoverInfo) info = hoverInfo;
-        } catch {}
-      }
-      if (!info) continue;
-
-      const key = `${target.file}::${target.name}`;
-      const entry = typesByChunk.get(key) || createToolingEntry();
-      if (info.signature && !entry.signature) entry.signature = info.signature;
-      if (info.paramNames?.length && (!entry.paramNames || !entry.paramNames.length)) {
-        entry.paramNames = info.paramNames.slice();
-      }
-      if (info.returnType) {
-        entry.returns = uniqueTypes([...(entry.returns || []), info.returnType]);
-      }
-      if (info.paramTypes && Object.keys(info.paramTypes).length) {
-        for (const [name, type] of Object.entries(info.paramTypes)) {
-          if (!name || !type) continue;
-          const existing = entry.params?.[name] || [];
-          entry.params[name] = uniqueTypes([...(existing || []), type]);
-        }
-      }
-      typesByChunk.set(key, entry);
-      enriched += 1;
-    }
-
-    client.notify('textDocument/didClose', { textDocument: { uri } });
+    return {
+      provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      byChunkUid: result.byChunkUid,
+      diagnostics: result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null
+    };
   }
-
-  await client.shutdownAndExit();
-  client.kill();
-  return { typesByChunk, enriched };
-}
+});

@@ -458,6 +458,7 @@ export function createFileProcessor(options) {
     fileLanguageId = cpuResult?.fileLanguageId ?? fileLanguageId;
     fileLineCount = cpuResult?.fileLineCount ?? fileLineCount;
     const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
+    const vfsManifestRows = cpuResult?.vfsManifestRows || null;
     if (skip) {
       const { reason, ...extra } = skip;
       recordSkip(abs, reason || 'oversize', extra);
@@ -488,6 +489,7 @@ export function createFileProcessor(options) {
       fileHash,
       fileChunks,
       fileRelations,
+      vfsManifestRows,
       fileEncoding: fileEncoding || null,
       fileEncodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
       fileEncodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
@@ -516,6 +518,7 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      vfsManifestRows,
       fileInfo,
       manifestEntry,
       fileMetrics

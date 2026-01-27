@@ -575,5 +575,12 @@ export const processFileCpu = async (context) => {
     return chunkResult;
   }
 
-  return { chunks: chunkResult.chunks, fileRelations, skip: null, fileLanguageId, fileLineCount };
+  return {
+    chunks: chunkResult.chunks,
+    fileRelations,
+    vfsManifestRows: chunkResult.vfsManifestRows || null,
+    skip: null,
+    fileLanguageId,
+    fileLineCount
+  };
 };

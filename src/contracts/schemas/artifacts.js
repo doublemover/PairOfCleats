@@ -327,10 +327,66 @@ const callSiteEntry = {
   additionalProperties: true
 };
 
+const vfsManifestRow = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'virtualPath',
+    'docHash',
+    'containerPath',
+    'containerExt',
+    'containerLanguageId',
+    'languageId',
+    'effectiveExt',
+    'segmentUid',
+    'segmentStart',
+    'segmentEnd'
+  ],
+  properties: {
+    schemaVersion: { type: 'string' },
+    virtualPath: { type: 'string' },
+    docHash: { type: 'string' },
+    containerPath: { type: 'string' },
+    containerExt: nullableString,
+    containerLanguageId: nullableString,
+    languageId: { type: 'string' },
+    effectiveExt: { type: 'string' },
+    segmentUid: nullableString,
+    segmentId: nullableString,
+    segmentStart: intId,
+    segmentEnd: intId,
+    lineStart: nullableInt,
+    lineEnd: nullableInt,
+    extensions: { type: 'object' }
+  },
+  additionalProperties: false
+};
+
+const chunkUidMapRow = {
+  type: 'object',
+  required: ['docId', 'chunkUid', 'chunkId', 'file', 'start', 'end'],
+  properties: {
+    docId: intId,
+    chunkUid: { type: 'string' },
+    chunkId: { type: 'string' },
+    file: { type: 'string' },
+    segmentUid: nullableString,
+    segmentId: nullableString,
+    start: intId,
+    end: intId,
+    extensions: { type: 'object' }
+  },
+  additionalProperties: false
+};
+
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
     type: 'array',
     items: chunkMetaEntry
+  },
+  chunk_uid_map: {
+    type: 'array',
+    items: chunkUidMapRow
   },
   file_meta: {
     type: 'array',
@@ -608,6 +664,8 @@ export const ARTIFACT_SCHEMA_DEFS = {
   },
   import_resolution_graph: importResolutionGraphSchema,
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
+  chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
+  vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
   call_sites_meta: buildShardedJsonlMeta('call_sites'),
   repo_map_meta: buildShardedJsonlMeta('repo_map'),

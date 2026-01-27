@@ -35,6 +35,7 @@ import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
 import {
   validateChunkIds,
+  validateChunkIdentity,
   validateFileNameCollisions,
   validateMetaV2Equivalence,
   validateMetaV2Types,
@@ -170,6 +171,7 @@ export async function validateIndexArtifacts(input = {}) {
       }
       validateChunkIds(report, mode, chunkMeta);
       if (strict) {
+        validateChunkIdentity(report, mode, chunkMeta);
         validateMetaV2Types(report, mode, chunkMeta);
         validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
           if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {

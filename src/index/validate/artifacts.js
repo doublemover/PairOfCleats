@@ -11,6 +11,8 @@ export const buildArtifactLists = (userConfig, postingsConfig) => {
     'call_sites',
     'graph_relations',
     'file_meta',
+    'chunk_uid_map',
+    'vfs_manifest',
     'repo_map',
     'filter_index',
     'field_postings',

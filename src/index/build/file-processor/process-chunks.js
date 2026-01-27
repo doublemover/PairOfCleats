@@ -6,6 +6,7 @@ import { inferTypeMetadata } from '../../type-inference.js';
 import { getChunkAuthorsFromLines } from '../../git.js';
 import { isJsLike } from '../../constants.js';
 import { offsetToLine } from '../../../shared/lines.js';
+import { assignChunkUids } from '../../identity/chunk-uid.js';
 import { buildTokenSequence, createTokenizationBuffers, tokenizeChunkText } from '../tokenization.js';
 import { assignCommentsToChunks, getStructuralMatchesForChunk } from './chunk.js';
 import { buildChunkPayload } from './assemble.js';
@@ -14,6 +15,7 @@ import { formatError, mergeFlowMeta } from './meta.js';
 import { truncateByBytes } from './read.js';
 import { createLineReader, stripCommentText } from './utils.js';
 import { resolveSegmentTokenMode } from '../../segments/config.js';
+import { buildVfsManifestRowsForFile } from '../../tooling/vfs.js';
 
 const assignSpanIndexes = (chunks) => {
   if (!Array.isArray(chunks) || chunks.length < 2) return;
@@ -135,6 +137,31 @@ export const processChunks = async (context) => {
     return { startLine, endLine };
   });
   assignSpanIndexes(sc);
+  const strictIdentity = analysisPolicy?.identity?.strict !== false;
+  let vfsManifestRows = null;
+  try {
+    await assignChunkUids({
+      chunks: sc,
+      fileText: text,
+      fileRelPath: relKey,
+      namespaceKey: 'repo',
+      strict: strictIdentity,
+      log
+    });
+    vfsManifestRows = await buildVfsManifestRowsForFile({
+      chunks: sc,
+      fileText: text,
+      containerPath: relKey,
+      containerExt,
+      containerLanguageId,
+      lineIndex,
+      strict: strictIdentity,
+      log
+    });
+  } catch (err) {
+    if (failFile) return failFile('identity', 'chunk-uid', err);
+    throw err;
+  }
   const commentAssignments = assignCommentsToChunks(commentEntries, sc);
   const commentRangeAssignments = assignCommentsToChunks(commentRanges, sc);
   const chunks = [];
@@ -621,5 +648,5 @@ export const processChunks = async (context) => {
   });
   addEmbeddingDuration(embeddingResult.embeddingMs);
 
-  return { chunks };
+  return { chunks, vfsManifestRows };
 };

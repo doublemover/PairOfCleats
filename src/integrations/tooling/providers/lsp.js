@@ -4,35 +4,8 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';
-import { createToolingEntry, createToolingGuard, uniqueTypes } from './shared.js';
-
-const splitParams = (value) => {
-  if (!value) return [];
-  const params = [];
-  let current = '';
-  let depthAngle = 0;
-  let depthParen = 0;
-  let depthBracket = 0;
-  let depthBrace = 0;
-  for (const ch of value) {
-    if (ch === '<') depthAngle += 1;
-    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
-    if (ch === '(') depthParen += 1;
-    if (ch === ')' && depthParen > 0) depthParen -= 1;
-    if (ch === '[') depthBracket += 1;
-    if (ch === ']' && depthBracket > 0) depthBracket -= 1;
-    if (ch === '{') depthBrace += 1;
-    if (ch === '}' && depthBrace > 0) depthBrace -= 1;
-    if (ch === ',' && depthAngle === 0 && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
-      if (current.trim()) params.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) params.push(current.trim());
-  return params;
-};
+import { createToolingGuard } from './shared.js';
+import { resolveVfsDiskPath } from '../../../index/tooling/vfs.js';
 
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
@@ -47,135 +20,132 @@ const normalizeHoverContents = (contents) => {
   return '';
 };
 
-const extractSwiftSignature = (detail) => {
-  const open = detail.indexOf('(');
-  const close = detail.lastIndexOf(')');
-  if (open === -1 || close === -1 || close < open) return null;
-  const signature = detail.trim();
-  const paramsText = detail.slice(open + 1, close).trim();
-  const after = detail.slice(close + 1).trim();
-  const arrowMatch = after.match(/->\s*(.+)$/);
-  const returnType = arrowMatch ? arrowMatch[1].trim() : null;
-  const paramTypes = {};
-  const paramNames = [];
-  for (const part of splitParams(paramsText)) {
-    const cleaned = part.replace(/=.*/g, '').trim();
-    if (!cleaned) continue;
-    const segments = cleaned.split(':');
-    if (segments.length < 2) continue;
-    const nameTokens = segments[0].trim().split(/\s+/).filter(Boolean);
-    let name = nameTokens[nameTokens.length - 1] || '';
-    if (name === '_' && nameTokens.length > 1) {
-      name = nameTokens[nameTokens.length - 2] || '';
+const normalizeTypeText = (value) => {
+  if (!value) return null;
+  return String(value).replace(/\s+/g, ' ').trim() || null;
+};
+
+const normalizeParamTypes = (paramTypes) => {
+  if (!paramTypes || typeof paramTypes !== 'object') return null;
+  const output = {};
+  for (const [name, entries] of Object.entries(paramTypes)) {
+    if (!name) continue;
+    if (Array.isArray(entries)) {
+      const normalized = entries
+        .map((entry) => (typeof entry === 'string' ? { type: entry } : entry))
+        .filter((entry) => entry?.type)
+        .map((entry) => ({
+          type: normalizeTypeText(entry.type),
+          confidence: Number.isFinite(entry.confidence) ? entry.confidence : 0.7,
+          source: entry.source || 'tooling'
+        }))
+        .filter((entry) => entry.type);
+      if (normalized.length) output[name] = normalized;
+      continue;
     }
-    const type = segments.slice(1).join(':').trim();
-    if (!name || !type) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  return { signature, returnType, paramTypes, paramNames };
-};
-
-const extractObjcSignature = (detail) => {
-  if (!detail.includes(':')) return null;
-  const signature = detail.trim();
-  const returnMatch = signature.match(/\(([^)]+)\)\s*[^:]+/);
-  const returnType = returnMatch ? returnMatch[1].trim() : null;
-  const paramTypes = {};
-  const paramNames = [];
-  const paramRe = /:\s*\(([^)]+)\)\s*([A-Za-z_][\w]*)/g;
-  let match;
-  while ((match = paramRe.exec(signature)) !== null) {
-    const type = match[1]?.trim();
-    const name = match[2]?.trim();
-    if (!type || !name) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  if (!returnType && !paramNames.length) return null;
-  return { signature, returnType, paramTypes, paramNames };
-};
-
-const extractClikeSignature = (detail, symbolName) => {
-  const open = detail.indexOf('(');
-  const close = detail.lastIndexOf(')');
-  if (open === -1 || close === -1 || close < open) return null;
-  const signature = detail.trim();
-  const before = detail.slice(0, open).trim();
-  const paramsText = detail.slice(open + 1, close).trim();
-  let returnType = null;
-  if (before) {
-    let idx = -1;
-    if (symbolName) {
-      idx = before.lastIndexOf(symbolName);
-      if (idx === -1) idx = before.lastIndexOf(`::${symbolName}`);
-      if (idx !== -1 && before[idx] === ':' && before[idx - 1] === ':') idx -= 1;
+    if (typeof entries === 'string') {
+      const type = normalizeTypeText(entries);
+      if (type) output[name] = [{ type, confidence: 0.7, source: 'tooling' }];
     }
-    returnType = idx > 0 ? before.slice(0, idx).trim() : before;
-    returnType = returnType.replace(/\b(static|inline|constexpr|virtual|extern|friend)\b/g, '').trim();
   }
-  const paramTypes = {};
-  const paramNames = [];
-  for (const part of splitParams(paramsText)) {
-    const cleaned = part.trim();
-    if (!cleaned || cleaned === 'void' || cleaned === '...') continue;
-    const noDefault = cleaned.split('=').shift().trim();
-    const nameMatch = noDefault.match(/([A-Za-z_][\w]*)\s*(?:\[[^\]]*\])?$/);
-    if (!nameMatch) continue;
-    const name = nameMatch[1];
-    const type = noDefault.slice(0, nameMatch.index).trim();
-    if (!name || !type) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  return { signature, returnType, paramTypes, paramNames };
+  return Object.keys(output).length ? output : null;
 };
 
-const extractSignatureInfo = (detail, languageId, symbolName) => {
-  if (!detail || typeof detail !== 'string') return null;
-  const trimmed = detail.trim();
-  if (!trimmed) return null;
-  if (languageId === 'swift') return extractSwiftSignature(trimmed);
-  if (languageId === 'objective-c' || languageId === 'objective-cpp') {
-    const objc = extractObjcSignature(trimmed);
-    if (objc) return objc;
-  }
-  if (languageId === 'c' || languageId === 'cpp' || languageId === 'objective-c' || languageId === 'objective-cpp') {
-    return extractClikeSignature(trimmed, symbolName);
-  }
-  return null;
-};
-
-const findChunkForOffsets = (chunks, start, end) => {
+const findTargetForOffsets = (targets, offsets, nameHint = null) => {
+  if (!offsets) return null;
   let best = null;
+  let bestRank = -1;
   let bestSpan = Infinity;
-  for (const chunk of chunks || []) {
-    if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) continue;
-    if (start >= chunk.start && end <= chunk.end) {
-      const span = chunk.end - chunk.start;
-      if (span < bestSpan) {
-        best = chunk;
-        bestSpan = span;
-      }
+  for (const target of targets || []) {
+    const range = target?.virtualRange || null;
+    if (!range) continue;
+    if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) continue;
+    const overlaps = offsets.end >= range.start && offsets.start <= range.end;
+    if (!overlaps) continue;
+    const contains = offsets.start >= range.start && offsets.end <= range.end;
+    const nameMatch = nameHint && target?.symbolHint?.name === nameHint;
+    const span = range.end - range.start;
+    const rank = (contains ? 2 : 1) + (nameMatch ? 2 : 0);
+    if (rank > bestRank || (rank === bestRank && span < bestSpan)) {
+      best = target;
+      bestRank = rank;
+      bestSpan = span;
     }
   }
   return best;
 };
 
+const ensureVirtualFile = async (rootDir, doc) => {
+  const absPath = resolveVfsDiskPath({ baseDir: rootDir, virtualPath: doc.virtualPath });
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, doc.text || '', 'utf8');
+  return absPath;
+};
+
+const normalizeUriScheme = (value) => (value === 'poc-vfs' ? 'poc-vfs' : 'file');
+
+const buildVfsUri = (virtualPath) => {
+  const encoded = String(virtualPath || '')
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
+  return `poc-vfs:///${encoded}`;
+};
+
+const resolveDocumentUri = async ({ rootDir, doc, uriScheme }) => {
+  if (uriScheme === 'poc-vfs') return buildVfsUri(doc.virtualPath);
+  const absPath = await ensureVirtualFile(rootDir, doc);
+  return pathToFileUri(absPath);
+};
+
 export async function collectLspTypes({
   rootDir,
-  chunksByFile,
-  log,
+  documents,
+  targets,
+  log = () => {},
   cmd,
   args,
   timeoutMs = 15000,
   retries = 2,
-  breakerThreshold = 3
+  breakerThreshold = 3,
+  parseSignature,
+  strict = true,
+  vfsRoot = null,
+  uriScheme = 'file',
+  captureDiagnostics = false
 }) {
-  const files = Array.from(chunksByFile.keys());
-  if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
+  const docs = Array.isArray(documents) ? documents : [];
+  const targetList = Array.isArray(targets) ? targets : [];
+  if (!docs.length || !targetList.length) {
+    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+  }
 
-  const client = createLspClient({ cmd, args, cwd: rootDir, log });
+  const resolvedRoot = vfsRoot || rootDir;
+  const resolvedScheme = normalizeUriScheme(uriScheme);
+  const targetsByPath = new Map();
+  for (const target of targetList) {
+    const chunkRef = target?.chunkRef || target?.chunk || null;
+    if (!target?.virtualPath || !chunkRef?.chunkUid) continue;
+    const list = targetsByPath.get(target.virtualPath) || [];
+    list.push({ ...target, chunkRef });
+    targetsByPath.set(target.virtualPath, list);
+  }
+
+  const diagnosticsByUri = new Map();
+  const client = createLspClient({
+    cmd,
+    args,
+    cwd: rootDir,
+    log,
+    onNotification: (msg) => {
+      if (!captureDiagnostics) return;
+      if (msg?.method !== 'textDocument/publishDiagnostics') return;
+      const uri = msg?.params?.uri;
+      const diagnostics = msg?.params?.diagnostics;
+      if (!uri || !Array.isArray(diagnostics)) return;
+      diagnosticsByUri.set(uri, diagnostics);
+    }
+  });
   const guard = createToolingGuard({
     name: cmd,
     timeoutMs,
@@ -183,6 +153,7 @@ export async function collectLspTypes({
     breakerThreshold,
     log
   });
+
   const rootUri = pathToFileUri(rootDir);
   try {
     await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
@@ -193,29 +164,26 @@ export async function collectLspTypes({
   } catch (err) {
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
-    return { typesByChunk: new Map(), enriched: 0 };
+    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
   }
 
-  const typesByChunk = new Map();
+  const byChunkUid = {};
   let enriched = 0;
-  for (const file of files) {
-    const absPath = path.join(rootDir, file);
-    let text = '';
-    try {
-      text = await fs.readFile(absPath, 'utf8');
-    } catch {
-      continue;
+  const openDocs = new Map();
+  for (const doc of docs) {
+    const uri = await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme });
+    const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
+    if (!openDocs.has(doc.virtualPath)) {
+      client.notify('textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId,
+          version: 1,
+          text: doc.text || ''
+        }
+      });
+      openDocs.set(doc.virtualPath, { uri, lineIndex: buildLineIndex(doc.text || '') });
     }
-    const uri = pathToFileUri(absPath);
-    const languageId = languageIdForFileExt(path.extname(file));
-    client.notify('textDocument/didOpen', {
-      textDocument: {
-        uri,
-        languageId,
-        version: 1,
-        text
-      }
-    });
 
     let symbols = null;
     try {
@@ -228,26 +196,28 @@ export async function collectLspTypes({
         { label: 'documentSymbol' }
       );
     } catch (err) {
-      log(`[index] ${cmd} documentSymbol failed (${file}): ${err?.message || err}`);
+      log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
       client.notify('textDocument/didClose', { textDocument: { uri } });
       if (guard.isOpen()) break;
       continue;
     }
+
     const flattened = flattenSymbols(symbols || []);
     if (!flattened.length) {
       client.notify('textDocument/didClose', { textDocument: { uri } });
       continue;
     }
 
-    const lineIndex = buildLineIndex(text);
-    const fileChunks = chunksByFile.get(file) || [];
+    const lineIndex = openDocs.get(doc.virtualPath)?.lineIndex || buildLineIndex(doc.text || '');
+    const docTargets = targetsByPath.get(doc.virtualPath) || [];
 
     for (const symbol of flattened) {
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
-      const target = findChunkForOffsets(fileChunks, offsets.start, offsets.end);
+      const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
-      let info = extractSignatureInfo(symbol.detail, languageId, symbol.name);
-      if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
+      let info = parseSignature ? parseSignature(symbol.detail || symbol.name, doc.languageId, symbol.name) : null;
+      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
+      if (!info || (!info.returnType && !hasParamTypes)) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
@@ -257,34 +227,62 @@ export async function collectLspTypes({
             { label: 'hover', timeoutOverride: 8000 }
           );
           const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = extractSignatureInfo(hoverText, languageId, symbol.name);
+          const hoverInfo = parseSignature ? parseSignature(hoverText, doc.languageId, symbol.name) : null;
           if (hoverInfo) info = hoverInfo;
         } catch {}
       }
       if (!info) continue;
 
-      const key = `${target.file}::${target.name}`;
-      const entry = typesByChunk.get(key) || createToolingEntry();
-      if (info.signature && !entry.signature) entry.signature = info.signature;
-      if (info.paramNames?.length && (!entry.paramNames || !entry.paramNames.length)) {
-        entry.paramNames = info.paramNames.slice();
+      const chunkUid = target.chunkRef?.chunkUid;
+      if (!chunkUid) {
+        if (strict) throw new Error('LSP output missing chunkUid.');
+        continue;
       }
-      if (info.returnType) entry.returns = uniqueTypes([...(entry.returns || []), info.returnType]);
-      if (info.paramTypes && Object.keys(info.paramTypes).length) {
-        for (const [name, type] of Object.entries(info.paramTypes)) {
-          if (!name || !type) continue;
-          const existing = entry.params?.[name] || [];
-          entry.params[name] = uniqueTypes([...(existing || []), type]);
+      byChunkUid[chunkUid] = {
+        chunk: target.chunkRef,
+        payload: {
+          returnType: normalizeTypeText(info.returnType),
+          paramTypes: normalizeParamTypes(info.paramTypes),
+          signature: normalizeTypeText(info.signature)
+        },
+        provenance: {
+          provider: cmd,
+          version: '1.0.0',
+          collectedAt: new Date().toISOString()
         }
-      }
-      typesByChunk.set(key, entry);
+      };
       enriched += 1;
     }
 
     client.notify('textDocument/didClose', { textDocument: { uri } });
   }
 
+  const diagnosticsByChunkUid = {};
+  let diagnosticsCount = 0;
+  if (captureDiagnostics && diagnosticsByUri.size) {
+    for (const doc of docs) {
+      const fallbackUri = resolvedScheme === 'poc-vfs'
+        ? buildVfsUri(doc.virtualPath)
+        : pathToFileUri(resolveVfsDiskPath({ baseDir: resolvedRoot, virtualPath: doc.virtualPath }));
+      const uri = openDocs.get(doc.virtualPath)?.uri || fallbackUri;
+      const diagnostics = diagnosticsByUri.get(uri) || [];
+      if (!diagnostics.length) continue;
+      const lineIndex = buildLineIndex(doc.text || '');
+      const docTargets = targetsByPath.get(doc.virtualPath) || [];
+      for (const diag of diagnostics) {
+        const offsets = rangeToOffsets(lineIndex, diag.range);
+        const target = findTargetForOffsets(docTargets, offsets);
+        if (!target?.chunkRef?.chunkUid) continue;
+        const chunkUid = target.chunkRef.chunkUid;
+        const existing = diagnosticsByChunkUid[chunkUid] || [];
+        existing.push(diag);
+        diagnosticsByChunkUid[chunkUid] = existing;
+        diagnosticsCount += 1;
+      }
+    }
+  }
+
   await client.shutdownAndExit();
   client.kill();
-  return { typesByChunk, enriched };
+  return { byChunkUid, diagnosticsByChunkUid, enriched, diagnosticsCount };
 }

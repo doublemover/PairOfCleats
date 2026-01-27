@@ -58,6 +58,41 @@ export const validateChunkIds = (report, mode, chunkMeta) => {
   }
 };
 
+export const validateChunkIdentity = (report, mode, chunkMeta) => {
+  const maxErrors = 20;
+  let errors = 0;
+  const seenUids = new Set();
+  for (const entry of Array.isArray(chunkMeta) ? chunkMeta : []) {
+    if (errors >= maxErrors) return;
+    if (!entry) continue;
+    const meta = entry.metaV2 || {};
+    const chunkUid = meta.chunkUid || entry.chunkUid;
+    const virtualPath = meta.virtualPath || entry.virtualPath || meta.segment?.virtualPath || entry.segment?.virtualPath;
+    if (!chunkUid) {
+      addIssue(report, mode, 'chunk_meta missing chunkUid', 'Rebuild index artifacts for this mode.');
+      errors += 1;
+      continue;
+    }
+    if (!virtualPath) {
+      addIssue(report, mode, `chunk_meta missing virtualPath (chunkUid=${chunkUid})`, 'Rebuild index artifacts for this mode.');
+      errors += 1;
+      continue;
+    }
+    const segment = meta.segment || entry.segment || null;
+    if (segment && !segment.segmentUid) {
+      addIssue(report, mode, `chunk_meta missing segmentUid (chunkUid=${chunkUid})`, 'Rebuild index artifacts for this mode.');
+      errors += 1;
+      continue;
+    }
+    if (seenUids.has(chunkUid)) {
+      addIssue(report, mode, `chunk_meta duplicate chunkUid (${chunkUid})`, 'Rebuild index artifacts for this mode.');
+      errors += 1;
+      continue;
+    }
+    seenUids.add(chunkUid);
+  }
+};
+
 export const validateFileNameCollisions = (report, mode, repoMap) => {
   const seen = new Set();
   for (const entry of Array.isArray(repoMap) ? repoMap : []) {

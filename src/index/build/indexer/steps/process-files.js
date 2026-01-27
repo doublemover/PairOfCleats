@@ -91,6 +91,10 @@ export const processFiles = async ({
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
+      if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
+        if (!stateRef.vfsManifestRows) stateRef.vfsManifestRows = [];
+        stateRef.vfsManifestRows.push(...result.vfsManifestRows);
+      }
     },
     state
   );

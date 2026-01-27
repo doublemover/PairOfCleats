@@ -1,0 +1,299 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { sha1 } from '../../shared/hash.js';
+import { selectToolingProviders } from './provider-registry.js';
+import { normalizeProviderId } from './provider-contract.js';
+
+const mapFromRecord = (record) => {
+  if (record instanceof Map) return record;
+  const output = new Map();
+  for (const [key, value] of Object.entries(record || {})) {
+    output.set(key, value);
+  }
+  return output;
+};
+
+const computeDocumentsKey = (documents) => {
+  const parts = documents.map((doc) => `${doc.virtualPath}:${doc.docHash}`);
+  parts.sort();
+  return parts.join(',');
+};
+
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents }) => {
+  const docKey = computeDocumentsKey(documents || []);
+  return sha1(`${providerId}|${providerVersion}|${configHash}|${docKey}`);
+};
+
+const ensureCacheDir = async (dir) => {
+  if (!dir) return null;
+  await fs.mkdir(dir, { recursive: true });
+  return dir;
+};
+
+// Cap param-type growth deterministically to avoid unbounded merges.
+const MAX_PARAM_CANDIDATES = 5;
+
+const normalizeTypeEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  if (!entry.type) return null;
+  return {
+    type: String(entry.type),
+    source: entry.source || null,
+    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
+  };
+};
+
+const mergeTypeEntries = (existing, incoming, cap) => {
+  const map = new Map();
+  const addEntry = (entry) => {
+    const normalized = normalizeTypeEntry(entry);
+    if (!normalized) return;
+    const key = `${normalized.type}:${normalized.source || ''}`;
+    const prior = map.get(key);
+    if (!prior) {
+      map.set(key, normalized);
+      return;
+    }
+    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
+    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
+    if (nextConfidence > priorConfidence) map.set(key, normalized);
+  };
+  for (const entry of existing || []) addEntry(entry);
+  for (const entry of incoming || []) addEntry(entry);
+  const list = Array.from(map.values());
+  list.sort((a, b) => {
+    const typeCmp = a.type.localeCompare(b.type);
+    if (typeCmp) return typeCmp;
+    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
+    if (sourceCmp) return sourceCmp;
+    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
+    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
+    return confB - confA;
+  });
+  if (cap && list.length > cap) {
+    return { list: list.slice(0, cap), truncated: true };
+  }
+  return { list, truncated: false };
+};
+
+const normalizeProviderOutputs = ({
+  output,
+  targetByChunkUid,
+  chunkUidByChunkId,
+  chunkUidByLegacyKey,
+  strict
+}) => {
+  if (!output) return new Map();
+  const byChunkUid = new Map();
+  const consume = (chunkUid, entry) => {
+    if (!chunkUid) {
+      if (strict) throw new Error('Provider output missing chunkUid.');
+      return;
+    }
+    const target = targetByChunkUid.get(chunkUid);
+    const normalized = entry && typeof entry === 'object' ? { ...entry } : {};
+    if (!normalized.chunk && target?.chunkRef) {
+      normalized.chunk = target.chunkRef;
+    }
+    byChunkUid.set(chunkUid, normalized);
+  };
+  const consumeMap = (map) => {
+    for (const [key, entry] of map.entries()) consume(key, entry);
+  };
+  if (output.byChunkUid) {
+    consumeMap(mapFromRecord(output.byChunkUid));
+  }
+  if (output.byChunkId) {
+    const mapped = mapFromRecord(output.byChunkId);
+    for (const [chunkId, entry] of mapped.entries()) {
+      const chunkUid = chunkUidByChunkId.get(chunkId);
+      if (!chunkUid) {
+        if (strict) throw new Error(`Provider output chunkId unresolved (${chunkId}).`);
+        continue;
+      }
+      consume(chunkUid, entry);
+    }
+  }
+  if (output.byLegacyKey) {
+    const mapped = mapFromRecord(output.byLegacyKey);
+    for (const [legacyKey, entry] of mapped.entries()) {
+      const chunkUid = chunkUidByLegacyKey.get(legacyKey);
+      if (!chunkUid) {
+        if (strict) throw new Error(`Provider output legacy key unresolved (${legacyKey}).`);
+        continue;
+      }
+      consume(chunkUid, entry);
+    }
+  }
+  return byChunkUid;
+};
+
+const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
+  if (!incoming) return target;
+  const payload = target.payload || {};
+  const next = incoming.payload || {};
+  if (next.returnType && !payload.returnType) payload.returnType = next.returnType;
+  if (next.signature && !payload.signature) payload.signature = next.signature;
+  if (next.paramTypes && typeof next.paramTypes === 'object') {
+    payload.paramTypes = payload.paramTypes || {};
+    for (const [name, types] of Object.entries(next.paramTypes)) {
+      if (!Array.isArray(types)) continue;
+      const existing = payload.paramTypes[name] || [];
+      const { list, truncated } = mergeTypeEntries(existing, types, MAX_PARAM_CANDIDATES);
+      payload.paramTypes[name] = list;
+      if (truncated && observations && chunkUid) {
+        observations.push({
+          level: 'warn',
+          code: 'tooling_param_types_truncated',
+          message: `tooling param types truncated for ${chunkUid}:${name}`,
+          context: { chunkUid, param: name, cap: MAX_PARAM_CANDIDATES }
+        });
+      }
+    }
+  }
+  target.payload = payload;
+  return target;
+};
+
+export async function runToolingProviders(ctx, inputs, providerIds = null) {
+  const strict = ctx?.strict !== false;
+  const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
+  const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
+  const targetByChunkUid = new Map();
+  const chunkUidByChunkId = new Map();
+  const chunkUidByLegacyKey = new Map();
+
+  const registerChunkId = (chunkId, chunkUid) => {
+    if (!chunkId || !chunkUid) return;
+    const existing = chunkUidByChunkId.get(chunkId);
+    if (existing && existing !== chunkUid) {
+      if (strict) throw new Error(`chunkId collision (${chunkId}) maps to multiple chunkUid values.`);
+      return;
+    }
+    chunkUidByChunkId.set(chunkId, chunkUid);
+  };
+
+  const registerLegacyKey = (legacyKey, chunkUid) => {
+    if (!legacyKey || !chunkUid) return;
+    const existing = chunkUidByLegacyKey.get(legacyKey);
+    if (existing && existing !== chunkUid) {
+      if (strict) throw new Error(`legacy key collision (${legacyKey}) maps to multiple chunkUid values.`);
+      return;
+    }
+    chunkUidByLegacyKey.set(legacyKey, chunkUid);
+  };
+
+  for (const target of targets) {
+    const chunkRef = target?.chunkRef || target?.chunk || null;
+    if (!chunkRef || !chunkRef.chunkUid) {
+      if (strict) throw new Error('Tooling target missing chunkUid.');
+      continue;
+    }
+    targetByChunkUid.set(chunkRef.chunkUid, target);
+    registerChunkId(chunkRef.chunkId, chunkRef.chunkUid);
+    const legacyName = target?.symbolHint?.name || target?.name || null;
+    if (chunkRef.file && legacyName) {
+      registerLegacyKey(`${chunkRef.file}::${legacyName}`, chunkRef.chunkUid);
+    }
+  }
+
+  const providerPlans = selectToolingProviders({
+    toolingConfig: ctx?.toolingConfig || {},
+    documents,
+    targets,
+    providerIds,
+    kinds: inputs?.kinds || null
+  });
+
+  const merged = new Map();
+  const sourcesByChunkUid = new Map();
+  const providerDiagnostics = {};
+  const observations = [];
+  const cacheDir = ctx?.cache?.enabled ? await ensureCacheDir(ctx.cache.dir) : null;
+
+  for (const plan of providerPlans) {
+    const provider = plan.provider;
+    const providerId = normalizeProviderId(provider?.id);
+    if (!providerId) continue;
+    const planDocuments = Array.isArray(plan.documents) ? plan.documents : [];
+    const planTargets = Array.isArray(plan.targets) ? plan.targets : [];
+    const configHash = provider.getConfigHash(ctx);
+    const cacheKey = computeCacheKey({
+      providerId,
+      providerVersion: provider.version,
+      configHash,
+      documents: planDocuments
+    });
+    const cachePath = cacheDir ? path.join(cacheDir, `${providerId}-${cacheKey}.json`) : null;
+    let output = null;
+    if (cachePath) {
+      try {
+        const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+        if (cached?.provider?.id === providerId
+          && cached?.provider?.version === provider.version
+          && cached?.provider?.configHash === configHash) {
+          output = cached;
+        }
+      } catch {}
+    }
+    if (!output) {
+      const providerInputs = {
+        ...inputs,
+        documents: planDocuments,
+        targets: planTargets
+      };
+      output = await provider.run(ctx, providerInputs);
+      if (output) {
+        output.provider = {
+          id: providerId,
+          version: provider.version,
+          configHash
+        };
+      }
+      if (cachePath && output) {
+        try {
+          await fs.writeFile(cachePath, JSON.stringify(output, null, 2));
+        } catch {}
+      }
+    }
+    if (!output) continue;
+    providerDiagnostics[providerId] = output.diagnostics || null;
+    const normalized = normalizeProviderOutputs({
+      output,
+      targetByChunkUid,
+      chunkUidByChunkId,
+      chunkUidByLegacyKey,
+      strict
+    });
+    for (const [chunkUid, entry] of normalized.entries()) {
+      const existing = merged.get(chunkUid) || {
+        chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
+        payload: {},
+        provenance: []
+      };
+      mergePayload(existing, entry, { observations, chunkUid });
+      if (entry?.symbolRef && !existing.symbolRef) {
+        existing.symbolRef = entry.symbolRef;
+      }
+      const provenanceEntry = entry?.provenance || {
+        provider: providerId,
+        version: provider.version,
+        collectedAt: new Date().toISOString()
+      };
+      existing.provenance = Array.isArray(existing.provenance)
+        ? [...existing.provenance, provenanceEntry]
+        : [provenanceEntry];
+      merged.set(chunkUid, existing);
+      const sources = sourcesByChunkUid.get(chunkUid) || new Set();
+      sources.add(providerId);
+      sourcesByChunkUid.set(chunkUid, sources);
+    }
+  }
+
+  return {
+    byChunkUid: merged,
+    sourcesByChunkUid,
+    diagnostics: providerDiagnostics,
+    observations
+  };
+}

@@ -63,6 +63,13 @@ export const METADATA_V2_SCHEMA = {
   required: ['chunkId', 'file'],
   properties: {
     chunkId: { type: 'string' },
+    chunkUid: { type: 'string' },
+    chunkUidAlgoVersion: nullableString,
+    spanHash: nullableString,
+    preHash: nullableString,
+    postHash: nullableString,
+    collisionOf: nullableString,
+    virtualPath: nullableString,
     file: { type: 'string' },
     fileHash: nullableString,
     fileHashAlgo: nullableString,
@@ -71,6 +78,7 @@ export const METADATA_V2_SCHEMA = {
       properties: {
         segmentId: nullableString,
         segmentUid: nullableString,
+        virtualPath: nullableString,
         type: nullableString,
         languageId: nullableString,
         ext: nullableString,
