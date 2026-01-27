@@ -1,5 +1,15 @@
 # Phase 8 - Tooling Provider Framework & Type Inference Parity (Segment‑Aware)
 
+## Status legend
+
+Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
+
+- [x] Implemented and appears complete/correct based on code inspection and existing test coverage
+- [@] In Progress, this work has been started
+- [.] Work has been completed but has Not been tested
+- [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
+- [ ] Not complete
+
 ## 0. Guiding principles (non-negotiable)
 
 1. **Stable identity first.** Tooling outputs must attach to chunks using stable keys (`chunkUid` preferred; `chunkId` as range-specific fallback). Never rely on `file::name`.
@@ -193,7 +203,7 @@ Create a single authoritative provider system that:
 
 ### Tasks
 
-- [ ] **8.1.1 Define the provider contract (runtime-safe, JSDoc typed)**
+- [.] **8.1.1 Define the provider contract (runtime-safe, JSDoc typed)**
   - Touch: `src/index/tooling/provider-contract.js`
   - Define `ToolingProvider` shape:
 
@@ -225,7 +235,7 @@ Create a single authoritative provider system that:
      */
     ```
 
-- [ ] **8.1.2 Implement provider registry (deterministic + config-gated)**
+- [.] **8.1.2 Implement provider registry (deterministic + config-gated)**
   - Touch: `src/index/tooling/provider-registry.js`
   - Registry responsibilities:
     - Construct default provider list (typescript, clangd, sourcekit-lsp, pyright, generic-lsp).
@@ -239,7 +249,7 @@ Create a single authoritative provider system that:
   - **Choice resolved:** Implement a single registry that can host existing providers as adapters (best), rather than keeping parallel wiring in `runToolingPass`.
     - Why better: eliminates drift and forces stable merge policy in one place.
 
-- [ ] **8.1.3 Wrap/migrate existing providers into contract**
+- [.] **8.1.3 Wrap/migrate existing providers into contract**
   - Touch:
     - `src/index/tooling/typescript-provider.js` (migrate to new run signature)
     - `src/index/tooling/clangd-provider.js`
@@ -251,7 +261,7 @@ Create a single authoritative provider system that:
     - output keys by `chunkUid` (never `file::name`)
     - return `metrics` and `observations` without throwing (unless strict mode)
 
-- [ ] **8.1.4 Centralize merge semantics in orchestrator**
+- [.] **8.1.4 Centralize merge semantics in orchestrator**
   - Touch: `src/index/tooling/orchestrator.js`, `src/integrations/tooling/providers/shared.js`
   - Orchestrator responsibilities:
     - Build VFS (`buildToolingVirtualDocuments`) from chunks.
@@ -263,7 +273,7 @@ Create a single authoritative provider system that:
       - provenance appended in provider order
       - observations concatenated
 
-- [ ] **8.1.5 Extend tooling config surface (min required for Phase 8)**
+- [.] **8.1.5 Extend tooling config surface (min required for Phase 8)**
   - Touch: `tools/dict-utils.js#getToolingConfig`
   - Add fields (read-only parsing, no schema required yet):
     - `tooling.providerOrder?: string[]` (optional override)
@@ -276,12 +286,17 @@ Create a single authoritative provider system that:
       - `maxFileBytes?: number`
       - `tsconfigPath?: string|null` (existing)
     - (keep existing) `tooling.retries`, `tooling.timeoutMs`, `tooling.breaker`
+  - Config additions notes:
+    - Justification: prevent oversized TS programs from stalling indexing on large repos.
+    - Design: per-partition caps (`maxFiles`, `maxFileBytes`, `maxProgramFiles`) skip provider when exceeded.
+    - Tests: provider caps exercised in `tests/tooling/typescript-*` + doctor reports.
+    - Budget impact: bounded memory/CPU; no new background processes.
 
 ### Tests / Verification
 
-- [ ] Add `tests/tooling/provider-registry-gating.js`
+- [.] Add `tests/tooling/provider-registry-gating.js`
   - Construct fake providers + config allow/deny cases and assert selected provider ids are deterministic.
-- [ ] Add `tests/tooling/provider-registry-ordering.js`
+- [.] Add `tests/tooling/provider-registry-ordering.js`
   - Assert `(priority,id)` ordering is stable even if registration order changes.
 
 ---
@@ -310,7 +325,7 @@ while attaching results using stable chunk identity.
 
 ### Tasks
 
-- [ ] **8.2.1 Preserve JSX/TSX fidelity in segmentation**
+- [.] **8.2.1 Preserve JSX/TSX fidelity in segmentation**
   - Touch: `src/index/segments.js`
   - Change `MARKDOWN_FENCE_LANG_ALIASES`:
     - `jsx -> jsx` (not `javascript`)
@@ -320,7 +335,7 @@ while attaching results using stable chunk identity.
   - Add/update unit test:
     - `tests/segments/markdown-fence-tsx-jsx-preserved.js`
 
-- [ ] **8.2.2 Implement chunkUid computation (v1)**
+- [.] **8.2.2 Implement chunkUid computation (v1)**
   - Touch: `src/index/chunk-uid.js`, `src/shared/hash.js`
   - Implement:
     - `computeChunkUidV1({fileRelPath,segmentUid,start,end,chunkText,fullText,namespaceKey,segmentLanguageId})`
@@ -329,7 +344,7 @@ while attaching results using stable chunk identity.
     - Fetch xxhash backend once per file processor invocation.
     - Avoid re-hashing identical strings via small LRU cache keyed by string length+slice identity (optional; only if profiling shows benefit).
 
-- [ ] **8.2.3 Persist chunkUid fields into metaV2**
+- [.] **8.2.3 Persist chunkUid fields into metaV2**
   - Touch: `src/index/metadata-v2.js`
   - Add fields to metaV2:
     - `chunkUid`
@@ -338,7 +353,7 @@ while attaching results using stable chunk identity.
     - `collisionOf` (null or string)
   - Ensure metaV2 remains JSON-serializable and stable field ordering is not required (but recommended for diffs).
 
-- [ ] **8.2.4 Compute chunkUid in file processor (best location)**
+- [.] **8.2.4 Compute chunkUid in file processor (best location)**
   - Touch: `src/index/build/file-processor.js`
   - Exact placement:
     - Inside the main chunk loop, after `ctext` and `tokenText` are produced and before `chunkPayload` is assembled.
@@ -347,17 +362,11 @@ while attaching results using stable chunk identity.
     - `containerTextForContext = text` (decoded file text from `readTextFileWithHash` path).
   - Store computed values on `chunkPayload.metaV2` (or on chunkPayload then copied into metaV2 in `buildMetaV2`).
 
-- [ ] **8.2.5 Collision resolution must run after docId assignment**
-  - Touch: `src/index/build/state.js` and/or `src/index/build/indexer/steps/relations.js`
-  - Constraint:
-    - disambiguation uses `docId` as a stable tie-breaker.
-  - Recommended implementation:
-    - After `state.chunks` are appended (docIds assigned) and before tooling runs:
-      - Build map `chunkUid -> list of chunks`.
-      - Apply deterministic disambiguation and mutate `chunk.metaV2` fields.
-      - Record `collisionOf`.
+- [.] **8.2.5 Collision resolution must run after docId assignment**
+  - Superseded by canonical identity contract: `docId` is not stable and MUST NOT be used for disambiguation.
+  - Implemented in `assignChunkUids` using stable ordering (file/segmentUid/start/end/kind/name) before docId assignment.
 
-- [ ] **8.2.6 Implement VFS builder**
+- [.] **8.2.6 Implement VFS builder**
   - Touch: `src/index/tooling/vfs.js`
   - Export:
     - `buildToolingVirtualDocuments({rootDir, chunks, strict}) -> {documents, targets, fileTextByPath}`
@@ -373,7 +382,7 @@ while attaching results using stable chunk identity.
   - Strictness:
     - When `strict:true`, throw if any mapping assertion fails; else record observation and skip that target.
 
-- [ ] **8.2.7 Replace `file::name` joins in tooling pass with chunkUid joins**
+- [.] **8.2.7 Replace `file::name` joins in tooling pass with chunkUid joins**
   - Touch: `src/index/type-inference-crossfile/pipeline.js`, `src/index/type-inference-crossfile/tooling.js`
   - In `pipeline.js`:
     - Keep existing `chunkByKey` for non-tooling inference paths if needed.
@@ -381,7 +390,7 @@ while attaching results using stable chunk identity.
   - In tooling apply:
     - Accept `typesByChunkUid` and directly enrich `chunkByUid.get(chunkUid)`.
 
-- [ ] **8.2.8 Update shared tooling guard semantics (per invocation, not per retry)**
+- [.] **8.2.8 Update shared tooling guard semantics (per invocation, not per retry)**
   - Touch: `src/integrations/tooling/providers/shared.js#createToolingGuard`
   - Change semantics:
     - retries are internal; only count **one** failure when the invocation fails after retries.
@@ -389,7 +398,7 @@ while attaching results using stable chunk identity.
   - Why better:
     - removes false breaker trips on transient flakiness while preserving protective behavior.
 
-- [ ] **8.2.9 Enforce bounded merge growth + deterministic ordering**
+- [.] **8.2.9 Enforce bounded merge growth + deterministic ordering**
   - Touch: `src/integrations/tooling/providers/shared.js#mergeToolingEntry`
   - Add caps (configurable; safe defaults):
     - `maxReturnCandidates = 5`
@@ -400,20 +409,20 @@ while attaching results using stable chunk identity.
 
 ### Tests / Verification
 
-- [ ] Add `tests/identity/chunkuid-stability-lineshift.js`
+- [.] Add `tests/identity/chunkuid-stability-lineshift.js`
   - Create a file text with a function chunk.
   - Compute chunkUid.
   - Create a new container text with inserted text above the chunk (but keep chunk span content unchanged).
   - Recompute and assert chunkUid unchanged.
-- [ ] Add `tests/identity/chunkuid-collision-disambiguation.js`
+- [.] Add `tests/identity/chunkuid-collision-disambiguation.js`
   - Construct two chunk records with identical `chunkId`, `spanHash`, `preHash`, `postHash` (same file+segment).
   - Apply collision resolver and assert:
     - first keeps `chunkUid`
     - second becomes `chunkUid:dup2`
     - second has `collisionOf` pointing to original
-- [ ] Add `tests/tooling/vfs-offset-mapping-segment.js`
+- [.] Add `tests/tooling/vfs-offset-mapping-segment.js`
   - Use a container with a segment range, build VFS, assert container→virtual offsets map exactly and obey assertions.
-- [ ] Extend/confirm `tests/type-inference-lsp-enrichment.js` still passes after tooling join changes.
+- [.] Extend/confirm `tests/type-inference-lsp-enrichment.js` still passes after tooling join changes.
 
 ---
 
@@ -434,7 +443,7 @@ with stable chunk-keyed results and high-confidence signatures.
 
 ### Tasks
 
-- [ ] **8.3.1 Change TS provider interface to VFS-based inputs**
+- [.] **8.3.1 Change TS provider interface to VFS-based inputs**
   - Touch: `src/index/tooling/typescript-provider.js`
   - Replace old signature `collectTypeScriptTypes({chunksByFile})` with:
     - `collectTypeScriptTypes({rootDir, documents, targets, log, toolingConfig, guard})`
@@ -442,7 +451,7 @@ with stable chunk-keyed results and high-confidence signatures.
     - filter to targets where `languageId in {typescript, tsx, javascript, jsx}`
     - output `typesByChunkUid: Map<chunkUid, ToolingTypeEntry>`
 
-- [ ] **8.3.2 Config resolution (tsconfig/jsconfig) + partitions**
+- [.] **8.3.2 Config resolution (tsconfig/jsconfig) + partitions**
   - Touch: `src/index/tooling/typescript-provider.js`
   - Algorithm:
     1. For each **containerPath** represented in the targets, resolve config:
@@ -452,7 +461,7 @@ with stable chunk-keyed results and high-confidence signatures.
   - Fallback compiler options for `"__NO_CONFIG__"`:
     - `{ allowJs:true, checkJs:true, strict:false, target:ES2020, module:ESNext, jsx:Preserve, skipLibCheck:true }`
 
-- [ ] **8.3.3 Build a LanguageService program that includes VFS docs**
+- [.] **8.3.3 Build a LanguageService program that includes VFS docs**
   - Touch: add `src/index/tooling/typescript/host.js`
   - Requirements:
     - Host must provide `getScriptSnapshot` for both:
@@ -466,7 +475,7 @@ with stable chunk-keyed results and high-confidence signatures.
     - `const program = languageService.getProgram()`
     - `const checker = program.getTypeChecker()`
 
-- [ ] **8.3.4 Implement range-based node matching (primary)**
+- [.] **8.3.4 Implement range-based node matching (primary)**
   - Touch: add `src/index/tooling/typescript/match.js`
   - Inputs:
     - `sourceFile`, `target.virtualRange`, optional `symbolHint {name,kind}`
@@ -488,7 +497,7 @@ with stable chunk-keyed results and high-confidence signatures.
   - Fallback:
     - If no candidates overlap, allow a second pass using name-only match within file (legacy compatibility), but record observation `TS_NO_RANGE_MATCH_USED_NAME_FALLBACK`.
 
-- [ ] **8.3.5 Extract types and format output deterministically**
+- [.] **8.3.5 Extract types and format output deterministically**
   - Touch: add `src/index/tooling/typescript/format.js`
   - For each matched node:
     - Use `checker.getSignatureFromDeclaration(node)` when possible.
@@ -509,14 +518,14 @@ with stable chunk-keyed results and high-confidence signatures.
     - `{ returns:[returnType], params:{...}, paramNames:[...], signature }`
   - Always key output by `chunkUid` from `target.chunkRef.chunkUid`.
 
-- [ ] **8.3.6 JS/JSX parity and safety caps**
+- [.] **8.3.6 JS/JSX parity and safety caps**
   - Touch: `src/index/tooling/typescript-provider.js`
   - Enforce caps:
     - `maxFiles`, `maxFileBytes`, `maxProgramFiles`
   - When cap exceeded:
     - skip TS provider for that partition and record observation with reason code (doctor/reportable).
 
-- [ ] **8.3.7 Emit SymbolRef (minimal heuristic)**
+- [.] **8.3.7 Emit SymbolRef (minimal heuristic)**
   - Touch: `src/shared/identity.js` (helpers), TS provider
   - For each successful match, optionally attach:
     - `symbolKey = "ts:heur:v1:" + virtualPath + ":" + (nodeName||target.chunkRef.chunkId)`
@@ -527,13 +536,13 @@ with stable chunk-keyed results and high-confidence signatures.
 
 ### Tests / Verification
 
-- [ ] Add `tests/tooling/typescript-vfs-js-parity.js`
+- [.] Add `tests/tooling/typescript-vfs-js-parity.js`
   - Build a virtual doc `.jsx` with a simple component and assert return/param types are non-empty and stable.
-- [ ] Add `tests/tooling/typescript-range-matching.js`
+- [.] Add `tests/tooling/typescript-range-matching.js`
   - Create a file with two functions of same name in different scopes; ensure the correct chunk range maps to correct function.
-- [ ] Add `tests/tooling/typescript-destructured-param-names.js`
+- [.] Add `tests/tooling/typescript-destructured-param-names.js`
   - Function `f({a,b}, [c])` should produce stable paramNames like `{a,b}` and `[c]` (whitespace-insensitive).
-- [ ] Extend `tests/type-inference-typescript-provider-no-ts.js`
+- [.] Extend `tests/type-inference-typescript-provider-no-ts.js`
   - Ensure provider cleanly no-ops when TypeScript module missing (existing behavior preserved).
 
 ---
@@ -555,26 +564,26 @@ Make LSP tooling reliable and segment-capable:
 
 ### Tasks
 
-- [ ] **8.4.1 Fix LSP client restart race via generation token**
+- [.] **8.4.1 Fix LSP client restart race via generation token**
   - Touch: `src/integrations/tooling/lsp/client.js`
   - Add `let generation = 0;` and increment on each `start()`.
   - Capture `const myGen = generation` inside process event handlers; ignore events if `myGen !== generation`.
   - Ensure old process exit cannot null-out writer/parser for a newer generation.
 
-- [ ] **8.4.2 Add deterministic timeout + transport-close rejection**
+- [.] **8.4.2 Add deterministic timeout + transport-close rejection**
   - Touch: `src/integrations/tooling/lsp/client.js`
   - Requirements:
     - every request must have a timeout, default to e.g. 15000ms if caller omits
     - if transport closes:
       - reject all pending requests immediately with `ERR_LSP_TRANSPORT_CLOSED`
 
-- [ ] **8.4.3 Add exponential backoff restart policy**
+- [.] **8.4.3 Add exponential backoff restart policy**
   - Touch: `src/integrations/tooling/lsp/client.js`
   - Policy:
     - consecutive restart delays: 250ms, 1s, 3s, 10s (cap)
     - reset backoff on stable uptime threshold or successful request.
 
-- [ ] **8.4.4 Support VFS docs in provider**
+- [.] **8.4.4 Support VFS docs in provider**
   - Touch: `src/integrations/tooling/providers/lsp.js`
   - Change signature:
     - `collectLspTypes({rootDir, documents, targets, log, cmd, args, timeoutMs, retries, breakerThreshold, uriScheme, tempDir})`
@@ -594,25 +603,25 @@ Make LSP tooling reliable and segment-capable:
        - `didClose`
     3. Shutdown/exit client deterministically.
 
-- [ ] **8.4.5 Per-target failure accounting**
+- [.] **8.4.5 Per-target failure accounting**
   - Touch: `src/integrations/tooling/providers/shared.js#createToolingGuard` AND LSP provider call sites
   - Semantics:
     - Each target counts as at most 1 failure after all retries/timeouts for that target.
     - Do not increment breaker on intermediate retry attempts.
 
-- [ ] **8.4.6 Encoding correctness**
+- [.] **8.4.6 Encoding correctness**
   - Touch: `src/index/tooling/*-provider.js` AND LSP provider text reads
   - Any provider reading file text must use `readTextFile` from `src/shared/encoding.js` so chunk offsets remain consistent.
 
 ### Tests / Verification
 
-- [ ] Add `tests/tooling/lsp-restart-generation-safety.js`
+- [.] Add `tests/tooling/lsp-restart-generation-safety.js`
   - Simulate old process exit after new start and assert new client stays valid.
-- [ ] Add `tests/tooling/lsp-vfs-didopen-before-hover.js`
+- [.] Add `tests/tooling/lsp-vfs-didopen-before-hover.js`
   - Use stub LSP server to assert didOpen observed before hover for `.poc-vfs/...` URI.
-- [ ] Add `tests/tooling/lsp-bychunkuid-keying.js`
+- [.] Add `tests/tooling/lsp-bychunkuid-keying.js`
   - Assert provider returns map keyed by the provided target chunkUid, not `file::name`.
-- [ ] Add `tests/tooling/lsp-failure-accounting-per-target.js`
+- [.] Add `tests/tooling/lsp-failure-accounting-per-target.js`
   - Stub LSP server fails N attempts then succeeds; breaker should not trip prematurely.
 
 ---
@@ -635,7 +644,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### Tasks
 
-- [ ] **8.5.1 Implement doctor report schema**
+- [.] **8.5.1 Implement doctor report schema**
   - Touch: `tools/tooling-doctor.js`
   - Output JSON schema (when `--json`):
     ```json
@@ -659,29 +668,29 @@ Provide an operator-facing workflow to explain tooling state:
   - Human mode:
     - print summary table + actionable next steps.
 
-- [ ] **8.5.2 Align doctor with provider registry**
+- [.] **8.5.2 Align doctor with provider registry**
   - Doctor must use the same provider registry selection logic as the orchestrator:
     - avoids "doctor says ok but index says no".
 
-- [ ] **8.5.3 Add CLI surface**
+- [.] **8.5.3 Add CLI surface**
   - Touch: `bin/pairofcleats.js`
   - Add:
     - `pairofcleats tooling doctor --repo <path> [--json]`
   - Implementation:
     - route to `tools/tooling-doctor.js`
 
-- [ ] **8.5.4 Integrate into build logs (optional, gated)**
+- [.] **8.5.4 Integrate into build logs (optional, gated)**
   - Touch: `tools/build_index.js` (or relevant runner)
   - Behavior:
     - if `tooling.doctorOnBuild === true`, run doctor once at start and log summary.
 
 ### Tests / Verification
 
-- [ ] Add `tests/tooling/doctor-json-stable.js`
+- [.] Add `tests/tooling/doctor-json-stable.js`
   - Run doctor against a fixture repo and assert JSON keys and key fields are present.
-- [ ] Add `tests/tooling/doctor-gating-reasons.js`
+- [.] Add `tests/tooling/doctor-gating-reasons.js`
   - Provide config with denylist and assert provider shows `enabled:false` with correct reason.
-- [ ] Unskip phase-tagged LMDB tests once Phase 7/8 deliverables land:
+- [.] Unskip phase-tagged LMDB tests once Phase 7/8 deliverables land:
   - Remove `DelayedUntilPhase7_8` from `tests/run.config.jsonc`.
   - Ensure these tests pass: `lmdb-backend`, `lmdb-corruption`, `lmdb-report-artifacts`.
 
@@ -689,27 +698,27 @@ Provide an operator-facing workflow to explain tooling state:
 
 ## 4. Migration checklist (explicitly remove ambiguity)
 
-- [ ] `file::name` MUST NOT be used as a tooling join key anywhere.
+- [.] `file::name` MUST NOT be used as a tooling join key anywhere.
   - Search patterns:
     - `"::${chunk.name}"`, `"${file}::"`, `"file::name"`
   - Known current touchpoints:
     - `src/index/tooling/typescript-provider.js` (key = `${chunk.file}::${chunk.name}`)
     - `src/integrations/tooling/providers/lsp.js` (key = `${target.file}::${target.name}`)
     - `src/index/type-inference-crossfile/pipeline.js` (chunkByKey / entryByKey)
-- [ ] All tooling provider outputs must be keyed by `chunkUid` (and include chunkRef for provenance/debug).
-- [ ] Segment routing must not rely on container ext. Always use effective language id + ext mapping.
-- [ ] Any time offsets are used for mapping, file text must come from `src/shared/encoding.js`.
+- [.] All tooling provider outputs must be keyed by `chunkUid` (and include chunkRef for provenance/debug).
+- [.] Segment routing must not rely on container ext. Always use effective language id + ext mapping.
+- [.] Any time offsets are used for mapping, file text must come from `src/shared/encoding.js`.
 
 ---
 
 ## 5. Acceptance criteria (Phase 8 complete when true)
 
-- [ ] Tooling orchestration is provider-registry-driven and deterministic.
-- [ ] Embedded JS/TS segments (Markdown fences, Vue script blocks) receive TS-powered enrichment via VFS.
-- [ ] TypeScript provider enriches JS/JSX when enabled, respecting jsconfig/tsconfig discovery.
-- [ ] LSP client restart is generation-safe and does not corrupt new sessions.
-- [ ] Every tooling attachment is keyed by chunkUid, never `file::name`.
-- [ ] Tooling doctor can explain gating, availability, and configuration in JSON + human output.
+- [.] Tooling orchestration is provider-registry-driven and deterministic.
+- [.] Embedded JS/TS segments (Markdown fences, Vue script blocks) receive TS-powered enrichment via VFS.
+- [.] TypeScript provider enriches JS/JSX when enabled, respecting jsconfig/tsconfig discovery.
+- [.] LSP client restart is generation-safe and does not corrupt new sessions.
+- [.] Every tooling attachment is keyed by chunkUid, never `file::name`.
+- [.] Tooling doctor can explain gating, availability, and configuration in JSON + human output.
 
 ---
 
@@ -937,4 +946,53 @@ Provide an operator-facing workflow to explain tooling state:
   - required keys: schemaVersion, artifact="vfs_manifest", format="jsonl-sharded", generatedAt, compression,
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
 
+---
 
+## Progress log (phase8-vfs-of-the-caribbean)
+
+### 2026-01-27
+
+- **Provider registry + selection**
+  - Added `selectToolingProviders` with deterministic ordering, `providerOrder` override, per-provider language/kind gating, and enabled/disabled tool filtering.
+  - Providers now normalize ids case-insensitively (lowercased).
+  - Provider cache keys now include *only* the documents passed to each provider plan (language-scoped).
+
+- **Configured LSP servers (tooling.lsp)**
+  - Added `src/index/tooling/lsp-provider.js` to materialize per-server LSP providers from config.
+  - Added `tooling.lsp` and `tooling.providerOrder` config wiring + schema updates.
+  - LSP providers honor per-server `uriScheme` (`file` or `poc-vfs`), args, languages, timeout, retries.
+
+- **VFS protections**
+  - Added `tooling.vfs.maxVirtualFileBytes` limit (fail-closed when strict) to protect virtual docs.
+  - `runToolingPass` now reads `tooling.vfs` and passes strict/limits into VFS builder.
+
+- **Provider metadata**
+  - Default providers now declare `priority`, `languages`, `kinds`, and `requires` to enable registry gating.
+
+- **LSP provider URI handling**
+  - LSP collection supports `poc-vfs://` URIs for servers that cannot accept file-backed temp paths.
+
+- **TypeScript provider partitions + SymbolRef**
+  - Added tsconfig/jsconfig discovery per document (with override) and partitioned program builds by config.
+  - Enforced `maxFiles`, `maxFileBytes`, and `maxProgramFiles` caps with diagnostics.
+  - Normalized destructured parameter names and emitted minimal `symbolRef` metadata per chunkUid.
+
+- **Tooling merge caps**
+  - Added deterministic, capped param-type merges with truncation observations in the orchestrator and shared tooling merge helpers.
+
+- **LSP client hardening**
+  - Added default request timeouts and transport-close rejection for pending requests.
+
+- **Tooling doctor CLI + schema**
+  - Added `tools/tooling-doctor.js` and `pairofcleats tooling doctor` CLI surface.
+  - Extended doctor report with config + xxhash metadata and provider array entries.
+
+- **Tests/cleanup**
+  - Added provider registry gating/ordering tests and doctor JSON/gating tests.
+  - Added TypeScript destructured parameter name test; unskipped Phase 7/8 LMDB tag.
+
+### Pending / follow-ups
+
+- Consider adding validation for `tooling.lsp.servers[]` shape (optional, schema allows it but config normalize is shallow).
+- Reconcile `chunkUid` collision post-docId guidance vs identity-contract spec (8.2.5).
+- Extend/confirm `tests/type-inference-lsp-enrichment.js` coverage after tooling join changes.

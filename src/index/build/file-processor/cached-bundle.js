@@ -32,6 +32,20 @@ export function reuseCachedBundle({
     return Number.isFinite(start) && Number.isFinite(end) && start <= end;
   });
   if (!hasValidChunks) return { result: null, skip: null };
+  const hasIdentityFields = cachedBundle.chunks.every((chunk) => {
+    if (!chunk || typeof chunk !== 'object') return false;
+    const meta = chunk.metaV2 || null;
+    const chunkUid = meta?.chunkUid || chunk.chunkUid;
+    const virtualPath = meta?.virtualPath || chunk.virtualPath || chunk.segment?.virtualPath;
+    if (!chunkUid || !virtualPath) return false;
+    const segment = chunk.segment || meta?.segment || null;
+    if (segment && !segment.segmentUid) return false;
+    return true;
+  });
+  if (!hasIdentityFields) return { result: null, skip: null };
+  if (mode === 'code' && !Array.isArray(cachedBundle.vfsManifestRows)) {
+    return { result: null, skip: null };
+  }
   const cachedCaps = resolveFileCaps(fileCaps, ext, fileLanguageId, mode);
   const effectiveMaxBytes = pickMinLimit(maxFileBytes, cachedCaps.maxBytes);
   if (effectiveMaxBytes && fileStat.size > effectiveMaxBytes) {
@@ -93,6 +107,9 @@ export function reuseCachedBundle({
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;
   if (!fileRelations) return { result: null, skip: null };
+  const vfsManifestRows = Array.isArray(cachedBundle.vfsManifestRows)
+    ? cachedBundle.vfsManifestRows
+    : null;
   const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
     const updatedChunk = { ...cachedChunk };
     if (!updatedChunk.fileHash && fileHash) updatedChunk.fileHash = fileHash;
@@ -129,6 +146,7 @@ export function reuseCachedBundle({
       cached: true,
       durationMs: fileDurationMs,
       chunks: updatedChunks,
+      vfsManifestRows,
       manifestEntry,
       fileInfo,
       fileRelations,

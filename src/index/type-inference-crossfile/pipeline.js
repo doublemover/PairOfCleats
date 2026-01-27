@@ -6,7 +6,7 @@ import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { extractParamTypes, extractReturnCalls, extractReturnTypes, inferArgType } from './extract.js';
 import { addSymbol, leafName, isTypeDeclaration, resolveUniqueSymbol } from './symbols.js';
-import { buildChunksByFile, runToolingPass } from './tooling.js';
+import { runToolingPass } from './tooling.js';
 
 const addLink = (list, link) => {
   if (!link) return;
@@ -19,6 +19,7 @@ const addLink = (list, link) => {
 
 export async function applyCrossFileInference({
   rootDir,
+  buildRoot,
   chunks,
   enabled,
   log = () => {},
@@ -46,6 +47,7 @@ export async function applyCrossFileInference({
   const symbolIndex = new Map();
   const symbolEntries = [];
   const entryByKey = new Map();
+  const entryByUid = new Map();
   const chunkByKey = new Map();
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
   const callSampleLimit = 25;
@@ -68,12 +70,13 @@ export async function applyCrossFileInference({
     };
     symbolEntries.push(entry);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
+    if (chunk.chunkUid) {
+      entryByUid.set(chunk.chunkUid, entry);
+    }
     addSymbol(symbolIndex, chunk.name, entry);
     const leaf = leafName(chunk.name);
     if (leaf && leaf !== chunk.name) addSymbol(symbolIndex, leaf, entry);
   }
-
-  const chunksByFile = buildChunksByFile(chunks);
 
   let linkedCalls = 0;
   let linkedUsages = 0;
@@ -98,11 +101,18 @@ export async function applyCrossFileInference({
 
   const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
   if (toolingEnabled) {
+    const filesToLoad = new Set();
+    for (const chunk of chunks) {
+      if (chunk?.file) filesToLoad.add(chunk.file);
+    }
+    for (const file of filesToLoad) {
+      await getFileText(file);
+    }
     const toolingResult = await runToolingPass({
       rootDir,
-      chunksByFile,
-      chunkByKey,
-      entryByKey,
+      buildRoot: buildRoot || rootDir,
+      chunks,
+      entryByUid,
       log,
       toolingConfig,
       toolingTimeoutMs,

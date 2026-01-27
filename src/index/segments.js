@@ -1,6 +1,6 @@
-import { checksumString } from '../shared/hash.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { smartChunk } from './chunking.js';
+import { computeSegmentUid } from './identity/chunk-uid.js';
 import { finalizeSegments } from './segments/finalize.js';
 import {
   normalizeSegmentsConfig,
@@ -16,22 +16,12 @@ import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
 export { normalizeSegmentsConfig } from './segments/config.js';
 export { detectFrontmatter } from './segments/frontmatter.js';
 
-const normalizeForUid = (value) => String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 const isBaseSegment = (segment, textLength, baseSegmentType) => segment.start === 0
   && segment.end === textLength
   && segment.type === baseSegmentType
   && !segment.parentSegmentId
   && !segment.embeddingContext
   && (!segment.meta || Object.keys(segment.meta).length === 0);
-
-const buildSegmentUid = async ({ segmentText, segmentType, languageId }) => {
-  if (!segmentText) return null;
-  const normalized = normalizeForUid(segmentText);
-  if (!normalized) return null;
-  const segKey = `seg\0${segmentType || ''}\0${languageId || ''}\0${normalized}`;
-  const hash = await checksumString(segKey);
-  return hash?.value ? `segu:v1:${hash.value}` : null;
-};
 
 export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
   if (!text || !Array.isArray(segments) || !segments.length) return segments;
@@ -41,7 +31,7 @@ export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
     if (!segment || segment.segmentUid) continue;
     if (isBaseSegment(segment, text.length, baseSegmentType)) continue;
     const segmentText = text.slice(segment.start, segment.end);
-    const segmentUid = await buildSegmentUid({
+    const segmentUid = await computeSegmentUid({
       segmentText,
       segmentType: segment.type,
       languageId: segment.languageId

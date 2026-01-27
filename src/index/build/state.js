@@ -196,6 +196,7 @@ export function createIndexState() {
     totalTokens: 0,
     fileRelations: new Map(),
     fileInfoByPath: new Map(),
+    vfsManifestRows: [],
     importResolutionGraph: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
@@ -541,6 +542,10 @@ export function mergeIndexState(target, source) {
         target.fileInfoByPath.set(file, info);
       }
     }
+  }
+  if (Array.isArray(source.vfsManifestRows)) {
+    if (!Array.isArray(target.vfsManifestRows)) target.vfsManifestRows = [];
+    target.vfsManifestRows.push(...source.vfsManifestRows);
   }
 }
 

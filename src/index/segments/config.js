@@ -11,7 +11,7 @@ const CONFIG_EXTS = new Set([
   '.xml'
 ]);
 
-const LANGUAGE_ID_EXT = new Map([
+export const LANGUAGE_ID_EXT = new Map([
   ['javascript', '.js'],
   ['typescript', '.ts'],
   ['tsx', '.tsx'],

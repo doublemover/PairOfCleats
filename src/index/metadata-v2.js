@@ -153,6 +153,9 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     ? chunk.codeRelations
     : null;
   const chunkId = chunk.chunkId || buildChunkId(chunk);
+  const identity = chunk.identity && typeof chunk.identity === 'object' ? chunk.identity : null;
+  const chunkUid = normalizeString(chunk.chunkUid);
+  const virtualPath = normalizeString(chunk.virtualPath || segment?.virtualPath || identity?.virtualPath);
   const containerExt = normalizeString(chunk.ext);
   const containerLanguageId = normalizeString(chunk.containerLanguageId);
   const effectiveExt = normalizeString(segment?.ext) || normalizeString(chunk.effectiveExt) || containerExt;
@@ -184,6 +187,13 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
 
   const metadata = {
     chunkId,
+    chunkUid,
+    chunkUidAlgoVersion: normalizeString(identity?.chunkUidAlgoVersion || (chunkUid ? 'v1' : null)),
+    spanHash: normalizeString(identity?.spanHash),
+    preHash: normalizeString(identity?.preHash),
+    postHash: normalizeString(identity?.postHash),
+    collisionOf: normalizeString(identity?.collisionOf),
+    virtualPath,
     file: normalizeString(chunk.file),
     fileHash: normalizeString(chunk.fileHash),
     fileHashAlgo: normalizeString(chunk.fileHashAlgo),
@@ -191,6 +201,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
       ? {
         segmentId: normalizeString(segment.segmentId),
         segmentUid: normalizeString(segment.segmentUid),
+        virtualPath: normalizeString(segment.virtualPath),
         type: normalizeString(segment.type),
         languageId: normalizeString(segment.languageId),
         parentSegmentId: normalizeString(segment.parentSegmentId),
@@ -282,6 +293,8 @@ export const finalizeMetaV2 = ({ chunks, toolInfo, analysisPolicy, debug = false
     if (chunk) {
       chunk.metaV2 = next;
       if (next?.chunkId) chunk.chunkId = next.chunkId;
+      if (next?.chunkUid) chunk.chunkUid = next.chunkUid;
+      if (next?.virtualPath && !chunk.virtualPath) chunk.virtualPath = next.virtualPath;
     }
   }
   return { mismatches };

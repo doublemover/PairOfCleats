@@ -28,6 +28,129 @@
         "ioOversubscribe": { "type": "boolean" }
       }
     },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string" },
+        "autoInstallOnDetect": { "type": "boolean" },
+        "autoEnableOnDetect": { "type": "boolean" },
+        "installScope": { "type": "string" },
+        "allowGlobalFallback": { "type": "boolean" },
+        "strict": { "type": "boolean" },
+        "timeoutMs": { "type": "number" },
+        "maxRetries": { "type": "number" },
+        "circuitBreakerThreshold": { "type": "number" },
+        "logDir": { "type": "string" },
+        "enabledTools": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "disabledTools": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "providerOrder": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "vfs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "strict": { "type": "boolean" },
+            "maxVirtualFileBytes": { "type": "number" }
+          }
+        },
+        "lsp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "servers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "id": { "type": "string" },
+                  "label": { "type": "string" },
+                  "cmd": { "type": "string" },
+                  "args": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ]
+                  },
+                  "languages": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ]
+                  },
+                  "uriScheme": { "type": "string", "enum": ["file", "poc-vfs"] },
+                  "timeoutMs": { "type": "number" },
+                  "retries": { "type": "number" },
+                  "priority": { "type": "number" },
+                  "version": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "dir": { "type": "string" }
+          }
+        },
+        "typescript": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "resolveOrder": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "useTsconfig": { "type": "boolean" },
+            "tsconfigPath": { "type": "string" },
+            "allowJs": { "type": "boolean" },
+            "checkJs": { "type": "boolean" },
+            "includeJsx": { "type": "boolean" },
+            "maxFiles": { "type": "number" },
+            "maxFileBytes": { "type": "number" },
+            "maxProgramFiles": { "type": "number" }
+          }
+        },
+        "clangd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requireCompilationDatabase": { "type": "boolean" },
+            "compileCommandsDir": { "type": "string" }
+          }
+        },
+        "pyright": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "sourcekit": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
     "indexing": {
       "type": "object",
       "additionalProperties": true,

@@ -1,5 +1,50 @@
 export const uniqueTypes = (values) => Array.from(new Set((values || []).filter(Boolean)));
 
+const DEFAULT_MAX_RETURN_CANDIDATES = 5;
+const DEFAULT_MAX_PARAM_CANDIDATES = 5;
+
+const normalizeEntry = (entry) => {
+  if (!entry) return null;
+  if (typeof entry === 'string') return { type: entry, source: null, confidence: null };
+  if (!entry.type) return null;
+  return {
+    type: entry.type,
+    source: entry.source || null,
+    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
+  };
+};
+
+const mergeEntries = (existing, incoming, cap) => {
+  const map = new Map();
+  const add = (entry) => {
+    const normalized = normalizeEntry(entry);
+    if (!normalized || !normalized.type) return;
+    const key = `${normalized.type}:${normalized.source || ''}`;
+    const prior = map.get(key);
+    if (!prior) {
+      map.set(key, normalized);
+      return;
+    }
+    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
+    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
+    if (nextConfidence > priorConfidence) map.set(key, normalized);
+  };
+  for (const entry of existing || []) add(entry);
+  for (const entry of incoming || []) add(entry);
+  const list = Array.from(map.values());
+  list.sort((a, b) => {
+    const typeCmp = String(a.type).localeCompare(String(b.type));
+    if (typeCmp) return typeCmp;
+    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
+    if (sourceCmp) return sourceCmp;
+    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
+    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
+    return confB - confA;
+  });
+  if (cap && list.length > cap) return list.slice(0, cap);
+  return list;
+};
+
 export const createToolingEntry = () => ({
   returns: [],
   params: {},
@@ -7,21 +52,26 @@ export const createToolingEntry = () => ({
   paramNames: []
 });
 
-export const mergeToolingEntry = (target, incoming) => {
+export const mergeToolingEntry = (target, incoming, options = {}) => {
   if (!incoming) return target;
   if (incoming.signature && !target.signature) target.signature = incoming.signature;
   if (incoming.paramNames?.length && (!target.paramNames || !target.paramNames.length)) {
     target.paramNames = incoming.paramNames.slice();
   }
   if (Array.isArray(incoming.returns) && incoming.returns.length) {
-    target.returns = uniqueTypes([...(target.returns || []), ...incoming.returns]);
+    const cap = Number.isFinite(options.maxReturnCandidates)
+      ? options.maxReturnCandidates
+      : DEFAULT_MAX_RETURN_CANDIDATES;
+    target.returns = mergeEntries(target.returns || [], incoming.returns, cap).map((entry) => entry.type);
   }
   if (incoming.params && typeof incoming.params === 'object') {
     if (!target.params || typeof target.params !== 'object') target.params = {};
     for (const [name, types] of Object.entries(incoming.params)) {
       if (!name || !Array.isArray(types)) continue;
-      const existing = target.params[name] || [];
-      target.params[name] = uniqueTypes([...(existing || []), ...types]);
+      const cap = Number.isFinite(options.maxParamCandidates)
+        ? options.maxParamCandidates
+        : DEFAULT_MAX_PARAM_CANDIDATES;
+      target.params[name] = mergeEntries(target.params[name] || [], types, cap).map((entry) => entry.type);
     }
   }
   return target;
@@ -68,9 +118,11 @@ export const createToolingGuard = ({
         reset();
         return result;
       } catch (err) {
-        recordFailure(err, label);
         attempt += 1;
-        if (isOpen() || attempt > retries) throw err;
+        if (attempt > retries) {
+          recordFailure(err, label);
+          throw err;
+        }
         const delay = attempt === 1 ? 250 : 1000;
         await wait(delay);
       }

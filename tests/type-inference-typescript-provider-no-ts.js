@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { collectTypeScriptTypes } from '../src/index/tooling/typescript-provider.js';
+import { createTypeScriptProvider } from '../src/index/tooling/typescript-provider.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'typescript-provider-no-ts');
@@ -15,34 +15,58 @@ await fs.writeFile(
   'export function greet(name: string) { return `hi ${name}`; }\n'
 );
 
-const chunksByFile = new Map([
-  ['src/sample.ts', [{ file: 'src/sample.ts', name: 'greet', start: 0, end: 10, docmeta: {} }]]
-]);
+const docText = 'export function greet(name: string) { return `hi ${name}`; }\n';
+const virtualPath = '.poc-vfs/src/sample.ts#seg:stub.ts';
+const documents = [{
+  virtualPath,
+  text: docText,
+  languageId: 'typescript',
+  effectiveExt: '.ts'
+}];
+const targets = [{
+  chunkRef: {
+    docId: 0,
+    chunkUid: 'ck64:v1:test:src/sample.ts:deadbeef',
+    chunkId: 'chunk_deadbeef',
+    file: 'src/sample.ts',
+    segmentUid: null,
+    segmentId: null,
+    range: { start: 0, end: docText.length }
+  },
+  virtualPath,
+  virtualRange: { start: 0, end: docText.length },
+  symbolHint: { name: 'greet', kind: 'function' }
+}];
 
 const logs = [];
-const log = (msg) => logs.push(String(msg));
+const log = (evt) => {
+  if (!evt) return;
+  logs.push(typeof evt === 'string' ? evt : (evt.message || String(evt)));
+};
 const toolingConfig = {
   dir: path.join(repoRoot, '.tooling'),
   typescript: {
     enabled: true,
-    resolveOrder: ['repo'],
+    resolveOrder: ['cache'],
     useTsconfig: true
   }
 };
 
-const result = await collectTypeScriptTypes({
-  rootDir: repoRoot,
-  chunksByFile,
-  log,
-  toolingConfig
-});
+const provider = createTypeScriptProvider();
+const result = await provider.run({
+  repoRoot,
+  buildRoot: repoRoot,
+  toolingConfig,
+  strict: true,
+  logger: log
+}, { documents, targets });
 
-if (!result || !(result.typesByChunk instanceof Map)) {
-  console.error('TypeScript provider did not return a types map.');
+if (!result || !result.byChunkUid || typeof result.byChunkUid !== 'object') {
+  console.error('TypeScript provider did not return a byChunkUid map.');
   process.exit(1);
 }
 
-if (result.typesByChunk.size !== 0) {
+if (Object.keys(result.byChunkUid).length !== 0) {
   console.error('TypeScript provider should return empty map when module is missing.');
   process.exit(1);
 }
@@ -53,4 +77,3 @@ if (!logs.some((entry) => entry.includes('TypeScript tooling not detected'))) {
 }
 
 console.log('TypeScript provider fallback test passed');
-

@@ -102,6 +102,72 @@ function normalizeUserConfig(baseConfig) {
     if (dict.dpMaxTokenLengthByFileCount) normalizedDict.dpMaxTokenLengthByFileCount = dict.dpMaxTokenLengthByFileCount;
     if (Object.keys(normalizedDict).length) normalized.dictionary = normalizedDict;
   }
+  if (isPlainObject(baseConfig.tooling)) {
+    const tooling = baseConfig.tooling;
+    const normalizedTooling = {};
+    if (tooling.dir) normalizedTooling.dir = tooling.dir;
+    if (tooling.autoInstallOnDetect !== undefined) normalizedTooling.autoInstallOnDetect = tooling.autoInstallOnDetect;
+    if (tooling.autoEnableOnDetect !== undefined) normalizedTooling.autoEnableOnDetect = tooling.autoEnableOnDetect;
+    if (tooling.installScope) normalizedTooling.installScope = tooling.installScope;
+    if (tooling.allowGlobalFallback !== undefined) normalizedTooling.allowGlobalFallback = tooling.allowGlobalFallback;
+    if (tooling.strict !== undefined) normalizedTooling.strict = tooling.strict;
+    if (tooling.timeoutMs !== undefined) normalizedTooling.timeoutMs = tooling.timeoutMs;
+    if (tooling.maxRetries !== undefined) normalizedTooling.maxRetries = tooling.maxRetries;
+    if (tooling.circuitBreakerThreshold !== undefined) {
+      normalizedTooling.circuitBreakerThreshold = tooling.circuitBreakerThreshold;
+    }
+    if (tooling.logDir) normalizedTooling.logDir = tooling.logDir;
+    if (tooling.enabledTools) normalizedTooling.enabledTools = tooling.enabledTools;
+    if (tooling.disabledTools) normalizedTooling.disabledTools = tooling.disabledTools;
+    if (tooling.providerOrder) normalizedTooling.providerOrder = tooling.providerOrder;
+    if (isPlainObject(tooling.vfs)) {
+      const vfs = {};
+      if (tooling.vfs.strict !== undefined) vfs.strict = tooling.vfs.strict;
+      if (tooling.vfs.maxVirtualFileBytes !== undefined) {
+        vfs.maxVirtualFileBytes = tooling.vfs.maxVirtualFileBytes;
+      }
+      if (Object.keys(vfs).length) normalizedTooling.vfs = vfs;
+    }
+    if (isPlainObject(tooling.lsp)) {
+      const lsp = {};
+      if (tooling.lsp.enabled !== undefined) lsp.enabled = tooling.lsp.enabled;
+      if (tooling.lsp.servers) lsp.servers = tooling.lsp.servers;
+      if (Object.keys(lsp).length) normalizedTooling.lsp = lsp;
+    }
+    if (isPlainObject(tooling.cache)) {
+      const cache = {};
+      if (tooling.cache.enabled !== undefined) cache.enabled = tooling.cache.enabled;
+      if (tooling.cache.dir) cache.dir = tooling.cache.dir;
+      if (Object.keys(cache).length) normalizedTooling.cache = cache;
+    }
+    if (isPlainObject(tooling.typescript)) {
+      const typescript = tooling.typescript;
+      const normalizedTs = {};
+      if (typescript.enabled !== undefined) normalizedTs.enabled = typescript.enabled;
+      if (typescript.resolveOrder) normalizedTs.resolveOrder = typescript.resolveOrder;
+      if (typescript.useTsconfig !== undefined) normalizedTs.useTsconfig = typescript.useTsconfig;
+      if (typescript.tsconfigPath) normalizedTs.tsconfigPath = typescript.tsconfigPath;
+      if (typescript.allowJs !== undefined) normalizedTs.allowJs = typescript.allowJs;
+      if (typescript.checkJs !== undefined) normalizedTs.checkJs = typescript.checkJs;
+      if (typescript.includeJsx !== undefined) normalizedTs.includeJsx = typescript.includeJsx;
+      if (typescript.maxFiles !== undefined) normalizedTs.maxFiles = typescript.maxFiles;
+      if (typescript.maxFileBytes !== undefined) normalizedTs.maxFileBytes = typescript.maxFileBytes;
+      if (typescript.maxProgramFiles !== undefined) normalizedTs.maxProgramFiles = typescript.maxProgramFiles;
+      if (Object.keys(normalizedTs).length) normalizedTooling.typescript = normalizedTs;
+    }
+    if (isPlainObject(tooling.clangd)) {
+      const clangd = tooling.clangd;
+      const normalizedClangd = {};
+      if (clangd.requireCompilationDatabase !== undefined) {
+        normalizedClangd.requireCompilationDatabase = clangd.requireCompilationDatabase;
+      }
+      if (clangd.compileCommandsDir) normalizedClangd.compileCommandsDir = clangd.compileCommandsDir;
+      if (Object.keys(normalizedClangd).length) normalizedTooling.clangd = normalizedClangd;
+    }
+    if (isPlainObject(tooling.pyright)) normalizedTooling.pyright = tooling.pyright;
+    if (isPlainObject(tooling.sourcekit)) normalizedTooling.sourcekit = tooling.sourcekit;
+    if (Object.keys(normalizedTooling).length) normalized.tooling = normalizedTooling;
+  }
   if (isPlainObject(baseConfig.triage)) {
     const triage = baseConfig.triage;
     const normalizedTriage = {};
