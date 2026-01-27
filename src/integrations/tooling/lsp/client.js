@@ -71,6 +71,22 @@ export function createLspClient(options) {
   let generation = 0;
   let backoffMs = 0;
   let nextStartAt = 0;
+  // Ensure every LSP request is bounded unless explicitly disabled.
+  const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+  const rejectPending = (err) => {
+    for (const entry of pending.values()) {
+      if (entry.timeout) clearTimeout(entry.timeout);
+      entry.reject(err);
+    }
+    pending.clear();
+  };
+
+  const rejectPendingTransportClosed = () => {
+    const err = new Error('LSP transport closed.');
+    err.code = 'ERR_LSP_TRANSPORT_CLOSED';
+    rejectPending(err);
+  };
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
@@ -291,19 +307,3 @@ export function createLspClient(options) {
     kill
   };
 }
-  // Ensure every LSP request is bounded unless explicitly disabled.
-  const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
-
-  const rejectPending = (err) => {
-    for (const entry of pending.values()) {
-      if (entry.timeout) clearTimeout(entry.timeout);
-      entry.reject(err);
-    }
-    pending.clear();
-  };
-
-  const rejectPendingTransportClosed = () => {
-    const err = new Error('LSP transport closed.');
-    err.code = 'ERR_LSP_TRANSPORT_CLOSED';
-    rejectPending(err);
-  };

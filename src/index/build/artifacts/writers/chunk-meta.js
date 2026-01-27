@@ -77,6 +77,8 @@ export const createChunkMetaIterator = ({
       fileHash: c.fileHash || null,
       fileHashAlgo: c.fileHashAlgo || null,
       fileSize: Number.isFinite(c.fileSize) ? c.fileSize : null,
+      chunkUid: c.chunkUid || c.metaV2?.chunkUid || null,
+      virtualPath: c.virtualPath || c.metaV2?.virtualPath || c.segment?.virtualPath || null,
       start: c.start,
       end: c.end,
       startLine: c.startLine,

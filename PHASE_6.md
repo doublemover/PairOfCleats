@@ -233,9 +233,6 @@ This phase explicitly targets:
 
 ---
 
-
----
-
 ## Added detail (Phase 6 task mapping)
 
 ### 6.1 CallDetails v2 and call_sites contract

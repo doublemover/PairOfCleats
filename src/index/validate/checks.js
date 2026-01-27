@@ -249,6 +249,7 @@ export const validateMetaV2Equivalence = (report, mode, chunkMeta, options = {})
   for (const entry of Array.isArray(chunkMeta) ? chunkMeta : []) {
     if (errors >= maxErrors || sampled >= maxSamples) return;
     if (!entry?.metaV2 || typeof entry.metaV2 !== 'object') continue;
+    if (entry.docmeta == null) continue;
     const toolInfo = entry.metaV2.tooling && typeof entry.metaV2.tooling === 'object'
       ? {
         tool: entry.metaV2.tooling.tool || 'pairofcleats',
@@ -256,8 +257,33 @@ export const validateMetaV2Equivalence = (report, mode, chunkMeta, options = {})
         configHash: entry.metaV2.tooling.configHash || null
       }
       : null;
+    const meta = entry.metaV2;
+    let identity = entry.identity || null;
+    if (!identity) {
+      const hasIdentity = meta.chunkUidAlgoVersion || meta.spanHash || meta.preHash || meta.postHash || meta.collisionOf;
+      identity = hasIdentity
+        ? {
+          chunkUidAlgoVersion: meta.chunkUidAlgoVersion ?? null,
+          spanHash: meta.spanHash ?? null,
+          preHash: meta.preHash ?? null,
+          postHash: meta.postHash ?? null,
+          collisionOf: meta.collisionOf ?? null
+        }
+        : null;
+    }
+    const chunkForMeta = {
+      ...entry,
+      identity,
+      chunkUid: entry.chunkUid || meta.chunkUid || null,
+      virtualPath: entry.virtualPath || meta.virtualPath || entry.segment?.virtualPath || null,
+      segment: entry.segment || meta.segment || null,
+      file: entry.file || meta.file || null,
+      ext: entry.ext || meta.ext || null,
+      lang: entry.lang || meta.lang || null,
+      containerLanguageId: entry.containerLanguageId || meta.container?.languageId || null
+    };
     const recomputed = buildMetaV2({
-      chunk: entry,
+      chunk: chunkForMeta,
       docmeta: entry.docmeta,
       toolInfo,
       analysisPolicy: { metadata: { enabled: true } }

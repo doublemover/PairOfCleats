@@ -28,6 +28,9 @@ Completed Phases: `COMPLETED_PHASES.md`
 - Phase 17 -- Vector-Only Index Profile (Embeddings-First)
 - Phase 18 -- Vector-Only Profile (Build + Search Without Sparse Postings)
 - Phase 20 -- Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+
+## Old Phases that need to be integrated or checked
+
 - Phase 19 -- LibUV threadpool utilization (explicit control + docs + tests)
 - Phase 20 -- Threadpool-aware I/O scheduling guardrails
 - Phase 14 -- Documentation and Configuration Hardening
@@ -62,15 +65,16 @@ This phase explicitly targets:
 
 ### Phase 6.1 -- CallDetails v2 and `call_sites` contract (schema + invariants)
 
-- [ ] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
+- [x] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
   - Contract fields (minimum viable, JS/TS-focused):
+    - `callSiteId` (required; `sha1:` of `file:startLine:startCol:endLine:endCol:calleeRaw`)
     - `callerChunkUid` (stable string id; current code uses `metaV2.chunkId`)
     - `callerDocId` (optional integer doc id, for quick joins; not stable across builds)
-    - `relPath` (container repo-relative path)
+    - `file` (container repo-relative path, POSIX)
     - `languageId` (effective language for this callsite; segments must use segment language)
     - `segmentId` (optional; debug-only)
     - `start`, `end` (absolute offsets in the _container_ file)
-    - `startLine`, `endLine` (optional; must agree with offsets when present)
+    - `startLine`, `startCol`, `endLine`, `endCol` (required; must agree with offsets when present)
     - `calleeRaw` (as written / best-effort string form)
     - `calleeNormalized` (best-effort normalized target name, e.g., leaf name)
     - `receiver` (best-effort; e.g., `foo` for `foo.bar()`; null when not applicable)
@@ -79,18 +83,21 @@ This phase explicitly targets:
     - `confidence` (bounded numeric or enum; must be deterministic)
     - `evidence` (bounded list of short tags/strings; deterministic ordering)
   - Enforce hard caps (examples; choose concrete values and test them):
-    - max args per callsite
-    - max arg text length / max nested shape depth
-    - max evidence items + max evidence item length
-  - Deterministic truncation must use a consistent marker (e.g., `...`) and must not depend on runtime/platform.
-- [ ] Add schema validation for `call_sites` entries.
+    - max args per callsite: 5
+    - max arg text length: 80
+    - max nested shape depth: 2
+    - max evidence items: 6
+    - max evidence item length: 32
+    - max row bytes: 32768
+  - Deterministic truncation must use a consistent marker (`...`) and must not depend on runtime/platform.
+- [x] Add schema validation for `call_sites` entries.
   - Touchpoints:
     - `src/shared/artifact-schemas.js` (AJV validators)
     - `src/index/validate.js` (wire validation when artifact is present)
   - Notes:
     - Keep schema permissive enough for forward evolution, but strict on required invariants and field types.
     - Ensure identity fields are unambiguous: distinguish **doc id** vs **stable chunk uid** (avoid reusing "chunkId" for both).
-- [ ] Update documentation for the new contract.
+- [x] Update documentation for the new contract.
   - Touchpoints:
     - `docs/contracts/artifact-contract.md` (artifact inventory + semantics)
     - If needed: `docs/specs/metadata-schema-v2.md` (to clarify identity fields used for joins)
@@ -98,15 +105,15 @@ This phase explicitly targets:
 
 #### Tests / Verification
 
-- [ ] Add a schema test that validates a representative `call_sites` entry (including truncation edge cases).
-- [ ] Add a "reject bad contract" test case (missing required fields, wrong types, oversized fields).
+- [x] Add a schema test that validates a representative `call_sites` entry (including truncation edge cases).
+- [x] Add a "reject bad contract" test case (missing required fields, wrong types, oversized fields).
 - [ ] Verify that validation runs in CI lanes that already validate artifact schemas.
 
 ---
 
 ### Phase 6.2 -- Emit `call_sites` as a first‑class, sharded JSONL artifact (meta + manifest)
 
-- [ ] Implement a dedicated writer for `call_sites` that is sharded by default.
+- [x] Implement a dedicated writer for `call_sites` that is sharded by default.
   - Touchpoints:
     - `src/index/build/artifacts.js` (enqueue the writer in the build)
     - `src/index/build/artifacts/writers/` (new `call-sites.js`)
@@ -118,32 +125,32 @@ This phase explicitly targets:
     - Deterministic shard ordering and deterministic within-shard ordering.
     - Streaming write path (avoid holding all callsites in memory when possible).
     - Compression behavior should follow existing artifact conventions (if used elsewhere).
-- [ ] Inventory `call_sites` in the manifest and ensure manifest-driven discovery.
+- [x] Inventory `call_sites` in the manifest and ensure manifest-driven discovery.
   - `call_sites` must be discoverable via `pieces/manifest.json` (no directory scanning / filename guessing in readers).
-- [ ] Wire validator support for `call_sites`.
+- [x] Wire validator support for `call_sites`.
   - Touchpoints:
     - `src/index/validate.js`
   - Validation behavior:
     - If present, validate (fail closed).
     - If absent, do not fail; the graph builder must fall back cleanly (Phase 6.5).
-- [ ] Decide and document the compatibility posture for existing relations artifacts.
+- [x] Decide and document the compatibility posture for existing relations artifacts.
   - Recommended:
     - Keep existing lightweight relations (e.g., `callLinks`) intact for backward compatibility.
     - Do **not** bloat `file_relations` with full callsite evidence; `call_sites` is the dedicated "large" artifact.
 
 #### Tests / Verification
 
-- [ ] Add an artifact-format test that builds an index and asserts:
-  - [ ] `call_sites` parts + meta exist when relations are enabled.
-  - [ ] `pieces/manifest.json` includes the `call_sites` piece(s).
-  - [ ] Validation passes for `call_sites`.
+- [?] Add an artifact-format test that builds an index and asserts:
+  - [?] `call_sites` parts + meta exist when relations are enabled.
+  - [x] `pieces/manifest.json` includes the `call_sites` piece(s).
+  - [?] Validation passes for `call_sites`.
 - [ ] Add a determinism test that rebuilds twice and asserts the `call_sites` content is byte-identical (or at least line-identical) for a fixed fixture repo.
 
 ---
 
 ### Phase 6.3 -- JS + TS callsite extraction with structured args (CallDetails v2)
 
-- [ ] Upgrade JavaScript relations extraction to emit CallDetails v2 fields needed by `call_sites`.
+- [x] Upgrade JavaScript relations extraction to emit CallDetails v2 fields needed by `call_sites`.
   - Touchpoints:
     - `src/lang/javascript/relations.js`
   - Requirements:
@@ -155,14 +162,14 @@ This phase explicitly targets:
       - must never include unbounded text (cap string literal previews, object literal previews, etc.)
     - Maintain compatibility for existing consumers that read `callDetails.args` today:
       - either provide a backwards-compatible view, or update consumers in Phase 6.5.
-- [ ] Upgrade TypeScript relations extraction to produce call details (not just regex call edges).
+- [x] Upgrade TypeScript relations extraction to produce call details (not just regex call edges).
   - Touchpoints:
     - `src/lang/typescript/relations.js`
     - Babel parsing helpers (e.g., `src/lang/babel-parser.js`)
   - Requirements:
     - Use an AST-based extraction path (Babel) to capture args + locations.
     - Respect TSX/JSX where appropriate (see Phase 6.4 for segment language fidelity hooks).
-- [ ] Ensure language handlers expose call details consistently through the language registry.
+- [x] Ensure language handlers expose call details consistently through the language registry.
   - Touchpoints:
     - `src/index/language-registry/registry.js` (relations plumbing expectations)
   - Notes:
@@ -170,23 +177,23 @@ This phase explicitly targets:
 
 #### Tests / Verification
 
-- [ ] Add a JS fixture with:
-  - [ ] free function call
-  - [ ] method call (`obj.method()`)
-  - [ ] nested call (`fn(a(b()))`)
-  - [ ] spread args and literal args
-  - Assert extracted callsites include expected `calleeNormalized`, receiver (when applicable), and bounded arg summaries.
-- [ ] Add a TS fixture (and a TSX/JSX fixture if feasible) with:
-  - [ ] typed function call
-  - [ ] optional chaining call (if supported by parser)
-  - [ ] generic call (if supported)
-  - Assert callsite locations + args are extracted.
+- [x] Add a JS fixture with:
+  - [x] free function call
+  - [x] method call (`obj.method()`)
+  - [x] nested call (`fn(a(b()))`)
+  - [x] spread args and literal args
+  - [x] Assert extracted callsites include expected `calleeNormalized`, receiver (when applicable), and bounded arg summaries.
+- [x] Add a TS fixture (and a TSX/JSX fixture if feasible) with:
+  - [x] typed function call
+  - [x] optional chaining call (if supported by parser)
+  - [x] generic call (if supported)
+  - [x] Assert callsite locations + args are extracted.
 
 ---
 
 ### Phase 6.4 -- Segment-safe absolute positions, chunk attribution, and deterministic ordering
 
-- [ ] Ensure callsite positions are **absolute offsets in the container file** (segment-safe).
+- [x] Ensure callsite positions are **absolute offsets in the container file** (segment-safe).
   - Touchpoints (depending on where translation is implemented):
     - `src/index/build/file-processor.js` (segment discovery + per-segment dispatch)
     - `src/index/segments.js` (language normalization/fidelity)
@@ -196,35 +203,35 @@ This phase explicitly targets:
       - `absStart = segment.start + segStart`
       - `absEnd = segment.start + segEnd`
     - `segmentId` may be recorded for debugging, but offsets must not depend on it.
-- [ ] Attribute each callsite to the correct caller chunk **without relying on name-only joins**.
+- [x] Attribute each callsite to the correct caller chunk **without relying on name-only joins**.
   - Touchpoints:
     - `src/index/build/file-processor/relations.js` (call index construction)
     - `src/index/language-registry/registry.js` (chunk relation attachment)
   - Requirements:
     - Prefer range containment (callsite offset within chunk start/end), selecting the smallest/innermost containing chunk deterministically.
     - If containment is ambiguous or no chunk contains the callsite, record the callsite with `callerChunkUid = null` only if the contract permits it; otherwise attach to a deterministic "file/module" pseudo-caller (choose one approach and document it).
-- [ ] Fix segment language fidelity issues that would break JS/TS/TSX call extraction for embedded segments.
+- [x] Fix segment language fidelity issues that would break JS/TS/TSX call extraction for embedded segments.
   - Touchpoints:
     - `src/index/segments.js` (do not collapse `tsx→typescript` or `jsx→javascript` if it prevents correct tooling selection)
     - `src/index/build/file-processor/tree-sitter.js` (ensure embedded TSX/JSX segments can select the correct parser when container ext differs)
   - If full segment-as-virtual-file semantics are not yet implemented, explicitly defer the broader contract work to **Phase 7 -- Segment-Aware Analysis Backbone & VFS**, but Phase 6 must still support segment callsite offset translation for the JS/TS fixtures included in this phase.
-- [ ] Define and enforce deterministic ordering for callsites prior to writing.
+- [x] Define and enforce deterministic ordering for callsites prior to writing.
   - Canonical sort key (recommended):
-    - `relPath`, `callerChunkUid`, `start`, `end`, `calleeNormalized`, `calleeRaw`
+    - `file`, `callerChunkUid`, `start`, `end`, `calleeNormalized`, `calleeRaw`
   - Ensure ties are broken deterministically (no stable-sort assumptions across runtimes).
 
 #### Tests / Verification
 
-- [ ] Add a container/segment fixture (e.g., `.vue` with `<script>` block or `.md` with a fenced TSX block) and assert:
-  - [ ] extracted callsite `start/end` positions map correctly to the container file
-  - [ ] `languageId` reflects the embedded language, not the container file type
-- [ ] Add a determinism test ensuring callsite ordering is stable across rebuilds.
+- [x] Add a container/segment fixture (e.g., `.vue` with `<script>` block or `.md` with a fenced TSX block) and assert:
+  - [x] extracted callsite `start/end` positions map correctly to the container file
+  - [x] `languageId` reflects the embedded language, not the container file type
+- [x] Add a determinism test ensuring callsite ordering is stable across rebuilds.
 
 ---
 
 ### Phase 6.5 -- Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
 
-- [ ] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
+- [x] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (symbol resolution / linking)
     - `src/index/build/indexer/steps/relations.js` (where cross-file inference is orchestrated)
@@ -234,14 +241,14 @@ This phase explicitly targets:
       - record bounded `targetCandidates` (or similar) and keep `targetChunkUid=null`
       - never silently drop the callsite edge
     - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 -- Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
-- [ ] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
+- [x] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (today uses `chunkByKey` keyed by `${file}::${name}`)
     - `src/index/build/graphs.js` (today uses `legacyKey = "${file}::${name}"`)
   - Requirements:
     - Maintain a non-unique secondary index by `(file,name)` only as a best-effort hint.
     - Where multiple candidates exist, propagate ambiguity rather than picking arbitrarily.
-- [ ] Update graph construction to prefer `call_sites` when available.
+- [x] Update graph construction to prefer `call_sites` when available.
   - Touchpoints:
     - `src/index/build/graphs.js`
     - artifact loading helpers (reader side), if graph build is performed after artifact load
@@ -258,14 +265,11 @@ This phase explicitly targets:
 
 #### Tests / Verification
 
-- [ ] Add a graph integration test that:
-  - [ ] builds a small fixture repo
-  - [ ] asserts the call graph edges exist using `call_sites` (preferred path)
-  - [ ] validates fallback behavior when `call_sites` is absent/disabled
-- [ ] Add a regression test that demonstrates `file::name` collisions do not corrupt graph joins (ambiguity is handled deterministically and visibly).
-
----
-
+- [x] Add a graph integration test that:
+  - [x] builds a small fixture repo
+  - [x] asserts the call graph edges exist using `call_sites` (preferred path)
+  - [x] validates fallback behavior when `call_sites` is absent/disabled
+- [x] Add a regression test that demonstrates `file::name` collisions do not corrupt graph joins (ambiguity is handled deterministically and visibly).
 
 ---
 
