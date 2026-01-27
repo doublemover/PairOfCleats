@@ -5,6 +5,31 @@
 - Centralize repeated cross-cutting concerns (logging, retry/backoff, config normalization, artifact IO, filter selection) so behavior stays consistent.
 - Keep refactors mechanical: move code + add thin adapters, preserve behavior, update imports/tests.
 
+## Progress update (2026-01-26)
+Completed refactors:
+- `src/index/build/watch.js` split into `src/index/build/watch/*` helpers + shared debounce/ignore/backoff.
+- `src/integrations/core/index.js` split into `args.js`, `embeddings.js`, `build-index.js`, `search.js`, `status.js`.
+- `src/index/validate.js` split into `src/index/validate/*`.
+- `src/index/build/artifacts.js` split into `src/index/build/artifacts/*`.
+- `tools/build-embeddings/run.js` split into `tools/build-embeddings/*`.
+- `src/index/build/worker-pool.js` split into `src/index/build/workers/*`.
+- `tools/api/router.js` split into `tools/api/router/*` (+ shared response/middleware helpers).
+- `src/index/build/runtime/runtime.js` split into `src/index/build/runtime/*`.
+- `src/retrieval/cli.js` split into `src/retrieval/cli/*`.
+- `src/index/language-registry/registry.js` split into `registry-data.js` + supporting modules.
+- `tools/config-inventory.js` split into `tools/config-inventory/*`.
+- `tools/build-sqlite-index/run.js` split into `tools/build-sqlite-index/*`.
+- `src/shared/json-stream.js` split into `src/shared/json-stream/*`.
+- `tools/dict-utils/paths.js` split into `tools/dict-utils/paths/*`.
+
+Remaining refactors:
+- `src/retrieval/output/filters.js` (still monolithic).
+- `tools/mcp/tools.js` (handlers not yet split into per-tool modules).
+- `src/index/build/file-processor/cpu.js` (partial extraction only).
+- `src/retrieval/pipeline.js` (partial extraction only).
+- `src/map/isometric/client/edges.js` (partial extraction only).
+- `src/index/build/piece-assembly.js` (still monolithic).
+
 ## Scope
 Files targeted (>= ~500 LOC):
 - `src/index/build/watch.js`
@@ -38,23 +63,23 @@ Line ranges below are from the current file versions and should be treated as th
 - Extract generic backoff + jitter helper (used by watch lock backoff).
 - Source: `src/index/build/watch.js` lines **74-113** (`acquireIndexLockWithBackoff`).
 - Tasks:
-  - [ ] Create `retryWithBackoff({ maxWaitMs, baseMs, maxMs, onRetry, onLog, shouldStop })`.
-  - [ ] Replace inline backoff logic in `watch.js` with shared helper.
+  - [x] Create `retryWithBackoff({ maxWaitMs, baseMs, maxMs, onRetry, onLog, shouldStop })`.
+  - [x] Replace inline backoff logic in `watch.js` with shared helper.
   - [ ] Add unit tests in `tests/shared/retry-backoff.test.js`.
 
 ### 0.2 `src/shared/scheduler/debounce.js`
 - Extract debounced scheduler for reuse.
 - Source: `watch.js` lines **133-159** (`createDebouncedScheduler`).
 - Tasks:
-  - [ ] Move helper into `src/shared/scheduler/debounce.js`.
-  - [ ] Update watch import.
+  - [x] Move helper into `src/shared/scheduler/debounce.js`.
+  - [x] Update watch import.
   - [ ] Add unit test `tests/shared/debounce-scheduler.test.js`.
 
 ### 0.3 `src/shared/fs/ignore.js`
 - Centralize ignore matcher logic used by watchers and discover.
 - Source: `watch.js` lines **231-247** (`buildIgnoredMatcher`).
 - Tasks:
-  - [ ] Extract as `buildIgnoredMatcher({ root, ignoreMatcher })`.
+  - [x] Extract as `buildIgnoredMatcher({ root, ignoreMatcher })`.
   - [ ] Reuse in `discover.js` (if applicable) to avoid drift.
   - [ ] Add tests for directory vs file ignore semantics.
 
@@ -62,8 +87,8 @@ Line ranges below are from the current file versions and should be treated as th
 - Centralize merge semantics for CLI vs filter expressions (ext/lang/type/etc).
 - Source: `src/retrieval/filters.js` merge helpers **~194-215** (exact function lines logged below in Phase 3).
 - Tasks:
-  - [ ] Provide `mergeFilterLists({ left, right }) -> { values, impossible }`.
-  - [ ] Keep behavior consistent in retrieval CLI + filter code.
+  - [x] Provide `mergeFilterLists({ left, right }) -> { values, impossible }`.
+  - [x] Keep behavior consistent in retrieval CLI + filter code.
   - [ ] Update tests in `tests/lang-filter.js`.
 
 ---
@@ -95,12 +120,12 @@ Internal blocks inside `watchIndex` that can be lifted (line anchors within watc
 - Event handlers: **764-876** (`recordAddOrChange`, `recordRemove`, `recordBurst`, `handleEvent`, `handleError`, watcher wiring).
 
 Refactor tasks:
-- [ ] Move watcher backend resolution to `src/index/build/watch/resolve-backend.js` (lines 47-73).
-- [ ] Move lock backoff into shared `src/shared/retry.js` and adapt `acquireIndexLockWithBackoff` to call it.
-- [ ] Move stability guard to `src/index/build/watch/stability.js` (lines 114-132).
-- [ ] Move records path + sampling helpers to `src/index/build/watch/records.js` (165-191).
-- [ ] Move guardrails caps and indexable path logic to `src/index/build/watch/guardrails.js` (192-230 + 202-224).
-- [ ] Move ignore matcher to shared `src/shared/fs/ignore.js` (231-247).
+- [x] Move watcher backend resolution to `src/index/build/watch/resolve-backend.js` (lines 47-73).
+- [x] Move lock backoff into shared `src/shared/retry.js` and adapt `acquireIndexLockWithBackoff` to call it.
+- [x] Move stability guard to `src/index/build/watch/stability.js` (lines 114-132).
+- [x] Move records path + sampling helpers to `src/index/build/watch/records.js` (165-191).
+- [x] Move guardrails caps and indexable path logic to `src/index/build/watch/guardrails.js` (192-230 + 202-224).
+- [x] Move ignore matcher to shared `src/shared/fs/ignore.js` (231-247).
 - [ ] Split `watchIndex` into:
   - `createWatchContext` (inputs, runtime, guardrails, state) -- **~258-316**
   - `registerShutdownHandlers` -- **~324-360**
@@ -128,14 +153,14 @@ Top-level functions and ranges:
 - `status` **841-844**
 
 Refactor tasks:
-- [ ] Extract `embeddings` helpers into `src/integrations/core/embeddings.js` (90-192).
-- [ ] Extract `buildIndex` into `src/integrations/core/build-index.js` and split into sub-functions:
+  - [x] Extract `embeddings` helpers into `src/integrations/core/embeddings.js` (90-192).
+  - [x] Extract `buildIndex` into `src/integrations/core/build-index.js` and split into sub-functions:
   - input normalization + runtime init (first ~80 lines of buildIndex)
   - discovery plan + build execution
   - post-build validation/promotion
   - final reporting
-- [ ] Extract shared `search` + `status` into `src/integrations/core/search.js` and `status.js`.
-- [ ] Keep `src/integrations/core/index.js` as re-export/wiring only.
+  - [x] Extract shared `search` + `status` into `src/integrations/core/search.js` and `status.js`.
+  - [x] Keep `src/integrations/core/index.js` as re-export/wiring only.
 
 Tests potentially affected:
 - `tests/core-api.js`, `tests/build-index-all.js`, `tests/build-embeddings-cache.js`
@@ -145,11 +170,11 @@ Top-level:
 - `validateIndexArtifacts` **56-823**
 
 Refactor tasks (split into modules with line anchors):
-- [ ] Extract manifest + checksum validation (approx **108-200**) into `src/index/validate/manifest.js`.
-- [ ] Extract artifact presence + file loading (approx **200-420**) into `src/index/validate/artifacts.js`.
-- [ ] Extract SQLite validation (approx **420-650**) into `src/index/validate/sqlite.js`.
-- [ ] Extract LMDB validation (approx **650-780**) into `src/index/validate/lmdb.js`.
-- [ ] `validateIndexArtifacts` becomes orchestration (inputs, report aggregation).
+- [x] Extract manifest + checksum validation (approx **108-200**) into `src/index/validate/manifest.js`.
+- [x] Extract artifact presence + file loading (approx **200-420**) into `src/index/validate/artifacts.js`.
+- [x] Extract SQLite validation (approx **420-650**) into `src/index/validate/sqlite.js`.
+- [x] Extract LMDB validation (approx **650-780**) into `src/index/validate/lmdb.js`.
+- [x] `validateIndexArtifacts` becomes orchestration (inputs, report aggregation).
 
 Tests potentially affected:
 - `tests/index-validate.js`, `tests/storage/sqlite/*.test.js`, `tests/lmdb-*.js`
@@ -159,10 +184,10 @@ Top-level:
 - `writeIndexArtifacts` **40-767**
 
 Refactor tasks:
-- [ ] Split artifact writer by artifact type into `src/index/build/artifacts/` modules:
+- [x] Split artifact writer by artifact type into `src/index/build/artifacts/` modules:
   - chunk_meta, repo_map, file_meta, filter_index, postings, vectors, etc.
-- [ ] Extract path resolution + atomic write helpers to `src/index/build/artifacts/io.js`.
-- [ ] Keep `writeIndexArtifacts` as orchestration (build per-artifact spec list, call writers).
+- [x] Extract path resolution + atomic write helpers to `src/index/build/artifacts/io.js`.
+- [x] Keep `writeIndexArtifacts` as orchestration (build per-artifact spec list, call writers).
 
 Tests potentially affected:
 - `tests/artifact-formats.js`, `tests/artifact-size-guardrails.js`, `tests/format-fidelity.js`
@@ -172,10 +197,10 @@ Top-level:
 - `runBuildEmbeddings` **56-797**
 
 Refactor tasks:
-- [ ] Extract CLI parsing + argv normalization into `tools/build-embeddings/args.js`.
-- [ ] Extract model + provider resolution into `tools/build-embeddings/runtime.js`.
-- [ ] Extract batch processing + output writer into `tools/build-embeddings/runner.js`.
-- [ ] Keep `run.js` as thin entrypoint.
+- [x] Extract CLI parsing + argv normalization into `tools/build-embeddings/args.js`.
+- [x] Extract model + provider resolution into `tools/build-embeddings/runtime.js`.
+- [x] Extract batch processing + output writer into `tools/build-embeddings/runner.js`.
+- [x] Keep `run.js` as thin entrypoint.
 
 Tests potentially affected:
 - `tests/build-embeddings-cache.js`, `tests/embeddings-*.js`
@@ -188,9 +213,9 @@ Top-level:
 - `createIndexerWorkerPools` **698-757**
 
 Refactor tasks:
-- [ ] Extract config normalization into `src/index/build/workers/config.js`.
-- [ ] Extract worker lifecycle into `src/index/build/workers/pool.js`.
-- [ ] Extract message protocol / error normalization into `src/index/build/workers/protocol.js`.
+- [x] Extract config normalization into `src/index/build/workers/config.js`.
+- [x] Extract worker lifecycle into `src/index/build/workers/pool.js`.
+- [x] Extract message protocol / error normalization into `src/index/build/workers/protocol.js`.
 
 Tests potentially affected:
 - `tests/worker-pool-windows.js`, `tests/worker-pool.js`
@@ -200,9 +225,9 @@ Top-level:
 - `createApiRouter` **31-756**
 
 Refactor tasks:
-- [ ] Extract middleware stack into `tools/api/middleware/*.js`.
-- [ ] Extract route registration into `tools/api/routes/*.js`.
-- [ ] Create a `tools/api/responses.js` for JSON/error helpers.
+- [x] Extract middleware stack into `tools/api/middleware/*.js`.
+- [x] Extract route registration into `tools/api/routes/*.js`.
+- [x] Create a `tools/api/responses.js` for JSON/error helpers.
 
 Tests potentially affected:
 - `tests/services/api/*.test.js`
@@ -212,9 +237,9 @@ Top-level:
 - `createBuildRuntime` **54-729**
 
 Refactor tasks:
-- [ ] Extract runtime envelope + config into `src/index/build/runtime/config.js`.
+- [x] Extract runtime envelope + config into `src/index/build/runtime/config.js`.
 - [ ] Extract queue creation into `src/index/build/runtime/queues.js`.
-- [ ] Extract policy toggles into `src/index/build/runtime/policy.js`.
+- [x] Extract policy toggles into `src/index/build/runtime/policy.js`.
 
 Tests potentially affected:
 - `tests/runtime/*`, `tests/concurrency/*`
@@ -269,8 +294,8 @@ Top-level:
 - `runSearchCli` **60-734**
 
 Refactor tasks:
-- [ ] Extract index loading to `src/retrieval/cli/load-indexes.js`.
-- [ ] Extract option normalization to `src/retrieval/cli/options.js` (some already exists).
+- [x] Extract index loading to `src/retrieval/cli/load-indexes.js`.
+- [x] Extract option normalization to `src/retrieval/cli/options.js` (some already exists).
 - [ ] Extract query execution to `src/retrieval/cli/run-search.js`.
 
 Tests potentially affected:
@@ -285,7 +310,7 @@ Top-level:
 - `buildChunkRelations` **679-698**
 
 Refactor tasks:
-- [ ] Move registry data into `registry-data.js` and keep runtime helpers in `registry.js`.
+- [x] Move registry data into `registry-data.js` and keep runtime helpers in `registry.js`.
 - [ ] Extract linguist mapping to `registry-linguist.js`.
 
 Tests potentially affected:
@@ -296,9 +321,9 @@ Top-level:
 - `buildInventory` **441-721**
 
 Refactor tasks:
-- [ ] Extract schema parsing helpers into `tools/config-inventory/schema.js`.
-- [ ] Extract source scanning into `tools/config-inventory/scan.js`.
-- [ ] Extract rendering into `tools/config-inventory/report.js`.
+- [x] Extract schema parsing helpers into `tools/config-inventory/schema.js`.
+- [x] Extract source scanning into `tools/config-inventory/scan.js`.
+- [x] Extract rendering into `tools/config-inventory/report.js`.
 
 ### 1.15 `src/retrieval/pipeline.js` (677 LOC)
 Top-level:
@@ -314,16 +339,16 @@ Top-level:
 - `runBuildSqliteIndex` **77-688**
 
 Refactor tasks:
-- [ ] Split CLI parsing to `tools/build-sqlite-index/args.js`.
-- [ ] Split execution to `tools/build-sqlite-index/runner.js`.
-- [ ] Keep `run.js` as entrypoint.
+- [x] Split CLI parsing to `tools/build-sqlite-index/args.js`.
+- [x] Split execution to `tools/build-sqlite-index/runner.js`.
+- [x] Keep `run.js` as entrypoint.
 
 ### 1.17 `src/shared/json-stream.js` (662 LOC)
 Top-level helpers and ranges listed in extraction log (see notes above).
 
 Refactor tasks:
-- [ ] Move compression helpers (`normalizeGzipOptions`, `createFflateGzipStream`, `createZstdStream`) into `src/shared/json-stream/compress.js`.
-- [ ] Move atomic replace into `src/shared/json-stream/atomic.js`.
+- [x] Move compression helpers (`normalizeGzipOptions`, `createFflateGzipStream`, `createZstdStream`) into `src/shared/json-stream/compress.js`.
+- [x] Move atomic replace into `src/shared/json-stream/atomic.js`.
 - [ ] Keep JSONL/array/object writers in `src/shared/json-stream/index.js`.
 
 ### 1.18 `src/map/isometric/client/edges.js` (650 LOC)
@@ -346,18 +371,18 @@ Refactor tasks:
 Top-level helpers and ranges already listed (14-685).
 
 Refactor tasks:
-- [ ] Split repo identity helpers into `tools/dict-utils/repo.js` (14-106).
-- [ ] Split build/index path resolution into `tools/dict-utils/build-paths.js` (107-222).
-- [ ] Split runtime/config resolution into `tools/dict-utils/runtime.js` (239-350).
-- [ ] Split tooling/metrics paths into `tools/dict-utils/tooling.js` (362-510).
-- [ ] Split dictionary path resolution into `tools/dict-utils/dictionaries.js` (598-685).
+- [x] Split repo identity helpers into `tools/dict-utils/repo.js` (14-106).
+- [x] Split build/index path resolution into `tools/dict-utils/build-paths.js` (107-222).
+- [x] Split runtime/config resolution into `tools/dict-utils/runtime.js` (239-350).
+- [x] Split tooling/metrics paths into `tools/dict-utils/tooling.js` (362-510).
+- [x] Split dictionary path resolution into `tools/dict-utils/dictionaries.js` (598-685).
 
 ---
 
 ## Phase 2 -- Tests and follow‑ups
 
-- [ ] Update imports for any moved modules and keep exports stable.
-- [ ] Run `npm run lint` and spot-check `node tests/run.js --match` for affected areas:
+- [x] Update imports for any moved modules and keep exports stable.
+- [x] Run `npm run lint` and spot-check `node tests/run.js --match` for affected areas:
   - watch: `tests/watch-*`
   - retrieval: `tests/retrieval/*`, `tests/lang-filter.js`
   - sqlite/build: `tests/storage/sqlite/*`
@@ -737,53 +762,53 @@ Use this template for every extraction so the refactor stays fast and safe:
 Skip isometric/map tests for now (per request). Add only light‑touch tests that lock behavior during refactor.
 
 ## build‑embeddings (`tools/build-embeddings/*`)
-- [ ] `tests/build-embeddings/args-parsing.test.js`
+- [x] `tests/build-embeddings/args-parsing.test.js`
   - asserts unknown args are rejected
   - ensures `--model`, `--provider`, `--cache-root` normalize consistently
-- [ ] `tests/build-embeddings/runtime-defaults.test.js`
+- [x] `tests/build-embeddings/runtime-defaults.test.js`
   - validates defaults are set when flags absent
 
 ## build‑sqlite‑index (`tools/build-sqlite-index/*`)
-- [ ] `tests/build-sqlite-index/args-parsing.test.js`
+- [x] `tests/build-sqlite-index/args-parsing.test.js`
   - validates `--mode`, `--out`, `--config` parsing
-- [ ] `tests/build-sqlite-index/output-paths.test.js`
+- [x] `tests/build-sqlite-index/output-paths.test.js`
   - ensures `resolveOutputPaths` produces expected file locations
 
 ## config‑inventory (`tools/config-inventory/*`)
-- [ ] `tests/config-inventory/schema-scan.test.js`
+- [x] `tests/config-inventory/schema-scan.test.js`
   - validates schema keys are discovered
-- [ ] `tests/config-inventory/report-format.test.js`
+- [x] `tests/config-inventory/report-format.test.js`
   - validates markdown output includes counts + sections
 
 ## API router (`tools/api/router.js`)
-- [ ] `tests/api/router-smoke.test.js`
+- [x] `tests/api/router-smoke.test.js`
   - registers router and asserts critical routes exist
   - verifies JSON error response shape
 
 ## MCP tools (`tools/mcp/tools.js`)
-- [ ] `tests/mcp/tools-registry.test.js`
+- [x] `tests/mcp/tools-registry.test.js`
   - ensures handler registry includes required tool names
-- [ ] `tests/mcp/tools-normalize-meta.test.js`
+- [x] `tests/mcp/tools-normalize-meta.test.js`
   - validates meta filter normalization output shape
 
 ## shared json‑stream (`src/shared/json-stream.js`)
-- [ ] `tests/json-stream/atomic-replace.test.js`
+- [x] `tests/json-stream/atomic-replace.test.js`
   - validates `replaceFile` behavior via small temp file
-- [ ] `tests/json-stream/compress-options.test.js`
+- [x] `tests/json-stream/compress-options.test.js`
   - validates gzip/zstd option normalization
 
 ## dict‑utils paths (`tools/dict-utils/paths.js`)
-- [ ] `tests/dict-utils/paths-repo-root.test.js`
+- [x] `tests/dict-utils/paths-repo-root.test.js`
   - resolves repo root from nested path
-- [ ] `tests/dict-utils/paths-builds-root.test.js`
+- [x] `tests/dict-utils/paths-builds-root.test.js`
   - validates builds root for config overrides
 
 ## retrieval CLI split (`src/retrieval/cli.js` → modules)
-- [ ] `tests/retrieval/cli-options-smoke.test.js`
+- [x] `tests/retrieval/cli-options-smoke.test.js`
   - parses `--lang`, `--ext`, `--filter` and ensures no throw
 
 ## validate split (`src/index/validate.js`)
-- [ ] `tests/validate/manifest-checks.test.js`
+- [x] `tests/validate/manifest-checks.test.js`
   - validates checksum failure produces issue text
 
 ---

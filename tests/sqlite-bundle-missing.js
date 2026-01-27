@@ -92,7 +92,7 @@ if (sqliteBuild.status !== 0) {
   process.exit(sqliteBuild.status ?? 1);
 }
 const output = getCombinedOutput(sqliteBuild);
-if (!output.includes('falling back to file-backed artifacts')) {
+if (!output.includes('Incremental bundles unavailable') && !output.includes('falling back to artifacts')) {
   console.error('Expected bundle fallback warning not found in output.');
   process.exit(1);
 }

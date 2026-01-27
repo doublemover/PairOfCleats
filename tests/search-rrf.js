@@ -36,6 +36,8 @@ const result = spawnSync(
     'code',
     '--ann',
     '--json',
+    '--stats',
+    '--explain',
     '--repo',
     fixtureRoot
   ],

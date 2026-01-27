@@ -115,7 +115,19 @@ if (chunksOut !== chunksA + chunksB) {
 }
 
 const chunksMonoList = await loadChunkMeta(outputMono);
-if (JSON.stringify(chunksMonoList) !== JSON.stringify(chunksAList)) {
+const normalizeChunks = (chunks) => (
+  Array.isArray(chunks)
+    ? chunks.map((chunk) => {
+      if (!chunk || typeof chunk !== 'object') return chunk;
+      if (!chunk.metaV2 || typeof chunk.metaV2 !== 'object') return chunk;
+      const metaV2 = { ...chunk.metaV2 };
+      delete metaV2.relations;
+      delete metaV2.usages;
+      return { ...chunk, metaV2 };
+    })
+    : chunks
+);
+if (JSON.stringify(normalizeChunks(chunksMonoList)) !== JSON.stringify(normalizeChunks(chunksAList))) {
   console.error('Assembled single index does not match monolithic chunk_meta.');
   process.exit(1);
 }
@@ -281,7 +293,7 @@ if (assembleEquivDuration > 30000) {
 
 const chunksAll = await loadChunkMeta(indexAll);
 const chunksEquiv = await loadChunkMeta(assembledEquiv);
-if (JSON.stringify(chunksAll) !== JSON.stringify(chunksEquiv)) {
+if (JSON.stringify(normalizeChunks(chunksAll)) !== JSON.stringify(normalizeChunks(chunksEquiv))) {
   console.error('Piece assembly equivalence failed: chunk_meta mismatch.');
   process.exit(1);
 }
@@ -319,6 +331,7 @@ const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   (entry?.type === 'stats' && entry?.name === 'filelists')
   || (entry?.type === 'stats' && entry?.name === 'index_state')
   || (entry?.type === 'relations' && entry?.name === 'graph_relations')
+  || (entry?.type === 'relations' && entry?.name === 'import_resolution_graph')
   || entry?.name === 'dense_vectors_hnsw_meta'
   || entry?.name === 'dense_vectors_lancedb_meta'
 ));

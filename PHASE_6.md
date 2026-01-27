@@ -67,7 +67,7 @@ This phase explicitly targets:
 
 - [x] Add a schema test that validates a representative `call_sites` entry (including truncation edge cases).
 - [x] Add a "reject bad contract" test case (missing required fields, wrong types, oversized fields).
-- [x] Verify that validation runs in CI lanes that already validate artifact schemas.
+- [ ] Verify that validation runs in CI lanes that already validate artifact schemas.
 
 ---
 
@@ -100,11 +100,11 @@ This phase explicitly targets:
 
 #### Tests / Verification
 
-- [x] Add an artifact-format test that builds an index and asserts:
-  - [x] `call_sites` parts + meta exist when relations are enabled.
+- [?] Add an artifact-format test that builds an index and asserts:
+  - [?] `call_sites` parts + meta exist when relations are enabled.
   - [x] `pieces/manifest.json` includes the `call_sites` piece(s).
-  - [x] Validation passes for `call_sites`.
-- [x] Add a determinism test that rebuilds twice and asserts the `call_sites` content is byte-identical (or at least line-identical) for a fixed fixture repo.
+  - [?] Validation passes for `call_sites`.
+- [ ] Add a determinism test that rebuilds twice and asserts the `call_sites` content is byte-identical (or at least line-identical) for a fixed fixture repo.
 
 ---
 

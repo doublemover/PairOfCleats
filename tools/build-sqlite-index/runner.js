@@ -269,7 +269,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         threadLimits,
         note: null
       });
-      const resolvedInput = useIncremental && incrementalBundleDir
+      let resolvedInput = useIncremental && incrementalBundleDir
         ? { source: 'incremental', bundleDir: incrementalBundleDir }
         : { source: 'artifacts', indexDir: modeIndexDir };
       let sqliteDb = null;
@@ -297,7 +297,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
             label: `${mode} sqlite incremental`
           });
-          sqliteDb = await buildDatabaseFromBundles({
+          const bundleResult = await buildDatabaseFromBundles({
             Database,
             outPath: tempOutputPath,
             mode,
@@ -310,6 +310,28 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             modelConfig,
             logger: externalLogger || { log, warn, error }
           });
+          const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
+            ? pieces.denseVec.vectors.length
+            : 0;
+          const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
+          const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
+          if (bundleFailureReason) {
+            warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}. Falling back to artifacts.`);
+            resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
+            sqliteDb = await buildDatabaseFromArtifacts({
+              Database,
+              index: pieces,
+              indexDir: modeIndexDir,
+              mode,
+              outputPath: tempOutputPath,
+              vectorConfig: resolvedVectorConfig,
+              emitOutput,
+              logger: externalLogger || { log, warn, error },
+              task: workTask
+            });
+          } else {
+            sqliteDb = bundleResult;
+          }
         } else {
           const estimate = await estimateDirBytes(modeIndexDir);
           inputBytes = estimate.bytes;
@@ -368,14 +390,21 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           );
         }
         if (resolvedInput.source === 'incremental' && resolvedInput.bundleDir) {
-          await incrementalUpdateDatabase({
+          const updateResult = await incrementalUpdateDatabase({
             Database,
-            bundleDir: resolvedInput.bundleDir,
-            outputPath,
+            outPath: outputPath,
+            mode,
+            incrementalData: incrementalManifest,
+            modelConfig,
             vectorConfig: resolvedVectorConfig,
             emitOutput,
-            task: workTask
+            validateMode,
+            expectedDense: pieces?.denseVec || null,
+            logger: externalLogger || { log, warn, error }
           });
+          if (emitOutput && updateResult?.used === false && updateResult.reason) {
+            warn(`[sqlite] Incremental update skipped for ${mode}: ${updateResult.reason}.`);
+          }
         }
         if (resolvedInput.source === 'artifacts' && !resolvedInput.indexDir) {
           throw new Error('Index directory missing for artifact build.');

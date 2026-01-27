@@ -65,7 +65,17 @@ if (!fs.existsSync(proseDb) || !fs.existsSync(proseMeta)) {
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--backend', 'memory', '--json', '--ann', '--repo', repoRoot],
+  [
+    path.join(root, 'search.js'),
+    'index',
+    '--backend',
+    'memory',
+    '--json',
+    '--stats',
+    '--ann',
+    '--repo',
+    repoRoot
+  ],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {

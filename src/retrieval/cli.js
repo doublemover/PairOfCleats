@@ -404,6 +404,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lmdbHelpers
     } = backendContext;
     telemetry.setBackend(backendLabel);
+    if (backendForcedLmdb && !useLmdb) {
+      return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
+    }
 
     const branchResult = await applyBranchFilter({
       branchFilter,

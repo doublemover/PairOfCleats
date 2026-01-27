@@ -82,8 +82,8 @@ if (!state?.sqlite) {
   console.error('index_state.json missing sqlite section after failure.');
   process.exit(1);
 }
-if (state.sqlite.pending !== true || state.sqlite.ready !== false) {
-  console.error(`Expected sqlite pending=true and ready=false, got pending=${state.sqlite.pending} ready=${state.sqlite.ready}`);
+if (state.sqlite.status !== 'failed') {
+  console.error(`Expected sqlite status=failed, got ${state.sqlite.status}`);
   process.exit(1);
 }
 
@@ -107,10 +107,8 @@ const refreshedIndexRoot = resolveIndexRoot(repoRoot, userConfig);
 const refreshedCodeDir = getIndexDir(repoRoot, 'code', userConfig, { indexRoot: refreshedIndexRoot });
 const refreshedStatePath = path.join(refreshedCodeDir, 'index_state.json');
 const stateAfter = JSON.parse(fs.readFileSync(refreshedStatePath, 'utf8'));
-if (stateAfter.sqlite?.pending !== false || stateAfter.sqlite?.ready !== true) {
-  console.error(
-    `Expected sqlite pending=false and ready=true after success, got pending=${stateAfter.sqlite?.pending} ready=${stateAfter.sqlite?.ready}`
-  );
+if (stateAfter.sqlite?.status !== 'ready') {
+  console.error(`Expected sqlite status=ready after success, got ${stateAfter.sqlite?.status}`);
   process.exit(1);
 }
 

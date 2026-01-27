@@ -179,6 +179,7 @@ export async function runSearchSession({
       denseVectorMode: resolvedDenseVectorMode,
       intent: intentInfo?.type || null,
       minhashMaxDocs,
+      explain,
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,

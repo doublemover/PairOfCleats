@@ -1,7 +1,11 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream.js';
 
 export async function writeFileLists({ outDir, state, userConfig, log }) {
+  if (outDir) {
+    await fs.mkdir(outDir, { recursive: true });
+  }
   const fileListConfig = userConfig?.indexing || {};
   const debugFileLists = fileListConfig.debugFileLists === true;
   const sampleSize = Number.isFinite(Number(fileListConfig.fileListSampleSize))

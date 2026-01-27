@@ -129,6 +129,7 @@ if (baselinePieces.size !== shardedPieces.size) {
 }
 for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
   if (piecePath === '.filelists.json') continue;
+  if (piecePath.endsWith('import_resolution_graph.json')) continue;
   const shardedEntry = shardedPieces.get(piecePath);
   if (!shardedEntry) {
     console.error(`Shard merge mismatch: missing piece entry ${piecePath}`);

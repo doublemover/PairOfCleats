@@ -63,7 +63,18 @@ try {
 
   const annResult = runNode(
     'search ann',
-    [searchPath, 'return', '--mode', 'code', '--ann', '--json', '--repo', repoRoot]
+    [
+      searchPath,
+      'return',
+      '--mode',
+      'code',
+      '--ann',
+      '--json',
+      '--stats',
+      '--explain',
+      '--repo',
+      repoRoot
+    ]
   );
   let annPayload = null;
   try {
