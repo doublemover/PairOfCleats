@@ -65,13 +65,14 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const tooling = cfg.tooling || {};
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
+  const toolingCache = tooling.cache || {};
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
   const breakerThreshold = Number(tooling.circuitBreakerThreshold);
@@ -84,6 +85,13 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     }
     return null;
   };
+  const providerOrder = normalizeOrder(tooling.providerOrder) || [];
+  const vfsConfig = tooling.vfs && typeof tooling.vfs === 'object' ? tooling.vfs : {};
+  const lspConfig = tooling.lsp && typeof tooling.lsp === 'object' ? tooling.lsp : {};
+  const normalizeServerList = (value) => (Array.isArray(value) ? value : []);
+  const vfsStrict = typeof vfsConfig.strict === 'boolean' ? vfsConfig.strict : undefined;
+  const vfsMaxBytesRaw = Number(vfsConfig.maxVirtualFileBytes);
+  const vfsMaxBytes = Number.isFinite(vfsMaxBytesRaw) ? Math.max(0, Math.floor(vfsMaxBytesRaw)) : null;
   const normalizeToolList = (value) => {
     if (Array.isArray(value)) {
       return value.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean);
@@ -96,9 +104,17 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const enabledTools = normalizeToolList(tooling.enabledTools);
   const disabledTools = normalizeToolList(tooling.disabledTools);
   const resolveOrder = normalizeOrder(typescript.resolveOrder) || ['repo', 'cache', 'global'];
+  const maxFiles = Number(typescript.maxFiles);
+  const maxFileBytes = Number(typescript.maxFileBytes);
+  const maxProgramFiles = Number(typescript.maxProgramFiles);
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
     autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
+    strict: tooling.strict !== false,
+    cache: {
+      enabled: toolingCache.enabled !== false,
+      dir: typeof toolingCache.dir === 'string' ? toolingCache.dir : ''
+    },
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     maxRetries: Number.isFinite(maxRetries) ? Math.max(0, Math.floor(maxRetries)) : null,
     circuitBreakerThreshold: Number.isFinite(breakerThreshold) ? Math.max(1, Math.floor(breakerThreshold)) : null,
@@ -108,11 +124,26 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     dir: getToolingDir(repoRoot, cfg),
     enabledTools,
     disabledTools,
+    providerOrder,
+    vfs: {
+      ...(typeof vfsStrict === 'boolean' ? { strict: vfsStrict } : {}),
+      ...(Number.isFinite(vfsMaxBytes) ? { maxVirtualFileBytes: vfsMaxBytes } : {})
+    },
+    lsp: {
+      enabled: lspConfig.enabled !== false,
+      servers: normalizeServerList(lspConfig.servers)
+    },
     typescript: {
       enabled: typescript.enabled !== false,
       resolveOrder,
       useTsconfig: typescript.useTsconfig !== false,
-      tsconfigPath: typeof typescript.tsconfigPath === 'string' ? typescript.tsconfigPath : ''
+      tsconfigPath: typeof typescript.tsconfigPath === 'string' ? typescript.tsconfigPath : '',
+      allowJs: typescript.allowJs !== false,
+      checkJs: typescript.checkJs !== false,
+      includeJsx: typescript.includeJsx !== false,
+      maxFiles: Number.isFinite(maxFiles) ? Math.max(0, Math.floor(maxFiles)) : null,
+      maxFileBytes: Number.isFinite(maxFileBytes) ? Math.max(0, Math.floor(maxFileBytes)) : null,
+      maxProgramFiles: Number.isFinite(maxProgramFiles) ? Math.max(0, Math.floor(maxProgramFiles)) : null
     },
     clangd: {
       requireCompilationDatabase: clangd.requireCompilationDatabase === true,

@@ -1,33 +1,36 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createToolingEntry, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
-
-const DEFAULT_CONFIG_FILES = ['tsconfig.json'];
+import { hashProviderConfig } from './provider-contract.js';
+import { createVirtualCompilerHost } from './typescript/host.js';
+import { buildScopedSymbolId, buildSignatureKey, buildSymbolKey } from '../../shared/identity.js';
 
 const normalizePathKey = (value) => {
   const resolved = path.resolve(value);
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
 
-const createDefaultCompilerOptions = (ts) => ({
-  allowJs: true,
-  checkJs: true,
-  target: ts.ScriptTarget.ESNext,
+const normalizeTypeText = (value) => {
+  if (!value) return null;
+  return String(value).replace(/\s+/g, ' ').trim() || null;
+};
+
+const createDefaultCompilerOptions = (ts, config) => ({
+  allowJs: config?.allowJs !== false,
+  checkJs: config?.checkJs !== false,
+  jsx: ts.JsxEmit.Preserve,
+  target: ts.ScriptTarget.ES2020,
   module: ts.ModuleKind.ESNext,
-  jsx: ts.JsxEmit.Preserve
+  moduleResolution: ts.ModuleResolutionKind.Node10,
+  skipLibCheck: true,
+  noEmit: true,
+  strict: false
 });
 
 const formatDiagnostic = (ts, diagnostic) => {
   const message = ts.flattenDiagnosticMessageText(diagnostic?.messageText || '', '\n');
   if (diagnostic?.file?.fileName) return `${diagnostic.file.fileName}: ${message}`;
   return message;
-};
-
-const isWithinRoot = (rootDir, candidate) => {
-  const root = normalizePathKey(rootDir);
-  const resolved = normalizePathKey(candidate);
-  return resolved === root || resolved.startsWith(`${root}${path.sep}`);
 };
 
 async function loadTypeScript(toolingConfig, repoRoot) {
@@ -71,47 +74,35 @@ const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
   return null;
 };
 
-const resolveNearestTsconfig = (filePath, rootDir, cache) => {
-  const startDir = path.dirname(filePath);
-  const root = path.resolve(rootDir);
-  let dir = startDir;
+const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
+
+const findNearestConfig = (startDir, repoRoot, cache) => {
+  if (!startDir) return null;
+  const rootKey = normalizePathKey(repoRoot || startDir);
+  let current = startDir;
   const visited = [];
   while (true) {
-    const key = normalizePathKey(dir);
-    if (cache.has(key)) {
-      const cached = cache.get(key);
-      for (const entry of visited) {
-        cache.set(entry, cached);
-      }
+    const currentKey = normalizePathKey(current);
+    if (cache.has(currentKey)) {
+      const cached = cache.get(currentKey) || null;
+      for (const key of visited) cache.set(key, cached);
       return cached;
     }
-    visited.push(key);
-    for (const candidateName of DEFAULT_CONFIG_FILES) {
-      const candidate = path.join(dir, candidateName);
+    visited.push(currentKey);
+    for (const filename of CONFIG_FILENAMES) {
+      const candidate = path.join(current, filename);
       if (fsSync.existsSync(candidate)) {
-        for (const entry of visited) {
-          cache.set(entry, candidate);
-        }
+        for (const key of visited) cache.set(key, candidate);
         return candidate;
       }
     }
-    if (dir === root) break;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    if (!isWithinRoot(rootDir, parent)) break;
-    dir = parent;
+    if (currentKey === rootKey) break;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
-  for (const entry of visited) {
-    cache.set(entry, null);
-  }
+  for (const key of visited) cache.set(key, null);
   return null;
-};
-
-const resolveTsconfigForFile = (filePath, rootDir, toolingConfig, cache, log) => {
-  if (toolingConfig?.typescript?.useTsconfig === false) return null;
-  const override = resolveTsconfigOverride(rootDir, toolingConfig, log);
-  if (override) return override;
-  return resolveNearestTsconfig(filePath, rootDir, cache);
 };
 
 const parseTsConfig = (ts, configPath, log) => {
@@ -140,188 +131,337 @@ const getIdentifierName = (ts, node) => {
   return null;
 };
 
-const isFunctionInitializer = (ts, node) => ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+const isFunctionLike = (ts, node) => (
+  ts.isFunctionDeclaration(node)
+  || ts.isFunctionExpression(node)
+  || ts.isArrowFunction(node)
+  || ts.isMethodDeclaration(node)
+  || ts.isConstructorDeclaration(node)
+);
 
-const buildTypeScriptMap = (ts, program, targetFiles) => {
-  const targetSet = new Set(targetFiles.map(normalizePathKey));
-  const checker = program.getTypeChecker();
-  const byFile = new Map();
-
-  const record = (fileName, name, signature, params) => {
-    if (!fileName || !name || !signature) return;
-    const returnType = checker.typeToString(checker.getReturnTypeOfSignature(signature));
-    const paramTypes = {};
-    for (const param of params || []) {
-      const nameNode = param?.name;
-      const paramName = nameNode && typeof nameNode.getText === 'function' ? nameNode.getText() : null;
-      if (!paramName) continue;
-      const paramType = checker.typeToString(checker.getTypeAtLocation(param));
-      if (paramType) paramTypes[paramName] = uniqueTypes([...(paramTypes[paramName] || []), paramType]);
-    }
-    const fileMap = byFile.get(fileName) || {};
-    if (!fileMap[name]) {
-      fileMap[name] = { returnType, paramTypes };
-    } else {
-      const existing = fileMap[name];
-      if (returnType && (!existing.returnType || existing.returnType !== returnType)) {
-        existing.returnType = existing.returnType
-          ? uniqueTypes([existing.returnType, returnType]).join(' | ')
-          : returnType;
-      }
-      for (const [paramName, paramList] of Object.entries(paramTypes)) {
-        const existingList = existing.paramTypes?.[paramName] || [];
-        existing.paramTypes = existing.paramTypes || {};
-        existing.paramTypes[paramName] = uniqueTypes([...(existingList || []), ...paramList]);
-      }
-    }
-    byFile.set(fileName, fileMap);
-  };
-
-  const recordFunctionLike = (fileName, name, node) => {
-    const signature = checker.getSignatureFromDeclaration(node);
-    if (signature) record(fileName, name, signature, node.parameters);
-  };
-
-  for (const sourceFile of program.getSourceFiles()) {
-    if (!targetSet.has(normalizePathKey(sourceFile.fileName))) continue;
-    const visit = (node) => {
-      if (ts.isClassDeclaration(node) && node.name) {
-        const className = node.name.getText(sourceFile);
-        node.members?.forEach((member) => {
-          if (ts.isConstructorDeclaration(member)) {
-            recordFunctionLike(sourceFile.fileName, `${className}.constructor`, member);
-            return;
-          }
-          if (ts.isMethodDeclaration(member) && member.name) {
-            const methodName = getIdentifierName(ts, member.name);
-            if (methodName) recordFunctionLike(sourceFile.fileName, `${className}.${methodName}`, member);
-            return;
-          }
-          if ((ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) && member.name) {
-            const accessorName = getIdentifierName(ts, member.name);
-            if (accessorName) recordFunctionLike(sourceFile.fileName, `${className}.${accessorName}`, member);
-            return;
-          }
-          if (ts.isPropertyDeclaration(member) && member.name && member.initializer) {
-            const propName = getIdentifierName(ts, member.name);
-            if (propName && isFunctionInitializer(ts, member.initializer)) {
-              recordFunctionLike(sourceFile.fileName, `${className}.${propName}`, member.initializer);
-            }
-          }
-        });
-      }
-
-      if (ts.isFunctionDeclaration(node) && node.name) {
-        recordFunctionLike(sourceFile.fileName, node.name.getText(sourceFile), node);
-      }
-
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-        if (isFunctionInitializer(ts, node.initializer)) {
-          recordFunctionLike(sourceFile.fileName, node.name.text, node.initializer);
-        }
-      }
-
-      ts.forEachChild(node, (child) => visit(child));
-    };
-    visit(sourceFile);
-  }
-  return byFile;
+const getNodeName = (ts, node, sourceFile) => {
+  if (!node) return null;
+  if (ts.isFunctionDeclaration(node) && node.name) return node.name.getText(sourceFile);
+  if (ts.isMethodDeclaration(node) && node.name) return getIdentifierName(ts, node.name);
+  if (ts.isClassDeclaration(node) && node.name) return node.name.getText(sourceFile);
+  if (ts.isInterfaceDeclaration(node) && node.name) return node.name.getText(sourceFile);
+  if (ts.isTypeAliasDeclaration(node) && node.name) return node.name.getText(sourceFile);
+  if (ts.isEnumDeclaration(node) && node.name) return node.name.getText(sourceFile);
+  if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) return node.name.text;
+  return null;
 };
 
-const createProgramFromConfig = (ts, configPath, filePaths, log) => {
-  const defaultOptions = createDefaultCompilerOptions(ts);
-  const parsed = parseTsConfig(ts, configPath, log);
-  if (!parsed) {
-    return { program: ts.createProgram({ rootNames: filePaths, options: defaultOptions }), configPath: null };
-  }
+const kindMatches = (ts, node, hint) => {
+  if (!hint) return false;
+  const normalized = String(hint).toLowerCase();
+  if (normalized === 'function') return ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node);
+  if (normalized === 'method') return ts.isMethodDeclaration(node);
+  if (normalized === 'class') return ts.isClassDeclaration(node);
+  if (normalized === 'interface') return ts.isInterfaceDeclaration(node);
+  if (normalized === 'type') return ts.isTypeAliasDeclaration(node);
+  if (normalized === 'enum') return ts.isEnumDeclaration(node);
+  if (normalized === 'variable') return ts.isVariableDeclaration(node);
+  return false;
+};
 
-  const rootNames = uniqueTypes([...(parsed.fileNames || []), ...filePaths]);
-  const options = { ...defaultOptions, ...parsed.options };
-  const program = ts.createProgram({
-    rootNames,
-    options,
-    projectReferences: parsed.projectReferences
+const collectCandidates = (ts, sourceFile, range, hint) => {
+  const candidates = [];
+  const visit = (node) => {
+    const start = node.getStart(sourceFile);
+    const end = node.getEnd();
+    if (range && end > range.start && start < range.end) {
+      const overlap = Math.min(end, range.end) - Math.max(start, range.start);
+      if (overlap > 0) {
+        const span = end - start;
+        const overlapRatio = overlap / Math.max(1, range.end - range.start);
+        const name = getNodeName(ts, node, sourceFile);
+        const score = (overlapRatio * 10)
+          + (kindMatches(ts, node, hint?.kind) ? 2 : 0)
+          + (hint?.name && name && name === hint.name ? 2 : 0)
+          - (span / 1000000);
+        candidates.push({ node, score, span, name });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return candidates;
+};
+
+const collectNamedCandidates = (ts, sourceFile, name, hint) => {
+  if (!name) return [];
+  const candidates = [];
+  const visit = (node) => {
+    const nodeName = getNodeName(ts, node, sourceFile);
+    if (nodeName && nodeName === name) {
+      if (!hint?.kind || kindMatches(ts, node, hint.kind)) {
+        candidates.push(node);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return candidates;
+};
+
+const selectBestCandidate = (candidates) => {
+  if (!candidates.length) return { node: null, status: 'missing' };
+  candidates.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+    if (a.span !== b.span) return a.span - b.span;
+    return String(a.name || '').localeCompare(String(b.name || ''));
   });
-  return { program, configPath };
+  if (candidates.length > 1 && Math.abs(candidates[0].score - candidates[1].score) < 1e-6) {
+    return { node: null, status: 'ambiguous' };
+  }
+  return { node: candidates[0].node, status: 'ok' };
 };
 
-const createProgramDefault = (ts, filePaths) => {
-  const options = createDefaultCompilerOptions(ts);
-  return { program: ts.createProgram({ rootNames: filePaths, options }), configPath: null };
+const findNodeForTarget = (ts, sourceFile, target, strict) => {
+  const candidates = collectCandidates(ts, sourceFile, target.virtualRange, target.symbolHint || null);
+  const best = selectBestCandidate(candidates);
+  if (best.node) return best;
+  if (strict) return best;
+  if (target?.symbolHint?.name) {
+    const nameMatches = collectNamedCandidates(
+      ts,
+      sourceFile,
+      target.symbolHint.name,
+      target.symbolHint
+    );
+    if (nameMatches.length === 1) return { node: nameMatches[0], status: 'ok' };
+    if (nameMatches.length > 1) return { node: null, status: 'ambiguous' };
+  }
+  return best;
 };
 
-export async function collectTypeScriptTypes({ rootDir, chunksByFile, log, toolingConfig }) {
-  const tsFiles = Array.from(chunksByFile.keys())
-    .filter((file) => ['.ts', '.tsx', '.mts', '.cts'].includes(path.extname(file).toLowerCase()))
-    .map((file) => path.resolve(rootDir, file));
-  const uniqueTsFiles = Array.from(new Set(tsFiles));
-  if (!uniqueTsFiles.length) return { typesByChunk: new Map(), fileCount: 0 };
-
-  if (toolingConfig?.typescript?.enabled === false) {
-    log('[index] TypeScript tooling disabled; skipping tooling-based types.');
-    return { typesByChunk: new Map(), fileCount: uniqueTsFiles.length };
-  }
-
-  const ts = await loadTypeScript(toolingConfig, rootDir);
-  if (!ts) {
-    log('[index] TypeScript tooling not detected; skipping tooling-based types.');
-    return { typesByChunk: new Map(), fileCount: uniqueTsFiles.length };
-  }
-
-  const configCache = new Map();
-  const groups = new Map();
-  for (const filePath of uniqueTsFiles) {
-    const configPath = resolveTsconfigForFile(filePath, rootDir, toolingConfig, configCache, log);
-    const key = configPath || '__default__';
-    if (!groups.has(key)) {
-      groups.set(key, { configPath, files: new Set() });
-    }
-    groups.get(key).files.add(filePath);
-  }
-
-  const typesByChunk = new Map();
-  for (const group of groups.values()) {
-    const filePaths = Array.from(group.files);
-    if (!filePaths.length) continue;
-    let programResult = null;
-    if (group.configPath) {
-      programResult = createProgramFromConfig(ts, group.configPath, filePaths, log);
-      log(`[index] TypeScript tooling using ${group.configPath} (${filePaths.length} file(s)).`);
-    } else {
-      programResult = createProgramDefault(ts, filePaths);
-      if (toolingConfig?.typescript?.useTsconfig !== false) {
-        log(`[index] TypeScript tooling using default compiler options (${filePaths.length} file(s)).`);
+const extractTypes = (ts, checker, sourceFile, node) => {
+  if (!node) return null;
+  if (!isFunctionLike(ts, node)) return null;
+  const signature = checker.getSignatureFromDeclaration(node);
+  if (!signature) return null;
+  const returnType = normalizeTypeText(checker.typeToString(checker.getReturnTypeOfSignature(signature), node));
+  const paramTypes = {};
+  for (const param of node.parameters || []) {
+    let paramName = null;
+    if (param?.name) {
+      if (ts.isIdentifier(param.name)) {
+        paramName = param.name.text;
+      } else if (typeof param.name.getText === 'function') {
+        paramName = param.name.getText(sourceFile).replace(/\s+/g, '').trim() || null;
       }
     }
+    if (!paramName) continue;
+    const typeText = normalizeTypeText(checker.typeToString(checker.getTypeAtLocation(param), param));
+    if (!typeText) continue;
+    const confidence = param.type ? 0.95 : (typeText === 'any' || typeText === 'unknown' ? 0.5 : 0.7);
+    if (!paramTypes[paramName]) paramTypes[paramName] = [];
+    paramTypes[paramName].push({ type: typeText, confidence, source: 'tooling' });
+  }
+  const signatureText = normalizeTypeText(checker.signatureToString(signature, node));
+  return { returnType, paramTypes, signature: signatureText };
+};
 
-    const tsTypesByFile = buildTypeScriptMap(ts, programResult.program, filePaths);
-    for (const [file, chunks] of chunksByFile.entries()) {
-      const ext = path.extname(file).toLowerCase();
-      if (!['.ts', '.tsx', '.mts', '.cts'].includes(ext)) continue;
-      const absFile = path.resolve(rootDir, file);
-      if (!group.files.has(absFile)) continue;
-      const fileMap = tsTypesByFile.get(absFile);
-      if (!fileMap) continue;
-      for (const chunk of chunks) {
-        const tsEntry = fileMap[chunk.name];
-        if (!tsEntry) continue;
-        const key = `${chunk.file}::${chunk.name}`;
-        const entry = typesByChunk.get(key) || createToolingEntry();
-        if (tsEntry.returnType) {
-          entry.returns = uniqueTypes([...(entry.returns || []), tsEntry.returnType]);
+export const createTypeScriptProvider = () => ({
+  id: 'typescript',
+  version: '2.0.0',
+  label: 'TypeScript',
+  priority: 10,
+  languages: ['typescript', 'tsx', 'javascript', 'jsx'],
+  kinds: ['types'],
+  requires: { module: 'typescript' },
+  capabilities: {
+    supportsVirtualDocuments: true,
+    supportsSegmentRouting: true,
+    supportsJavaScript: true,
+    supportsTypeScript: true,
+    supportsSymbolRef: true
+  },
+  getConfigHash(ctx) {
+    return hashProviderConfig({
+      typescript: ctx?.toolingConfig?.typescript || {},
+      strict: ctx?.strict !== false
+    });
+  },
+  async run(ctx, inputs) {
+    const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+    if (ctx?.toolingConfig?.typescript?.enabled === false) {
+      log({ level: 'info', message: 'TypeScript tooling disabled.' });
+      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    }
+    const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
+    if (!ts) {
+      log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
+      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    }
+    const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
+    const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
+    const config = ctx?.toolingConfig?.typescript || {};
+    const allowJs = config.allowJs !== false;
+    const includeJsx = config.includeJsx !== false;
+    const allowedExts = new Set([
+      '.ts', '.tsx', '.mts', '.cts',
+      ...(allowJs ? ['.js', '.mjs', '.cjs'] : []),
+      ...(allowJs && includeJsx ? ['.jsx'] : [])
+    ]);
+    const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
+    if (!rootDocs.length) return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+
+    const maxFiles = Number.isFinite(config.maxFiles) ? Math.max(1, config.maxFiles) : null;
+    const maxProgramFiles = Number.isFinite(config.maxProgramFiles) ? Math.max(1, config.maxProgramFiles) : null;
+    const maxFileBytes = Number.isFinite(config.maxFileBytes) ? Math.max(1, config.maxFileBytes) : null;
+
+    const configOverride = resolveTsconfigOverride(ctx.repoRoot, ctx.toolingConfig, (message) => log({ level: 'warn', message }));
+    const useTsconfig = config.useTsconfig !== false;
+    const configCache = new Map();
+    const configGroups = new Map();
+    const orderedDocs = rootDocs.slice().sort((a, b) => a.virtualPath.localeCompare(b.virtualPath));
+    for (const doc of orderedDocs) {
+      const containerPath = doc.containerPath || doc.virtualPath;
+      const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
+      const configPath = configOverride
+        ? configOverride
+        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache) : null);
+      const key = configPath || '__default__';
+      const group = configGroups.get(key) || { configPath, documents: [] };
+      group.documents.push(doc);
+      configGroups.set(key, group);
+    }
+
+    const byChunkUid = {};
+    const diagnostics = [];
+    const targetsByDoc = new Map();
+    for (const target of targets) {
+      const chunkRef = target?.chunkRef || target?.chunk || null;
+      if (!target?.virtualPath || !chunkRef?.chunkUid) continue;
+      const list = targetsByDoc.get(target.virtualPath) || [];
+      list.push({ ...target, chunkRef });
+      targetsByDoc.set(target.virtualPath, list);
+    }
+
+    const parsedConfigCache = new Map();
+    const compilerDefaults = createDefaultCompilerOptions(ts, config);
+    for (const group of configGroups.values()) {
+      const groupDocs = group.documents || [];
+      if (maxFiles && groupDocs.length > maxFiles) {
+        diagnostics.push({
+          name: 'cap_maxFiles',
+          status: 'warn',
+          message: `TypeScript provider skipped ${groupDocs.length} docs (maxFiles=${maxFiles}).`
+        });
+        continue;
+      }
+      if (maxFileBytes) {
+        const oversized = groupDocs.find((doc) => Buffer.byteLength(doc.text || '', 'utf8') > maxFileBytes);
+        if (oversized) {
+          diagnostics.push({
+            name: 'cap_maxFileBytes',
+            status: 'warn',
+            message: `TypeScript provider skipped ${oversized.virtualPath} (size > ${maxFileBytes}).`
+          });
+          continue;
         }
-        if (tsEntry.paramTypes && typeof tsEntry.paramTypes === 'object') {
-          for (const [name, types] of Object.entries(tsEntry.paramTypes)) {
-            if (!name || !Array.isArray(types)) continue;
-            const existing = entry.params?.[name] || [];
-            entry.params[name] = uniqueTypes([...(existing || []), ...types]);
+      }
+
+      let parsedConfig = null;
+      if (group.configPath) {
+        if (parsedConfigCache.has(group.configPath)) {
+          parsedConfig = parsedConfigCache.get(group.configPath);
+        } else {
+          parsedConfig = parseTsConfig(ts, group.configPath, (message) => log({ level: 'warn', message }));
+          parsedConfigCache.set(group.configPath, parsedConfig);
+        }
+      }
+
+      const mergedOptions = parsedConfig?.options
+        ? { ...compilerDefaults, ...parsedConfig.options }
+        : { ...compilerDefaults };
+      // Ensure tooling config overrides win for JS parity.
+      mergedOptions.allowJs = compilerDefaults.allowJs;
+      mergedOptions.checkJs = compilerDefaults.checkJs;
+
+      const vfsMap = new Map();
+      const rootNames = [];
+      for (const doc of groupDocs) {
+        const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
+        vfsMap.set(normalizePathKey(absPath), doc.text);
+        rootNames.push(absPath);
+      }
+      const finalRootNames = parsedConfig?.fileNames
+        ? Array.from(new Set([...parsedConfig.fileNames, ...rootNames]))
+        : rootNames;
+
+      if (maxProgramFiles && finalRootNames.length > maxProgramFiles) {
+        diagnostics.push({
+          name: 'cap_maxProgramFiles',
+          status: 'warn',
+          message: `TypeScript provider skipped program with ${finalRootNames.length} files (maxProgramFiles=${maxProgramFiles}).`
+        });
+        continue;
+      }
+
+      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap);
+      const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, host });
+      const checker = program.getTypeChecker();
+
+      for (const doc of groupDocs) {
+        const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
+        const sourceFile = program.getSourceFile(absPath);
+        if (!sourceFile) continue;
+        const docTargets = targetsByDoc.get(doc.virtualPath) || [];
+        for (const target of docTargets) {
+          const result = findNodeForTarget(ts, sourceFile, target, ctx?.strict !== false);
+          if (!result.node) {
+            diagnostics.push({
+              name: 'node_match',
+              status: result.status === 'ambiguous' ? 'warn' : 'error',
+              message: `TypeScript target ${result.status} for ${target.chunkRef.chunkUid}`
+            });
+            continue;
           }
+          const extracted = extractTypes(ts, checker, sourceFile, result.node);
+          if (!extracted) continue;
+          const nodeName = getNodeName(ts, result.node, sourceFile) || target?.symbolHint?.name || null;
+          const symbolKey = buildSymbolKey({
+            virtualPath: target.virtualPath,
+            name: nodeName,
+            chunkId: target.chunkRef?.chunkId
+          });
+          const signatureKey = buildSignatureKey(extracted.signature);
+          const scopedId = buildScopedSymbolId(symbolKey, signatureKey);
+          const symbolRef = symbolKey ? {
+            symbolKey,
+            symbolId: null,
+            signatureKey,
+            scopedId,
+            kind: target?.symbolHint?.kind || null,
+            qualifiedName: nodeName,
+            languageId: doc.languageId || null,
+            definingChunk: target.chunkRef || null,
+            evidence: { scheme: 'heuristic-v1', confidence: result.status === 'ok' ? 'medium' : 'low' }
+          } : null;
+          byChunkUid[target.chunkRef.chunkUid] = {
+            chunk: target.chunkRef,
+            payload: {
+              returnType: extracted.returnType,
+              paramTypes: extracted.paramTypes,
+              signature: extracted.signature
+            },
+            ...(symbolRef ? { symbolRef } : {}),
+            provenance: {
+              provider: 'typescript',
+              version: '2.0.0',
+              collectedAt: new Date().toISOString()
+            }
+          };
         }
-        typesByChunk.set(key, entry);
       }
     }
-  }
 
-  log(`[index] TypeScript tooling enabled for ${uniqueTsFiles.length} file(s).`);
-  return { typesByChunk, fileCount: uniqueTsFiles.length };
-}
+    return {
+      provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      byChunkUid,
+      diagnostics: diagnostics.length ? { checks: diagnostics } : null
+    };
+  }
+});

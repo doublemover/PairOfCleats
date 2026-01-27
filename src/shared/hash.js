@@ -58,6 +58,15 @@ export async function checksumFile(filePath) {
   return { algo: 'xxh64', value };
 }
 
+export async function getXxhashBackend() {
+  try {
+    const backend = await getBackend();
+    return backend?.name || null;
+  } catch {
+    return null;
+  }
+}
+
 export function setXxhashBackend(backend) {
   backendOverride = typeof backend === 'string' && backend.trim() ? backend.trim() : null;
   backendName = null;

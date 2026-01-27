@@ -1,5 +1,20 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../../../src/shared/jsonrpc.js';
+
+const counterPath = process.env.POC_LSP_COUNTER;
+const tracePath = process.env.POC_LSP_TRACE;
+if (counterPath) {
+  try {
+    fs.appendFileSync(counterPath, 'spawn\n');
+  } catch {}
+}
+const recordEvent = (kind, message) => {
+  if (!tracePath) return;
+  try {
+    fs.appendFileSync(tracePath, `${JSON.stringify({ kind, method: message?.method || null })}\n`);
+  } catch {}
+};
 
 const args = process.argv.slice(2);
 const modeIdx = args.indexOf('--mode');
@@ -90,6 +105,7 @@ const respond = (id, result) => send({ jsonrpc: '2.0', id, result });
 const respondError = (id, message) => send({ jsonrpc: '2.0', id, error: { code: -32601, message } });
 
 const handleRequest = (message) => {
+  recordEvent('request', message);
   const { id, method, params } = message;
   if (method === 'initialize') {
     respond(id, {
@@ -124,6 +140,7 @@ const handleRequest = (message) => {
 };
 
 const handleNotification = (message) => {
+  recordEvent('notification', message);
   if (!message?.method) return;
   if (message.method === 'textDocument/didOpen') {
     const uri = message.params?.textDocument?.uri;

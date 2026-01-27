@@ -156,55 +156,29 @@ Override cache location via `.pairofcleats.json`:
 
 ---
 
-## Mental model diagrams
+## Mental model (simplified)
 
-### Indexing pipeline (build)
+PairOfCleats has two steps: build an index, then search it.
 
-```mermaid
-flowchart TB
-  A["Repo files"] --> B["Discovery + ignore <br/>(.gitignore/etc)"]
-  B --> C["Shard planner <br/>(dir + lang, shard IDs)"]
-  C --> D["Shard queue"]
-  D --> W["Worker pool <br/>(tokenize, quantize, imports)"]
-  D --> M["Main thread"]
-  W --> E["File cache <br/>(hash -> reuse <br/>tokens/minhash/imports)"]
-  M --> E
+Index:
+  repo files -> index build -> artifacts/sqlite
 
-  subgraph S1["Stage 1 <br/>(foreground)"]
-    E --> F["Sparse index <br/>(tokens + postings<br/> + ngrams/chargrams)"]
-    F --> G["Artifacts <br/>(chunk_meta + postings<br/> + bundles)"]
-    F --> H["SQLite build <br/>(WAL + bulk tx)"]
-  end
+Search:
+  query -> filters + rank -> top chunks
 
-  subgraph S2["Stage 2 <br/>(background)"]
-    G --> Q["Enrichment queue"]
-    Q --> J["Tree-sitter + risk<br/> + lint + embeddings"]
-    J --> K["Enriched artifacts<br/> + vectors"]
-    K --> H
-  end
-```
+ASCII draft (for later Mermaid):
 
-### Search pipeline (query)
+  [Repo] -> [Index build] -> [Artifacts / SQLite]
+  [Query] -> [Search pipeline] -> [Ranked chunks]
 
-```mermaid
-flowchart TB
-  Q["Query string"] --> P["Parse terms + phrases"]
-  P --> T["Tokenize query <br/>(mode-aware)"]
-  T --> F["Apply filters <br/>(kind/type/signature/etc)"]
-  F --> C["Candidate prefilter <br/>(n/chargrams)"]
-  C --> S["Sparse rank <br/>(BM25/SQLite FTS)"]
-  C --> D["Dense rank <br/>(embeddings/ANN or MinHash)"]
-  S --> M["Merge + boosts <br/>(symbol/phrase/etc)"]
-  D --> M
-  M --> O["Top-N chunks + context <br/>(human/JSON output)"]
-  O --> R["Result source: <br/>memory index <br/>or <br/>SQLite artifacts"]
-```
+Detailed diagrams: `docs/guides/architecture.md`
 
 ---
 
 ## Learn more (repo docs)
 
 - Search pipeline: [`docs/guides/search.md`](docs/guides/search.md)
+- Architecture diagrams: [`docs/guides/architecture.md`](docs/guides/architecture.md)
 - Setup & bootstrap: [`docs/guides/setup.md`](docs/guides/setup.md)
 - Config schema: [`docs/config/schema.json`](docs/config/schema.json)
 - SQLite schema: [`docs/sqlite/index-schema.md`](docs/sqlite/index-schema.md)

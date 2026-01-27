@@ -93,6 +93,21 @@ function resolveCommand(primary, rest) {
     printHelp();
     process.exit(1);
   }
+  if (primary === 'tooling') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('tooling requires a subcommand: doctor');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'doctor') {
+      validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
+      return { script: 'tools/tooling-doctor.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown tooling subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'lmdb') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
@@ -254,6 +269,9 @@ Search:
 
 Service:
   service api             Run local HTTP JSON API
+
+Tooling:
+  tooling doctor          Inspect tooling availability and config
 
 LMDB:
   lmdb build              Build LMDB indexes

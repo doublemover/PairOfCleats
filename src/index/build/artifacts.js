@@ -28,6 +28,8 @@ import {
   enqueueChunkMetaArtifacts,
   resolveChunkMetaPlan
 } from './artifacts/writers/chunk-meta.js';
+import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
+import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
 
 /**
  * Write index artifacts and metrics.
@@ -313,6 +315,30 @@ export async function writeIndexArtifacts(input) {
     compression: chunkMetaCompression,
     gzipOptions: chunkMetaCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueJsonArray,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel
+  });
+  const chunkUidMapCompression = resolveShardCompression('chunk_uid_map');
+  await enqueueChunkUidMapArtifacts({
+    outDir,
+    mode,
+    chunks: state.chunks,
+    maxJsonBytes,
+    compression: chunkUidMapCompression,
+    gzipOptions: chunkUidMapCompression === 'gzip' ? compressionGzipOptions : null,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel
+  });
+  const vfsManifestCompression = resolveShardCompression('vfs_manifest');
+  await enqueueVfsManifestArtifacts({
+    outDir,
+    mode,
+    rows: state.vfsManifestRows,
+    maxJsonBytes,
+    compression: vfsManifestCompression,
+    gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel

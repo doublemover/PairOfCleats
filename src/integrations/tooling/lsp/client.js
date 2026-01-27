@@ -68,6 +68,9 @@ export function createLspClient(options) {
   let writerClosed = false;
   let nextId = 1;
   const pending = new Map();
+  let generation = 0;
+  let backoffMs = 0;
+  let nextStartAt = 0;
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
@@ -136,6 +139,12 @@ export function createLspClient(options) {
 
   const start = () => {
     if (proc) return proc;
+    const now = Date.now();
+    if (nextStartAt && now < nextStartAt) {
+      throw new Error(`LSP start backoff active (${nextStartAt - now}ms remaining).`);
+    }
+    generation += 1;
+    const childGen = generation;
     const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
     proc = child;
     const childParser = createFramedJsonRpcParser({
@@ -152,22 +161,24 @@ export function createLspClient(options) {
     writer = getJsonRpcWriter(child.stdin);
     writerClosed = false;
     const markWriterClosed = () => {
-      if (proc !== child) return;
+      if (proc !== child || childGen !== generation) return;
+      if (!writerClosed) rejectPendingTransportClosed();
       writerClosed = true;
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
     };
     child.stdin?.on('close', markWriterClosed);
     child.stdin?.on('error', markWriterClosed);
     child.stdout?.on('data', (chunk) => {
-      if (proc !== child) return;
+      if (proc !== child || childGen !== generation) return;
       childParser?.push(chunk);
     });
     child.stdout?.on('close', () => {
-      if (proc !== child) return;
+      if (proc !== child || childGen !== generation) return;
       log('[lsp] reader closed');
+      rejectPendingTransportClosed();
     });
     child.stdout?.on('error', (err) => {
-      if (proc !== child) return;
+      if (proc !== child || childGen !== generation) return;
       log(`[lsp] stdout error: ${err?.message || err}`);
     });
     child.stderr.on('data', (chunk) => {
@@ -175,46 +186,47 @@ export function createLspClient(options) {
       if (text) log(`[lsp] ${text}`);
     });
     child.on('error', (err) => {
-      if (proc !== child) return;
-      for (const entry of pending.values()) {
-        if (entry.timeout) clearTimeout(entry.timeout);
-        entry.reject(err);
-      }
-      pending.clear();
+      if (proc !== child || childGen !== generation) return;
+      rejectPending(err);
       proc = null;
       childParser?.dispose();
       parser = null;
       writer = null;
       writerClosed = true;
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
+      backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
+      nextStartAt = Date.now() + backoffMs;
     });
     child.on('exit', (code, signal) => {
-      if (proc !== child) return;
-      for (const entry of pending.values()) {
-        if (entry.timeout) clearTimeout(entry.timeout);
-        entry.reject(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
-      }
-      pending.clear();
+      if (proc !== child || childGen !== generation) return;
+      rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
       proc = null;
       childParser?.dispose();
       parser = null;
       writer = null;
       writerClosed = true;
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
+      backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
+      nextStartAt = Date.now() + backoffMs;
     });
     return child;
   };
 
   const request = (method, params, { timeoutMs } = {}) => {
-    start();
+    try {
+      start();
+    } catch (err) {
+      return Promise.reject(err);
+    }
     const id = nextId++;
+    const resolvedTimeout = Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS;
     return new Promise((resolve, reject) => {
       const entry = { resolve, reject, method, timeout: null };
-      if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      if (Number.isFinite(resolvedTimeout) && resolvedTimeout > 0) {
         entry.timeout = setTimeout(() => {
           pending.delete(id);
           reject(new Error(`LSP request timeout (${method}).`));
-        }, timeoutMs);
+        }, resolvedTimeout);
       }
       pending.set(id, entry);
       if (!send({ jsonrpc: '2.0', id, method, params })) {
@@ -226,8 +238,12 @@ export function createLspClient(options) {
   };
 
   const notify = (method, params) => {
-    start();
-    send({ jsonrpc: '2.0', method, params });
+    try {
+      start();
+      send({ jsonrpc: '2.0', method, params });
+    } catch (err) {
+      log(`[lsp] notify failed: ${err?.message || err}`);
+    }
   };
 
   const initialize = async ({ rootUri, capabilities, initializationOptions, workspaceFolders, timeoutMs } = {}) => {
@@ -239,6 +255,8 @@ export function createLspClient(options) {
       workspaceFolders: workspaceFolders || (rootUri ? [{ uri: rootUri, name: rootUri.split('/').pop() || 'workspace' }] : null)
     }, { timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 10000 });
     notify('initialized', {});
+    backoffMs = 0;
+    nextStartAt = 0;
     return result;
   };
 
@@ -250,6 +268,9 @@ export function createLspClient(options) {
     if (!writerClosed) {
       notify('exit', null);
     }
+    setTimeout(() => {
+      if (proc) kill();
+    }, 2500).unref?.();
   };
 
   const kill = () => {
@@ -270,3 +291,19 @@ export function createLspClient(options) {
     kill
   };
 }
+  // Ensure every LSP request is bounded unless explicitly disabled.
+  const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+  const rejectPending = (err) => {
+    for (const entry of pending.values()) {
+      if (entry.timeout) clearTimeout(entry.timeout);
+      entry.reject(err);
+    }
+    pending.clear();
+  };
+
+  const rejectPendingTransportClosed = () => {
+    const err = new Error('LSP transport closed.');
+    err.code = 'ERR_LSP_TRANSPORT_CLOSED';
+    rejectPending(err);
+  };

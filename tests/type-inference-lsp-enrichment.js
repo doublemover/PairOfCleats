@@ -83,6 +83,14 @@ const cppChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.
 const swiftChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.swift' && chunk.name === 'greet');
 const pythonChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.py' && chunk.name === 'greet');
 
+const ensureChunkUid = (chunk, label) => {
+  const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
+  if (!chunkUid) {
+    console.error(`LSP enrichment test failed: missing chunkUid for ${label}.`);
+    process.exit(1);
+  }
+};
+
 const hasToolingReturn = (chunk, type) => {
   const returns = chunk?.docmeta?.inferredTypes?.returns || [];
   return returns.some((entry) => entry?.source === 'tooling' && (!type || entry?.type === type));
@@ -105,6 +113,9 @@ if (!pythonChunk) {
   console.error('LSP enrichment test failed: missing Python chunk.');
   process.exit(1);
 }
+ensureChunkUid(cppChunk, 'C++');
+ensureChunkUid(swiftChunk, 'Swift');
+ensureChunkUid(pythonChunk, 'Python');
 
 if (!hasToolingReturn(cppChunk, 'int')) {
   console.error('LSP enrichment test failed: missing tooling return type for C++.');

@@ -142,6 +142,7 @@ export const runCrossFileInference = async ({
     const crossFileStart = Date.now();
     const crossFileStats = await applyCrossFileInference({
       rootDir: runtime.root,
+      buildRoot: runtime.buildRoot,
       chunks: state.chunks,
       enabled: true,
       log,

@@ -315,6 +315,7 @@ export async function writeIncrementalBundle({
   fileHash,
   fileChunks,
   fileRelations,
+  vfsManifestRows,
   bundleFormat = null,
   fileEncoding = null,
   fileEncodingFallback = null,
@@ -331,6 +332,7 @@ export async function writeIncrementalBundle({
     size: fileStat.size,
     chunks: fileChunks,
     fileRelations,
+    vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
     encoding: fileEncoding,
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
     encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
@@ -420,6 +422,15 @@ export async function updateBundlesWithChunks({
         : (fileRelations[file] || null);
     }
     const bundlePath = path.join(bundleDir, bundleName);
+    let vfsManifestRows = null;
+    try {
+      const existing = await readBundleFile(bundlePath, {
+        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+      });
+      vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+        ? existing.bundle.vfsManifestRows
+        : null;
+    } catch {}
     const bundle = {
       file,
       hash: entry.hash,
@@ -427,6 +438,7 @@ export async function updateBundlesWithChunks({
       size: entry.size,
       chunks: fileChunks,
       fileRelations: relations,
+      vfsManifestRows,
       encoding: entry.encoding || null,
       encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
       encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
