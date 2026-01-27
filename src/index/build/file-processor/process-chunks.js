@@ -141,6 +141,32 @@ export const processChunks = async (context) => {
   const tokenBuffers = createTokenizationBuffers();
   const codeTexts = embeddingEnabled ? [] : null;
   const docTexts = embeddingEnabled ? [] : null;
+  if (callIndex?.callDetailsWithRange?.length) {
+    const callDetailsByChunkIndex = new Map();
+    const chunkRanges = sc
+      .map((chunk, index) => ({
+        index,
+        start: Number.isFinite(chunk?.start) ? chunk.start : null,
+        end: Number.isFinite(chunk?.end) ? chunk.end : null,
+        span: Number.isFinite(chunk?.start) && Number.isFinite(chunk?.end)
+          ? Math.max(0, chunk.end - chunk.start)
+          : null
+      }))
+      .filter((entry) => Number.isFinite(entry.start) && Number.isFinite(entry.end));
+    for (const detail of callIndex.callDetailsWithRange) {
+      if (!Number.isFinite(detail?.start) || !Number.isFinite(detail?.end)) continue;
+      let best = null;
+      for (const chunk of chunkRanges) {
+        if (detail.start < chunk.start || detail.end > chunk.end) continue;
+        if (!best || chunk.span < best.span) best = chunk;
+      }
+      if (!best) continue;
+      const list = callDetailsByChunkIndex.get(best.index) || [];
+      list.push(detail);
+      callDetailsByChunkIndex.set(best.index, list);
+    }
+    callIndex.callDetailsByChunkIndex = callDetailsByChunkIndex;
+  }
   const useWorkerForTokens = tokenMode === 'code'
     && !workerState.tokenWorkerDisabled
     && workerPool
@@ -268,7 +294,8 @@ export const processChunks = async (context) => {
             lang: activeLang,
             chunk: c,
             fileRelations,
-            callIndex
+            callIndex,
+            chunkIndex: ci
           });
         } catch (err) {
           return failFile('relation-error', 'chunk-relations', err, diagnostics);

@@ -16,7 +16,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
-Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `repo_map_meta`, `graph_relations_meta`.
+Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `call_sites_meta`, `repo_map_meta`, `graph_relations_meta`.
 
 ## Artifact registry
 
@@ -26,6 +26,12 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
 - `file_relations` (array): entries require `file`, `relations` (object).
+- `call_sites` (array/JSONL): entries require
+  `callSiteId`, `callerChunkUid`, `file`, `languageId`, `start`, `end`,
+  `startLine`, `startCol`, `endLine`, `endCol`, `calleeRaw`,
+  `calleeNormalized`, `args`. Optional: `receiver`, `kwargs`, `confidence`,
+  `evidence`, `segmentId`, `callerDocId`, `targetChunkUid`, `targetDocId`,
+  `targetCandidates`, `snippetHash`.
 - `token_postings` (object): requires `vocab`, `postings`, `docLengths`. Optional: `avgDocLen`, `totalDocs`.
 - `token_postings_meta` (object): requires `format`, `shardSize`, `vocabCount`, `parts`. Optional: `avgDocLen`, `totalDocs`, `compression`, `docLengths`, `extensions`.
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.

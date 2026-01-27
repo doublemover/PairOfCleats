@@ -326,12 +326,72 @@ export function buildCodeRelations(text, relPath, options = {}) {
     names.forEach((name) => recordWrite(name));
   };
 
-  const formatCallArg = (arg) => {
-    if (!arg) return '...';
+  const MAX_CALL_ARGS = 5;
+  const MAX_CALL_ARG_LEN = 80;
+  const MAX_CALL_ARG_DEPTH = 2;
+
+  const normalizeCallText = (value) => {
+    if (value === null || value === undefined) return '';
+    return String(value).replace(/\s+/g, ' ').trim();
+  };
+
+  const truncateCallText = (value, maxLen = MAX_CALL_ARG_LEN) => {
+    const normalized = normalizeCallText(value);
+    if (!normalized) return '';
+    if (normalized.length <= maxLen) return normalized;
+    return `${normalized.slice(0, Math.max(0, maxLen - 3))}...`;
+  };
+
+  const resolveCalleeParts = (calleeName) => {
+    if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
+    const raw = String(calleeName);
+    const parts = raw.split('.').filter(Boolean);
+    if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
+    if (parts.length === 1) {
+      return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
+    }
+    return {
+      calleeRaw: raw,
+      calleeNormalized: parts[parts.length - 1],
+      receiver: parts.slice(0, -1).join('.')
+    };
+  };
+
+  const resolveCallLocation = (node) => {
+    if (!node || typeof node !== 'object') return null;
+    const start = Number.isFinite(node.start)
+      ? node.start
+      : (Array.isArray(node.range) ? node.range[0] : null);
+    const end = Number.isFinite(node.end)
+      ? node.end
+      : (Array.isArray(node.range) ? node.range[1] : null);
+    const loc = node.loc || null;
+    const startLine = Number.isFinite(loc?.start?.line) ? loc.start.line : null;
+    const startCol = Number.isFinite(loc?.start?.column) ? loc.start.column + 1 : null;
+    const endLine = Number.isFinite(loc?.end?.line) ? loc.end.line : null;
+    const endCol = Number.isFinite(loc?.end?.column) ? loc.end.column + 1 : null;
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    return {
+      start,
+      end,
+      startLine,
+      startCol,
+      endLine,
+      endCol
+    };
+  };
+
+  const formatCallArg = (arg, depth = 0) => {
+    if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
     if (arg.type === 'Identifier') return arg.name;
     if (arg.type === 'Literal') return JSON.stringify(arg.value);
-    if (arg.type === 'MemberExpression') return getMemberName(arg) || 'member';
-    if (arg.type === 'CallExpression') {
+    if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
+      return JSON.stringify(arg.value);
+    }
+    if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
+      return getMemberName(arg) || 'member';
+    }
+    if (arg.type === 'CallExpression' || arg.type === 'OptionalCallExpression') {
       const callee = getCalleeName(arg.callee);
       return callee ? `${callee}(...)` : 'call(...)';
     }
@@ -339,6 +399,10 @@ export function buildCodeRelations(text, relPath, options = {}) {
     if (arg.type === 'ObjectExpression') return '{...}';
     if (arg.type === 'ArrayExpression') return '[...]';
     if (arg.type === 'TemplateLiteral') return '`...`';
+    if (arg.type === 'SpreadElement') {
+      const inner = formatCallArg(arg.argument, depth + 1);
+      return inner ? `...${inner}` : '...';
+    }
     return '...';
   };
 
@@ -409,13 +473,33 @@ export function buildCodeRelations(text, relPath, options = {}) {
       if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
     }
 
-    if (node.type === 'CallExpression') {
+    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
       const calleeName = getCalleeName(node.callee);
       const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
       if (calleeName) {
         calls.push([callerName, calleeName]);
-        const args = Array.isArray(node.arguments) ? node.arguments.map((arg) => formatCallArg(arg)) : [];
-        callDetails.push({ caller: callerName, callee: calleeName, args });
+        const args = Array.isArray(node.arguments)
+          ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
+          : [];
+        const location = resolveCallLocation(node);
+        const calleeParts = resolveCalleeParts(calleeName);
+        const detail = {
+          caller: callerName,
+          callee: calleeName,
+          calleeRaw: calleeParts.calleeRaw || calleeName,
+          calleeNormalized: calleeParts.calleeNormalized || calleeName,
+          receiver: calleeParts.receiver || null,
+          args
+        };
+        if (location) {
+          detail.start = location.start;
+          detail.end = location.end;
+          detail.startLine = location.startLine;
+          detail.startCol = location.startCol;
+          detail.endLine = location.endLine;
+          detail.endCol = location.endCol;
+        }
+        callDetails.push(detail);
       }
     }
 

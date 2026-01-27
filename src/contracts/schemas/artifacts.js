@@ -4,6 +4,8 @@ const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
 const nullableBool = { type: ['boolean', 'null'] };
+const posInt = { type: 'integer', minimum: 1 };
+const nullablePosInt = { type: ['integer', 'null'], minimum: 1 };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
 
 const chunkMetaEntry = {
@@ -279,6 +281,52 @@ const importResolutionGraphSchema = {
   additionalProperties: true
 };
 
+const callSiteEntry = {
+  type: 'object',
+  required: [
+    'callSiteId',
+    'callerChunkUid',
+    'file',
+    'languageId',
+    'start',
+    'end',
+    'startLine',
+    'startCol',
+    'endLine',
+    'endCol',
+    'calleeRaw',
+    'calleeNormalized',
+    'args'
+  ],
+  properties: {
+    callSiteId: { type: 'string', pattern: '^sha1:[0-9a-f]{40}$' },
+    callerChunkUid: nullableString,
+    callerDocId: nullableInt,
+    file: { type: 'string' },
+    languageId: nullableString,
+    segmentId: nullableString,
+    start: intId,
+    end: intId,
+    startLine: posInt,
+    startCol: posInt,
+    endLine: posInt,
+    endCol: posInt,
+    calleeRaw: { type: 'string' },
+    calleeNormalized: { type: 'string' },
+    receiver: nullableString,
+    args: { type: 'array', items: { type: 'string' } },
+    kwargs: { type: ['object', 'null'] },
+    confidence: { type: ['number', 'null'] },
+    evidence: { type: 'array', items: { type: 'string' } },
+    targetChunkUid: nullableString,
+    targetDocId: nullableInt,
+    targetCandidates: { type: 'array', items: { type: 'string' } },
+    snippetHash: nullableString,
+    extensions: { type: 'object' }
+  },
+  additionalProperties: true
+};
+
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
     type: 'array',
@@ -326,6 +374,10 @@ export const ARTIFACT_SCHEMA_DEFS = {
       },
       additionalProperties: true
     }
+  },
+  call_sites: {
+    type: 'array',
+    items: callSiteEntry
   },
   token_postings: {
     type: 'object',
@@ -557,6 +609,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   import_resolution_graph: importResolutionGraphSchema,
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
+  call_sites_meta: buildShardedJsonlMeta('call_sites'),
   repo_map_meta: buildShardedJsonlMeta('repo_map'),
   graph_relations_meta: buildShardedJsonlMeta('graph_relations')
 };

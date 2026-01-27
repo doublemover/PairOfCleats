@@ -8,6 +8,7 @@ export const buildArtifactLists = (userConfig, postingsConfig) => {
   const optionalArtifacts = [
     'minhash_signatures',
     'file_relations',
+    'call_sites',
     'graph_relations',
     'file_meta',
     'repo_map',

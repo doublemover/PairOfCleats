@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../src/index/build/artifacts/writers/chunk-meta.js';
 import { enqueueFileRelationsArtifacts } from '../src/index/build/artifacts/writers/file-relations.js';
+import { enqueueCallSitesArtifacts } from '../src/index/build/artifacts/writers/call-sites.js';
 import { validateArtifact } from '../src/shared/artifact-schemas.js';
 
 const root = process.cwd();
@@ -74,6 +75,48 @@ const runFileRelations = async (outDir) => {
   return path.join(outDir, 'file_relations.meta.json');
 };
 
+const runCallSites = async (outDir) => {
+  const chunks = [
+    {
+      id: 0,
+      file: 'alpha.ts',
+      lang: 'typescript',
+      codeRelations: {
+        callDetails: [
+          {
+            caller: 'alpha',
+            callee: 'beta',
+            start: 0,
+            end: 4,
+            startLine: 1,
+            startCol: 1,
+            endLine: 1,
+            endCol: 5,
+            args: ['foo']
+          }
+        ]
+      }
+    }
+  ];
+  const writes = [];
+  const enqueueWrite = (label, job) => writes.push({ label, job });
+  const addPieceFile = () => {};
+  const formatArtifactLabel = (value) => value;
+  await enqueueCallSitesArtifacts({
+    state: { chunks },
+    outDir,
+    maxJsonBytes: 120,
+    compression: null,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel
+  });
+  for (const { job } of writes) {
+    await job();
+  }
+  return path.join(outDir, 'call_sites.meta.json');
+};
+
 const chunkMetaDir = path.join(cacheRoot, 'chunk-meta');
 await fs.mkdir(chunkMetaDir, { recursive: true });
 const chunkMetaPath = await runChunkMeta(chunkMetaDir);
@@ -87,6 +130,13 @@ const relationsPath = await runFileRelations(relationsDir);
 const relationsMeta = JSON.parse(await fs.readFile(relationsPath, 'utf8'));
 const relationsValidation = validateArtifact('file_relations_meta', relationsMeta);
 assert.ok(relationsValidation.ok, `file_relations_meta invalid: ${relationsValidation.errors.join('; ')}`);
+
+const callSitesDir = path.join(cacheRoot, 'call-sites');
+await fs.mkdir(callSitesDir, { recursive: true });
+const callSitesPath = await runCallSites(callSitesDir);
+const callSitesMeta = JSON.parse(await fs.readFile(callSitesPath, 'utf8'));
+const callSitesValidation = validateArtifact('call_sites_meta', callSitesMeta);
+assert.ok(callSitesValidation.ok, `call_sites_meta invalid: ${callSitesValidation.errors.join('; ')}`);
 
 console.log('sharded meta schema test passed');
 

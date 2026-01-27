@@ -22,6 +22,10 @@ These artifacts define the public surface and must be present when referenced:
 - `builds/current.json` (when a build is promoted)
 - Sharded JSONL sidecars: `*.meta.json` for all `*.jsonl.parts/` artifacts
 
+## Optional public artifacts (when enabled)
+
+- `call_sites` (jsonl or sharded jsonl) when relations are enabled.
+
 ## Reserved / invariant fields
 
 The following fields are reserved and must not change meaning across versions:

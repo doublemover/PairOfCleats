@@ -12,16 +12,20 @@ export const buildCallIndex = (relations) => {
     }
   }
   const callDetailsByCaller = new Map();
+  const callDetailsWithRange = [];
   if (Array.isArray(relations.callDetails)) {
     for (const detail of relations.callDetails) {
       const caller = detail?.caller;
       if (!caller) continue;
+      if (Number.isFinite(detail?.start) && Number.isFinite(detail?.end)) {
+        callDetailsWithRange.push(detail);
+      }
       const list = callDetailsByCaller.get(caller) || [];
       list.push(detail);
       callDetailsByCaller.set(caller, list);
     }
   }
-  return { callsByCaller, callDetailsByCaller };
+  return { callsByCaller, callDetailsByCaller, callDetailsWithRange };
 };
 
 export const buildFileRelations = (relations, relKey = null) => {

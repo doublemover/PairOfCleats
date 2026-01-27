@@ -4,6 +4,123 @@ import { findCLikeBodyBounds } from '../clike.js';
 import { TS_CALL_KEYWORDS, TS_USAGE_SKIP } from './constants.js';
 import { resolveTypeScriptParser, stripTypeScriptComments } from './parser.js';
 
+const MAX_CALL_ARGS = 5;
+const MAX_CALL_ARG_LEN = 80;
+const MAX_CALL_ARG_DEPTH = 2;
+
+const normalizeCallText = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/\s+/g, ' ').trim();
+};
+
+const truncateCallText = (value, maxLen = MAX_CALL_ARG_LEN) => {
+  const normalized = normalizeCallText(value);
+  if (!normalized) return '';
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLen - 3))}...`;
+};
+
+const getMemberName = (node) => {
+  if (!node) return null;
+  if (node.type === 'Identifier') return node.name;
+  if (node.type === 'PrivateName' && node.id?.name) return `#${node.id.name}`;
+  if (node.type === 'ThisExpression') return 'this';
+  if (node.type === 'Super') return 'super';
+  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    const obj = getMemberName(node.object);
+    const prop = node.computed
+      ? (node.property?.type === 'StringLiteral' || node.property?.type === 'Literal'
+        ? String(node.property.value)
+        : null)
+      : (node.property?.name || node.property?.id?.name || null);
+    if (obj && prop) return `${obj}.${prop}`;
+    return obj || prop;
+  }
+  if (node.type === 'TSQualifiedName') {
+    const left = getMemberName(node.left);
+    const right = getMemberName(node.right);
+    if (left && right) return `${left}.${right}`;
+    return left || right;
+  }
+  return null;
+};
+
+const getCalleeName = (callee) => {
+  if (!callee) return null;
+  if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
+  if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
+  if (callee.type === 'Identifier') return callee.name;
+  if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
+    return getMemberName(callee);
+  }
+  if (callee.type === 'Super') return 'super';
+  return null;
+};
+
+const resolveCalleeParts = (calleeName) => {
+  if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
+  const raw = String(calleeName);
+  const parts = raw.split('.').filter(Boolean);
+  if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
+  if (parts.length === 1) {
+    return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
+  }
+  return {
+    calleeRaw: raw,
+    calleeNormalized: parts[parts.length - 1],
+    receiver: parts.slice(0, -1).join('.')
+  };
+};
+
+const resolveCallLocation = (node) => {
+  if (!node || typeof node !== 'object') return null;
+  const start = Number.isFinite(node.start)
+    ? node.start
+    : (Array.isArray(node.range) ? node.range[0] : null);
+  const end = Number.isFinite(node.end)
+    ? node.end
+    : (Array.isArray(node.range) ? node.range[1] : null);
+  const loc = node.loc || null;
+  const startLine = Number.isFinite(loc?.start?.line) ? loc.start.line : null;
+  const startCol = Number.isFinite(loc?.start?.column) ? loc.start.column + 1 : null;
+  const endLine = Number.isFinite(loc?.end?.line) ? loc.end.line : null;
+  const endCol = Number.isFinite(loc?.end?.column) ? loc.end.column + 1 : null;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return {
+    start,
+    end,
+    startLine,
+    startCol,
+    endLine,
+    endCol
+  };
+};
+
+const formatCallArg = (arg, depth = 0) => {
+  if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
+  if (arg.type === 'Identifier') return arg.name;
+  if (arg.type === 'Literal') return JSON.stringify(arg.value);
+  if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
+    return JSON.stringify(arg.value);
+  }
+  if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
+    return getMemberName(arg) || 'member';
+  }
+  if (arg.type === 'CallExpression' || arg.type === 'OptionalCallExpression') {
+    const callee = getCalleeName(arg.callee);
+    return callee ? `${callee}(...)` : 'call(...)';
+  }
+  if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return 'fn(...)';
+  if (arg.type === 'ObjectExpression') return '{...}';
+  if (arg.type === 'ArrayExpression') return '[...]';
+  if (arg.type === 'TemplateLiteral') return '`...`';
+  if (arg.type === 'SpreadElement') {
+    const inner = formatCallArg(arg.argument, depth + 1);
+    return inner ? `...${inner}` : '...';
+  }
+  return '...';
+};
+
 /**
  * Collect import paths from TypeScript source text.
  * @param {string} text
@@ -82,8 +199,96 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const imports = collectTypeScriptImports(text, options);
   const exports = new Set(collectTypeScriptExports(text));
   const calls = [];
+  const callDetails = [];
   const usages = new Set();
-  if (Array.isArray(tsChunks)) {
+
+  const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
+  const chunkRanges = Array.isArray(tsChunks)
+    ? tsChunks
+      .filter((chunk) => chunk && chunk.name && Number.isFinite(chunk.start) && Number.isFinite(chunk.end))
+      .map((chunk) => ({
+        name: chunk.name,
+        start: chunk.start,
+        end: chunk.end,
+        span: Math.max(0, chunk.end - chunk.start)
+      }))
+    : [];
+
+  const resolveCallerName = (start, end) => {
+    if (!Number.isFinite(start) || !Number.isFinite(end) || !chunkRanges.length) return '(module)';
+    let best = null;
+    for (const chunk of chunkRanges) {
+      if (start < chunk.start || end > chunk.end) continue;
+      if (!best || chunk.span < best.span) {
+        best = chunk;
+      }
+    }
+    return best?.name || '(module)';
+  };
+
+  const recordCall = (node) => {
+    const calleeName = getCalleeName(node.callee);
+    if (!calleeName) return;
+    const base = calleeName.split('.').filter(Boolean).pop();
+    if (!base || TS_CALL_KEYWORDS.has(base)) return;
+    const location = resolveCallLocation(node);
+    const callerName = location ? resolveCallerName(location.start, location.end) : '(module)';
+    const args = Array.isArray(node.arguments)
+      ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
+      : [];
+    const calleeParts = resolveCalleeParts(calleeName);
+    const detail = {
+      caller: callerName,
+      callee: calleeName,
+      calleeRaw: calleeParts.calleeRaw || calleeName,
+      calleeNormalized: calleeParts.calleeNormalized || calleeName,
+      receiver: calleeParts.receiver || null,
+      args
+    };
+    if (location) {
+      detail.start = location.start;
+      detail.end = location.end;
+      detail.startLine = location.startLine;
+      detail.startCol = location.startCol;
+      detail.endLine = location.endLine;
+      detail.endCol = location.endCol;
+    }
+    callDetails.push(detail);
+    calls.push([callerName, calleeName]);
+  };
+
+  const walk = (node, parent = null, seen = new Set()) => {
+    if (!node || typeof node !== 'object') return;
+    if (seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      node.forEach((child) => walk(child, parent, seen));
+      return;
+    }
+    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      recordCall(node);
+    }
+    if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
+      usages.add(node.name);
+    }
+    for (const value of Object.values(node)) {
+      if (!value) continue;
+      if (Array.isArray(value)) {
+        for (const entry of value) walk(entry, node, seen);
+      } else if (typeof value === 'object') {
+        walk(value, node, seen);
+      }
+    }
+  };
+
+  if (ast) {
+    walk(ast);
+  }
+
+  const { usages: regexUsages } = collectTypeScriptCallsAndUsages(text);
+  for (const usage of regexUsages) usages.add(usage);
+
+  if (!callDetails.length && Array.isArray(tsChunks)) {
     for (const chunk of tsChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (!['MethodDeclaration', 'ConstructorDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
@@ -100,10 +305,12 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
+
   return {
     imports,
     exports: Array.from(exports),
     calls,
+    callDetails,
     usages: Array.from(usages)
   };
 }

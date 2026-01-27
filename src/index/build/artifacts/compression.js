@@ -22,6 +22,7 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
   const compressibleArtifacts = new Set([
     'chunk_meta',
     'file_relations',
+    'call_sites',
     'repo_map',
     'dense_vectors_uint8',
     'dense_vectors_doc_uint8',

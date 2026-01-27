@@ -132,6 +132,7 @@ export const createArtifactPresenceHelpers = ({
       return fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
     };
     if (name === 'file_relations') return hasJsonlArtifact('file_relations');
+    if (name === 'call_sites') return hasJsonlArtifact('call_sites');
     if (name === 'graph_relations') return hasJsonlArtifact('graph_relations');
     if (name === 'repo_map') return hasJsonlArtifact('repo_map');
     if (name === 'token_postings') {

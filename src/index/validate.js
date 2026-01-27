@@ -329,6 +329,18 @@ export async function validateIndexArtifacts(input = {}) {
         validateSchema(report, mode, 'file_relations', relations, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
       }
 
+      let callSites = null;
+      if (shouldLoadOptional('call_sites')) {
+        try {
+          callSites = await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict });
+        } catch (err) {
+          addIssue(report, mode, `call_sites load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+        }
+      }
+      if (callSites) {
+        validateSchema(report, mode, 'call_sites', callSites, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
       const minhashRaw = readJsonArtifact('minhash_signatures');
       if (minhashRaw) {
         const minhash = normalizeMinhash(minhashRaw);

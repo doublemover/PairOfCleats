@@ -22,6 +22,7 @@ import { resolveTokenMode } from './artifacts/token-mode.js';
 import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes, summarizeFilterIndex } from './artifacts/helpers.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
+import { enqueueCallSitesArtifacts } from './artifacts/writers/call-sites.js';
 import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
   createChunkMetaIterator,
@@ -385,6 +386,18 @@ export async function writeIndexArtifacts(input) {
     log,
     compression: fileRelationsCompression,
     gzipOptions: fileRelationsCompression === 'gzip' ? compressionGzipOptions : null,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel
+  });
+  const callSitesCompression = resolveShardCompression('call_sites');
+  enqueueCallSitesArtifacts({
+    state,
+    outDir,
+    maxJsonBytes,
+    log,
+    compression: callSitesCompression,
+    gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel

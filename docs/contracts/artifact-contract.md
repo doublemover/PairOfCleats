@@ -40,6 +40,10 @@ Each `index-<mode>/` directory contains:
   - Flattened symbol list for repo map output.
 - `file_relations.json` (optional)
   - Per-file relation metadata (imports/exports/relations).
+- `call_sites.jsonl` (optional; JSONL or sharded JSONL)
+  - Evidence-rich callsite records (Phase 6). Emits `callSiteId`, caller chunk identity, location, callee info, and bounded args.
+  - Sharded form uses `call_sites.meta.json` + `call_sites.parts/`.
+  - Additive: does not replace `file_relations`; legacy relations remain available.
 - `filter_index.json` (optional)
   - Serialized filter index for fast metadata filters.
 - `field_postings.json` + `field_tokens.json` (optional; only when fielded postings enabled)

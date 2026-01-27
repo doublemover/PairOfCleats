@@ -12,6 +12,7 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
   chunk_meta: ['id', 'start', 'end'],
   repo_map: ['file', 'name'],
   file_relations: ['file', 'relations'],
+  call_sites: ['callSiteId', 'callerChunkUid', 'file', 'startLine', 'startCol', 'endLine', 'endCol', 'calleeRaw', 'calleeNormalized', 'args'],
   graph_relations: ['graph', 'node']
 });
 
