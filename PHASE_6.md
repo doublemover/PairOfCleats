@@ -25,15 +25,16 @@ This phase explicitly targets:
 
 ### Phase 6.1 -- CallDetails v2 and `call_sites` contract (schema + invariants)
 
-- [ ] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
+- [@] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
   - Contract fields (minimum viable, JS/TS-focused):
+    - `callSiteId` (required; `sha1:` of `file:startLine:startCol:endLine:endCol:calleeRaw`)
     - `callerChunkUid` (stable string id; current code uses `metaV2.chunkId`)
     - `callerDocId` (optional integer doc id, for quick joins; not stable across builds)
-    - `relPath` (container repo-relative path)
+    - `file` (container repo-relative path, POSIX)
     - `languageId` (effective language for this callsite; segments must use segment language)
     - `segmentId` (optional; debug-only)
     - `start`, `end` (absolute offsets in the _container_ file)
-    - `startLine`, `endLine` (optional; must agree with offsets when present)
+    - `startLine`, `startCol`, `endLine`, `endCol` (required; must agree with offsets when present)
     - `calleeRaw` (as written / best-effort string form)
     - `calleeNormalized` (best-effort normalized target name, e.g., leaf name)
     - `receiver` (best-effort; e.g., `foo` for `foo.bar()`; null when not applicable)
@@ -42,10 +43,13 @@ This phase explicitly targets:
     - `confidence` (bounded numeric or enum; must be deterministic)
     - `evidence` (bounded list of short tags/strings; deterministic ordering)
   - Enforce hard caps (examples; choose concrete values and test them):
-    - max args per callsite
-    - max arg text length / max nested shape depth
-    - max evidence items + max evidence item length
-  - Deterministic truncation must use a consistent marker (e.g., `...`) and must not depend on runtime/platform.
+    - max args per callsite: 5
+    - max arg text length: 80
+    - max nested shape depth: 2
+    - max evidence items: 6
+    - max evidence item length: 32
+    - max row bytes: 32768
+  - Deterministic truncation must use a consistent marker (`...`) and must not depend on runtime/platform.
 - [ ] Add schema validation for `call_sites` entries.
   - Touchpoints:
     - `src/shared/artifact-schemas.js` (AJV validators)
