@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-27T00:08:29.105Z",
+  "generatedAt": "2026-01-27T01:28:12.690Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -109,13 +109,56 @@
       "runtime.uvThreadpoolSize",
       "search.sqliteAutoArtifactBytes",
       "search.sqliteAutoChunkThreshold",
-      "threads"
+      "threads",
+      "tooling.allowGlobalFallback",
+      "tooling.autoEnableOnDetect",
+      "tooling.autoInstallOnDetect",
+      "tooling.cache.dir",
+      "tooling.cache.enabled",
+      "tooling.circuitBreakerThreshold",
+      "tooling.clangd.compileCommandsDir",
+      "tooling.clangd.requireCompilationDatabase",
+      "tooling.dir",
+      "tooling.disabledTools",
+      "tooling.enabledTools",
+      "tooling.installScope",
+      "tooling.logDir",
+      "tooling.lsp.enabled",
+      "tooling.lsp.servers",
+      "tooling.lsp.servers[].args",
+      "tooling.lsp.servers[].cmd",
+      "tooling.lsp.servers[].id",
+      "tooling.lsp.servers[].label",
+      "tooling.lsp.servers[].languages",
+      "tooling.lsp.servers[].priority",
+      "tooling.lsp.servers[].retries",
+      "tooling.lsp.servers[].timeoutMs",
+      "tooling.lsp.servers[].uriScheme",
+      "tooling.lsp.servers[].version",
+      "tooling.maxRetries",
+      "tooling.providerOrder",
+      "tooling.pyright",
+      "tooling.sourcekit",
+      "tooling.strict",
+      "tooling.timeoutMs",
+      "tooling.typescript.allowJs",
+      "tooling.typescript.checkJs",
+      "tooling.typescript.enabled",
+      "tooling.typescript.includeJsx",
+      "tooling.typescript.maxFileBytes",
+      "tooling.typescript.maxFiles",
+      "tooling.typescript.maxProgramFiles",
+      "tooling.typescript.resolveOrder",
+      "tooling.typescript.tsconfigPath",
+      "tooling.typescript.useTsconfig",
+      "tooling.vfs.maxVirtualFileBytes",
+      "tooling.vfs.strict"
     ]
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 49,
-    "leafKeys": 32,
+    "totalKeys": 99,
+    "leafKeys": 75,
     "topLevel": [
       {
         "key": "cache",
@@ -140,6 +183,10 @@
       {
         "key": "threads",
         "count": 1
+      },
+      {
+        "key": "tooling",
+        "count": 50
       }
     ]
   },
@@ -392,6 +439,259 @@
     {
       "path": "threads",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.allowGlobalFallback",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.autoEnableOnDetect",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.autoInstallOnDetect",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.cache.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.cache.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.circuitBreakerThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd.compileCommandsDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd.requireCompilationDatabase",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.disabledTools",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.enabledTools",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.installScope",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.logDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].args",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].cmd",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].label",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].languages",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].priority",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].retries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].uriScheme",
+      "type": "string",
+      "enum": [
+        "file",
+        "poc-vfs"
+      ]
+    },
+    {
+      "path": "tooling.lsp.servers[].version",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.maxRetries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.providerOrder",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.pyright",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.sourcekit",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.strict",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.allowJs",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.checkJs",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.includeJsx",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.maxFileBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.maxFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.maxProgramFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.resolveOrder",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.tsconfigPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.useTsconfig",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.maxVirtualFileBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.strict",
+      "type": "boolean",
       "enum": null
     }
   ],
@@ -1976,6 +2276,15 @@
         ]
       },
       {
+        "file": "tools/tooling-doctor.js",
+        "flags": [
+          "json",
+          "non-strict",
+          "repo",
+          "strict"
+        ]
+      },
+      {
         "file": "tools/tooling-install.js",
         "flags": [
           "dry-run",
@@ -2064,7 +2373,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 44,
+        "count": 45,
         "files": [
           "tools/api-server.js",
           "tools/assemble-pieces.js",
@@ -2103,6 +2412,7 @@
           "tools/shard-census.js",
           "tools/structural-search.js",
           "tools/tooling-detect.js",
+          "tools/tooling-doctor.js",
           "tools/tooling-install.js",
           "tools/triage/context-pack.js",
           "tools/triage/decision.js",
@@ -2114,7 +2424,7 @@
       },
       {
         "flag": "json",
-        "count": 23,
+        "count": 24,
         "files": [
           "tests/fixture-eval.js",
           "tools/api-server.js",
@@ -2136,6 +2446,7 @@
           "tools/setup.js",
           "tools/structural-search.js",
           "tools/tooling-detect.js",
+          "tools/tooling-doctor.js",
           "tools/tooling-install.js",
           "tools/validate-config.js",
           "tools/verify-extensions.js"
@@ -2404,6 +2715,15 @@
         ]
       },
       {
+        "flag": "non-strict",
+        "count": 3,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/index-validate.js",
+          "tools/tooling-doctor.js"
+        ]
+      },
+      {
         "flag": "root",
         "count": 3,
         "files": [
@@ -2559,14 +2879,6 @@
         ]
       },
       {
-        "flag": "non-strict",
-        "count": 2,
-        "files": [
-          "tools/assemble-pieces.js",
-          "tools/index-validate.js"
-        ]
-      },
-      {
         "flag": "open-uri-template",
         "count": 2,
         "files": [
@@ -2708,6 +3020,14 @@
         "files": [
           "tools/assemble-pieces.js",
           "tools/indexer-service.js"
+        ]
+      },
+      {
+        "flag": "strict",
+        "count": 2,
+        "files": [
+          "tools/index-validate.js",
+          "tools/tooling-doctor.js"
         ]
       },
       {
