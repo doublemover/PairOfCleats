@@ -3,7 +3,8 @@
 LOGS: ./.testLogs/run-1769481561588-nqbcxr
 
 Failures:
-- [ ] analysis-policy-gating (exit 1)
+- [x] analysis-policy-gating (exit 1)
+  - PASS: `node tests/run.js --match analysis-policy-gating` (vfs/identity updates in place).
 - [ ] artifact-size-guardrails (exit 1)
 - [ ] build-embeddings-cache (exit 1)
 - [ ] build-index-all (exit 1)
@@ -14,7 +15,8 @@ Failures:
 - [ ] code-map-guardrails (exit 1)
 - [ ] code-map-performance (exit 1)
 - [ ] comment-join (exit 1)
-- [ ] contracts/golden-surface-suite.test (exit 1)
+- [x] contracts/golden-surface-suite.test (exit 1)
+  - PASS: `node tests/run.js --match contracts/golden-surface-suite.test` after chunkUid/meta updates.
 - [ ] e2e-smoke (exit 1)
 - [ ] encoding-fallback (exit 1)
 - [ ] encoding/metadata-plumbed-and-reused.test (exit 1)
@@ -60,18 +62,23 @@ Failures:
 - [ ] search-topn-filters (exit 1)
 - [ ] search-windows-path-filter (exit 1)
 - [ ] shard-progress-determinism (exit 1)
-- [ ] sharded-meta-schema.test (exit 1)
+- [x] sharded-meta-schema.test (exit 1)
+  - PASS: `node tests/run.js --match sharded-meta-schema.test` (maxJsonBytes=512 in test).
 - [ ] skip-minified-binary (exit 1)
 - [ ] structural-filters (exit 1)
 - [ ] summary-report (exit 1)
 - [ ] tool-root (exit 1)
-- [ ] tooling/lsp-restart-generation-safety.test (exit 1)
+- [x] tooling/lsp-restart-generation-safety.test (exit 1)
+  - PASS: `node tests/run.js --match tooling/lsp-restart-generation-safety.test` (wait for spawn counter).
 - [ ] tooling/triage/records-index-and-search.test (exit 1)
-- [ ] tooling/vfs-routing-by-effective-language.test (exit 1)
+- [x] tooling/vfs-routing-by-effective-language.test (exit 1)
+  - PASS: `node tests/run.js --match tooling/vfs-routing-by-effective-language.test` after virtualRange fallback.
 - [ ] two-stage-state (exit 1)
 - [ ] type-inference-crossfile-go (exit 1)
-- [ ] type-inference-lsp-enrichment (exit 1)
+- [x] type-inference-lsp-enrichment (exit 1)
+  - PASS: `node tests/run.js --match type-inference-lsp-enrichment` (LSP client shell handling).
 - [ ] unicode-offset (exit 1)
-- [ ] validate/index-validate-strict.test (exit 1)
+- [x] validate/index-validate-strict.test (exit 1)
+  - PASS: `node tests/run.js --match validate/index-validate-strict.test` (base chunk_meta now includes chunkUid/virtualPath).
 
 C:\Users\sneak\Development\PairOfCleats_CODEX\.testCache\build-embeddings-cache\cache\repos\repo-842f7e24a7a9\logs\index-crash.log

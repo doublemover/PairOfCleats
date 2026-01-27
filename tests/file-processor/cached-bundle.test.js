@@ -30,6 +30,8 @@ const cachedBundle = {
       kind: 'code',
       name: 'demo',
       lang: 'javascript',
+      chunkUid: 'ck:cached-demo',
+      virtualPath: 'cached.js',
       codeRelations: {
         imports: ['dep'],
         exports: ['demo'],

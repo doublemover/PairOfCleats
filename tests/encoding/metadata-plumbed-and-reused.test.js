@@ -25,7 +25,9 @@ const cachedBundle = {
       startLine: 1,
       endLine: 1,
       kind: 'text',
-      tokens: ['demo']
+      tokens: ['demo'],
+      chunkUid: 'ck:encoded',
+      virtualPath: 'encoded.txt'
     }
   ],
   fileRelations: {},

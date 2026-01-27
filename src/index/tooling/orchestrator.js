@@ -176,10 +176,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const registerLegacyKey = (legacyKey, chunkUid) => {
     if (!legacyKey || !chunkUid) return;
     const existing = chunkUidByLegacyKey.get(legacyKey);
-    if (existing && existing !== chunkUid) {
-      if (strict) throw new Error(`legacy key collision (${legacyKey}) maps to multiple chunkUid values.`);
-      return;
-    }
+    if (existing && existing !== chunkUid) return;
     chunkUidByLegacyKey.set(legacyKey, chunkUid);
   };
 

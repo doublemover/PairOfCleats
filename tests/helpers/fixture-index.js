@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
-import { MAX_JSON_BYTES, readCompatibilityKey } from '../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -77,6 +77,16 @@ const hasCompatibleIndexes = ({ codeDir, proseDir, extractedProseDir }) => {
   return [codeKey, proseKey, extractedKey].every((key) => !key || key === baseline);
 };
 
+const hasChunkUids = async (dir) => {
+  try {
+    const chunkMeta = await loadChunkMeta(dir, { strict: true });
+    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
+    return chunkMeta.every((entry) => entry?.chunkUid || entry?.metaV2?.chunkUid);
+  } catch {
+    return false;
+  }
+};
+
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
   if (result.status !== 0) {
@@ -101,8 +111,13 @@ export const ensureFixtureIndex = async ({
   let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
   let proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
   let extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
+  const recordsDir = getIndexDir(fixtureRoot, 'records', userConfig);
   const needsRiskTags = requireRiskTags && !hasRiskTags(codeDir);
-  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags) {
+  const missingChunkUids = !await hasChunkUids(codeDir)
+    || !await hasChunkUids(proseDir)
+    || !await hasChunkUids(extractedProseDir)
+    || (hasIndexMeta(recordsDir) && !await hasChunkUids(recordsDir));
+  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags || missingChunkUids) {
     const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
     await fsPromises.rm(repoCacheRoot, { recursive: true, force: true });
     await ensureDir(repoCacheRoot);

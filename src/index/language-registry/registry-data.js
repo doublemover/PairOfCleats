@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   isCLike,
   isGo,
@@ -151,14 +152,20 @@ export const LANGUAGE_REGISTRY = [
     id: 'python',
     match: (ext) => ext === '.py',
     collectImports: (text) => collectPythonImports(text).imports,
-    prepare: async ({ text, mode, options }) => {
+    prepare: async ({ text, mode, relPath, options }) => {
       if (mode !== 'code') return {};
       let pythonAst = null;
       let pythonAstMetrics = null;
-      if (options?.relationsEnabled !== false) {
-        const python = await getPythonAst(text);
-        pythonAst = python.ast;
-        pythonAstMetrics = python.metrics;
+      const pythonAstEnabled = options?.pythonAst?.enabled !== false;
+      if (pythonAstEnabled) {
+        const python = await getPythonAst(text, options?.log, {
+          ...options,
+          dataflow: options?.astDataflowEnabled,
+          controlFlow: options?.controlFlowEnabled,
+          path: options?.filePath || relPath || null
+        });
+        if (python?.ast) pythonAst = python.ast;
+        if (python?.metrics) pythonAstMetrics = python.metrics;
       }
       return { pythonAst, pythonAstMetrics };
     },
@@ -308,12 +315,28 @@ export const LANGUAGE_REGISTRY = [
     id: 'sql',
     match: (ext) => isSql(ext),
     collectImports: (text, options) => collectSqlImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const sqlChunks = buildSqlChunks(text, { relPath, parser: options?.sql?.parser });
+    prepare: async ({ text, relPath, ext, options }) => {
+      const dialect = typeof options?.resolveSqlDialect === 'function'
+        ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
+        : (options?.sql?.dialect || 'generic');
+      const sqlChunks = buildSqlChunks(text, {
+        relPath,
+        parser: options?.sql?.parser,
+        dialect
+      });
       return { sqlChunks };
     },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildSqlRelations(text, context.sqlChunks, { relPath, parser: options?.sql?.parser, ...options }),
+    buildRelations: ({ text, context, relPath, ext, options }) => {
+      const dialect = typeof options?.resolveSqlDialect === 'function'
+        ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
+        : (options?.sql?.dialect || 'generic');
+      return buildSqlRelations(text, context.sqlChunks, {
+        relPath,
+        parser: options?.sql?.parser,
+        dialect,
+        ...options
+      });
+    },
     extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeSqlFlow(text, chunk, flowOptions(options)),
     attachName: true

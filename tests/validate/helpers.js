@@ -30,7 +30,29 @@ export const createBaseIndex = async ({
   await fs.mkdir(indexDir, { recursive: true });
 
   const chunkMetaPayload = chunkMeta || [{ id: 0, file: 'src/a.js', start: 0, end: 1 }];
-  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(chunkMetaPayload, null, 2));
+  const normalizedChunkMeta = (Array.isArray(chunkMetaPayload) ? chunkMetaPayload : []).map((entry, index) => {
+    const safeEntry = entry && typeof entry === 'object' ? { ...entry } : {};
+    const file = safeEntry.file || `src/file-${index}.js`;
+    const chunkId = safeEntry.chunkId || `chunk_${index}`;
+    const chunkUid = safeEntry.chunkUid || safeEntry.metaV2?.chunkUid || `ck:test:${chunkId}`;
+    const virtualPath = safeEntry.virtualPath || safeEntry.metaV2?.virtualPath || file;
+    let metaV2 = safeEntry.metaV2 && typeof safeEntry.metaV2 === 'object' ? { ...safeEntry.metaV2 } : null;
+    if (metaV2) {
+      if (!metaV2.chunkId) metaV2.chunkId = chunkId;
+      if (!metaV2.chunkUid) metaV2.chunkUid = chunkUid;
+      if (!metaV2.virtualPath) metaV2.virtualPath = virtualPath;
+      if (!metaV2.file) metaV2.file = file;
+    }
+    return {
+      ...safeEntry,
+      file,
+      chunkId,
+      chunkUid,
+      virtualPath,
+      metaV2
+    };
+  });
+  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(normalizedChunkMeta, null, 2));
 
   const tokenPostingsPayload = tokenPostings || {
     vocab: ['alpha'],

@@ -30,6 +30,9 @@ const chunks = chunkSegments({
   mode: 'code',
   segments
 });
+for (const chunk of chunks) {
+  chunk.file = relPath;
+}
 
 await assignChunkUids({ chunks, fileText: text, fileRelPath: relPath, strict: true });
 

@@ -9,6 +9,7 @@ import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { buildChunkId } from '../../index/chunk-id.js';
+import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 import { log, showProgress } from '../../shared/progress.js';
@@ -151,6 +152,14 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       ...(fieldTokens ? { fieldTokens } : {})
     };
     chunkPayload.chunkId = buildChunkId(chunkPayload);
+    await assignChunkUids({
+      chunks: [chunkPayload],
+      fileText: text,
+      fileRelPath: recordFile,
+      namespaceKey: 'repo',
+      strict: true,
+      log
+    });
 
     appendChunk(state, chunkPayload, postingsConfig);
     state.scannedFiles.push(recordFile);

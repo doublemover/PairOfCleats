@@ -52,7 +52,7 @@ export function createLspClient(options) {
     args = [],
     cwd,
     env,
-    shell = false,
+    shell,
     log = () => {},
     onNotification,
     onRequest,
@@ -61,6 +61,9 @@ export function createLspClient(options) {
     maxMessageBytes
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
+  const useShell = typeof shell === 'boolean'
+    ? shell
+    : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
 
   let proc = null;
   let parser = null;
@@ -154,14 +157,24 @@ export function createLspClient(options) {
   };
 
   const start = () => {
-    if (proc) return proc;
+    if (proc) {
+      if (proc.killed || proc.exitCode !== null || writerClosed) {
+        if (proc.stdin) closeJsonRpcWriter(proc.stdin);
+        parser?.dispose();
+        proc = null;
+        writer = null;
+        writerClosed = true;
+      } else {
+        return proc;
+      }
+    }
     const now = Date.now();
     if (nextStartAt && now < nextStartAt) {
       throw new Error(`LSP start backoff active (${nextStartAt - now}ms remaining).`);
     }
     generation += 1;
     const childGen = generation;
-    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell: useShell });
     proc = child;
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
@@ -291,11 +304,17 @@ export function createLspClient(options) {
 
   const kill = () => {
     if (!proc) return;
-    if (proc.stdin) closeJsonRpcWriter(proc.stdin);
+    const current = proc;
+    if (current.stdin) closeJsonRpcWriter(current.stdin);
     parser?.dispose();
-    proc.kill();
+    try {
+      current.kill();
+    } catch {}
     proc = null;
+    writer = null;
     writerClosed = true;
+    backoffMs = 0;
+    nextStartAt = 0;
   };
 
   return {

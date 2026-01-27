@@ -31,6 +31,8 @@ const cachedBundle = {
       kind: 'code',
       name: 'demo',
       lang: 'javascript',
+      chunkUid: 'ck:cached-demo',
+      virtualPath: 'cached.js',
       docmeta: { signature: 'demo()' },
       tokens: ['demo'],
       seq: ['demo'],

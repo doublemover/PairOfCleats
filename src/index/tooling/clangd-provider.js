@@ -127,7 +127,7 @@ export const createClangdProvider = () => ({
   version: '2.0.0',
   label: 'clangd',
   priority: 20,
-  languages: ['c', 'cpp', 'objective-c', 'objective-cpp'],
+  languages: ['clike', 'c', 'cpp', 'objective-c', 'objective-cpp'],
   kinds: ['types'],
   requires: { cmd: 'clangd' },
   capabilities: {

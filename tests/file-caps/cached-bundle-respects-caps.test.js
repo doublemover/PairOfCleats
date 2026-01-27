@@ -15,7 +15,14 @@ const fileStat = await fs.lstat(abs);
 
 const cachedBundle = {
   chunks: [
-    { start: 0, end: 10, endLine: 42, metaV2: { chunkId: 'c1' } }
+    {
+      start: 0,
+      end: 10,
+      endLine: 42,
+      chunkUid: 'ck:cached-ts',
+      virtualPath: 'cached.ts',
+      metaV2: { chunkId: 'c1', chunkUid: 'ck:cached-ts', virtualPath: 'cached.ts' }
+    }
   ],
   fileRelations: {}
 };

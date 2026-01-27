@@ -734,9 +734,6 @@ Provide an operator-facing workflow to explain tooling state:
 
 ---
 
-
----
-
 ## Added detail (Phase 8 task mapping)
 
 ### 8.1 Provider contract + registry

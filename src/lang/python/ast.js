@@ -5,7 +5,7 @@ import { getPythonAstPool } from './pool.js';
  * Returns null when python is unavailable or parsing fails.
  * @param {string} text
  * @param {(msg:string)=>void} [log]
- * @returns {Promise<object|null>}
+ * @returns {Promise<{ast:object|null,metrics:{durationMs:number}}|null>}
  */
 export async function getPythonAst(text, log, options = {}) {
   const pool = await getPythonAstPool(log, options.pythonAst || {});
@@ -15,9 +15,11 @@ export async function getPythonAst(text, log, options = {}) {
   const path = typeof options.path === 'string' && options.path.trim()
     ? options.path.trim()
     : null;
-  return pool.request(text, {
+  const start = Date.now();
+  const ast = await pool.request(text, {
     dataflow: dataflowEnabled,
     controlFlow: controlFlowEnabled,
     path
   });
+  return { ast, metrics: { durationMs: Date.now() - start } };
 }

@@ -81,6 +81,8 @@ const runCallSites = async (outDir) => {
       id: 0,
       file: 'alpha.ts',
       lang: 'typescript',
+      chunkUid: 'ck:alpha',
+      virtualPath: 'alpha.ts',
       codeRelations: {
         callDetails: [
           {
@@ -93,6 +95,17 @@ const runCallSites = async (outDir) => {
             endLine: 1,
             endCol: 5,
             args: ['foo']
+          },
+          {
+            caller: 'alpha',
+            callee: 'gamma',
+            start: 6,
+            end: 10,
+            startLine: 1,
+            startCol: 7,
+            endLine: 1,
+            endCol: 11,
+            args: ['bar', 'baz']
           }
         ]
       }
@@ -105,7 +118,7 @@ const runCallSites = async (outDir) => {
   await enqueueCallSitesArtifacts({
     state: { chunks },
     outDir,
-    maxJsonBytes: 120,
+    maxJsonBytes: 512,
     compression: null,
     enqueueWrite,
     addPieceFile,

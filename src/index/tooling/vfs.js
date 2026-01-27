@@ -126,14 +126,27 @@ export const buildToolingVirtualDocuments = async ({
     }
     const doc = docMap.get(segmentKey);
     if (!doc) continue;
-    const virtualStart = segment ? chunk.start - segmentStart : chunk.start;
-    const virtualEnd = segment ? chunk.end - segmentStart : chunk.end;
-    const inBounds = virtualStart >= 0
-      && virtualEnd >= virtualStart
-      && virtualEnd <= doc.text.length;
-    if (!inBounds) {
-      const message = `Invalid virtualRange for ${containerPath} (${virtualStart}-${virtualEnd})`;
-      if (strict) throw new Error(message);
+    const resolveVirtualRange = () => {
+      const start = Number.isFinite(chunk.start) ? chunk.start : null;
+      const end = Number.isFinite(chunk.end) ? chunk.end : null;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+      if (!segment) return { start, end };
+      const relStart = start - segmentStart;
+      const relEnd = end - segmentStart;
+      const relInBounds = relStart >= 0 && relEnd >= relStart && relEnd <= doc.text.length;
+      if (relInBounds) return { start: relStart, end: relEnd };
+      const directInBounds = start >= 0 && end >= start && end <= doc.text.length;
+      if (directInBounds) {
+        if (log) {
+          log(`[tooling] virtualRange fallback for ${containerPath} (${start}-${end})`);
+        }
+        return { start, end };
+      }
+      return null;
+    };
+    const virtualRange = resolveVirtualRange();
+    if (!virtualRange) {
+      const message = `Invalid virtualRange for ${containerPath} (${chunk.start}-${chunk.end})`;
       if (log) log(`[tooling] ${message}; skipping target.`);
       continue;
     }
@@ -145,7 +158,7 @@ export const buildToolingVirtualDocuments = async ({
       chunkRef,
       chunk: chunkRef,
       virtualPath: doc.virtualPath,
-      virtualRange: { start: virtualStart, end: virtualEnd },
+      virtualRange,
       languageId: doc.languageId,
       ext: doc.effectiveExt,
       symbolHint: chunk.name || chunk.kind ? { name: chunk.name, kind: chunk.kind } : null

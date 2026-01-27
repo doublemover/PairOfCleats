@@ -9,7 +9,7 @@ const text = 'const token = "SECRET";\n';
 const sc = [{
   start: 0,
   end: text.length,
-  segment: { languageId: 'javascript' },
+  segment: { languageId: 'javascript', segmentUid: 'seg-test' },
   kind: 'code',
   name: 'example'
 }];
