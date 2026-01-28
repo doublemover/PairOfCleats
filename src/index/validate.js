@@ -343,6 +343,18 @@ export async function validateIndexArtifacts(input = {}) {
         validateSchema(report, mode, 'call_sites', callSites, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
       }
 
+      let vfsManifest = null;
+      if (shouldLoadOptional('vfs_manifest')) {
+        try {
+          vfsManifest = await loadJsonArrayArtifact(dir, 'vfs_manifest', { manifest, strict });
+        } catch (err) {
+          addIssue(report, mode, `vfs_manifest load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+        }
+      }
+      if (vfsManifest) {
+        validateSchema(report, mode, 'vfs_manifest', vfsManifest, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
       const minhashRaw = readJsonArtifact('minhash_signatures');
       if (minhashRaw) {
         const minhash = normalizeMinhash(minhashRaw);

@@ -836,6 +836,12 @@
       "replacement": null
     },
     {
+      "name": "test:ci-lite",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
       "name": "test:integration",
       "category": "test",
       "ciAllowed": true,

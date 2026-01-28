@@ -388,6 +388,10 @@ export const ARTIFACT_SCHEMA_DEFS = {
     type: 'array',
     items: chunkUidMapRow
   },
+  vfs_manifest: {
+    type: 'array',
+    items: vfsManifestRow
+  },
   file_meta: {
     type: 'array',
     items: {
