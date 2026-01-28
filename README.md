@@ -19,16 +19,11 @@ PairOfCleats builds a **hybrid semantic index** for a repository (**code + confi
 - a CLI (`pairofcleats search`, `pairofcleats index build`)
 - an HTTP API server (`pairofcleats service api`)
 
-It's optimized for agent workflows:
-- **artifacts are stored outside the repo by default** (cache-backed)
-- indexing is language-aware (AST / tree-sitter / heuristics)
-- search is fast, filterable, and can use SQLite + ANN when repos get big
-
 ---
 
 ## Why it exists
 
-Large repos make "just read the whole tree" impractical.
+Large repos make "just read the whole tree" impractical
 
 - **Grep** is fast but literal.
 - **Pure embeddings** can be fuzzy and harder to constrain.
@@ -45,7 +40,7 @@ PairOfCleats combines the strengths:
 
 ## Requirements
 
-- **Node.js 24.13.0 LTS** (see `.nvmrc`)
+- **>Node.js 24.13.0 LTS** (see `.nvmrc`)
 - Optional (recommended for best Python chunk metadata): **Python 3** (`indexing.pythonAst.*`)
 - Optional (recommended for large repos): **SQLite backend** (via `better-sqlite3`)
 - Optional (recommended for fastest semantic search): **sqlite-vec** extension for ANN
@@ -57,15 +52,9 @@ PairOfCleats combines the strengths:
 ## Quick start
 - `pairofcleats setup`
   - Guided prompts for install, dictionaries, models, extensions, tooling, and indexes.
-- `node tools/setup.js --non-interactive` for CI or automated runs.
-- `pairofcleats bootstrap` (fast, no prompts)
+- CLI: `node bin/pairofcleats.js <command>`
 - `pairofcleats index watch`
 - `pairofcleats service api` (local HTTP JSON API for status/search)
-- Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
-- CLI commands auto-detect repo roots; use `--repo <path>` to override.
-- Local CLI entrypoint: `node bin/pairofcleats.js <command>`.
-- `npm run <script>` wrappers remain available for CI/automation.
-- Core library API: [docs/api/core-api.md](docs/api/core-api.md)
 
 ### Install
 ```bash
@@ -156,7 +145,7 @@ Override cache location via `.pairofcleats.json`:
 
 ---
 
-## Mental model (simplified)
+## Mental model
 
 PairOfCleats has two steps: build an index, then search it.
 
@@ -166,7 +155,7 @@ Index:
 Search:
   query -> filters + rank -> top chunks
 
-ASCII draft (for later Mermaid):
+ASCII draft:
 
   [Repo] -> [Index build] -> [Artifacts / SQLite]
   [Query] -> [Search pipeline] -> [Ranked chunks]
@@ -175,7 +164,7 @@ Detailed diagrams: `docs/guides/architecture.md`
 
 ---
 
-## Learn more (repo docs)
+## Learn more
 
 - Search pipeline: [`docs/guides/search.md`](docs/guides/search.md)
 - Architecture diagrams: [`docs/guides/architecture.md`](docs/guides/architecture.md)
@@ -192,15 +181,6 @@ Detailed diagrams: `docs/guides/architecture.md`
 ## Status
 
 Active development. See `GIGAROADMAP.md` for current execution status.
-
-Phase 3 specs (current correctness work):
-- `docs/phases/phase-3/import-resolution.md`
-- `docs/phases/phase-3/signature.md`
-- `docs/phases/phase-3/watch-atomicity.md`
-- `docs/phases/phase-3/build-state-integrity.md`
-- `docs/phases/phase-3/analysis-policy.md`
-- `docs/phases/phase-3/segmentation-perf.md`
-- `docs/phases/phase-3/tooling-io.md`
 
 ---
 

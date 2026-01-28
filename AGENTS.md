@@ -19,20 +19,27 @@
 - `npm run lint` checks style; `npm run format` auto-fixes via ESLint.
 
 ## PowerShell 7.5 Notes
-- Work in PowerShell 7.5; prefer PowerShell-native syntax over bashisms.
+- You are working in PowerShell 7.5; Be mindful of how it is different.
 - Quoting: use single quotes for literal strings, double quotes only when you need `$env:VAR` or `$(...)` expansion.
-- Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. In single quotes, escape a `'` by doubling it (`''`).
-- Avoid unquoted paths with spaces; wrap in single quotes when no expansion is needed.
-- JSON/CLI args: prefer single-quoted JSON (`'{"k":"v"}'`) to avoid accidental expansion; if you must use double quotes, escape `$` as `` `$ ``.
-- Paths: use `C:\\...` or `.\\relative\\path`; you generally do not need to escape backslashes.
-- Here-strings (heredocs): `@"` ... `"@` for expandable, `@'` ... `'@` for literal; avoid bash-style heredocs (`<<EOF`).
-- Tests: set `PAIROFCLEATS_TESTING=1` or other `PAIROFCLEATS_TEST_*` env vars will be ignored.
+- Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. 
+	- In single quotes, escape a `'` by doubling it (`''`).
+- Avoid unquoted paths with spaces
+	- Wrap in single quotes when no expansion is needed.
+- JSON/CLI args: prefer single-quoted JSON (`'{"k":"v"}'`) to avoid accidental expansion
+	- If you must use double quotes, escape `$` as `` `$ ``.
+- Paths: use `C:\\...` or `.\\relative\\path`; 
+	- You generally do not need to escape backslashes.
+- Here-strings (heredocs):
+	- `@"` ... `"@` for expandable
+	- `@'` ... `'@` for literal
+	- Avoid bash-style heredocs (`<<EOF`)
+- Tests: The script should be setting `PAIROFCLEATS_TESTING=1`, or other `PAIROFCLEATS_TEST_*` env vars will be ignored.
 
 ## Coding Style & Naming Conventions
 - JavaScript, ESM (`"type": "module"` in `package.json`).
 - Indentation: 2 spaces; keep files under ~1200 lines (ESLint `max-lines`).
 - Prefer descriptive, hyphenated test filenames (e.g., `sqlite-bundle-missing.js`).
-- Run `npm run format` before pushing a commit.
+- Run `npm run format` before committing. 
 
 ## Testing Guidelines
 - Primary runner: `npm test` (alias for `node tests/run.js`).
@@ -49,15 +56,10 @@
 
 ## Roadmap & Phase Tracking
 - Roadmaps (e.g., `GIGAROADMAP.md`) contain current work plans.
-- When working on a phase, mark it as in progress.
+- When working on a phase, mark it as in progress, update as you go.
 - Checkboxes should be completed only at the same time you commit the work that completes them.
 - Test checkboxes cannot be checked until the test has run and passed.
 - If fixing a failing test, log each attempted fix as sub-details under that test’s checkbox.
 - After 3 failed fix attempts, stop and report the failure, what was tried, and the next best fix.
 - If a tiny post-commit update is needed (e.g., updating roadmap checkboxes), amend the previous commit instead of creating a new one, unless you are explicitly told not to amend.
 - When all tasks in a phase are complete and concerns addressed, remove that phase and append it to `COMPLETED_PHASES.md` blindly (do not reorder or dedupe).
-
-## Configuration & Artifacts
-- Repo config: `.pairofcleats.json`.
-- Index/cache artifacts live outside the repo by default; set `cache.root` to override.
-- Optional backends and extensions (SQLite, LMDB, sqlite-vec) improve performance for large repos.

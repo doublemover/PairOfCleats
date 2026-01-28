@@ -278,3 +278,37 @@ This spec is "done" when:
 - artifacts exist in the build output and manifest
 - strict validation passes on a non-trivial repo
 - a same-name collision fixture no longer causes mis-linked edges (resolved edges are correct; ambiguous edges are preserved, not guessed)
+
+
+---
+
+## 11. Phase 9 implementation notes (addendum)
+
+### 11.1 Match existing JSONL sharding conventions
+This repository already uses a consistent convention for sharded JSONL artifacts (see `chunk_meta` writer):
+
+- `${name}.meta.json` — small JSON file describing sharding + counts
+- `${name}.shards/` — directory containing `*.jsonl` parts
+
+**Recommended file layout:**
+- `symbols.meta.json`
+- `symbols.shards/symbols.part000000.jsonl`, `symbols.part000001.jsonl`, …
+- `symbol_occurrences.meta.json`
+- `symbol_occurrences.shards/symbol_occurrences.part000000.jsonl`, …
+- `symbol_edges.meta.json`
+- `symbol_edges.shards/symbol_edges.part000000.jsonl`, …
+
+If sharding is disabled, the build MAY emit a single `${name}.jsonl` file instead, but MUST still be deterministic.
+
+### 11.2 Required-key enforcement during JSONL parsing
+If the validator uses the JSONL streaming parser (`src/shared/artifact-io/jsonl.js`), ensure
+the new artifact base names are included in the `JSONL_REQUIRED_KEYS` map so malformed records fail fast.
+
+### 11.3 Deterministic record ordering (practical rule)
+To satisfy determinism without expensive hashing partitioners:
+
+- Sort `symbols` by `scopedId`
+- Sort `symbol_occurrences` by `(file, startLine, startCol, role, ref.name)`
+- Sort `symbol_edges` by `(type, from.chunkUid, to.name, to.scopedId/symbolId)`
+
+Then stream in that order into the sharding writer. Sequential sharding based on record count is acceptable **as long as the input order is deterministic**.

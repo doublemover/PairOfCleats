@@ -4,23 +4,9 @@
 - Reduce single-file complexity and improve testability/ownership boundaries.
 - Centralize repeated cross-cutting concerns (logging, retry/backoff, config normalization, artifact IO, filter selection) so behavior stays consistent.
 - Keep refactors mechanical: move code + add thin adapters, preserve behavior, update imports/tests.
+- All line ranges are approximate and should not be treated as truth blindly, for convenience only
 
 ## Progress update (2026-01-26)
-Completed refactors:
-- `src/index/build/watch.js` split into `src/index/build/watch/*` helpers + shared debounce/ignore/backoff.
-- `src/integrations/core/index.js` split into `args.js`, `embeddings.js`, `build-index.js`, `search.js`, `status.js`.
-- `src/index/validate.js` split into `src/index/validate/*`.
-- `src/index/build/artifacts.js` split into `src/index/build/artifacts/*`.
-- `tools/build-embeddings/run.js` split into `tools/build-embeddings/*`.
-- `src/index/build/worker-pool.js` split into `src/index/build/workers/*`.
-- `tools/api/router.js` split into `tools/api/router/*` (+ shared response/middleware helpers).
-- `src/index/build/runtime/runtime.js` split into `src/index/build/runtime/*`.
-- `src/retrieval/cli.js` split into `src/retrieval/cli/*`.
-- `src/index/language-registry/registry.js` split into `registry-data.js` + supporting modules.
-- `tools/config-inventory.js` split into `tools/config-inventory/*`.
-- `tools/build-sqlite-index/run.js` split into `tools/build-sqlite-index/*`.
-- `src/shared/json-stream.js` split into `src/shared/json-stream/*`.
-- `tools/dict-utils/paths.js` split into `tools/dict-utils/paths/*`.
 
 Remaining refactors:
 - `src/retrieval/output/filters.js` (still monolithic).
@@ -31,29 +17,13 @@ Remaining refactors:
 - `src/index/build/piece-assembly.js` (still monolithic).
 
 ## Scope
-Files targeted (>= ~500 LOC):
-- `src/index/build/watch.js`
-- `src/integrations/core/index.js`
-- `src/index/validate.js`
-- `src/index/build/artifacts.js`
-- `tools/build-embeddings/run.js`
-- `src/index/build/worker-pool.js`
-- `tools/api/router.js`
-- `src/index/build/runtime/runtime.js`
+Files remaining (>= ~500 LOC):
+
 - `src/retrieval/output/filters.js`
 - `tools/mcp/tools.js`
 - `src/index/build/file-processor/cpu.js`
-- `src/retrieval/cli.js`
-- `src/index/language-registry/registry.js`
 - `tools/config-inventory.js`
 - `src/retrieval/pipeline.js`
-- `tools/build-sqlite-index/run.js`
-- `src/shared/json-stream.js`
-- `src/map/isometric/client/edges.js`
-- `src/index/build/piece-assembly.js`
-- `tools/dict-utils/paths.js`
-
-Line ranges below are from the current file versions and should be treated as the extraction anchors.
 
 ---
 
@@ -63,23 +33,18 @@ Line ranges below are from the current file versions and should be treated as th
 - Extract generic backoff + jitter helper (used by watch lock backoff).
 - Source: `src/index/build/watch.js` lines **74-113** (`acquireIndexLockWithBackoff`).
 - Tasks:
-  - [x] Create `retryWithBackoff({ maxWaitMs, baseMs, maxMs, onRetry, onLog, shouldStop })`.
-  - [x] Replace inline backoff logic in `watch.js` with shared helper.
   - [ ] Add unit tests in `tests/shared/retry-backoff.test.js`.
 
 ### 0.2 `src/shared/scheduler/debounce.js`
 - Extract debounced scheduler for reuse.
 - Source: `watch.js` lines **133-159** (`createDebouncedScheduler`).
 - Tasks:
-  - [x] Move helper into `src/shared/scheduler/debounce.js`.
-  - [x] Update watch import.
   - [ ] Add unit test `tests/shared/debounce-scheduler.test.js`.
 
 ### 0.3 `src/shared/fs/ignore.js`
 - Centralize ignore matcher logic used by watchers and discover.
 - Source: `watch.js` lines **231-247** (`buildIgnoredMatcher`).
 - Tasks:
-  - [x] Extract as `buildIgnoredMatcher({ root, ignoreMatcher })`.
   - [ ] Reuse in `discover.js` (if applicable) to avoid drift.
   - [ ] Add tests for directory vs file ignore semantics.
 
@@ -87,8 +52,6 @@ Line ranges below are from the current file versions and should be treated as th
 - Centralize merge semantics for CLI vs filter expressions (ext/lang/type/etc).
 - Source: `src/retrieval/filters.js` merge helpers **~194-215** (exact function lines logged below in Phase 3).
 - Tasks:
-  - [x] Provide `mergeFilterLists({ left, right }) -> { values, impossible }`.
-  - [x] Keep behavior consistent in retrieval CLI + filter code.
   - [ ] Update tests in `tests/lang-filter.js`.
 
 ---
@@ -120,12 +83,6 @@ Internal blocks inside `watchIndex` that can be lifted (line anchors within watc
 - Event handlers: **764-876** (`recordAddOrChange`, `recordRemove`, `recordBurst`, `handleEvent`, `handleError`, watcher wiring).
 
 Refactor tasks:
-- [x] Move watcher backend resolution to `src/index/build/watch/resolve-backend.js` (lines 47-73).
-- [x] Move lock backoff into shared `src/shared/retry.js` and adapt `acquireIndexLockWithBackoff` to call it.
-- [x] Move stability guard to `src/index/build/watch/stability.js` (lines 114-132).
-- [x] Move records path + sampling helpers to `src/index/build/watch/records.js` (165-191).
-- [x] Move guardrails caps and indexable path logic to `src/index/build/watch/guardrails.js` (192-230 + 202-224).
-- [x] Move ignore matcher to shared `src/shared/fs/ignore.js` (231-247).
 - [ ] Split `watchIndex` into:
   - `createWatchContext` (inputs, runtime, guardrails, state) -- **~258-316**
   - `registerShutdownHandlers` -- **~324-360**
@@ -140,106 +97,13 @@ Tests potentially affected:
 - Any tests importing watch internals (if any) -- update paths.
 
 ### 1.2 `src/integrations/core/index.js` (823 LOC)
-Top-level functions and ranges:
-- `createOverallProgress` **37-75**
-- `computeCompatibilityKey` **76-89**
-- `resolveEmbeddingRuntime` **90-124**
-- `teardownRuntime` **125-137**
-- `createLineEmitter` **140-158**
-- `runEmbeddingsTool` **159-192**
-- `buildIndex` **193-789**
-- `buildSqliteIndex` **790-816**
-- `search` **817-840**
-- `status` **841-844**
-
-Refactor tasks:
-  - [x] Extract `embeddings` helpers into `src/integrations/core/embeddings.js` (90-192).
-  - [x] Extract `buildIndex` into `src/integrations/core/build-index.js` and split into sub-functions:
-  - input normalization + runtime init (first ~80 lines of buildIndex)
-  - discovery plan + build execution
-  - post-build validation/promotion
-  - final reporting
-  - [x] Extract shared `search` + `status` into `src/integrations/core/search.js` and `status.js`.
-  - [x] Keep `src/integrations/core/index.js` as re-export/wiring only.
 
 Tests potentially affected:
 - `tests/core-api.js`, `tests/build-index-all.js`, `tests/build-embeddings-cache.js`
 
-### 1.3 `src/index/validate.js` (793 LOC)
-Top-level:
-- `validateIndexArtifacts` **56-823**
+## 1.8
 
-Refactor tasks (split into modules with line anchors):
-- [x] Extract manifest + checksum validation (approx **108-200**) into `src/index/validate/manifest.js`.
-- [x] Extract artifact presence + file loading (approx **200-420**) into `src/index/validate/artifacts.js`.
-- [x] Extract SQLite validation (approx **420-650**) into `src/index/validate/sqlite.js`.
-- [x] Extract LMDB validation (approx **650-780**) into `src/index/validate/lmdb.js`.
-- [x] `validateIndexArtifacts` becomes orchestration (inputs, report aggregation).
-
-Tests potentially affected:
-- `tests/index-validate.js`, `tests/storage/sqlite/*.test.js`, `tests/lmdb-*.js`
-
-### 1.4 `src/index/build/artifacts.js` (759 LOC)
-Top-level:
-- `writeIndexArtifacts` **40-767**
-
-Refactor tasks:
-- [x] Split artifact writer by artifact type into `src/index/build/artifacts/` modules:
-  - chunk_meta, repo_map, file_meta, filter_index, postings, vectors, etc.
-- [x] Extract path resolution + atomic write helpers to `src/index/build/artifacts/io.js`.
-- [x] Keep `writeIndexArtifacts` as orchestration (build per-artifact spec list, call writers).
-
-Tests potentially affected:
-- `tests/artifact-formats.js`, `tests/artifact-size-guardrails.js`, `tests/format-fidelity.js`
-
-### 1.5 `tools/build-embeddings/run.js` (755 LOC)
-Top-level:
-- `runBuildEmbeddings` **56-797**
-
-Refactor tasks:
-- [x] Extract CLI parsing + argv normalization into `tools/build-embeddings/args.js`.
-- [x] Extract model + provider resolution into `tools/build-embeddings/runtime.js`.
-- [x] Extract batch processing + output writer into `tools/build-embeddings/runner.js`.
-- [x] Keep `run.js` as thin entrypoint.
-
-Tests potentially affected:
-- `tests/build-embeddings-cache.js`, `tests/embeddings-*.js`
-
-### 1.6 `src/index/build/worker-pool.js` (738 LOC)
-Top-level:
-- `normalizeWorkerPoolConfig` **147-212**
-- `resolveWorkerPoolConfig` **213-234**
-- `createIndexerWorkerPool` **235-697**
-- `createIndexerWorkerPools` **698-757**
-
-Refactor tasks:
-- [x] Extract config normalization into `src/index/build/workers/config.js`.
-- [x] Extract worker lifecycle into `src/index/build/workers/pool.js`.
-- [x] Extract message protocol / error normalization into `src/index/build/workers/protocol.js`.
-
-Tests potentially affected:
-- `tests/worker-pool-windows.js`, `tests/worker-pool.js`
-
-### 1.7 `tools/api/router.js` (734 LOC)
-Top-level:
-- `createApiRouter` **31-756**
-
-Refactor tasks:
-- [x] Extract middleware stack into `tools/api/middleware/*.js`.
-- [x] Extract route registration into `tools/api/routes/*.js`.
-- [x] Create a `tools/api/responses.js` for JSON/error helpers.
-
-Tests potentially affected:
-- `tests/services/api/*.test.js`
-
-### 1.8 `src/index/build/runtime/runtime.js` (715 LOC)
-Top-level:
-- `createBuildRuntime` **54-729**
-
-Refactor tasks:
-- [x] Extract runtime envelope + config into `src/index/build/runtime/config.js`.
 - [ ] Extract queue creation into `src/index/build/runtime/queues.js`.
-- [x] Extract policy toggles into `src/index/build/runtime/policy.js`.
 
 Tests potentially affected:
 - `tests/runtime/*`, `tests/concurrency/*`
@@ -293,9 +157,6 @@ Tests potentially affected:
 Top-level:
 - `runSearchCli` **60-734**
 
-Refactor tasks:
-- [x] Extract index loading to `src/retrieval/cli/load-indexes.js`.
-- [x] Extract option normalization to `src/retrieval/cli/options.js` (some already exists).
 - [ ] Extract query execution to `src/retrieval/cli/run-search.js`.
 
 Tests potentially affected:
@@ -309,21 +170,10 @@ Top-level:
 - `buildLanguageContext` **668-678**
 - `buildChunkRelations` **679-698**
 
-Refactor tasks:
-- [x] Move registry data into `registry-data.js` and keep runtime helpers in `registry.js`.
 - [ ] Extract linguist mapping to `registry-linguist.js`.
 
 Tests potentially affected:
 - `tests/lang/*`, `tests/segments/*`
-
-### 1.14 `tools/config-inventory.js` (686 LOC)
-Top-level:
-- `buildInventory` **441-721**
-
-Refactor tasks:
-- [x] Extract schema parsing helpers into `tools/config-inventory/schema.js`.
-- [x] Extract source scanning into `tools/config-inventory/scan.js`.
-- [x] Extract rendering into `tools/config-inventory/report.js`.
 
 ### 1.15 `src/retrieval/pipeline.js` (677 LOC)
 Top-level:
@@ -333,22 +183,10 @@ Refactor tasks:
 - [ ] Split pipeline stages into `src/retrieval/pipeline/*` (pre-filter, sparse, ann, re-rank, output).
 - [ ] Centralize stage metrics + trace into `src/retrieval/pipeline/metrics.js`.
 
-### 1.16 `tools/build-sqlite-index/run.js` (667 LOC)
-Top-level:
-- `resolveOutputPaths` **44-76**
-- `runBuildSqliteIndex` **77-688**
-
-Refactor tasks:
-- [x] Split CLI parsing to `tools/build-sqlite-index/args.js`.
-- [x] Split execution to `tools/build-sqlite-index/runner.js`.
-- [x] Keep `run.js` as entrypoint.
-
 ### 1.17 `src/shared/json-stream.js` (662 LOC)
 Top-level helpers and ranges listed in extraction log (see notes above).
 
 Refactor tasks:
-- [x] Move compression helpers (`normalizeGzipOptions`, `createFflateGzipStream`, `createZstdStream`) into `src/shared/json-stream/compress.js`.
-- [x] Move atomic replace into `src/shared/json-stream/atomic.js`.
 - [ ] Keep JSONL/array/object writers in `src/shared/json-stream/index.js`.
 
 ### 1.18 `src/map/isometric/client/edges.js` (650 LOC)
@@ -367,38 +205,11 @@ Refactor tasks:
 - [ ] Extract postings merge helpers into `piece-assembly/postings.js` (137-295).
 - [ ] Keep `assembleIndexPieces` in `piece-assembly/index.js`.
 
-### 1.20 `tools/dict-utils/paths.js` (644 LOC)
-Top-level helpers and ranges already listed (14-685).
-
-Refactor tasks:
-- [x] Split repo identity helpers into `tools/dict-utils/repo.js` (14-106).
-- [x] Split build/index path resolution into `tools/dict-utils/build-paths.js` (107-222).
-- [x] Split runtime/config resolution into `tools/dict-utils/runtime.js` (239-350).
-- [x] Split tooling/metrics paths into `tools/dict-utils/tooling.js` (362-510).
-- [x] Split dictionary path resolution into `tools/dict-utils/dictionaries.js` (598-685).
-
 ---
 
 ## Phase 2 -- Tests and follow‑ups
 
-- [x] Update imports for any moved modules and keep exports stable.
-- [x] Run `npm run lint` and spot-check `node tests/run.js --match` for affected areas:
-  - watch: `tests/watch-*`
-  - retrieval: `tests/retrieval/*`, `tests/lang-filter.js`
-  - sqlite/build: `tests/storage/sqlite/*`
-  - mcp: `tests/services/mcp/*`
 - [ ] Add minimal unit tests for extracted helpers (retry/debounce/ignore) to prevent regressions.
-
----
-
-## Suggested sequencing (keeps risk low)
-1. Extract shared helpers (retry/debounce/ignore) and update watch/filters.
-2. Split `watch.js` into submodules.
-3. Split `integrations/core/index.js` (embedding + build orchestration).
-4. Split `validate.js` and `artifacts.js`.
-5. Split retrieval `filters` + `cli` + `pipeline`.
-6. Split tools scripts (`build-embeddings`, `build-sqlite-index`, `config-inventory`, `mcp/tools`).
-7. Split remaining map + registry + CPU processor.
 
 ---
 
@@ -439,26 +250,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/shared/fs/ignore.js` (shared)
 - `src/shared/scheduler/debounce.js` (shared)
 
-### Exact moves (line ranges)
-- Move **47-73** (`resolveWatcherBackend`) → `watch/resolve-backend.js`
-- Move **74-113** (`acquireIndexLockWithBackoff`) → `watch/backoff.js` (or call shared retry helper)
-- Move **114-132** (`waitForStableFile`) → `watch/stability.js`
-- Move **133-159** (`createDebouncedScheduler`) → `shared/scheduler/debounce.js`
-- Move **160-173** (`normalizeRoot`, `resolveRecordsRoot`) → `watch/records.js`
-- Move **174-191** (`readRecordSample`) → `watch/records.js`
-- Move **192-201** (`resolveMaxFilesCap`, `resolveMaxDepthCap`) → `watch/guardrails.js`
-- Move **202-224** (`isIndexablePath`) → `watch/guardrails.js`
-- Move **225-230** (`resolveMaxBytesForFile`) → `watch/guardrails.js`
-- Move **231-247** (`buildIgnoredMatcher`) → `shared/fs/ignore.js`
-
-### Internal block splits (within `watchIndex`)
-- **317-366** → `watch/scheduler.js` (shutdown/schedule)
-- **368-416** → `watch/tracked.js` (update queue + flush)
-- **425-462** → `watch/tracked.js` (skip/tracked bookkeeping)
-- **470-607** → `watch/tracked.js` (discovery + classify + update)
-- **608-699** → `watch/runner.js` (run build + validate + promote)
-- **764-876** → `watch/events.js` (event handlers + wiring)
-
 ### Minimal unit tests to add
 - `tests/shared/debounce-scheduler.test.js` (existing behavior)
 - `tests/shared/retry-backoff.test.js` (lock backoff)
@@ -469,8 +260,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tests/watch-e2e-promotion.js`
 - `tests/watch-shutdown.js`
 
----
-
 ## B.2 `src/integrations/core/index.js`
 
 ### New modules
@@ -480,15 +269,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/integrations/core/build-index.js`
 - `src/integrations/core/search.js`
 - `src/integrations/core/status.js`
-
-### Exact moves
-- **37-75** → `progress.js`
-- **76-89** → `compat.js`
-- **90-192** → `embeddings.js`
-- **193-789** → `build-index.js` (split into internal helpers inside this file)
-- **790-816** → `build-sqlite-index.js` (optional new file) or keep in `build-index.js`
-- **817-840** → `search.js`
-- **841-844** → `status.js`
 
 ### Internal splits inside `buildIndex`
 - Input normalization + runtime bootstrap
@@ -503,8 +283,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tests/build-embeddings-cache.js`
 - `tests/core-api.js`
 
----
-
 ## B.3 `src/index/validate.js`
 
 ### New modules
@@ -514,18 +292,10 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/index/validate/lmdb.js`
 - `src/index/validate/report.js` (optional: report build helpers)
 
-### Exact extraction hints (line anchors)
-- **108-200**: manifest load + checksum → `manifest.js`
-- **200-420**: artifact load + presence → `artifacts.js`
-- **420-650**: sqlite validation block → `sqlite.js`
-- **650-780**: lmdb validation block → `lmdb.js`
-
 ### Tests
 - `tests/index-validate.js`
 - `tests/storage/sqlite/*`
 - `tests/lmdb-*`
-
----
 
 ## B.4 `src/index/build/artifacts.js`
 
@@ -540,14 +310,12 @@ Use this template for every extraction so the refactor stays fast and safe:
 
 ### Plan
 - Split each artifact writer into its own file (each exports a `write*` function).
-- `writeIndexArtifacts` stays as orchestrator (line **40-767**).
+- `writeIndexArtifacts` stays as orchestrator
 
 ### Tests
 - `tests/artifact-formats.js`
 - `tests/artifact-size-guardrails.js`
 - `tests/format-fidelity.js`
-
----
 
 ## B.5 `tools/build-embeddings/run.js`
 
@@ -557,17 +325,10 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tools/build-embeddings/runner.js`
 - `tools/build-embeddings/output.js`
 
-### Extraction
-- **56-~200**: args parsing + validation → `args.js`
-- **~200-~360**: model/provider resolution → `runtime.js`
-- **~360-~650**: batch processing → `runner.js`
-- **~650-end**: output/write index state → `output.js`
-
 ### Tests
 - `tests/build-embeddings-cache.js`
 - `tests/embeddings-*`
 
----
 
 ## B.6 `src/index/build/worker-pool.js`
 
@@ -577,17 +338,9 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/index/build/workers/pool.js` (lifecycle / worker spawn)
 - `src/index/build/workers/index.js` (re-export)
 
-### Moves
-- **12-146** → config/protocol
-- **147-234** → config
-- **235-697** → pool
-- **698-757** → index.js
-
 ### Tests
 - `tests/worker-pool.js`
 - `tests/worker-pool-windows.js`
-
----
 
 ## B.7 `tools/api/router.js`
 
@@ -603,8 +356,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 ### Tests
 - `tests/services/api/*.test.js`
 
----
-
 ## B.8 `src/index/build/runtime/runtime.js`
 
 ### New modules
@@ -616,8 +367,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 ### Tests
 - `tests/runtime/*`
 - `tests/concurrency/*`
-
----
 
 ## B.9 `src/retrieval/output/filters.js`
 
@@ -632,8 +381,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tests/filters/*`
 - `tests/lang-filter.js`
 
----
-
 ## B.10 `tools/mcp/tools.js`
 
 ### New modules
@@ -643,8 +390,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 
 ### Tests
 - `tests/services/mcp/*`
-
----
 
 ## B.11 `src/index/build/file-processor/cpu.js`
 
@@ -659,8 +404,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tests/format-fidelity.js`
 - `tests/type-inference-*`
 
----
-
 ## B.12 `src/retrieval/cli.js`
 
 ### New modules
@@ -671,8 +414,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 ### Tests
 - `tests/search-*`
 - `tests/retrieval/*`
-
----
 
 ## B.13 `src/index/language-registry/registry.js`
 
@@ -685,8 +426,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tests/lang/*`
 - `tests/segments/*`
 
----
-
 ## B.14 `tools/config-inventory.js`
 
 ### New modules
@@ -694,23 +433,17 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `tools/config-inventory/scan.js`
 - `tools/config-inventory/report.js`
 
----
-
 ## B.15 `src/retrieval/pipeline.js`
 
 ### New modules
 - `src/retrieval/pipeline/stages/*.js`
 - `src/retrieval/pipeline/metrics.js`
 
----
-
 ## B.16 `tools/build-sqlite-index/run.js`
 
 ### New modules
 - `tools/build-sqlite-index/args.js`
 - `tools/build-sqlite-index/runner.js`
-
----
 
 ## B.17 `src/shared/json-stream.js`
 
@@ -719,8 +452,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/shared/json-stream/atomic.js`
 - `src/shared/json-stream/index.js`
 
----
-
 ## B.18 `src/map/isometric/client/edges.js`
 
 ### New modules
@@ -728,16 +459,12 @@ Use this template for every extraction so the refactor stays fast and safe:
 - `src/map/isometric/client/edges/layout.js`
 - `src/map/isometric/client/edges/render.js`
 
----
-
 ## B.19 `src/index/build/piece-assembly.js`
 
 ### New modules
 - `src/index/build/piece-assembly/normalize.js`
 - `src/index/build/piece-assembly/postings.js`
 - `src/index/build/piece-assembly/index.js`
-
----
 
 ## B.20 `tools/dict-utils/paths.js`
 
@@ -754,62 +481,6 @@ Use this template for every extraction so the refactor stays fast and safe:
 - Consolidate CLI arg normalization patterns into a shared helper for tools that parse `process.argv` similarly (build‑embeddings, build‑sqlite, config‑inventory).
 - Consolidate "load index state" and "read index root" helpers (used in `retrieval/cli`, `core/index`, `tools/mcp`).
 - Centralize JSON output schema for diagnostics in `src/shared/diagnostics.js`.
-
----
-
-# Appendix D -- Minimal tests to add (non‑isometric)
-
-Skip isometric/map tests for now (per request). Add only light‑touch tests that lock behavior during refactor.
-
-## build‑embeddings (`tools/build-embeddings/*`)
-- [x] `tests/build-embeddings/args-parsing.test.js`
-  - asserts unknown args are rejected
-  - ensures `--model`, `--provider`, `--cache-root` normalize consistently
-- [x] `tests/build-embeddings/runtime-defaults.test.js`
-  - validates defaults are set when flags absent
-
-## build‑sqlite‑index (`tools/build-sqlite-index/*`)
-- [x] `tests/build-sqlite-index/args-parsing.test.js`
-  - validates `--mode`, `--out`, `--config` parsing
-- [x] `tests/build-sqlite-index/output-paths.test.js`
-  - ensures `resolveOutputPaths` produces expected file locations
-
-## config‑inventory (`tools/config-inventory/*`)
-- [x] `tests/config-inventory/schema-scan.test.js`
-  - validates schema keys are discovered
-- [x] `tests/config-inventory/report-format.test.js`
-  - validates markdown output includes counts + sections
-
-## API router (`tools/api/router.js`)
-- [x] `tests/api/router-smoke.test.js`
-  - registers router and asserts critical routes exist
-  - verifies JSON error response shape
-
-## MCP tools (`tools/mcp/tools.js`)
-- [x] `tests/mcp/tools-registry.test.js`
-  - ensures handler registry includes required tool names
-- [x] `tests/mcp/tools-normalize-meta.test.js`
-  - validates meta filter normalization output shape
-
-## shared json‑stream (`src/shared/json-stream.js`)
-- [x] `tests/json-stream/atomic-replace.test.js`
-  - validates `replaceFile` behavior via small temp file
-- [x] `tests/json-stream/compress-options.test.js`
-  - validates gzip/zstd option normalization
-
-## dict‑utils paths (`tools/dict-utils/paths.js`)
-- [x] `tests/dict-utils/paths-repo-root.test.js`
-  - resolves repo root from nested path
-- [x] `tests/dict-utils/paths-builds-root.test.js`
-  - validates builds root for config overrides
-
-## retrieval CLI split (`src/retrieval/cli.js` → modules)
-- [x] `tests/retrieval/cli-options-smoke.test.js`
-  - parses `--lang`, `--ext`, `--filter` and ensures no throw
-
-## validate split (`src/index/validate.js`)
-- [x] `tests/validate/manifest-checks.test.js`
-  - validates checksum failure produces issue text
 
 ---
 
@@ -837,3 +508,5 @@ Add these to the refactor spot-check rotation:
 - `worker-pool`
 - `worker-pool-restart`
 - `worker-pool-windows`
+
+---

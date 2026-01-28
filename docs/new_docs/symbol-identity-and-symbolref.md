@@ -320,3 +320,41 @@ Inputs required:
    - same `symbolKey`
    - different `scopedId` (anchor differs and/or signatureKey differs)
 4. Segment chunks produce `virtualPath` containing `#seg:<segmentUid>` and therefore do not collide with container file symbols.
+
+
+---
+
+## 13. Phase 9 cross-file resolution integration (addendum)
+
+### 13.1 Canonical reason codes
+For consistency across implementations, candidate `reasons[]` SHOULD use a small, stable vocabulary.
+
+See: `SPEC_cross-file-symbol-resolution_DRAFT.md` (Phase 9 draft) for the current list and scoring guidance.
+
+### 13.2 Evidence fields for import-aware resolution
+When a SymbolRef is produced by import-aware resolution, `evidence` SHOULD include:
+
+```ts
+evidence?: {
+  // The file containing the reference
+  sourceFile?: string | null;
+
+  // Optional: the chunkUid emitting the reference
+  sourceChunkUid?: string | null;
+
+  // Optional location (when available)
+  loc?: { startLine: number|null; startCol: number|null; endLine: number|null; endCol: number|null } | null;
+
+  // Import narrowing info
+  moduleSpecifier?: string | null;
+  resolvedFile?: string | null;
+
+  // If the reference was receiver-qualified (e.g. Foo.bar)
+  receiver?: string | null;
+
+  // Leaf name extracted from the reference (e.g. bar)
+  leafName?: string | null;
+} | null;
+```
+
+**Note:** These are optional; do not block emission if unavailable. They exist to make ambiguity explainable and to enable debugging without re-parsing code.

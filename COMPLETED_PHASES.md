@@ -2324,11 +2324,6 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
   - `docs/specs/vfs-manifest-artifact.md` (new/updated if missing)
   - `docs/specs/metadata-schema-v2.md`
 
-## Tests (optional / Phase 8 if deferred)
-
-- [ ] `tests/vfs/virtual-path-stability.test.js` (Phase 8)
-- [ ] `tests/vfs/vfs-manifest-roundtrip.test.js` (Phase 8)
-
 ---
 
 ## Phase 5 exit criteria (definition of done)
@@ -2365,7 +2360,259 @@ Phase 5 is complete when:
 
 ---
 
-#
+# Refactor Plan (Large JS Files)
 
+## Completed refactors:
 
+- [x] `src/index/build/watch.js` split into `src/index/build/watch/*` helpers + shared debounce/ignore/backoff.
+- [x] `src/integrations/core/index.js` split into `args.js`, `embeddings.js`, `build-index.js`, `search.js`, `status.js`.
+- [x] `src/index/validate.js` split into `src/index/validate/*`.
+- [x] `src/index/build/artifacts.js` split into `src/index/build/artifacts/*`.
+- [x] `tools/build-embeddings/run.js` split into `tools/build-embeddings/*`.
+- [x] `src/index/build/worker-pool.js` split into `src/index/build/workers/*`.
+- [x] `tools/api/router.js` split into `tools/api/router/*` (+ shared response/middleware helpers).
+- [x] `src/index/build/runtime/runtime.js` split into `src/index/build/runtime/*`.
+- [x] `src/retrieval/cli.js` split into `src/retrieval/cli/*`.
+- [x] `src/index/language-registry/registry.js` split into `registry-data.js` + supporting modules.
+- [x] `tools/config-inventory.js` split into `tools/config-inventory/*`.
+- [x] `tools/build-sqlite-index/run.js` split into `tools/build-sqlite-index/*`.
+- [x] `src/shared/json-stream.js` split into `src/shared/json-stream/*`.
+- [x] `tools/dict-utils/paths.js` split into `tools/dict-utils/paths/*`.
 
+## Phase 0 -- Shared modules to extract first (reduces repeated work)
+
+### 0.1 `src/shared/retry.js`
+
+- Extract generic backoff + jitter helper (used by watch lock backoff).
+  - [x] Create `retryWithBackoff({ maxWaitMs, baseMs, maxMs, onRetry, onLog, shouldStop })`.
+  - [x] Replace inline backoff logic in `watch.js` with shared helper.
+
+### 0.2 `src/shared/scheduler/debounce.js`
+
+- Extract debounced scheduler for reuse.
+  - [x] Move helper into `src/shared/scheduler/debounce.js`.
+  - [x] Update watch import.
+
+### 0.3 `src/shared/fs/ignore.js`
+
+- Centralize ignore matcher logic used by watchers and discover.
+  - [x] Extract as `buildIgnoredMatcher({ root, ignoreMatcher })`.
+
+### 0.4 `src/shared/filter/merge.js`
+
+- Centralize merge semantics for CLI vs filter expressions (ext/lang/type/etc).
+  - [x] Provide `mergeFilterLists({ left, right }) -> { values, impossible }`.
+  - [x] Keep behavior consistent in retrieval CLI + filter code.
+
+## Phase 1 -- File-by-file split plan
+
+### 1.1 `src/index/build/watch.js` (849 LOC)
+
+- [x] Move watcher backend resolution to `src/index/build/watch/resolve-backend.js` (lines 47-73).
+- [x] Move lock backoff into shared `src/shared/retry.js` and adapt `acquireIndexLockWithBackoff` to call it.
+- [x] Move stability guard to `src/index/build/watch/stability.js` (lines 114-132).
+- [x] Move records path + sampling helpers to `src/index/build/watch/records.js` (165-191).
+- [x] Move guardrails caps and indexable path logic to `src/index/build/watch/guardrails.js` (192-230 + 202-224).
+- [x] Move ignore matcher to shared `src/shared/fs/ignore.js` (231-247).
+
+### 1.2 `src/integrations/core/index.js` (823 LOC)
+
+Top-level functions and ranges:
+- `createOverallProgress` **37-75**
+- `computeCompatibilityKey` **76-89**
+- `resolveEmbeddingRuntime` **90-124**
+- `teardownRuntime` **125-137**
+- `createLineEmitter` **140-158**
+- `runEmbeddingsTool` **159-192**
+- `buildIndex` **193-789**
+- `buildSqliteIndex` **790-816**
+- `search` **817-840**
+- `status` **841-844**
+  - [x] Extract `embeddings` helpers into `src/integrations/core/embeddings.js` (90-192).
+  - [x] Extract `buildIndex` into `src/integrations/core/build-index.js` and split into sub-functions:
+  - input normalization + runtime init (first ~80 lines of buildIndex)
+  - discovery plan + build execution
+  - post-build validation/promotion
+  - final reporting
+  - [x] Extract shared `search` + `status` into `src/integrations/core/search.js` and `status.js`.
+  - [x] Keep `src/integrations/core/index.js` as re-export/wiring only.
+
+### 1.3 `src/index/validate.js` (793 LOC)
+
+Top-level:
+- `validateIndexArtifacts` **56-823**
+
+Refactor tasks (split into modules with line anchors):
+- [x] Extract manifest + checksum validation (approx **108-200**) into `src/index/validate/manifest.js`.
+- [x] Extract artifact presence + file loading (approx **200-420**) into `src/index/validate/artifacts.js`.
+- [x] Extract SQLite validation (approx **420-650**) into `src/index/validate/sqlite.js`.
+- [x] Extract LMDB validation (approx **650-780**) into `src/index/validate/lmdb.js`.
+- [x] `validateIndexArtifacts` becomes orchestration (inputs, report aggregation).
+- `tests/index-validate.js`, `tests/storage/sqlite/*.test.js`, `tests/lmdb-*.js`
+
+### 1.4 `src/index/build/artifacts.js` (759 LOC)
+
+Top-level:
+- `writeIndexArtifacts` **40-767**
+- [x] Split artifact writer by artifact type into `src/index/build/artifacts/` modules:
+  - chunk_meta, repo_map, file_meta, filter_index, postings, vectors, etc.
+- [x] Extract path resolution + atomic write helpers to `src/index/build/artifacts/io.js`.
+- [x] Keep `writeIndexArtifacts` as orchestration (build per-artifact spec list, call writers).
+Tests potentially affected:
+- `tests/artifact-formats.js`, `tests/artifact-size-guardrails.js`, `tests/format-fidelity.js`
+
+### 1.5 `tools/build-embeddings/run.js` (755 LOC)
+
+- `runBuildEmbeddings` **56-797**
+- [x] Extract CLI parsing + argv normalization into `tools/build-embeddings/args.js`.
+- [x] Extract model + provider resolution into `tools/build-embeddings/runtime.js`.
+- [x] Extract batch processing + output writer into `tools/build-embeddings/runner.js`.
+- [x] Keep `run.js` as thin entrypoint.
+Tests potentially affected:
+- `tests/build-embeddings-cache.js`, `tests/embeddings-*.js`
+
+### 1.6 `src/index/build/worker-pool.js` (738 LOC)
+
+- `normalizeWorkerPoolConfig` **147-212**
+- `resolveWorkerPoolConfig` **213-234**
+- `createIndexerWorkerPool` **235-697**
+- `createIndexerWorkerPools` **698-757**
+- [x] Extract config normalization into `src/index/build/workers/config.js`.
+- [x] Extract worker lifecycle into `src/index/build/workers/pool.js`.
+- [x] Extract message protocol / error normalization into `src/index/build/workers/protocol.js`.
+Tests potentially affected:
+- `tests/worker-pool-windows.js`, `tests/worker-pool.js`
+
+### 1.7 `tools/api/router.js` (734 LOC)
+
+- `createApiRouter` **31-756**
+Refactor tasks:
+- [x] Extract middleware stack into `tools/api/middleware/*.js`.
+- [x] Extract route registration into `tools/api/routes/*.js`.
+- [x] Create a `tools/api/responses.js` for JSON/error helpers.
+Tests potentially affected:
+- `tests/services/api/*.test.js`
+
+### 1.8 `src/index/build/runtime/runtime.js` (715 LOC)
+
+- `createBuildRuntime` **54-729**
+- [x] Extract runtime envelope + config into `src/index/build/runtime/config.js`.
+- [x] Extract policy toggles into `src/index/build/runtime/policy.js`.
+
+### 1.12 `src/retrieval/cli.js` (691 LOC)
+
+- `runSearchCli` **60-734**
+- [x] Extract index loading to `src/retrieval/cli/load-indexes.js`.
+- [x] Extract option normalization to `src/retrieval/cli/options.js` (some already exists).
+Tests potentially affected:
+- `tests/search-*`, `tests/retrieval/*`
+
+### 1.13 `src/index/language-registry/registry.js` (687 LOC)
+
+- Registry data **84-540**
+- `getLanguageForFile` **632-638**
+- `collectLanguageImports` **639-667**
+- `buildLanguageContext` **668-678**
+- `buildChunkRelations` **679-698**
+- [x] Move registry data into `registry-data.js` and keep runtime helpers in `registry.js`.
+
+### 1.14 `tools/config-inventory.js` (686 LOC)
+Top-level:
+- `buildInventory` **441-721**
+
+Refactor tasks:
+- [x] Extract schema parsing helpers into `tools/config-inventory/schema.js`.
+- [x] Extract source scanning into `tools/config-inventory/scan.js`.
+- [x] Extract rendering into `tools/config-inventory/report.js`.
+
+### 1.16 `tools/build-sqlite-index/run.js` (667 LOC)
+Top-level:
+- `resolveOutputPaths` **44-76**
+- `runBuildSqliteIndex` **77-688**
+
+Refactor tasks:
+- [x] Split CLI parsing to `tools/build-sqlite-index/args.js`.
+- [x] Split execution to `tools/build-sqlite-index/runner.js`.
+- [x] Keep `run.js` as entrypoint.
+
+### 1.17 `src/shared/json-stream.js` (662 LOC)
+Top-level helpers and ranges listed in extraction log (see notes above).
+
+Refactor tasks:
+- [x] Move compression helpers (`normalizeGzipOptions`, `createFflateGzipStream`, `createZstdStream`) into `src/shared/json-stream/compress.js`.
+- [x] Move atomic replace into `src/shared/json-stream/atomic.js`.
+
+### 1.20 `tools/dict-utils/paths.js` (644 LOC)
+Top-level helpers and ranges already listed (14-685).
+
+Refactor tasks:
+- [x] Split repo identity helpers into `tools/dict-utils/repo.js` (14-106).
+- [x] Split build/index path resolution into `tools/dict-utils/build-paths.js` (107-222).
+- [x] Split runtime/config resolution into `tools/dict-utils/runtime.js` (239-350).
+- [x] Split tooling/metrics paths into `tools/dict-utils/tooling.js` (362-510).
+- [x] Split dictionary path resolution into `tools/dict-utils/dictionaries.js` (598-685).
+
+## Phase 2 -- Tests and follow‑ups
+
+- [x] Update imports for any moved modules and keep exports stable.
+- [x] Run `npm run lint` and spot-check `node tests/run.js --match` for affected areas:
+  - watch: `tests/watch-*`
+  - retrieval: `tests/retrieval/*`, `tests/lang-filter.js`
+  - sqlite/build: `tests/storage/sqlite/*`
+  - mcp: `tests/services/mcp/*`
+
+# Appendix D -- Minimal tests to add (non‑isometric)
+
+Skip isometric/map tests for now (per request). Add only light‑touch tests that lock behavior during refactor.
+
+## build‑embeddings (`tools/build-embeddings/*`)
+- [x] `tests/build-embeddings/args-parsing.test.js`
+  - asserts unknown args are rejected
+  - ensures `--model`, `--provider`, `--cache-root` normalize consistently
+- [x] `tests/build-embeddings/runtime-defaults.test.js`
+  - validates defaults are set when flags absent
+
+## build‑sqlite‑index (`tools/build-sqlite-index/*`)
+- [x] `tests/build-sqlite-index/args-parsing.test.js`
+  - validates `--mode`, `--out`, `--config` parsing
+- [x] `tests/build-sqlite-index/output-paths.test.js`
+  - ensures `resolveOutputPaths` produces expected file locations
+
+## config‑inventory (`tools/config-inventory/*`)
+- [x] `tests/config-inventory/schema-scan.test.js`
+  - validates schema keys are discovered
+- [x] `tests/config-inventory/report-format.test.js`
+  - validates markdown output includes counts + sections
+
+## API router (`tools/api/router.js`)
+- [x] `tests/api/router-smoke.test.js`
+  - registers router and asserts critical routes exist
+  - verifies JSON error response shape
+
+## MCP tools (`tools/mcp/tools.js`)
+- [x] `tests/mcp/tools-registry.test.js`
+  - ensures handler registry includes required tool names
+- [x] `tests/mcp/tools-normalize-meta.test.js`
+  - validates meta filter normalization output shape
+
+## shared json‑stream (`src/shared/json-stream.js`)
+- [x] `tests/json-stream/atomic-replace.test.js`
+  - validates `replaceFile` behavior via small temp file
+- [x] `tests/json-stream/compress-options.test.js`
+  - validates gzip/zstd option normalization
+
+## dict‑utils paths (`tools/dict-utils/paths.js`)
+- [x] `tests/dict-utils/paths-repo-root.test.js`
+  - resolves repo root from nested path
+- [x] `tests/dict-utils/paths-builds-root.test.js`
+  - validates builds root for config overrides
+
+## retrieval CLI split (`src/retrieval/cli.js` → modules)
+- [x] `tests/retrieval/cli-options-smoke.test.js`
+  - parses `--lang`, `--ext`, `--filter` and ensures no throw
+
+## validate split (`src/index/validate.js`)
+- [x] `tests/validate/manifest-checks.test.js`
+  - validates checksum failure produces issue text
+
+---
