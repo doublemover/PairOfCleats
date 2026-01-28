@@ -43,17 +43,29 @@ if (!fsSync.existsSync(searchPath)) {
 
 function resolveIndexDir(mode) {
   const cached = getIndexDir(root, mode, userConfig);
-  const cachedMeta = path.join(cached, 'chunk_meta.json');
-  if (fsSync.existsSync(cachedMeta)) return cached;
+  const hasMeta = (dir) => (
+    fsSync.existsSync(path.join(dir, 'chunk_meta.json'))
+    || fsSync.existsSync(path.join(dir, 'chunk_meta.jsonl'))
+    || fsSync.existsSync(path.join(dir, 'chunk_meta.meta.json'))
+  );
+  if (hasMeta(cached)) return cached;
   const local = path.join(root, `index-${mode}`);
-  const localMeta = path.join(local, 'chunk_meta.json');
-  if (fsSync.existsSync(localMeta)) return local;
+  if (hasMeta(local)) return local;
   return cached;
+}
+
+function resolveChunkMetaPath(dir) {
+  const candidates = ['chunk_meta.json', 'chunk_meta.jsonl', 'chunk_meta.meta.json'];
+  for (const name of candidates) {
+    const candidate = path.join(dir, name);
+    if (fsSync.existsSync(candidate)) return candidate;
+  }
+  return path.join(dir, 'chunk_meta.json');
 }
 
 function requireIndex(mode) {
   const dir = resolveIndexDir(mode);
-  const metaPath = path.join(dir, 'chunk_meta.json');
+  const metaPath = resolveChunkMetaPath(dir);
   if (!fsSync.existsSync(metaPath)) {
     console.error(`Missing ${metaPath}. Build the index first.`);
     process.exit(1);

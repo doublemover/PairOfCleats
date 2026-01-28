@@ -365,7 +365,7 @@ export async function assembleIndexPieces({
       enabled: true,
       log,
       useTooling: false,
-      enableTypeInference: typeInferenceEnabled,
+      enableTypeInference: typeInferenceEnabled && typeInferenceCrossFileEnabled,
       enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
       fileRelations: state.fileRelations
     });

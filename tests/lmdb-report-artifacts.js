@@ -100,7 +100,7 @@ const packr = new Packr();
 const decode = (value) => (value == null ? null : unpackr.unpack(value));
 const artifacts = decode(lmdbDb.get(LMDB_META_KEYS.artifacts)) || [];
 const filtered = artifacts.filter((key) => key !== LMDB_ARTIFACT_KEYS.tokenPostings);
-lmdbDb.put(LMDB_META_KEYS.artifacts, packr.pack(filtered));
+lmdbDb.putSync(LMDB_META_KEYS.artifacts, packr.pack(filtered));
 lmdbDb.close();
 
 const reportMissing = run(

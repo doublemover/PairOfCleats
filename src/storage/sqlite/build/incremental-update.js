@@ -3,7 +3,7 @@ import path from 'node:path';
 import { readBundleFile } from '../../../shared/bundle-io.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
-import { hasRequiredTables, normalizeFilePath } from '../utils.js';
+import { hasRequiredTables, normalizeFilePath, removeSqliteSidecars } from '../utils.js';
 import {
   packUint32,
   packUint8,
@@ -71,6 +71,20 @@ export async function incrementalUpdateDatabase({
   const expectedDims = Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
   const db = new Database(outPath);
+  let dbClosed = false;
+  const finalize = async () => {
+    if (dbClosed) return;
+    dbClosed = true;
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
+    try {
+      db.close();
+    } catch {}
+    try {
+      await removeSqliteSidecars(outPath);
+    } catch {}
+  };
   try {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
@@ -78,7 +92,7 @@ export async function incrementalUpdateDatabase({
 
   const schemaVersion = getSchemaVersion(db);
   if (schemaVersion !== SCHEMA_VERSION) {
-    db.close();
+    await finalize();
     return {
       used: false,
       reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
@@ -86,24 +100,24 @@ export async function incrementalUpdateDatabase({
   }
 
   if (!hasRequiredTables(db, REQUIRED_TABLES)) {
-    db.close();
+    await finalize();
     return { used: false, reason: 'schema missing' };
   }
 
   const manifestValidation = validateIncrementalManifest(incrementalData.manifest);
   if (!manifestValidation.ok) {
-    db.close();
+    await finalize();
     return { used: false, reason: `invalid manifest (${manifestValidation.errors.join('; ')})` };
   }
 
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   if (!manifestLookup.entries.length) {
-    db.close();
+    await finalize();
     return { used: false, reason: 'incremental manifest empty' };
   }
   if (manifestLookup.conflicts.length) {
-    db.close();
+    await finalize();
     return { used: false, reason: 'manifest path conflicts' };
   }
 
@@ -112,7 +126,7 @@ export async function incrementalUpdateDatabase({
     const chunkRow = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?')
       .get(mode) || {};
     if (Number.isFinite(chunkRow.total) && chunkRow.total > 0) {
-      db.close();
+      await finalize();
       return { used: false, reason: 'file manifest empty' };
     }
   }
@@ -128,7 +142,7 @@ export async function incrementalUpdateDatabase({
   if (totalFiles) {
     const changeRatio = (changed.length + deleted.length) / totalFiles;
     if (changeRatio > MAX_INCREMENTAL_CHANGE_RATIO) {
-      db.close();
+      await finalize();
       return {
         used: false,
         reason: `change ratio ${changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`,
@@ -137,7 +151,7 @@ export async function incrementalUpdateDatabase({
     }
   }
   if (!changed.length && !deleted.length && !manifestUpdates.length) {
-    db.close();
+    await finalize();
     return { used: true, insertedChunks: 0, ...changeSummary };
   }
 
@@ -156,16 +170,16 @@ export async function incrementalUpdateDatabase({
     : configQuantization;
   const quantization = dbDenseMeta ? dbQuantization : configQuantization;
   if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
-    db.close();
+    await finalize();
     return { used: false, reason: 'dense metadata missing', ...changeSummary };
   }
   if (expectedModel) {
     if (!dbModel) {
-      db.close();
+      await finalize();
       return { used: false, reason: 'dense metadata model missing', ...changeSummary };
     }
     if (dbModel !== expectedModel) {
-      db.close();
+      await finalize();
       return {
         used: false,
         reason: `model mismatch (db=${dbModel}, expected=${expectedModel})`,
@@ -175,11 +189,11 @@ export async function incrementalUpdateDatabase({
   }
   if (expectedDims !== null) {
     if (dbDims === null) {
-      db.close();
+      await finalize();
       return { used: false, reason: 'dense metadata dims missing', ...changeSummary };
     }
     if (dbDims !== expectedDims) {
-      db.close();
+      await finalize();
       return {
         used: false,
         reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})`,
@@ -195,17 +209,17 @@ export async function incrementalUpdateDatabase({
     const entry = record.entry;
     const bundleName = entry?.bundle;
     if (!bundleName) {
-      db.close();
+      await finalize();
       return { used: false, reason: `missing bundle for ${fileKey}`, ...changeSummary };
     }
     const bundlePath = path.join(incrementalData.bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) {
-      db.close();
+      await finalize();
       return { used: false, reason: `bundle missing for ${fileKey}`, ...changeSummary };
     }
     const result = await readBundleFile(bundlePath);
     if (!result.ok) {
-      db.close();
+      await finalize();
       return { used: false, reason: `invalid bundle for ${fileKey}`, ...changeSummary };
     }
     bundles.set(normalizedFile, { bundle: result.bundle, entry, fileKey, normalizedFile });
@@ -228,12 +242,12 @@ export async function incrementalUpdateDatabase({
     }
   }
   if (incomingDimsSet.size > 1) {
-    db.close();
+    await finalize();
     return { used: false, reason: 'embedding dims mismatch across bundles', ...changeSummary };
   }
   const incomingDims = incomingDimsSet.size ? [...incomingDimsSet][0] : null;
   if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
-    db.close();
+    await finalize();
     return {
       used: false,
       reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
@@ -241,7 +255,7 @@ export async function incrementalUpdateDatabase({
     };
   }
   if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
-    db.close();
+    await finalize();
     return {
       used: false,
       reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
@@ -274,7 +288,7 @@ export async function incrementalUpdateDatabase({
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-    db.close();
+    await finalize();
     return { used: true, insertedChunks: 0, ...changeSummary };
   }
 
@@ -537,13 +551,13 @@ export async function incrementalUpdateDatabase({
       }
     }
   } catch (err) {
-    db.close();
+    await finalize();
     if (err instanceof IncrementalSkipError) {
       return { used: false, reason: err.reason, ...changeSummary };
     }
     throw err;
   }
-  db.close();
+  await finalize();
   return {
     used: true,
     insertedChunks,

@@ -380,28 +380,28 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 ### 7.1 Build-scoped embeddings jobs + best-effort enqueue
 - Task: Bind embedding jobs to explicit build output target
   - Files to change/create:
-    - src/index/build/indexer/pipeline.js (enqueueEmbeddingJob call at ~323 already passes indexRoot; extend with configHash/repoProvenance)
-    - src/index/build/indexer/embedding-queue.js (payload fields at ~8-33)
-    - tools/service/queue.js (job schema validation if any)
+    - `src/index/build/indexer/pipeline.js` (enqueueEmbeddingJob call at ~323 already passes indexRoot; extend with configHash/repoProvenance)
+    - `src/index/build/indexer/embedding-queue.js` (payload fields at ~8-33)
+    - `tools/service/queue.js` (job schema validation if any)
   - Call sites/line refs:
-    - src/index/build/indexer/pipeline.js:323
-    - src/index/build/indexer/embedding-queue.js:8-33
+    - `src/index/build/indexer/pipeline.js:323`
+    - `src/index/build/indexer/embedding-queue.js:8-33`
   - Gaps/conflicts:
     - embedding job payload currently lacks configHash/repo provenance; Phase 7 requires it for determinism.
 - Task: Best-effort enqueue when embeddingService is enabled
   - Files to change/create:
-    - src/index/build/indexer/embedding-queue.js (wrap ensureQueueDir/enqueueJob, set pending state on failure)
-    - src/index/build/indexer/steps/write.js (index_state.embeddings fields at ~52-98)
+    - `src/index/build/indexer/embedding-queue.js` (wrap ensureQueueDir/enqueueJob, set pending state on failure)
+    - `src/index/build/indexer/steps/write.js` (index_state.embeddings fields at ~52-98)
   - Call sites/line refs:
-    - src/index/build/indexer/embedding-queue.js:8-46
-    - src/index/build/indexer/steps/write.js:52-98
+    - `src/index/build/indexer/embedding-queue.js:8-46`
+    - `src/index/build/indexer/steps/write.js:52-98`
 - Task: Worker honors build scoping
   - Files to change/create:
-    - tools/indexer-service.js (runBuildEmbeddings uses --repo only at ~260-284; add --index-root/indexDir)
-    - tools/build-embeddings/cli.js + tools/build-embeddings/args.js (ensure --index-root is parsed)
+    - `tools/indexer-service.js` (runBuildEmbeddings uses --repo only at ~260-284; add --index-root/indexDir)
+    - `tools/build-embeddings/cli.js` + tools/build-embeddings/args.js (ensure --index-root is parsed)
   - Call sites/line refs:
-    - tools/indexer-service.js:260-284
-    - tools/build-embeddings/cli.js (args wiring)
+    - `tools/indexer-service.js:260-284`
+    - `tools/build-embeddings/cli.js` (args wiring)
 
 ### 7.2 Embeddings artifact contract + capability signaling
 - Task: Manifest + artifact discovery

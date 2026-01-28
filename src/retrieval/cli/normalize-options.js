@@ -156,8 +156,9 @@ export function normalizeSearchOptions({
   const queryCacheMaxEntries = 200;
   const queryCacheTtlMs = 0;
 
-  const rrfEnabled = false;
-  const rrfK = 60;
+  const policyRrfEnabled = policy?.retrieval?.rrf?.enabled;
+  const rrfEnabled = policyRrfEnabled ?? true;
+  const rrfK = normalizeOptionalNumber(policy?.retrieval?.rrf?.k) ?? 60;
 
   const contextExpansionEnabled = false;
   const contextExpansionOptions = {

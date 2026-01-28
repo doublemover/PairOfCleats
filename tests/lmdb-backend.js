@@ -100,7 +100,7 @@ if (payload.backend !== 'lmdb') {
 }
 
 const dbWrite = open({ path: dbPath, readOnly: false });
-dbWrite.put(LMDB_META_KEYS.schemaVersion, new Packr().pack(LMDB_SCHEMA_VERSION + 1));
+dbWrite.putSync(LMDB_META_KEYS.schemaVersion, new Packr().pack(LMDB_SCHEMA_VERSION + 1));
 dbWrite.close();
 
 const badSearch = spawnSync(

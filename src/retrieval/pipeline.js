@@ -629,7 +629,7 @@ export function createSearchPipeline(context) {
         annScore: entry.annScore,
         annSource: entry.annSource,
         annType: entry.annSource,
-        scoreBreakdown: entry.scoreBreakdown
+        ...(explain ? { scoreBreakdown: entry.scoreBreakdown } : {})
       }))
       .filter(Boolean);
 
