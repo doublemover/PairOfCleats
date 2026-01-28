@@ -36,7 +36,8 @@ jobs:
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: PR suite
-        run: npm run test:pr
+        run: |
+          node tests/run.js --lane ci-lite
 
       - name: Upload test artifacts
         if: always()
@@ -79,11 +80,9 @@ jobs:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Windows regression lane
+      - name: Windows CI Lite
         run: |
-          node tests/worker-pool-windows.js
-          node tests/search-windows-path-filter.js
-          node tests/fixture-parity.js --fixtures sample
+          node tests/run.js --lane ci-lite
 
       - name: Upload test artifacts
         if: always()

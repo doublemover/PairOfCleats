@@ -12,9 +12,10 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js", "all.js", "script-coverage.js", "api-server-stream.js"],
-  "knownLanes": ["smoke", "unit", "integration", "services", "api", "storage", "perf", "ci"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "integration", "services", "api", "storage", "perf", "ci"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/", "^bench", "-perf-", "^kotlin-perf-guard"] },
+    { "lane": "ci-lite", "match": ["^ci-lite/"] },
     { "lane": "smoke", "match": ["^smoke(?:-|$)", "^harness/smoke/"] },
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/", "^api-server", "^mcp", "^indexer-service", "^service-queue"] },

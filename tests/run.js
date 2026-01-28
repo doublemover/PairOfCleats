@@ -57,6 +57,8 @@ const main = async () => {
   const requestedLanes = laneInfo.requested;
   const runRules = loadRunRules({ root: ROOT });
 
+  const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
+
   if (argv['list-lanes'] || argv['list-tags']) {
     const payload = {};
     if (argv['list-lanes']) payload.lanes = listLanes(runRules);
@@ -83,7 +85,7 @@ const main = async () => {
     ? runConfig.timeoutOverrides
     : {};
   const tagExclude = splitCsv(argv['exclude-tag']);
-  const ignoreConfigExcludes = laneInfo.includeAll;
+  const ignoreConfigExcludes = laneInfo.includeAll || isCiLiteOnly;
   const configExclude = new Set();
   if (!ignoreConfigExcludes) {
     const baseExcludes = Array.isArray(runConfig.excludeTags)
@@ -122,15 +124,90 @@ const main = async () => {
 
   const includeMatchers = compileMatchers(includePatterns, 'match');
   const excludeMatchers = compileMatchers(excludePatterns, 'exclude');
-  const { selected, skipped } = applyFilters({ tests, lanes, includeMatchers, excludeMatchers, tagInclude, tagExclude });
-  let selection = [...selected, ...skipped];
+
+  let selection = null;
+
+  if (isCiLiteOnly) {
+    const orderPath = path.join(TESTS_DIR, 'ci-lite', 'ci-lite.order.txt');
+    let orderRaw = '';
+    try {
+      orderRaw = await fsPromises.readFile(orderPath, 'utf8');
+    } catch (error) {
+      console.error(`ci-lite lane requires an order file at ${path.relative(ROOT, orderPath)}.`);
+      console.error('Create the file with one test id per line (e.g., "run-results").');
+      process.exit(2);
+    }
+
+    const orderIds = orderRaw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+
+    if (!orderIds.length) {
+      console.error(`ci-lite order file is empty: ${path.relative(ROOT, orderPath)}`);
+      process.exit(2);
+    }
+
+    const byId = new Map(tests.map((test) => [test.id, test]));
+    const seen = new Map();
+    const missing = [];
+    const ordered = [];
+    for (const id of orderIds) {
+      const test = byId.get(id);
+      if (!test) {
+        missing.push(id);
+        continue;
+      }
+      const count = (seen.get(id) || 0) + 1;
+      seen.set(id, count);
+      ordered.push(count === 1 ? test : { ...test, id: `${id}#${count}` });
+    }
+
+    if (missing.length) {
+      console.error(`ci-lite order file references missing tests (${missing.length}):`);
+      for (const id of missing.slice(0, 50)) console.error(`- ${id}`);
+      if (missing.length > 50) console.error(`...and ${missing.length - 50} more`);
+      process.exit(2);
+    }
+
+    const matchesAny = (value, matchers) => matchers.some((matcher) => matcher.test(value));
+
+    selection = ordered
+      .filter((test) => (
+        (!tagInclude.length || tagInclude.some((tag) => test.tags.includes(tag)))
+        && (!includeMatchers.length || matchesAny(test.id, includeMatchers) || matchesAny(test.relPath, includeMatchers))
+        && (!excludeMatchers.length || !(matchesAny(test.id, excludeMatchers) || matchesAny(test.relPath, excludeMatchers)))
+      ))
+      .map((test) => {
+        if (!tagExclude.length) return test;
+        const excluded = test.tags.filter((tag) => tagExclude.includes(tag));
+        if (!excluded.length) return test;
+        return {
+          ...test,
+          presetStatus: 'skipped',
+          skipReason: `excluded tag: ${excluded.join(', ')}`
+        };
+      });
+  } else {
+    const { selected, skipped } = applyFilters({
+      tests,
+      lanes,
+      includeMatchers,
+      excludeMatchers,
+      tagInclude,
+      tagExclude
+    });
+    selection = [...selected, ...skipped];
+  }
 
   if (!selection.length) {
     console.error('No tests matched the selected filters.');
     process.exit(2);
   }
 
-  selection = selection.slice().sort((a, b) => a.id.localeCompare(b.id));
+  if (!isCiLiteOnly) {
+    selection = selection.slice().sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   if (argv.list) {
     if (argv.json) {

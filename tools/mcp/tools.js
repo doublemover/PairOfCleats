@@ -49,7 +49,7 @@ export async function buildIndex(args = {}, context = {}) {
     await coreBuildIndex(repoPath, {
       mode,
       incremental,
-      stubEmbeddings,
+      'stub-embeddings': stubEmbeddings,
       sqlite: buildSqlite,
       emitOutput: true
     });
