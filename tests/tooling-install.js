@@ -26,9 +26,21 @@ try {
 }
 
 const results = payload.results || [];
+const actions = payload.actions || [];
+
+if (actions.some((entry) => entry && entry.id === 'clangd')) {
+  console.error('Expected clangd to not be auto-installable in dry-run');
+  process.exit(1);
+}
+
 const clangdResult = results.find((entry) => entry.id === 'clangd');
-if (!clangdResult || clangdResult.status !== 'manual') {
-  console.error('Expected clangd to be manual in dry-run');
+if (!clangdResult) {
+  console.error('Expected clangd result to be reported in dry-run');
+  process.exit(1);
+}
+
+if (!['manual', 'already-installed'].includes(clangdResult.status)) {
+  console.error(`Expected clangd to be manual or already-installed in dry-run (got ${clangdResult.status || 'unknown'})`);
   process.exit(1);
 }
 
