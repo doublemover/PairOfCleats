@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-28T22:21:36.348Z",
+  "generatedAt": "2026-01-29T04:55:24.797Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1359,6 +1359,12 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_UPDATE_SNAPSHOTS",
+      "files": [
+        "tests/mcp-schema.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "files": [
         "src/shared/runtime-envelope.js",
@@ -1411,7 +1417,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_UPDATE_SNAPSHOTS"
+  ],
   "cliFlags": {
     "totalFlags": 203,
     "publicFlags": [

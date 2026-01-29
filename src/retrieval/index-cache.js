@@ -37,8 +37,24 @@ const fileSignature = (filePath) => {
         statPath = gzPath;
       }
     }
-    const stat = fsSync.statSync(statPath);
-    return `${stat.size}:${stat.mtimeMs}`;
+    // Prefer nanosecond mtime precision when available so that successive writes within the
+    // same millisecond still invalidate the cache (observed on Windows runners).
+    try {
+      const stat = fsSync.statSync(statPath, { bigint: true });
+      const size = typeof stat.size === 'bigint' ? stat.size : BigInt(stat.size);
+      const mtimeNs = stat.mtimeNs
+        ?? (typeof stat.mtimeMs === 'bigint'
+          ? stat.mtimeMs * 1000000n
+          : BigInt(Math.trunc(Number(stat.mtimeMs) * 1_000_000)));
+      const ctimeNs = stat.ctimeNs
+        ?? (typeof stat.ctimeMs === 'bigint'
+          ? stat.ctimeMs * 1000000n
+          : BigInt(Math.trunc(Number(stat.ctimeMs) * 1_000_000)));
+      return `${size.toString()}:${mtimeNs.toString()}:${ctimeNs.toString()}`;
+    } catch {
+      const stat = fsSync.statSync(statPath);
+      return `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+    }
   } catch {
     return null;
   }

@@ -12,11 +12,52 @@ const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = path.join(root, '.testCache', 'mcp-schema');
 const cacheRoot = path.join(tempRoot, 'cache');
 const emptyRepo = path.join(tempRoot, 'empty');
+const defaultCacheHome = path.join(tempRoot, 'default-cache-home');
 const snapshotPath = path.join(root, 'tests', 'fixtures', 'mcp', 'schema-snapshot.json');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.mkdir(emptyRepo, { recursive: true });
+
+// The config_status/index_status tools report dictionary paths based on the test-only fallback
+// lookup in the default cache root. That default location depends on environment variables
+// like XDG_CACHE_HOME / LOCALAPPDATA. In CI, the default cache is usually empty, while local
+// dev machines often have dictionaries downloaded, causing snapshot instability.
+//
+// To keep the snapshot stable across environments, force the default cache root to a temp
+// location and seed it with exactly one dictionary file and a placeholder vector extension
+// binary. These are used by config_status/index_status via test-only fallback lookups that
+// bypass PAIROFCLEATS_CACHE_ROOT.
+const fallbackDictionaryFiles = [
+  path.join(defaultCacheHome, 'pairofcleats', 'dictionaries', 'combined.txt'),
+  path.join(defaultCacheHome, 'PairOfCleats', 'dictionaries', 'combined.txt')
+];
+for (const filePath of fallbackDictionaryFiles) {
+  await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+  await fsPromises.writeFile(filePath, 'test\n', 'utf8');
+}
+
+// getExtensionsDir() uses getDefaultCacheRoot() in testing mode, which means the presence of the
+// sqlite vector extension binary can change the warnings emitted by config_status. Create a
+// zero-byte placeholder at the expected default path to make the snapshot deterministic.
+const binarySuffix = process.platform === 'win32'
+  ? '.dll'
+  : (process.platform === 'darwin' ? '.dylib' : '.so');
+const platformKey = `${process.platform}-${process.arch}`;
+const extensionRelPath = path.join(
+  'extensions',
+  'sqlite-vec',
+  platformKey,
+  `vec0${binarySuffix}`
+);
+const fallbackExtensionFiles = [
+  path.join(defaultCacheHome, 'pairofcleats', extensionRelPath),
+  path.join(defaultCacheHome, 'PairOfCleats', extensionRelPath)
+];
+for (const filePath of fallbackExtensionFiles) {
+  await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+  await fsPromises.writeFile(filePath, Buffer.alloc(0));
+}
 
 function encodeMessage(payload) {
   const json = JSON.stringify(payload);
@@ -75,7 +116,10 @@ const server = spawn(process.execPath, [serverPath], {
     ...process.env,
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_HOME: cacheRoot,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot
+    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    // Force the default cache root to our seeded test directory to keep schema snapshots stable.
+    XDG_CACHE_HOME: defaultCacheHome,
+    LOCALAPPDATA: process.platform === 'win32' ? defaultCacheHome : ''
   }
 });
 
@@ -112,6 +156,88 @@ const toolSchemaSnapshot = getToolDefs(DEFAULT_MODEL_ID).map((tool) => ({
     : [],
   properties: Object.keys(tool.inputSchema?.properties || {}).sort()
 }));
+
+const findFirstDiff = (expected, actual, currentPath = '') => {
+  if (expected === actual) return null;
+
+  const classify = (value) => {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value;
+  };
+
+  const expectedType = classify(expected);
+  const actualType = classify(actual);
+  if (expectedType !== actualType) {
+    return {
+      path: currentPath || '<root>',
+      expected,
+      actual,
+      reason: `type mismatch (${expectedType} vs ${actualType})`
+    };
+  }
+
+  if (expectedType === 'array') {
+    if (expected.length !== actual.length) {
+      return {
+        path: currentPath || '<root>',
+        expected: `len=${expected.length}`,
+        actual: `len=${actual.length}`,
+        reason: 'array length mismatch'
+      };
+    }
+    for (let i = 0; i < expected.length; i += 1) {
+      const next = findFirstDiff(expected[i], actual[i], `${currentPath}[${i}]`);
+      if (next) return next;
+    }
+    return null;
+  }
+
+  if (expectedType === 'object') {
+    const expectedKeys = expected ? Object.keys(expected) : [];
+    const actualKeys = actual ? Object.keys(actual) : [];
+    expectedKeys.sort();
+    actualKeys.sort();
+    const expectedSet = new Set(expectedKeys);
+    const actualSet = new Set(actualKeys);
+    for (const key of expectedKeys) {
+      if (!actualSet.has(key)) {
+        return {
+          path: currentPath ? `${currentPath}.${key}` : key,
+          expected: '<present>',
+          actual: '<missing>',
+          reason: 'missing key'
+        };
+      }
+    }
+    for (const key of actualKeys) {
+      if (!expectedSet.has(key)) {
+        return {
+          path: currentPath ? `${currentPath}.${key}` : key,
+          expected: '<missing>',
+          actual: '<present>',
+          reason: 'unexpected key'
+        };
+      }
+    }
+    for (const key of expectedKeys) {
+      const next = findFirstDiff(
+        expected[key],
+        actual[key],
+        currentPath ? `${currentPath}.${key}` : key
+      );
+      if (next) return next;
+    }
+    return null;
+  }
+
+  return {
+    path: currentPath || '<root>',
+    expected,
+    actual,
+    reason: 'value mismatch'
+  };
+};
 
 async function run() {
   send({
@@ -167,8 +293,33 @@ run()
     server.stdin.end();
     const expectedRaw = await fsPromises.readFile(snapshotPath, 'utf8');
     const expected = JSON.parse(expectedRaw);
-    if (stableStringify(actual) !== stableStringify(expected)) {
+    const expectedStable = stableStringify(expected);
+    const actualStable = stableStringify(actual);
+    if (actualStable !== expectedStable) {
       console.error('MCP schema snapshot mismatch.');
+      const diff = findFirstDiff(expected, actual);
+      if (diff) {
+        console.error(`First diff (${diff.reason}) at: ${diff.path}`);
+        console.error(`Expected: ${JSON.stringify(diff.expected)}`);
+        console.error(`Actual:   ${JSON.stringify(diff.actual)}`);
+      }
+
+      const debugActualPath = path.join(tempRoot, 'schema-snapshot.actual.json');
+      const debugExpectedPath = path.join(tempRoot, 'schema-snapshot.expected.json');
+      await fsPromises.writeFile(debugActualPath, `${actualStable}\n`, 'utf8');
+      await fsPromises.writeFile(debugExpectedPath, `${expectedStable}\n`, 'utf8');
+      console.error(`Wrote expected snapshot to: ${debugExpectedPath}`);
+      console.error(`Wrote actual snapshot to:   ${debugActualPath}`);
+
+      const updateSnapshots = process.env.PAIROFCLEATS_UPDATE_SNAPSHOTS === '1'
+        || process.env.UPDATE_SNAPSHOTS === '1';
+      if (updateSnapshots) {
+        await fsPromises.writeFile(snapshotPath, `${actualStable}\n`, 'utf8');
+        console.error(`Updated snapshot at: ${snapshotPath}`);
+        process.exit(0);
+      }
+
+      console.error('Set PAIROFCLEATS_UPDATE_SNAPSHOTS=1 to update schema-snapshot.json.');
       process.exit(1);
     }
     console.log('MCP schema snapshot test passed');
