@@ -302,7 +302,7 @@ export async function indexStatus(args = {}) {
       available: fs.existsSync(modelPath),
       hint: fs.existsSync(modelPath)
         ? null
-        : 'Run the download_models tool or `npm run download-models` to prefetch embeddings.'
+        : 'Run the download_models tool or `node tools/download-models.js` to prefetch embeddings.'
     },
     incremental: {
       dir: incrementalRoot,
@@ -376,7 +376,7 @@ export async function configStatus(args = {}) {
   if (!fs.existsSync(modelPath)) {
     warnings.push({
       code: 'model_missing',
-      message: `Embedding model not found (${modelConfig.id}). Run npm run download-models.`
+      message: `Embedding model not found (${modelConfig.id}). Run node tools/download-models.js.`
     });
   }
   if (sqliteConfigured) {
@@ -386,7 +386,7 @@ export async function configStatus(args = {}) {
     if (missing.length) {
       warnings.push({
         code: 'sqlite_missing',
-        message: `SQLite indexes missing (${missing.join(', ')}). Run npm run build-sqlite-index.`
+        message: `SQLite indexes missing (${missing.join(', ')}). Run node tools/build-sqlite-index.js.`
       });
     }
   }

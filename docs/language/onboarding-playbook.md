@@ -32,4 +32,4 @@ Use this checklist when adding a new language or container format.
 
 ## Validation
 - Run `pairofcleats test --match lang/contracts` (or target the specific contract test).
-- Run `npm run bench-language -- --list` to confirm the matrix entry appears.
+- Run `node tools/bench-language-repos.js --list` to confirm the matrix entry appears.

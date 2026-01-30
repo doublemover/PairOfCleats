@@ -19,6 +19,11 @@
 - `npm run lint` checks style; `npm run format` auto-fixes via ESLint.
 - Important Note: The script should be setting `PAIROFCLEATS_TESTING=1`, or other `PAIROFCLEATS_TEST_*` env vars will be ignored.
 
+## Script Policy References
+- `docs/tooling/script-inventory.json` (generated inventory)
+- `docs/guides/commands.md` (generated commands list)
+- `tests/policy/script-surface-policy.test.js` (inventory enforcement)
+
 ## PowerShell 7.5 Notes
 - Avoid bash-style heredocs (`<<EOF`) or use python
 - You are working in PowerShell 7.5; Be mindful of how it is different.

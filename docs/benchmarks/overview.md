@@ -6,7 +6,7 @@ This project has two layers of benchmarking:
 
 ## Query generation
 
-Use `npm run bench-queries` to generate a deterministic query suite from the
+Use `node tools/bench-query-generator.js` to generate a deterministic query suite from the
 current index metadata. The generator writes to `benchmarks/queries/` by default
 and accepts `--mode`, `--count`, and `--seed` for reproducibility.
 
@@ -54,7 +54,7 @@ well under 5 minutes on a typical dev machine.
 For tighter microbench loops, use the Tinybench runner:
 
 ```
-npm run bench-micro:tiny
+node tools/bench/micro/tinybench.js
 ```
 
 The runner stores baselines at `benchmarks/baselines/microbench.json` (override

@@ -84,7 +84,7 @@ if (!argv['skip-dicts']) {
 if (vectorExtension.enabled) {
   const extPath = resolveVectorExtensionPath(vectorExtension);
   if (!extPath || !fs.existsSync(extPath)) {
-    console.warn('[bootstrap] SQLite ANN extension missing; run npm run download-extensions to install.');
+    console.warn('[bootstrap] SQLite ANN extension missing; run node tools/download-extensions.js to install.');
   } else {
     console.error(`[bootstrap] SQLite ANN extension found (${extPath}).`);
   }
@@ -108,7 +108,7 @@ if (!argv['skip-tooling']) {
         if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
         run(process.execPath, installArgs, 'install tooling');
       } else if (missingTools.length) {
-        console.error('[bootstrap] Optional tooling missing. Run npm run tooling-install to install.');
+        console.error('[bootstrap] Optional tooling missing. Run node tools/tooling-install.js to install.');
       }
     } catch {
       console.warn('[bootstrap] Failed to parse tooling detection output.');
@@ -139,5 +139,5 @@ if (argv['with-sqlite']) {
   run(process.execPath, sqliteArgs, 'build sqlite index');
 }
 
-console.error('[bootstrap] Tip: run npm run index-validate to verify index artifacts.');
+console.error('[bootstrap] Tip: run pairofcleats index validate to verify index artifacts.');
 console.error('\nBootstrap complete.');

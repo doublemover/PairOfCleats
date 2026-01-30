@@ -166,7 +166,7 @@ export async function getStatus(input = {}) {
   checkIndexArtifacts(indexRecordsDir, 'index-records');
   if (indexIssues.length) {
     health.issues.push(...indexIssues);
-    health.hints.push('Run `npm run build-index` to rebuild file-backed indexes.');
+    health.hints.push('Run `pairofcleats index build` (or `node build_index.js`) to rebuild file-backed indexes.');
   }
 
   const sqliteIssues = [];
@@ -178,7 +178,7 @@ export async function getStatus(input = {}) {
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite indexes.');
+    health.hints.push('Run `node tools/build-sqlite-index.js` to rebuild SQLite indexes.');
   }
 
   const lmdbIssues = [];
@@ -192,7 +192,7 @@ export async function getStatus(input = {}) {
   }
   if (lmdbIssues.length) {
     health.issues.push(...lmdbIssues);
-    health.hints.push('Run `npm run build-lmdb-index` to rebuild LMDB indexes.');
+    health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB indexes.');
   }
 
   const payload = {

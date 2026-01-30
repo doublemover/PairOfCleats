@@ -148,7 +148,7 @@ export async function createSqliteBackend(options) {
     const tableNames = new Set(tableRows.map((row) => row.name));
     const missing = requiredTables.filter((name) => !tableNames.has(name));
     if (missing.length) {
-      const message = `SQLite index ${label} is missing required tables (${formatMissingList(missing)}). Rebuild with npm run build-sqlite-index.`;
+      const message = `SQLite index ${label} is missing required tables (${formatMissingList(missing)}). Rebuild with node tools/build-sqlite-index.js.`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -168,7 +168,7 @@ export async function createSqliteBackend(options) {
       }
     }
     if (columnIssues.length) {
-      const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with npm run build-sqlite-index.`;
+      const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with node tools/build-sqlite-index.js.`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -205,7 +205,7 @@ export async function createSqliteBackend(options) {
     }
     if (!hasVectorTable(db, vectorExtension.table)) {
       if (!vectorAnnWarned) {
-        console.warn(`[ann] SQLite vector table missing (${vectorExtension.table}). Rebuild with npm run build-sqlite-index.`);
+        console.warn(`[ann] SQLite vector table missing (${vectorExtension.table}). Rebuild with node tools/build-sqlite-index.js.`);
         vectorAnnWarned = true;
       }
       return;

@@ -54,5 +54,5 @@ if (missing.length) {
     console.error(`- ${tool.id} (${tool.label})`);
     if (tool.docs) console.error(`  Docs: ${tool.docs}`);
   }
-  console.error('Run: npm run tooling-install -- --scope cache');
+  console.error('Run: node tools/tooling-install.js --scope cache');
 }

@@ -18,7 +18,7 @@ function getRemediationHint(error) {
 
   if (parts.includes('sqlite backend requested but index not found')
     || parts.includes('missing required tables')) {
-    return 'Run `npm run build-sqlite-index` or set sqlite.use=false / --backend memory.';
+    return 'Run `node tools/build-sqlite-index.js` or set sqlite.use=false / --backend memory.';
   }
   if (parts.includes('better-sqlite3 is required')) {
     return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
@@ -28,17 +28,17 @@ function getRemediationHint(error) {
     || parts.includes('index not found')
     || parts.includes('build-index')
     || parts.includes('build index')) {
-    return 'Run `npm run build-index` (or `npm run setup`/`npm run bootstrap`) to generate indexes.';
+    return 'Run `pairofcleats index build` (or `pairofcleats setup`/`pairofcleats bootstrap`) to generate indexes.';
   }
   if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
     && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `npm run download-models` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
+    return 'Run `node tools/download-models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
   }
   if (parts.includes('dictionary')
     || parts.includes('wordlist')
     || parts.includes('words_alpha')
     || parts.includes('download-dicts')) {
-    return 'Run `npm run download-dicts -- --lang en` (or configure dictionary.files/languages).';
+    return 'Run `node tools/download-dicts.js --lang en` (or configure dictionary.files/languages).';
   }
   return null;
 }
