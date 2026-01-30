@@ -191,7 +191,12 @@ export const assignChunkUids = async ({
     }
   }
 
-  if (log && (metrics.collisionGroups || metrics.ordinal)) {
+  // Note: collisions that are resolved by the escalation pass are expected for
+  // duplicated code patterns (common in Swift extensions/protocol conformances).
+  // Only emit a log line when we had to fall back to the ordinal suffix step,
+  // since that indicates the stronger stability trade-off (uids become order
+  // dependent within the file).
+  if (log && metrics.ordinal) {
     log(`[identity] chunkUid collisions in ${safePath}: groups=${metrics.collisionGroups}, ordinals=${metrics.ordinal}`);
   }
 

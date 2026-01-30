@@ -8,6 +8,7 @@ export const createProcessRunner = ({
   writeLogSync,
   logHistory,
   logPath,
+  getLogPaths,
   onProgressEvent
 }) => {
   let activeChild = null;
@@ -41,6 +42,40 @@ export const createProcessRunner = ({
     if (exitLogged) return;
     writeLogSync(`[exit] ${reason}${Number.isFinite(code) ? ` code=${code}` : ''}`);
     exitLogged = true;
+  };
+
+  const resolveLogPaths = () => {
+    try {
+      if (typeof getLogPaths === 'function') {
+        const resolved = getLogPaths();
+        if (Array.isArray(resolved)) return resolved.filter(Boolean);
+        if (typeof resolved === 'string' && resolved) return [resolved];
+      }
+      if (typeof logPath === 'function') {
+        const resolved = logPath();
+        if (typeof resolved === 'string' && resolved) return [resolved];
+      }
+      if (typeof logPath === 'string' && logPath) return [logPath];
+    } catch {}
+    return [];
+  };
+
+  const emitLogPaths = (prefix = '[error]') => {
+    const paths = resolveLogPaths();
+    if (!paths.length) return;
+    if (paths.length === 1) {
+      const only = paths[0];
+      console.error(`Log: ${only}`);
+      console.error(only);
+      writeLog(`${prefix} Log: ${only}`);
+      writeLog(`${prefix} ${only}`);
+      return;
+    }
+    const joined = paths.join(' ');
+    console.error(`Logs: ${joined}`);
+    paths.forEach((entry) => console.error(entry));
+    writeLog(`${prefix} Logs: ${joined}`);
+    paths.forEach((entry) => writeLog(`${prefix} ${entry}`));
   };
 
   const runProcess = async (label, cmd, args, options = {}) => {
@@ -84,11 +119,8 @@ export const createProcessRunner = ({
         return { ok: true };
       }
       console.error(`Failed: ${label}`);
-      console.error(`Log: ${logPath}`);
-      console.error(logPath);
       writeLog(`[error] Failed: ${label}`);
-      writeLog(`[error] Log: ${logPath}`);
-      writeLog(`[error] ${logPath}`);
+      emitLogPaths('[error]');
       if (logHistory.length) {
         console.error('Last log lines:');
         logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    
@@ -108,8 +140,7 @@ export const createProcessRunner = ({
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild({ pid: err?.result?.pid ?? null });
       console.error(`Failed: ${label}`);
-      console.error(`Log: ${logPath}`);
-      console.error(logPath);
+      emitLogPaths('[error]');
       if (logHistory.length) {
         console.error('Last log lines:');
         logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    

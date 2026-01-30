@@ -32,7 +32,10 @@ The matrix runner is now `pairofcleats bench matrix`.
 - Progress/logging renders to stderr via the unified CLI display. Use `--progress=auto|off|jsonl` (default `auto`).
 - TTY runs show the interactive progress UI with a log window; non-TTY runs emit periodic single-line progress summaries. Use `--log-lines <n>` (3-50, default 20) to change the log window height.
 - Use `--verbose` for per-file/line progress and shard detail; `--quiet` suppresses non-error logs while still printing the final summary.
-- A run log is written to `benchmarks/results/logs/bench-language/<timestamp>.log` by default (override with `--log <file>`).
+- Logs are written under `benchmarks/results/logs/bench-language/` by default:
+  - `run-<YYYYMMDD>-<HHMMSS>-all.log`: the full run log across all repos.
+  - `run-<YYYYMMDD>-<HHMMSS>-<repo>.log`: per-repo logs (repo name slug; disambiguates collisions by expanding the slug).
+  - Override with `--log <file>` to force a single log file and disable per-repo log files.
 - Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
 - If index artifacts are missing, the runner auto-enables build steps even if `--build` was not provided.
 
@@ -51,7 +54,7 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--lock-wait-ms <ms>` / `--lock-stale-ms <ms>`: tune wait and stale thresholds when lock mode is `wait`/`stale-clear`.
 - `--stub-embeddings`: ignored for language benchmarks (always uses real embeddings).
 - `--real-embeddings`: retained for compatibility (real embeddings are already forced).
-- `--log <file>`: write run logs to a specific file (default `benchmarks/results/logs/bench-language/<timestamp>.log`).
+- `--log <file>`: write run logs to a specific file (default `benchmarks/results/logs/bench-language/run-<YYYYMMDD>-<HHMMSS>-all.log`).
 - `--out <file>`: write aggregate JSON summary.
 
 ## Notes

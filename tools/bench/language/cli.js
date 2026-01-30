@@ -78,18 +78,19 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   validateBenchArgs(argv, { allowedOptions: benchOptions });
 
   const scriptRoot = resolveToolRoot();
+  const runSuffix = buildRunSuffix();
   const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
   const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
   const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
   const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
   const cacheRun = argv['cache-run'] === true;
-  const cacheSuffix = cacheSuffixRaw || (cacheRun ? buildRunSuffix() : '');
+  const cacheSuffix = cacheSuffixRaw || (cacheRun ? runSuffix : '');
   const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
   const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
   const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
   const logPath = argv.log
     ? path.resolve(argv.log)
-    : path.join(logRoot, `${buildRunSuffix()}.log`);
+    : path.join(logRoot, `${runSuffix}-all.log`);
 
   const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
   const dryRun = argv['dry-run'] === true;
@@ -117,6 +118,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   return {
     argv,
     scriptRoot,
+    runSuffix,
     configPath,
     reposRoot,
     cacheRoot,

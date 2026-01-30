@@ -45,11 +45,12 @@ const ensureBenchConfig = async (repoPath, cacheRoot) => {
 const {
   argv,
   scriptRoot,
+  runSuffix,
   configPath,
   reposRoot,
   cacheRoot,
   resultsRoot,
-  logPath,
+  logPath: masterLogPath,
   cloneEnabled,
   dryRun,
   keepCache,
@@ -80,29 +81,74 @@ const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgR
 const heapRecommendation = getRecommendedHeapMb();
 let heapLogged = false;
 
-let logStream = null;
-const initLog = () => {
-  if (logStream) return;
-  fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  logStream = fs.createWriteStream(logPath, { flags: 'a' });
-  logStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
-  logStream.write(`Config: ${configPath}\n`);
-  logStream.write(`Repos: ${reposRoot}\n`);
-  logStream.write(`Cache: ${cacheRoot}\n`);
-  logStream.write(`Results: ${resultsRoot}\n`);
+const repoLogsEnabled = !(typeof argv.log === 'string' && argv.log.trim());
+let masterLogStream = null;
+let repoLogStream = null;
+let repoLogPath = null;
+
+const initMasterLog = () => {
+  if (masterLogStream) return;
+  fs.mkdirSync(path.dirname(masterLogPath), { recursive: true });
+  masterLogStream = fs.createWriteStream(masterLogPath, { flags: 'a' });
+  masterLogStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
+  masterLogStream.write(`Config: ${configPath}\n`);
+  masterLogStream.write(`Repos: ${reposRoot}\n`);
+  masterLogStream.write(`Cache: ${cacheRoot}\n`);
+  masterLogStream.write(`Results: ${resultsRoot}\n`);
+  if (repoLogsEnabled) {
+    masterLogStream.write(`Repo logs: ${path.dirname(masterLogPath)}\n`);
+  }
+};
+
+const initRepoLog = ({ label, tier, repoPath: repoDir, slug }) => {
+  if (!repoLogsEnabled) return null;
+  try {
+    if (repoLogStream) repoLogStream.end();
+  } catch {}
+  repoLogStream = null;
+  repoLogPath = path.join(path.dirname(masterLogPath), `${runSuffix}-${slug}.log`);
+  fs.mkdirSync(path.dirname(repoLogPath), { recursive: true });
+  repoLogStream = fs.createWriteStream(repoLogPath, { flags: 'a' });
+  repoLogStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
+  repoLogStream.write(`Target: ${label}${tier ? ` tier=${tier}` : ''}\n`);
+  repoLogStream.write(`Repo path: ${repoDir}\n`);
+  repoLogStream.write(`Config: ${configPath}\n`);
+  repoLogStream.write(`Cache: ${cacheRoot}\n`);
+  repoLogStream.write(`Results: ${resultsRoot}\n`);
+  repoLogStream.write(`Master log: ${masterLogPath}\n`);
+  initMasterLog();
+  masterLogStream?.write(`[log] Repo log for ${label}: ${repoLogPath}\n`);
+  return repoLogPath;
+};
+
+const closeRepoLog = () => {
+  if (!repoLogStream) return;
+  try {
+    repoLogStream.end();
+  } catch {}
+  repoLogStream = null;
+  repoLogPath = null;
 };
 
 const writeLog = (line) => {
-  if (!logStream) initLog();
-  if (!logStream) return;
-  logStream.write(`${line}\n`);
+  if (!masterLogStream) initMasterLog();
+  if (masterLogStream) masterLogStream.write(`${line}\n`);
+  if (repoLogStream) repoLogStream.write(`${line}\n`);
+};
+
+const appendToLogFileSync = (filePath, line) => {
+  if (!filePath) return;
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.appendFileSync(filePath, `${line}\n`);
+  } catch {}
 };
 
 const writeLogSync = (line) => {
-  try {
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(logPath, `${line}\n`);
-  } catch {}
+  appendToLogFileSync(masterLogPath, line);
+  if (repoLogPath && repoLogPath !== masterLogPath) {
+    appendToLogFileSync(repoLogPath, line);
+  }
 };
 
 const logHistory = [];
@@ -174,13 +220,19 @@ processRunner = createProcessRunner({
   writeLog,
   writeLogSync,
   logHistory,
-  logPath,
+  logPath: masterLogPath,
+  getLogPaths: () => {
+    const paths = [masterLogPath];
+    if (repoLogPath && repoLogPath !== masterLogPath) paths.push(repoLogPath);
+    return paths;
+  },
   onProgressEvent: handleProgressEvent
 });
 
 process.on('exit', (code) => {
   processRunner.logExit('exit', code);
-  if (logStream) logStream.end();
+  closeRepoLog();
+  if (masterLogStream) masterLogStream.end();
 });
 process.on('SIGINT', () => {
   writeLogSync('[signal] SIGINT received');
@@ -206,14 +258,16 @@ process.on('SIGTERM', () => {
 const reportFatal = (label, err) => {
   try {
     // Ensure the log has the run header paths even on early crashes.
-    initLog();
+    initMasterLog();
   } catch {}
   try {
     const details = err?.stack || String(err);
     // Make failures visible even in interactive mode.
     display.error(`[bench-language] Fatal: ${label}`);
     display.error(details);
-    display.error(`[bench-language] Details logged to: ${logPath}`);
+    const paths = [masterLogPath];
+    if (repoLogPath && repoLogPath !== masterLogPath) paths.push(repoLogPath);
+    display.error(`[bench-language] Details logged to: ${paths.join(' ')}`);
   } catch {}
 };
 
@@ -262,12 +316,81 @@ for (const [language, entry] of Object.entries(config)) {
   }
 }
 
+const toSafeLogSlug = (value) => String(value || '')
+  .replace(/[^a-z0-9-_]+/gi, '_')
+  .replace(/^_+|_+$/g, '')
+  .toLowerCase();
+
+const getRepoShortName = (repo) => {
+  if (!repo) return '';
+  return String(repo).split('/').filter(Boolean).pop() || String(repo);
+};
+
+const countSlugs = (slugs) => {
+  const counts = new Map();
+  for (const slug of slugs) {
+    if (!slug) continue;
+    counts.set(slug, (counts.get(slug) || 0) + 1);
+  }
+  return counts;
+};
+
+if (repoLogsEnabled && tasks.length) {
+  const baseSlugs = tasks.map((task) => toSafeLogSlug(getRepoShortName(task.repo)) || 'repo');
+  const fullSlugs = tasks.map((task) => {
+    const raw = String(task.repo || '').replace(/[\\/]+/g, '__');
+    return toSafeLogSlug(raw) || 'repo';
+  });
+  const baseCounts = countSlugs(baseSlugs);
+  const fullCounts = countSlugs(fullSlugs);
+
+  const initial = tasks.map((task, idx) => {
+    const base = baseSlugs[idx];
+    if (base && baseCounts.get(base) === 1) return base;
+    return fullSlugs[idx] || base || 'repo';
+  });
+  const initialCounts = countSlugs(initial);
+
+  const withLang = tasks.map((task, idx) => {
+    const slug = initial[idx] || 'repo';
+    if (initialCounts.get(slug) === 1) return slug;
+    const lang = toSafeLogSlug(task.language);
+    return [slug, lang].filter(Boolean).join('-');
+  });
+  const withLangCounts = countSlugs(withLang);
+
+  const withTier = tasks.map((task, idx) => {
+    const slug = withLang[idx] || 'repo';
+    if (withLangCounts.get(slug) === 1) return slug;
+    const tier = toSafeLogSlug(task.tier);
+    return [slug, tier].filter(Boolean).join('-');
+  });
+  const withTierCounts = countSlugs(withTier);
+
+  const final = tasks.map((task, idx) => {
+    const slug = withTier[idx] || 'repo';
+    if (withTierCounts.get(slug) === 1) return slug;
+    return `${slug}-${idx + 1}`;
+  });
+
+  tasks.forEach((task, idx) => {
+    task.logSlug = final[idx];
+    task.repoShortName = getRepoShortName(task.repo);
+    if (fullCounts.get(fullSlugs[idx]) > 1) {
+      task.repoLogNameCollision = true;
+    }
+  });
+}
+
 if (argv.list) {
   const payload = {
     config: configPath,
     repoRoot: reposRoot,
     cacheRoot,
     resultsRoot,
+    logsRoot: path.dirname(masterLogPath),
+    runSuffix,
+    masterLog: masterLogPath,
     languages: Object.keys(config),
     tasks
   };
@@ -299,7 +422,7 @@ if (cloneEnabled && !dryRun) {
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-initLog();
+initMasterLog();
 appendLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
 
 const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
@@ -354,6 +477,21 @@ for (const task of tasks) {
   display.resetTasks({ preserveStages: ['bench'] });
   updateBenchProgress();
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
+
+  // Reset per-repo transient history so failure summaries and disk-full detection reflect
+  // only the currently executing repo.
+  logHistory.length = 0;
+  if (repoLogsEnabled) {
+    initRepoLog({
+      label: repoLabel,
+      tier: tierLabel,
+      repoPath,
+      slug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
+    });
+    if (!quietMode && repoLogPath) {
+      display.log(`[logs] ${repoLabel} -> ${repoLogPath}`);
+    }
+  }
 
   try {
     if (!fs.existsSync(repoPath)) {
