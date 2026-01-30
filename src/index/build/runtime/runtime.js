@@ -34,6 +34,11 @@ import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
 import { normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
+import {
+  normalizeParser,
+  normalizeFlowSetting,
+  normalizeDictSignaturePath
+} from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
 import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
@@ -197,16 +202,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
   const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
   const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
-  const normalizeParser = (raw, fallback, allowed) => {
-    const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-    return allowed.includes(normalized) ? normalized : fallback;
-  };
-  const normalizeFlow = (raw) => {
-    if (raw === true) return 'on';
-    if (raw === false) return 'off';
-    const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-    return ['auto', 'on', 'off'].includes(normalized) ? normalized : 'auto';
-  };
   const javascriptParser = normalizeParser(
     indexingConfig.javascriptParser,
     'babel',
@@ -228,7 +223,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig.embeddingBatchMultipliers || {},
     typescriptEmbeddingBatchMultiplier ? { typescript: typescriptEmbeddingBatchMultiplier } : {}
   );
-  const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
+  const javascriptFlow = normalizeFlowSetting(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
@@ -360,6 +355,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     || indexingConfig.debugCrash === true;
 
   const dictConfig = getDictConfig(root, userConfig);
+  const dictDir = dictConfig?.dir;
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   const dictWords = new Set();
   for (const dictFile of dictionaryPaths) {
@@ -371,23 +367,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       }
     } catch {}
   }
-  const normalizeDictSignaturePath = (dictFile) => {
-    const normalized = path.resolve(dictFile);
-    if (dictConfig?.dir) {
-      const dictDir = path.resolve(dictConfig.dir);
-      if (normalized === dictDir || normalized.startsWith(dictDir + path.sep)) {
-        return path.relative(dictDir, normalized).split(path.sep).join('/');
-      }
-    }
-    const repoRoot = path.resolve(root);
-    if (normalized === repoRoot || normalized.startsWith(repoRoot + path.sep)) {
-      return path.relative(repoRoot, normalized).split(path.sep).join('/');
-    }
-    return normalized;
-  };
   const dictSignatureParts = [];
   for (const dictFile of dictionaryPaths) {
-    const signaturePath = normalizeDictSignaturePath(dictFile);
+    const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
     try {
       const stat = await fs.stat(dictFile);
       dictSignatureParts.push(`${signaturePath}:${stat.size}:${stat.mtimeMs}`);

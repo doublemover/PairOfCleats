@@ -1,6 +1,5 @@
-import { assignSegmentUids, chunkSegments, detectFrontmatter, discoverSegments } from '../../segments.js';
-import { extractComments } from '../../comments.js';
-import { buildLanguageContext, getLanguageForFile } from '../../language-registry.js';
+import { assignSegmentUids, chunkSegments, discoverSegments } from '../../segments.js';
+import { getLanguageForFile } from '../../language-registry.js';
 import { getGitMetaForFile } from '../../git.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
 import {
@@ -11,17 +10,15 @@ import {
   sanitizeChunkBounds,
   validateChunkBounds
 } from './cpu/chunking.js';
+import { buildLanguageAnalysisContext } from './cpu/analyze.js';
+import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
 import { buildLineIndex } from '../../../shared/lines.js';
-import { buildTokenSequence } from '../tokenization.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
-import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter/config.js';
 import {
   preloadTreeSitterLanguages
 } from '../../../lang/tree-sitter.js';
-
-const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
 export const processFileCpu = async (context) => {
   const {
@@ -204,28 +201,17 @@ export const processFileCpu = async (context) => {
   let languageContext = {};
   updateCrashStage('tree-sitter');
   try {
-    ({ lang, context: languageContext } = await runTreeSitter(async () => {
-      if (!treeSitterLanguagePasses
-        && treeSitterEnabled
-        && primaryLanguageId
-        && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
-        try {
-          await preloadTreeSitterLanguages([primaryLanguageId], {
-            log: languageOptions?.log,
-            parallel: false,
-            maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
-          });
-        } catch {
-          // ignore preload failures; prepare will fall back if needed.
-        }
-      }
-      return buildLanguageContext({
-        ext,
-        relPath: relKey,
-        mode,
-        text,
-        options: languageContextOptions
-      });
+    ({ lang, context: languageContext } = await buildLanguageAnalysisContext({
+      ext,
+      relKey,
+      mode,
+      text,
+      languageContextOptions,
+      treeSitterEnabled,
+      treeSitterLanguagePasses,
+      treeSitterConfigForMode,
+      primaryLanguageId,
+      runTreeSitter
     }));
   } catch (err) {
     if (languageOptions?.skipOnParseError) {
@@ -301,85 +287,27 @@ export const processFileCpu = async (context) => {
   const fileGitMeta = resolvedGitMeta && typeof resolvedGitMeta === 'object'
     ? Object.fromEntries(Object.entries(resolvedGitMeta).filter(([key]) => key !== 'lineAuthors'))
     : {};
-  const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
-    && normalizedCommentsConfig.extract !== 'off';
-  const commentSegmentsEnabled = mode === 'extracted-prose'
-    || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
   const parseStart = Date.now();
-  let commentData;
+  let commentEntries = [];
+  let commentRanges = [];
+  let extraSegments = [];
   updateCrashStage('comments');
   try {
-    commentData = commentsEnabled
-      ? extractComments({
-        text,
-        ext,
-        languageId: lang?.id || null,
-        lineIndex,
-        config: normalizedCommentsConfig
-      })
-      : { comments: [], configSegments: [] };
+    const commentMeta = buildCommentMeta({
+      text,
+      ext,
+      mode,
+      languageId: lang?.id || null,
+      lineIndex,
+      normalizedCommentsConfig,
+      tokenDictWords,
+      dictConfig
+    });
+    commentEntries = commentMeta.commentEntries;
+    commentRanges = commentMeta.commentRanges;
+    extraSegments = commentMeta.extraSegments;
   } catch (err) {
     return failFile('parse-error', 'comments', err);
-  }
-  const commentEntries = [];
-  const commentRanges = [];
-  const commentSegments = [];
-  if (commentsEnabled && Array.isArray(commentData.comments)) {
-    for (const comment of commentData.comments) {
-      commentRanges.push(comment);
-      const commentTokens = buildTokenSequence({
-        text: comment.text,
-        mode: 'prose',
-        ext,
-        dictWords: tokenDictWords,
-        dictConfig
-      }).tokens;
-      if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
-      const entry = { ...comment, tokens: commentTokens };
-      commentEntries.push(entry);
-      if (
-        commentSegmentsEnabled
-        && (comment.type !== 'license' || normalizedCommentsConfig.includeLicense)
-      ) {
-        commentSegments.push({
-          type: 'comment',
-          languageId: lang?.id || null,
-          start: comment.start,
-          end: comment.end,
-          parentSegmentId: null,
-          embeddingContext: 'prose',
-          meta: {
-            commentType: comment.type,
-            commentStyle: comment.style
-          }
-        });
-      }
-    }
-  }
-  const extraSegments = [];
-  if (commentSegmentsEnabled && commentSegments.length) {
-    extraSegments.push(...commentSegments);
-  }
-  if (
-    commentSegmentsEnabled
-    && Array.isArray(commentData.configSegments)
-    && commentData.configSegments.length
-  ) {
-    extraSegments.push(...commentData.configSegments);
-  }
-  if (mode === 'extracted-prose' && (ext === '.md' || ext === '.mdx')) {
-    const frontmatter = detectFrontmatter(text);
-    if (frontmatter) {
-      extraSegments.push({
-        type: 'prose',
-        languageId: 'markdown',
-        start: frontmatter.start,
-        end: frontmatter.end,
-        parentSegmentId: null,
-        embeddingContext: 'prose',
-        meta: { frontmatter: true }
-      });
-    }
   }
   let segments;
   updateCrashStage('segments');

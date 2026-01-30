@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-30T21:21:06.228Z",
+  "generatedAt": "2026-01-30T23:40:22.708Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3105,7 +3105,8 @@
       "src/index/build/args.js",
       "src/index/build/context-window.js",
       "src/index/build/file-processor/cpu.js",
-      "src/index/build/file-processor/process-chunks.js",
+      "src/index/build/file-processor/cpu/analyze.js",
+      "src/index/build/file-processor/process-chunks/enrichment.js",
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
