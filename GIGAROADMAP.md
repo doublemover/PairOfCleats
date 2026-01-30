@@ -121,7 +121,7 @@ These have landed and should be used as the canonical helpers.
 - Tests (existing): `tests/watch-lock-backoff.js`
 
 **Follow-up**
-- [ ] Add a small direct unit test for `retryWithBackoff` itself (optional but improves locality):
+- [x] Add a small direct unit test for `retryWithBackoff` itself (optional but improves locality):
   - New: `tests/retry-with-backoff.js`
   - Cover: abort signal, shouldRetry false, jitter bounds, attempts=1 behavior.
 
@@ -132,7 +132,7 @@ These have landed and should be used as the canonical helpers.
 
 #### R.3.3 Ignore matcher helper (path + chokidar semantics)
 - [x] `src/shared/fs/ignore.js` exports `buildIgnoredMatcher({ root, ignoreMatcher })` for chokidar-compatible ignores.
-- [ ] Add a dedicated test for “directory ignore vs file ignore” semantics:
+- [x] Add a dedicated test for “directory ignore vs file ignore” semantics:
   - New: `tests/ignore-matcher.js`
   - Cases:
     - ignoreMatcher matches a directory: should ignore descendants (simulate `stats.isDirectory()` true)
