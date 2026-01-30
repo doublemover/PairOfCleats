@@ -303,29 +303,29 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - Many tests import from `src/retrieval/output.js`
 
 **Refactor plan (safe + incremental)**
-- [ ] **Step 1: fix formatting drift** in `filters.js` (indentation currently broken in destructuring blocks).
-- [ ] **Step 2: extract pure predicates** to `src/retrieval/output/filters/predicates.js`
+- [x] **Step 1: fix formatting drift** in `filters.js` (indentation currently broken in destructuring blocks).
+- [x] **Step 2: extract pure predicates** to `src/retrieval/output/filters/predicates.js`
   - `matchList`, `matchAny`, `truthy`, and any “normalize list” helpers.
-- [ ] **Step 3: extract structural matching** to `src/retrieval/output/filters/structural.js`
+- [x] **Step 3: extract structural matching** to `src/retrieval/output/filters/structural.js`
   - `matchStructural(chunk, { structPack, structRule, structTag })`
   - Must match semantics verified by `tests/structural-filters.js`.
-- [ ] **Step 4: extract meta matching** to `src/retrieval/output/filters/meta.js`
+- [x] **Step 4: extract meta matching** to `src/retrieval/output/filters/meta.js`
   - `matchMetaFilters(chunk, metaFilters, riskFilters, options)`
   - Preserve support for:
     - `meta` (k/v string or regex) and `caseMeta`
     - risk selectors: `risk`, `riskTag`, `riskCategory`, `riskSource`, `riskSink`, `riskFlow`
     - inferred types: `inferredType`, `returnType`, `param`
-- [ ] **Step 5: extract file/path filter evaluation** to `src/retrieval/output/filters/file.js`
+- [x] **Step 5: extract file/path filter evaluation** to `src/retrieval/output/filters/file.js`
   - Build final exact predicate for:
     - `file`/`caseFile` (substring or regex; supports list)
     - `ext`, `lang`
   - Keep **final exact match** always enforced even when prefilter narrows candidates.
-- [ ] **Step 6: extract file prefilter (chargram/roaring)** to `src/retrieval/output/filters/file-prefilter.js`
+- [x] **Step 6: extract file prefilter (chargram/roaring)** to `src/retrieval/output/filters/file-prefilter.js`
   - `collectFilePrefilterMatches({ filterIndex, fileMatchers, caseFile, fileChargramN, roaring })`
   - Must implement doc semantics:
     - longest stable literal from regex; skip if none
     - case-insensitive prefilter; exact match still checks case when `caseFile` is true
-- [ ] **Step 7: keep filterChunks orchestrator** in `filters.js` (or move to `filters/index.js` and re-export from `filters.js`)
+- [x] **Step 7: keep filterChunks orchestrator** in `filters.js` (or move to `filters/index.js` and re-export from `filters.js`)
   - It should:
     - normalize filters once
     - construct candidate sets using `createCandidateHelpers`
