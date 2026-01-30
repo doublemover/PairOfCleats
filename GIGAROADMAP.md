@@ -101,13 +101,13 @@ The repo already treats `commands.md` as generated. Making the generator respons
 - [x] Keep the existing “policy tests” approach (see `tests/policy/**`) for anything that otherwise drifts silently.
 
 #### R.2.3 Optional: sweep stale files (low-risk cleanup)
-- [ ] Add a non-destructive report script (no deletions) that inventories:
+- [x] Add a non-destructive report script (no deletions) that inventories:
   - orphan docs (not referenced by any “Docs to read” list)
   - orphan tools (not referenced by any script/CLI)
   - orphan scripts (not referenced by docs/CI/tests)
 - Suggested location: `tools/repo-inventory.js`
 - Output: `docs/tooling/repo-inventory.json`
-- Add a policy test that only checks the file exists + JSON schema sanity (don’t gate PRs on the contents yet).
+- [x] Add a policy test that only checks the file exists + JSON schema sanity (don’t gate PRs on the contents yet).
 
 ---
 
