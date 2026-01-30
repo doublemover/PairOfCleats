@@ -5,7 +5,7 @@ import {
   loadPiecesManifest,
   loadTokenPostings,
   readCompatibilityKey
-} from '../../shared/artifact-io.js';
+} from '../../../shared/artifact-io.js';
 import { readJsonOptional } from './helpers.js';
 
 export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {

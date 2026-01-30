@@ -209,7 +209,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [.] `src/index/build/runtime/runtime.js` remains large (~680 LOC) but is primarily orchestrator + normalization.
 
 **Optional follow-up**
-- [.] Extract “option normalization” helpers from `runtime.js` into `runtime/normalize.js` if `runtime.js` continues to grow.
+- [x] Extract “option normalization” helpers from `runtime.js` into `runtime/normalize.js` if `runtime.js` continues to grow.
 - [ ] Add a unit test for “caps/policy merges” if regressions occu.
 
 #### R.4.4 Validate split
@@ -235,13 +235,13 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - **New monolith candidate:** `src/index/build/file-processor/process-chunks.js` (~650 LOC)
 
 **Plan**
-- [.] Keep `cpu.js` as the “single-file CPU orchestration” entrypoint (export `processFileCpu(...)`), but extract:
+- [x] Keep `cpu.js` as the “single-file CPU orchestration” entrypoint (export `processFileCpu(...)`), but extract:
   - tokenization setup / caching → `cpu/tokenizer.js`
   - AST/tree-sitter analysis pass wrappers → `cpu/analyze.js`
   - metadata v2 enrichment steps → `cpu/meta.js`
   - keep `cpu/chunking.js` as-is
 
-- [.] Split `process-chunks.js` into:
+- [x] Split `process-chunks.js` into:
   - `file-processor/process-chunks/index.js` (orchestrator)
   - `file-processor/process-chunks/enrichment.js` (enrich + merge docmeta)
   - `file-processor/process-chunks/dedupe.js` (dedupe + normalization)
@@ -260,9 +260,9 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [.] `src/index/build/piece-assembly.js` is still ~500 LOC; helpers exist at `src/index/build/piece-assembly/helpers.js`.
 
 **Remaining extraction (recommended)**
-- [.] Extract the IO-heavy loader to `src/index/build/piece-assembly/load.js`
+- [x] Extract the IO-heavy loader to `src/index/build/piece-assembly/load.js`
   - Move `loadIndexArtifacts(...)` and any “find pieces / read manifest / read artifacts” logic.
-- [.] Extract merge logic to `src/index/build/piece-assembly/merge.js`
+- [x] Extract merge logic to `src/index/build/piece-assembly/merge.js`
   - “merge postings / merge bundles / merge filter index / merge relations” helpers
 - [ ] Keep `assembleIndexPieces(...)` in `piece-assembly.js` as orchestrator (or move to `piece-assembly/index.js` with a façade).
 

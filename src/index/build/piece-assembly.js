@@ -1,12 +1,4 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
-import {
-  loadChunkMeta,
-  loadJsonArrayArtifact,
-  loadPiecesManifest,
-  loadTokenPostings,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
@@ -14,100 +6,19 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { createIndexState } from './state.js';
 import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
+import { loadIndexArtifacts, readCompatibilityKeys } from './piece-assembly/load.js';
+import { mergeIndexInput } from './piece-assembly/merge.js';
 import {
   STAGE_ORDER,
   buildChunkOrdering,
   computeBm25,
-  mergeIdPostings,
-  mergeTfPostings,
   normalizeIdList,
   normalizeStage,
   normalizeTfPostings,
-  readArray,
-  readField,
-  readJsonOptional,
   remapIdPostings,
   remapTfPostings,
   validateLengths
 } from './piece-assembly/helpers.js';
-
-
-const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
-  if (!fsSync.existsSync(dir)) {
-    throw new Error(`Missing input index directory: ${dir}`);
-  }
-  const manifest = loadPiecesManifest(dir, { strict });
-  const chunkMeta = await loadChunkMeta(dir, { manifest, strict });
-  const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', { manifest, strict }).catch(() => null);
-  const fileMetaById = new Map();
-  const fileInfoByPath = new Map();
-  if (Array.isArray(fileMeta)) {
-    for (const entry of fileMeta) {
-      if (entry && entry.id != null) fileMetaById.set(entry.id, entry);
-      if (entry?.file) {
-        const size = Number.isFinite(entry.size) ? entry.size : null;
-        const hash = entry.hash || null;
-        const hashAlgo = entry.hash_algo || entry.hashAlgo || null;
-        const encoding = entry.encoding || null;
-        const encodingFallback = typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null;
-        const encodingConfidence = Number.isFinite(entry.encodingConfidence)
-          ? entry.encodingConfidence
-          : null;
-        if (size !== null || hash || hashAlgo || encoding || encodingFallback !== null || encodingConfidence !== null) {
-          fileInfoByPath.set(entry.file, {
-            size,
-            hash,
-            hashAlgo,
-            encoding,
-            encodingFallback,
-            encodingConfidence
-          });
-        }
-      }
-    }
-  }
-  for (const chunk of chunkMeta) {
-    if (!chunk || (chunk.file && chunk.ext)) continue;
-    const meta = fileMetaById.get(chunk.fileId);
-    if (!meta) continue;
-    if (!chunk.file) chunk.file = meta.file;
-    if (!chunk.ext) chunk.ext = meta.ext;
-    if (!chunk.fileSize && Number.isFinite(meta.size)) chunk.fileSize = meta.size;
-    if (!chunk.fileHash && meta.hash) chunk.fileHash = meta.hash;
-    const metaHashAlgo = meta.hashAlgo || meta.hash_algo;
-    if (!chunk.fileHashAlgo && metaHashAlgo) chunk.fileHashAlgo = metaHashAlgo;
-    if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
-    if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
-    if (!chunk.last_author) chunk.last_author = meta.last_author;
-    if (!chunk.churn) chunk.churn = meta.churn;
-    if (!chunk.churn_added) chunk.churn_added = meta.churn_added;
-    if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
-    if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
-  }
-  const missingFile = chunkMeta.some((chunk) => chunk && !chunk.file);
-  if (missingFile) {
-    throw new Error(`file_meta.json required for chunk metadata in ${dir}`);
-  }
-  const tokenPostings = loadTokenPostings(dir, { manifest, strict });
-  return {
-    dir,
-    chunkMeta,
-    tokenPostings,
-    fieldPostings: readJsonOptional(dir, 'field_postings.json'),
-    fieldTokens: readJsonOptional(dir, 'field_tokens.json'),
-    minhash: readJsonOptional(dir, 'minhash_signatures.json'),
-    phraseNgrams: readJsonOptional(dir, 'phrase_ngrams.json'),
-    chargrams: readJsonOptional(dir, 'chargram_postings.json'),
-    denseVec: readJsonOptional(dir, 'dense_vectors_uint8.json'),
-    denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
-    denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
-    fileRelations: await loadJsonArrayArtifact(dir, 'file_relations', { manifest, strict }).catch(() => null),
-    callSites: await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict }).catch(() => null),
-    indexState: readJsonOptional(dir, 'index_state.json'),
-    fileInfoByPath
-  };
-};
-
 
 export async function assembleIndexPieces({
   inputs,
@@ -134,23 +45,29 @@ export async function assembleIndexPieces({
   const mergedDenseDoc = [];
   const mergedDenseCode = [];
   const mergedCallSites = [];
-  let denseModel = null;
-  let denseDims = 0;
-  let denseScale = null;
-  let embeddingsSeen = false;
-  let fieldTokensSeen = false;
   const stageInputs = [];
+  const mergeState = {
+    mergedTokenPostings,
+    mergedFieldPostings,
+    mergedFieldDocLengths,
+    mergedPhrasePostings,
+    mergedChargramPostings,
+    mergedMinhash,
+    mergedDense,
+    mergedDenseDoc,
+    mergedDenseCode,
+    mergedCallSites,
+    denseModel: null,
+    denseDims: 0,
+    denseScale: null,
+    embeddingsSeen: false,
+    fieldTokensSeen: false
+  };
 
   const sortedInputs = inputs
     .map((dir) => path.resolve(dir))
     .sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
-  const compatibilityKeys = new Map();
-  for (const dir of sortedInputs) {
-    const result = readCompatibilityKey(dir, { strict });
-    if (result?.key) {
-      compatibilityKeys.set(dir, result.key);
-    }
-  }
+  const compatibilityKeys = readCompatibilityKeys(sortedInputs, { strict });
   const uniqueCompatibilityKeys = new Set(compatibilityKeys.values());
   if (uniqueCompatibilityKeys.size > 1) {
     const details = Array.from(compatibilityKeys.entries())
@@ -163,135 +80,8 @@ export async function assembleIndexPieces({
     : null;
   for (const dir of sortedInputs) {
     const input = await loadIndexArtifacts(dir, { strict });
-    const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
-    const docLengths = Array.isArray(input.tokenPostings?.docLengths)
-      ? input.tokenPostings.docLengths
-      : [];
-    validateLengths('docLengths', docLengths, chunks.length, dir);
-    const docOffset = state.chunks.length;
-    stageInputs.push({ indexState: input.indexState, chunkCount: chunks.length });
-    for (let i = 0; i < chunks.length; i += 1) {
-      const chunk = { ...chunks[i] };
-      chunk.id = docOffset + i;
-      if (chunk.fileId != null) delete chunk.fileId;
-      state.chunks.push(chunk);
-    }
-    state.docLengths.push(...docLengths);
-    for (const len of docLengths) {
-      if (Number.isFinite(len)) state.totalTokens += len;
-    }
-
-    if (Array.isArray(input.callSites) && input.callSites.length) {
-      mergedCallSites.push(...input.callSites);
-    }
-
-    const vocab = Array.isArray(input.tokenPostings?.vocab) ? input.tokenPostings.vocab : [];
-    const postings = Array.isArray(input.tokenPostings?.postings) ? input.tokenPostings.postings : [];
-    for (let i = 0; i < vocab.length; i += 1) {
-      mergeTfPostings(mergedTokenPostings, vocab[i], postings[i], docOffset);
-    }
-
-    const rawFieldPostings = input.fieldPostings;
-    const fieldPostings = rawFieldPostings?.fields && typeof rawFieldPostings.fields === 'object'
-      ? rawFieldPostings.fields
-      : (rawFieldPostings && typeof rawFieldPostings === 'object' ? rawFieldPostings : null);
-    if (fieldPostings && typeof fieldPostings === 'object') {
-      for (const [field, entry] of Object.entries(fieldPostings)) {
-        const fieldVocab = Array.isArray(entry?.vocab) ? entry.vocab : [];
-        const fieldPosting = Array.isArray(entry?.postings) ? entry.postings : [];
-        const fieldDocLengths = Array.isArray(entry?.docLengths) ? entry.docLengths : [];
-        validateLengths(`fieldDocLengths:${field}`, fieldDocLengths, chunks.length, dir);
-        const lengths = mergedFieldDocLengths.get(field) || [];
-        lengths.push(...fieldDocLengths);
-        mergedFieldDocLengths.set(field, lengths);
-        const destMap = mergedFieldPostings.get(field) || new Map();
-        for (let i = 0; i < fieldVocab.length; i += 1) {
-          mergeTfPostings(destMap, fieldVocab[i], fieldPosting[i], docOffset);
-        }
-        mergedFieldPostings.set(field, destMap);
-      }
-    }
-
-    const fieldTokens = Array.isArray(input.fieldTokens) ? input.fieldTokens : null;
-    if (input.fieldTokens) {
-      validateLengths('fieldTokens', fieldTokens, chunks.length, dir);
-    }
-    if (fieldTokens && fieldTokens.length) {
-      fieldTokensSeen = true;
-      for (let i = 0; i < chunks.length; i += 1) {
-        state.fieldTokens[docOffset + i] = fieldTokens[i] || null;
-      }
-    } else if (fieldTokensSeen) {
-      for (let i = 0; i < chunks.length; i += 1) {
-        state.fieldTokens[docOffset + i] = null;
-      }
-    }
-
-    const minhash = readArray(input.minhash, 'signatures');
-    if (input.minhash) {
-      validateLengths('minhash', minhash, chunks.length, dir, { allowMissing: false });
-      if (minhash.length) mergedMinhash.push(...minhash);
-    }
-
-    const phraseVocab = readArray(input.phraseNgrams, 'vocab');
-    const phrasePosting = readArray(input.phraseNgrams, 'postings');
-    for (let i = 0; i < phraseVocab.length; i += 1) {
-      mergeIdPostings(mergedPhrasePostings, phraseVocab[i], phrasePosting[i], docOffset);
-    }
-
-    const chargramVocab = readArray(input.chargrams, 'vocab');
-    const chargramPosting = readArray(input.chargrams, 'postings');
-    for (let i = 0; i < chargramVocab.length; i += 1) {
-      mergeIdPostings(mergedChargramPostings, chargramVocab[i], chargramPosting[i], docOffset);
-    }
-
-    const denseVec = readArray(input.denseVec, 'vectors');
-    const denseVecDoc = readArray(input.denseVecDoc, 'vectors');
-    const denseVecCode = readArray(input.denseVecCode, 'vectors');
-    const inputDims = Number(readField(input.denseVec, 'dims')) || 0;
-    const inputModel = readField(input.denseVec, 'model');
-    const inputScale = readField(input.denseVec, 'scale');
-    if (input.denseVec) {
-      embeddingsSeen = true;
-      if (denseDims && inputDims && denseDims !== inputDims) {
-        throw new Error(`Embedding dims mismatch (${denseDims} !== ${inputDims})`);
-      }
-      if (denseModel && inputModel && denseModel !== inputModel) {
-        throw new Error(`Embedding model mismatch (${denseModel} !== ${inputModel})`);
-      }
-      if (denseScale && inputScale && denseScale !== inputScale) {
-        throw new Error(`Embedding scale mismatch (${denseScale} !== ${inputScale})`);
-      }
-      denseDims = denseDims || inputDims;
-      denseModel = denseModel || inputModel || null;
-      denseScale = denseScale || inputScale || null;
-      validateLengths('dense vectors', denseVec, chunks.length, dir);
-      if (denseVec.length) mergedDense.push(...denseVec);
-      if (input.denseVecDoc) {
-        validateLengths('dense doc vectors', denseVecDoc, chunks.length, dir);
-        if (denseVecDoc.length) mergedDenseDoc.push(...denseVecDoc);
-      }
-      if (input.denseVecCode) {
-        validateLengths('dense code vectors', denseVecCode, chunks.length, dir);
-        if (denseVecCode.length) mergedDenseCode.push(...denseVecCode);
-      }
-    }
-
-    if (Array.isArray(input.fileRelations)) {
-      if (!state.fileRelations) state.fileRelations = new Map();
-      for (const entry of input.fileRelations) {
-        if (!entry?.file) continue;
-        state.fileRelations.set(entry.file, entry.relations || null);
-      }
-    }
-    if (input.fileInfoByPath && typeof input.fileInfoByPath.entries === 'function') {
-      if (!state.fileInfoByPath) state.fileInfoByPath = new Map();
-      for (const [file, info] of input.fileInfoByPath.entries()) {
-        if (!state.fileInfoByPath.has(file)) {
-          state.fileInfoByPath.set(file, info);
-        }
-      }
-    }
+    const { chunkCount } = mergeIndexInput({ input, dir, state, mergeState });
+    stageInputs.push({ indexState: input.indexState, chunkCount });
   }
 
   if (!state.chunks.length) {
@@ -306,7 +96,7 @@ export async function assembleIndexPieces({
     const docMap = new Array(ordering.length);
     const newChunks = new Array(ordering.length);
     const newDocLengths = new Array(ordering.length);
-    const newFieldTokens = fieldTokensSeen ? new Array(ordering.length) : null;
+    const newFieldTokens = mergeState.fieldTokensSeen ? new Array(ordering.length) : null;
     const newMinhash = mergedMinhash.length ? new Array(ordering.length) : null;
     const newDense = mergedDense.length ? new Array(ordering.length) : null;
     const newDenseDoc = mergedDenseDoc.length ? new Array(ordering.length) : null;
@@ -371,7 +161,7 @@ export async function assembleIndexPieces({
     });
   }
 
-  if (embeddingsSeen) {
+  if (mergeState.embeddingsSeen) {
     validateLengths('merged dense vectors', mergedDense, state.chunks.length, outDir);
     if (mergedDenseDoc.length) {
       validateLengths('merged dense doc vectors', mergedDenseDoc, state.chunks.length, outDir);
@@ -432,10 +222,10 @@ export async function assembleIndexPieces({
     tokenPostingsList,
     avgDocLen,
     minhashSigs: mergedMinhash,
-    dims: embeddingsSeen ? denseDims : 0,
-    quantizedVectors: embeddingsSeen ? mergedDense : [],
-    quantizedDocVectors: embeddingsSeen ? (mergedDenseDoc.length ? mergedDenseDoc : mergedDense) : [],
-    quantizedCodeVectors: embeddingsSeen ? (mergedDenseCode.length ? mergedDenseCode : mergedDense) : []
+    dims: mergeState.embeddingsSeen ? mergeState.denseDims : 0,
+    quantizedVectors: mergeState.embeddingsSeen ? mergedDense : [],
+    quantizedDocVectors: mergeState.embeddingsSeen ? (mergedDenseDoc.length ? mergedDenseDoc : mergedDense) : [],
+    quantizedCodeVectors: mergeState.embeddingsSeen ? (mergedDenseCode.length ? mergedDenseCode : mergedDense) : []
   };
 
   const uniqueFiles = new Set();
@@ -496,7 +286,7 @@ export async function assembleIndexPieces({
     state,
     postings,
     postingsConfig,
-    modelId: denseModel || userConfig?.indexing?.model || null,
+    modelId: mergeState.denseModel || userConfig?.indexing?.model || null,
     useStubEmbeddings: false,
     dictSummary: null,
     timing,
