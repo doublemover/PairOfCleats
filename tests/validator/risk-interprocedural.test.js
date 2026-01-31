@@ -5,6 +5,7 @@ import path from 'node:path';
 import { sha1 } from '../../src/shared/hash.js';
 import { buildCallSiteId } from '../../src/index/callsite-id.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { createBaseIndex, defaultUserConfig } from '../validate/helpers.js';
 
 const root = process.cwd();
@@ -19,7 +20,7 @@ const chunkMeta = [
 const indexState = {
   generatedAt: new Date().toISOString(),
   mode: 'code',
-  artifactSurfaceVersion: '1.0.0',
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   riskInterprocedural: {
     enabled: true,
     summaryOnly: false,
@@ -27,11 +28,25 @@ const indexState = {
   }
 };
 
+const tokenPostings = {
+  vocab: ['alpha'],
+  postings: [[[0, 1]]],
+  docLengths: [1, 1],
+  avgDocLen: 1,
+  totalDocs: 2
+};
+
 const { repoRoot, indexRoot, indexDir } = await createBaseIndex({
   rootDir: tempRoot,
   chunkMeta,
-  indexState
+  indexState,
+  tokenPostings
 });
+
+const chunkUidMap = [
+  { docId: 0, chunkUid: 'uid-source', chunkId: 'chunk_source', file: 'src/source.js', start: 0, end: 10 },
+  { docId: 1, chunkUid: 'uid-sink', chunkId: 'chunk_sink', file: 'src/sink.js', start: 0, end: 8 }
+];
 
 const callSiteId = buildCallSiteId({
   file: 'src/source.js',
@@ -219,11 +234,13 @@ await writeJsonl(path.join(indexDir, 'call_sites.jsonl'), callSites);
 await writeJsonl(path.join(indexDir, 'risk_summaries.jsonl'), riskSummaries);
 await writeJsonl(path.join(indexDir, 'risk_flows.jsonl'), riskFlows);
 await fs.writeFile(path.join(indexDir, 'risk_interprocedural_stats.json'), JSON.stringify(stats, null, 2));
+await fs.writeFile(path.join(indexDir, 'chunk_uid_map.json'), JSON.stringify(chunkUidMap, null, 2));
 
 const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
 manifest.pieces.push(
   { type: 'relations', name: 'call_sites', format: 'jsonl', path: 'call_sites.jsonl' },
+  { type: 'chunks', name: 'chunk_uid_map', format: 'json', path: 'chunk_uid_map.json' },
   { type: 'risk', name: 'risk_summaries', format: 'jsonl', path: 'risk_summaries.jsonl' },
   { type: 'risk', name: 'risk_flows', format: 'jsonl', path: 'risk_flows.jsonl' },
   { type: 'risk', name: 'risk_interprocedural_stats', format: 'json', path: 'risk_interprocedural_stats.json' }

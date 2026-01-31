@@ -355,7 +355,6 @@ export const computeInterproceduralRisk = ({
     }
     const state = queue[queueIndex++];
     const summary = summaryByUid.get(state.chunkUid);
-    if (!summary) continue;
     const sinkSignals = sortSinks(summary?.signals?.sinks || []);
     if (sinkSignals.length && state.chunkUid !== state.rootSource.chunkUid) {
       for (const sink of sinkSignals) {

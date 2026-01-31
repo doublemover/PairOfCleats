@@ -161,7 +161,7 @@ export async function validateIndexArtifacts(input = {}) {
     }
     try {
       let chunkMeta = null;
-      const indexState = readJsonArtifact('index_state');
+      const indexState = readJsonArtifact('index_state', { required: strict });
       try {
         chunkMeta = await loadChunkMeta(dir, { manifest, strict });
       } catch (err) {
@@ -343,7 +343,6 @@ export async function validateIndexArtifacts(input = {}) {
         validateIdPostings(report, mode, 'filter_index', fileChunks, chunkMeta.length);
       }
 
-      const indexState = readJsonArtifact('index_state', { required: strict });
       if (indexState) {
         validateSchema(report, mode, 'index_state', indexState, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
         if (strict && !isSupportedVersion(indexState?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {

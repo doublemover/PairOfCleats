@@ -123,6 +123,25 @@ function resolveCommand(primary, rest) {
     printHelp();
     process.exit(1);
   }
+  if (primary === 'risk') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('risk requires a subcommand: explain');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'explain') {
+      validateArgs(
+        rest,
+        ['index', 'chunk', 'max', 'source-rule', 'sink-rule', 'json'],
+        ['index', 'chunk', 'max', 'source-rule', 'sink-rule']
+      );
+      return { script: 'tools/explain-risk.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown risk subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   return null;
 }
 
@@ -275,5 +294,8 @@ Tooling:
 
 LMDB:
   lmdb build              Build LMDB indexes
+
+Risk:
+  risk explain            Explain interprocedural risk flows
 `);
 }

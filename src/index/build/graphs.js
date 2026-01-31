@@ -143,7 +143,7 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null, callSit
       chunkUid: resolveChunkUid(chunk) || null
     };
     const relations = chunk.codeRelations || {};
-    if (!callSiteEdges.length && Array.isArray(relations.callLinks)) {
+    if (Array.isArray(relations.callLinks)) {
       for (const link of relations.callLinks) {
         const targetUid = link?.to?.status === 'resolved' ? link.to.resolved?.chunkUid : null;
         if (!targetUid || !chunkByUid.has(targetUid)) continue;

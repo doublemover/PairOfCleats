@@ -49,6 +49,6 @@ const callSites = [
 const graphs = buildRelationGraphs({ chunks, callSites });
 const callerNode = graphs.callGraph.nodes.find((node) => node.id === 'uid-caller');
 assert.ok(callerNode, 'expected caller node in call graph');
-assert.deepEqual(callerNode.out, ['uid-target'], 'callSites should override callLinks for call graph');
+assert.deepEqual(callerNode.out, ['uid-other', 'uid-target'], 'callSites should union with callLinks for call graph');
 
-console.log('graph call_sites preferred test passed');
+console.log('graph call_sites union test passed');

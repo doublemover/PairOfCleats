@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../helpers/fixture-index.js';
 
+process.env.PAIROFCLEATS_TESTING = '1';
+
 const { codeDir } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
   cacheName: 'risk-interprocedural-js-simple',

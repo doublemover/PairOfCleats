@@ -1021,6 +1021,16 @@ export const ARTIFACT_SCHEMA_DEFS = {
       filterIndex: { type: 'object', additionalProperties: true },
       sqlite: { type: 'object', additionalProperties: true },
       lmdb: { type: 'object', additionalProperties: true },
+      riskInterprocedural: {
+        type: 'object',
+        required: ['enabled', 'summaryOnly', 'emitArtifacts'],
+        properties: {
+          enabled: { type: 'boolean' },
+          summaryOnly: { type: 'boolean' },
+          emitArtifacts: { type: ['string', 'null'] }
+        },
+        additionalProperties: true
+      },
       riskRules: {
         anyOf: [RISK_RULES_BUNDLE_SCHEMA, { type: 'null' }]
       },
