@@ -22,3 +22,4 @@ We will execute every remaining Phase R item (including all optional follow-ups)
 - `tests/ignore-matcher.js` initially failed because ignore patterns matched child paths; adjusted to assert unrelated file allowance instead of file-child behavior.
 - `contracts/index-compatibility-key-federation-block.test` failed due to a bad relative import in `src/index/build/piece-assembly/load.js`; fixed the path to `../../../shared/artifact-io.js`.
 - `node tests/run.js --match compact-pieces` found no matching tests; `rg "compact-pieces" tests` returned no hits.
+- `node tests/run.js --match search-cli` found no matching tests; `rg "search-cli" tests` returned no hits.

@@ -350,14 +350,14 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - Reduce `cli.js` to “parse → normalize → run session → render/persist” glue.
 
 **Plan**
-- [ ] Extract inline helpers inside `runSearchCli` to `src/retrieval/cli/runner.js`:
+- [x] Extract inline helpers inside `runSearchCli` to `src/retrieval/cli/runner.js`:
   - `inferJsonOutputFromArgs`
   - `emitError` / `bail`
   - `throwIfAborted`
-- [ ] Extract the giant `normalized` destructuring + derived flags into:
+- [x] Extract the giant `normalized` destructuring + derived flags into:
   - `src/retrieval/cli/resolve-run-config.js`
   - Return a single `runConfig` object (typed by convention / JSDoc) consumed by `runSearchSession`.
-- [ ] Keep `src/retrieval/cli.js` as the orchestrator that wires modules together.
+- [x] Keep `src/retrieval/cli.js` as the orchestrator that wires modules together.
 
 **Tests to run**
 - `node tests/run.js --match search-cli --match sqlite-fts-eligibility --match search-symbol-boost`

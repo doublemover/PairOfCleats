@@ -31,6 +31,8 @@ import { color } from './cli/ansi.js';
 import { resolveBackendSelection } from './cli/policy.js';
 import { normalizeSearchOptions } from './cli/normalize-options.js';
 import { buildQueryPlan } from './cli/query-plan.js';
+import { createRunnerHelpers, inferJsonOutputFromArgs } from './cli/runner.js';
+import { resolveRunConfig } from './cli/resolve-run-config.js';
 import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
@@ -48,14 +50,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
 
-  const inferJsonOutputFromArgs = () => {
-    if (!Array.isArray(rawArgs)) return { jsonOutput: false };
-    const hasFlag = (name) =>
-      rawArgs.some((arg) => typeof arg === 'string' && (arg === name || arg.startsWith(`${name}=`)));
-    const jsonOutput = hasFlag('--json');
-    return { jsonOutput };
-  };
-
   if (signal?.aborted) {
     const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
     err.code = 'ERR_ABORTED';
@@ -66,7 +60,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     argv = parseSearchArgs(rawArgs);
   } catch (err) {
     recordSearchMetrics('error');
-    const { jsonOutput } = inferJsonOutputFromArgs();
+    const { jsonOutput } = inferJsonOutputFromArgs(rawArgs);
     const message = err && typeof err.message === 'string' && err.message.trim()
       ? err.message
       : 'Invalid arguments.';
@@ -99,29 +93,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
   configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
 
-  const emitError = (message, errorCode) => {
-    if (!emitOutput || !message) return;
-    if (jsonOutput) {
-      console.log(JSON.stringify({ ok: false, code: errorCode, message }, null, 2));
-    } else {
-      console.error(message);
-    }
-  };
-  const bail = (message, code = 1, errorCode = ERROR_CODES.INTERNAL) => {
-    const resolvedCode = isErrorCode(errorCode) ? errorCode : ERROR_CODES.INTERNAL;
-    emitError(message, resolvedCode);
-    if (exitOnError) process.exit(code);
-    recordSearchMetrics('error');
-    const error = createError(resolvedCode, message || 'Search failed.');
-    error.emitted = true;
-    throw error;
-  };
-  const throwIfAborted = () => {
-    if (!signal?.aborted) return;
-    const error = createError(ERROR_CODES.CANCELLED, 'Search cancelled.');
-    error.cancelled = true;
-    throw error;
-  };
+  const { bail, throwIfAborted } = createRunnerHelpers({
+    emitOutput,
+    exitOnError,
+    jsonOutput,
+    recordSearchMetrics,
+    signal
+  });
 
   try {
     throwIfAborted();
@@ -151,13 +129,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail(normalized.missingValueMessages.join('\n'), 1, ERROR_CODES.INVALID_REQUEST);
     }
 
-    const resolveScoreModeOverride = (value) => {
-      if (value == null) return null;
-      const mode = String(value).trim();
-      if (!mode) return null;
-      if (mode === 'sparse' || mode === 'dense' || mode === 'hybrid') return mode;
-      throw new Error(`Invalid score mode "${mode}". Use sparse|dense|hybrid.`);
-    };
+    const runConfig = resolveRunConfig({ normalized, scoreModeOverride });
 
     const {
       query,
@@ -165,16 +137,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       searchAuthor,
       searchImport,
       chunkAuthorFilter,
-        searchMode,
-        runCode,
-        runProse,
-        runRecords,
-        runExtractedProse: runExtractedProseRaw,
-        commentsEnabled,
+      searchMode,
+      runCode,
+      runProse,
+      runRecords,
+      runExtractedProse: runExtractedProseRaw,
+      commentsEnabled,
       embeddingProvider,
       embeddingOnnx,
       hnswConfig,
-      sqliteConfig,
       sqliteAutoChunkThreshold,
       sqliteAutoArtifactBytes,
       postingsConfig,
@@ -201,10 +172,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       extImpossible,
       langImpossible,
       metaFilters,
-      annEnabled: annEnabledRaw,
-      scoreBlendEnabled: scoreBlendEnabledRaw,
-      scoreBlendSparseWeight: scoreBlendSparseWeightRaw,
-      scoreBlendAnnWeight: scoreBlendAnnWeightRaw,
+      annEnabled,
+      scoreBlendEnabled,
+      scoreBlendSparseWeight,
+      scoreBlendAnnWeight,
       symbolBoostEnabled,
       symbolBoostDefinitionWeight,
       symbolBoostExportWeight,
@@ -212,7 +183,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheEnabled,
       queryCacheMaxEntries,
       queryCacheTtlMs,
-      rrfEnabled: rrfEnabledRaw,
+      rrfEnabled,
       rrfK,
       contextExpansionEnabled,
       contextExpansionOptions,
@@ -227,21 +198,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lancedbConfig,
       tantivyConfig,
       sparseBackend
-    } = normalized;
-    const scoreMode = resolveScoreModeOverride(scoreModeOverride);
-    const annEnabled = scoreMode ? scoreMode !== 'sparse' : annEnabledRaw;
-    const scoreBlendEnabled = scoreMode ? scoreMode !== 'sparse' : scoreBlendEnabledRaw;
-    const scoreBlendSparseWeight = scoreMode === 'dense'
-      ? 0
-      : scoreMode === 'hybrid'
-        ? 0.5
-        : scoreBlendSparseWeightRaw;
-    const scoreBlendAnnWeight = scoreMode === 'dense'
-      ? 1
-      : scoreMode === 'hybrid'
-        ? 0.5
-        : scoreBlendAnnWeightRaw;
-    const rrfEnabled = scoreMode ? false : rrfEnabledRaw;
+    } = runConfig;
 
     if (!query) {
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
