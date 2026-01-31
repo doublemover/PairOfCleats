@@ -21,6 +21,13 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/two-stage-state.js`, `tests/embeddings-validate.js`, `tests/storage/sqlite/incremental/file-manifest-updates.test.js`, `tests/lmdb-backend.js`.
   - Limitations: manual edits can override gating.
 
+## Optional dependency test policy
+- Claim: tests that require optional dependencies must skip (exit 77) when the dependency is unavailable.
+  - Implementation: `tests/helpers/optional-deps.js`, `tests/helpers/skip.js`.
+  - Config: n/a (policy enforced by test helpers).
+  - Tests: `tests/hnsw-ann.js`, `tests/hnsw-distance-metrics.js`, `tests/hnsw-candidate-set.js`, `tests/lancedb-ann.js`, `tests/sqlite-ann-extension.js`, `tests/embeddings-sqlite-dense.js`.
+  - Limitations: CI environments without optional deps report skips (not failures).
+
 ## Backend selection
 - Claim: `search --backend auto` prefers sqlite when available and thresholds hit; `--backend sqlite|sqlite-fts` fails cleanly when missing; `--backend memory` uses file-backed indexes.
   - Implementation: `src/storage/backend-policy.js` (`resolveBackendPolicy`), `src/retrieval/cli.js` (`resolveBackendPolicy` usage), `src/retrieval/cli-sqlite.js` (`createSqliteBackend`).

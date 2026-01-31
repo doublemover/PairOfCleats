@@ -429,6 +429,15 @@ const chunkUidMapRow = {
   additionalProperties: false
 };
 
+export const MANIFEST_ONLY_ARTIFACT_NAMES = [
+  'dense_vectors_hnsw',
+  'dense_vectors_doc_hnsw',
+  'dense_vectors_code_hnsw',
+  'dense_vectors_lancedb',
+  'dense_vectors_doc_lancedb',
+  'dense_vectors_code_lancedb'
+];
+
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
     type: 'array',

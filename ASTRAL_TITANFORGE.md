@@ -34,10 +34,10 @@
     - [ ] LanceDB supports merged/doc/code
     - [ ] HNSW supports merged/doc/code
 [ ] Ensure strict-manifest addendum is referenced in Phase 7 docs (if missing)
-[ ] Update test lane rules so CI classifies new tests correctly
-    - [ ] `tests/run.rules.jsonc` updated for new Phase 7 tests or confirm names match rules
-[ ] Add shared optional-deps test helper
-    - [ ] `tests/helpers/optional-deps.js` provides consistent skip + messaging
+[x] Update test lane rules so CI classifies new tests correctly
+    - [x] `tests/run.rules.jsonc` updated for new Phase 7 tests or confirm names match rules
+[x] Add shared optional-deps test helper
+    - [x] `tests/helpers/optional-deps.js` provides consistent skip + messaging
 
 ## 7.2 Artifact contract parity for embeddings + ANN
 ### 7.2.1 Canonical artifact names (public surface)
@@ -65,7 +65,7 @@
 [@] Add/extend manifest helper(s) for binary/dir artifacts
     - [x] `src/shared/artifact-io.js`
     - [x] `src/shared/artifact-io/manifest.js`
-    - [ ] Ensure strict=default; non-strict uses legacy guessing w/ warning
+    - [x] Ensure strict=default; non-strict uses legacy guessing w/ warning
 [x] Update retrieval loaders
     - [x] `src/retrieval/cli-index.js` (dense + HNSW paths)
     - [x] `src/retrieval/cli/load-indexes.js` (LanceDB attach)
@@ -73,33 +73,33 @@
     - [x] `src/index/validate.js`
 
 ### 7.2.4 index_state embedding identity + backend presence
-[ ] Stage2 (build index) emits identity + pending fields
-    - [ ] `src/index/build/indexer/steps/write.js`
-[ ] Stage3 (build-embeddings) updates ready/pending + backends
-    - [ ] `tools/build-embeddings/runner.js`
-    - [ ] Include `embeddingIdentity`, `embeddingIdentityKey`, `backends.*`
+[x] Stage2 (build index) emits identity + pending fields
+    - [x] `src/index/build/indexer/steps/write.js`
+[x] Stage3 (build-embeddings) updates ready/pending + backends
+    - [x] `tools/build-embeddings/runner.js`
+    - [x] Include `embeddingIdentity`, `embeddingIdentityKey`, `backends.*`
 
 ### 7.2.5 Tests for manifest completeness + strict discovery
-[ ] Add manifest coverage tests
-    - [ ] `tests/manifest-embeddings-pieces.js`
-    - [ ] `tests/artifact-io-manifest-discovery.test.js` updates
-[ ] Add strict retrieval failure test
-    - [ ] `tests/retrieval-strict-manifest-embeddings.js`
-[ ] Add sqlite-vec marker test (if marker implemented)
-    - [ ] ensure manifest entry appears only when sqlite-vec built
-[ ] Ensure all optional-dependency tests skip when deps missing (hnswlib-node, lancedb, sqlite-vec)
-    - [ ] Update `docs/testing/truth-table.md` to codify skip behavior for optional deps
-    - [ ] Use `tests/helpers/optional-deps.js` helper for consistent skips
+[x] Add manifest coverage tests
+    - [x] `tests/manifest-embeddings-pieces.js`
+    - [x] `tests/artifact-io-manifest-discovery.test.js` updates
+[x] Add strict retrieval failure test
+    - [x] `tests/retrieval-strict-manifest-embeddings.js`
+[x] Add sqlite-vec marker test (if marker implemented)
+    - [x] ensure manifest entry appears only when sqlite-vec built
+[x] Ensure all optional-dependency tests skip when deps missing (hnswlib-node, lancedb, sqlite-vec)
+    - [x] Update `docs/testing/truth-table.md` to codify skip behavior for optional deps
+    - [x] Use `tests/helpers/optional-deps.js` helper for consistent skips
 
 ## 7.3 Quantization invariants end-to-end
 ### 7.3.1 Clamp quantization levels globally
-[ ] Clamp in `src/storage/sqlite/vector.js` (`resolveQuantizationParams`)
-[ ] Clamp in `src/shared/embedding-utils.js` (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`)
-[ ] Ensure all call paths use clamped quantizer
-    - [ ] `src/index/embedding.js`
-    - [ ] `tools/build-embeddings/embed.js`
-    - [ ] `src/storage/sqlite/build/incremental-update.js`
-    - [ ] `src/index/build/file-processor/embeddings.js`
+[x] Clamp in `src/storage/sqlite/vector.js` (`resolveQuantizationParams`)
+[x] Clamp in `src/shared/embedding-utils.js` (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`)
+[x] Ensure all call paths use clamped quantizer
+    - [x] `src/index/embedding.js`
+    - [x] `tools/build-embeddings/embed.js`
+    - [x] `src/storage/sqlite/build/incremental-update.js`
+    - [x] `src/index/build/file-processor/embeddings.js`
 
 ### 7.3.2 Ensure uint8 artifacts are actually 0..255
 [ ] Validate dense JSON vectors never exceed 255
@@ -258,7 +258,7 @@
 [ ] Do not rename dense vector files
 [ ] Queue payload versioning explicit + safe upgrade path
 [ ] index_state fields additive only
-[ ] Strict manifest missing -> fail; non-strict -> warn + fallback
+[x] Strict manifest missing -> fail; non-strict -> warn + fallback
 [ ] Optional deps (hnswlib/lancedb) remain optional and do not advertise missing backends
 [ ] Quantization clamp may invalidate caches; document clearly
 
@@ -279,6 +279,26 @@
 
 ---
 
+## Silent test logging + env sync sweep
+[x] Add shared helper for env sync + opt-in logging
+    - [x] `tests/helpers/test-env.js`
+[x] `tests/abort/abort-propagates-to-subprocess.test.js`
+[x] `tests/harness/timeout-target.js`
+[x] `tests/subprocess/abort-kills-child.test.js`
+[x] `tests/subprocess/spawn-error-propagates.test.js`
+[x] `tests/subprocess/timeout-kills-child.test.js`
+[x] `tests/perf/sqlite-p95-latency.test.js`
+[x] `tests/helpers/kill-tree.js`
+[x] `tests/api-server-stream.js`
+[x] `tests/helpers/api-server.js`
+[x] `tests/download-dicts.js`
+[x] `tests/perf/bench/run.test.js`
+[x] `tests/subprocess-quoting.js`
+
+---
+
 ## Status log / conflicts
 - 2026-01-31: Plan created.
 - 2026-01-31: Phase 7.2.1-7.2.3 schema, manifest writer, strict loader updates in progress (non-strict warnings still pending).
+- 2026-01-31: Phase 7.2.4/7.2.5 done; non-strict manifest warnings + optional-deps helper + tests added.
+- 2026-01-31: Phase 7.3.1 clamp applied across quantization helpers.

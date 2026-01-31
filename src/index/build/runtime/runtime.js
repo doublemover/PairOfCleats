@@ -19,7 +19,7 @@ import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -319,6 +319,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     embeddingProvider,
     embeddingOnnx,
     embeddingQueue,
+    embeddingIdentity,
+    embeddingIdentityKey,
     embeddingCache,
     useStubEmbeddings,
     modelConfig,
@@ -354,7 +356,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     : null;
   const debugCrash = argv['debug-crash'] === true
     || envConfig.debugCrash === true
-    || indexingConfig.debugCrash === true;
+    || indexingConfig.debugCrash === true
+    || isTestingEnv();
 
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir;
@@ -692,6 +695,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     embeddingProvider,
     embeddingOnnx,
     embeddingQueue,
+    embeddingIdentity,
+    embeddingIdentityKey,
     embeddingCache,
     fileCaps,
     guardrails,

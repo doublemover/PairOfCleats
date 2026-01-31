@@ -51,7 +51,8 @@ export function parseSearchArgs(rawArgs) {
     'modified-since': { type: 'string' },
     risk: { type: 'string' },
     'risk-tag': { type: 'string' },
-    'stub-embeddings': { type: 'boolean' }
+    'stub-embeddings': { type: 'boolean' },
+    'non-strict': { type: 'boolean', default: false }
   };
 
   return yargs(rawArgs)
@@ -92,7 +93,8 @@ export function getSearchUsage() {
     '  --ext <extension>',
     '  --modified-after <iso-date>',
     '  --modified-since <days>',
-    '  --filter "<expr>"'
+    '  --filter "<expr>"',
+    '  --non-strict'
   ].join('\n');
 }
 

@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
+import { resolveSilentStdio } from './test-env.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const runCommand = (command, args) => new Promise((resolve) => {
-  const child = spawn(command, args, { stdio: 'ignore' });
+  const child = spawn(command, args, { stdio: resolveSilentStdio('ignore') });
   child.on('close', (code) => resolve(code === 0));
   child.on('error', () => resolve(false));
 });

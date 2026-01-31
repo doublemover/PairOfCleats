@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { tryImport } from '../src/shared/optional-deps.js';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { requireLanceDb } from './helpers/optional-deps.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -12,11 +12,7 @@ const tempRoot = path.join(root, '.testCache', 'lancedb-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-const lanceAvailable = (await tryImport('@lancedb/lancedb')).ok;
-if (!lanceAvailable) {
-  console.warn('lancedb missing; skipping lancedb-ann test.');
-  process.exit(0);
-}
+await requireLanceDb({ reason: 'lancedb not available; skipping lancedb-ann test.' });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

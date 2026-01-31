@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
+import { resolveSilentStdio } from '../helpers/test-env.js';
 
 const pidFile = process.env.PAIROFCLEATS_TEST_PID_FILE;
 if (!pidFile) {
@@ -9,7 +10,7 @@ if (!pidFile) {
 }
 
 const spawnSleeper = () => spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {
-  stdio: 'ignore'
+  stdio: resolveSilentStdio('ignore')
 });
 
 const child = spawnSleeper();

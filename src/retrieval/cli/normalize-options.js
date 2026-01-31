@@ -195,6 +195,7 @@ export function normalizeSearchOptions({
 
   const explain = argv.explain === true || argv.why === true;
   const denseVectorMode = 'merged';
+  const strict = argv['non-strict'] ? false : true;
 
   const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
 
@@ -267,6 +268,7 @@ export function normalizeSearchOptions({
     fieldWeightsConfig: null,
     explain,
     denseVectorMode,
+    strict,
     backendArg,
     lancedbConfig
   };

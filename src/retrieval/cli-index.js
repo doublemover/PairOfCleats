@@ -48,6 +48,18 @@ export async function loadIndex(dir, options) {
       return null;
     }
   };
+  const loadOptionalArray = async (baseName) => {
+    try {
+      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES, manifest, strict });
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(
+          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
+        );
+      }
+      return null;
+    }
+  };
   const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict });
   const fileMetaRaw = await loadOptionalArray('file_meta');
   let fileMetaById = null;
@@ -79,18 +91,6 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const loadOptionalArray = async (baseName) => {
-    try {
-      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES, manifest, strict });
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(
-          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
-        );
-      }
-      return null;
-    }
-  };
   const fileRelationsRaw = await loadOptionalArray('file_relations');
   const repoMap = await loadOptionalArray('repo_map');
   let fileRelations = null;

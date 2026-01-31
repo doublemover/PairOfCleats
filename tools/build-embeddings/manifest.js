@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES, loadPiecesManifest, readJsonFile } from '../../src/shared/artifact-io.js';
-import { ARTIFACT_SCHEMA_DEFS } from '../../src/shared/artifact-schemas.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../src/shared/artifact-schemas.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { checksumFile } from '../../src/shared/hash.js';
@@ -79,15 +79,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     { type: 'embeddings', name: 'dense_vectors_sqlite_vec_meta', format: 'json', path: 'dense_vectors_sqlite_vec.meta.json', count: totalChunks, dims }
   ];
   const schemaNames = new Set(Object.keys(ARTIFACT_SCHEMA_DEFS));
-  const nonJsonPublicArtifacts = new Set([
-    'dense_vectors_hnsw',
-    'dense_vectors_doc_hnsw',
-    'dense_vectors_code_hnsw',
-    'dense_vectors_lancedb',
-    'dense_vectors_doc_lancedb',
-    'dense_vectors_code_lancedb'
-  ]);
-  const allowedNames = new Set([...schemaNames, ...nonJsonPublicArtifacts]);
+  const allowedNames = new Set([...schemaNames, ...MANIFEST_ONLY_ARTIFACT_NAMES]);
   const enriched = [];
   for (const entry of embeddingPieces) {
     if (!allowedNames.has(entry.name)) continue;

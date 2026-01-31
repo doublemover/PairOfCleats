@@ -147,6 +147,17 @@ export async function loadSearchIndexes({
     }
   }
 
+  if (strict) {
+    const ensureManifest = (dir) => {
+      if (!dir) return;
+      loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+    };
+    if (runCode) ensureManifest(codeDir);
+    if (runProse) ensureManifest(proseDir);
+    if (runRecords) ensureManifest(recordsDir);
+    if (resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
+  }
+
   const compatibilityTargets = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
@@ -156,15 +167,32 @@ export async function loadSearchIndexes({
   if (compatibilityTargets.length) {
     const keys = new Map();
     for (const entry of compatibilityTargets) {
-      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
       keys.set(entry.mode, key);
     }
     const uniqueKeys = new Set(keys.values());
     if (uniqueKeys.size > 1) {
-      const details = Array.from(keys.entries())
-        .map(([mode, key]) => `- ${mode}: ${key}`)
-        .join('\n');
-      throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+      if (!resolvedRunExtractedProse && keys.has('extracted-prose')) {
+        const filtered = new Map(Array.from(keys.entries()).filter(([mode]) => mode !== 'extracted-prose'));
+        const filteredKeys = new Set(filtered.values());
+        if (filteredKeys.size <= 1) {
+          if (emitOutput) {
+            console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
+          }
+          resolvedLoadExtractedProse = false;
+          extractedProseDir = null;
+        } else {
+          const details = Array.from(keys.entries())
+            .map(([mode, key]) => `- ${mode}: ${key}`)
+            .join('\n');
+          throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+        }
+      } else {
+        const details = Array.from(keys.entries())
+          .map(([mode, key]) => `- ${mode}: ${key}`)
+          .join('\n');
+        throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+      }
     }
   }
 
@@ -272,7 +300,22 @@ export async function loadSearchIndexes({
       : target === 'code'
         ? 'dense_vectors_code_lancedb'
         : 'dense_vectors_lancedb';
-    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+    let manifest = null;
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+    } catch (err) {
+      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+        throw err;
+      }
+      idx.lancedb = {
+        target,
+        dir: null,
+        metaPath: targetPaths.metaPath || null,
+        meta: null,
+        available: false
+      };
+      return idx.lancedb;
+    }
     let meta = null;
     try {
       meta = await loadJsonObjectArtifact(dir, metaName, {
@@ -282,11 +325,18 @@ export async function loadSearchIndexes({
         fallbackPath: targetPaths.metaPath || null
       });
     } catch {}
-    const lanceDir = resolveDirArtifactPath(dir, dirName, {
-      manifest,
-      strict,
-      fallbackPath: targetPaths.dir || null
-    });
+    let lanceDir = null;
+    try {
+      lanceDir = resolveDirArtifactPath(dir, dirName, {
+        manifest,
+        strict,
+        fallbackPath: targetPaths.dir || null
+      });
+    } catch (err) {
+      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+        throw err;
+      }
+    }
     const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
     idx.lancedb = {
       target,

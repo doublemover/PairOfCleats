@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { rankHnswIndex } from '../src/shared/hnsw.js';
+import { requireHnswLib } from './helpers/optional-deps.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -38,6 +39,8 @@ if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
   console.error('Expected candidate-set filtering and deterministic tie-breaks in HNSW ranking.');
   process.exit(1);
 }
+
+requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

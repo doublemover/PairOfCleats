@@ -9,11 +9,13 @@ import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../src/s
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { createCrashLogger } from '../../src/index/build/crash-log.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
-import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
+import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../src/shared/embedding.js';
 import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
+import { isTestingEnv } from '../../src/shared/env.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -86,6 +88,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
   };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
+  const normalizeDenseVectorMode = (value) => {
+    const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (raw === 'code' || raw === 'doc' || raw === 'auto' || raw === 'merged') return raw;
+    return 'merged';
+  };
+  const denseVectorMode = normalizeDenseVectorMode(userConfig?.search?.denseVectorMode);
+  const readJsonOptional = (filePath) => {
+    if (!filePath || !fsSync.existsSync(filePath)) return null;
+    try {
+      return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
+    } catch {
+      return null;
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -143,6 +159,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const crashLoggingEnabled = isTestingEnv()
+    || process.env.PAIROFCLEATS_DEBUG_CRASH === '1'
+    || process.env.PAIROFCLEATS_DEBUG_CRASH === 'true';
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: crashLoggingEnabled,
+    log: null
+  });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
   const buildStatePath = resolveBuildStatePath(indexRoot);
@@ -185,6 +209,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         pending: true,
         mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
         service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+        embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
+        embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
         updatedAt: stateNow
       };
       try {
@@ -278,6 +304,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         mode,
         logger
       });
+      let hnswResult = null;
 
       const cacheDir = resolveCacheDir(cacheRoot, mode);
       await fs.mkdir(cacheDir, { recursive: true });
@@ -636,14 +663,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
       if (hnswConfig.enabled) {
         try {
-          const result = await hnswBuilder.writeIndex({
+          hnswResult = await hnswBuilder.writeIndex({
             indexPath: hnswIndexPath,
             metaPath: hnswMetaPath,
             modelId,
             dims: finalDims
           });
-          if (!result.skipped) {
-            log(`[embeddings] ${mode}: wrote HNSW index (${result.count} vectors).`);
+          if (hnswResult && !hnswResult.skipped) {
+            log(`[embeddings] ${mode}: wrote HNSW index (${hnswResult.count} vectors).`);
           }
         } catch (err) {
           warn(`[embeddings] ${mode}: failed to write HNSW index: ${err?.message || err}`);
@@ -688,6 +715,84 @@ export async function runBuildEmbeddingsWithConfig(config) {
         warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
       }
 
+      let sqliteVecState = { enabled: false, available: false };
+      if (mode === 'code' || mode === 'prose') {
+        const sqliteResult = updateSqliteDense({
+          Database,
+          root,
+          userConfig,
+          indexRoot,
+          mode,
+          vectors: mergedVectors,
+          dims: finalDims,
+          scale: denseScale,
+          modelId,
+          quantization,
+          emitOutput: true,
+          warnOnMissing: false,
+          logger
+        });
+        const vectorAnn = sqliteResult?.vectorAnn || null;
+        sqliteVecState = {
+          enabled: vectorAnn?.enabled === true,
+          available: vectorAnn?.available === true
+        };
+        if (sqliteVecState.available) {
+          sqliteVecState.dims = finalDims;
+          sqliteVecState.count = totalChunks;
+        }
+        const sqliteMetaPath = path.join(indexDir, 'dense_vectors_sqlite_vec.meta.json');
+        if (vectorAnn?.available && vectorAnn?.table) {
+          const sqliteMeta = {
+            version: 1,
+            generatedAt: new Date().toISOString(),
+            model: modelId || null,
+            dims: finalDims,
+            count: totalChunks,
+            table: vectorAnn.table,
+            embeddingColumn: vectorAnn.column || null,
+            idColumn: vectorAnn.idColumn || 'rowid'
+          };
+          try {
+            await writeJsonObjectFile(sqliteMetaPath, { fields: sqliteMeta, atomic: true });
+          } catch {
+            // Ignore sqlite vec meta write failures.
+          }
+        } else {
+          try {
+            await fs.rm(sqliteMetaPath, { force: true });
+          } catch {}
+        }
+      }
+
+      const hnswMeta = readJsonOptional(hnswMetaPath);
+      const hnswIndexExists = fsSync.existsSync(hnswIndexPath) || fsSync.existsSync(`${hnswIndexPath}.bak`);
+      const hnswAvailable = Boolean(hnswMeta) && hnswIndexExists;
+      const hnswState = {
+        enabled: hnswConfig.enabled !== false,
+        available: hnswAvailable,
+        target: denseVectorMode
+      };
+      if (hnswMeta) {
+        hnswState.dims = Number.isFinite(Number(hnswMeta.dims)) ? Number(hnswMeta.dims) : finalDims;
+        hnswState.count = Number.isFinite(Number(hnswMeta.count)) ? Number(hnswMeta.count) : totalChunks;
+      }
+
+      const lancePaths = resolveLanceDbPaths(indexDir);
+      const lanceMeta = readJsonOptional(lancePaths?.merged?.metaPath);
+      const lanceAvailable = Boolean(lanceMeta)
+        && Boolean(lancePaths?.merged?.dir)
+        && fsSync.existsSync(lancePaths.merged.dir);
+      const lancedbState = {
+        enabled: lanceConfig.enabled !== false,
+        available: lanceAvailable,
+        target: denseVectorMode
+      };
+      if (lanceMeta) {
+        lancedbState.dims = Number.isFinite(Number(lanceMeta.dims)) ? Number(lanceMeta.dims) : finalDims;
+        lancedbState.count = Number.isFinite(Number(lanceMeta.count)) ? Number(lanceMeta.count) : totalChunks;
+      }
+
       const now = new Date().toISOString();
       indexState.generatedAt = indexState.generatedAt || now;
       indexState.updatedAt = now;
@@ -699,6 +804,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
         pending: false,
         mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
         service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+        embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
+        embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
+        backends: {
+          ...(indexState.embeddings?.backends || {}),
+          hnsw: hnswState,
+          lancedb: lancedbState,
+          sqliteVec: sqliteVecState
+        },
         updatedAt: now
       };
       if (indexState.enrichment && indexState.enrichment.enabled) {
@@ -720,24 +833,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore piece manifest write failures.
       }
 
-      if (mode === 'code' || mode === 'prose') {
-        updateSqliteDense({
-          Database,
-          root,
-          userConfig,
-          indexRoot,
-          mode,
-          vectors: mergedVectors,
-          dims: finalDims,
-          scale: denseScale,
-          modelId,
-          quantization,
-          emitOutput: true,
-          warnOnMissing: false,
-          logger
-        });
-      }
-
       const validation = await validateIndexArtifacts({
         root,
         indexRoot,
@@ -746,6 +841,26 @@ export async function runBuildEmbeddingsWithConfig(config) {
         sqliteEnabled: false
       });
       if (!validation.ok) {
+        if (validation.issues?.length) {
+          error('Index validation issues (first 10):');
+          validation.issues.slice(0, 10).forEach((issue) => {
+            error(`- ${issue}`);
+          });
+        }
+        if (validation.warnings?.length) {
+          warn('Index validation warnings (first 10):');
+          validation.warnings.slice(0, 10).forEach((warning) => {
+            warn(`- ${warning}`);
+          });
+        }
+        crashLogger.logError({
+          phase: `embeddings:${mode}`,
+          stage: 'validation',
+          message: `[embeddings] ${mode} index validation failed`,
+          issues: validation.issues || [],
+          warnings: validation.warnings || [],
+          hints: validation.hints || []
+        });
         throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
       }
 

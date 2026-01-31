@@ -2,6 +2,16 @@ export const DEFAULT_EMBEDDING_POOLING = 'mean';
 export const DEFAULT_EMBEDDING_NORMALIZE = true;
 export const DEFAULT_EMBEDDING_TRUNCATION = true;
 
+const resolveQuantizationLevels = (value) => {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return 256;
+  const floored = Math.floor(raw);
+  if (!Number.isFinite(floored)) return 256;
+  if (floored < 2) return 2;
+  if (floored > 256) return 256;
+  return floored;
+};
+
 export const isVectorLike = (value) => (
   Array.isArray(value)
   || (ArrayBuffer.isView(value) && !(value instanceof DataView))
@@ -58,15 +68,18 @@ export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 2
   const length = Math.max(0, Math.floor(vec.length));
   if (!length) return [];
   const out = new Array(length);
-  const range = maxVal - minVal;
+  const lvl = resolveQuantizationLevels(levels);
+  const min = Number(minVal);
+  const max = Number(maxVal);
+  const range = max - min;
   if (!Number.isFinite(range) || range === 0) {
     return out.fill(0);
   }
-  const scale = (levels - 1) / range;
-  const maxQ = levels - 1;
+  const scale = (lvl - 1) / range;
+  const maxQ = lvl - 1;
   for (let i = 0; i < length; i += 1) {
     const f = Number(vec[i]);
-    const q = Math.round(((f - minVal) * scale));
+    const q = Math.round(((f - min) * scale));
     out[i] = Math.max(0, Math.min(maxQ, q));
   }
   return out;
@@ -77,8 +90,7 @@ export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, level
   const length = Number.isFinite(vec.length) ? Math.max(0, Math.floor(vec.length)) : 0;
   if (!length) return new Uint8Array(0);
 
-  const lvlRaw = Number(levels);
-  const lvl = Number.isFinite(lvlRaw) ? Math.max(2, Math.min(256, Math.floor(lvlRaw))) : 256;
+  const lvl = resolveQuantizationLevels(levels);
   const min = Number(minVal);
   const max = Number(maxVal);
   const range = max - min;

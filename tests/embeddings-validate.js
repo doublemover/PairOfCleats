@@ -77,6 +77,23 @@ if (embeddings.enabled !== true || embeddings.ready !== true || embeddings.pendi
   console.error('index_state embeddings flags not marked ready after build-embeddings.');
   process.exit(1);
 }
+if (!embeddings.embeddingIdentity || typeof embeddings.embeddingIdentity !== 'object') {
+  console.error('index_state embeddings missing embeddingIdentity after build-embeddings.');
+  process.exit(1);
+}
+if (!embeddings.embeddingIdentityKey || typeof embeddings.embeddingIdentityKey !== 'string') {
+  console.error('index_state embeddings missing embeddingIdentityKey after build-embeddings.');
+  process.exit(1);
+}
+const backends = embeddings.backends || null;
+if (!backends || typeof backends !== 'object') {
+  console.error('index_state embeddings missing backends after build-embeddings.');
+  process.exit(1);
+}
+if (!('hnsw' in backends) || !('lancedb' in backends) || !('sqliteVec' in backends)) {
+  console.error('index_state embeddings backends missing expected keys.');
+  process.exit(1);
+}
 
 console.log('Stage3 embeddings validation test passed');
 
