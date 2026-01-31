@@ -28,7 +28,7 @@ const maybeTrimRow = (row) => {
   const bytes = Buffer.byteLength(JSON.stringify(row), 'utf8');
   if (bytes <= MAX_ROW_BYTES) return row;
   let trimmed = { ...row };
-  if (trimmed.extensions) trimmed.extensions = null;
+  if (trimmed.extensions) delete trimmed.extensions;
   let trimmedBytes = Buffer.byteLength(JSON.stringify(trimmed), 'utf8');
   if (trimmedBytes <= MAX_ROW_BYTES) return trimmed;
   if (trimmed.segmentId) trimmed.segmentId = null;
