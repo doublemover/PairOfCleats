@@ -36,6 +36,7 @@ import { applyCollapse, applyLimits, applyScopeFilter, normalizeIncludeList, res
 import { buildFileNodes } from './build-map/nodes.js';
 export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   const warnings = [];
+  const strict = options.strict !== false;
   const includes = normalizeIncludeList(options.include);
   const limits = {
     maxFiles: Number.isFinite(Number(options.maxFiles))
@@ -51,12 +52,12 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
 
   const repoMap = readJsonArrayOptional(indexDir, 'repo_map', warnings) || [];
   const fileRelations = readJsonArrayOptional(indexDir, 'file_relations', warnings) || [];
-  const graphRelations = readGraphRelationsOptional(indexDir, warnings) || null;
+  const graphRelations = readGraphRelationsOptional(indexDir, warnings, { strict }) || null;
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'), warnings) || null;
 
   let chunkMeta = [];
   try {
-    chunkMeta = await loadChunkMeta(indexDir);
+    chunkMeta = await loadChunkMeta(indexDir, { strict });
   } catch (err) {
     warnings.push(`chunk_meta missing: ${err?.message || err}`);
   }
@@ -65,6 +66,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   const membersByFile = new Map();
   const memberById = new Map();
   const aliasById = new Map();
+  const memberByChunkUid = new Map();
   let hasDataflow = false;
   let hasControlFlow = false;
 
@@ -96,16 +98,32 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     const name = meta?.name || chunk?.name || null;
     if (!file || !name) continue;
     const resolvedChunkId = resolveChunkId(chunk);
+    const chunkUid = meta?.chunkUid || chunk?.chunkUid || null;
+    if (!chunkUid) {
+      const message = `chunkUid missing for ${file}::${name}`;
+      if (strict) throw new Error(message);
+      warnings.push(message);
+      continue;
+    }
+    const symbolIdentity = meta?.symbol || null;
     const symbolId = buildSymbolId({
+      symbolId: symbolIdentity?.symbolId || null,
+      chunkUid,
       file,
       name,
       kind: meta?.kind || chunk?.kind || null,
       startLine: meta?.range?.startLine || chunk?.startLine,
       chunkId: resolvedChunkId || meta?.chunkId || null
     });
+    if (chunkUid) {
+      memberByChunkUid.set(chunkUid, symbolId);
+      if (chunkUid !== symbolId) aliasById.set(chunkUid, symbolId);
+    }
     if (resolvedChunkId && resolvedChunkId !== symbolId) {
       aliasById.set(resolvedChunkId, symbolId);
     }
+    const legacyKey = `${file}::${name}`;
+    if (legacyKey && legacyKey !== symbolId) aliasById.set(legacyKey, symbolId);
     const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow);
     const controlFlow = normalizeControlFlow(meta?.controlFlow || chunk?.docmeta?.controlFlow);
     if (dataflow) hasDataflow = true;
@@ -156,27 +174,51 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   }
 
   const callEdges = graphRelations?.callGraph
-    ? buildEdgesFromGraph({ graph: graphRelations.callGraph, type: 'call', memberById, aliasById })
+    ? buildEdgesFromGraph({
+      graph: graphRelations.callGraph,
+      type: 'call',
+      memberById,
+      memberByChunkUid,
+      aliasById
+    })
     : [];
   if (includes.includes('calls')) {
     edges.push(...callEdges);
     if (!callEdges.length) {
-      edges.push(...buildEdgesFromCalls({ chunkMeta, memberIndex, memberById }));
+      edges.push(...buildEdgesFromCalls({
+        chunkMeta,
+        memberIndex,
+        memberById,
+        memberByChunkUid,
+        aliasById
+      }));
     }
   }
 
   const usageEdges = graphRelations?.usageGraph
-    ? buildEdgesFromGraph({ graph: graphRelations.usageGraph, type: 'usage', memberById, aliasById })
+    ? buildEdgesFromGraph({
+      graph: graphRelations.usageGraph,
+      type: 'usage',
+      memberById,
+      memberByChunkUid,
+      aliasById
+    })
     : [];
   if (includes.includes('usages')) {
     edges.push(...usageEdges);
     if (!usageEdges.length) {
-      edges.push(...buildEdgesFromUsage({ chunkMeta, memberIndex, memberById }));
+      edges.push(...buildEdgesFromUsage({
+        chunkMeta,
+        memberIndex,
+        memberById,
+        memberByChunkUid,
+        aliasById
+      }));
     }
   }
 
   if (includes.includes('dataflow')) {
-    edges.push(...buildEdgesFromCallSummaries({ chunkMeta, memberById }));
+    edges.push(...buildEdgesFromCallSummaries({ chunkMeta, memberById, memberByChunkUid }));
   }
 
   if (includes.includes('aliases')) {

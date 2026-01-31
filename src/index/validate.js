@@ -79,6 +79,7 @@ export async function validateIndexArtifacts(input = {}) {
     optionalArtifacts,
     lanceConfig
   } = buildArtifactLists(userConfig, postingsConfig);
+  const symbolArtifacts = new Set(['symbols', 'symbol_occurrences', 'symbol_edges']);
 
   for (const mode of modes) {
     const dir = resolveIndexDir(root, mode, userConfig, indexRoot, strict);
@@ -128,6 +129,9 @@ export async function validateIndexArtifacts(input = {}) {
         }
       };
 
+    const optionalArtifactsForMode = mode === 'code'
+      ? optionalArtifacts
+      : optionalArtifacts.filter((name) => !symbolArtifacts.has(name));
     if (strict) {
       for (const name of requiredArtifacts) {
         checkPresence(name, { required: true });
@@ -135,7 +139,7 @@ export async function validateIndexArtifacts(input = {}) {
       for (const name of strictOnlyRequiredArtifacts) {
         checkPresence(name, { required: true });
       }
-      for (const name of optionalArtifacts) {
+      for (const name of optionalArtifactsForMode) {
         checkPresence(name, { required: false });
       }
     } else {
@@ -147,7 +151,7 @@ export async function validateIndexArtifacts(input = {}) {
           report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
         }
       }
-      for (const name of optionalArtifacts) {
+      for (const name of optionalArtifactsForMode) {
         if (!hasLegacyArtifact(name)) {
           modeReport.warnings.push(name);
           report.warnings.push(`[${mode}] optional ${name} missing`);
@@ -189,6 +193,11 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
       validateChunkIds(report, mode, chunkMeta);
+      const chunkUidSet = new Set();
+      for (const entry of chunkMeta) {
+        const uid = entry?.chunkUid || entry?.metaV2?.chunkUid || null;
+        if (uid) chunkUidSet.add(uid);
+      }
       if (strict) {
         validateChunkIdentity(report, mode, chunkMeta);
         validateMetaV2Types(report, mode, chunkMeta);
@@ -360,6 +369,88 @@ export async function validateIndexArtifacts(input = {}) {
       }
       if (callSites) {
         validateSchema(report, mode, 'call_sites', callSites, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
+      if (mode === 'code') {
+        let symbols = null;
+        if (shouldLoadOptional('symbols')) {
+          try {
+            symbols = await loadJsonArrayArtifact(dir, 'symbols', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbols load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbols) {
+          validateSchema(report, mode, 'symbols', symbols, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbols', symbols.length, 'symbols');
+          for (const entry of symbols) {
+            if (!entry?.chunkUid) continue;
+            if (!chunkUidSet.has(entry.chunkUid)) {
+              addIssue(report, mode, `symbols chunkUid missing in chunk_meta (${entry.chunkUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+          }
+        }
+
+        let symbolOccurrences = null;
+        if (shouldLoadOptional('symbol_occurrences')) {
+          try {
+            symbolOccurrences = await loadJsonArrayArtifact(dir, 'symbol_occurrences', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbol_occurrences load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbolOccurrences) {
+          validateSchema(report, mode, 'symbol_occurrences', symbolOccurrences, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbol_occurrences', symbolOccurrences.length, 'symbol_occurrences');
+          for (const entry of symbolOccurrences) {
+            const hostUid = entry?.host?.chunkUid || null;
+            if (!hostUid) continue;
+            if (!chunkUidSet.has(hostUid)) {
+              addIssue(report, mode, `symbol_occurrences host chunkUid missing in chunk_meta (${hostUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+          }
+        }
+
+        let symbolEdges = null;
+        if (shouldLoadOptional('symbol_edges')) {
+          try {
+            symbolEdges = await loadJsonArrayArtifact(dir, 'symbol_edges', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbol_edges load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbolEdges) {
+          validateSchema(report, mode, 'symbol_edges', symbolEdges, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbol_edges', symbolEdges.length, 'symbol_edges');
+          const counts = { resolved: 0, ambiguous: 0, unresolved: 0 };
+          for (const edge of symbolEdges) {
+            const fromUid = edge?.from?.chunkUid || null;
+            if (fromUid && !chunkUidSet.has(fromUid)) {
+              addIssue(report, mode, `symbol_edges from chunkUid missing in chunk_meta (${fromUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+            const status = edge?.to?.status || null;
+            if (status && Object.prototype.hasOwnProperty.call(counts, status)) {
+              counts[status] += 1;
+            }
+            if (edge?.to?.status === 'resolved') {
+              const resolvedUid = edge?.to?.resolved?.chunkUid || null;
+              if (!resolvedUid || !chunkUidSet.has(resolvedUid)) {
+                addIssue(report, mode, `symbol_edges resolved chunkUid missing in chunk_meta (${resolvedUid || 'missing'})`, 'Rebuild index artifacts for this mode.');
+                break;
+              }
+            }
+          }
+          const total = counts.resolved + counts.ambiguous + counts.unresolved;
+          if (total) {
+            const resolvedRate = (counts.resolved / total).toFixed(3);
+            const ambiguousRate = (counts.ambiguous / total).toFixed(3);
+            const unresolvedRate = (counts.unresolved / total).toFixed(3);
+            report.hints.push(`[${mode}] symbol_edges resolution: resolved=${resolvedRate}, ambiguous=${ambiguousRate}, unresolved=${unresolvedRate}`);
+          }
+        }
       }
 
       let vfsManifest = null;

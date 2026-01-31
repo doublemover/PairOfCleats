@@ -23,6 +23,9 @@ import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes, summarizeFilterIndex } from './artifacts/helpers.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from './artifacts/writers/call-sites.js';
+import { enqueueSymbolsArtifacts } from './artifacts/writers/symbols.js';
+import { enqueueSymbolOccurrencesArtifacts } from './artifacts/writers/symbol-occurrences.js';
+import { enqueueSymbolEdgesArtifacts } from './artifacts/writers/symbol-edges.js';
 import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
   createChunkMetaIterator,
@@ -428,6 +431,44 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  if (mode === 'code') {
+    const symbolsCompression = resolveShardCompression('symbols');
+    await enqueueSymbolsArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolsCompression,
+      gzipOptions: symbolsCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+    const symbolOccurrencesCompression = resolveShardCompression('symbol_occurrences');
+    await enqueueSymbolOccurrencesArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolOccurrencesCompression,
+      gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+    const symbolEdgesCompression = resolveShardCompression('symbol_edges');
+    await enqueueSymbolEdgesArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolEdgesCompression,
+      gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+  }
   await enqueueGraphRelationsArtifacts({
     graphRelations,
     outDir,

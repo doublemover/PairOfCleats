@@ -24,7 +24,7 @@ import { sha1 } from './hash.js';
  * @property {{scheme:'scip'|'lsif'|'lsp'|'heuristic-v1'|'chunkUid',confidence:'high'|'medium'|'low',notes?:string}|null|undefined} evidence
  */
 
-const SEMANTIC_ID_PREFIX = /^(scip:|lsif:|lsp:)/i;
+const SEMANTIC_ID_PREFIX = /^(sym1:|scip:|lsif:|lsp:|ctags:)/i;
 
 /**
  * Build a ChunkRef from an in-memory chunk record.
@@ -86,19 +86,33 @@ export const resolveChunkJoinKey = (chunk) => {
   return null;
 };
 
-export const buildSymbolKey = ({ virtualPath, name, chunkId }) => {
+export const buildSymbolKey = ({ virtualPath, qualifiedName, kindGroup, name, chunkId }) => {
   if (!virtualPath) return null;
-  const suffix = name || chunkId || '';
-  if (!suffix) return null;
-  return `ts:heur:v1:${virtualPath}:${suffix}`;
+  const safeName = qualifiedName || name || chunkId || '';
+  if (!safeName) return null;
+  const group = kindGroup || 'other';
+  return `${virtualPath}::${safeName}::${group}`;
 };
 
-export const buildSignatureKey = (signature) => {
+const normalizeSignature = (signature) => {
   if (!signature) return null;
-  return `sig:v1:${sha1(String(signature))}`;
+  return String(signature).replace(/\s+/g, ' ').trim();
 };
 
-export const buildScopedSymbolId = (symbolKey, signatureKey) => {
-  if (!symbolKey || !signatureKey) return null;
-  return `sid:v1:${sha1(`${symbolKey}|${signatureKey}`)}`;
+export const buildSignatureKey = ({ qualifiedName, signature }) => {
+  const normalized = normalizeSignature(signature);
+  if (!qualifiedName || !normalized) return null;
+  return `${qualifiedName}::${normalized}`;
+};
+
+export const buildScopedSymbolId = ({ kindGroup, symbolKey, signatureKey, chunkUid }) => {
+  if (!kindGroup || !symbolKey || !chunkUid) return null;
+  const sig = signatureKey || '';
+  return `${kindGroup}|${symbolKey}|${sig}|${chunkUid}`;
+};
+
+export const buildSymbolId = ({ scopedId, scheme = 'heur' }) => {
+  if (!scopedId) return null;
+  const prefix = `sym1:${scheme}:`;
+  return `${prefix}${sha1(String(scopedId))}`;
 };

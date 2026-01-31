@@ -9,6 +9,26 @@ const statsRoot = path.join(tempRoot, 'stats');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(statsRoot, { recursive: true });
 
+const buildSymbolMeta = ({ file, name, kind, chunkUid }) => {
+  const kindGroup = String(kind || '').toLowerCase().includes('class') ? 'class' : 'function';
+  return {
+    chunkUid,
+    file,
+    name,
+    kind,
+    symbol: {
+      v: 1,
+      scheme: 'heur',
+      kindGroup,
+      qualifiedName: name,
+      symbolKey: `${file}::${name}::${kindGroup}`,
+      signatureKey: null,
+      scopedId: `${kindGroup}|${file}::${name}::${kindGroup}|${chunkUid}`,
+      symbolId: `sym1:heur:${chunkUid}`
+    }
+  };
+};
+
 const writeScenarioFile = async (rootDir, relPath, contents) => {
   const absPath = path.join(rootDir, relPath);
   await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
@@ -59,10 +79,12 @@ await runStatsScenario('zero', {
       file: 'src/zero.js',
       name: 'noop',
       kind: 'function',
+      chunkUid: 'uid-zero',
       start: 0,
       end: zeroContent.length,
       docmeta: { returnsValue: false },
-      codeRelations: {}
+      codeRelations: {},
+      metaV2: buildSymbolMeta({ file: 'src/zero.js', name: 'noop', kind: 'function', chunkUid: 'uid-zero' })
     }
   ],
   expect: {
@@ -89,6 +111,7 @@ await runStatsScenario('one-each', {
       file: 'src/consumer.js',
       name: 'buildWidget',
       kind: 'function',
+      chunkUid: 'uid-build',
       start: 0,
       end: oneConsumerContent.length,
       docmeta: {
@@ -98,12 +121,14 @@ await runStatsScenario('one-each', {
       codeRelations: {
         calls: [['buildWidget', 'makeWidget']],
         usages: ['Widget']
-      }
+      },
+      metaV2: buildSymbolMeta({ file: 'src/consumer.js', name: 'buildWidget', kind: 'function', chunkUid: 'uid-build' })
     },
     {
       file: 'src/creator.js',
       name: 'makeWidget',
       kind: 'function',
+      chunkUid: 'uid-make',
       start: 0,
       end: creatorContent.length,
       docmeta: {
@@ -113,16 +138,19 @@ await runStatsScenario('one-each', {
           sinks: [{ name: 'sink', ruleId: 'rule-sink', category: 'test', severity: 'high', tags: ['taint'] }]
         }
       },
-      codeRelations: {}
+      codeRelations: {},
+      metaV2: buildSymbolMeta({ file: 'src/creator.js', name: 'makeWidget', kind: 'function', chunkUid: 'uid-make' })
     },
     {
       file: 'src/creator.js',
       name: 'Widget',
       kind: 'class',
+      chunkUid: 'uid-widget',
       start: 0,
       end: creatorContent.length,
       docmeta: {},
-      codeRelations: {}
+      codeRelations: {},
+      metaV2: buildSymbolMeta({ file: 'src/creator.js', name: 'Widget', kind: 'class', chunkUid: 'uid-widget' })
     }
   ],
   expect: {

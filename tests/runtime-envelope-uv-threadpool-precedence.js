@@ -16,7 +16,11 @@ const baseline = resolveRuntimeEnvelope({
 });
 
 assert.strictEqual(baseline.runtime.uvThreadpoolSize.effective.value, 4, 'default uv threadpool size should be 4');
-assert.ok(!baseline.envPatch.set.UV_THREADPOOL_SIZE, 'envPatch should not set UV_THREADPOOL_SIZE by default');
+assert.strictEqual(
+  baseline.envPatch.set.UV_THREADPOOL_SIZE,
+  '4',
+  'envPatch should set UV_THREADPOOL_SIZE to the default'
+);
 
 const configEnv = { ...baseEnv };
 const configRequest = resolveRuntimeEnvelope({

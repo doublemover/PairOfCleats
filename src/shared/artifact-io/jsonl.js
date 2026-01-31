@@ -25,6 +25,9 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
   ],
   repo_map: ['file', 'name'],
   file_relations: ['file', 'relations'],
+  symbols: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],
+  symbol_occurrences: ['v', 'host', 'role', 'ref'],
+  symbol_edges: ['v', 'type', 'from', 'to'],
   call_sites: ['callSiteId', 'callerChunkUid', 'file', 'startLine', 'startCol', 'endLine', 'endCol', 'calleeRaw', 'calleeNormalized', 'args'],
   graph_relations: ['graph', 'node']
 });

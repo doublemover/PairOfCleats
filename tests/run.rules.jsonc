@@ -23,7 +23,9 @@
     {
       "lane": "unit",
       "match": [
+        "^crossfile/",
         "^unit/",
+        "^identity/",
         "^embeddings/",
         "^embedding-",
         "\\.unit(\\.|$)",

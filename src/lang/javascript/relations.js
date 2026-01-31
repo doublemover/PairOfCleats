@@ -12,12 +12,13 @@ import { parseJavaScriptAst } from './parse.js';
  * Build import/export/call/usage relations for JS chunks.
  * @param {string} text
  * @param {string} relPath
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importBindings:Object|null}}
  */
 export function buildCodeRelations(text, relPath, options = {}) {
   const dataflowEnabled = options.dataflow !== false;
   const controlFlowEnabled = options.controlFlow !== false;
   const imports = new Set();
+  const importBindings = {};
   const exports = new Set();
   const calls = [];
   const callDetails = [];
@@ -416,6 +417,25 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
     if (node.type === 'ImportDeclaration') {
       if (node.source?.value) imports.add(node.source.value);
+      const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
+      if (sourceValue && Array.isArray(node.specifiers)) {
+        node.specifiers.forEach((specifier) => {
+          const localName = specifier?.local?.name;
+          if (!localName) return;
+          if (specifier.type === 'ImportSpecifier') {
+            const importedName = specifier.imported?.name || null;
+            importBindings[localName] = { imported: importedName || null, module: sourceValue };
+            return;
+          }
+          if (specifier.type === 'ImportDefaultSpecifier') {
+            importBindings[localName] = { imported: 'default', module: sourceValue };
+            return;
+          }
+          if (specifier.type === 'ImportNamespaceSpecifier') {
+            importBindings[localName] = { imported: '*', module: sourceValue };
+          }
+        });
+      }
       node.specifiers?.forEach((s) => {
         if (s.local?.name) usages.add(s.local.name);
       });
@@ -682,6 +702,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     callDetails,
     usages: Array.from(usages),
     functionMeta,
-    classMeta
+    classMeta,
+    importBindings: Object.keys(importBindings).length ? importBindings : null
   };
 }
