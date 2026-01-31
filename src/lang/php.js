@@ -11,14 +11,89 @@ const PHP_MODIFIERS = new Set([
   'public', 'private', 'protected', 'static', 'abstract', 'final'
 ]);
 
+export const PHP_RESERVED_WORDS = new Set([
+  '__halt_compiler',
+  'abstract',
+  'and',
+  'array',
+  'as',
+  'break',
+  'callable',
+  'case',
+  'catch',
+  'class',
+  'clone',
+  'const',
+  'continue',
+  'declare',
+  'default',
+  'die',
+  'do',
+  'echo',
+  'else',
+  'elseif',
+  'empty',
+  'enddeclare',
+  'endfor',
+  'endforeach',
+  'endif',
+  'endswitch',
+  'endwhile',
+  'eval',
+  'exit',
+  'extends',
+  'false',
+  'final',
+  'finally',
+  'fn',
+  'for',
+  'foreach',
+  'from',
+  'function',
+  'global',
+  'goto',
+  'if',
+  'implements',
+  'include',
+  'include_once',
+  'instanceof',
+  'insteadof',
+  'interface',
+  'isset',
+  'list',
+  'match',
+  'namespace',
+  'new',
+  'null',
+  'or',
+  'print',
+  'private',
+  'protected',
+  'public',
+  'readonly',
+  'require',
+  'require_once',
+  'return',
+  'static',
+  'switch',
+  'throw',
+  'trait',
+  'true',
+  'try',
+  'unset',
+  'use',
+  'var',
+  'while',
+  'xor',
+  'yield'
+]);
+
 const PHP_CALL_KEYWORDS = new Set([
-  'if', 'for', 'foreach', 'while', 'switch', 'case', 'return', 'new', 'throw',
-  'catch', 'try', 'else', 'do', 'yield', 'await', 'isset', 'empty'
+  ...PHP_RESERVED_WORDS
 ]);
 
 const PHP_USAGE_SKIP = new Set([
-  ...PHP_CALL_KEYWORDS,
-  'class', 'interface', 'trait', 'function', 'null', 'true', 'false'
+  ...PHP_RESERVED_WORDS
 ]);
 
 function extractPhpModifiers(signature) {

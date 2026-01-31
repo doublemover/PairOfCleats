@@ -17,6 +17,7 @@ export {
   getMetricsDir,
   getModelConfig,
   getModelsDir,
+  getCodeDictionaryPaths,
   getDictionaryPaths,
   getRepoCacheRoot,
   getRepoDictPath,

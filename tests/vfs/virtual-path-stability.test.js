@@ -43,6 +43,11 @@ for (const testCase of cases) {
   // Verify the container component never leaks a raw '#'.
   const [containerComponent] = actual.split('#seg:');
   assert.ok(containerComponent.startsWith('.poc-vfs/'), `${testCase.name}: missing .poc-vfs prefix`);
+  assert.ok(!actual.includes('\\'), `${testCase.name}: virtual path should not contain backslashes`);
+  assert.ok(
+    !containerComponent.slice('.poc-vfs/'.length).startsWith('/'),
+    `${testCase.name}: container path should remain repo-relative`
+  );
 
   if (testCase.input.containerPath.includes('#')) {
     assert.ok(
@@ -62,5 +67,39 @@ for (const testCase of cases) {
     );
   }
 }
+
+const segmentA = buildVfsVirtualPath({
+  containerPath: 'src/segment.ts',
+  segmentUid: 'segu:v1:a',
+  effectiveExt: '.ts'
+});
+const segmentB = buildVfsVirtualPath({
+  containerPath: 'src/segment.ts',
+  segmentUid: 'segu:v1:b',
+  effectiveExt: '.ts'
+});
+assert.equal(
+  segmentA.split('#seg:')[0],
+  segmentB.split('#seg:')[0],
+  'segment switch should only affect #seg suffix'
+);
+assert.notEqual(segmentA, segmentB, 'segment switch should change virtual path');
+
+const extA = buildVfsVirtualPath({
+  containerPath: 'src/segment.ts',
+  segmentUid: 'segu:v1:a',
+  effectiveExt: '.ts'
+});
+const extB = buildVfsVirtualPath({
+  containerPath: 'src/segment.ts',
+  segmentUid: 'segu:v1:a',
+  effectiveExt: '.tsx'
+});
+assert.equal(
+  extA.split('#seg:')[0],
+  extB.split('#seg:')[0],
+  'effectiveExt changes should only affect #seg suffix'
+);
+assert.ok(extA.endsWith('.ts'), 'effectiveExt should be applied to segment suffix');
 
 console.log('VFS virtualPath stability ok');

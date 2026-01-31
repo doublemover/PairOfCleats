@@ -165,6 +165,7 @@ Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats inde
 | `test:api` | test | yes |  |
 | `test:ci` | test | yes |  |
 | `test:ci-lite` | test | yes |  |
+| `test:ci-long` | test | yes |  |
 | `test:integration` | test | yes |  |
 | `test:list` | test | yes |  |
 | `test:nightly` | test | yes |  |
@@ -200,4 +201,3 @@ Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats inde
 | `worker-pool-test` | tooling | no |  |
 | `worker-pool-windows-test` | tooling | no |  |
 | `xxhash-backends-test` | tooling | no |  |
-

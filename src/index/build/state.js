@@ -177,7 +177,10 @@ export function createIndexState() {
       signature: new Map(),
       doc: new Map(),
       comment: new Map(),
-      body: new Map()
+      body: new Map(),
+      keyword: new Map(),
+      operator: new Map(),
+      literal: new Map()
     },
     docLengths: [],
     fieldDocLengths: {
@@ -185,7 +188,10 @@ export function createIndexState() {
       signature: [],
       doc: [],
       comment: [],
-      body: []
+      body: [],
+      keyword: [],
+      operator: [],
+      literal: []
     },
     fieldTokens: [],
     triPost: new Map(),
@@ -233,6 +239,7 @@ export function appendChunk(
 
   const chargramEnabled = config.enableChargrams !== false;
   const fieldedEnabled = config.fielded !== false;
+  const tokenClassificationEnabled = config.tokenClassification?.enabled === true;
   const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
   const chargramMinRaw = Number.isFinite(config.chargramMinN)
     ? Math.max(1, Math.floor(config.chargramMinN))
@@ -363,7 +370,9 @@ export function appendChunk(
   // a second token->count map roughly doubles token-keyed memory.
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
-    const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];
+    const fieldNames = tokenClassificationEnabled
+      ? ['name', 'signature', 'doc', 'comment', 'body', 'keyword', 'operator', 'literal']
+      : ['name', 'signature', 'doc', 'comment', 'body'];
     const fieldTokenSampleSize = Number.isFinite(Number(tokenRetention?.sampleSize))
       ? Math.max(1, Math.floor(Number(tokenRetention.sampleSize)))
       : 32;
@@ -384,8 +393,9 @@ export function appendChunk(
       // - The unfielded token index already covers the chunk body.
       // - Building a second "body" postings map roughly doubles memory usage.
       // Treat "body" as an alias of the unfielded index at query time.
-      if (field === 'body') {
-        // Avoid retaining any additional body token material.
+      if (field === 'body' && !tokenClassificationEnabled) {
+        // Avoid retaining any additional body token material unless we need
+        // identifier-only body postings for token classification weighting.
         state.fieldTokens[chunkId][field] = [];
         continue;
       }

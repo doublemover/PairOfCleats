@@ -9,7 +9,8 @@ const VFS_PREFIX = '.poc-vfs/';
 const MAX_ROW_BYTES = 32 * 1024;
 
 const encodeContainerPath = (value) => {
-  const posixPath = toPosix(value || '');
+  const rawPath = value == null ? '' : String(value);
+  const posixPath = toPosix(rawPath.replace(/\\/g, '/'));
   return posixPath.replace(/%/g, '%25').replace(/#/g, '%23');
 };
 
@@ -250,8 +251,17 @@ export const buildVfsManifestRowsForFile = async ({
 };
 
 export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
+  const encodeUnsafeChar = (ch) => {
+    const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(2, '0');
+    return `%${hex}`;
+  };
   const parts = String(virtualPath || '').split('/');
-  const safeParts = parts.map((part) => part.replace(/[:*?"<>|]/g, (ch) => encodeURIComponent(ch)));
+  const safeParts = parts.map((part) => {
+    if (part === '.' || part === '..') {
+      return part.split('').map((ch) => encodeUnsafeChar(ch)).join('');
+    }
+    return part.replace(/[:*?"<>|]/g, (ch) => encodeUnsafeChar(ch));
+  });
   const relative = safeParts.join(path.sep);
   return path.join(baseDir, relative);
 };

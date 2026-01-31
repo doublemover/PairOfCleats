@@ -58,6 +58,9 @@ const main = async () => {
   const runRules = loadRunRules({ root: ROOT });
 
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
+  if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
+    tagInclude.push('long');
+  }
 
   if (argv['list-lanes'] || argv['list-tags']) {
     const payload = {};

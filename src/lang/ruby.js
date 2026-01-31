@@ -6,15 +6,56 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './
  * Ruby language chunking and relations.
  * Line-based parser for modules, classes, and methods.
  */
+export const RUBY_RESERVED_WORDS = new Set([
+  'BEGIN',
+  'END',
+  '__ENCODING__',
+  '__FILE__',
+  '__LINE__',
+  'alias',
+  'and',
+  'begin',
+  'break',
+  'case',
+  'class',
+  'def',
+  'defined?',
+  'do',
+  'else',
+  'elsif',
+  'end',
+  'ensure',
+  'false',
+  'for',
+  'if',
+  'in',
+  'module',
+  'next',
+  'nil',
+  'not',
+  'or',
+  'redo',
+  'rescue',
+  'retry',
+  'return',
+  'self',
+  'super',
+  'then',
+  'true',
+  'undef',
+  'unless',
+  'until',
+  'when',
+  'while',
+  'yield'
+]);
+
 const RUBY_CALL_KEYWORDS = new Set([
-  'if', 'elsif', 'else', 'unless', 'while', 'until', 'for', 'case', 'when',
-  'return', 'yield', 'super', 'break', 'next', 'redo', 'retry', 'then', 'do',
-  'begin', 'rescue', 'ensure', 'end'
+  ...RUBY_RESERVED_WORDS
 ]);
 
 const RUBY_USAGE_SKIP = new Set([
-  ...RUBY_CALL_KEYWORDS,
-  'class', 'module', 'def', 'nil', 'true', 'false', 'self'
+  ...RUBY_RESERVED_WORDS
 ]);
 
 const RUBY_DOC_OPTIONS = {

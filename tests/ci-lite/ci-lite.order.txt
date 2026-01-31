@@ -3,6 +3,9 @@ run-logging
 run-discovery
 run-helpers
 validate/helpers
+contracts/schema-registry-single-source.test
+contracts/public-artifact-surface-doc.test
+contracts/artifact-surface-version.test
 eval-match-mode
 run-reporting
 harness/pass-target
@@ -139,6 +142,8 @@ typescript-parser-selection
 ts-jsx-fixtures
 sharded-meta-schema.test
 validate/index-validate-missing-manifest.test
+validate/index-validate-load-manifest.test
+validate/index-validate-missing-pieces.test
 validate/index-validate-file-name-collision.test
 run-execution
 validate/index-validate-sharded-meta-consistency.test
@@ -146,6 +151,7 @@ validate/index-validate-jsonl-required-keys.test
 validate/index-validate-manifest-safety.test
 validate/index-validate-strict.test
 validate/index-validate-unknown-artifact-fails-strict.test
+validate/index-validate-unknown-piece.test
 validate/metav2-rejects-invalid-type-shapes.test
 harness/skip-semantics.test
 tooling/type-inference/crossfile-stats.unit.test

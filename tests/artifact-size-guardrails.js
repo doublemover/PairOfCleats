@@ -30,13 +30,21 @@ const baseEnv = {
   ...process.env,
   PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_WORKER_POOL: 'off'
 };
 process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const maxJsonBytes = 16384;
+const smallMaxConfig = {
+  indexing: {
+    postings: {
+      fielded: false
+    }
+  }
+};
 const runBuild = (label, envOverrides) => {
   const result = spawnSync(
     process.execPath,
@@ -58,7 +66,10 @@ const runBuild = (label, envOverrides) => {
   }
 };
 
-runBuild('artifact guardrails (small max)', { PAIROFCLEATS_TEST_MAX_JSON_BYTES: String(maxJsonBytes) });
+runBuild('artifact guardrails (small max)', {
+  PAIROFCLEATS_TEST_MAX_JSON_BYTES: String(maxJsonBytes),
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(smallMaxConfig)
+});
 
 const userConfig = loadUserConfig(repoRoot);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;

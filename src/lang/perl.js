@@ -8,14 +8,50 @@ import { extractDocComment, sliceSignature } from './shared.js';
  * Focuses on package and sub declarations with minimal metadata.
  */
 
+export const PERL_RESERVED_WORDS = new Set([
+  'BEGIN',
+  'CHECK',
+  'END',
+  'INIT',
+  'UNITCHECK',
+  'continue',
+  'default',
+  'die',
+  'do',
+  'else',
+  'elsif',
+  'for',
+  'foreach',
+  'given',
+  'goto',
+  'if',
+  'last',
+  'my',
+  'next',
+  'our',
+  'package',
+  'print',
+  'redo',
+  'return',
+  'say',
+  'sub',
+  'unless',
+  'until',
+  'use',
+  'warn',
+  'when',
+  'while'
+]);
+
 const PERL_CALL_KEYWORDS = new Set([
-  'if', 'for', 'foreach', 'while', 'until', 'return', 'sub', 'my', 'our',
-  'use', 'package', 'require', 'else', 'elsif', 'do', 'given', 'when'
+  ...PERL_RESERVED_WORDS
 ]);
 
 const PERL_USAGE_SKIP = new Set([
-  ...PERL_CALL_KEYWORDS,
-  'undef', 'true', 'false'
+  ...PERL_RESERVED_WORDS,
+  'false',
+  'true',
+  'undef'
 ]);
 
 const PERL_DOC_OPTIONS = {

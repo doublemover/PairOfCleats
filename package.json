@@ -84,6 +84,7 @@
     "test:perf": "node tests/run.js --lane perf",
     "test:ci": "node tests/run.js --lane ci",
     "test:ci-lite": "node tests/run.js --lane ci-lite",
+    "test:ci-long": "node tests/run.js --lane ci-long",
     "test:list": "node tests/run.js --list",
     "verify": "node tests/run.js --lane smoke",
     "shard-plan-test": "node tests/shard-plan.js",

@@ -20,7 +20,11 @@ export async function createIndexerWorkerPool(input = {}) {
     dictWords,
     dictSharedPayload,
     dictConfig,
+    codeDictWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
     postingsConfig,
+    treeSitterConfig,
     crashLogger = null,
     log = defaultLog,
     poolName = 'tokenize'
@@ -37,6 +41,9 @@ export async function createIndexerWorkerPool(input = {}) {
   }
   const dictWordsForPool = poolLabel === 'quantize' ? [] : dictWords;
   const dictSharedForPool = poolLabel === 'quantize' ? null : dictSharedPayload;
+  const codeDictWordsForPool = poolLabel === 'quantize' ? null : codeDictWords;
+  const codeDictWordsByLanguageForPool = poolLabel === 'quantize' ? null : codeDictWordsByLanguage;
+  const codeDictLanguagesForPool = poolLabel === 'quantize' ? null : codeDictLanguages;
   const sanitizeDictConfig = (raw) => {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     return {
@@ -45,6 +52,50 @@ export async function createIndexerWorkerPool(input = {}) {
         ? Number(cfg.dpMaxTokenLength)
         : 32
     };
+  };
+  const sanitizeTreeSitterConfig = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+    const maxLoadedLanguages = Number(raw.maxLoadedLanguages);
+    const maxBytes = Number(raw.maxBytes);
+    const maxLines = Number(raw.maxLines);
+    const maxParseMs = Number(raw.maxParseMs);
+    return {
+      enabled: raw.enabled !== false,
+      languages: raw.languages && typeof raw.languages === 'object' ? raw.languages : {},
+      allowedLanguages: Array.isArray(raw.allowedLanguages)
+        ? raw.allowedLanguages.filter((entry) => typeof entry === 'string')
+        : undefined,
+      maxLoadedLanguages: Number.isFinite(maxLoadedLanguages) && maxLoadedLanguages > 0
+        ? Math.floor(maxLoadedLanguages)
+        : null,
+      maxBytes: Number.isFinite(maxBytes) && maxBytes > 0 ? Math.floor(maxBytes) : null,
+      maxLines: Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : null,
+      maxParseMs: Number.isFinite(maxParseMs) && maxParseMs > 0 ? Math.floor(maxParseMs) : null,
+      byLanguage: raw.byLanguage && typeof raw.byLanguage === 'object' ? raw.byLanguage : {}
+    };
+  };
+  const normalizeStringArray = (value) => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry) => typeof entry === 'string');
+  };
+  const normalizeCodeDictLanguages = (value) => {
+    if (!value) return [];
+    if (value instanceof Set) return Array.from(value).filter((entry) => typeof entry === 'string');
+    if (Array.isArray(value)) return normalizeStringArray(value);
+    return [];
+  };
+  const serializeCodeDictWordsByLanguage = (value) => {
+    if (!value) return null;
+    const entries = value instanceof Map ? Array.from(value.entries()) : Object.entries(value);
+    const out = {};
+    for (const [lang, words] of entries) {
+      if (typeof lang !== 'string' || !lang) continue;
+      const list = Array.isArray(words)
+        ? normalizeStringArray(words)
+        : (words instanceof Set ? Array.from(words).filter((entry) => typeof entry === 'string') : []);
+      if (list.length) out[lang] = list;
+    }
+    return Object.keys(out).length ? out : null;
   };
   if (!poolConfig || poolConfig.enabled === false) return null;
   let Piscina;
@@ -80,6 +131,27 @@ export async function createIndexerWorkerPool(input = {}) {
         workerData.dictWords = Array.isArray(dictWordsForPool)
           ? dictWordsForPool
           : Array.from(dictWordsForPool || []);
+      }
+      const codeDictWordsList = codeDictWordsForPool instanceof Set
+        ? Array.from(codeDictWordsForPool)
+        : normalizeStringArray(codeDictWordsForPool);
+      if (codeDictWordsList.length) {
+        workerData.codeDictWords = codeDictWordsList;
+      }
+      const codeDictByLanguage = serializeCodeDictWordsByLanguage(codeDictWordsByLanguageForPool);
+      if (codeDictByLanguage) {
+        workerData.codeDictWordsByLanguage = codeDictByLanguage;
+      }
+      const hasCodeDictLangs = codeDictLanguagesForPool != null;
+      const codeDictLangList = normalizeCodeDictLanguages(codeDictLanguagesForPool);
+      if (hasCodeDictLangs) {
+        workerData.codeDictLanguages = codeDictLangList;
+      } else if (codeDictLangList.length) {
+        workerData.codeDictLanguages = codeDictLangList;
+      }
+      const treeSitterPayload = sanitizeTreeSitterConfig(treeSitterConfig);
+      if (treeSitterPayload) {
+        workerData.treeSitter = treeSitterPayload;
       }
       return new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),

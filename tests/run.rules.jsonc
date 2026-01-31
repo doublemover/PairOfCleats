@@ -12,7 +12,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js", "all.js", "script-coverage.js", "api-server-stream.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "integration", "services", "api", "storage", "perf", "ci"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "ci"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/", "^bench", "-perf-", "^kotlin-perf-guard"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -59,16 +59,6 @@
     {
       "tag": "long",
       "match": [
-        "^code-map-basic$",
-        "^code-map-dot$",
-        "^core-api$",
-        "^embeddings-cache-identity$",
-        "^embeddings-dims-mismatch$",
-        "^embeddings-validate$",
-        "^fielded-bm25$",
-        "^hnsw-atomic$",
-        "^index-validate$",
-        "^indexing/type-inference/crossfile-output\\.integration\\.test$",
         "^lang/fixtures-sample/python-metadata\\.test$",
         "^lang/fixtures-sample/rust-metadata\\.test$",
         "^lang/fixtures-sample/swift-metadata\\.test$",

@@ -8,17 +8,60 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './
  * Focuses on function declarations with minimal metadata.
  */
 
+export const SHELL_RESERVED_WORDS = new Set([
+  'break',
+  'case',
+  'continue',
+  'coproc',
+  'declare',
+  'do',
+  'done',
+  'elif',
+  'else',
+  'esac',
+  'eval',
+  'exec',
+  'exit',
+  'export',
+  'false',
+  'fi',
+  'for',
+  'function',
+  'if',
+  'in',
+  'local',
+  'readonly',
+  'return',
+  'select',
+  'set',
+  'shift',
+  'source',
+  'then',
+  'time',
+  'trap',
+  'true',
+  'typeset',
+  'unset',
+  'until',
+  'wait',
+  'while'
+]);
+
 const SHELL_CALL_KEYWORDS = new Set([
-  'if', 'then', 'fi', 'elif', 'else', 'for', 'in', 'do', 'done', 'while', 'until',
-  'case', 'esac', 'select', 'function', 'return', 'break', 'continue', 'shift',
-  'local', 'export', 'readonly', 'declare', 'typeset', 'set', 'unset', 'trap',
-  'alias', 'unalias', 'source', 'eval', 'exec', 'exit', 'cd', 'pwd', 'true', 'false',
-  'test', '[', '[[', 'time'
+  ...SHELL_RESERVED_WORDS,
+  'alias',
+  'cd',
+  'pwd',
+  'test',
+  'unalias'
 ]);
 
 const SHELL_USAGE_SKIP = new Set([
   ...SHELL_CALL_KEYWORDS,
-  'nil', 'null', 'yes', 'no'
+  'nil',
+  'no',
+  'null',
+  'yes'
 ]);
 
 const SHELL_DOC_OPTIONS = {

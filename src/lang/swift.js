@@ -8,6 +8,89 @@ import { buildTreeSitterChunks } from './tree-sitter.js';
  * Heuristic parser for types, extensions, and functions.
  */
 
+export const SWIFT_RESERVED_WORDS = new Set([
+  'actor',
+  'any',
+  'as',
+  'associatedtype',
+  'async',
+  'await',
+  'borrowing',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'continue',
+  'convenience',
+  'default',
+  'defer',
+  'deinit',
+  'distributed',
+  'do',
+  'dynamic',
+  'else',
+  'enum',
+  'extension',
+  'fallthrough',
+  'false',
+  'fileprivate',
+  'final',
+  'for',
+  'func',
+  'guard',
+  'higherthan',
+  'if',
+  'import',
+  'in',
+  'indirect',
+  'infix',
+  'init',
+  'inout',
+  'internal',
+  'isolated',
+  'lazy',
+  'let',
+  'lowerthan',
+  'macro',
+  'mutating',
+  'nil',
+  'nonisolated',
+  'nonmutating',
+  'open',
+  'operator',
+  'optional',
+  'override',
+  'package',
+  'postfix',
+  'precedencegroup',
+  'prefix',
+  'private',
+  'protocol',
+  'public',
+  'repeat',
+  'required',
+  'rethrows',
+  'return',
+  'self',
+  'sending',
+  'some',
+  'static',
+  'struct',
+  'subscript',
+  'super',
+  'switch',
+  'throw',
+  'throws',
+  'true',
+  'try',
+  'typealias',
+  'unowned',
+  'var',
+  'weak',
+  'where',
+  'while'
+]);
+
 const SWIFT_DECL_KEYWORDS = new Set([
   'class', 'struct', 'enum', 'protocol', 'extension', 'actor',
   'func', 'init', 'deinit'
@@ -16,6 +99,10 @@ const SWIFT_MODIFIERS = new Set([
   'public', 'private', 'fileprivate', 'internal', 'open', 'final', 'static',
   'class', 'mutating', 'nonmutating', 'override', 'convenience', 'required',
   'async', 'throws', 'rethrows', 'lazy', 'weak', 'unowned', 'inout'
+]);
+const SWIFT_USAGE_SKIP = new Set([
+  ...SWIFT_RESERVED_WORDS,
+  'Self'
 ]);
 const SWIFT_KIND_MAP = {
   class: 'ClassDeclaration',
@@ -471,9 +558,8 @@ export function computeSwiftFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    const swiftSkip = new Set(['self', 'Self', 'nil', 'true', 'false']);
     out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: swiftSkip,
+      skip: SWIFT_USAGE_SKIP,
       memberOperators: ['.']
     });
     out.returnsValue = hasReturnValue(cleaned);

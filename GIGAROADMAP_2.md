@@ -1,4 +1,4 @@
-# PairOfCleats NextRoadmap
+# PairOfCleats GigaRoadmap
 
     ## Status legend
     
@@ -8,7 +8,7 @@
     - [.] Work has been completed but has Not been tested
     - [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
     - [ ] Not complete
-
+    
     Completed Phases: `COMPLETED_PHASES.md`
 
 ### Source-of-truth hierarchy (when specs disagree)
@@ -122,6 +122,7 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
   - 10.A–10.E — Spec appendices (output of 10.0 merge; keep in-sync with contracts)
 
 ---
+
 ## Phase 7 — Embeddings + ANN unification
 
 This section is a **fully expanded, implementation-ready** rewrite of the Phase 7 roadmap. 
