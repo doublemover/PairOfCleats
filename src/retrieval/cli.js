@@ -348,6 +348,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdDefault,
       fileChargramN,
       hnswConfig,
+      denseVectorMode,
       root: rootDir,
       userConfig
     });
@@ -499,6 +500,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       lancedbConfig,
       tantivyConfig,
+      indexStates: {
+        code: sqliteStateCode || null,
+        prose: sqliteStateProse || null
+      },
       strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,

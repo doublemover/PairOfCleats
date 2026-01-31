@@ -2,6 +2,12 @@
 
 This document summarizes the query pipeline and the fast prefilter stages used before exact matches.
 
+## Manifest strictness
+
+Search uses manifest-first artifact discovery in strict mode (default). If a legacy index is missing
+`pieces/manifest.json`, strict search fails closed. Use `--non-strict` to allow legacy filename
+guessing; non-strict mode should emit a warning because it bypasses the manifest contract.
+
 ## Tokenization
 
 - Code search keeps punctuation tokens (examples: `&&`, `=>`, `::`).
@@ -42,6 +48,10 @@ When both sparse and dense lists are available, results are fused using Reciproc
 
 Queries are classified as `code`, `prose`, `path`, or `mixed` based on lightweight heuristics (symbols, camel/snake case, paths, and word count). Intent is used when `search.denseVectorMode=auto` to choose doc vs code vectors, and to select default field weights. Use `--explain` to see the intent decision in the JSON payload.
 
+`denseVectorMode` is configured via `search.denseVectorMode` or `--dense-vector-mode` (`merged | code | doc | auto`). CLI flags override user config, which overrides defaults (CLI > user config > defaults). When a CLI value overrides a configured value, search logs a warning indicating the config was ignored.
+
+SQLite ANN (`sqlite-vec`) currently indexes merged vectors only. When `denseVectorMode` resolves to `code`, `doc`, or `auto`, sqlite-vec ANN is disabled for that run and the pipeline falls back to other ANN backends.
+
 ## Context expansion
 
 When enabled, the search pipeline can append related chunks (calls/imports/usages) after primary hits. Context hits are labeled with a `context` object (`sourceId`, `reason`) and have `scoreType: "context"`. Use `search.contextExpansion.*` to control limits and relation types, and `respectFilters` to keep expansions inside the active filters.
@@ -60,6 +70,7 @@ Configuration:
 - `search.sqliteFtsWeights` (file/name/signature/kind/headline/doc/tokens column weights)
 - `search.contextExpansion` (limits and relation toggles)
 - `search.scoreBlend` can override RRF when enabled (normalized blend weights).
+- `search.denseVectorMode` or `--dense-vector-mode` (vector target selection; CLI overrides config).
 
 ### Explain output
 

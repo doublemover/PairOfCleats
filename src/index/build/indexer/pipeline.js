@@ -320,7 +320,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
-  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexRoot: outDir, abortSignal });
+  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();
 }

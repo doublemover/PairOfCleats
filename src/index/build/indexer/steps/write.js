@@ -65,7 +65,8 @@ export const writeIndexArtifactsForMode = async ({
         mode: runtime.embeddingMode,
         service: runtime.embeddingService === true,
         embeddingIdentity: runtime.embeddingIdentity || null,
-        embeddingIdentityKey: runtime.embeddingIdentityKey || null
+        embeddingIdentityKey: runtime.embeddingIdentityKey || null,
+        lastError: null
       },
       features: {
         treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,

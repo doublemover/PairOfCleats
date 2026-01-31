@@ -190,6 +190,22 @@ export function resolveVectorExtensionPath(config) {
   return path.join(config.dir, config.provider, config.platformKey, config.filename);
 }
 
+export function resolveVectorTableName(config, mode, { sharedDb = false } = {}) {
+  if (!config?.table) return null;
+  if (!sharedDb || !mode) return config.table;
+  const suffix = String(mode || '').replace(/[^A-Za-z0-9_]/g, '_');
+  const candidate = `${config.table}_${suffix}`;
+  if (!isSafeIdentifier(candidate)) return config.table;
+  return candidate;
+}
+
+export function resolveVectorExtensionConfigForMode(config, mode, { sharedDb = false } = {}) {
+  if (!config) return config;
+  const table = resolveVectorTableName(config, mode, { sharedDb });
+  if (!table || table === config.table) return config;
+  return { ...config, table };
+}
+
 const loadCache = new WeakMap();
 
 const getLoadCache = (db) => {

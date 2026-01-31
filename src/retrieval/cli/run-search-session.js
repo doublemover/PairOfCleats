@@ -95,6 +95,22 @@ export async function runSearchSession({
   intentInfo,
   signal
 }) {
+  const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
+    ? resolvedDenseVectorMode.trim().toLowerCase()
+    : 'merged';
+  const sqliteVectorAllowed = resolvedDenseMode === 'merged';
+  if (!sqliteVectorAllowed && vectorAnnEnabled && vectorAnnState) {
+    const hasSqliteAnn = Object.values(vectorAnnState)
+      .some((entry) => entry?.available === true);
+    if (hasSqliteAnn) {
+      console.warn(
+        `[ann] sqlite-vec only supports merged vectors; disabling sqlite ANN for denseVectorMode=${resolvedDenseMode}.`
+      );
+    }
+    for (const entry of Object.values(vectorAnnState)) {
+      if (entry) entry.available = false;
+    }
+  }
   const throwIfAborted = () => {
     if (!signal?.aborted) return;
     const error = new Error('Search cancelled.');
@@ -233,6 +249,9 @@ export async function runSearchSession({
     || hnswAnnState?.[mode]?.available
     || lanceAnnState?.[mode]?.available
   );
+  const resolveEmbeddingNormalize = (idx) => (
+    idx?.state?.embeddings?.embeddingIdentity?.normalize !== false
+  );
   const needsEmbedding = !cacheHit && annActive && (
     (runProse && hasAnn('prose', idxProse))
     || (runCode && hasAnn('code', idxCode))
@@ -246,13 +265,16 @@ export async function runSearchSession({
     ?? null
   );
   const embeddingCache = new Map();
-  const getEmbeddingForModel = async (modelId, dims) => {
+  const getEmbeddingForModel = async (modelId, dims, normalize) => {
     throwIfAborted();
     if (!modelId) return null;
+    const normalizeFlag = normalize !== false;
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
-    const cacheKeyLocal = useStubEmbeddings ? `${modelId}:${resolvedDims}` : modelId;
+    const cacheKeyLocal = useStubEmbeddings
+      ? `${modelId}:${resolvedDims}:${normalizeFlag ? 'norm' : 'raw'}`
+      : `${modelId}:${normalizeFlag ? 'norm' : 'raw'}`;
     if (embeddingCache.has(cacheKeyLocal)) {
       incCacheEvent({ cache: 'embedding', result: 'hit' });
       return embeddingCache.get(cacheKeyLocal);
@@ -266,22 +288,39 @@ export async function runSearchSession({
       useStub: useStubEmbeddings,
       provider: embeddingProvider,
       onnxConfig: embeddingOnnx,
-      rootDir
+      rootDir,
+      normalize: normalizeFlag
     });
     embeddingCache.set(cacheKeyLocal, embedding);
     return embedding;
   };
   const queryEmbeddingCode = needsEmbedding && runCode && hasAnn('code', idxCode)
-    ? await getEmbeddingForModel(modelIds.code, resolveEmbeddingDims('code', idxCode))
+    ? await getEmbeddingForModel(
+      modelIds.code,
+      resolveEmbeddingDims('code', idxCode),
+      resolveEmbeddingNormalize(idxCode)
+    )
     : null;
   const queryEmbeddingProse = needsEmbedding && runProse && hasAnn('prose', idxProse)
-    ? await getEmbeddingForModel(modelIds.prose, resolveEmbeddingDims('prose', idxProse))
+    ? await getEmbeddingForModel(
+      modelIds.prose,
+      resolveEmbeddingDims('prose', idxProse),
+      resolveEmbeddingNormalize(idxProse)
+    )
     : null;
   const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && hasAnn('extracted-prose', idxExtractedProse)
-    ? await getEmbeddingForModel(modelIds.extractedProse, resolveEmbeddingDims('extracted-prose', idxExtractedProse))
+    ? await getEmbeddingForModel(
+      modelIds.extractedProse,
+      resolveEmbeddingDims('extracted-prose', idxExtractedProse),
+      resolveEmbeddingNormalize(idxExtractedProse)
+    )
     : null;
   const queryEmbeddingRecords = needsEmbedding && runRecords && hasAnn('records', idxRecords)
-    ? await getEmbeddingForModel(modelIds.records, resolveEmbeddingDims('records', idxRecords))
+    ? await getEmbeddingForModel(
+      modelIds.records,
+      resolveEmbeddingDims('records', idxRecords),
+      resolveEmbeddingNormalize(idxRecords)
+    )
     : null;
   throwIfAborted();
 

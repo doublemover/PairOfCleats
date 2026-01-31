@@ -59,6 +59,8 @@ pairofcleats sqlite build
 ```
 When the extension loads successfully, the build creates `dense_vectors_ann` and
 stores float32 embeddings for ANN queries.
+If code and prose share the same SQLite db path, the ANN table is scoped per mode
+(`dense_vectors_ann_code`, `dense_vectors_ann_prose`) to avoid collisions.
 
 ## Incremental updates
 - Incremental SQLite updates delete and reinsert ANN rows for changed chunks.
@@ -71,6 +73,8 @@ pairofcleats search --backend sqlite "query"
 ```
 If the extension or table is missing, `search.js` warns and uses the JS ANN     
 implementation instead.
+
+sqlite-vec currently indexes merged vectors only. When `denseVectorMode` resolves to `code`, `doc`, or `auto`, sqlite-vec ANN is disabled for that run and search falls back to other ANN backends.
 
 Candidate set behavior:
 - When filters provide an ID candidate set, SQLite ANN pushes the set into the query when the set is small (≤ 900 IDs).

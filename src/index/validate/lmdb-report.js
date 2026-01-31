@@ -68,6 +68,18 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
         if (chunkCount != null && !Number.isFinite(Number(chunkCount))) {
           addLmdbWarning(label, 'meta:chunkCount invalid');
         }
+        const mapSizeBytes = decode(db.get(LMDB_META_KEYS.mapSizeBytes));
+        if (mapSizeBytes == null) {
+          addLmdbWarning(label, 'meta:mapSizeBytes missing');
+        } else if (!Number.isFinite(Number(mapSizeBytes))) {
+          addLmdbWarning(label, 'meta:mapSizeBytes invalid');
+        }
+        const mapSizeEstimatedBytes = decode(db.get(LMDB_META_KEYS.mapSizeEstimatedBytes));
+        if (mapSizeEstimatedBytes == null) {
+          addLmdbWarning(label, 'meta:mapSizeEstimatedBytes missing');
+        } else if (!Number.isFinite(Number(mapSizeEstimatedBytes))) {
+          addLmdbWarning(label, 'meta:mapSizeEstimatedBytes invalid');
+        }
         const artifacts = decode(db.get(LMDB_META_KEYS.artifacts));
         if (!Array.isArray(artifacts)) {
           addLmdbIssue(

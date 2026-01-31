@@ -208,6 +208,9 @@ const denseVectorsSchema = {
     dims: { type: 'integer', minimum: 1 },
     model: nullableString,
     scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 },
     vectors: { type: 'array', items: denseVectorArray }
   },
   additionalProperties: true
@@ -225,7 +228,11 @@ const denseVectorsHnswMetaSchema = {
     space: { type: 'string' },
     m: { type: 'integer', minimum: 1 },
     efConstruction: { type: 'integer', minimum: 1 },
-    efSearch: { type: 'integer', minimum: 1 }
+    efSearch: { type: 'integer', minimum: 1 },
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
   },
   additionalProperties: true
 };
@@ -242,7 +249,11 @@ const denseVectorsLanceDbMetaSchema = {
     metric: { type: 'string' },
     table: { type: 'string' },
     embeddingColumn: { type: 'string' },
-    idColumn: { type: 'string' }
+    idColumn: { type: 'string' },
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
   },
   additionalProperties: true
 };
@@ -258,7 +269,11 @@ const denseVectorsSqliteVecMetaSchema = {
     count: { type: 'integer', minimum: 0 },
     table: { type: 'string' },
     embeddingColumn: nullableString,
-    idColumn: nullableString
+    idColumn: nullableString,
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
   },
   additionalProperties: true
 };

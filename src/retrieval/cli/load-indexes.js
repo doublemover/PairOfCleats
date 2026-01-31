@@ -52,6 +52,7 @@ export async function loadSearchIndexes({
   lancedbConfig,
   tantivyConfig,
   strict = true,
+  indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode
@@ -119,14 +120,20 @@ export async function loadSearchIndexes({
     return resolveTantivyAvailability(mode, indexDir);
   };
 
-  const loadIndexCachedLocal = async (dir, includeHnsw = true) => loadIndexCached({
+  const loadIndexCachedLocal = async (dir, includeHnsw = true, mode = null) => loadIndexCached({
     indexCache,
     dir,
     modelIdDefault,
     fileChargramN,
     includeHnsw,
     hnswConfig,
-    loadIndex: (targetDir, options) => loadIndex(targetDir, { ...options, strict })
+    denseVectorMode: resolvedDenseVectorMode,
+    loadIndex: (targetDir, options) => loadIndex(targetDir, {
+      ...options,
+      strict,
+      mode,
+      denseVectorMode: resolvedDenseVectorMode
+    })
   });
 
   let extractedProseDir = null;
@@ -207,10 +214,10 @@ export async function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(proseDir, annActive)))
+    }) : await loadIndexCachedLocal(proseDir, annActive, 'prose')))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedLoadExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse)
+    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse, 'extracted-prose')
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -223,11 +230,18 @@ export async function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(codeDir, annActive)))
+    }) : await loadIndexCachedLocal(codeDir, annActive, 'code')))
     : { ...EMPTY_INDEX };
   const idxRecords = runRecords
-    ? await loadIndexCachedLocal(recordsDir, annActive)
+    ? await loadIndexCachedLocal(recordsDir, annActive, 'records')
     : { ...EMPTY_INDEX };
+
+  if (!idxCode.state && indexStates?.code) idxCode.state = indexStates.code;
+  if (!idxProse.state && indexStates?.prose) idxProse.state = indexStates.prose;
+  if (!idxExtractedProse.state && indexStates?.['extracted-prose']) {
+    idxExtractedProse.state = indexStates['extracted-prose'];
+  }
+  if (!idxRecords.state && indexStates?.records) idxRecords.state = indexStates.records;
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });

@@ -24,6 +24,8 @@
       "lane": "unit",
       "match": [
         "^unit/",
+        "^embeddings/",
+        "^embedding-",
         "\\.unit(\\.|$)",
         "^harness/",
         "^jsonrpc-",

@@ -5,7 +5,8 @@ import {
   ensureVectorTable,
   getVectorExtensionConfig,
   hasVectorTable,
-  loadVectorExtension
+  loadVectorExtension,
+  resolveVectorExtensionConfigForMode
 } from '../vector-extension.js';
 import { resolveSqlitePaths } from '../dict-utils.js';
 import {
@@ -71,11 +72,17 @@ export const updateSqliteDense = ({
   modelId,
   quantization,
   dbPath,
+  sharedDb = false,
   emitOutput = true,
   warnOnMissing = true,
   logger = console
 }) => {
-  const vectorExtension = getVectorExtensionConfig(root, userConfig);
+  const vectorExtensionBase = getVectorExtensionConfig(root, userConfig);
+  const vectorExtension = resolveVectorExtensionConfigForMode(
+    vectorExtensionBase,
+    mode,
+    { sharedDb }
+  );
   const vectorAnnState = {
     enabled: vectorExtension.enabled === true,
     available: false,

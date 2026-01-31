@@ -256,6 +256,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "denseVectorMode": {
+          "type": "string",
+          "enum": ["merged", "code", "doc", "auto"]
+        },
         "sqliteAutoChunkThreshold": { "type": "number" },
         "sqliteAutoArtifactBytes": { "type": "number" }
       }

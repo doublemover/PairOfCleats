@@ -14,6 +14,7 @@ const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
  * @param {object} options.postingsConfig
  * @param {number[]} options.sqliteFtsWeights
  * @param {object} options.vectorExtension
+ * @param {object} [options.vectorAnnConfigByMode]
  * @param {object} options.vectorAnnState
  * @param {Function} options.queryVectorAnn
  * @param {string} options.modelIdDefault
@@ -25,11 +26,15 @@ export function createSqliteHelpers(options) {
     postingsConfig,
     sqliteFtsWeights,
     vectorExtension,
+    vectorAnnConfigByMode,
     vectorAnnState,
     queryVectorAnn,
     modelIdDefault,
     fileChargramN
   } = options;
+  const resolveVectorAnnConfig = (mode) => (
+    vectorAnnConfigByMode?.[mode] || vectorExtension
+  );
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
@@ -194,18 +199,32 @@ export function createSqliteHelpers(options) {
 
     let denseVec = null;
     if (includeDense) {
-      const denseMeta = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
+      const denseMeta = db.prepare(
+        'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
+      ).get(mode) || {};
       const vectors = Array.from({ length: chunkMeta.length });
       const denseStmt = db.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id');
       for (const row of denseStmt.iterate(mode)) {
         vectors[row.doc_id] = row.vector;
       }
       const fallbackVec = vectors.find((vec) => vec && vec.length);
+      const minVal = Number.isFinite(denseMeta.min_val) ? Number(denseMeta.min_val) : -1;
+      const maxVal = Number.isFinite(denseMeta.max_val) ? Number(denseMeta.max_val) : 1;
+      let levels = Number.isFinite(denseMeta.levels) ? Math.floor(Number(denseMeta.levels)) : 256;
+      if (!Number.isFinite(levels)) levels = 256;
+      if (levels < 2) levels = 2;
+      if (levels > 256) levels = 256;
+      const range = maxVal - minVal;
+      const scale = typeof denseMeta.scale === 'number'
+        ? denseMeta.scale
+        : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
       denseVec = vectors.length ? {
         model: denseMeta.model || modelIdDefault,
         dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
-        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : (2 / 255),
-        minVal: -1,
+        scale,
+        minVal,
+        maxVal,
+        levels,
         vectors
       } : null;
     }
@@ -530,7 +549,8 @@ export function createSqliteHelpers(options) {
   function rankVectorAnnSqlite(mode, queryEmbedding, topN, candidateSet) {
     const db = getDb(mode);
     if (!db || !queryEmbedding || !vectorAnnState[mode]?.available) return [];
-    return queryVectorAnn(db, vectorExtension, queryEmbedding, topN, candidateSet);
+    const config = resolveVectorAnnConfig(mode);
+    return queryVectorAnn(db, config, queryEmbedding, topN, candidateSet);
   }
 
   return {

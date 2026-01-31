@@ -267,10 +267,16 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     }
   }
   if (!dims || dims <= 0) return [];
-  const minVal = -1;
+  const minVal = Number.isFinite(idx.denseVec?.minVal) ? Number(idx.denseVec.minVal) : -1;
+  const maxVal = Number.isFinite(idx.denseVec?.maxVal) ? Number(idx.denseVec.maxVal) : 1;
+  const rawLevels = Number(idx.denseVec?.levels);
+  let levels = Number.isFinite(rawLevels) ? Math.floor(rawLevels) : 256;
+  if (!Number.isFinite(levels) || levels < 2) levels = 256;
+  if (levels > 256) levels = 256;
+  const range = maxVal - minVal;
   const scale = Number.isFinite(idx.denseVec?.scale)
     ? idx.denseVec.scale
-    : (2 / 255);
+    : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
   const ids = candidateSet ? Array.from(candidateSet) : vectors.map((_, i) => i);
   const scored = [];
 

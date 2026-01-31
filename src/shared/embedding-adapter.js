@@ -2,18 +2,12 @@ import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder, normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
 import {
   DEFAULT_EMBEDDING_POOLING,
-  DEFAULT_EMBEDDING_NORMALIZE,
   normalizeEmbeddingBatchOutput
 } from './embedding-utils.js';
 
 let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
-const pipelineOptions = Object.freeze({
-  pooling: DEFAULT_EMBEDDING_POOLING,
-  normalize: DEFAULT_EMBEDDING_NORMALIZE
-});
-
 const isDlopenFailure = (err) => {
   const code = err?.code || err?.cause?.code;
   if (code === 'ERR_DLOPEN_FAILED') return true;
@@ -42,8 +36,12 @@ async function loadPipeline(modelId, modelsDir) {
   return pipelineCache.get(cacheKey);
 }
 
-const createXenovaAdapter = ({ modelId, modelsDir }) => {
+const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
   const embedderPromise = loadPipeline(modelId, modelsDir);
+  const pipelineOptions = {
+    pooling: DEFAULT_EMBEDDING_POOLING,
+    normalize: normalize !== false
+  };
   const embed = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
@@ -65,7 +63,8 @@ const createAdapter = ({
   dims,
   modelsDir,
   provider,
-  onnxConfig
+  onnxConfig,
+  normalize
 }) => {
   const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
   if (useStub) {
@@ -73,9 +72,9 @@ const createAdapter = ({
     const embed = async (texts) => {
       const list = Array.isArray(texts) ? texts : [];
       if (!list.length) return [];
-      return list.map((text) => stubEmbedding(text, safeDims));
+      return list.map((text) => stubEmbedding(text, safeDims, normalize !== false));
     };
-    const embedOne = async (text) => stubEmbedding(text, safeDims);
+    const embedOne = async (text) => stubEmbedding(text, safeDims, normalize !== false);
     return { embed, embedOne, embedderPromise: null, provider: resolvedProvider };
   }
 
@@ -84,13 +83,14 @@ const createAdapter = ({
       rootDir,
       modelId,
       modelsDir,
-      onnxConfig
+      onnxConfig,
+      normalize
     });
     let fallbackAdapter = null;
     let warned = false;
     const ensureFallback = () => {
       if (!fallbackAdapter) {
-        fallbackAdapter = createXenovaAdapter({ modelId, modelsDir });
+        fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, normalize });
       }
       return fallbackAdapter;
     };
@@ -128,12 +128,13 @@ const createAdapter = ({
     };
   }
 
-  return createXenovaAdapter({ modelId, modelsDir });
+  return createXenovaAdapter({ modelId, modelsDir, normalize });
 };
 
 export function getEmbeddingAdapter(options) {
   const resolvedProvider = normalizeEmbeddingProvider(options?.provider, { strict: true });
   const normalizedOnnxConfig = normalizeOnnxConfig(options?.onnxConfig);
+  const normalize = options?.normalize !== false;
   const cacheKey = JSON.stringify({
     provider: resolvedProvider,
     modelId: options?.modelId || null,
@@ -141,7 +142,8 @@ export function getEmbeddingAdapter(options) {
     onnxConfig: normalizedOnnxConfig,
     rootDir: options?.rootDir || null,
     useStub: options?.useStub === true,
-    dims: options?.dims ?? null
+    dims: options?.dims ?? null,
+    normalize
   });
   if (!adapterCache.has(cacheKey)) {
     adapterCache.set(cacheKey, createAdapter({
@@ -151,7 +153,8 @@ export function getEmbeddingAdapter(options) {
       dims: options?.dims,
       modelsDir: options?.modelsDir,
       provider: resolvedProvider,
-      onnxConfig: normalizedOnnxConfig
+      onnxConfig: normalizedOnnxConfig,
+      normalize
     }));
   }
   return adapterCache.get(cacheKey);

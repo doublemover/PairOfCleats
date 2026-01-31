@@ -15,8 +15,8 @@ await fs.mkdir(repoRoot, { recursive: true });
 
 const queueDir = path.join(tempRoot, 'queue');
 const buildRoot = path.join(repoRoot, 'builds', 'b1');
-const indexRoot = path.join(buildRoot, 'index-code');
-await fs.mkdir(indexRoot, { recursive: true });
+const indexDir = path.join(buildRoot, 'index-code');
+await fs.mkdir(indexDir, { recursive: true });
 
 const fullRuntime = {
   root: repoRoot,
@@ -28,24 +28,30 @@ const fullRuntime = {
   embeddingIdentityKey: 'test-key'
 };
 
-const skipped = await enqueueEmbeddingJob({ runtime: fullRuntime, mode: 'code', indexRoot });
+const skipped = await enqueueEmbeddingJob({ runtime: fullRuntime, mode: 'code', indexDir });
 assert.equal(skipped, null, 'expected queue full to skip enqueue');
+
+const buildRoot2 = path.join(repoRoot, 'builds', 'b2');
+const indexDir2 = path.join(buildRoot2, 'index-prose');
+await fs.mkdir(indexDir2, { recursive: true });
 
 const okRuntime = {
   ...fullRuntime,
   buildId: 'b2',
-  buildRoot: path.join(repoRoot, 'builds', 'b2'),
+  buildRoot: buildRoot2,
   embeddingQueue: { dir: queueDir, maxQueued: 10 }
 };
 
-await enqueueEmbeddingJob({ runtime: okRuntime, mode: 'prose', indexRoot });
+await enqueueEmbeddingJob({ runtime: okRuntime, mode: 'prose', indexDir: indexDir2 });
 const queue = await loadQueue(queueDir, 'embeddings');
 const job = queue.jobs[0];
 
 assert.ok(job, 'expected queued job');
 assert.equal(job.buildId, 'b2');
 assert.equal(job.buildRoot, okRuntime.buildRoot);
-assert.equal(job.indexRoot, path.resolve(indexRoot));
+assert.equal(job.indexDir, path.resolve(indexDir2));
 assert.equal(job.mode, 'prose');
+assert.equal(job.repoRoot, path.resolve(repoRoot));
+assert.equal(job.embeddingPayloadFormatVersion, 2);
 
 console.log('embedding queue tests passed');

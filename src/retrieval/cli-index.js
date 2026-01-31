@@ -13,7 +13,7 @@ import {
   loadPiecesManifest,
   resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -24,6 +24,8 @@ import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/
 export async function loadIndex(dir, options) {
   const {
     modelIdDefault,
+    mode = null,
+    denseVectorMode = null,
     fileChargramN,
     includeHnsw = true,
     hnswConfig: rawHnswConfig,
@@ -114,17 +116,24 @@ export async function loadIndex(dir, options) {
   const denseVecCode = embeddingsReady
     ? await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
     : null;
+  const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
+  const hnswArtifact = hnswTarget === 'doc'
+    ? 'dense_vectors_doc_hnsw'
+    : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw' : 'dense_vectors_hnsw');
+  const hnswMetaName = hnswTarget === 'doc'
+    ? 'dense_vectors_doc_hnsw_meta'
+    : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw_meta' : 'dense_vectors_hnsw_meta');
+  const hnswPaths = resolveHnswPaths(dir, hnswTarget);
   const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
-    ? await loadOptionalObject('dense_vectors_hnsw_meta', path.join(dir, 'dense_vectors_hnsw.meta.json'))
+    ? await loadOptionalObject(hnswMetaName, hnswPaths.metaPath)
     : null;
   let hnswIndex = null;
   let hnswAvailable = false;
   if (hnswMeta && includeHnsw && hnswConfig.enabled) {
-    const { indexPath: fallbackIndexPath } = resolveHnswPaths(dir);
-    const indexPath = resolveBinaryArtifactPath(dir, 'dense_vectors_hnsw', {
+    const indexPath = resolveBinaryArtifactPath(dir, hnswArtifact, {
       manifest,
       strict,
-      fallbackPath: fallbackIndexPath
+      fallbackPath: hnswPaths.indexPath
     });
     const mergedConfig = {
       ...hnswConfig,
@@ -159,8 +168,9 @@ export async function loadIndex(dir, options) {
       available: hnswAvailable,
       index: hnswIndex,
       meta: hnswMeta,
-      space: hnswMeta.space || hnswConfig.space
-    } : { available: false, index: null, meta: null, space: hnswConfig.space },
+      space: hnswMeta.space || hnswConfig.space,
+      target: hnswTarget
+    } : { available: false, index: null, meta: null, space: hnswConfig.space, target: hnswTarget },
     state: indexState,
     fieldPostings,
     fieldTokens,

@@ -95,5 +95,33 @@ if (!('hnsw' in backends) || !('lancedb' in backends) || !('sqliteVec' in backen
   process.exit(1);
 }
 
+const denseJsonFiles = [
+  path.join(codeDir, 'dense_vectors_uint8.json'),
+  path.join(codeDir, 'dense_vectors_doc_uint8.json'),
+  path.join(codeDir, 'dense_vectors_code_uint8.json')
+];
+for (const densePath of denseJsonFiles) {
+  let densePayload;
+  try {
+    densePayload = JSON.parse(await fsPromises.readFile(densePath, 'utf8'));
+  } catch {
+    console.error(`Failed to read ${densePath}.`);
+    process.exit(1);
+  }
+  const fields = densePayload?.fields || densePayload || {};
+  if (!Number.isFinite(fields.minVal)) {
+    console.error(`dense vectors missing minVal in ${densePath}.`);
+    process.exit(1);
+  }
+  if (!Number.isFinite(fields.maxVal)) {
+    console.error(`dense vectors missing maxVal in ${densePath}.`);
+    process.exit(1);
+  }
+  if (!Number.isFinite(fields.levels)) {
+    console.error(`dense vectors missing levels in ${densePath}.`);
+    process.exit(1);
+  }
+}
+
 console.log('Stage3 embeddings validation test passed');
 

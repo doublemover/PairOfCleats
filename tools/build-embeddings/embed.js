@@ -87,24 +87,36 @@ export const buildQuantizedVectors = ({
   docVector,
   zeroVector,
   addHnswVector,
-  quantization
+  addHnswVectors,
+  quantization,
+  normalize = true
 }) => {
   const embedCode = isVectorLike(codeVector) ? codeVector : [];
   const embedDoc = isVectorLike(docVector) ? docVector : zeroVector;
   const resolved = resolveQuantizationParams(quantization);
   const merged = mergeEmbeddingVectors({ codeVector: embedCode, docVector: embedDoc });
-  const normalized = normalizeEmbeddingVector(merged);
-  if (addHnswVector && normalized.length) {
-    addHnswVector(chunkIndex, normalized);
-  }
-  const quantizedCode = embedCode.length
-    ? quantizeVec(embedCode, resolved.minVal, resolved.maxVal, resolved.levels)
+  const shouldNormalize = normalize !== false;
+  const mergedVec = shouldNormalize ? normalizeEmbeddingVector(merged) : merged;
+  const codeVec = embedCode.length
+    ? (shouldNormalize ? normalizeEmbeddingVector(embedCode) : embedCode)
     : [];
-  const quantizedDoc = embedDoc.length
-    ? quantizeVec(embedDoc, resolved.minVal, resolved.maxVal, resolved.levels)
+  const docVec = embedDoc.length
+    ? (shouldNormalize ? normalizeEmbeddingVector(embedDoc) : embedDoc)
     : [];
-  const quantizedMerged = normalized.length
-    ? quantizeVec(normalized, resolved.minVal, resolved.maxVal, resolved.levels)
+  const mergedHook = addHnswVectors?.merged || addHnswVector;
+  const docHook = addHnswVectors?.doc || null;
+  const codeHook = addHnswVectors?.code || null;
+  if (mergedHook && mergedVec.length) mergedHook(chunkIndex, mergedVec);
+  if (docHook && docVec.length) docHook(chunkIndex, docVec);
+  if (codeHook && codeVec.length) codeHook(chunkIndex, codeVec);
+  const quantizedCode = codeVec.length
+    ? quantizeVec(codeVec, resolved.minVal, resolved.maxVal, resolved.levels)
+    : [];
+  const quantizedDoc = docVec.length
+    ? quantizeVec(docVec, resolved.minVal, resolved.maxVal, resolved.levels)
+    : [];
+  const quantizedMerged = mergedVec.length
+    ? quantizeVec(mergedVec, resolved.minVal, resolved.maxVal, resolved.levels)
     : [];
   return { quantizedCode, quantizedDoc, quantizedMerged };
 };

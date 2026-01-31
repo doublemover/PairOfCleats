@@ -33,6 +33,9 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
   let index = null;
   let added = 0;
   let expected = 0;
+  let failed = 0;
+  const failedChunks = [];
+  const failureMessages = [];
   const pending = [];
 
   const isVectorLike = (value) => (
@@ -60,7 +63,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     pending.push({ chunkIndex, vector: data });
   };
 
-  const writeIndex = async ({ indexPath, metaPath, modelId, dims }) => {
+  const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale }) => {
     if (!enabled || !index || !expected) return { skipped: true };
     if (pending.length) {
       pending.sort((a, b) => a.chunkIndex - b.chunkIndex);
@@ -68,12 +71,33 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
         try {
           index.addPoint(entry.vector, entry.chunkIndex);
           added += 1;
-        } catch {
-          // Ignore HNSW insert failures.
+        } catch (err) {
+          failed += 1;
+          if (failedChunks.length < 25) failedChunks.push(entry.chunkIndex);
+          if (failureMessages.length < 3) {
+            failureMessages.push(err?.message || String(err));
+          }
         }
       }
     }
     if (expected !== added) {
+      const reportPath = metaPath
+        ? metaPath.replace(/\.meta\.json$/i, '.failures.json')
+        : `${indexPath}.failures.json`;
+      const failureReport = {
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        model: modelId || null,
+        dims,
+        expected,
+        added,
+        failed,
+        failedChunks,
+        failures: failureMessages
+      };
+      try {
+        await writeJsonObjectFile(reportPath, { fields: failureReport, atomic: true });
+      } catch {}
       throw new Error(`HNSW insert count mismatch (${added} of ${expected}).`);
     }
     const tempHnswPath = createTempPath(indexPath);
@@ -99,7 +123,11 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
       space: config.space,
       m: config.m,
       efConstruction: config.efConstruction,
-      efSearch: config.efSearch
+      efSearch: config.efSearch,
+      scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
+      minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
+      maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
     };
     await writeJsonObjectFile(metaPath, { fields: hnswMeta, atomic: true });
     return { skipped: false, count: added };

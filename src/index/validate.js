@@ -96,20 +96,37 @@ export async function validateIndexArtifacts(input = {}) {
       modeReport
     });
 
-    const {
-      resolvePresence,
-      checkPresence,
-      readJsonArtifact,
-      shouldLoadOptional,
-      hasLegacyArtifact
-    } = createArtifactPresenceHelpers({
-      dir,
-      manifest,
-      strict,
-      mode,
-      report,
-      modeReport
-    });
+      const {
+        resolvePresence,
+        checkPresence,
+        readJsonArtifact,
+        shouldLoadOptional,
+        hasLegacyArtifact
+      } = createArtifactPresenceHelpers({
+        dir,
+        manifest,
+        strict,
+        mode,
+        report,
+        modeReport
+      });
+      const resolveManifestCount = (name) => {
+        if (!strict || !manifest || !Array.isArray(manifest.pieces)) return null;
+        const entry = manifest.pieces.find((piece) => piece?.name === name);
+        const count = Number(entry?.count);
+        return Number.isFinite(count) ? count : null;
+      };
+      const validateManifestCount = (name, actualCount, label = name) => {
+        const expected = resolveManifestCount(name);
+        if (!Number.isFinite(expected)) return;
+        if (!Number.isFinite(actualCount)) return;
+        if (expected !== actualCount) {
+          const issue = `${label} manifest count mismatch (${expected} !== ${actualCount})`;
+          modeReport.ok = false;
+          modeReport.missing.push(issue);
+          report.issues.push(`[${mode}] ${issue}`);
+        }
+      };
 
     if (strict) {
       for (const name of requiredArtifacts) {
@@ -424,23 +441,24 @@ export async function validateIndexArtifacts(input = {}) {
         { label: 'dense_vectors_doc', name: 'dense_vectors_doc', file: 'dense_vectors_doc_uint8.json' },
         { label: 'dense_vectors_code', name: 'dense_vectors_code', file: 'dense_vectors_code_uint8.json' }
       ];
-      for (const target of denseTargets) {
-        const denseRaw = strict
-          ? readJsonArtifact(target.name)
-          : (() => {
-            const densePath = path.join(dir, target.file);
-            if (!fs.existsSync(densePath) && !fs.existsSync(`${densePath}.gz`)) return null;
-            return readJsonFile(densePath);
-          })();
-        if (!denseRaw) continue;
-        const dense = normalizeDenseVectors(denseRaw);
-        validateSchema(report, mode, target.name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
-        const vectors = dense.vectors || [];
-        if (vectors.length && vectors.length !== chunkMeta.length) {
-          const issue = `${target.label} mismatch (${vectors.length} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
+        for (const target of denseTargets) {
+          const denseRaw = strict
+            ? readJsonArtifact(target.name)
+            : (() => {
+              const densePath = path.join(dir, target.file);
+              if (!fs.existsSync(densePath) && !fs.existsSync(`${densePath}.gz`)) return null;
+              return readJsonFile(densePath);
+            })();
+          if (!denseRaw) continue;
+          const dense = normalizeDenseVectors(denseRaw);
+          validateSchema(report, mode, target.name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
+          const vectors = dense.vectors || [];
+          validateManifestCount(target.name, vectors.length, target.label);
+          if (vectors.length && vectors.length !== chunkMeta.length) {
+            const issue = `${target.label} mismatch (${vectors.length} !== ${chunkMeta.length})`;
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
         }
         if (dense.dims) {
           for (let i = 0; i < Math.min(vectors.length, 25); i += 1) {
@@ -474,24 +492,27 @@ export async function validateIndexArtifacts(input = {}) {
           binPath: path.join(dir, 'dense_vectors_code_hnsw.bin')
         }
       ];
-      for (const target of hnswTargets) {
-        const hnswMeta = strict
-          ? readJsonArtifact(target.metaName)
-          : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
-        if (!hnswMeta) continue;
-        validateSchema(
-          report,
-          mode,
-          target.metaName,
-          hnswMeta,
-          'Rebuild embeddings for this mode.',
-          { strictSchema: strict }
-        );
-        if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
-          const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
+        for (const target of hnswTargets) {
+          const hnswMeta = strict
+            ? readJsonArtifact(target.metaName)
+            : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+          if (!hnswMeta) continue;
+          validateSchema(
+            report,
+            mode,
+            target.metaName,
+            hnswMeta,
+            'Rebuild embeddings for this mode.',
+            { strictSchema: strict }
+          );
+          const hnswCount = Number.isFinite(hnswMeta?.count) ? hnswMeta.count : chunkMeta.length;
+          validateManifestCount(target.metaName, hnswCount, `${target.label} meta`);
+          validateManifestCount(target.binName, hnswCount, `${target.label} bin`);
+          if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
+            const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
         }
         const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
           manifest,
@@ -527,24 +548,27 @@ export async function validateIndexArtifacts(input = {}) {
             dir: lancePaths.code.dir
           }
         ];
-        for (const target of lanceTargets) {
-          const meta = strict
-            ? readJsonArtifact(target.metaName)
-            : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
-          if (!meta) continue;
-          validateSchema(
-            report,
-            mode,
-            target.metaName,
-            meta,
-            'Rebuild embeddings for this mode.',
-            { strictSchema: strict }
-          );
-          if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
-            const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
-            modeReport.ok = false;
-            modeReport.missing.push(issue);
-            report.issues.push(`[${mode}] ${issue}`);
+          for (const target of lanceTargets) {
+            const meta = strict
+              ? readJsonArtifact(target.metaName)
+              : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+            if (!meta) continue;
+            validateSchema(
+              report,
+              mode,
+              target.metaName,
+              meta,
+              'Rebuild embeddings for this mode.',
+              { strictSchema: strict }
+            );
+            const lanceCount = Number.isFinite(meta?.count) ? meta.count : chunkMeta.length;
+            validateManifestCount(target.metaName, lanceCount, `${target.label} meta`);
+            validateManifestCount(target.dirName, lanceCount, `${target.label} dir`);
+            if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
+              const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
+              modeReport.ok = false;
+              modeReport.missing.push(issue);
+              report.issues.push(`[${mode}] ${issue}`);
           }
           const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
             manifest,
@@ -556,22 +580,24 @@ export async function validateIndexArtifacts(input = {}) {
           }
         }
       }
-      const sqliteVecMeta = strict
-        ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
-        : (() => {
-          const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
-          return fs.existsSync(sqliteMetaPath) ? readJsonFile(sqliteMetaPath) : null;
-        })();
-      if (sqliteVecMeta) {
-        validateSchema(
-          report,
-          mode,
-          'dense_vectors_sqlite_vec_meta',
-          sqliteVecMeta,
-          'Rebuild embeddings for this mode.',
-          { strictSchema: strict }
-        );
-      }
+        const sqliteVecMeta = strict
+          ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
+          : (() => {
+            const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
+            return fs.existsSync(sqliteMetaPath) ? readJsonFile(sqliteMetaPath) : null;
+          })();
+        if (sqliteVecMeta) {
+          validateSchema(
+            report,
+            mode,
+            'dense_vectors_sqlite_vec_meta',
+            sqliteVecMeta,
+            'Rebuild embeddings for this mode.',
+            { strictSchema: strict }
+          );
+          const sqliteCount = Number.isFinite(sqliteVecMeta?.count) ? sqliteVecMeta.count : chunkMeta.length;
+          validateManifestCount('dense_vectors_sqlite_vec_meta', sqliteCount, 'dense_vectors_sqlite_vec_meta');
+        }
     } catch (err) {
       const issue = `validation failed (${err?.code || err?.message || 'error'})`;
       modeReport.ok = false;

@@ -26,6 +26,7 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
+  const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
@@ -96,7 +97,8 @@ export const resolveEmbeddingRuntime = async ({
       dims: argv.dims,
       modelsDir,
       provider: embeddingProvider,
-      onnx: embeddingOnnx
+      onnx: embeddingOnnx,
+      normalize: embeddingNormalize
     });
     getChunkEmbedding = embedder.getChunkEmbedding;
     getChunkEmbeddings = embedder.getChunkEmbeddings;
@@ -123,7 +125,7 @@ export const resolveEmbeddingRuntime = async ({
     dims: useStubEmbeddings ? resolveStubDims(argv.dims) : (Number.isFinite(Number(argv.dims)) ? Math.floor(Number(argv.dims)) : null),
     scale: denseScale,
     pooling: 'mean',
-    normalize: true,
+    normalize: embeddingNormalize,
     truncation: 'truncate',
     maxLength: null,
     quantization: {
@@ -147,6 +149,7 @@ export const resolveEmbeddingRuntime = async ({
     embeddingService,
     embeddingProvider,
     embeddingOnnx,
+    embeddingNormalize,
     embeddingQueue: {
       dir: embeddingQueueDir || null,
       maxQueued: embeddingQueueMaxQueued

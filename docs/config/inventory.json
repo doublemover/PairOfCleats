@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-31T08:50:56.993Z",
+  "generatedAt": "2026-01-31T11:51:57.278Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -108,6 +108,7 @@
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
       "runtime.uvThreadpoolSize",
+      "search.denseVectorMode",
       "search.sqliteAutoArtifactBytes",
       "search.sqliteAutoChunkThreshold",
       "threads",
@@ -158,8 +159,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 99,
-    "leafKeys": 75,
+    "totalKeys": 100,
+    "leafKeys": 76,
     "topLevel": [
       {
         "key": "cache",
@@ -179,7 +180,7 @@
       },
       {
         "key": "search",
-        "count": 3
+        "count": 4
       },
       {
         "key": "threads",
@@ -426,6 +427,16 @@
       "path": "search",
       "type": "object",
       "enum": null
+    },
+    {
+      "path": "search.denseVectorMode",
+      "type": "string",
+      "enum": [
+        "merged",
+        "code",
+        "doc",
+        "auto"
+      ]
     },
     {
       "path": "search.sqliteAutoArtifactBytes",
@@ -789,6 +800,7 @@
         "tests/indexer/call-sites-determinism.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
@@ -850,6 +862,7 @@
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
         "tests/uninstall.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tests/vector-extension-missing.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
@@ -934,6 +947,7 @@
         "tests/indexer/call-sites-determinism.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
@@ -986,6 +1000,7 @@
         "tests/type-inference-crossfile-go.js",
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
@@ -1326,6 +1341,7 @@
         "tests/indexer/call-sites-determinism.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
@@ -1367,6 +1383,7 @@
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
         "tests/type-inference-lsp-enrichment.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tests/vector-extension-missing.js",
         "tools/ci/run-suite.js",
         "tools/config-inventory.js",

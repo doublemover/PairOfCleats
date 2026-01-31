@@ -1,4 +1,7 @@
-import { quantizeEmbeddingVector } from '../../shared/embedding-utils.js';
+import {
+  clampQuantizedVectorInPlace,
+  quantizeEmbeddingVector
+} from '../../shared/embedding-utils.js';
 
 /**
  * Quantize a float vector into uint8 bins for storage.
@@ -75,6 +78,13 @@ export function packUint32(values) {
  * @returns {Buffer}
  */
 export function packUint8(values) {
-  const arr = Uint8Array.from(values || []);
+  const list = Array.isArray(values) || ArrayBuffer.isView(values)
+    ? values
+    : Array.from(values || []);
+  const clamped = clampQuantizedVectorInPlace(list);
+  if (clamped > 0) {
+    console.warn(`[sqlite] Uint8 vector values clamped (${clamped} value${clamped === 1 ? '' : 's'}).`);
+  }
+  const arr = list instanceof Uint8Array ? list : Uint8Array.from(list);
   return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
 }
