@@ -1,6 +1,7 @@
 import Graph from 'graphology';
 import { compareStrings } from '../../shared/sort.js';
 import { resolveChunkId } from '../chunk-id.js';
+import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relative-import.js';
 
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
@@ -88,9 +89,11 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null, callSit
   const usageGuard = createGraphGuard('usageGraph');
   const importGuard = createGraphGuard('importGraph');
   const chunkByUid = new Map();
+  const fileSet = new Set();
 
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
+    fileSet.add(chunk.file);
     const legacyKey = buildLegacyChunkKey(chunk);
     const chunkId = resolveChunkId(chunk);
     const chunkUid = resolveChunkUid(chunk);
@@ -183,7 +186,12 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null, callSit
       if (!file) continue;
       const context = { file, chunkId: null };
       mergeNode(importGraph, file, { file }, importGuard, context);
-      const imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
+      let imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
+      if (!imports.length && Array.isArray(relations?.imports) && fileSet.size) {
+        imports = relations.imports
+          .map((spec) => resolveRelativeImport(file, spec, fileSet))
+          .filter(Boolean);
+      }
       for (const target of imports) {
         if (!target) continue;
         mergeNode(importGraph, target, { file: target }, importGuard, context);

@@ -49,3 +49,18 @@ We will execute Phase 10 in a dependency-first order: freeze canonical specs and
 - Shard-merge: added generic `generatedAt`/`updatedAt` normalization for JSON artifacts so meta files and `risk_interprocedural_stats.json` compare equal when only timestamps differ.
 - Shard-merge: skip checksum enforcement for `format: dir` artifacts (e.g., `dense_vectors.lancedb`) since directory entries do not include checksums.
 - Re-ran `node tests/shard-merge.js` (pass).
+- Piece-assembly: traced graph_relations mismatch to missing call/import edges when assembling partial piece sets.
+- Updated `src/index/build/piece-assembly.js` to only pass resolved callsites (caller+target) and fall back to `callDetails` when none exist.
+- Updated `src/index/build/graphs.js` to resolve `importLinks` from `relations.imports` via `resolveRelativeImport` when assembling edges.
+- Re-ran `node tests/piece-assembly.js` (pass).
+- MCP search defaults/filters: aligned MCP cache root in `tests/services/mcp/tool-search-defaults-and-filters.test.js` with `.testCache` so MCP uses the fixture index outputs.
+- Attempted to re-run `node tests/services/mcp/tool-search-defaults-and-filters.test.js`; canceled after exceeding 30s (needs user rerun).
+- Triage context pack: added `tools/triage/decision.js` call before records indexing to seed history.
+- Attempted to re-run `node tests/tooling/triage/context-pack.test.js`; canceled after exceeding 30s (needs user rerun).
+- MCP search defaults/filters: riskTag filter did not change results because `exec` query only returned command-exec hits.
+- Switched riskTag baseline query to `req` to ensure baseline includes non-command-exec hits before filtering.
+- Test rerun deferred (exceeds 30s); needs user rerun.
+- MCP search defaults/filters: riskTag filter still unchanged because hitKey collapsed multiple hits to the same file.
+- Updated hitKey to include file + range + kind + name so set comparison detects changed results.
+- Re-ran `node tests/tooling/triage/context-pack.test.js`; canceled after exceeding 30s (needs user rerun).
+- User reran `node tests/tooling/triage/context-pack.test.js` (pass).

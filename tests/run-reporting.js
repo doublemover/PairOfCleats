@@ -344,7 +344,10 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     }
     return order.map((line) => {
       const count = counts.get(line) || 1;
-      return count > 1 ? `${count}x${line}` : line;
+      if (count <= 1) return line;
+      const repeated = `${count}x ${line}`;
+      if (!useColor) return repeated;
+      return `${ANSI.dim}${ANSI.fgDarkGray}${repeated}${ANSI.reset}`;
     });
   };
 
