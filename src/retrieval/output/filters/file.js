@@ -1,8 +1,6 @@
 import path from 'node:path';
 import { compileSafeRegex } from '../../../shared/safe-regex.js';
-import { normalizeList } from './predicates.js';
-
-const defaultNormalize = (value) => String(value || '').toLowerCase();
+import { defaultNormalize, normalizeList } from './predicates.js';
 const normalizeFilePath = (value) => String(value || '').replace(/\\/g, '/');
 
 const parseFileMatcher = ({ entry, normalizeFile, regexConfig }) => {

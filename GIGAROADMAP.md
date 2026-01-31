@@ -515,8 +515,8 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 
 ### R.8 Post-refactor follow-ups
 
-- [ ] Update `docs/guides/architecture.md` if module boundaries materially change (filters/pipeline/tools).
-- [ ] Update `docs/guides/commands.md` and `docs/tooling/script-inventory.json` if any script entrypoints changed.
+- [x] Update `docs/guides/architecture.md` if module boundaries materially change (filters/pipeline/tools).
+- [x] Update `docs/guides/commands.md` and `docs/tooling/script-inventory.json` if any script entrypoints changed.
 
 ---
 

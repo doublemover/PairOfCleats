@@ -1,7 +1,5 @@
 import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../shared/docmeta.js';
-import { matchList } from './predicates.js';
-
-const defaultNormalize = (value) => String(value || '').toLowerCase();
+import { defaultNormalize, matchList } from './predicates.js';
 
 const resolveMetaField = (record, key) => {
   if (!record || typeof record !== 'object' || !key) return undefined;

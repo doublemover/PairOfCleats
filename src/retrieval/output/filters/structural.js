@@ -1,4 +1,4 @@
-const defaultNormalize = (value) => String(value || '').toLowerCase();
+import { defaultNormalize } from './predicates.js';
 
 export const matchStructural = ({ chunk, structPackNeedles, structRuleNeedles, structTagNeedles, normalize = defaultNormalize }) => {
   if (!structPackNeedles.length && !structRuleNeedles.length && !structTagNeedles.length) {
