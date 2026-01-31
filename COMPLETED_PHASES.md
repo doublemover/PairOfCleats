@@ -4911,3 +4911,6 @@ These appendices are generated to remove scavenger-hunts:
 
 
 
+
+## Phase 10 — Interprocedural risk propagation + explainability artifacts (Completed)
+- Phase 10 completed on quantum-leviathan-protocol; artifacts, validation, CLI explain, and robustness/test updates finished (see QUANTUM_LEVIATHAN_PROTOCOL.md).
