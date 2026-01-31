@@ -81,6 +81,7 @@ export async function writeJsonLinesSharded(input) {
   let partIndex = -1;
   let partCount = 0;
   let partBytes = 0;
+  let partLogicalBytes = 0;
   let current = null;
   let currentPath = null;
 
@@ -103,6 +104,7 @@ export async function writeJsonLinesSharded(input) {
     partIndex += 1;
     partCount = 0;
     partBytes = 0;
+    partLogicalBytes = 0;
     const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.${extension}`;
     const absPath = path.join(partsDir, partName);
     const relPath = path.posix.join(partsDirName, partName);
@@ -130,9 +132,10 @@ export async function writeJsonLinesSharded(input) {
       next = iterator.next();
       const hasMore = !next.done;
       const line = stringifyJsonValue(item);
+      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
       const needsNewPart = current
         && ((resolvedMaxItems && partCount >= resolvedMaxItems)
-          || (resolvedMaxBytes && partBytes >= resolvedMaxBytes));
+          || (resolvedMaxBytes && (partLogicalBytes + lineBytes) > resolvedMaxBytes));
       if (!current || needsNewPart) {
         await closePart();
         openPart();
@@ -141,16 +144,17 @@ export async function writeJsonLinesSharded(input) {
       await writeChunk(current.stream, '\n');
       partCount += 1;
       partBytes = current.getBytesWritten();
+      partLogicalBytes += lineBytes;
       total += 1;
       counts[counts.length - 1] = partCount;
-      if (resolvedMaxBytes && partBytes > resolvedMaxBytes && partCount === 1) {
+      if (resolvedMaxBytes && lineBytes > resolvedMaxBytes && partCount === 1) {
         const err = new Error(
-          `JSONL entry exceeds maxBytes (${partBytes} > ${resolvedMaxBytes}) in ${partsDirName}`
+          `JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`
         );
         err.code = 'ERR_JSON_TOO_LARGE';
         throw err;
       }
-      if (resolvedMaxBytes && partBytes >= resolvedMaxBytes && hasMore) {
+      if (resolvedMaxBytes && partLogicalBytes >= resolvedMaxBytes && hasMore) {
         await closePart();
         openPart();
       }

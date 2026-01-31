@@ -4,7 +4,7 @@ import { execaSync } from 'execa';
 import { isTestingEnv } from '../../shared/env.js';
 import { resolveToolRoot } from '../../../tools/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
@@ -93,13 +93,22 @@ export const createPyrightProvider = () => ({
     const targets = Array.isArray(inputs?.targets)
       ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
       : [];
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'pyright' });
     if (!docs.length || !targets.length) {
-      return { provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const resolvedCmd = resolveCommand('pyright-langserver', ctx.repoRoot, ctx.toolingConfig);
     if (!canRunPyright(resolvedCmd)) {
       log('[index] pyright-langserver not detected; skipping tooling-based types.');
-      return { provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
@@ -119,9 +128,12 @@ export const createPyrightProvider = () => ({
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
-      diagnostics: result.diagnosticsCount
-        ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-        : null
+      diagnostics: appendDiagnosticChecks(
+        result.diagnosticsCount
+          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+          : null,
+        duplicateChecks
+      )
     };
   }
 });

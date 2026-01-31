@@ -143,7 +143,7 @@ export async function assembleIndexPieces({
   const indexingConfig = userConfig?.indexing || {};
   const isCodeMode = mode === 'code';
   const typeInferenceEnabled = isCodeMode && indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = isCodeMode && indexingConfig.typeInferenceCrossFile === true;
+  const typeInferenceCrossFileEnabled = isCodeMode && indexingConfig.typeInferenceCrossFile !== false;
   const riskAnalysisEnabled = isCodeMode && indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = isCodeMode
     && riskAnalysisEnabled

@@ -16,7 +16,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
-Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `call_sites_meta`, `repo_map_meta`, `graph_relations_meta`.
+Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `repo_map_meta`, `graph_relations_meta`.
 
 ## Artifact registry
 
@@ -25,7 +25,10 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - `chunk_meta` (array): entries require `id`, `start`, `end` (ints). Optional: `fileId`, `startLine`, `endLine`, `kind`, `name`, `ext`, `metaV2`. Additional properties allowed.
 - `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
-- `file_relations` (array): entries require `file`, `relations` (object).
+- `file_relations` (array): entries require `file`, `relations` (object). Optional: `importBindings` (object).
+- `symbols` (array/JSONL): entries require `v`, `symbolId`, `scopedId`, `symbolKey`, `qualifiedName`, `kindGroup`, `file`, `virtualPath`, `chunkUid`. Optional: `scheme`, `signatureKey`, `segmentUid`, `lang`, `kind`, `name`, `signature`, `extensions`.
+- `symbol_occurrences` (array/JSONL): entries require `v`, `host` (`file`, `chunkUid`), `role`, `ref`. Optional: `range`.
+- `symbol_edges` (array/JSONL): entries require `v`, `type`, `from` (`file`, `chunkUid`), `to`. Optional: `confidence`, `reason`.
 - `call_sites` (array/JSONL): entries require
   `callSiteId`, `callerChunkUid`, `file`, `languageId`, `start`, `end`,
   `startLine`, `startCol`, `endLine`, `endCol`, `calleeRaw`,

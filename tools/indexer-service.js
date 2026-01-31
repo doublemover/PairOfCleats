@@ -340,46 +340,49 @@ const processQueueOnce = async (metrics) => {
     ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
     : () => {};
   let exitCode;
-  if (queueName === 'embeddings') {
-    const normalized = normalizeEmbeddingJob(job);
-    if (job.repoRoot && job.repo && path.resolve(job.repoRoot) !== path.resolve(job.repo)) {
-      console.error(`[indexer] embedding job ${job.id} repoRoot mismatch (repo=${job.repo}, repoRoot=${job.repoRoot}); using repoRoot.`);
-    }
-    if (!normalized.buildRoot) {
-      await completeJob(queueDir, job.id, 'failed', { exitCode: 1, error: 'missing buildRoot for embedding job' }, resolvedQueueName);
-      return true;
-    }
-    if (!fs.existsSync(normalized.buildRoot)) {
-      await completeJob(
-        queueDir,
-        job.id,
-        'failed',
-        { exitCode: 1, error: `embedding buildRoot missing: ${normalized.buildRoot}` },
-        resolvedQueueName
-      );
-      return true;
-    }
-    if (normalized.formatVersion && normalized.formatVersion < 2) {
-      console.error(`[indexer] embedding job ${job.id} uses legacy payload; upgrading for processing.`);
-    }
-    if (normalized.indexDir) {
-      const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
-        console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
+  try {
+    if (queueName === 'embeddings') {
+      const normalized = normalizeEmbeddingJob(job);
+      if (job.repoRoot && job.repo && path.resolve(job.repoRoot) !== path.resolve(job.repo)) {
+        console.error(`[indexer] embedding job ${job.id} repoRoot mismatch (repo=${job.repo}, repoRoot=${job.repoRoot}); using repoRoot.`);
       }
+      if (!normalized.buildRoot) {
+        await completeJob(queueDir, job.id, 'failed', { exitCode: 1, error: 'missing buildRoot for embedding job' }, resolvedQueueName);
+        return true;
+      }
+      if (!fs.existsSync(normalized.buildRoot)) {
+        await completeJob(
+          queueDir,
+          job.id,
+          'failed',
+          { exitCode: 1, error: `embedding buildRoot missing: ${normalized.buildRoot}` },
+          resolvedQueueName
+        );
+        return true;
+      }
+      if (normalized.formatVersion && normalized.formatVersion < 2) {
+        console.error(`[indexer] embedding job ${job.id} uses legacy payload; upgrading for processing.`);
+      }
+      if (normalized.indexDir) {
+        const rel = path.relative(normalized.buildRoot, normalized.indexDir);
+        if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+          console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
+        }
+      }
+      exitCode = await runBuildEmbeddings(
+        normalized.repoRoot || job.repo,
+        job.mode,
+        normalized.buildRoot,
+        extraEnv,
+        logPath
+      );
+    } else {
+      exitCode = await runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath);
     }
-    exitCode = await runBuildEmbeddings(
-      normalized.repoRoot || job.repo,
-      job.mode,
-      normalized.buildRoot,
-      extraEnv,
-      logPath
-    );
-  } else {
-    exitCode = await runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath);
+  } finally {
+    stopProgress();
+    clearInterval(heartbeat);
   }
-  stopProgress();
-  clearInterval(heartbeat);
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
   const maxRetries = Number.isFinite(job.maxRetries)

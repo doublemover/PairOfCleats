@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 
 export const SWIFT_EXTS = ['.swift'];
@@ -62,13 +62,22 @@ export const createSourcekitProvider = () => ({
     const targets = Array.isArray(inputs?.targets)
       ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
       : [];
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
-      return { provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const resolvedCmd = resolveCommand('sourcekit-lsp');
     if (!canRunSourcekit(resolvedCmd)) {
       log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
-      return { provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
@@ -87,7 +96,10 @@ export const createSourcekitProvider = () => ({
     return {
       provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
-      diagnostics: result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null
+      diagnostics: appendDiagnosticChecks(
+        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
+        duplicateChecks
+      )
     };
   }
 });

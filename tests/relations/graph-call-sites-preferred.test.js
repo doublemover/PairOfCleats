@@ -10,7 +10,21 @@ const chunks = [
     chunkUid: 'uid-caller',
     codeRelations: {
       callLinks: [
-        { file: 'other.js', target: 'other', kind: 'function' }
+        {
+          v: 1,
+          edgeKind: 'call',
+          fromChunkUid: 'uid-caller',
+          to: {
+            v: 1,
+            targetName: 'other',
+            kindHint: null,
+            importHint: null,
+            candidates: [],
+            status: 'resolved',
+            resolved: { symbolId: 'sym1:heur:other', chunkUid: 'uid-other' }
+          },
+          legacy: { legacy: true, file: 'other.js', target: 'other', kind: 'function' }
+        }
       ]
     }
   },

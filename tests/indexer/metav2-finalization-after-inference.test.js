@@ -107,7 +107,11 @@ if (!inferredReturns.some((entry) => entry.type === 'Widget' && entry.source ===
 }
 
 const callLinks = buildWidget.metaV2?.relations?.callLinks || [];
-if (!callLinks.some((link) => link.target === 'createWidget' && link.file === 'src/creator.js')) {
+if (!callLinks.some((link) =>
+  link.to?.status === 'resolved'
+  && link.legacy?.target === 'createWidget'
+  && link.legacy?.file === 'src/creator.js'
+)) {
   console.error('metaV2 missing call link to createWidget.');
   process.exit(1);
 }

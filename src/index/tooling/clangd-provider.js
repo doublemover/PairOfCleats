@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 
 export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
 
@@ -148,19 +148,32 @@ export const createClangdProvider = () => ({
     const targets = Array.isArray(inputs?.targets)
       ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
       : [];
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'clangd' });
     if (!docs.length || !targets.length) {
-      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const clangdConfig = ctx?.toolingConfig?.clangd || {};
     const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
     if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
       log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
-      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const resolvedCmd = resolveCommand('clangd');
     if (!canRunClangd(resolvedCmd)) {
       log('[index] clangd not detected; skipping tooling-based types.');
-      return { provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return {
+        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+      };
     }
     const clangdArgs = [];
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
@@ -181,7 +194,10 @@ export const createClangdProvider = () => ({
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
-      diagnostics: result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null
+      diagnostics: appendDiagnosticChecks(
+        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
+        duplicateChecks
+      )
     };
   }
 });

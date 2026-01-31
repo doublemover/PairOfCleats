@@ -57,14 +57,31 @@ import {
  * @returns {Promise<object>}
  */
 export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
-  const userConfig = loadUserConfig(root);
+  const initStartedAt = Date.now();
+  const logInit = (label, startedAt) => {
+    const elapsed = Math.max(0, Date.now() - startedAt);
+    log(`[init] ${label} (${elapsed}ms)`);
+  };
+  const timeInit = async (label, fn) => {
+    const startedAt = Date.now();
+    const result = await fn();
+    logInit(label, startedAt);
+    return result;
+  };
+
+  const userConfig = await timeInit('load config', () => loadUserConfig(root));
   const envConfig = getEnvConfig();
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
-  const autoPolicy = policy || await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+  const autoPolicy = policy
+    ? policy
+    : await timeInit('auto policy', () => buildAutoPolicy({ repoRoot: root, config: policyConfig }));
+  if (policy) {
+    log('[init] auto policy (provided)');
+  }
   const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
   const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
   const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
@@ -101,7 +118,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-  const envelope = resolveRuntimeEnvelope({
+  const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
@@ -119,7 +136,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       cpuCount: os.cpus().length
     },
     toolVersion: getToolVersion()
-  });
+  }));
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
   const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
   const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
@@ -142,7 +159,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, policyConfig);
   const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
-  const repoProvenance = await getRepoProvenance(root);
+  const repoProvenance = await timeInit('repo provenance', () => getRepoProvenance(root));
   const toolVersion = getToolVersion();
   const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
@@ -166,7 +183,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
   const typeInferenceEnabled = indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
+  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile !== false;
   const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
@@ -235,6 +252,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
     maxLines: normalizeLimit(chunkingConfig.maxLines, null)
   };
+  const treeSitterStart = Date.now();
   const {
     treeSitterEnabled,
     treeSitterLanguages,
@@ -253,6 +271,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     treeSitterDeferMissingMax,
     treeSitterWorker
   } = resolveTreeSitterRuntime(indexingConfig);
+  logInit('tree-sitter config', treeSitterStart);
   const applyTreeSitterJsCaps = (caps, maxBytes) => {
     if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
     const targets = ['.js', '.jsx', '.mjs', '.cjs', '.jsm'];
@@ -300,7 +319,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
 
-  const embeddingRuntime = await resolveEmbeddingRuntime({
+  const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
     userConfig,
     recordsDir: triageConfig.recordsDir,
@@ -309,7 +328,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     envConfig,
     argv,
     cpuConcurrency
-  });
+  }));
     const {
       embeddingBatchSize,
       embeddingConcurrency,
@@ -360,6 +379,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     || indexingConfig.debugCrash === true
     || isTestingEnv();
 
+  const dictStartedAt = Date.now();
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir;
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
@@ -449,13 +469,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
   const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
+  logInit('dictionaries', dictStartedAt);
 
   const {
     ignoreMatcher,
     config: ignoreConfig,
     ignoreFiles,
     warnings: ignoreWarnings
-  } = await buildIgnoreMatcher({ root, userConfig });
+  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig }));
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -519,6 +540,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   if (!treeSitterEnabled) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
   } else {
+    const preloadStart = Date.now();
     await preloadTreeSitterRuntimeLanguages({
       treeSitterEnabled,
       treeSitterLanguages,
@@ -527,6 +549,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       treeSitterMaxLoadedLanguages,
       log
     });
+    logInit('tree-sitter preload', preloadStart);
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
@@ -556,7 +579,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
 
-  const workerPoolsResult = await createRuntimeWorkerPools({
+  const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
     repoCacheRoot,
     dictWords,
@@ -578,7 +601,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     },
     debugCrash,
     log
-  });
+  }));
   const { workerPools, workerPool, quantizePool } = workerPoolsResult;
 
   log('Build environment snapshot.', {
@@ -655,6 +678,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   try {
     await fs.mkdir(buildRoot, { recursive: true });
   } catch {}
+  logInit('runtime ready', initStartedAt);
 
   return {
     envelope,

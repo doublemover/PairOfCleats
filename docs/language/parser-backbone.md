@@ -68,7 +68,7 @@ Config keys (current; see `docs/config/schema.json` for defaults):
 - tooling.clangd.compileCommandsDir (optional)
 - indexing.astDataflow (default true)
 - indexing.typeInference (default false)
-- indexing.typeInferenceCrossFile (default false)
+- indexing.typeInferenceCrossFile (default true)
 - indexing.gitBlame (default true)
 - indexing.pythonAst.enabled (default true)
 - indexing.pythonAst.workerCount / maxWorkers / scaleUpQueueMs / taskTimeoutMs

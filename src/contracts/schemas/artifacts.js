@@ -76,6 +76,141 @@ const graphPayload = {
   additionalProperties: true
 };
 
+const symbolRefSchema = {
+  type: 'object',
+  required: ['v', 'targetName', 'candidates', 'status', 'resolved'],
+  properties: {
+    v: posInt,
+    targetName: { type: 'string' },
+    kindHint: nullableString,
+    importHint: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            moduleSpecifier: nullableString,
+            resolvedFile: nullableString
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    },
+    candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['symbolId', 'chunkUid', 'symbolKey', 'kindGroup'],
+        properties: {
+          symbolId: { type: 'string' },
+          chunkUid: { type: 'string' },
+          symbolKey: { type: 'string' },
+          signatureKey: nullableString,
+          kindGroup: { type: 'string' }
+        },
+        additionalProperties: true
+      }
+    },
+    status: { type: 'string', enum: ['resolved', 'ambiguous', 'unresolved'] },
+    resolved: {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['symbolId', 'chunkUid'],
+          properties: {
+            symbolId: { type: 'string' },
+            chunkUid: { type: 'string' }
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    }
+  },
+  additionalProperties: true
+};
+
+const symbolRecord = {
+  type: 'object',
+  required: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],
+  properties: {
+    v: posInt,
+    symbolId: { type: 'string' },
+    scopedId: { type: 'string' },
+    scheme: nullableString,
+    symbolKey: { type: 'string' },
+    signatureKey: nullableString,
+    chunkUid: { type: 'string' },
+    virtualPath: { type: 'string' },
+    segmentUid: nullableString,
+    file: { type: 'string' },
+    lang: nullableString,
+    kind: nullableString,
+    kindGroup: { type: 'string' },
+    name: nullableString,
+    qualifiedName: { type: 'string' },
+    signature: nullableString,
+    extensions: { type: 'object' }
+  },
+  additionalProperties: true
+};
+
+const symbolOccurrence = {
+  type: 'object',
+  required: ['v', 'host', 'role', 'ref'],
+  properties: {
+    v: posInt,
+    host: {
+      type: 'object',
+      required: ['file', 'chunkUid'],
+      properties: {
+        file: { type: 'string' },
+        chunkUid: { type: 'string' }
+      },
+      additionalProperties: true
+    },
+    role: { type: 'string' },
+    ref: symbolRefSchema,
+    range: {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['start', 'end'],
+          properties: {
+            start: intId,
+            end: intId
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    }
+  },
+  additionalProperties: true
+};
+
+const symbolEdge = {
+  type: 'object',
+  required: ['v', 'type', 'from', 'to'],
+  properties: {
+    v: posInt,
+    type: { type: 'string' },
+    from: {
+      type: 'object',
+      required: ['file', 'chunkUid'],
+      properties: {
+        file: { type: 'string' },
+        chunkUid: { type: 'string' }
+      },
+      additionalProperties: true
+    },
+    to: symbolRefSchema,
+    confidence: { type: ['number', 'null'] },
+    reason: nullableString
+  },
+  additionalProperties: true
+};
+
 const idPostingList = {
   type: 'array',
   items: { type: 'array', items: intId }
@@ -504,10 +639,23 @@ export const ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object' }
+        relations: { type: 'object' },
+        importBindings: { type: 'object' }
       },
       additionalProperties: true
     }
+  },
+  symbols: {
+    type: 'array',
+    items: symbolRecord
+  },
+  symbol_occurrences: {
+    type: 'array',
+    items: symbolOccurrence
+  },
+  symbol_edges: {
+    type: 'array',
+    items: symbolEdge
   },
   call_sites: {
     type: 'array',
@@ -720,6 +868,9 @@ export const ARTIFACT_SCHEMA_DEFS = {
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
+  symbols_meta: buildShardedJsonlMeta('symbols'),
+  symbol_occurrences_meta: buildShardedJsonlMeta('symbol_occurrences'),
+  symbol_edges_meta: buildShardedJsonlMeta('symbol_edges'),
   call_sites_meta: buildShardedJsonlMeta('call_sites'),
   repo_map_meta: buildShardedJsonlMeta('repo_map'),
   graph_relations_meta: buildShardedJsonlMeta('graph_relations')

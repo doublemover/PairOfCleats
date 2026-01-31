@@ -37,7 +37,14 @@ const hasChunkMeta = (repoRoot) => {
 const buildIndex = (repoRoot, env) => {
   const result = spawnSync(
     process.execPath,
-    [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+    [
+      path.join(ROOT, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage2',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {
@@ -57,8 +64,20 @@ export const ensureSearchFiltersRepo = async () => {
   await fsPromises.mkdir(repoRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-  if (!fs.existsSync(path.join(repoRoot, '.git'))) {
-    runGit(['init'], 'git init', repoRoot);
+  const requiredFiles = [
+    'alpha.txt',
+    'beta.txt',
+    'CaseFile.TXT',
+    'sample.js'
+  ];
+  const gitDir = path.join(repoRoot, '.git');
+  const needsBootstrap = !fs.existsSync(gitDir)
+    || requiredFiles.some((filename) => !fs.existsSync(path.join(repoRoot, filename)));
+
+  if (needsBootstrap) {
+    if (!fs.existsSync(gitDir)) {
+      runGit(['init'], 'git init', repoRoot);
+    }
     runGit(['config', 'user.email', 'test@example.com'], 'git config email', repoRoot);
     runGit(['config', 'user.name', 'Test User'], 'git config name', repoRoot);
 
@@ -67,44 +86,58 @@ export const ensureSearchFiltersRepo = async () => {
     const dateOld = new Date(now - 5 * dayMs).toISOString();
     const dateNew = new Date(now - 1 * dayMs).toISOString();
 
-    await fsPromises.writeFile(path.join(repoRoot, 'alpha.txt'), 'alpha beta\nalpha beta\n');
-    runGit(['add', '.'], 'git add alpha', repoRoot);
-    runGit(
-      ['commit', '-m', 'add alpha', '--author', 'Alice <alice@example.com>', '--date', dateOld],
-      'git commit alpha',
-      repoRoot,
-      { GIT_AUTHOR_DATE: dateOld, GIT_COMMITTER_DATE: dateOld }
-    );
+    const ensureFileCommit = async ({
+      filename,
+      content,
+      author,
+      date,
+      message,
+      label
+    }) => {
+      const filePath = path.join(repoRoot, filename);
+      if (fs.existsSync(filePath)) return;
+      await fsPromises.writeFile(filePath, content);
+      runGit(['add', filename], `git add ${label}`, repoRoot);
+      runGit(
+        ['commit', '-m', message, '--author', author, '--date', date],
+        `git commit ${label}`,
+        repoRoot,
+        { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
+      );
+    };
 
-    await fsPromises.writeFile(path.join(repoRoot, 'beta.txt'), 'alpha gamma\nalpha delta\n');
-    runGit(['add', '.'], 'git add beta', repoRoot);
-    runGit(
-      ['commit', '-m', 'add beta', '--author', 'Bob <bob@example.com>', '--date', dateNew],
-      'git commit beta',
-      repoRoot,
-      { GIT_AUTHOR_DATE: dateNew, GIT_COMMITTER_DATE: dateNew }
-    );
-
-    await fsPromises.writeFile(path.join(repoRoot, 'CaseFile.TXT'), 'AlphaCase alpha\n');
-    runGit(['add', '.'], 'git add CaseFile', repoRoot);
-    runGit(
-      ['commit', '-m', 'add case file', '--author', 'Casey <casey@example.com>', '--date', dateNew],
-      'git commit CaseFile',
-      repoRoot,
-      { GIT_AUTHOR_DATE: dateNew, GIT_COMMITTER_DATE: dateNew }
-    );
-
-    await fsPromises.writeFile(
-      path.join(repoRoot, 'sample.js'),
-      'const equal = (a, b) => a && b;\nfunction check(a, b) {\n  return a && b;\n}\n'
-    );
-    runGit(['add', '.'], 'git add sample.js', repoRoot);
-    runGit(
-      ['commit', '-m', 'add sample.js', '--author', 'Dana <dana@example.com>', '--date', dateNew],
-      'git commit sample.js',
-      repoRoot,
-      { GIT_AUTHOR_DATE: dateNew, GIT_COMMITTER_DATE: dateNew }
-    );
+    await ensureFileCommit({
+      filename: 'alpha.txt',
+      content: 'alpha beta\nalpha beta\n',
+      author: 'Alice <alice@example.com>',
+      date: dateOld,
+      message: 'add alpha',
+      label: 'alpha'
+    });
+    await ensureFileCommit({
+      filename: 'beta.txt',
+      content: 'alpha gamma\nalpha delta\n',
+      author: 'Bob <bob@example.com>',
+      date: dateNew,
+      message: 'add beta',
+      label: 'beta'
+    });
+    await ensureFileCommit({
+      filename: 'CaseFile.TXT',
+      content: 'AlphaCase alpha\n',
+      author: 'Casey <casey@example.com>',
+      date: dateNew,
+      message: 'add case file',
+      label: 'CaseFile'
+    });
+    await ensureFileCommit({
+      filename: 'sample.js',
+      content: 'const equal = (a, b) => a && b;\nfunction check(a, b) {\n  return a && b;\n}\n',
+      author: 'Dana <dana@example.com>',
+      date: dateNew,
+      message: 'add sample.js',
+      label: 'sample.js'
+    });
   }
 
   const env = {

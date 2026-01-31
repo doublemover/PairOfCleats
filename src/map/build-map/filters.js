@@ -27,8 +27,8 @@ export const applyLimits = ({ nodes, edges, limits, topKByDegree }) => {
   if (topKByDegree) {
     const degree = new Map();
     for (const edge of edges) {
-      const fromFile = edge.from?.file || edge.from?.member?.split('::')[0] || null;
-      const toFile = edge.to?.file || edge.to?.member?.split('::')[0] || null;
+      const fromFile = edge.from?.file || null;
+      const toFile = edge.to?.file || null;
       if (fromFile) degree.set(fromFile, (degree.get(fromFile) || 0) + 1);
       if (toFile) degree.set(toFile, (degree.get(toFile) || 0) + 1);
     }
@@ -108,12 +108,8 @@ export const applyScopeFilter = ({ nodes, edges, scope, focus }) => {
     const filteredEdges = edges.filter((edge) => {
       const fromFile = edge.from?.file || null;
       const toFile = edge.to?.file || null;
-      const fromMember = edge.from?.member || null;
-      const toMember = edge.to?.member || null;
       if (fromFile && !fileSet.has(fromFile)) return false;
       if (toFile && !fileSet.has(toFile)) return false;
-      if (fromMember && !fileSet.has(fromMember.split('::')[0])) return false;
-      if (toMember && !fileSet.has(toMember.split('::')[0])) return false;
       return true;
     });
     return { nodes: filteredNodes, edges: filteredEdges };
@@ -184,12 +180,8 @@ export const applyCollapse = ({ nodes, edges, collapse }) => {
     const fileNodes = nodes.map((node) => ({ ...node, members: [] }));
     const collapsedEdges = edges.map((edge) => ({
       ...edge,
-      from: edge.from?.file
-        ? { file: edge.from.file }
-        : { file: edge.from?.member?.split('::')[0] || null },
-      to: edge.to?.file
-        ? { file: edge.to.file }
-        : { file: edge.to?.member?.split('::')[0] || null }
+      from: edge.from?.file ? { file: edge.from.file } : null,
+      to: edge.to?.file ? { file: edge.to.file } : null
     }));
     return { nodes: fileNodes, edges: collapsedEdges };
   }
@@ -213,8 +205,8 @@ export const applyCollapse = ({ nodes, edges, collapse }) => {
       }
     }
     const collapsedEdges = edges.map((edge) => {
-      const fromFile = edge.from?.file || edge.from?.member?.split('::')[0] || null;
-      const toFile = edge.to?.file || edge.to?.member?.split('::')[0] || null;
+      const fromFile = edge.from?.file || null;
+      const toFile = edge.to?.file || null;
       const fromDir = fromFile ? fileToDir.get(fromFile) : null;
       const toDir = toFile ? fileToDir.get(toFile) : null;
       return {
