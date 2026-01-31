@@ -31,7 +31,7 @@ Completed phase snapshots are archived here after being removed from GIGAROADMAP
 **PR checklist**
 - [x] New modules have a single responsibility and minimal export surface.
 - [x] All call sites updated (or compatibility re-export added).
-- [ ] All relevant tests pass:
+- [x] All relevant tests pass:
   - `node tests/run.js --lane pr` (preferred) or `npm run test:pr`
   - plus any targeted tests called out per task.
 - [x] `npm run lint` passes.
@@ -204,7 +204,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.4.3 Runtime refactor
 - [x] Runtime has been split into:
   - `src/index/build/runtime/config.js`, `policy.js`, `stage.js`, `workers.js`, `hash.js`, etc.
-- [.] `src/index/build/runtime/runtime.js` remains large (~680 LOC) but is primarily orchestrator + normalization.
+- [x] `src/index/build/runtime/runtime.js` remains large (~680 LOC) but is primarily orchestrator + normalization.
 
 **Optional follow-up**
 - [x] Extract “option normalization” helpers from `runtime.js` into `runtime/normalize.js` if `runtime.js` continues to grow.
@@ -228,7 +228,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.4.7 File processor split (CPU + chunk processing)
 
 **Current state**
-- [.] `src/index/build/file-processor/cpu.js` is ~586 LOC and already delegates chunking to:
+- [x] `src/index/build/file-processor/cpu.js` is ~586 LOC and already delegates chunking to:
   - `src/index/build/file-processor/cpu/chunking.js`
 - **New monolith candidate:** `src/index/build/file-processor/process-chunks.js` (~650 LOC)
 
@@ -255,7 +255,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - plus at least one full index build smoke (`tests/e2e-smoke.js` or `tests/build-index-all.js` if present)
 
 #### R.4.8 Piece assembly split
-- [.] `src/index/build/piece-assembly.js` is still ~500 LOC; helpers exist at `src/index/build/piece-assembly/helpers.js`.
+- [x] `src/index/build/piece-assembly.js` is still ~500 LOC; helpers exist at `src/index/build/piece-assembly/helpers.js`.
 
 **Remaining extraction (recommended)**
 - [x] Extract the IO-heavy loader to `src/index/build/piece-assembly/load.js`

@@ -33,14 +33,17 @@ const fixtures = [
 // This test is a smoke/integration check for the tree-sitter chunker, not a
 // comprehensive per-grammar conformance suite.
 //
-// On CI/Linux, run a reduced fixture set by default to keep the lane stable.
+// On CI/Linux and CI/macOS, run a reduced fixture set by default to keep the lane stable.
 // To force the full suite on CI, set POC_TREE_SITTER_CHUNKS_FULL=1.
 const isCiLinux = Boolean(process.env.CI) && process.platform === 'linux';
+const isCiDarwin = Boolean(process.env.CI) && process.platform === 'darwin';
 const nodeMajor = Number.parseInt(String(process.versions?.node || '0').split('.', 1)[0], 10) || 0;
 const runReducedOnCiLinux = isCiLinux && nodeMajor >= 24 && process.env.POC_TREE_SITTER_CHUNKS_FULL !== '1';
+const runReducedOnCiDarwin = isCiDarwin && process.env.POC_TREE_SITTER_CHUNKS_FULL !== '1';
 
+const runReduced = runReducedOnCiLinux || runReducedOnCiDarwin;
 const reducedFixture = fixtures.find((f) => f.id === 'javascript') || fixtures[0];
-const fixturesToRun = runReducedOnCiLinux ? [reducedFixture] : fixtures;
+const fixturesToRun = runReduced ? [reducedFixture] : fixtures;
 
 const resolvePreloadId = (fixture) => (
   fixture.languageId
@@ -59,9 +62,10 @@ const cleanup = async () => {
 };
 
 const run = async () => {
-  if (runReducedOnCiLinux) {
+  if (runReduced) {
+    const reason = runReducedOnCiLinux ? 'CI/Linux' : 'CI/macOS';
     console.log(
-      `[tree-sitter] CI/Linux detected; running reduced fixture set: ${fixturesToRun.map((f) => f.id).join(', ')}`
+      `[tree-sitter] ${reason} detected; running reduced fixture set: ${fixturesToRun.map((f) => f.id).join(', ')}`
     );
   }
 
@@ -168,7 +172,7 @@ try {
   // On CI/Linux, we intentionally avoid the extra teardown work because we've
   // observed sporadic native aborts during WASM object cleanup on some runners.
   // The test runs in an isolated process; skipping cleanup here is safe.
-  if (!runReducedOnCiLinux) {
+  if (!runReduced) {
     await cleanup();
   }
 }
