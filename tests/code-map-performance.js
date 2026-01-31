@@ -21,8 +21,10 @@ await fsPromises.writeFile(path.join(repoRoot, 'src', 'many.js'), funcs.join('\n
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_WORKER_POOL: 'off'
 };
 
 const buildResult = spawnSync(

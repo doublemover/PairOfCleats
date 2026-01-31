@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-30T22:53:47.593Z",
+  "generatedAt": "2026-01-31T03:50:28.739Z",
   "scripts": [
     {
       "name": "api-server",
@@ -837,6 +837,12 @@
     },
     {
       "name": "test:ci-lite",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:ci-long",
       "category": "test",
       "ciAllowed": true,
       "replacement": null

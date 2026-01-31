@@ -1,0 +1,53 @@
+name: CI Long
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ci-long:
+    name: ci-long
+    runs-on: ubuntu-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Restore PairOfCleats cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/pairofcleats
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: CI Long
+        run: |
+          npm run test:ci-long
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-long-artifacts-ubuntu
+          path: |
+            tests/.logs/**
+            artifacts/junit.xml
+            .diagnostics/**
+          if-no-files-found: ignore

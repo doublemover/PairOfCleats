@@ -139,7 +139,7 @@ export const resolveLanes = (argvLanes, knownLanes) => {
   }
   const resolved = new Set();
   for (const lane of raw) {
-    if (lane === 'ci') {
+    if (lane === 'ci' || lane === 'ci-long') {
       resolved.add('unit');
       resolved.add('integration');
       resolved.add('services');

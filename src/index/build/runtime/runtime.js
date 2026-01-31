@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   getCacheRuntimeConfig,
+  getCodeDictionaryPaths,
   getDictionaryPaths,
   getDictConfig,
   getEffectiveConfigHash,
@@ -29,6 +30,7 @@ import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRecordsConfig } from '../records.js';
+import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
@@ -367,6 +369,45 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       }
     } catch {}
   }
+  const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+  const codeDictEnabled = codeDictLanguages.size > 0;
+  const codeDictPaths = codeDictEnabled
+    ? await getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
+    : { baseDir: path.join(dictDir || '', 'code-dicts'), common: [], byLanguage: new Map(), all: [] };
+  const codeDictCommonWords = new Set();
+  const codeDictWordsByLanguage = new Map();
+  const codeDictWordsAll = new Set();
+  const addCodeWord = (target, word) => {
+    if (!word) return;
+    const normalized = word.toLowerCase();
+    if (!normalized) return;
+    target.add(normalized);
+    codeDictWordsAll.add(normalized);
+  };
+  for (const dictFile of codeDictPaths.common) {
+    try {
+      const contents = await fs.readFile(dictFile, 'utf8');
+      for (const line of contents.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed) addCodeWord(codeDictCommonWords, trimmed);
+      }
+    } catch {}
+  }
+  for (const [lang, dictFiles] of codeDictPaths.byLanguage.entries()) {
+    const words = new Set();
+    for (const dictFile of dictFiles) {
+      try {
+        const contents = await fs.readFile(dictFile, 'utf8');
+        for (const line of contents.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed) addCodeWord(words, trimmed);
+        }
+      } catch {}
+    }
+    if (words.size) {
+      codeDictWordsByLanguage.set(lang, words);
+    }
+  }
   const dictSignatureParts = [];
   for (const dictFile of dictionaryPaths) {
     const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
@@ -377,11 +418,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       dictSignatureParts.push(`${signaturePath}:missing`);
     }
   }
+  for (const dictFile of codeDictPaths.all) {
+    const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
+    try {
+      const stat = await fs.stat(dictFile);
+      dictSignatureParts.push(`code:${signaturePath}:${stat.size}:${stat.mtimeMs}`);
+    } catch {
+      dictSignatureParts.push(`code:${signaturePath}:missing`);
+    }
+  }
   dictSignatureParts.sort();
   const dictSignature = dictSignatureParts.length
     ? sha1(dictSignatureParts.join('|'))
     : null;
-  const dictSummary = { files: dictionaryPaths.length, words: dictWords.size };
+  const dictSummary = {
+    files: dictionaryPaths.length,
+    words: dictWords.size,
+    code: {
+      files: codeDictPaths.all.length,
+      words: codeDictWordsAll.size,
+      languages: Array.from(codeDictWordsByLanguage.keys()).sort()
+    }
+  };
   const LARGE_DICT_SHARED_THRESHOLD = 200000;
   const shouldShareDict = dictSummary.words
     && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
@@ -401,6 +459,16 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
   } else {
     log('Wordlists disabled: no dictionary files found; identifier splitting will be limited.');
+  }
+  if (codeDictEnabled && dictSummary.code?.files) {
+    const langs = dictSummary.code.languages && dictSummary.code.languages.length
+      ? ` (${dictSummary.code.languages.join(', ')})`
+      : '';
+    log(`Code dictionaries enabled: ${dictSummary.code.files} file(s), ${dictSummary.code.words.toLocaleString()} words${langs}.`);
+  } else if (codeDictEnabled) {
+    log('Code dictionaries enabled: no code dictionary files found for gated languages.');
+  } else {
+    log('Code dictionaries disabled: no gated languages configured.');
   }
   if (ignoreWarnings?.length) {
     for (const warning of ignoreWarnings) {
@@ -490,7 +558,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     dictWords,
     dictSharedPayload,
     dictConfig,
+    codeDictWords: codeDictCommonWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
     postingsConfig,
+    treeSitterConfig: {
+      enabled: treeSitterEnabled,
+      languages: treeSitterLanguages,
+      maxBytes: treeSitterMaxBytes,
+      maxLines: treeSitterMaxLines,
+      maxParseMs: treeSitterMaxParseMs,
+      byLanguage: treeSitterByLanguage,
+      deferMissing: treeSitterDeferMissing,
+      maxLoadedLanguages: treeSitterMaxLoadedLanguages
+    },
     debugCrash,
     log
   });
@@ -650,6 +731,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     dictShared,
     dictSummary,
     dictSignature,
+    codeDictWords: codeDictCommonWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
+    codeDictionaryPaths: codeDictPaths,
     getChunkEmbedding,
     getChunkEmbeddings,
     languageOptions,

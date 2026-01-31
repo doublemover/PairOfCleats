@@ -40,7 +40,8 @@ export const sanitizePoolPayload = (payload, dictConfig) => {
   const safe = {
     text: typeof payload.text === 'string' ? payload.text : '',
     mode: typeof payload.mode === 'string' ? payload.mode : 'code',
-    ext: typeof payload.ext === 'string' ? payload.ext : ''
+    ext: typeof payload.ext === 'string' ? payload.ext : '',
+    languageId: typeof payload.languageId === 'string' ? payload.languageId : ''
   };
   if (Array.isArray(payload.chargramTokens)) {
     safe.chargramTokens = payload.chargramTokens.filter((token) => typeof token === 'string');

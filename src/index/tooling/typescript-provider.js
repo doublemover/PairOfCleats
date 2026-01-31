@@ -5,9 +5,9 @@ import { hashProviderConfig } from './provider-contract.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolKey } from '../../shared/identity.js';
 
-const normalizePathKey = (value) => {
+const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  return useCaseSensitive ? resolved : resolved.toLowerCase();
 };
 
 const normalizeTypeText = (value) => {
@@ -76,13 +76,13 @@ const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
 
 const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
 
-const findNearestConfig = (startDir, repoRoot, cache) => {
+const findNearestConfig = (startDir, repoRoot, cache, useCaseSensitive) => {
   if (!startDir) return null;
-  const rootKey = normalizePathKey(repoRoot || startDir);
+  const rootKey = normalizePathKey(repoRoot || startDir, useCaseSensitive);
   let current = startDir;
   const visited = [];
   while (true) {
-    const currentKey = normalizePathKey(current);
+    const currentKey = normalizePathKey(current, useCaseSensitive);
     if (cache.has(currentKey)) {
       const cached = cache.get(currentKey) || null;
       for (const key of visited) cache.set(key, cached);
@@ -297,6 +297,9 @@ export const createTypeScriptProvider = () => ({
     const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
     const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
     const config = ctx?.toolingConfig?.typescript || {};
+    const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
+      ? ts.sys.useCaseSensitiveFileNames
+      : process.platform !== 'win32';
     const allowJs = config.allowJs !== false;
     const includeJsx = config.includeJsx !== false;
     const allowedExts = new Set([
@@ -318,10 +321,10 @@ export const createTypeScriptProvider = () => ({
     const orderedDocs = rootDocs.slice().sort((a, b) => a.virtualPath.localeCompare(b.virtualPath));
     for (const doc of orderedDocs) {
       const containerPath = doc.containerPath || doc.virtualPath;
-      const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
-      const configPath = configOverride
-        ? configOverride
-        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache) : null);
+    const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
+    const configPath = configOverride
+      ? configOverride
+      : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive) : null);
       const key = configPath || '__default__';
       const group = configGroups.get(key) || { configPath, documents: [] };
       group.documents.push(doc);
@@ -380,11 +383,11 @@ export const createTypeScriptProvider = () => ({
       mergedOptions.allowJs = compilerDefaults.allowJs;
       mergedOptions.checkJs = compilerDefaults.checkJs;
 
-      const vfsMap = new Map();
+    const vfsMap = new Map();
       const rootNames = [];
       for (const doc of groupDocs) {
         const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
-        vfsMap.set(normalizePathKey(absPath), doc.text);
+      vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
         rootNames.push(absPath);
       }
       const finalRootNames = parsedConfig?.fileNames

@@ -125,7 +125,11 @@ export const createRuntimeWorkerPools = async ({
   dictWords,
   dictSharedPayload,
   dictConfig,
+  codeDictWords,
+  codeDictWordsByLanguage,
+  codeDictLanguages,
   postingsConfig,
+  treeSitterConfig,
   debugCrash,
   log
 }) => {
@@ -144,7 +148,11 @@ export const createRuntimeWorkerPools = async ({
       dictWords,
       dictSharedPayload,
       dictConfig,
+      codeDictWords,
+      codeDictWordsByLanguage,
+      codeDictLanguages,
       postingsConfig,
+      treeSitterConfig,
       crashLogger: workerCrashLogger,
       log
     });

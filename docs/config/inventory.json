@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-31T00:57:44.298Z",
+  "generatedAt": "2026-01-31T04:24:22.780Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -836,6 +836,10 @@
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
         "tests/subprocess-quoting.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
         "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/tool-root.js",
@@ -966,6 +970,10 @@
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
         "tests/subprocess-quoting.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
         "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/tool-root.js",
@@ -1071,6 +1079,7 @@
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
+        "tests/summary-report.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1097,7 +1106,6 @@
       "files": [
         "tests/fixture-parity.js",
         "tests/structural-search.js",
-        "tests/summary-report.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1280,6 +1288,8 @@
         "tests/code-map-basic.js",
         "tests/code-map-determinism.js",
         "tests/code-map-dot.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
         "tests/comment-join.js",
         "tests/contracts/golden-surface-suite.test.js",
         "tests/contracts/index-compatibility-key-enforced-on-load.test.js",
@@ -1335,6 +1345,11 @@
         "tests/sqlite-build-indexes.js",
         "tests/sqlite-incremental-no-change.js",
         "tests/sqlite-missing-dep.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
+        "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
@@ -1395,9 +1410,13 @@
       "files": [
         "src/index/build/failure-taxonomy.js",
         "src/shared/env.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
         "tests/encoding-fallback.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/incremental-cache-signature.js",
         "tests/indexer/call-sites-determinism.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/perf/sqlite-p95-latency.test.js",

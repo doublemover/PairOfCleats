@@ -37,6 +37,7 @@ import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
+import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
@@ -393,7 +394,23 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runRecords
       })
     );
-    const { dict } = await loadDictionary(rootDir, dictConfig);
+    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+    let codeDictLanguages = baseCodeDictLanguages;
+    if (langFilter && langFilter.length) {
+      const filterLangs = normalizeCodeDictLanguages(langFilter);
+      if (filterLangs.size) {
+        const intersect = new Set();
+        for (const lang of baseCodeDictLanguages) {
+          if (filterLangs.has(lang)) intersect.add(lang);
+        }
+        codeDictLanguages = intersect;
+      }
+    }
+    const includeCodeDicts = runCode && codeDictLanguages.size > 0;
+    const { dict } = await loadDictionary(rootDir, dictConfig, {
+      includeCode: includeCodeDicts,
+      codeDictLanguages: Array.from(codeDictLanguages)
+    });
     throwIfAborted();
 
     const queryPlan = buildQueryPlan({

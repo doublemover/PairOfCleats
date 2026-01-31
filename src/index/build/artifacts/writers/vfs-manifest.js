@@ -10,6 +10,8 @@ import {
 } from '../../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
+const MAX_ROW_BYTES = 32 * 1024;
+
 const sortVfsRows = (rows) => rows.sort((a, b) => {
   if (a.containerPath !== b.containerPath) return a.containerPath.localeCompare(b.containerPath);
   if (a.segmentStart !== b.segmentStart) return a.segmentStart - b.segmentStart;
@@ -21,6 +23,19 @@ const sortVfsRows = (rows) => rows.sort((a, b) => {
   if (segA !== segB) return segA.localeCompare(segB);
   return a.virtualPath.localeCompare(b.virtualPath);
 });
+
+const maybeTrimRow = (row) => {
+  const bytes = Buffer.byteLength(JSON.stringify(row), 'utf8');
+  if (bytes <= MAX_ROW_BYTES) return row;
+  let trimmed = { ...row };
+  if (trimmed.extensions) delete trimmed.extensions;
+  let trimmedBytes = Buffer.byteLength(JSON.stringify(trimmed), 'utf8');
+  if (trimmedBytes <= MAX_ROW_BYTES) return trimmed;
+  if (trimmed.segmentId) trimmed.segmentId = null;
+  trimmedBytes = Buffer.byteLength(JSON.stringify(trimmed), 'utf8');
+  if (trimmedBytes <= MAX_ROW_BYTES) return trimmed;
+  return null;
+};
 
 const resolveJsonlExtension = (value) => {
   if (value === 'gzip') return 'jsonl.gz';
@@ -52,7 +67,10 @@ export const enqueueVfsManifestArtifacts = async ({
   formatArtifactLabel
 }) => {
   const vfsRows = Array.isArray(rows) ? rows.slice() : [];
-  if (!vfsRows.length) {
+  const trimmedRows = vfsRows
+    .map((row) => maybeTrimRow(row))
+    .filter(Boolean);
+  if (!trimmedRows.length) {
     await fs.rm(path.join(outDir, 'vfs_manifest.jsonl'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'vfs_manifest.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'vfs_manifest.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
@@ -60,8 +78,8 @@ export const enqueueVfsManifestArtifacts = async ({
     await fs.rm(path.join(outDir, 'vfs_manifest.parts'), { recursive: true, force: true }).catch(() => {});
     return;
   }
-  sortVfsRows(vfsRows);
-  const measurement = measureRows(vfsRows);
+  sortVfsRows(trimmedRows);
+  const measurement = measureRows(trimmedRows);
   if (maxJsonBytes && measurement.maxLineBytes > maxJsonBytes) {
     throw new Error(`vfs_manifest row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
@@ -95,7 +113,7 @@ export const enqueueVfsManifestArtifacts = async ({
           dir: outDir,
           partsDirName: 'vfs_manifest.parts',
           partPrefix: 'vfs_manifest.part-',
-          items: vfsRows,
+          items: trimmedRows,
           maxBytes: maxJsonBytes,
           maxItems: 100000,
           atomic: true,
@@ -144,7 +162,7 @@ export const enqueueVfsManifestArtifacts = async ({
     formatArtifactLabel(jsonlPath),
     () => writeJsonLinesFile(
       jsonlPath,
-      vfsRows,
+      trimmedRows,
       { atomic: true, compression, gzipOptions }
     )
   );
@@ -152,7 +170,7 @@ export const enqueueVfsManifestArtifacts = async ({
     type: 'tooling',
     name: 'vfs_manifest',
     format: 'jsonl',
-    count: vfsRows.length,
+    count: trimmedRows.length,
     compression: compression || null
   }, jsonlPath);
   if (measurement.totalBytes > MAX_JSON_BYTES * 0.9) {

@@ -7,12 +7,18 @@ import {
   CLIKE_SKIP_PREFIXES,
   CLIKE_TYPE_MAP,
   CLIKE_USAGE_SKIP,
+  CPP_CALL_KEYWORDS,
+  CPP_USAGE_SKIP,
+  OBJC_CALL_KEYWORDS,
   OBJC_TYPE_MAP,
+  OBJC_USAGE_SKIP,
   isCLike,
+  isCpp,
   isObjc
 } from '../index/constants.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import path from 'node:path';
 
 /**
  * C-like language chunking and relations.
@@ -288,7 +294,15 @@ function stripCLikeComments(text) {
     .replace(/\/\/.*$/gm, ' ');
 }
 
-function collectCLikeCallsAndUsages(text) {
+function resolveCLikeKeywordSets(ext) {
+  if (ext && isObjc(ext)) return { callKeywords: OBJC_CALL_KEYWORDS, usageSkip: OBJC_USAGE_SKIP };
+  if (ext && isCpp(ext)) return { callKeywords: CPP_CALL_KEYWORDS, usageSkip: CPP_USAGE_SKIP };
+  return { callKeywords: CLIKE_CALL_KEYWORDS, usageSkip: CLIKE_USAGE_SKIP };
+}
+
+function collectCLikeCallsAndUsages(text, keywordSets = {}) {
+  const callKeywords = keywordSets.callKeywords || CLIKE_CALL_KEYWORDS;
+  const usageSkip = keywordSets.usageSkip || CLIKE_USAGE_SKIP;
   const calls = new Set();
   const usages = new Set();
   const normalized = stripCLikeComments(text).replace(/->/g, '.');
@@ -296,14 +310,14 @@ function collectCLikeCallsAndUsages(text) {
     const raw = match[1];
     if (!raw) continue;
     const base = raw.split(/\.|::/).filter(Boolean).pop();
-    if (!base || CLIKE_CALL_KEYWORDS.has(base)) continue;
+    if (!base || callKeywords.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
   }
   for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
     const name = match[1];
     if (!name || name.length < 2) continue;
-    if (CLIKE_USAGE_SKIP.has(name)) continue;
+    if (usageSkip.has(name)) continue;
     if (/^[A-Z0-9_]{2,}$/.test(name)) continue;
     usages.add(name);
   }
@@ -505,11 +519,16 @@ export function buildCLikeChunks(text, ext, options = {}) {
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} clikeChunks
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildCLikeRelations(text, clikeChunks) {
+export function buildCLikeRelations(text, relPath, options = {}) {
   const imports = collectCLikeImports(text);
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  const clikeChunks = Array.isArray(relPath) ? relPath : null;
+  const ext = typeof relPath === 'string'
+    ? path.extname(relPath)
+    : (typeof options?.ext === 'string' ? options.ext : '');
+  const keywordSets = resolveCLikeKeywordSets(ext);
   if (Array.isArray(clikeChunks)) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
@@ -518,7 +537,7 @@ export function buildCLikeRelations(text, clikeChunks) {
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectCLikeCallsAndUsages(slice);
+      const { calls: chunkCalls, usages: chunkUsages } = collectCLikeCallsAndUsages(slice, keywordSets);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
       for (const usage of chunkUsages) usages.add(usage);
     }

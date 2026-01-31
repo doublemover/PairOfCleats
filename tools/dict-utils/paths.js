@@ -33,7 +33,8 @@ export {
 
 export {
   getRepoDictPath,
-  getDictionaryPaths
+  getDictionaryPaths,
+  getCodeDictionaryPaths
 } from './paths/dictionaries.js';
 
 export {
