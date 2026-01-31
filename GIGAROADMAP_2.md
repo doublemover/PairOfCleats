@@ -251,6 +251,14 @@ Order tasks so that cross-cutting foundational changes land first:
 
 ---
 
+### 7.0.5 Test lane classification (mandatory)
+
+All new Phase 7 tests must land in the intended CI lane.
+
+- Update `tests/run.rules.jsonc` to map any new test files (do not rely on ambiguous filenames alone).
+- If a test is intentionally placed to match an existing lane rule, verify it in `npm test -- --list-lanes` and note it in the test section.
+- Add a shared optional-deps test helper (e.g., `tests/helpers/optional-deps.js`) so skip behavior is consistent across tests.
+
 ## 7.1 Embedding jobs are build-scoped, deterministic, idempotent
 
 ### Why this exists
@@ -933,6 +941,8 @@ We need a single coherent way to:
 
 **Touchpoints**
 - `docs/guides/search.md` (~L1–L74) (already references denseVectorMode)
+- `docs/guides/embeddings.md` (update to reflect denseVectorMode + strict manifest behavior)
+- `docs/config/schema.json` and/or `docs/config/inventory.md` (add `search.denseVectorMode` + CLI flag documentation)
 - `src/retrieval/cli/normalize-options.js` (~L1–L273) (currently hardcodes denseVectorMode='merged')
 - `src/retrieval/cli/options.js` (~L1–L141) (CLI option definitions)
 - `src/retrieval/cli/query-plan.js` (~L1–L205) (already passes denseVectorMode into plan)
@@ -941,9 +951,10 @@ We need a single coherent way to:
 **Required changes**
 - Add CLI option: `--dense-vector-mode merged|doc|code|auto`
   - default should match existing behavior (`merged`) to avoid breaking changes.
-- Also allow config: `policy.retrieval.denseVectorMode` or `search.denseVectorMode` (choose one and document).
+- Config key is `search.denseVectorMode` (aligns with existing defaults + docs).
 - Ensure `resolvedDenseVectorMode` is computed once and passed into `loadSearchIndexes()` (already).
 - Ensure `resolveIntentVectorMode()` never returns `'auto'` when intent provided and valid; else allow 'auto' as fallback.
+- Configuration precedence is explicit: **CLI > user config > defaults**, and log when CLI overrides a config value.
 
 ### 7.7.2 Ensure ANN backend target selection matches denseVectorMode
 
@@ -1116,6 +1127,14 @@ Add/Update tests:
     - validation should fail loudly
     - retrieval should treat it as unavailable and surface a clear message rather than guessing.
 
+### 7.8.8 Final Phase 7 audit (mandatory)
+
+- After all Phase 7 tasks land, perform a focused audit of **search** and **embeddings** code/tests:
+  - scan for any remaining manifest-by-pass reads in strict mode
+  - confirm denseVectorMode and ANN target selection are applied consistently
+  - review tests for missing lane assignments or optional-dependency guards
+  - update any additional files or tests discovered during the audit
+
 
 
 ## Mapping: Where this work fits in the repo
@@ -1252,6 +1271,13 @@ Checklist:
     - Build should skip LanceDB gracefully.
     - Manifest must not list LanceDB artifacts.
     - Retrieval must not advertise LanceDB as available.
+  - If `sqlite-vec` is not available:
+    - Build should skip sqlite-vec ANN tables/markers.
+    - Manifest must not list sqlite-vec markers.
+    - Retrieval must not advertise sqlite-vec as available.
+  - **Tests for optional deps must skip (not fail) when deps are missing**, with a clear skip message.
+    - Document this rule for all optional-dep tests in `docs/testing/truth-table.md` (or equivalent testing guide).
+    - Centralize skip checks in `tests/helpers/optional-deps.js` and reuse across tests.
 
 - [ ] **Quantization clamp is allowed to invalidate caches.**
   - If an out-of-range `levels` value previously produced incorrect artifacts, Phase 7 clamp is a correctness fix.

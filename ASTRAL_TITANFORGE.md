@@ -5,8 +5,10 @@
 - CLI: add `--dense-vector-mode` to search; CLI override wins when explicitly provided.
 - Search strictness: add `--non-strict` to search CLI only (no config toggle); strict is default.
 - sqlite-vec marker: keep optional meta marker (`dense_vectors_sqlite_vec_meta`) for manifest-first discovery of sqlite-vec DB state.
+- Config precedence: **CLI > user config > defaults**, log when CLI overrides config.
+- Optional dependency tests must skip (not fail) when deps are missing; document rule in testing docs.
 
-## Execution order (matches roadmap 7.0 + recommended order 7.2 → 7.8)
+## Execution order (matches roadmap 7.0 + recommended order 7.2 -> 7.8)
 1) 7.0 Foundation (conflicts, terminology, capability matrix, strict-manifest addendum alignment)
 2) 7.2 Artifact contract parity + manifest completeness (prereq for strict loaders)
 3) 7.3 Quantization invariants (avoid corrupt artifacts)
@@ -32,6 +34,10 @@
     - [ ] LanceDB supports merged/doc/code
     - [ ] HNSW supports merged/doc/code
 [ ] Ensure strict-manifest addendum is referenced in Phase 7 docs (if missing)
+[ ] Update test lane rules so CI classifies new tests correctly
+    - [ ] `tests/run.rules.jsonc` updated for new Phase 7 tests or confirm names match rules
+[ ] Add shared optional-deps test helper
+    - [ ] `tests/helpers/optional-deps.js` provides consistent skip + messaging
 
 ## 7.2 Artifact contract parity for embeddings + ANN
 ### 7.2.1 Canonical artifact names (public surface)
@@ -81,6 +87,9 @@
     - [ ] `tests/retrieval-strict-manifest-embeddings.js`
 [ ] Add sqlite-vec marker test (if marker implemented)
     - [ ] ensure manifest entry appears only when sqlite-vec built
+[ ] Ensure all optional-dependency tests skip when deps missing (hnswlib-node, lancedb, sqlite-vec)
+    - [ ] Update `docs/testing/truth-table.md` to codify skip behavior for optional deps
+    - [ ] Use `tests/helpers/optional-deps.js` helper for consistent skips
 
 ## 7.3 Quantization invariants end-to-end
 ### 7.3.1 Clamp quantization levels globally
@@ -193,6 +202,10 @@
     - [ ] `src/retrieval/cli/normalize-options.js` read config + CLI
     - [ ] `src/retrieval/cli/resolve-run-config.js` keep value
     - [ ] `docs/guides/search.md` update
+    - [ ] `docs/guides/embeddings.md` update
+    - [ ] Log when CLI overrides config; precedence CLI > config > defaults
+    - [ ] `docs/config/schema.json` and/or `docs/config/inventory.md` updated for config + flag docs
+    - [ ] docs/config/schema.json and/or docs/config/inventory.md updated for config + flag docs
 [ ] Add `--non-strict` to search CLI (flag only)
     - [ ] `src/retrieval/cli-args.js` add flag
     - [ ] `src/retrieval/cli/normalize-options.js` set `strict=false` when flag set
@@ -245,9 +258,14 @@
 [ ] Do not rename dense vector files
 [ ] Queue payload versioning explicit + safe upgrade path
 [ ] index_state fields additive only
-[ ] Strict manifest missing → fail; non-strict → warn + fallback
+[ ] Strict manifest missing -> fail; non-strict -> warn + fallback
 [ ] Optional deps (hnswlib/lancedb) remain optional and do not advertise missing backends
 [ ] Quantization clamp may invalidate caches; document clearly
+
+## Final audit (after all Phase 7 tasks)
+[ ] Evaluate all search/embeddings code + tests for any remaining updates needed
+[ ] Confirm lane mappings for any newly added tests
+[ ] Confirm optional-dep tests skip cleanly on missing dependencies
 
 ## Test execution plan (per-area)
 [ ] Area 7.2 manifest/strict: run manifest + artifact-io tests first
