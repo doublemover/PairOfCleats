@@ -425,7 +425,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.6.1 MCP tool dispatcher split (`tools/mcp/tools.js`)
 
 **Current state**
-- [.] `tools/mcp/tools.js` (~650 LOC) exports many handlers and a large `handleToolCall` switch.
+- [x] `tools/mcp/tools.js` now delegates to `tools/mcp/tools/handlers/*` with a handler map.
 - Helpers already extracted to: `tools/mcp/tools/helpers.js`
 
 **Specs to follow**
@@ -446,7 +446,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - `normalizeMetaFilters` (re-export)
 
 **Refactor plan**
-- [ ] Create folder: `tools/mcp/tools/handlers/`
+- [x] Create folder: `tools/mcp/tools/handlers/`
   - `index-status.js` → `indexStatus`, `configStatus` (or keep in `tools/mcp/repo.js` if already there)
   - `indexing.js` → `buildIndex`, `buildSqliteIndex`, `compactSqliteIndex`
   - `search.js` → `runSearch`
@@ -454,10 +454,10 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
   - `artifacts.js` → `cleanArtifacts`, `reportArtifacts`, `cacheGc`
   - `bootstrap.js` → `runBootstrap`
   - `triage.js` → `triageIngest`, `triageDecision`, `triageContextPack`
-- [ ] Replace the `handleToolCall` switch with a map:
+- [x] Replace the `handleToolCall` switch with a map:
   - `const TOOL_HANDLERS = new Map([ ['search', runSearch], ... ])`
   - `handleToolCall(name, args, ctx)` looks up handler and throws unknown tool error if missing.
-- [ ] Update `tests/mcp/tools-registry.test.js` accordingly:
+- [x] Update `tests/mcp/tools-registry.test.js` accordingly:
   - Instead of parsing switch cases, assert:
     - every tool name in `getToolDefs({ ... })` has a handler in the map
     - no extra handlers exist for undefined tools

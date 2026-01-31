@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { getToolDefs } from '../../src/integrations/mcp/defs.js';
-
-const root = process.cwd();
-const source = await fs.readFile(path.join(root, 'tools', 'mcp', 'tools.js'), 'utf8');
-const caseMatches = Array.from(source.matchAll(/case\s+'([^']+)'/g)).map((match) => match[1]);
-const caseSet = new Set(caseMatches);
+import { TOOL_HANDLERS } from '../../tools/mcp/tools.js';
 
 const defs = getToolDefs('test-model');
-const missing = defs.map((entry) => entry.name).filter((name) => !caseSet.has(name));
+const defNames = new Set(defs.map((entry) => entry.name));
+const handlerNames = new Set(TOOL_HANDLERS.keys());
+
+const missing = Array.from(defNames).filter((name) => !handlerNames.has(name));
+const extra = Array.from(handlerNames).filter((name) => !defNames.has(name));
 
 assert.deepEqual(missing, [], `missing tool handlers: ${missing.join(', ')}`);
+assert.deepEqual(extra, [], `extra tool handlers: ${extra.join(', ')}`);
 
 console.log('mcp tools registry test passed');
