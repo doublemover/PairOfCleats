@@ -391,16 +391,16 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - tests: `tests/search-symbol-boost.js`, `tests/retrieval/sqlite-fts-eligibility.js`, and others
 
 **Refactor plan**
-- [ ] Extract query-AST helpers to `src/retrieval/pipeline/query-ast.js`
+- [x] Extract query-AST helpers to `src/retrieval/pipeline/query-ast.js`
   - move `matchesQueryAst(...)`
   - move `getPhraseMatchInfo(...)`
   - keep the exact signatures to avoid churn
-- [ ] Extract ANN backend normalization to `src/retrieval/pipeline/ann-backends.js`
+- [x] Extract ANN backend normalization to `src/retrieval/pipeline/ann-backends.js`
   - move `normalizeAnnBackend(...)`, `resolveAnnOrder(...)`
-- [ ] Extract score fusion to `src/retrieval/pipeline/fusion.js`
+- [x] Extract score fusion to `src/retrieval/pipeline/fusion.js`
   - a pure function that takes ranked sparse list, ranked dense list, config → fused list + breakdowns
   - keep existing behavior: default RRF, optional normalized blending via `search.scoreBlend.*`
-- [ ] Keep `pipeline.js` as orchestrator:
+- [x] Keep `pipeline.js` as orchestrator:
   - loads providers (BM25, sqlite fts, ann, minhash)
   - delegates to extracted helpers
   - keeps `createSearchPipeline` signature stable

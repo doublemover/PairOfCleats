@@ -23,3 +23,4 @@ We will execute every remaining Phase R item (including all optional follow-ups)
 - `contracts/index-compatibility-key-federation-block.test` failed due to a bad relative import in `src/index/build/piece-assembly/load.js`; fixed the path to `../../../shared/artifact-io.js`.
 - `node tests/run.js --match compact-pieces` found no matching tests; `rg "compact-pieces" tests` returned no hits.
 - `node tests/run.js --match search-cli` found no matching tests; `rg "search-cli" tests` returned no hits.
+- `rg "search-rrf-parity|search-explain-schema" tests` returned no hits (no matching tests to run).

@@ -10,7 +10,10 @@ import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
 import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
 import { ANN_PROVIDER_IDS } from './ann/types.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
-import { createCandidateSetBuilder, postingIncludesDocId, resolvePhraseRange } from './pipeline/candidates.js';
+import { createCandidateSetBuilder } from './pipeline/candidates.js';
+import { resolveAnnOrder } from './pipeline/ann-backends.js';
+import { fuseRankedHits } from './pipeline/fusion.js';
+import { createQueryAstHelpers } from './pipeline/query-ast.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -127,125 +130,11 @@ export function createSearchPipeline(context) {
     if (!exportsList || !chunk.name) return false;
     return exportsList.includes(chunk.name);
   };
-
-  const resolvePhraseRangeFor = (phraseSet) => resolvePhraseRange(phraseSet, phraseRange);
-  const resolvedPhraseRange = resolvePhraseRangeFor(phraseNgramSet);
-
-  const matchesQueryAst = (idx, chunkId, chunk) => {
-    if (!queryAst) return true;
-    const tokens = Array.isArray(chunk?.tokens)
-      ? chunk.tokens
-      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
-    const tokenSet = tokens.length ? new Set(tokens) : null;
-    const evalNode = (node) => {
-      if (!node) return true;
-      switch (node.type) {
-        case 'term': {
-          if (!node.tokens || !node.tokens.length) return false;
-          if (!tokenSet) return false;
-          return node.tokens.some((tok) => tokenSet.has(tok));
-        }
-        case 'phrase': {
-          if (node.ngramSet && node.ngramSet.size) {
-            const matchInfo = getPhraseMatchInfo(idx, chunkId, node.ngramSet, tokens);
-            return matchInfo.matches > 0;
-          }
-          if (!node.tokens || !node.tokens.length) return false;
-          if (!tokenSet) return false;
-          return node.tokens.some((tok) => tokenSet.has(tok));
-        }
-        case 'not':
-          return !evalNode(node.child);
-        case 'and':
-          return evalNode(node.left) && evalNode(node.right);
-        case 'or':
-          return evalNode(node.left) || evalNode(node.right);
-        default:
-          return true;
-      }
-    };
-    return evalNode(queryAst);
-  };
-
-  // Phrase postings are the authoritative source of phrase membership.
-  // Do NOT rely on per-chunk ngram arrays: they are optional, often sampled,
-  // and (in memory-constrained builds) may not be present at all.
-  function getPhraseMatchInfo(idx, chunkId, phraseSet, chunkTokens) {
-    if (!phraseSet || !phraseSet.size || !idx) return { matches: 0 };
-    const phraseIndex = idx.phraseNgrams;
-    if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
-      const vocabIndex = phraseIndex.vocabIndex
-        || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
-      let matches = 0;
-      for (const ng of phraseSet) {
-        const hit = vocabIndex.get(ng);
-        if (hit === undefined) continue;
-        const posting = phraseIndex.postings[hit] || [];
-        if (postingIncludesDocId(posting, chunkId)) matches += 1;
-      }
-      if (matches) return { matches };
-      if (phraseIndex.vocab.length || phraseIndex.postings.length) return { matches: 0 };
-    }
-    const tokens = Array.isArray(chunkTokens)
-      ? chunkTokens
-      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
-    if (!tokens.length || !resolvedPhraseRange?.min || !resolvedPhraseRange?.max) return { matches: 0 };
-    const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
-    if (!ngrams.length) return { matches: 0 };
-    const ngramSet = new Set(ngrams);
-    let matches = 0;
-    for (const ng of phraseSet) {
-      if (ngramSet.has(ng)) matches += 1;
-    }
-    return { matches };
-  }
-
-  const normalizeAnnBackend = (value) => {
-    if (typeof value !== 'string') return ANN_PROVIDER_IDS.LANCEDB;
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed) return ANN_PROVIDER_IDS.LANCEDB;
-    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') {
-      return ANN_PROVIDER_IDS.SQLITE_VECTOR;
-    }
-    if (trimmed === 'dense') return ANN_PROVIDER_IDS.DENSE;
-    return trimmed;
-  };
-
-  const resolveAnnOrder = (value) => {
-    switch (normalizeAnnBackend(value)) {
-      case ANN_PROVIDER_IDS.LANCEDB:
-        return [
-          ANN_PROVIDER_IDS.LANCEDB,
-          ANN_PROVIDER_IDS.SQLITE_VECTOR,
-          ANN_PROVIDER_IDS.HNSW,
-          ANN_PROVIDER_IDS.DENSE
-        ];
-      case ANN_PROVIDER_IDS.SQLITE_VECTOR:
-        return [
-          ANN_PROVIDER_IDS.SQLITE_VECTOR,
-          ANN_PROVIDER_IDS.LANCEDB,
-          ANN_PROVIDER_IDS.HNSW,
-          ANN_PROVIDER_IDS.DENSE
-        ];
-      case ANN_PROVIDER_IDS.HNSW:
-        return [
-          ANN_PROVIDER_IDS.HNSW,
-          ANN_PROVIDER_IDS.LANCEDB,
-          ANN_PROVIDER_IDS.SQLITE_VECTOR,
-          ANN_PROVIDER_IDS.DENSE
-        ];
-      case ANN_PROVIDER_IDS.DENSE:
-        return [ANN_PROVIDER_IDS.DENSE];
-      case 'auto':
-      default:
-        return [
-          ANN_PROVIDER_IDS.LANCEDB,
-          ANN_PROVIDER_IDS.SQLITE_VECTOR,
-          ANN_PROVIDER_IDS.HNSW,
-          ANN_PROVIDER_IDS.DENSE
-        ];
-    }
-  };
+  const { matchesQueryAst, getPhraseMatchInfo } = createQueryAstHelpers({
+    queryAst,
+    phraseNgramSet,
+    phraseRange
+  });
 
   const annProviders = new Map([
     [
@@ -424,13 +313,18 @@ export function createSearchPipeline(context) {
       }
     }
 
-    const useRrf = rrfEnabled && !blendEnabled && bmHits.length && annHits.length;
-    const sparseRanks = new Map();
-    const annRanks = new Map();
-    if (useRrf) {
-      bmHits.forEach((hit, index) => sparseRanks.set(hit.idx, index + 1));
-      annHits.forEach((hit, index) => annRanks.set(hit.idx, index + 1));
-    }
+    const { scored: fusedScores, useRrf } = fuseRankedHits({
+      bmHits,
+      annHits,
+      sparseType,
+      annSource,
+      rrfEnabled,
+      rrfK,
+      blendEnabled,
+      blendSparseWeight,
+      blendAnnWeight,
+      fieldWeightsEnabled
+    });
 
     if (idx.loadChunkMetaByIds) {
       const idsToLoad = new Set();
@@ -445,85 +339,17 @@ export function createSearchPipeline(context) {
       throw error;
     }
 
-    // Combine and dedup
-    const allHits = new Map();
-    const recordHit = (idxVal, update) => {
-      const current = allHits.get(idxVal) || { bm25: null, fts: null, ann: null, annSource: null };
-      allHits.set(idxVal, { ...current, ...update });
-    };
-    bmHits.forEach((h) => {
-      recordHit(h.idx, sparseType === 'fts' ? { fts: h.score } : { bm25: h.score });
-    });
-    annHits.forEach((h) => {
-      recordHit(h.idx, { ann: h.sim, annSource });
-    });
-
-    const sparseMaxScore = bmHits.length
-      ? Math.max(...bmHits.map((hit) => (hit.score ?? hit.sim ?? 0)))
-      : null;
-    const scored = [...allHits.entries()]
-      .filter(([idxVal]) => !allowedIdx || allowedIdx.has(idxVal))
-      .map(([idxVal, scores]) => {
+    const scored = fusedScores
+      .filter((entry) => !allowedIdx || allowedIdx.has(entry.idx))
+      .map((entry) => {
         abortIfNeeded();
-        const sparseScore = scores.fts ?? scores.bm25 ?? null;
-          const annScore = scores.ann ?? null;
-          const sparseTypeValue = scores.fts != null
-            ? 'fts'
-            : (scores.bm25 != null ? (fieldWeightsEnabled ? 'bm25-fielded' : 'bm25') : null);
-        let scoreType = null;
-        let score = null;
-        let blendInfo = null;
-        if (useRrf) {
-          const sparseRank = sparseRanks.get(idxVal) ?? null;
-          const annRank = annRanks.get(idxVal) ?? null;
-          const sparseRrf = sparseRank ? 1 / (rrfK + sparseRank) : 0;
-          const annRrf = annRank ? 1 / (rrfK + annRank) : 0;
-          scoreType = 'rrf';
-          score = sparseRrf + annRrf;
-          blendInfo = {
-            k: rrfK,
-            sparseRank,
-            annRank,
-            sparseRrf,
-            annRrf,
-            score
-          };
-        } else if (blendEnabled && (sparseScore != null || annScore != null)) {
-          const sparseMax = sparseScore != null
-            ? Math.max(sparseScore, sparseMaxScore || 0)
-            : 0;
-          const normalizedSparse = sparseScore != null && sparseMax > 0
-            ? sparseScore / sparseMax
-            : null;
-          const clippedAnn = annScore != null
-            ? Math.max(-1, Math.min(1, annScore))
-            : null;
-          const normalizedAnn = clippedAnn != null ? (clippedAnn + 1) / 2 : null;
-          const activeSparseWeight = normalizedSparse != null ? blendSparseWeight : 0;
-          const activeAnnWeight = normalizedAnn != null ? blendAnnWeight : 0;
-          const weightSum = activeSparseWeight + activeAnnWeight;
-          const blended = weightSum > 0
-            ? ((normalizedSparse ?? 0) * activeSparseWeight + (normalizedAnn ?? 0) * activeAnnWeight) / weightSum
-            : 0;
-          scoreType = 'blend';
-          score = blended;
-          blendInfo = {
-            score: blended,
-            sparseNormalized: normalizedSparse,
-            annNormalized: normalizedAnn,
-            sparseWeight: activeSparseWeight,
-            annWeight: activeAnnWeight
-          };
-        } else if (sparseScore != null) {
-          scoreType = sparseTypeValue;
-          score = sparseScore;
-        } else if (annScore != null) {
-          scoreType = 'ann';
-          score = annScore;
-        } else {
-          scoreType = 'none';
-          score = 0;
-        }
+        const idxVal = entry.idx;
+        const sparseScore = entry.sparseScore;
+        const annScore = entry.annScore;
+        const sparseTypeValue = entry.sparseType;
+        let scoreType = entry.scoreType;
+        let score = entry.score;
+        const blendInfo = entry.blendInfo;
         const chunk = meta[idxVal];
         if (!chunk) return null;
         if (!matchesQueryAst(idx, idxVal, chunk)) return null;
@@ -578,17 +404,17 @@ export function createSearchPipeline(context) {
           sparse: sparseScore != null ? {
             type: sparseTypeValue,
             score: sparseScore,
-            normalized: scores.fts != null ? sqliteFtsNormalize : null,
-            weights: scores.fts != null ? sqliteFtsWeights : null,
-            profile: scores.fts != null ? sqliteFtsProfile : null,
+            normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
+            weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
+            profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
             fielded: fieldWeightsEnabled || false,
-            k1: scores.bm25 != null ? bm25K1 : null,
-            b: scores.bm25 != null ? bm25B : null,
+            k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
+            b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
             ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false
           } : null,
           ann: annScore != null ? {
             score: annScore,
-            source: scores.annSource || null
+            source: entry.annSource || null
           } : null,
           rrf: useRrf ? blendInfo : null,
           phrase: phraseNgramSet ? {
@@ -612,7 +438,7 @@ export function createSearchPipeline(context) {
           sparseScore,
           sparseType: sparseTypeValue,
           annScore,
-          annSource: scores.annSource || null
+          annSource: entry.annSource || null
         };
       })
       .filter(Boolean)
