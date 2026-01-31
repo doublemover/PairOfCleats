@@ -28,6 +28,7 @@
 - Avoid bash-style heredocs (`<<EOF`) or use python
 - You are working in PowerShell 7.5; Be mindful of how it is different.
 - Quoting: use single quotes for literal strings, double quotes only when you need `$env:VAR` or `$(...)` expansion.
+- You are already in PowerShell; do not prefix commands with `powershell -NoProfile -Command` (it breaks here-strings and other quoting).
 - Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. 
 	- In single quotes, escape a `'` by doubling it (`''`).
 - Avoid unquoted paths with spaces, Wrap in single quotes when no expansion is needed.
