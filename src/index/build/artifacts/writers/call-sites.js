@@ -169,7 +169,7 @@ export const enqueueCallSitesArtifacts = ({
   log = null
 }) => {
   const rows = createCallSites({ chunks: state?.chunks || [] });
-  if (!rows.length) return;
+  if (!rows.length) return null;
 
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
   let totalBytes = 0;
@@ -212,7 +212,13 @@ export const enqueueCallSitesArtifacts = ({
       count: rows.length,
       compression: compression || null
     }, callSitesPath);
-    return;
+    return {
+      name: 'call_sites',
+      format: 'jsonl',
+      sharded: false,
+      entrypoint: formatArtifactLabel(callSitesPath),
+      totalEntries: rows.length
+    };
   }
 
   if (log) {
@@ -268,4 +274,11 @@ export const enqueueCallSitesArtifacts = ({
       addPieceFile({ type: 'relations', name: 'call_sites_meta', format: 'json' }, callSitesMetaPath);
     }
   );
+  return {
+    name: 'call_sites',
+    format: 'jsonl',
+    sharded: true,
+    entrypoint: formatArtifactLabel(callSitesMetaPath),
+    totalEntries: rows.length
+  };
 };

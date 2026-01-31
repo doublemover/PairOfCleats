@@ -4,6 +4,7 @@ import { serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
 import { log } from '../../../../shared/progress.js';
+import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 
 export const writeIndexArtifactsForMode = async ({
   runtime,
@@ -41,6 +42,57 @@ export const writeIndexArtifactsForMode = async ({
     ? runtime.analysisPolicy.risk.interproceduralSummaryOnly
     : runtime.riskInterproceduralConfig?.summaryOnly === true;
   const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
+  if (mode === 'code') {
+    try {
+      const result = computeInterproceduralRisk({
+        chunks: state.chunks,
+        summaries: state.riskSummaries,
+        runtime,
+        log,
+        summaryTimingMs: state.riskSummaryTimingMs
+      });
+      state.riskFlows = result.flowRows || [];
+      state.riskInterproceduralStats = result.stats || null;
+      state.riskFlowCallSiteIds = result.callSiteIdsReferenced || null;
+      if (state.riskSummaryStats?.summariesDroppedBySize) {
+        const count = state.riskSummaryStats.summariesDroppedBySize;
+        if (count > 0 && state.riskInterproceduralStats) {
+          state.riskInterproceduralStats.droppedRecords = state.riskInterproceduralStats.droppedRecords || [];
+          state.riskInterproceduralStats.droppedRecords.push({
+            artifact: 'risk_summaries',
+            count,
+            reasons: [{ reason: 'rowTooLarge', count }]
+          });
+        }
+      }
+    } catch (err) {
+      state.riskFlows = [];
+      state.riskFlowCallSiteIds = null;
+      state.riskInterproceduralStats = {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        status: 'error',
+        reason: err?.message || 'risk interprocedural error',
+        effectiveConfig: runtime.riskInterproceduralConfig || null,
+        counts: {
+          chunksConsidered: state.riskSummaries?.length || 0,
+          summariesEmitted: state.riskSummaries?.length || 0,
+          sourceRoots: 0,
+          resolvedEdges: 0,
+          flowsEmitted: 0,
+          risksWithFlows: 0,
+          uniqueCallSitesReferenced: 0
+        },
+        capsHit: [],
+        timingMs: {
+          summaries: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0,
+          propagation: 0,
+          total: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0
+        },
+        artifacts: {}
+      };
+    }
+  }
   await writeIndexArtifacts({
     outDir,
     mode,
@@ -57,6 +109,7 @@ export const writeIndexArtifactsForMode = async ({
     fileCounts: { candidates: entries.length },
     perfProfile: finalizedPerfProfile,
     graphRelations,
+    riskInterproceduralEmitArtifacts,
     indexState: {
       generatedAt: new Date().toISOString(),
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,

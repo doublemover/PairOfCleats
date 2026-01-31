@@ -35,6 +35,7 @@ import { createArtifactPresenceHelpers } from './validate/presence.js';
 import { loadAndValidateManifest } from './validate/manifest.js';
 import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
+import { validateRiskInterproceduralArtifacts } from './validate/risk-interprocedural.js';
 import {
   validateChunkIds,
   validateChunkIdentity,
@@ -160,6 +161,7 @@ export async function validateIndexArtifacts(input = {}) {
     }
     try {
       let chunkMeta = null;
+      const indexState = readJsonArtifact('index_state');
       try {
         chunkMeta = await loadChunkMeta(dir, { manifest, strict });
       } catch (err) {
@@ -198,6 +200,18 @@ export async function validateIndexArtifacts(input = {}) {
         const uid = entry?.chunkUid || entry?.metaV2?.chunkUid || null;
         if (uid) chunkUidSet.add(uid);
       }
+      await validateRiskInterproceduralArtifacts({
+        report,
+        mode,
+        dir,
+        manifest,
+        strict,
+        chunkUidSet,
+        indexState,
+        readJsonArtifact,
+        shouldLoadOptional,
+        checkPresence
+      });
       if (strict) {
         validateChunkIdentity(report, mode, chunkMeta);
         validateMetaV2Types(report, mode, chunkMeta);

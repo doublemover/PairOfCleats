@@ -133,6 +133,8 @@ export const createArtifactPresenceHelpers = ({
     };
     if (name === 'file_relations') return hasJsonlArtifact('file_relations');
     if (name === 'call_sites') return hasJsonlArtifact('call_sites');
+    if (name === 'risk_summaries') return hasJsonlArtifact('risk_summaries');
+    if (name === 'risk_flows') return hasJsonlArtifact('risk_flows');
     if (name === 'symbols') return hasJsonlArtifact('symbols');
     if (name === 'symbol_occurrences') return hasJsonlArtifact('symbol_occurrences');
     if (name === 'symbol_edges') return hasJsonlArtifact('symbol_edges');

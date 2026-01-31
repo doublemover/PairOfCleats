@@ -212,6 +212,7 @@ export const runCrossFileInference = async ({
   }
   if (mode === 'code' && riskInterproceduralEnabled) {
     crashLogger.updatePhase('risk-summaries');
+    const summaryStart = Date.now();
     const { rows, stats } = buildRiskSummaries({
       chunks: state.chunks,
       interprocedural: {
@@ -220,6 +221,7 @@ export const runCrossFileInference = async ({
       },
       log
     });
+    state.riskSummaryTimingMs = Date.now() - summaryStart;
     state.riskSummaries = rows;
     state.riskSummaryStats = stats;
     if (stats?.emitted && Number.isFinite(stats.emitted)) {

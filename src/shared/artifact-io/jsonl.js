@@ -29,6 +29,8 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
   symbol_occurrences: ['v', 'host', 'role', 'ref'],
   symbol_edges: ['v', 'type', 'from', 'to'],
   call_sites: ['callSiteId', 'callerChunkUid', 'file', 'startLine', 'startCol', 'endLine', 'endCol', 'calleeRaw', 'calleeNormalized', 'args'],
+  risk_summaries: ['schemaVersion', 'chunkUid', 'file', 'signals', 'totals', 'truncated'],
+  risk_flows: ['schemaVersion', 'flowId', 'source', 'sink', 'path', 'confidence', 'notes'],
   graph_relations: ['graph', 'node']
 });
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-31T15:33:28.795Z",
+  "generatedAt": "2026-01-31T17:21:31.107Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -103,6 +103,17 @@
       "indexing.ioConcurrencyCap",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
+      "indexing.riskInterprocedural.caps.maxDepth",
+      "indexing.riskInterprocedural.caps.maxEdgeExpansions",
+      "indexing.riskInterprocedural.caps.maxMs",
+      "indexing.riskInterprocedural.caps.maxPathsPerPair",
+      "indexing.riskInterprocedural.caps.maxTotalFlows",
+      "indexing.riskInterprocedural.emitArtifacts",
+      "indexing.riskInterprocedural.enabled",
+      "indexing.riskInterprocedural.sanitizerPolicy",
+      "indexing.riskInterprocedural.strictness",
+      "indexing.riskInterprocedural.summaryOnly",
       "quality",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
@@ -159,8 +170,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 100,
-    "leafKeys": 76,
+    "totalKeys": 113,
+    "leafKeys": 87,
     "topLevel": [
       {
         "key": "cache",
@@ -168,7 +179,7 @@
       },
       {
         "key": "indexing",
-        "count": 37
+        "count": 50
       },
       {
         "key": "quality",
@@ -386,6 +397,81 @@
     {
       "path": "indexing.maxFileLines",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxDepth",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxEdgeExpansions",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxMs",
+      "type": "number|null",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxPathsPerPair",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxTotalFlows",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.emitArtifacts",
+      "type": "string",
+      "enum": [
+        "none",
+        "jsonl",
+        "off"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.sanitizerPolicy",
+      "type": "string",
+      "enum": [
+        "terminate",
+        "weaken"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.strictness",
+      "type": "string",
+      "enum": [
+        "conservative",
+        "argAware"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.summaryOnly",
+      "type": "boolean",
       "enum": null
     },
     {

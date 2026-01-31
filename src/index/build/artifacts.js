@@ -23,6 +23,7 @@ import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes, summarizeFilterIndex } from './artifacts/helpers.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from './artifacts/writers/call-sites.js';
+import { enqueueRiskInterproceduralArtifacts } from './artifacts/writers/risk-interprocedural.js';
 import { enqueueSymbolsArtifacts } from './artifacts/writers/symbols.js';
 import { enqueueSymbolOccurrencesArtifacts } from './artifacts/writers/symbol-occurrences.js';
 import { enqueueSymbolEdgesArtifacts } from './artifacts/writers/symbol-edges.js';
@@ -56,7 +57,8 @@ export async function writeIndexArtifacts(input) {
     fileCounts,
     perfProfile,
     indexState,
-    graphRelations
+    graphRelations,
+    riskInterproceduralEmitArtifacts = null
   } = input;
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
@@ -420,7 +422,7 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel
   });
   const callSitesCompression = resolveShardCompression('call_sites');
-  enqueueCallSitesArtifacts({
+  const callSitesRef = enqueueCallSitesArtifacts({
     state,
     outDir,
     maxJsonBytes,
@@ -431,6 +433,24 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  const riskSummariesCompression = resolveShardCompression('risk_summaries');
+  const riskFlowsCompression = resolveShardCompression('risk_flows');
+  if (mode === 'code' && state?.riskInterproceduralStats) {
+    enqueueRiskInterproceduralArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: riskSummariesCompression,
+      flowsCompression: riskFlowsCompression,
+      gzipOptions: compressionGzipOptions,
+      emitArtifacts: riskInterproceduralEmitArtifacts || 'jsonl',
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel,
+      callSitesRef
+    });
+  }
   if (mode === 'code') {
     const symbolsCompression = resolveShardCompression('symbols');
     await enqueueSymbolsArtifacts({

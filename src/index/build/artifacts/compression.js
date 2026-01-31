@@ -25,6 +25,8 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
     'vfs_manifest',
     'file_relations',
     'call_sites',
+    'risk_summaries',
+    'risk_flows',
     'repo_map',
     'dense_vectors_uint8',
     'dense_vectors_doc_uint8',
