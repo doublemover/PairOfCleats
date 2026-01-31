@@ -8,6 +8,7 @@ import {
   getDictConfig,
   getEffectiveConfigHash,
   getBuildsRoot,
+  getCacheRoot,
   getRepoCacheRoot,
   getToolVersion,
   getToolingConfig,
@@ -119,6 +120,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
+  const cacheRootSource = userConfig.cache?.root
+    ? 'config'
+    : (envConfig.cacheRoot ? 'env' : 'default');
+  log(`[init] cache root (${cacheRootSource}): ${path.resolve(cacheRoot)}`);
+  log(`[init] repo cache root: ${path.resolve(repoCacheRoot)}`);
   const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
     argv,
     rawArgv,

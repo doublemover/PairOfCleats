@@ -26,3 +26,26 @@ We will execute Phase 10 in a dependency-first order: freeze canonical specs and
 
 ## Open questions
 - None. Decisions locked: EvidenceRef endLine/endCol mirror start values; CLI output sorted by confidence then flowId; long tests canceled and delegated.
+
+## Test fix log
+- Shard-merge: failure "chunk metadata differs" from `.testLogs/run-1769885064337-0ldai3/shard-merge.attempt-1.log`.
+- Compared `index-code/chunk_meta.json` for cache-a vs cache-b builds; counts match (2 vs 2).
+- Diffed first chunk payloads; only difference was `docmeta.tooling.sources[].collectedAt` timestamp.
+- Confirmed no other structural diff after removing tool timestamps.
+- Updated `tests/shard-merge.js` to normalize tooling timestamps and compare with `stableStringify` so shard/non-shard builds match on deterministic content.
+- MCP search defaults/filters: failure "baseline risk MCP search returned no results" from `.testLogs/run-1769885064337-0ldai3/services_mcp_tool-search-defaults-and-filters_test.attempt-1.log`.
+- Noted logs did not show active cache root; added init logging in `src/index/build/runtime/runtime.js` to print cache root source + resolved repo cache root for easier debugging of fixture indexes.
+- Shard-merge: failure "checksum differs for chunk_meta.json" from `.testLogs/run-1769888425383-uil313/shard-merge.attempt-1.log`.
+- Diffed `index-code/chunk_meta.json` between cache-a and cache-b build roots from the log; only difference was `docmeta.tooling.sources[].collectedAt` timestamps.
+- Traced timestamps to `src/index/tooling/orchestrator.js` provenance merge -> `src/index/type-inference-crossfile/tooling.js` -> chunk docmeta -> chunk_meta writer.
+- Sanitized `docmeta.tooling.sources` in `src/index/build/artifacts/writers/chunk-meta.js` to drop `collectedAt` for deterministic chunk_meta output (rest of docmeta preserved).
+- Shard-merge: added JSON diff logging in `tests/shard-merge.js` to print the first differing path/value when a manifest checksum mismatch occurs (loads the referenced artifact and reports the exact field difference).
+- Shard-merge: diff showed `filter_index.json.configHash` differed between shard/non-shard because shards config affects `getEffectiveConfigHash`.
+- Switched filter_index configHash to `buildContentConfigHash` (ignores sharding/concurrency) and updated `tests/filter-index-artifact.js` to assert against the content hash.
+- Shard-merge: diff logging showed `graph_relations.generatedAt` timestamp mismatch; updated `tests/shard-merge.js` to treat graph_relations artifacts as equivalent when only generatedAt differs.
+- Shard-merge: diff logging showed `index_state.json` differences from buildId/shards/timestamps; normalized those fields in `tests/shard-merge.js` to compare deterministic content only.
+- Documented non-deterministic `index_state.json` fields in `docs/testing/index-state-nondeterministic-fields.md` for future comparisons/tests.
+- Shard-merge: further diff showed `index_state.json.sqlite.elapsedMs` mismatch; expanded normalization in `tests/shard-merge.js` to drop sqlite timing/status/paths, lmdb runtime fields, repoId, and embeddings backend availability fields.
+- Shard-merge: added generic `generatedAt`/`updatedAt` normalization for JSON artifacts so meta files and `risk_interprocedural_stats.json` compare equal when only timestamps differ.
+- Shard-merge: skip checksum enforcement for `format: dir` artifacts (e.g., `dense_vectors.lancedb`) since directory entries do not include checksums.
+- Re-ran `node tests/shard-merge.js` (pass).

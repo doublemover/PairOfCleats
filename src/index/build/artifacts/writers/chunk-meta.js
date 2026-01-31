@@ -60,59 +60,100 @@ export const createChunkMetaIterator = ({
   resolvedTokenMode,
   tokenSampleSize,
   maxJsonBytes
-}) => function* chunkMetaIterator(start = 0, end = chunks.length) {
-  for (let i = start; i < end; i += 1) {
-    const c = chunks[i];
-    const authors = Array.isArray(c.chunk_authors)
-      ? c.chunk_authors
-      : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
-    const entry = {
-      id: c.id,
-      chunkId: c.chunkId || null,
-      file: c.file || null,
-      fileId: fileIdByPath.get(c.file) ?? null,
-      ext: c.ext || null,
-      lang: c.lang || null,
-      containerLanguageId: c.containerLanguageId || null,
-      fileHash: c.fileHash || null,
-      fileHashAlgo: c.fileHashAlgo || null,
-      fileSize: Number.isFinite(c.fileSize) ? c.fileSize : null,
-      chunkUid: c.chunkUid || c.metaV2?.chunkUid || null,
-      virtualPath: c.virtualPath || c.metaV2?.virtualPath || c.segment?.virtualPath || null,
-      start: c.start,
-      end: c.end,
-      startLine: c.startLine,
-      endLine: c.endLine,
-      kind: c.kind,
-      name: c.name,
-      weight: c.weight,
-      headline: c.headline,
-      preContext: c.preContext,
-      postContext: c.postContext,
-      segment: c.segment || null,
-      codeRelations: c.codeRelations,
-      docmeta: c.docmeta,
-      metaV2: c.metaV2,
-      stats: c.stats,
-      complexity: c.complexity,
-      lint: c.lint,
-      chunk_authors: authors,
-      chunkAuthors: authors
+}) => {
+  const stats = {
+    trimmedMetaV2: 0,
+    trimmedSamples: []
+  };
+  const sampleLimit = 5;
+  const recordTrimSample = (entry) => {
+    if (stats.trimmedSamples.length >= sampleLimit) return;
+    stats.trimmedSamples.push({
+      chunkId: entry.chunkId || entry.id || null,
+      file: entry.file || null
+    });
+  };
+  const scrubDocmetaTooling = (docmeta) => {
+    if (!docmeta || typeof docmeta !== 'object') return docmeta;
+    const tooling = docmeta.tooling;
+    if (!tooling || typeof tooling !== 'object') return docmeta;
+    if (!Array.isArray(tooling.sources)) return docmeta;
+    const nextSources = tooling.sources.map(({ collectedAt, ...rest }) => rest);
+    return {
+      ...docmeta,
+      tooling: {
+        ...tooling,
+        sources: nextSources
+      }
     };
-    if (resolvedTokenMode !== 'none') {
-      const tokens = Array.isArray(c.tokens) ? c.tokens : [];
-      const ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
-      const tokenOut = resolvedTokenMode === 'sample'
-        ? tokens.slice(0, tokenSampleSize)
-        : tokens;
-      const ngramOut = resolvedTokenMode === 'sample' && Array.isArray(ngrams)
-        ? ngrams.slice(0, tokenSampleSize)
-        : ngrams;
-      entry.tokens = tokenOut;
-      entry.ngrams = ngramOut;
+  };
+  const chunkMetaIterator = function* iterator(start = 0, end = chunks.length, trackStats = false) {
+    for (let i = start; i < end; i += 1) {
+      const c = chunks[i];
+      const authors = Array.isArray(c.chunk_authors)
+        ? c.chunk_authors
+        : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
+      const docmeta = scrubDocmetaTooling(c.docmeta);
+      const entry = {
+        id: c.id,
+        chunkId: c.chunkId || null,
+        file: c.file || null,
+        fileId: fileIdByPath.get(c.file) ?? null,
+        ext: c.ext || null,
+        lang: c.lang || null,
+        containerLanguageId: c.containerLanguageId || null,
+        fileHash: c.fileHash || null,
+        fileHashAlgo: c.fileHashAlgo || null,
+        fileSize: Number.isFinite(c.fileSize) ? c.fileSize : null,
+        chunkUid: c.chunkUid || c.metaV2?.chunkUid || null,
+        virtualPath: c.virtualPath || c.metaV2?.virtualPath || c.segment?.virtualPath || null,
+        start: c.start,
+        end: c.end,
+        startLine: c.startLine,
+        endLine: c.endLine,
+        kind: c.kind,
+        name: c.name,
+        weight: c.weight,
+        headline: c.headline,
+        preContext: c.preContext,
+        postContext: c.postContext,
+        segment: c.segment || null,
+        codeRelations: c.codeRelations,
+        docmeta,
+        metaV2: c.metaV2,
+        stats: c.stats,
+        complexity: c.complexity,
+        lint: c.lint,
+        chunk_authors: authors,
+        chunkAuthors: authors
+      };
+      if (resolvedTokenMode !== 'none') {
+        const tokens = Array.isArray(c.tokens) ? c.tokens : [];
+        const ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
+        const tokenOut = resolvedTokenMode === 'sample'
+          ? tokens.slice(0, tokenSampleSize)
+          : tokens;
+        const ngramOut = resolvedTokenMode === 'sample' && Array.isArray(ngrams)
+          ? ngrams.slice(0, tokenSampleSize)
+          : ngrams;
+        entry.tokens = tokenOut;
+        entry.ngrams = ngramOut;
+      }
+      const hadMetaV2 = !!entry.metaV2;
+      const compacted = compactChunkMetaEntry(entry, maxJsonBytes);
+      if (trackStats && hadMetaV2 && !compacted.metaV2) {
+        stats.trimmedMetaV2 += 1;
+        recordTrimSample(entry);
+      }
+      yield compacted;
     }
-    yield compactChunkMetaEntry(entry, maxJsonBytes);
-  }
+  };
+  chunkMetaIterator.stats = stats;
+  chunkMetaIterator.resetStats = () => {
+    stats.trimmedMetaV2 = 0;
+    stats.trimmedSamples.length = 0;
+  };
+  return chunkMetaIterator;
 };
 
 export const resolveChunkMetaPlan = ({
@@ -140,7 +181,7 @@ export const resolveChunkMetaPlan = ({
     const sampleSize = Math.min(chunkMetaCount, 200);
     let sampledBytes = 0;
     let sampled = 0;
-    for (const entry of chunkMetaIterator(0, sampleSize)) {
+    for (const entry of chunkMetaIterator(0, sampleSize, false)) {
       sampledBytes += Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
       sampled += 1;
     }
@@ -204,7 +245,8 @@ export const enqueueChunkMetaArtifacts = async ({
     let totalJsonBytes = 2;
     let totalJsonlBytes = 0;
     let total = 0;
-    for (const entry of chunkMetaIterator()) {
+    chunkMetaIterator.resetStats?.();
+    for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
       const line = JSON.stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
       if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
@@ -220,6 +262,16 @@ export const enqueueChunkMetaArtifacts = async ({
   const measured = chunkMetaCount
     ? measureChunkMeta()
     : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
+  if (chunkMetaIterator.stats?.trimmedMetaV2) {
+    const samples = chunkMetaIterator.stats.trimmedSamples || [];
+    const sampleText = samples.length
+      ? ` (sample: ${samples.map((entry) => `${entry.chunkId || 'unknown'}:${entry.file || 'unknown'}`).join(', ')})`
+      : '';
+    log(
+      `[metaV2] trimmed ${chunkMetaIterator.stats.trimmedMetaV2} chunk_meta entries ` +
+      `to fit ${formatBytes(resolvedMaxJsonBytes)}${sampleText}`
+    );
+  }
   let resolvedUseJsonl = chunkMetaUseJsonl;
   let resolvedUseShards = chunkMetaUseShards;
   if (!resolvedUseJsonl && resolvedMaxJsonBytes && measured.totalJsonBytes > resolvedMaxJsonBytes) {

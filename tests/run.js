@@ -115,6 +115,12 @@ const main = async () => {
     if (!tag || tagInclude.includes(tag) || tagExclude.includes(tag)) continue;
     tagExclude.push(tag);
   }
+  const dropTags = [];
+  const dropLongFromCi = requestedLanes.includes('ci')
+    && !requestedLanes.includes('ci-long')
+    && !tagInclude.includes('long')
+    && tagExclude.includes('long');
+  if (dropLongFromCi) dropTags.push('long');
 
   const tests = (await discoverTests({
     testsDir: TESTS_DIR,
@@ -198,7 +204,8 @@ const main = async () => {
       includeMatchers,
       excludeMatchers,
       tagInclude,
-      tagExclude
+      tagExclude,
+      dropTags
     });
     selection = [...selected, ...skipped];
   }

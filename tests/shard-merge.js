@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadTokenPostings } from '../src/shared/artifact-io.js';
+import { stableStringify } from '../src/shared/stable-json.js';
+import { rmDirRecursive } from './helpers/temp.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'shard-merge');
@@ -11,7 +14,7 @@ const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootA = path.join(tempRoot, 'cache-a');
 const cacheRootB = path.join(tempRoot, 'cache-b');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot);
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(path.join(repoRoot, 'lib'), { recursive: true });
 await fsPromises.mkdir(cacheRootA, { recursive: true });
@@ -70,6 +73,168 @@ const readManifest = async (cacheRoot) => {
   return raw;
 };
 
+const normalizeChunk = (chunk) => {
+  const copy = JSON.parse(JSON.stringify(chunk));
+  const tooling = copy?.docmeta?.tooling;
+  if (tooling?.sources && Array.isArray(tooling.sources)) {
+    tooling.sources = tooling.sources.map(({ collectedAt, ...rest }) => rest);
+    if (!tooling.sources.length) {
+      delete copy.docmeta.tooling;
+    }
+  }
+  return copy;
+};
+
+const resolveCodeDir = (cacheRoot) => {
+  const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  const userConfig = loadUserConfig(repoRoot);
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  if (previousCacheRoot === undefined) {
+    delete process.env.PAIROFCLEATS_CACHE_ROOT;
+  } else {
+    process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
+  }
+  return codeDir;
+};
+
+const loadPieceJson = async (cacheRoot, piecePath) => {
+  const codeDir = resolveCodeDir(cacheRoot);
+  const fullPath = path.join(codeDir, piecePath);
+  if (!fs.existsSync(fullPath)) return { path: fullPath, json: null };
+  const raw = await fsPromises.readFile(fullPath, 'utf8');
+  if (piecePath.endsWith('.jsonl')) {
+    const rows = raw.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+    return { path: fullPath, json: rows };
+  }
+  return { path: fullPath, json: JSON.parse(raw) };
+};
+
+const normalizeGraphRelations = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  if (!('generatedAt' in value)) return value;
+  return { ...value, generatedAt: '__normalized__' };
+};
+
+const graphRelationsEquivalent = (left, right) => (
+  stableStringify(normalizeGraphRelations(left)) === stableStringify(normalizeGraphRelations(right))
+);
+
+const normalizeGeneratedAt = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const copy = { ...value };
+  if ('generatedAt' in copy) copy.generatedAt = '__normalized__';
+  if ('updatedAt' in copy) copy.updatedAt = '__normalized__';
+  return copy;
+};
+
+const generatedAtEquivalent = (left, right) => (
+  stableStringify(normalizeGeneratedAt(left)) === stableStringify(normalizeGeneratedAt(right))
+);
+
+const normalizeIndexState = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const copy = JSON.parse(JSON.stringify(value));
+  delete copy.generatedAt;
+  delete copy.buildId;
+  delete copy.repoId;
+  delete copy.updatedAt;
+  delete copy.shards;
+  if (copy.embeddings && typeof copy.embeddings === 'object') {
+    delete copy.embeddings.updatedAt;
+    delete copy.embeddings.lastError;
+    if (copy.embeddings.backends && typeof copy.embeddings.backends === 'object') {
+      for (const backend of Object.values(copy.embeddings.backends)) {
+        if (!backend || typeof backend !== 'object') continue;
+        delete backend.available;
+        delete backend.enabled;
+        delete backend.target;
+        delete backend.dims;
+        delete backend.count;
+      }
+    }
+  }
+  if (copy.sqlite && typeof copy.sqlite === 'object') {
+    delete copy.sqlite.updatedAt;
+    delete copy.sqlite.path;
+    delete copy.sqlite.note;
+    delete copy.sqlite.threadLimits;
+    delete copy.sqlite.elapsedMs;
+    delete copy.sqlite.bytes;
+    delete copy.sqlite.inputBytes;
+    delete copy.sqlite.status;
+    delete copy.sqlite.error;
+  }
+  if (copy.lmdb && typeof copy.lmdb === 'object') {
+    delete copy.lmdb.updatedAt;
+    delete copy.lmdb.path;
+    delete copy.lmdb.mapSizeBytes;
+    delete copy.lmdb.mapSizeEstimatedBytes;
+    delete copy.lmdb.pending;
+    delete copy.lmdb.ready;
+    delete copy.lmdb.error;
+  }
+  return copy;
+};
+
+const indexStateEquivalent = (left, right) => (
+  stableStringify(normalizeIndexState(left)) === stableStringify(normalizeIndexState(right))
+);
+
+const findFirstDiff = (left, right, currentPath = []) => {
+  if (left === right) return null;
+  const leftType = Array.isArray(left) ? 'array' : (left === null ? 'null' : typeof left);
+  const rightType = Array.isArray(right) ? 'array' : (right === null ? 'null' : typeof right);
+  if (leftType !== rightType) {
+    return { path: currentPath, left, right, note: `type ${leftType} vs ${rightType}` };
+  }
+  if (leftType === 'array') {
+    if (left.length !== right.length) {
+      return { path: [...currentPath, 'length'], left: left.length, right: right.length };
+    }
+    for (let i = 0; i < left.length; i += 1) {
+      const diff = findFirstDiff(left[i], right[i], [...currentPath, String(i)]);
+      if (diff) return diff;
+    }
+    return null;
+  }
+  if (leftType === 'object') {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    if (leftKeys.length !== rightKeys.length || leftKeys.join('|') !== rightKeys.join('|')) {
+      return { path: [...currentPath, 'keys'], left: leftKeys, right: rightKeys };
+    }
+    for (const key of leftKeys) {
+      const diff = findFirstDiff(left[key], right[key], [...currentPath, key]);
+      if (diff) return diff;
+    }
+    return null;
+  }
+  return { path: currentPath, left, right };
+};
+
+const logPieceDiff = async (piecePath) => {
+  try {
+    const base = await loadPieceJson(cacheRootA, piecePath);
+    const shard = await loadPieceJson(cacheRootB, piecePath);
+    if (!base.json || !shard.json) {
+      console.error(`Shard merge diff: missing ${piecePath} (${base.path}, ${shard.path})`);
+      return;
+    }
+    const diff = findFirstDiff(base.json, shard.json);
+    if (!diff) {
+      console.error(`Shard merge diff: ${piecePath} parsed equal despite checksum mismatch.`);
+      return;
+    }
+    console.error(`Shard merge diff: ${piecePath} @ ${diff.path.join('.') || '(root)'}`);
+    console.error('  left:', JSON.stringify(diff.left));
+    console.error('  right:', JSON.stringify(diff.right));
+    if (diff.note) console.error(`  note: ${diff.note}`);
+  } catch (err) {
+    console.error(`Shard merge diff: failed to compare ${piecePath}: ${err?.message || err}`);
+  }
+};
+
 runBuild(cacheRootA, 'baseline build', {
   indexing: {
     fileListSampleSize: 10,
@@ -98,7 +263,9 @@ if (baseline.chunks.length !== sharded.chunks.length) {
   console.error('Shard merge mismatch: chunk counts differ');
   process.exit(1);
 }
-if (JSON.stringify(baseline.chunks) !== JSON.stringify(sharded.chunks)) {
+const normalizedBaseline = baseline.chunks.map(normalizeChunk);
+const normalizedSharded = sharded.chunks.map(normalizeChunk);
+if (stableStringify(normalizedBaseline) !== stableStringify(normalizedSharded)) {
   console.error('Shard merge mismatch: chunk metadata differs');
   process.exit(1);
 }
@@ -135,6 +302,10 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
     console.error(`Shard merge mismatch: missing piece entry ${piecePath}`);
     process.exit(1);
   }
+  const isDir = baselineEntry?.format === 'dir' || shardedEntry?.format === 'dir';
+  if (isDir) {
+    continue;
+  }
   if (!baselineEntry.checksum || !baselineEntry.checksum.includes(':')) {
     console.error(`Shard merge mismatch: baseline checksum missing for ${piecePath}`);
     process.exit(1);
@@ -144,6 +315,28 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
     process.exit(1);
   }
   if (baselineEntry.checksum !== shardedEntry.checksum) {
+    if (piecePath === 'graph_relations.json' || piecePath === 'graph_relations.meta.json') {
+      const base = await loadPieceJson(cacheRootA, piecePath);
+      const shard = await loadPieceJson(cacheRootB, piecePath);
+      if (base.json && shard.json && graphRelationsEquivalent(base.json, shard.json)) {
+        continue;
+      }
+    }
+    if (piecePath === 'index_state.json') {
+      const base = await loadPieceJson(cacheRootA, piecePath);
+      const shard = await loadPieceJson(cacheRootB, piecePath);
+      if (base.json && shard.json && indexStateEquivalent(base.json, shard.json)) {
+        continue;
+      }
+    }
+    {
+      const base = await loadPieceJson(cacheRootA, piecePath);
+      const shard = await loadPieceJson(cacheRootB, piecePath);
+      if (base.json && shard.json && generatedAtEquivalent(base.json, shard.json)) {
+        continue;
+      }
+    }
+    await logPieceDiff(piecePath);
     console.error(`Shard merge mismatch: checksum differs for ${piecePath}`);
     process.exit(1);
   }

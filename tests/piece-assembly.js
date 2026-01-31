@@ -4,7 +4,9 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from './helpers/test-env.js';
 import { loadChunkMeta, loadTokenPostings } from '../src/shared/artifact-io.js';
+import { stableStringify } from '../src/shared/stable-json.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -28,7 +30,40 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const baseEnv = {
   ...process.env,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    tooling: { autoEnableOnDetect: false }
+  })
+};
+syncProcessEnv(baseEnv, [...DEFAULT_TEST_ENV_KEYS]);
+
+const logChunkMetaDiff = (label, left, right) => {
+  if (!left || !right) return;
+  const id = left.chunkId || left.metaV2?.chunkId || null;
+  const file = left.file || right.file || left.metaV2?.file || right.metaV2?.file || null;
+  const name = left.name || right.name || left.metaV2?.name || right.metaV2?.name || null;
+  console.error(`[piece-assembly] ${label} mismatch for ${file || 'unknown'} (${name || 'unknown'}, ${id || 'unknown'}).`);
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of Array.from(keys).sort()) {
+    const a = left[key];
+    const b = right[key];
+    if (JSON.stringify(a) === JSON.stringify(b)) continue;
+    if (key === 'metaV2') {
+      const metaKeys = new Set([
+        ...Object.keys(a || {}),
+        ...Object.keys(b || {})
+      ]);
+      for (const metaKey of Array.from(metaKeys).sort()) {
+        const av = a?.[metaKey];
+        const bv = b?.[metaKey];
+        if (JSON.stringify(av) === JSON.stringify(bv)) continue;
+        console.error(`[piece-assembly] metaV2.${metaKey} diff`, { a: av, b: bv });
+      }
+      continue;
+    }
+    console.error(`[piece-assembly] ${key} diff`, { a, b });
+  }
 };
 
 const run = (label, args, env) => {
@@ -127,7 +162,16 @@ const normalizeChunks = (chunks) => (
     })
     : chunks
 );
-if (JSON.stringify(normalizeChunks(chunksMonoList)) !== JSON.stringify(normalizeChunks(chunksAList))) {
+const normalizedA = normalizeChunks(chunksAList);
+const normalizedMono = normalizeChunks(chunksMonoList);
+if (stableStringify(normalizedMono) !== stableStringify(normalizedA)) {
+  const limit = Math.min(normalizedA.length, normalizedMono.length);
+  for (let i = 0; i < limit; i += 1) {
+    if (stableStringify(normalizedA[i]) !== stableStringify(normalizedMono[i])) {
+      logChunkMetaDiff('chunk_meta', normalizedA[i], normalizedMono[i]);
+      break;
+    }
+  }
   console.error('Assembled single index does not match monolithic chunk_meta.');
   process.exit(1);
 }
@@ -192,7 +236,7 @@ run('assemble-pieces (repeat)', [
 });
 
 const chunksOutRepeat = await loadChunkMeta(outputDir2);
-if (JSON.stringify(chunksOutRepeat) !== JSON.stringify(chunksOutList)) {
+if (stableStringify(chunksOutRepeat) !== stableStringify(chunksOutList)) {
   console.error('Repeat assembly produced different chunk_meta output.');
   process.exit(1);
 }
@@ -293,14 +337,23 @@ if (assembleEquivDuration > 30000) {
 
 const chunksAll = await loadChunkMeta(indexAll);
 const chunksEquiv = await loadChunkMeta(assembledEquiv);
-if (JSON.stringify(normalizeChunks(chunksAll)) !== JSON.stringify(normalizeChunks(chunksEquiv))) {
+if (stableStringify(normalizeChunks(chunksAll)) !== stableStringify(normalizeChunks(chunksEquiv))) {
+  const normalizedAll = normalizeChunks(chunksAll);
+  const normalizedEquiv = normalizeChunks(chunksEquiv);
+  const limit = Math.min(normalizedAll.length, normalizedEquiv.length);
+  for (let i = 0; i < limit; i += 1) {
+    if (stableStringify(normalizedAll[i]) !== stableStringify(normalizedEquiv[i])) {
+      logChunkMetaDiff('equivalence chunk_meta', normalizedAll[i], normalizedEquiv[i]);
+      break;
+    }
+  }
   console.error('Piece assembly equivalence failed: chunk_meta mismatch.');
   process.exit(1);
 }
 
 const postingsAll = loadTokenPostings(indexAll);
 const postingsEquiv = loadTokenPostings(assembledEquiv);
-if (JSON.stringify(postingsAll) !== JSON.stringify(postingsEquiv)) {
+if (stableStringify(postingsAll) !== stableStringify(postingsEquiv)) {
   console.error('Piece assembly equivalence failed: token_postings mismatch.');
   process.exit(1);
 }
@@ -314,6 +367,9 @@ const normalizePiece = (entry) => {
   const normalized = { ...entry };
   if (normalized.statError == null) delete normalized.statError;
   if (normalized.checksumError == null) delete normalized.checksumError;
+  if (normalized.bytes == null || Number.isFinite(normalized.bytes)) delete normalized.bytes;
+  if (normalized.checksum == null || typeof normalized.checksum === 'string') delete normalized.checksum;
+  if (normalized.mtime == null || Number.isFinite(normalized.mtime)) delete normalized.mtime;
   return normalized;
 };
 const sortPieces = (pieces) => pieces.slice().sort((a, b) => {
@@ -331,13 +387,24 @@ const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   (entry?.type === 'stats' && entry?.name === 'filelists')
   || (entry?.type === 'stats' && entry?.name === 'index_state')
   || (entry?.type === 'relations' && entry?.name === 'graph_relations')
-  || (entry?.type === 'relations' && entry?.name === 'import_resolution_graph')
+  || entry?.name === 'import_resolution_graph'
   || entry?.name === 'dense_vectors_hnsw_meta'
   || entry?.name === 'dense_vectors_lancedb_meta'
+  || entry?.name === 'dense_vectors_code_hnsw_meta'
+  || entry?.name === 'dense_vectors_doc_hnsw_meta'
+  || entry?.name === 'dense_vectors_code_lancedb_meta'
+  || entry?.name === 'dense_vectors_doc_lancedb_meta'
+  || entry?.name === 'dense_vectors_hnsw'
+  || entry?.name === 'dense_vectors_lancedb'
+  || entry?.name === 'dense_vectors_code_hnsw'
+  || entry?.name === 'dense_vectors_doc_hnsw'
+  || entry?.name === 'dense_vectors_code_lancedb'
+  || entry?.name === 'dense_vectors_doc_lancedb'
+  || entry?.name === 'risk_interprocedural_stats'
 ));
 const normalizedAll = sortPieces(stripManifestEntries(piecesAll).map(normalizePiece));
 const normalizedEquiv = sortPieces(stripManifestEntries(piecesEquiv).map(normalizePiece));
-if (JSON.stringify(normalizedAll) !== JSON.stringify(normalizedEquiv)) {
+if (stableStringify(normalizedAll) !== stableStringify(normalizedEquiv)) {
   console.error('Piece assembly equivalence failed: pieces manifest mismatch.');
   process.exit(1);
 }

@@ -1,12 +1,13 @@
 import { buildFilterIndex, serializeFilterIndex } from '../../../retrieval/filter-index.js';
-import { getEffectiveConfigHash } from '../../../../tools/dict-utils.js';
+import { getEnvConfig } from '../../../shared/env.js';
+import { buildContentConfigHash } from '../runtime/hash.js';
 
 const FILTER_INDEX_SCHEMA_VERSION = 2;
 
 const resolveConfigHash = (root, userConfig) => {
   if (!root) return null;
   try {
-    return getEffectiveConfigHash(root, userConfig);
+    return buildContentConfigHash(userConfig || {}, getEnvConfig());
   } catch {
     return null;
   }

@@ -1,1 +1,5 @@
-export function add(a, b) {\n  return a + b;\n}\n\nexport const answer = add(20, 22);\n
+export function add(a, b) {
+  return a + b;
+}
+
+export const answer = add(20, 22);

@@ -3,6 +3,7 @@ import { getFieldWeight } from '../../field-weighting.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { buildTokenSequence } from '../tokenization.js';
 import { buildExternalDocs } from './meta.js';
+import { log } from '../../../shared/progress.js';
 
 export function buildChunkPayload({
   chunk,
@@ -136,5 +137,11 @@ export function buildChunkPayload({
     toolInfo,
     analysisPolicy
   });
+  if (analysisPolicy?.metadata?.enabled !== false && !chunkPayload.metaV2) {
+    log(
+      `[metaV2] missing metadata for ${relKey} ` +
+      `(${chunkPayload.start}-${chunkPayload.end})`
+    );
+  }
   return chunkPayload;
 }

@@ -32,6 +32,7 @@ const root = process.cwd();
 const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
+const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 
 const searchPath = argv.search
   ? path.resolve(argv.search)
@@ -71,6 +72,44 @@ function requireIndex(mode) {
     process.exit(1);
   }
 }
+
+function ensureParityIndexes() {
+  if (!isTestRun) return;
+  const missingIndex = ['code', 'prose'].some((mode) => {
+    const dir = resolveIndexDir(mode);
+    const metaPath = resolveChunkMetaPath(dir);
+    return !fsSync.existsSync(metaPath);
+  });
+  const missingSqlite = !fsSync.existsSync(sqlitePaths.codePath) || !fsSync.existsSync(sqlitePaths.prosePath);
+  if (!missingIndex && !missingSqlite) return;
+
+  const env = { ...process.env };
+  if (!env.PAIROFCLEATS_EMBEDDINGS) {
+    env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  }
+
+  const buildResult = spawnSync(
+    process.execPath,
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', root],
+    { env, cwd: root, stdio: 'inherit' }
+  );
+  if (buildResult.status !== 0) {
+    console.error('Parity test failed: build index');
+    process.exit(buildResult.status ?? 1);
+  }
+
+  const sqliteResult = spawnSync(
+    process.execPath,
+    [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', root],
+    { env, cwd: root, stdio: 'inherit' }
+  );
+  if (sqliteResult.status !== 0) {
+    console.error('Parity test failed: build sqlite index');
+    process.exit(sqliteResult.status ?? 1);
+  }
+}
+
+ensureParityIndexes();
 
 requireIndex('code');
 requireIndex('prose');
