@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
@@ -288,4 +289,80 @@ export const resolveArtifactPresence = (
     missingMeta,
     error
   };
+};
+
+const resolveFallbackPath = (fallbackPath, { dirEntry = false } = {}) => {
+  if (!fallbackPath) return null;
+  if (dirEntry) {
+    return fs.existsSync(fallbackPath) ? fallbackPath : null;
+  }
+  return existsOrBak(fallbackPath) ? fallbackPath : null;
+};
+
+export const resolveBinaryArtifactPath = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.paths.length > 1 && strict) {
+      const err = new Error(`Ambiguous manifest entries for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    return sources.paths[0] || null;
+  }
+  if (strict) {
+    const err = new Error(`Missing manifest entry for ${name}`);
+    err.code = 'ERR_MANIFEST_MISSING';
+    throw err;
+  }
+  return resolveFallbackPath(fallbackPath);
+};
+
+export const resolveDirArtifactPath = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.paths.length > 1 && strict) {
+      const err = new Error(`Ambiguous manifest entries for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    return sources.paths[0] || null;
+  }
+  if (strict) {
+    const err = new Error(`Missing manifest entry for ${name}`);
+    err.code = 'ERR_MANIFEST_MISSING';
+    throw err;
+  }
+  return resolveFallbackPath(fallbackPath, { dirEntry: true });
 };

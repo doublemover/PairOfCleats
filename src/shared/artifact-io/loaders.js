@@ -112,6 +112,118 @@ export const loadJsonArrayArtifact = async (
   throw new Error(`Missing index artifact: ${baseName}.json`);
 };
 
+export const loadJsonObjectArtifact = async (
+  dir,
+  baseName,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format !== 'json') {
+        throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+      }
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
+    throw new Error(`Missing manifest entry for ${baseName}`);
+  }
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: baseName,
+    strict: false,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error(`Ambiguous JSON sources for ${baseName}`);
+    }
+    return readJsonFile(sources.paths[0], { maxBytes });
+  }
+  if (fallbackPath && existsOrBak(fallbackPath)) {
+    return readJsonFile(fallbackPath, { maxBytes });
+  }
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
+export const loadJsonObjectArtifactSync = (
+  dir,
+  baseName,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format !== 'json') {
+        throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+      }
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
+    throw new Error(`Missing manifest entry for ${baseName}`);
+  }
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: baseName,
+    strict: false,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error(`Ambiguous JSON sources for ${baseName}`);
+    }
+    return readJsonFile(sources.paths[0], { maxBytes });
+  }
+  if (fallbackPath && existsOrBak(fallbackPath)) {
+    return readJsonFile(fallbackPath, { maxBytes });
+  }
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
 export const loadJsonArrayArtifactSync = (
   dir,
   baseName,

@@ -12,7 +12,9 @@ import {
   loadGraphRelations,
   loadJsonArrayArtifact,
   loadTokenPostings,
-  readJsonFile
+  readJsonFile,
+  resolveBinaryArtifactPath,
+  resolveDirArtifactPath
 } from '../shared/artifact-io.js';
 import { resolveLanceDbPaths } from '../shared/lancedb.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
@@ -449,42 +451,91 @@ export async function validateIndexArtifacts(input = {}) {
           }
         }
       }
-      const hnswMetaPath = path.join(dir, 'dense_vectors_hnsw.meta.json');
-      if (fs.existsSync(hnswMetaPath)) {
-        const hnswMeta = readJsonFile(hnswMetaPath);
+      const hnswTargets = [
+        {
+          label: 'dense_vectors_hnsw',
+          metaName: 'dense_vectors_hnsw_meta',
+          binName: 'dense_vectors_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_hnsw.bin')
+        },
+        {
+          label: 'dense_vectors_doc_hnsw',
+          metaName: 'dense_vectors_doc_hnsw_meta',
+          binName: 'dense_vectors_doc_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_doc_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_doc_hnsw.bin')
+        },
+        {
+          label: 'dense_vectors_code_hnsw',
+          metaName: 'dense_vectors_code_hnsw_meta',
+          binName: 'dense_vectors_code_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_code_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_code_hnsw.bin')
+        }
+      ];
+      for (const target of hnswTargets) {
+        const hnswMeta = strict
+          ? readJsonArtifact(target.metaName)
+          : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+        if (!hnswMeta) continue;
         validateSchema(
           report,
           mode,
-          'dense_vectors_hnsw_meta',
+          target.metaName,
           hnswMeta,
           'Rebuild embeddings for this mode.',
           { strictSchema: strict }
         );
         if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
-          const issue = `dense_vectors_hnsw count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
+          const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
           modeReport.ok = false;
           modeReport.missing.push(issue);
           report.issues.push(`[${mode}] ${issue}`);
         }
-        const hnswIndexPath = path.join(dir, 'dense_vectors_hnsw.bin');
-        if (!fs.existsSync(hnswIndexPath)) {
-          addIssue(report, mode, 'dense_vectors_hnsw index missing', 'Rebuild embeddings for this mode.');
+        const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
+          manifest,
+          strict,
+          fallbackPath: target.binPath
+        });
+        if (!hnswIndexPath || !fs.existsSync(hnswIndexPath)) {
+          addIssue(report, mode, `${target.label} index missing`, 'Rebuild embeddings for this mode.');
         }
       }
       if (lanceConfig.enabled) {
         const lancePaths = resolveLanceDbPaths(dir);
         const lanceTargets = [
-          { label: 'dense_vectors_lancedb', metaPath: lancePaths.merged.metaPath, dir: lancePaths.merged.dir },
-          { label: 'dense_vectors_doc_lancedb', metaPath: lancePaths.doc.metaPath, dir: lancePaths.doc.dir },
-          { label: 'dense_vectors_code_lancedb', metaPath: lancePaths.code.metaPath, dir: lancePaths.code.dir }
+          {
+            label: 'dense_vectors_lancedb',
+            metaName: 'dense_vectors_lancedb_meta',
+            dirName: 'dense_vectors_lancedb',
+            metaPath: lancePaths.merged.metaPath,
+            dir: lancePaths.merged.dir
+          },
+          {
+            label: 'dense_vectors_doc_lancedb',
+            metaName: 'dense_vectors_doc_lancedb_meta',
+            dirName: 'dense_vectors_doc_lancedb',
+            metaPath: lancePaths.doc.metaPath,
+            dir: lancePaths.doc.dir
+          },
+          {
+            label: 'dense_vectors_code_lancedb',
+            metaName: 'dense_vectors_code_lancedb_meta',
+            dirName: 'dense_vectors_code_lancedb',
+            metaPath: lancePaths.code.metaPath,
+            dir: lancePaths.code.dir
+          }
         ];
         for (const target of lanceTargets) {
-          if (!fs.existsSync(target.metaPath)) continue;
-          const meta = readJsonFile(target.metaPath);
+          const meta = strict
+            ? readJsonArtifact(target.metaName)
+            : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+          if (!meta) continue;
           validateSchema(
             report,
             mode,
-            'dense_vectors_lancedb_meta',
+            target.metaName,
             meta,
             'Rebuild embeddings for this mode.',
             { strictSchema: strict }
@@ -495,10 +546,31 @@ export async function validateIndexArtifacts(input = {}) {
             modeReport.missing.push(issue);
             report.issues.push(`[${mode}] ${issue}`);
           }
-          if (!fs.existsSync(target.dir)) {
+          const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
+            manifest,
+            strict,
+            fallbackPath: target.dir
+          });
+          if (!lanceDir || !fs.existsSync(lanceDir)) {
             addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
           }
         }
+      }
+      const sqliteVecMeta = strict
+        ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
+        : (() => {
+          const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
+          return fs.existsSync(sqliteMetaPath) ? readJsonFile(sqliteMetaPath) : null;
+        })();
+      if (sqliteVecMeta) {
+        validateSchema(
+          report,
+          mode,
+          'dense_vectors_sqlite_vec_meta',
+          sqliteVecMeta,
+          'Rebuild embeddings for this mode.',
+          { strictSchema: strict }
+        );
       }
     } catch (err) {
       const issue = `validation failed (${err?.code || err?.message || 'error'})`;

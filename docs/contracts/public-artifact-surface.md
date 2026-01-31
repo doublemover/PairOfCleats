@@ -25,6 +25,15 @@ These artifacts define the public surface and must be present when referenced:
 ## Optional public artifacts (when enabled)
 
 - `call_sites` (jsonl or sharded jsonl) when relations are enabled.
+- Embeddings and ANN artifacts (when embeddings are enabled):
+  - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code`
+  - `dense_vectors_hnsw` + `dense_vectors_hnsw_meta`
+  - `dense_vectors_doc_hnsw` + `dense_vectors_doc_hnsw_meta`
+  - `dense_vectors_code_hnsw` + `dense_vectors_code_hnsw_meta`
+  - `dense_vectors_lancedb` + `dense_vectors_lancedb_meta`
+  - `dense_vectors_doc_lancedb` + `dense_vectors_doc_lancedb_meta`
+  - `dense_vectors_code_lancedb` + `dense_vectors_code_lancedb_meta`
+  - `dense_vectors_sqlite_vec_meta` (optional sqlite-vec marker)
 
 ## Reserved / invariant fields
 

@@ -41,36 +41,36 @@
 
 ## 7.2 Artifact contract parity for embeddings + ANN
 ### 7.2.1 Canonical artifact names (public surface)
-[ ] Update docs/contracts to list canonical names + formats
-    - [ ] `docs/contracts/public-artifact-surface.md`
-    - [ ] `docs/contracts/artifact-schemas.md`
-[ ] Align contract registry if needed
+[x] Update docs/contracts to list canonical names + formats
+    - [x] `docs/contracts/public-artifact-surface.md`
+    - [x] `docs/contracts/artifact-schemas.md`
+[@] Align contract registry if needed
     - [ ] `src/contracts/registry.js`
-    - [ ] `src/contracts/schemas/artifacts.js`
-[ ] Ensure canonical names defined for:
-    - [ ] dense vectors (merged/doc/code)
-    - [ ] HNSW (bin + meta) merged/doc/code
-    - [ ] LanceDB (dir + meta) merged/doc/code
-    - [ ] sqlite-vec optional meta marker
+    - [x] `src/contracts/schemas/artifacts.js`
+[x] Ensure canonical names defined for:
+    - [x] dense vectors (merged/doc/code)
+    - [x] HNSW (bin + meta) merged/doc/code
+    - [x] LanceDB (dir + meta) merged/doc/code
+    - [x] sqlite-vec optional meta marker
 
 ### 7.2.2 Manifest writer includes non-JSON artifacts
-[ ] Update `tools/build-embeddings/manifest.js`
-    - [ ] Allowlist includes bin/dir artifacts in addition to `ARTIFACT_SCHEMA_DEFS`
-    - [ ] Add entries when files/dirs exist
-    - [ ] `format: bin|dir` for HNSW/LanceDB
-    - [ ] Bytes/sha256 for files; deterministic dir sizing if implemented
-    - [ ] Exclude `.bak` artifacts from manifest
+[x] Update `tools/build-embeddings/manifest.js`
+    - [x] Allowlist includes bin/dir artifacts in addition to `ARTIFACT_SCHEMA_DEFS`
+    - [x] Add entries when files/dirs exist
+    - [x] `format: bin|dir` for HNSW/LanceDB
+    - [x] Bytes/sha256 for files; deterministic dir sizing if implemented
+    - [x] Exclude `.bak` artifacts from manifest
 
 ### 7.2.3 Strict loaders must use manifest
-[ ] Add/extend manifest helper(s) for binary/dir artifacts
-    - [ ] `src/shared/artifact-io.js`
-    - [ ] `src/shared/artifact-io/manifest.js`
+[@] Add/extend manifest helper(s) for binary/dir artifacts
+    - [x] `src/shared/artifact-io.js`
+    - [x] `src/shared/artifact-io/manifest.js`
     - [ ] Ensure strict=default; non-strict uses legacy guessing w/ warning
-[ ] Update retrieval loaders
-    - [ ] `src/retrieval/cli-index.js` (dense + HNSW paths)
-    - [ ] `src/retrieval/cli/load-indexes.js` (LanceDB attach)
-[ ] Update validator to require manifest entries in strict mode
-    - [ ] `src/index/validate.js`
+[x] Update retrieval loaders
+    - [x] `src/retrieval/cli-index.js` (dense + HNSW paths)
+    - [x] `src/retrieval/cli/load-indexes.js` (LanceDB attach)
+[x] Update validator to require manifest entries in strict mode
+    - [x] `src/index/validate.js`
 
 ### 7.2.4 index_state embedding identity + backend presence
 [ ] Stage2 (build index) emits identity + pending fields
@@ -281,3 +281,4 @@
 
 ## Status log / conflicts
 - 2026-01-31: Plan created.
+- 2026-01-31: Phase 7.2.1-7.2.3 schema, manifest writer, strict loader updates in progress (non-strict warnings still pending).

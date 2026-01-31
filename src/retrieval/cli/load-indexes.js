@@ -11,7 +11,14 @@ import {
 } from './index-loader.js';
 import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
-import { MAX_JSON_BYTES, readCompatibilityKey, readJsonFile } from '../../shared/artifact-io.js';
+import {
+  MAX_JSON_BYTES,
+  loadJsonObjectArtifact,
+  loadPiecesManifest,
+  readJsonFile,
+  readCompatibilityKey,
+  resolveDirArtifactPath
+} from '../../shared/artifact-io.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
@@ -44,6 +51,7 @@ export async function loadSearchIndexes({
   hnswConfig,
   lancedbConfig,
   tantivyConfig,
+  strict = true,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode
@@ -118,7 +126,7 @@ export async function loadSearchIndexes({
     fileChargramN,
     includeHnsw,
     hnswConfig,
-    loadIndex
+    loadIndex: (targetDir, options) => loadIndex(targetDir, { ...options, strict })
   });
 
   let extractedProseDir = null;
@@ -249,32 +257,50 @@ export async function loadSearchIndexes({
     idxRecords.indexDir = recordsDir;
   }
 
-  const attachLanceDb = (idx, mode, dir) => {
+  const attachLanceDb = async (idx, mode, dir) => {
     if (!idx || !dir || lancedbConfig?.enabled === false) return null;
     const paths = resolveLanceDbPaths(dir);
     const target = resolveLanceDbTarget(mode, resolvedDenseVectorMode);
-    const metaPath = paths?.[target]?.metaPath;
-    const lanceDir = paths?.[target]?.dir;
+    const targetPaths = paths?.[target] || {};
+    const metaName = target === 'doc'
+      ? 'dense_vectors_doc_lancedb_meta'
+      : target === 'code'
+        ? 'dense_vectors_code_lancedb_meta'
+        : 'dense_vectors_lancedb_meta';
+    const dirName = target === 'doc'
+      ? 'dense_vectors_doc_lancedb'
+      : target === 'code'
+        ? 'dense_vectors_code_lancedb'
+        : 'dense_vectors_lancedb';
+    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
     let meta = null;
-    if (metaPath && fs.existsSync(metaPath)) {
-      try {
-        meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
-      } catch {}
-    }
+    try {
+      meta = await loadJsonObjectArtifact(dir, metaName, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict,
+        fallbackPath: targetPaths.metaPath || null
+      });
+    } catch {}
+    const lanceDir = resolveDirArtifactPath(dir, dirName, {
+      manifest,
+      strict,
+      fallbackPath: targetPaths.dir || null
+    });
     const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
     idx.lancedb = {
       target,
       dir: lanceDir || null,
-      metaPath: metaPath || null,
+      metaPath: targetPaths.metaPath || null,
       meta,
       available
     };
     return idx.lancedb;
   };
 
-  attachLanceDb(idxCode, 'code', codeIndexDir);
-  attachLanceDb(idxProse, 'prose', proseIndexDir);
-  attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
+  await attachLanceDb(idxCode, 'code', codeIndexDir);
+  await attachLanceDb(idxProse, 'prose', proseIndexDir);
+  await attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
 
   const attachTantivy = (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;
