@@ -1,7 +1,10 @@
 import { state } from './state.js';
 import { applyHeightFog, updateFlowLights } from './materials.js';
+import { aggregateEdges, createFlowSegmentAggregator } from './edges/aggregate.js';
+import { buildEndpointDotsMesh, createEndpointDotTracker } from './edges/endpoints.js';
 import { createEdgeResolvers } from './edges/resolvers.js';
 import { createRoutingHelpers } from './edges/routing.js';
+import { createEdgeStyleHelpers, createFlowMaterial, resolveSegmentStyle } from './edges/style.js';
 
 export const buildEdges = () => {
   const {
@@ -79,99 +82,18 @@ export const buildEdges = () => {
     obstacles,
     bounds: { minX, maxX, minZ, maxZ }
   });
-  const flowSegmentsByType = new Map();
   const flowLightCandidates = allowFlowLights ? [] : null;
-  const edgeStyles = state.map.legend?.edgeStyles || {};
-  const edgeTypeAliases = state.map.legend?.edgeTypes || {};
-  const resolveEdgeType = (type) => (edgeStyles[type] ? type : (edgeTypeAliases[type] || type));
-  const resolveEdgeStyle = (type) => edgeStyles[resolveEdgeType(type)] || edgeStyles[type] || {};
-  const addEndpoint = (entry, endpoint) => {
-    if (!endpoint) return;
-    const memberKey = normalizeMemberId(endpoint.member);
-    if (memberKey) {
-      entry.endpoints.add(`member:${memberKey}`);
-      const memberFile = fileByMember.get(memberKey) || fileByMember.get(endpoint.member);
-      if (memberFile) entry.endpoints.add(`file:${memberFile}`);
-    }
-    if (endpoint.file) {
-      entry.endpoints.add(`file:${endpoint.file}`);
-    }
-  };
-
-  const quantizeValue = (value) => {
-    if (quantizeStep <= 0.001) return Number(value.toFixed(3));
-    return Number((Math.round(value / quantizeStep) * quantizeStep).toFixed(3));
-  };
-
-  const addFlowSegment = (type, x1, y1, z1, x2, y2, z2, weight, color, dir, edge) => {
-    if (Math.abs(x1 - x2) < 0.0001 && Math.abs(y1 - y2) < 0.0001 && Math.abs(z1 - z2) < 0.0001) return;
-    const nx1 = quantizeValue(x1);
-    const ny1 = quantizeValue(y1);
-    const nz1 = quantizeValue(z1);
-    const nx2 = quantizeValue(x2);
-    const ny2 = quantizeValue(y2);
-    const nz2 = quantizeValue(z2);
-    const swap = nx1 > nx2 || (nx1 === nx2 && (ny1 > ny2 || (ny1 === ny2 && nz1 > nz2)));
-    const ax1 = swap ? nx2 : nx1;
-    const ay1 = swap ? ny2 : ny1;
-    const az1 = swap ? nz2 : nz1;
-    const ax2 = swap ? nx1 : nx2;
-    const ay2 = swap ? ny1 : ny2;
-    const az2 = swap ? nz1 : nz2;
-    const key = `${ax1},${ay1},${az1}->${ax2},${ay2},${az2}`;
-    const bucket = flowSegmentsByType.get(type) || new Map();
-    const entry = bucket.get(key) || {
-      x1: ax1,
-      y1: ay1,
-      z1: az1,
-      x2: ax2,
-      y2: ay2,
-      z2: az2,
-      weight: 0,
-      dirSum: 0,
-      rSum: 0,
-      gSum: 0,
-      bSum: 0,
-      colorWeight: 0,
-      endpoints: new Set()
-    };
-    const direction = Number.isFinite(dir) && dir !== 0 ? dir : 1;
-    const normalizedDir = swap ? -direction : direction;
-    entry.weight += weight;
-    entry.dirSum += normalizedDir * weight;
-    if (edge) {
-      addEndpoint(entry, edge.from);
-      addEndpoint(entry, edge.to);
-    }
-    if (color) {
-      entry.rSum += color.r * weight;
-      entry.gSum += color.g * weight;
-      entry.bSum += color.b * weight;
-      entry.colorWeight += weight;
-    }
-    bucket.set(key, entry);
-    flowSegmentsByType.set(type, bucket);
-  };
+  const { resolveEdgeType, resolveEdgeStyle } = createEdgeStyleHelpers({ state });
+  const { flowSegmentsByType, addFlowSegment } = createFlowSegmentAggregator({
+    quantizeStep,
+    normalizeMemberId,
+    fileByMember
+  });
 
   const edgeHighlight = new THREE.Color('#ffffff');
-  const endpointDots = new Map();
+  const { endpointDots, addEndpointDot } = createEndpointDotTracker({ THREE });
   const planeY = edgePlane + Math.max(0.08, (layoutMetrics.memberGap || 0) * 0.3);
   const trackEndpoints = !fastMode;
-  const addEndpointDot = (key, anchor, color) => {
-    if (!key || !anchor) return;
-    const entry = endpointDots.get(key) || {
-      x: anchor.x,
-      y: anchor.y,
-      z: anchor.z,
-      color: new THREE.Color(0, 0, 0),
-      weight: 0
-    };
-    if (color) {
-      entry.color.add(color.clone().multiplyScalar(1));
-      entry.weight += 1;
-    }
-    endpointDots.set(key, entry);
-  };
   const addPathPoints = (points, startAnchor, endAnchor, routePoints) => {
     const startPlane = { x: startAnchor.x, y: planeY, z: startAnchor.z };
     const endPlane = { x: endAnchor.x, y: planeY, z: endAnchor.z };
@@ -200,53 +122,15 @@ export const buildEdges = () => {
     }
   };
 
-  const aggregateEdges = () => {
-    const buckets = new Map();
-    for (const edge of edges) {
-      if (!edge) continue;
-      const rawType = edge.type || 'other';
-      const type = resolveEdgeType(rawType);
-      const fromFile = resolveEdgeFile(edge.from);
-      const toFile = resolveEdgeFile(edge.to);
-      if (!fromFile || !toFile) continue;
-      const key = `${type}:${fromFile}->${toFile}`;
-      let bucket = buckets.get(key);
-      if (!bucket) {
-        bucket = {
-          type,
-          fromFile,
-          toFile,
-          weight: 0,
-          color: new THREE.Color(0, 0, 0),
-          colorWeight: 0
-        };
-        buckets.set(key, bucket);
-      }
-      bucket.weight += edgeWeights[type] || edgeWeights[rawType] || 1;
-      const fromColor = fileColorByPath.get(fromFile);
-      const toColor = fileColorByPath.get(toFile);
-      const mixedColor = fromColor && toColor
-        ? fromColor.clone().lerp(toColor, 0.5)
-        : (fromColor || toColor || null);
-      if (mixedColor) {
-        bucket.color.add(mixedColor);
-        bucket.colorWeight += 1;
-      }
-    }
-    return Array.from(buckets.values()).map((bucket) => ({
-      edge: { from: { file: bucket.fromFile }, to: { file: bucket.toFile }, type: bucket.type },
-      type: bucket.type,
-      fromFile: bucket.fromFile,
-      toFile: bucket.toFile,
-      weight: bucket.weight,
-      edgeColor: bucket.colorWeight
-        ? bucket.color.clone().multiplyScalar(1 / bucket.colorWeight)
-        : null
-    }));
-  };
-
   const edgeEntries = fastMode
-    ? aggregateEdges()
+    ? aggregateEdges({
+      edges,
+      edgeWeights,
+      fileColorByPath,
+      resolveEdgeType,
+      resolveEdgeFile,
+      THREE
+    })
     : edges.map((edge) => ({ edge }));
 
   for (const entry of edgeEntries) {
@@ -313,52 +197,17 @@ export const buildEdges = () => {
     if (edgeVisibility.has(type)) {
       group.visible = edgeVisibility.get(type);
     }
-      const style = resolveEdgeStyle(type);
-      const typeProfile = flowTypeProfiles[type] || flowTypeProfiles.other;
-      const fallbackColor = new THREE.Color(style.color || '#9aa0a6');
-      const entries = Array.from(segments.values());
-      if (!entries.length) continue;
+    const style = resolveEdgeStyle(type);
+    const typeProfile = flowTypeProfiles[type] || flowTypeProfiles.other;
+    const fallbackColor = new THREE.Color(style.color || '#9aa0a6');
+    const entries = Array.from(segments.values());
+    if (!entries.length) continue;
     const geometry = state.edgeUnitBoxGeometry || (state.edgeUnitBoxGeometry = (() => {
       const unit = new THREE.BoxGeometry(1, 1, 1);
       unit.userData = { ...(unit.userData || {}), shared: true };
       return unit;
     })());
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.2,
-        metalness: 0.8,
-        envMapIntensity: visuals.glass.envMapIntensity,
-        transparent: true,
-        opacity: 0.85,
-        depthWrite: false,
-        depthTest: true,
-        vertexColors: true
-      });
-    if ('toneMapped' in material) material.toneMapped = false;
-    material.emissive = new THREE.Color(0xffffff);
-    material.emissiveIntensity = visuals.flowGlowBase;
-    const typeHash = Array.from(String(type)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    material.userData = {
-      glowBase: visuals.flowGlowBase,
-      glowRange: visuals.flowGlowRange,
-      baseEmissiveIntensity: visuals.flowGlowBase,
-      baseOpacity: 0.8,
-      flowPhase: typeHash * 0.17,
-      flowDir: 1,
-      flowSpeed: typeProfile.speed || 1,
-      flowOffset: typeProfile.phase || 0
-    };
-    const prevCompile = material.onBeforeCompile;
-    material.onBeforeCompile = (shader) => {
-      if (typeof prevCompile === 'function') prevCompile(shader);
-      if (shader.fragmentShader.includes('vColor')) {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= vColor;'
-        );
-      }
-    };
-    applyHeightFog(material);
+    const material = createFlowMaterial({ THREE, visuals, applyHeightFog, type, typeProfile, style });
     state.flowMaterials.push(material);
 
     const mesh = new THREE.InstancedMesh(geometry, material, entries.length);
@@ -374,15 +223,13 @@ export const buildEdges = () => {
       const dz = entry.z2 - entry.z1;
       const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (!length) return;
-      const thickness = 0.08 + Math.log1p(entry.weight) * 0.04;
-      const colorWeight = entry.colorWeight || 0;
-      const averaged = colorWeight
-        ? new THREE.Color(entry.rSum / colorWeight, entry.gSum / colorWeight, entry.bSum / colorWeight)
-        : fallbackColor.clone();
-      const edgeBase = style.color ? new THREE.Color(style.color) : averaged;
-      const brightColor = edgeBase.clone().lerp(edgeHighlight, 0.65);
-      const highlightColor = brightColor.clone().lerp(edgeHighlight, 0.35);
-      const flowDirection = entry.dirSum >= 0 ? 1 : -1;
+      const { thickness, brightColor, highlightColor, flowDirection } = resolveSegmentStyle({
+        THREE,
+        entry,
+        style,
+        fallbackColor,
+        edgeHighlight
+      });
       dummy.position.set((entry.x1 + entry.x2) / 2, (entry.y1 + entry.y2) / 2, (entry.z1 + entry.z2) / 2);
       direction.set(dx, dy, dz).normalize();
       dummy.quaternion.setFromUnitVectors(axis, direction);
@@ -444,51 +291,7 @@ export const buildEdges = () => {
     }
   }
 
-  if (endpointDots.size) {
-    const dotGeometry = state.edgeDotGeometry || (state.edgeDotGeometry = (() => {
-      const geom = new THREE.SphereGeometry(0.08, 10, 10);
-      geom.userData = { ...(geom.userData || {}), shared: true };
-      return geom;
-    })());
-    const dotMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: visuals.flowGlowBase,
-      metalness: 0.7,
-      roughness: 0.25,
-      envMapIntensity: visuals.glass.envMapIntensity,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      depthTest: true,
-      vertexColors: true
-    });
-    dotMaterial.userData = {
-      glowBase: visuals.flowGlowBase,
-      glowRange: visuals.flowGlowRange,
-      glowSpeed: 1.1,
-      glowPhase: 0.4
-    };
-    applyHeightFog(dotMaterial);
-    state.edgeDotMaterial = dotMaterial;
-    state.glowMaterials.push(dotMaterial);
-    const dotMesh = new THREE.InstancedMesh(dotGeometry, dotMaterial, endpointDots.size);
-    const dummy = new THREE.Object3D();
-    let index = 0;
-    endpointDots.forEach((entry) => {
-      const color = entry.weight ? entry.color.multiplyScalar(1 / entry.weight) : new THREE.Color(0xffffff);
-      dummy.position.set(entry.x, entry.y, entry.z);
-      dummy.updateMatrix();
-      dotMesh.setMatrixAt(index, dummy.matrix);
-      dotMesh.setColorAt(index, color);
-      index += 1;
-    });
-    dotMesh.instanceMatrix.needsUpdate = true;
-    if (dotMesh.instanceColor) dotMesh.instanceColor.needsUpdate = true;
-    dotMesh.renderOrder = 8;
-    edgeGroup.add(dotMesh);
-    state.edgeDotMesh = dotMesh;
-  }
+  buildEndpointDotsMesh({ THREE, endpointDots, edgeGroup, visuals, state, applyHeightFog });
   updateFlowLights();
 
   state.edgeTypeGroups = localEdgeTypeGroups;

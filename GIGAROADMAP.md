@@ -488,7 +488,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.7.1 Map isometric edge assembly split (`src/map/isometric/client/edges.js`)
 
 **Current state**
-- [.] `edges.js` (~500 LOC) already extracted:
+- [x] `edges.js` now delegates to `edges/aggregate.js`, `edges/endpoints.js`, `edges/style.js` plus existing helpers.
   - `src/map/isometric/client/edges/resolvers.js` (`createEdgeResolvers`)
   - `src/map/isometric/client/edges/routing.js` (`createRoutingHelpers`)
 - Remaining in `edges.js`: aggregation + rendering shape logic.
@@ -497,16 +497,16 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - Keep: `export function buildEdges({...})`
 
 **Refactor plan**
-- [ ] Extract edge aggregation to `src/map/isometric/client/edges/aggregate.js`
+- [x] Extract edge aggregation to `src/map/isometric/client/edges/aggregate.js`
   - logic that builds per-edge segments + dedupes
-- [ ] Extract “endpoint dots” to `src/map/isometric/client/edges/endpoints.js`
-- [ ] Extract styling/resolution to `src/map/isometric/client/edges/style.js`
+- [x] Extract “endpoint dots” to `src/map/isometric/client/edges/endpoints.js`
+- [x] Extract styling/resolution to `src/map/isometric/client/edges/style.js`
   - color/opacity decisions based on selection, hover, depth, etc.
 - [ ] Keep `edges.js` as orchestrator that wires:
   - resolvers + routing + aggregation + endpoints + style
 
 **Tests (missing today)**
-- [ ] Add a small unit test suite under `tests/map/edges.test.js`:
+- [x] Add a small unit test suite under `tests/map/edges.test.js`:
   - route helper produces deterministic paths given fixed nodes
   - edge resolver consistently assigns inbound/outbound per node orientation
   - aggregation is stable (same input → same output ordering)
