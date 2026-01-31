@@ -60,6 +60,7 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
 
 ## Roadmap Table of Contents
 > **Reminder:** This list is a navigational summary. The authoritative implementation details live in the phase bodies below.
+> Note that Phase 8 was already completed because it could be done out of order. 7->9->10 must be done sequentially.
 
 - **Phase 7 — Embeddings + ANN unification**
   - 7.0 — Foundation: contracts, terminology, and execution order
