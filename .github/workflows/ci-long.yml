@@ -1,5 +1,8 @@
 name: CI Long
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
 
