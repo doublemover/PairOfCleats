@@ -29,6 +29,7 @@ import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
+import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
@@ -193,6 +194,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     caps: indexingConfig.riskCaps,
     regex: indexingConfig.riskRegex || indexingConfig.riskRules?.regex
   }, { rootDir: root });
+  const riskInterproceduralConfig = normalizeRiskInterproceduralConfig(
+    indexingConfig.riskInterprocedural,
+    {}
+  );
+  const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
@@ -202,6 +208,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskInterproceduralEnabled,
+    riskInterproceduralSummaryOnly: riskInterproceduralConfig.summaryOnly,
     gitBlameEnabled
   });
   const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
@@ -711,6 +719,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskInterproceduralConfig,
+    riskInterproceduralEnabled,
     riskConfig,
     embeddingBatchSize,
     embeddingConcurrency,

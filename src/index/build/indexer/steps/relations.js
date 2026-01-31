@@ -1,6 +1,7 @@
 import { log } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
+import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
 import { buildRelationGraphs } from '../../graphs.js';
 import { scanImports } from '../../imports.js';
 import { resolveImportLinks } from '../../import-resolution.js';
@@ -132,11 +133,19 @@ export const runCrossFileInference = async ({
   const riskAnalysisCrossFileEnabled = typeof policy?.risk?.crossFile === 'boolean'
     ? policy.risk.crossFile
     : runtime.riskAnalysisCrossFileEnabled;
+  const riskInterproceduralEnabled = typeof policy?.risk?.interprocedural === 'boolean'
+    ? policy.risk.interprocedural
+    : runtime.riskInterproceduralEnabled;
+  const riskInterproceduralSummaryOnly = typeof policy?.risk?.interproceduralSummaryOnly === 'boolean'
+    ? policy.risk.interproceduralSummaryOnly
+    : runtime.riskInterproceduralConfig?.summaryOnly === true;
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
   const enableCrossFileTypeInference = typeInferenceEnabled && typeInferenceCrossFileEnabled;
-  const crossFileEnabled = typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled;
+  const crossFileEnabled = typeInferenceCrossFileEnabled
+    || riskAnalysisCrossFileEnabled
+    || riskInterproceduralEnabled;
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
     const crossFileStart = Date.now();
@@ -199,6 +208,22 @@ export const runCrossFileInference = async ({
       const sampleText = formatSamples(cap.samples);
       const suffix = sampleText ? ` Examples: ${sampleText}` : '';
       log(`[relations] ${label} capped (${cap.reason}).${suffix}`);
+    }
+  }
+  if (mode === 'code' && riskInterproceduralEnabled) {
+    crashLogger.updatePhase('risk-summaries');
+    const { rows, stats } = buildRiskSummaries({
+      chunks: state.chunks,
+      interprocedural: {
+        enabled: true,
+        summaryOnly: riskInterproceduralSummaryOnly
+      },
+      log
+    });
+    state.riskSummaries = rows;
+    state.riskSummaryStats = stats;
+    if (stats?.emitted && Number.isFinite(stats.emitted)) {
+      log(`Risk summaries: ${stats.emitted.toLocaleString()} rows`);
     }
   }
   return { crossFileEnabled, graphRelations };

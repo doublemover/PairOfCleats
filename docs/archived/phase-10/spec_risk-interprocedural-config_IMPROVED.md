@@ -1,4 +1,4 @@
-# Risk Interprocedural Config
+DEPRECATED: Replaced by docs/specs/risk-interprocedural-config.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: 5965fcc # Risk Interprocedural Config
 
 **Status:** Improved spec for PairOfCleats (Phase 10).
 
@@ -96,4 +96,5 @@ Prefer placing this inside the existing `features` object (or an `extensions.ris
 - Relations step: `src/index/build/indexer/steps/relations.js`
   - `runCrossFileInference` (~L126)
 - Signature: `src/index/build/indexer/signatures.js` (~L13)
+
 

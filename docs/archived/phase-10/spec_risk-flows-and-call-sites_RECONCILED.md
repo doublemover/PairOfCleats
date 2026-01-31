@@ -1,4 +1,4 @@
-# Risk Flows and Call Sites
+DEPRECATED: Replaced by docs/specs/risk-flows-and-call-sites.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: 5965fcc # Risk Flows and Call Sites
 
 **Status:** Reconciled spec for PairOfCleats (Phase 10).
 
@@ -138,4 +138,5 @@ Where this should land in code:
 - new propagation output + flows writer:
   - `src/index/risk-interprocedural/engine.js` (propagation)
   - `src/index/build/artifacts/writers/risk-interprocedural.js` (write `risk_flows.jsonl`)
+
 

@@ -6,6 +6,7 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { sha1 } from '../../../../shared/hash.js';
+import { buildCallSiteId } from '../../../callsite-id.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 const MAX_ARGS_PER_CALL = 5;
@@ -55,12 +56,6 @@ const normalizeEvidence = (evidence) => {
     if (normalized) output.push(normalized);
   }
   return output;
-};
-
-const buildCallSiteId = ({ file, startLine, startCol, endLine, endCol, calleeRaw }) => {
-  if (!file || !startLine || !startCol || !endLine || !endCol || !calleeRaw) return null;
-  const key = `${file}:${startLine}:${startCol}:${endLine}:${endCol}:${calleeRaw}`;
-  return `sha1:${sha1(key)}`;
 };
 
 const buildSnippetHash = (calleeRaw, args) => {

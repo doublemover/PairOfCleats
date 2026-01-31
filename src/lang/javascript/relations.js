@@ -191,12 +191,36 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return '(anonymous)';
   };
 
+  const MAX_PARAM_NAMES = 16;
+  const resolveStableParamName = (param, index) => {
+    if (!param) return `arg${index}`;
+    if (param.type === 'Identifier') return param.name;
+    if (param.type === 'AssignmentPattern') {
+      if (param.left?.type === 'Identifier') return param.left.name;
+      return `arg${index}`;
+    }
+    if (param.type === 'RestElement') {
+      if (param.argument?.type === 'Identifier') return param.argument.name;
+      return `arg${index}`;
+    }
+    if (param.type === 'ObjectPattern' || param.type === 'ArrayPattern') return `arg${index}`;
+    return `arg${index}`;
+  };
+
   const collectParamMeta = (node) => {
     const params = [];
     const paramNames = [];
+    const stableParamNames = [];
     const paramDefaults = {};
-    if (!node?.params) return { params, paramNames, paramDefaults };
-    node.params.forEach((param) => {
+    if (!node?.params) {
+      return {
+        params,
+        paramNames,
+        stableParamNames,
+        paramDefaults
+      };
+    }
+    node.params.forEach((param, index) => {
       params.push(formatParam(param));
       const names = [];
       collectPatternNames(param, names);
@@ -206,8 +230,16 @@ export function buildCodeRelations(text, relPath, options = {}) {
           paramDefaults[name] = formatDefault(param.right);
         }
       });
+      if (stableParamNames.length < MAX_PARAM_NAMES) {
+        stableParamNames.push(resolveStableParamName(param, index));
+      }
     });
-    return { params, paramNames, paramDefaults };
+    return {
+      params,
+      paramNames,
+      stableParamNames,
+      paramDefaults
+    };
   };
 
   const buildSignature = (node, name) => {
@@ -223,7 +255,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const registerFunctionMeta = (node, parent) => {
     const name = inferFunctionName(node, parent);
     const existing = functionMeta[name];
-    const { paramNames, paramDefaults } = collectParamMeta(node);
+    const { paramNames, stableParamNames, paramDefaults } = collectParamMeta(node);
     const signature = buildSignature(node, name);
     const modifiers = {
       async: !!node.async,
@@ -247,6 +279,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     if (!existing) {
       functionMeta[name] = {
         params: paramNames,
+        paramNames: stableParamNames,
         paramDefaults,
         signature,
         modifiers,
@@ -260,6 +293,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       };
     } else {
       existing.params = existing.params?.length ? existing.params : paramNames;
+      existing.paramNames = existing.paramNames?.length ? existing.paramNames : stableParamNames;
       existing.paramDefaults = Object.keys(existing.paramDefaults || {}).length ? existing.paramDefaults : paramDefaults;
       existing.signature = existing.signature || signature;
       existing.modifiers = existing.modifiers || modifiers;

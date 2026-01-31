@@ -23,7 +23,9 @@ export const extractReturnTypes = (chunk) => {
 
 export const extractParamTypes = (chunk) => {
   const docmeta = chunk?.docmeta || {};
-  const paramNames = Array.isArray(docmeta.params) ? docmeta.params : [];
+  const paramNames = Array.isArray(docmeta.paramNames)
+    ? docmeta.paramNames
+    : (Array.isArray(docmeta.params) ? docmeta.params : []);
   const paramTypes = {};
 
   if (docmeta.paramTypes && typeof docmeta.paramTypes === 'object') {

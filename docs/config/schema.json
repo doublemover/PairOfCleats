@@ -249,6 +249,29 @@
               }
             }
           }
+        },
+        "riskInterprocedural": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "summaryOnly": { "type": "boolean" },
+            "strictness": { "type": "string", "enum": ["conservative", "argAware"] },
+            "emitArtifacts": { "type": "string", "enum": ["none", "jsonl", "off"] },
+            "sanitizerPolicy": { "type": "string", "enum": ["terminate", "weaken"] },
+            "caps": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxDepth": { "type": "number" },
+                "maxPathsPerPair": { "type": "number" },
+                "maxTotalFlows": { "type": "number" },
+                "maxCallSitesPerEdge": { "type": "number" },
+                "maxEdgeExpansions": { "type": "number" },
+                "maxMs": { "type": ["number", "null"] }
+              }
+            }
+          }
         }
       }
     },

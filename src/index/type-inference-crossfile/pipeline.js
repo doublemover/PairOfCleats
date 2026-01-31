@@ -396,7 +396,9 @@ export async function applyCrossFileInference({
         if (currentSamples >= callSampleLimit) continue;
         callSampleCounts.set(sampleKey, currentSamples + 1);
         const args = Array.isArray(summary.args) ? summary.args : [];
-        const paramNames = Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : [];
+        const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
+          ? calleeChunk.docmeta.paramNames
+          : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
         const argMap = summary.argMap || {};
         if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
         if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};

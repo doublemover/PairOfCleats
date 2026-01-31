@@ -198,6 +198,8 @@ export function createIndexState() {
     phrasePost: new Map(),
     scannedFiles: [],
     scannedFilesTimes: [],
+    riskSummaries: [],
+    riskSummaryStats: null,
     skippedFiles: [],
     totalTokens: 0,
     fileRelations: new Map(),

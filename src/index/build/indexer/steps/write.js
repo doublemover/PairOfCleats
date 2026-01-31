@@ -34,6 +34,13 @@ export const writeIndexArtifactsForMode = async ({
   }
   const finalizedPerfProfile = finalizePerfProfile(perfProfile);
   const riskRules = serializeRiskRulesBundle(runtime.riskConfig?.rules);
+  const riskInterproceduralEnabled = typeof runtime.analysisPolicy?.risk?.interprocedural === 'boolean'
+    ? runtime.analysisPolicy.risk.interprocedural
+    : runtime.riskInterproceduralEnabled;
+  const riskInterproceduralSummaryOnly = typeof runtime.analysisPolicy?.risk?.interproceduralSummaryOnly === 'boolean'
+    ? runtime.analysisPolicy.risk.interproceduralSummaryOnly
+    : runtime.riskInterproceduralConfig?.summaryOnly === true;
+  const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
   await writeIndexArtifacts({
     outDir,
     mode,
@@ -98,6 +105,11 @@ export const writeIndexArtifactsForMode = async ({
           stage: runtime.stage || null
         }
         : { enabled: false },
+      riskInterprocedural: {
+        enabled: riskInterproceduralEnabled === true,
+        summaryOnly: riskInterproceduralSummaryOnly === true,
+        emitArtifacts: riskInterproceduralEmitArtifacts
+      },
       riskRules: riskRules || null
     }
   });

@@ -1,4 +1,4 @@
-# Risk Summaries
+DEPRECATED: Replaced by docs/specs/risk-summaries.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: 5965fcc # Risk Summaries
 
 **Status:** Improved spec for PairOfCleats (Phase 10).
 
@@ -167,3 +167,4 @@ New writer (Phase 10):
 ## 7. Open items
 - Confirm whether non-risk chunks should also get an explicit `{ totals:0 }` compact summary.
   - Current recommendation: **only attach** `docmeta.risk.summary` when there is local risk.
+
