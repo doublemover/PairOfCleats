@@ -16,6 +16,7 @@ export async function loadIndexCached({
   fileChargramN,
   includeHnsw = true,
   hnswConfig,
+  denseVectorMode,
   loadIndex
 }) {
   return loadIndexWithCache(
@@ -25,7 +26,8 @@ export async function loadIndexCached({
       modelIdDefault,
       fileChargramN,
       includeHnsw,
-      hnswConfig
+      hnswConfig,
+      denseVectorMode
     },
     loadIndex
   );

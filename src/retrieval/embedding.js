@@ -27,7 +27,8 @@ export async function getQueryEmbedding({
   useStub,
   provider,
   onnxConfig,
-  rootDir
+  rootDir,
+  normalize
 }) {
   try {
     const adapter = getEmbeddingAdapter({
@@ -37,7 +38,8 @@ export async function getQueryEmbedding({
       dims,
       modelsDir: modelDir,
       provider,
-      onnxConfig
+      onnxConfig,
+      normalize
     });
     const embedding = await adapter.embedOne(text);
     if (!embedding || !embedding.length) return null;

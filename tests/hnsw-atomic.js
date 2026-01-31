@@ -6,12 +6,15 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
+import { requireHnswLib } from './helpers/optional-deps.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = path.join(root, '.testCache', 'hnsw-atomic');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+
+requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw atomic test.' });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

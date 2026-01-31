@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/dict-utils.js';
+import { syncProcessEnv } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -112,6 +113,7 @@ export const ensureSearchFiltersRepo = async () => {
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
+  syncProcessEnv(env);
 
   if (!hasChunkMeta(repoRoot)) {
     buildIndex(repoRoot, env);

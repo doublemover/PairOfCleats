@@ -12,7 +12,11 @@ export const LMDB_META_KEYS = {
   artifacts: 'meta:artifacts',
   artifactManifest: 'meta:artifactManifest',
   chunkCount: 'meta:chunkCount',
-  sourceIndex: 'meta:sourceIndex'
+  sourceIndex: 'meta:sourceIndex',
+  mapSizeBytes: 'meta:mapSizeBytes',
+  mapSizeEstimatedBytes: 'meta:mapSizeEstimatedBytes',
+  mapSizeFactor: 'meta:mapSizeFactor',
+  pageSize: 'meta:pageSize'
 };
 
 export const LMDB_ARTIFACT_KEYS = {

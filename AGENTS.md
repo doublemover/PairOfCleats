@@ -59,10 +59,13 @@
 ## Roadmap & Phase Tracking
 - Roadmaps (e.g., `GIGAROADMAP.md`) contain current work plans.
 - When working on a phase, mark it as in progress, update as you go.
+- When writing status log entries or marking when something was last changed, use ISO 8601 timestamps instead of just the date
 - Checkboxes should be completed only at the same time you commit the work that completes them.
 - Test checkboxes cannot be checked until the test has run and passed.
 - If fixing a failing test, log each attempted fix as sub-details under that test’s checkbox.
 - After 3 failed fix attempts, stop and log the failure, what was tried, and the next best fix
 - Move on to the next test until no tests remain and you are out of attempts
-- If a tiny post-commit update is needed (e.g., updating roadmap checkboxes), amend the previous commit instead of creating a new one, unless you are explicitly told not to amend.
-- When all tasks in a phase are complete and concerns addressed, remove that phase and append it to `COMPLETED_PHASES.md` blindly (do not look inside it or worry about ordering, it is a dump file)
+- If a tiny post-commit update is needed (e.g., updating roadmap checkboxes), amend instead of commiting unless you are explicitly told not to.
+- When all tasks in a phase are complete and concerns addressed: 
+	- Remove that phase and append it to `COMPLETED_PHASES.md` blindly
+	- Do not look inside `COMPLETED_PHASES.md` or worry about ordering, it is a dump file.

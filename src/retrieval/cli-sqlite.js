@@ -1,5 +1,11 @@
 import fsSync from 'node:fs';
-import { hasVectorTable, loadVectorExtension, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
+import path from 'node:path';
+import {
+  hasVectorTable,
+  loadVectorExtension,
+  resolveVectorExtensionConfigForMode,
+  resolveVectorExtensionPath
+} from '../../tools/vector-extension.js';
 
 import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 
@@ -35,6 +41,15 @@ export async function createSqliteBackend(options) {
     'extracted-prose': { available: false }
   };
   const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
+  const sharedDb = sqliteCodePath
+    && sqliteProsePath
+    && path.resolve(sqliteCodePath) === path.resolve(sqliteProsePath);
+  const vectorAnnConfigByMode = {
+    code: resolveVectorExtensionConfigForMode(vectorExtension, 'code', { sharedDb }),
+    prose: resolveVectorExtensionConfigForMode(vectorExtension, 'prose', { sharedDb }),
+    records: vectorExtension,
+    'extracted-prose': vectorExtension
+  };
 
   if (!useSqlite) {
     return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
@@ -193,24 +208,27 @@ export async function createSqliteBackend(options) {
   let vectorAnnWarned = false;
   const initVectorAnn = (db, mode) => {
     if (!vectorAnnEnabled || !db) return;
-    const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
+    const config = vectorAnnConfigByMode[mode] || vectorExtension;
+    const loadResult = loadVectorExtension(db, config, `sqlite ${mode}`);
     if (!loadResult.ok) {
       if (!vectorAnnWarned) {
-        const extPath = resolveVectorExtensionPath(vectorExtension);
+        const extPath = resolveVectorExtensionPath(config);
         console.warn(`[ann] SQLite vector extension unavailable (${loadResult.reason}).`);
         console.warn(`[ann] Expected extension at ${extPath || 'unset'}; falling back to JS ANN.`);
         vectorAnnWarned = true;
       }
       return;
     }
-    if (!hasVectorTable(db, vectorExtension.table)) {
+    if (!hasVectorTable(db, config.table)) {
       if (!vectorAnnWarned) {
-        console.warn(`[ann] SQLite vector table missing (${vectorExtension.table}). Rebuild with node tools/build-sqlite-index.js.`);
+        console.warn(`[ann] SQLite vector table missing (${config.table}). Rebuild with node tools/build-sqlite-index.js.`);
         vectorAnnWarned = true;
       }
       return;
     }
     vectorAnnState[mode].available = true;
+    vectorAnnState[mode].table = config.table;
+    vectorAnnState[mode].column = config.column;
   };
 
   if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code');
@@ -225,7 +243,7 @@ export async function createSqliteBackend(options) {
     useSqlite = false;
   }
 
-  return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+  return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed, vectorAnnConfigByMode };
 }
 
 /**

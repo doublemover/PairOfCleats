@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 import { createRequire } from 'node:module';
 import { rankHnswIndex } from '../src/shared/hnsw.js';
+import { requireHnswLib } from './helpers/optional-deps.js';
+
+requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw candidate set test.' });
 
 const require = createRequire(import.meta.url);
-let hnswlib = null;
-try {
-  hnswlib = require('hnswlib-node');
-} catch {
-  console.log('hnsw candidate set test skipped: hnswlib-node not available');
-  process.exit(0);
-}
+const hnswlib = require('hnswlib-node');
 
 const HNSW = hnswlib?.HierarchicalNSW || hnswlib?.default?.HierarchicalNSW || hnswlib?.default;
 if (!HNSW) {

@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ARTIFACT_SCHEMA_DEFS, validateArtifact } from '../../shared/artifact-schemas.js';
+import {
+  ARTIFACT_SCHEMA_DEFS,
+  MANIFEST_ONLY_ARTIFACT_NAMES,
+  validateArtifact
+} from '../../shared/artifact-schemas.js';
 import { addIssue } from './issues.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 
@@ -13,6 +17,9 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
     if (!name) {
       addIssue(report, mode, 'manifest entry missing name');
     } else if (strictSchema && !ARTIFACT_SCHEMA_DEFS[name]) {
+      if (MANIFEST_ONLY_ARTIFACT_NAMES.includes(name)) {
+        continue;
+      }
       addIssue(report, mode, `manifest entry uses unknown artifact name: ${name}`);
     }
 

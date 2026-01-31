@@ -25,9 +25,9 @@ export const buildArtifactLists = (userConfig, postingsConfig) => {
   }
   const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});
   if (lanceConfig.enabled) {
-    optionalArtifacts.push('dense_vectors.lancedb.meta.json');
-    optionalArtifacts.push('dense_vectors_doc.lancedb.meta.json');
-    optionalArtifacts.push('dense_vectors_code.lancedb.meta.json');
+    optionalArtifacts.push('dense_vectors_lancedb_meta');
+    optionalArtifacts.push('dense_vectors_doc_lancedb_meta');
+    optionalArtifacts.push('dense_vectors_code_lancedb_meta');
   }
   return {
     requiredArtifacts,

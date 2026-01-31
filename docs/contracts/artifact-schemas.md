@@ -37,9 +37,10 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.
 - `field_tokens` (array): entries may include `name`, `signature`, `doc`, `comment`, `body` token arrays.
 - `minhash_signatures` (object): requires `signatures` (array of int arrays).
-- `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code` (object): requires `dims`, `vectors`. Optional: `model`, `scale`.
-- `dense_vectors_hnsw_meta` (object): requires `dims`, `count`, `space`, `m`, `efConstruction`, `efSearch`.
-- `dense_vectors_lancedb_meta` (object): requires `dims`, `count`, `metric`, `table`, `embeddingColumn`, `idColumn`.
+- `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code` (object): requires `dims`, `vectors`. Optional: `model`, `scale`, `minVal`, `maxVal`, `levels`.
+- `dense_vectors_hnsw_meta`, `dense_vectors_doc_hnsw_meta`, `dense_vectors_code_hnsw_meta` (object): requires `dims`, `count`, `space`, `m`, `efConstruction`, `efSearch`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
+- `dense_vectors_lancedb_meta`, `dense_vectors_doc_lancedb_meta`, `dense_vectors_code_lancedb_meta` (object): requires `dims`, `count`, `metric`, `table`, `embeddingColumn`, `idColumn`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
+- `dense_vectors_sqlite_vec_meta` (object): requires `dims`, `count`, `table`. Optional: `embeddingColumn`, `idColumn`, `scale`, `minVal`, `maxVal`, `levels`.
 - `phrase_ngrams` (object): requires `vocab`, `postings`.
 - `chargram_postings` (object): requires `vocab`, `postings`.
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.

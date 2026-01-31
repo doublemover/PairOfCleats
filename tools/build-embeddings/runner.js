@@ -9,13 +9,26 @@ import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../src/s
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
-import { resolveHnswPaths } from '../../src/shared/hnsw.js';
-import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
+import { createCrashLogger } from '../../src/index/build/crash-log.js';
+import { resolveHnswPaths, resolveHnswTarget } from '../../src/shared/hnsw.js';
+import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../src/shared/embedding.js';
-import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
+import {
+  clampQuantizedVectorsInPlace,
+  normalizeEmbeddingVectorInPlace
+} from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
-import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../dict-utils.js';
-import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
+import { isTestingEnv } from '../../src/shared/env.js';
+import { getIndexDir, getRepoCacheRoot, getTriageConfig, resolveSqlitePaths } from '../dict-utils.js';
+import {
+  buildCacheIdentity,
+  buildCacheKey,
+  isCacheValid,
+  readCacheMeta,
+  resolveCacheDir,
+  resolveCacheRoot,
+  writeCacheMeta
+} from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
   assertVectorArrays,
@@ -69,6 +82,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     finalize,
     setHeartbeat
   } = createBuildEmbeddingsContext({ argv });
+  const embeddingNormalize = embeddingsConfig.normalize !== false;
   const writeCacheEntry = async (targetPath, payload) => {
     const tempPath = createTempPath(targetPath);
     try {
@@ -86,6 +100,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
   };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
+  const normalizeDenseVectorMode = (value) => {
+    const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (raw === 'code' || raw === 'doc' || raw === 'auto' || raw === 'merged') return raw;
+    return 'merged';
+  };
+  const denseVectorMode = normalizeDenseVectorMode(userConfig?.search?.denseVectorMode);
+  const readJsonOptional = (filePath) => {
+    if (!filePath || !fsSync.existsSync(filePath)) return null;
+    try {
+      return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
+    } catch {
+      return null;
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -116,7 +144,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     dims: cacheDims,
     scale: denseScale,
     pooling: 'mean',
-    normalize: true,
+    normalize: embeddingNormalize,
     truncation: 'truncate',
     maxLength: null,
     quantization: {
@@ -138,11 +166,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
     dims: argv.dims,
     modelsDir,
     provider: embeddingProvider,
-    onnx: embeddingOnnx
+    onnx: embeddingOnnx,
+    normalize: embeddingNormalize
   });
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const crashLoggingEnabled = isTestingEnv()
+    || process.env.PAIROFCLEATS_DEBUG_CRASH === '1'
+    || process.env.PAIROFCLEATS_DEBUG_CRASH === 'true';
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: crashLoggingEnabled,
+    log: null
+  });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
   const buildStatePath = resolveBuildStatePath(indexRoot);
@@ -153,6 +190,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
     repoCacheRoot,
     cacheDirConfig: embeddingsConfig.cache?.dir
   });
+  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+  const sqliteSharedDb = sqlitePaths?.codePath
+    && sqlitePaths?.prosePath
+    && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath);
 
   if (hasBuildState) {
     await markBuildPhase(indexRoot, 'stage3', 'running');
@@ -185,6 +226,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
         pending: true,
         mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
         service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+        embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
+        embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
+        lastError: null,
         updatedAt: stateNow
       };
       try {
@@ -193,6 +237,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore index state write failures.
       }
 
+      try {
       const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
       const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
       const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
@@ -270,22 +315,81 @@ export async function runBuildEmbeddingsWithConfig(config) {
       const codeVectors = new Array(totalChunks).fill(null);
       const docVectors = new Array(totalChunks).fill(null);
       const mergedVectors = new Array(totalChunks).fill(null);
-      const { indexPath: hnswIndexPath, metaPath: hnswMetaPath } = resolveHnswPaths(indexDir);
-      const hnswBuilder = createHnswBuilder({
-        enabled: hnswConfig.enabled,
-        config: hnswConfig,
-        totalChunks,
-        mode,
-        logger
-      });
+      const hnswPaths = {
+        merged: resolveHnswPaths(indexDir, 'merged'),
+        doc: resolveHnswPaths(indexDir, 'doc'),
+        code: resolveHnswPaths(indexDir, 'code')
+      };
+      const hnswBuilders = {
+        merged: createHnswBuilder({
+          enabled: hnswConfig.enabled,
+          config: hnswConfig,
+          totalChunks,
+          mode,
+          logger
+        }),
+        doc: createHnswBuilder({
+          enabled: hnswConfig.enabled,
+          config: hnswConfig,
+          totalChunks,
+          mode,
+          logger
+        }),
+        code: createHnswBuilder({
+          enabled: hnswConfig.enabled,
+          config: hnswConfig,
+          totalChunks,
+          mode,
+          logger
+        })
+      };
+      const addHnswFloatVector = (target, chunkIndex, floatVec) => {
+        if (!hnswConfig.enabled || !floatVec || !floatVec.length) return;
+        const builder = hnswBuilders[target];
+        if (!builder) return;
+        builder.addVector(chunkIndex, floatVec);
+      };
+      const addHnswFromQuantized = (target, chunkIndex, quantizedVec) => {
+        if (!hnswConfig.enabled || !quantizedVec || !quantizedVec.length) return;
+        const floatVec = dequantizeUint8ToFloat32(
+          quantizedVec,
+          quantization.minVal,
+          quantization.maxVal,
+          quantization.levels
+        );
+        if (floatVec && embeddingNormalize) {
+          normalizeEmbeddingVectorInPlace(floatVec);
+        }
+        if (floatVec) addHnswFloatVector(target, chunkIndex, floatVec);
+      };
+      const hnswResults = {
+        merged: null,
+        doc: null,
+        code: null
+      };
 
       const cacheDir = resolveCacheDir(cacheRoot, mode);
       await fs.mkdir(cacheDir, { recursive: true });
+      const cacheMeta = readCacheMeta(cacheRoot, mode);
+      const cacheMetaMatches = cacheMeta?.identityKey === cacheIdentityKey;
+      let cacheEligible = true;
+      if (cacheMeta?.identityKey && !cacheMetaMatches) {
+        warn(`[embeddings] ${mode} cache identity mismatch; ignoring cached vectors.`);
+        cacheEligible = false;
+      }
 
       const dimsValidator = createDimsValidator({ mode, configuredDims });
       const assertDims = dimsValidator.assertDims;
 
-      if (configuredDims) {
+      if (configuredDims && cacheEligible) {
+        if (cacheMetaMatches && Number.isFinite(Number(cacheMeta?.dims))) {
+          const cachedDims = Number(cacheMeta.dims);
+          if (cachedDims !== configuredDims) {
+            throw new Error(
+              `[embeddings] ${mode} cache dims mismatch (configured=${configuredDims}, cached=${cachedDims}).`
+            );
+          }
+        }
         try {
           const entries = await fs.readdir(cacheDir);
           for (const entry of entries) {
@@ -353,8 +457,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
             codeVector: embedCode,
             docVector: embedDoc,
             zeroVector: zeroVec,
-            addHnswVector: hnswConfig.enabled ? hnswBuilder.addVector : null,
-            quantization
+            addHnswVectors: hnswConfig.enabled ? {
+              merged: (id, vec) => addHnswFloatVector('merged', id, vec),
+              doc: (id, vec) => addHnswFloatVector('doc', id, vec),
+              code: (id, vec) => addHnswFloatVector('code', id, vec)
+            } : null,
+            quantization,
+            normalize: embeddingNormalize
           });
           codeVectors[chunkIndex] = quantized.quantizedCode;
           docVectors[chunkIndex] = quantized.quantizedDoc;
@@ -457,7 +566,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         });
         let cachePath = cacheKey ? path.join(cacheDir, `${cacheKey}.json`) : null;
 
-        if (cachePath && fsSync.existsSync(cachePath)) {
+        if (cacheEligible && cachePath && fsSync.existsSync(cachePath)) {
           try {
             const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
             const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
@@ -482,17 +591,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 codeVectors[chunkIndex] = codeVec;
                 docVectors[chunkIndex] = docVec;
                 mergedVectors[chunkIndex] = mergedVec;
-                if (hnswConfig.enabled && mergedVec.length) {
-                  const floatVec = dequantizeUint8ToFloat32(
-                    mergedVec,
-                    quantization.minVal,
-                    quantization.maxVal,
-                    quantization.levels
-                  );
-                  if (floatVec && hnswConfig.space === 'cosine') {
-                    normalizeEmbeddingVectorInPlace(floatVec);
-                  }
-                  if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
+                if (hnswConfig.enabled) {
+                  addHnswFromQuantized('merged', chunkIndex, mergedVec);
+                  addHnswFromQuantized('doc', chunkIndex, docVec);
+                  addHnswFromQuantized('code', chunkIndex, codeVec);
                 }
               }
               processedFiles += 1;
@@ -531,7 +633,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             identityKey: cacheIdentityKey
           });
           cachePath = cacheKey ? path.join(cacheDir, `${cacheKey}.json`) : null;
-          if (cachePath && fsSync.existsSync(cachePath)) {
+          if (cacheEligible && cachePath && fsSync.existsSync(cachePath)) {
             try {
               const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
               const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
@@ -556,19 +658,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   codeVectors[chunkIndex] = codeVec;
                   docVectors[chunkIndex] = docVec;
                   mergedVectors[chunkIndex] = mergedVec;
-                  if (hnswConfig.enabled && mergedVec.length) {
-                    const floatVec = dequantizeUint8ToFloat32(
-                      mergedVec,
-                      quantization.minVal,
-                      quantization.maxVal,
-                      quantization.levels
-                    );
-                    if (floatVec && hnswConfig.space === 'cosine') {
-                      normalizeEmbeddingVectorInPlace(floatVec);
-                    }
-                    if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
-                  }
+                if (hnswConfig.enabled) {
+                  addHnswFromQuantized('merged', chunkIndex, mergedVec);
+                  addHnswFromQuantized('doc', chunkIndex, docVec);
+                  addHnswFromQuantized('code', chunkIndex, codeVec);
                 }
+              }
                 processedFiles += 1;
                 continue;
               }
@@ -617,36 +712,71 @@ export async function runBuildEmbeddingsWithConfig(config) {
       fillMissingVectors(codeVectors, finalDims);
       fillMissingVectors(docVectors, finalDims);
       fillMissingVectors(mergedVectors, finalDims);
+      clampQuantizedVectorsInPlace(codeVectors);
+      clampQuantizedVectorsInPlace(docVectors);
+      clampQuantizedVectorsInPlace(mergedVectors);
 
       await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_uint8.json'), {
-        fields: { model: modelId, dims: finalDims, scale: denseScale },
+        fields: {
+          model: modelId,
+          dims: finalDims,
+          scale: denseScale,
+          minVal: quantization.minVal,
+          maxVal: quantization.maxVal,
+          levels: quantization.levels
+        },
         arrays: { vectors: mergedVectors },
         atomic: true
       });
       await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_doc_uint8.json'), {
-        fields: { model: modelId, dims: finalDims, scale: denseScale },
+        fields: {
+          model: modelId,
+          dims: finalDims,
+          scale: denseScale,
+          minVal: quantization.minVal,
+          maxVal: quantization.maxVal,
+          levels: quantization.levels
+        },
         arrays: { vectors: docVectors },
         atomic: true
       });
       await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_code_uint8.json'), {
-        fields: { model: modelId, dims: finalDims, scale: denseScale },
+        fields: {
+          model: modelId,
+          dims: finalDims,
+          scale: denseScale,
+          minVal: quantization.minVal,
+          maxVal: quantization.maxVal,
+          levels: quantization.levels
+        },
         arrays: { vectors: codeVectors },
         atomic: true
       });
 
       if (hnswConfig.enabled) {
-        try {
-          const result = await hnswBuilder.writeIndex({
-            indexPath: hnswIndexPath,
-            metaPath: hnswMetaPath,
-            modelId,
-            dims: finalDims
-          });
-          if (!result.skipped) {
-            log(`[embeddings] ${mode}: wrote HNSW index (${result.count} vectors).`);
+        const hnswEntries = [
+          { target: 'merged', label: `${mode}/merged`, paths: hnswPaths.merged },
+          { target: 'doc', label: `${mode}/doc`, paths: hnswPaths.doc },
+          { target: 'code', label: `${mode}/code`, paths: hnswPaths.code }
+        ];
+        for (const entry of hnswEntries) {
+          const builder = hnswBuilders[entry.target];
+          if (!builder) continue;
+          try {
+            hnswResults[entry.target] = await builder.writeIndex({
+              indexPath: entry.paths.indexPath,
+              metaPath: entry.paths.metaPath,
+              modelId,
+              dims: finalDims,
+              quantization,
+              scale: denseScale
+            });
+            if (hnswResults[entry.target] && !hnswResults[entry.target].skipped) {
+              log(`[embeddings] ${entry.label}: wrote HNSW index (${hnswResults[entry.target].count} vectors).`);
+            }
+          } catch (err) {
+            warn(`[embeddings] ${entry.label}: failed to write HNSW index: ${err?.message || err}`);
           }
-        } catch (err) {
-          warn(`[embeddings] ${mode}: failed to write HNSW index: ${err?.message || err}`);
         }
       }
 
@@ -657,6 +787,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           vectors: mergedVectors,
           dims: finalDims,
           modelId,
+          quantization,
+          scale: denseScale,
+          normalize: embeddingNormalize,
           config: lanceConfig,
           emitOutput: true,
           label: `${mode}/merged`,
@@ -668,6 +801,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           vectors: docVectors,
           dims: finalDims,
           modelId,
+          quantization,
+          scale: denseScale,
+          normalize: embeddingNormalize,
           config: lanceConfig,
           emitOutput: true,
           label: `${mode}/doc`,
@@ -679,6 +815,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           vectors: codeVectors,
           dims: finalDims,
           modelId,
+          quantization,
+          scale: denseScale,
+          normalize: embeddingNormalize,
           config: lanceConfig,
           emitOutput: true,
           label: `${mode}/code`,
@@ -686,6 +825,94 @@ export async function runBuildEmbeddingsWithConfig(config) {
         });
       } catch (err) {
         warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
+      }
+
+      let sqliteVecState = { enabled: false, available: false };
+      if (mode === 'code' || mode === 'prose') {
+        const sqliteResult = updateSqliteDense({
+          Database,
+          root,
+          userConfig,
+          indexRoot,
+          mode,
+          vectors: mergedVectors,
+          dims: finalDims,
+          scale: denseScale,
+          modelId,
+          quantization,
+          sharedDb: sqliteSharedDb,
+          emitOutput: true,
+          warnOnMissing: false,
+          logger
+        });
+        const vectorAnn = sqliteResult?.vectorAnn || null;
+        sqliteVecState = {
+          enabled: vectorAnn?.enabled === true,
+          available: vectorAnn?.available === true
+        };
+        if (sqliteVecState.available) {
+          sqliteVecState.dims = finalDims;
+          sqliteVecState.count = totalChunks;
+        }
+        const sqliteMetaPath = path.join(indexDir, 'dense_vectors_sqlite_vec.meta.json');
+        if (vectorAnn?.available && vectorAnn?.table) {
+          const sqliteMeta = {
+            version: 1,
+            generatedAt: new Date().toISOString(),
+            model: modelId || null,
+            dims: finalDims,
+            count: totalChunks,
+            table: vectorAnn.table,
+            embeddingColumn: vectorAnn.column || null,
+            idColumn: vectorAnn.idColumn || 'rowid',
+            scale: denseScale,
+            minVal: quantization.minVal,
+            maxVal: quantization.maxVal,
+            levels: quantization.levels
+          };
+          try {
+            await writeJsonObjectFile(sqliteMetaPath, { fields: sqliteMeta, atomic: true });
+          } catch {
+            // Ignore sqlite vec meta write failures.
+          }
+        } else {
+          try {
+            await fs.rm(sqliteMetaPath, { force: true });
+          } catch {}
+        }
+      }
+
+      const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
+      const hnswTargetPaths = resolveHnswPaths(indexDir, hnswTarget);
+      const hnswMeta = readJsonOptional(hnswTargetPaths.metaPath);
+      const hnswIndexExists = fsSync.existsSync(hnswTargetPaths.indexPath)
+        || fsSync.existsSync(`${hnswTargetPaths.indexPath}.bak`);
+      const hnswAvailable = Boolean(hnswMeta) && hnswIndexExists;
+      const hnswState = {
+        enabled: hnswConfig.enabled !== false,
+        available: hnswAvailable,
+        target: hnswTarget
+      };
+      if (hnswMeta) {
+        hnswState.dims = Number.isFinite(Number(hnswMeta.dims)) ? Number(hnswMeta.dims) : finalDims;
+        hnswState.count = Number.isFinite(Number(hnswMeta.count)) ? Number(hnswMeta.count) : totalChunks;
+      }
+
+      const lancePaths = resolveLanceDbPaths(indexDir);
+      const lanceTarget = resolveLanceDbTarget(mode, denseVectorMode);
+      const targetPaths = lancePaths?.[lanceTarget] || lancePaths?.merged || {};
+      const lanceMeta = readJsonOptional(targetPaths.metaPath);
+      const lanceAvailable = Boolean(lanceMeta)
+        && Boolean(targetPaths.dir)
+        && fsSync.existsSync(targetPaths.dir);
+      const lancedbState = {
+        enabled: lanceConfig.enabled !== false,
+        available: lanceAvailable,
+        target: lanceTarget
+      };
+      if (lanceMeta) {
+        lancedbState.dims = Number.isFinite(Number(lanceMeta.dims)) ? Number(lanceMeta.dims) : finalDims;
+        lancedbState.count = Number.isFinite(Number(lanceMeta.count)) ? Number(lanceMeta.count) : totalChunks;
       }
 
       const now = new Date().toISOString();
@@ -699,6 +926,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         pending: false,
         mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
         service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+        embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
+        embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
+        lastError: null,
+        backends: {
+          ...(indexState.embeddings?.backends || {}),
+          hnsw: hnswState,
+          lancedb: lancedbState,
+          sqliteVec: sqliteVecState
+        },
         updatedAt: now
       };
       if (indexState.enrichment && indexState.enrichment.enabled) {
@@ -720,24 +956,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore piece manifest write failures.
       }
 
-      if (mode === 'code' || mode === 'prose') {
-        updateSqliteDense({
-          Database,
-          root,
-          userConfig,
-          indexRoot,
-          mode,
-          vectors: mergedVectors,
-          dims: finalDims,
-          scale: denseScale,
-          modelId,
-          quantization,
-          emitOutput: true,
-          warnOnMissing: false,
-          logger
-        });
-      }
-
       const validation = await validateIndexArtifacts({
         root,
         indexRoot,
@@ -746,11 +964,82 @@ export async function runBuildEmbeddingsWithConfig(config) {
         sqliteEnabled: false
       });
       if (!validation.ok) {
+        if (validation.issues?.length) {
+          error('Index validation issues (first 10):');
+          validation.issues.slice(0, 10).forEach((issue) => {
+            error(`- ${issue}`);
+          });
+        }
+        if (validation.warnings?.length) {
+          warn('Index validation warnings (first 10):');
+          validation.warnings.slice(0, 10).forEach((warning) => {
+            warn(`- ${warning}`);
+          });
+        }
+        crashLogger.logError({
+          phase: `embeddings:${mode}`,
+          stage: 'validation',
+          message: `[embeddings] ${mode} index validation failed`,
+          issues: validation.issues || [],
+          warnings: validation.warnings || [],
+          hints: validation.hints || []
+        });
         throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
+      }
+
+      const cacheMetaNow = new Date().toISOString();
+      const cacheMetaPayload = {
+        version: 1,
+        identityKey: cacheIdentityKey,
+        identity: cacheIdentity,
+        dims: finalDims,
+        mode,
+        provider: embeddingProvider,
+        modelId: modelId || null,
+        normalize: embeddingNormalize,
+        createdAt: cacheMetaMatches ? (cacheMeta?.createdAt || cacheMetaNow) : cacheMetaNow,
+        updatedAt: cacheMetaNow
+      };
+      try {
+        await writeCacheMeta(cacheRoot, mode, cacheMetaPayload);
+      } catch {
+        // Ignore cache meta write failures.
       }
 
       log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
       finishMode(`built ${mode}`);
+      } catch (err) {
+        const now = new Date().toISOString();
+        const failureState = loadIndexState(statePath);
+        failureState.generatedAt = failureState.generatedAt || now;
+        failureState.updatedAt = now;
+        failureState.mode = failureState.mode || mode;
+        failureState.embeddings = {
+          ...(failureState.embeddings || {}),
+          enabled: true,
+          ready: false,
+          pending: false,
+          mode: failureState.embeddings?.mode || resolvedEmbeddingMode,
+          service: failureState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+          embeddingIdentity: cacheIdentity || failureState.embeddings?.embeddingIdentity || null,
+          embeddingIdentityKey: cacheIdentityKey || failureState.embeddings?.embeddingIdentityKey || null,
+          lastError: err?.message || String(err),
+          updatedAt: now
+        };
+        if (failureState.enrichment && failureState.enrichment.enabled) {
+          failureState.enrichment = {
+            ...failureState.enrichment,
+            pending: false,
+            stage: failureState.enrichment.stage || failureState.stage || 'stage2'
+          };
+        }
+        try {
+          await writeIndexState(statePath, failureState);
+        } catch {
+          // Ignore index state write failures.
+        }
+        throw err;
+      }
     }
 
     if (hasBuildState) {

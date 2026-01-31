@@ -24,6 +24,8 @@
       "lane": "unit",
       "match": [
         "^unit/",
+        "^embeddings/",
+        "^embedding-",
         "\\.unit(\\.|$)",
         "^harness/",
         "^jsonrpc-",
@@ -43,7 +45,7 @@
     { "tag": "api", "match": ["^services/api/"] },
     { "tag": "storage", "match": ["^storage/"] },
     { "tag": "indexing", "match": ["^indexing/"] },
-    { "tag": "retrieval", "match": ["^retrieval/"] },
+    { "tag": "retrieval", "match": ["^retrieval/", "^retrieval-"] },
     { "tag": "lang", "match": ["^lang/"] },
     { "tag": "tooling", "match": ["^tooling/"] },
     { "tag": "harness", "match": ["^harness/"] },

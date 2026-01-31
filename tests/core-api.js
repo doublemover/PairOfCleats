@@ -29,6 +29,8 @@ await buildIndex(fixtureRoot, {
 
 const userConfig = loadUserConfig(fixtureRoot);
 const indexDir = getIndexDir(fixtureRoot, 'code', userConfig);
+const extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
+await fsPromises.rm(extractedProseDir, { recursive: true, force: true });
 const chunkPath = path.join(indexDir, 'chunk_meta.json');
 if (!fs.existsSync(chunkPath)) {
   console.error(`Core API test failed: missing ${chunkPath}`);

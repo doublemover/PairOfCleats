@@ -11,7 +11,14 @@ import {
 } from './index-loader.js';
 import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
-import { MAX_JSON_BYTES, readCompatibilityKey, readJsonFile } from '../../shared/artifact-io.js';
+import {
+  MAX_JSON_BYTES,
+  loadJsonObjectArtifact,
+  loadPiecesManifest,
+  readJsonFile,
+  readCompatibilityKey,
+  resolveDirArtifactPath
+} from '../../shared/artifact-io.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
@@ -44,6 +51,8 @@ export async function loadSearchIndexes({
   hnswConfig,
   lancedbConfig,
   tantivyConfig,
+  strict = true,
+  indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode
@@ -111,14 +120,20 @@ export async function loadSearchIndexes({
     return resolveTantivyAvailability(mode, indexDir);
   };
 
-  const loadIndexCachedLocal = async (dir, includeHnsw = true) => loadIndexCached({
+  const loadIndexCachedLocal = async (dir, includeHnsw = true, mode = null) => loadIndexCached({
     indexCache,
     dir,
     modelIdDefault,
     fileChargramN,
     includeHnsw,
     hnswConfig,
-    loadIndex
+    denseVectorMode: resolvedDenseVectorMode,
+    loadIndex: (targetDir, options) => loadIndex(targetDir, {
+      ...options,
+      strict,
+      mode,
+      denseVectorMode: resolvedDenseVectorMode
+    })
   });
 
   let extractedProseDir = null;
@@ -139,6 +154,17 @@ export async function loadSearchIndexes({
     }
   }
 
+  if (strict) {
+    const ensureManifest = (dir) => {
+      if (!dir) return;
+      loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+    };
+    if (runCode) ensureManifest(codeDir);
+    if (runProse) ensureManifest(proseDir);
+    if (runRecords) ensureManifest(recordsDir);
+    if (resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
+  }
+
   const compatibilityTargets = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
@@ -148,15 +174,32 @@ export async function loadSearchIndexes({
   if (compatibilityTargets.length) {
     const keys = new Map();
     for (const entry of compatibilityTargets) {
-      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
       keys.set(entry.mode, key);
     }
     const uniqueKeys = new Set(keys.values());
     if (uniqueKeys.size > 1) {
-      const details = Array.from(keys.entries())
-        .map(([mode, key]) => `- ${mode}: ${key}`)
-        .join('\n');
-      throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+      if (!resolvedRunExtractedProse && keys.has('extracted-prose')) {
+        const filtered = new Map(Array.from(keys.entries()).filter(([mode]) => mode !== 'extracted-prose'));
+        const filteredKeys = new Set(filtered.values());
+        if (filteredKeys.size <= 1) {
+          if (emitOutput) {
+            console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
+          }
+          resolvedLoadExtractedProse = false;
+          extractedProseDir = null;
+        } else {
+          const details = Array.from(keys.entries())
+            .map(([mode, key]) => `- ${mode}: ${key}`)
+            .join('\n');
+          throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+        }
+      } else {
+        const details = Array.from(keys.entries())
+          .map(([mode, key]) => `- ${mode}: ${key}`)
+          .join('\n');
+        throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+      }
     }
   }
 
@@ -171,10 +214,10 @@ export async function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(proseDir, annActive)))
+    }) : await loadIndexCachedLocal(proseDir, annActive, 'prose')))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedLoadExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse)
+    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse, 'extracted-prose')
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -187,11 +230,18 @@ export async function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(codeDir, annActive)))
+    }) : await loadIndexCachedLocal(codeDir, annActive, 'code')))
     : { ...EMPTY_INDEX };
   const idxRecords = runRecords
-    ? await loadIndexCachedLocal(recordsDir, annActive)
+    ? await loadIndexCachedLocal(recordsDir, annActive, 'records')
     : { ...EMPTY_INDEX };
+
+  if (!idxCode.state && indexStates?.code) idxCode.state = indexStates.code;
+  if (!idxProse.state && indexStates?.prose) idxProse.state = indexStates.prose;
+  if (!idxExtractedProse.state && indexStates?.['extracted-prose']) {
+    idxExtractedProse.state = indexStates['extracted-prose'];
+  }
+  if (!idxRecords.state && indexStates?.records) idxRecords.state = indexStates.records;
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
@@ -249,32 +299,72 @@ export async function loadSearchIndexes({
     idxRecords.indexDir = recordsDir;
   }
 
-  const attachLanceDb = (idx, mode, dir) => {
+  const attachLanceDb = async (idx, mode, dir) => {
     if (!idx || !dir || lancedbConfig?.enabled === false) return null;
     const paths = resolveLanceDbPaths(dir);
     const target = resolveLanceDbTarget(mode, resolvedDenseVectorMode);
-    const metaPath = paths?.[target]?.metaPath;
-    const lanceDir = paths?.[target]?.dir;
+    const targetPaths = paths?.[target] || {};
+    const metaName = target === 'doc'
+      ? 'dense_vectors_doc_lancedb_meta'
+      : target === 'code'
+        ? 'dense_vectors_code_lancedb_meta'
+        : 'dense_vectors_lancedb_meta';
+    const dirName = target === 'doc'
+      ? 'dense_vectors_doc_lancedb'
+      : target === 'code'
+        ? 'dense_vectors_code_lancedb'
+        : 'dense_vectors_lancedb';
+    let manifest = null;
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+    } catch (err) {
+      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+        throw err;
+      }
+      idx.lancedb = {
+        target,
+        dir: null,
+        metaPath: targetPaths.metaPath || null,
+        meta: null,
+        available: false
+      };
+      return idx.lancedb;
+    }
     let meta = null;
-    if (metaPath && fs.existsSync(metaPath)) {
-      try {
-        meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
-      } catch {}
+    try {
+      meta = await loadJsonObjectArtifact(dir, metaName, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict,
+        fallbackPath: targetPaths.metaPath || null
+      });
+    } catch {}
+    let lanceDir = null;
+    try {
+      lanceDir = resolveDirArtifactPath(dir, dirName, {
+        manifest,
+        strict,
+        fallbackPath: targetPaths.dir || null
+      });
+    } catch (err) {
+      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+        throw err;
+      }
     }
     const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
     idx.lancedb = {
       target,
       dir: lanceDir || null,
-      metaPath: metaPath || null,
+      metaPath: targetPaths.metaPath || null,
       meta,
       available
     };
     return idx.lancedb;
   };
 
-  attachLanceDb(idxCode, 'code', codeIndexDir);
-  attachLanceDb(idxProse, 'prose', proseIndexDir);
-  attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
+  await attachLanceDb(idxCode, 'code', codeIndexDir);
+  await attachLanceDb(idxProse, 'prose', proseIndexDir);
+  await attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
 
   const attachTantivy = (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;

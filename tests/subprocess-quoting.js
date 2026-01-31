@@ -5,6 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import fsPromises from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
+import { attachSilentLogging } from './helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -40,6 +41,7 @@ const server = spawn(
   [serverPath, '--repo', repoPath, '--host', '127.0.0.1', '--port', '0', '--json'],
   { env, stdio: ['ignore', 'pipe', 'pipe'] }
 );
+attachSilentLogging(server, 'api-server');
 
 let stderr = '';
 server.stderr.on('data', (chunk) => {

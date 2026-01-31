@@ -118,6 +118,54 @@ const modeTask = display.task('LMDB', { total: modes.length, stage: 'lmdb' });
 let completedModes = 0;
 
 const packr = new Packr();
+const LMDB_PAGE_SIZE = 4096;
+const LMDB_MAP_SIZE_FACTOR = 2;
+const LMDB_MIN_MAP_SIZE = 64 * 1024 * 1024;
+
+const alignMapSize = (bytes) => {
+  const size = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+  return Math.ceil(size / LMDB_PAGE_SIZE) * LMDB_PAGE_SIZE;
+};
+
+const estimateValueBytes = (value) => {
+  if (value == null) return 0;
+  try {
+    return packr.pack(value).length;
+  } catch {
+    return 0;
+  }
+};
+
+const estimateEntryBytes = (key, value) => (
+  Buffer.byteLength(String(key || '')) + estimateValueBytes(value)
+);
+
+const estimateLmdbBytes = (meta, artifacts) => {
+  let total = 0;
+  const metaEntries = [
+    [LMDB_META_KEYS.schemaVersion, LMDB_SCHEMA_VERSION],
+    [LMDB_META_KEYS.createdAt, meta.createdAt],
+    [LMDB_META_KEYS.mode, meta.mode],
+    [LMDB_META_KEYS.sourceIndex, meta.sourceIndex],
+    [LMDB_META_KEYS.chunkCount, meta.chunkCount],
+    [LMDB_META_KEYS.artifacts, meta.artifacts],
+    [LMDB_META_KEYS.artifactManifest, { keys: meta.artifacts, createdAt: meta.createdAt }]
+  ];
+  for (const [key, value] of metaEntries) {
+    total += estimateEntryBytes(key, value);
+  }
+  for (const [key, value] of Object.entries(artifacts || {})) {
+    total += estimateEntryBytes(key, value);
+  }
+  return total;
+};
+
+const resolveMapSizeBytes = (estimatedBytes) => {
+  const estimated = Number.isFinite(estimatedBytes) ? estimatedBytes : 0;
+  const padded = estimated * LMDB_MAP_SIZE_FACTOR;
+  const base = Math.max(LMDB_MIN_MAP_SIZE, Math.ceil(padded));
+  return alignMapSize(base);
+};
 
 const storeValue = (db, key, value) => {
   if (value == null) return false;
@@ -138,6 +186,10 @@ const storeArtifacts = (db, meta, artifacts) => {
       keys: meta.artifacts,
       createdAt: meta.createdAt
     });
+    storeValue(db, LMDB_META_KEYS.mapSizeBytes, meta.mapSizeBytes);
+    storeValue(db, LMDB_META_KEYS.mapSizeEstimatedBytes, meta.mapSizeEstimatedBytes);
+    storeValue(db, LMDB_META_KEYS.mapSizeFactor, meta.mapSizeFactor);
+    storeValue(db, LMDB_META_KEYS.pageSize, meta.pageSize);
     for (const [key, value] of Object.entries(artifacts)) {
       storeValue(db, key, value);
     }
@@ -260,9 +312,15 @@ for (const mode of modes) {
 
   const readStart = Date.now();
   const { meta, artifacts, stats } = await loadArtifactsForMode(indexDir, mode);
+  const estimatedBytes = estimateLmdbBytes(meta, artifacts);
+  const mapSizeBytes = resolveMapSizeBytes(estimatedBytes);
+  meta.mapSizeEstimatedBytes = estimatedBytes;
+  meta.mapSizeBytes = mapSizeBytes;
+  meta.mapSizeFactor = LMDB_MAP_SIZE_FACTOR;
+  meta.pageSize = LMDB_PAGE_SIZE;
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
-  const db = open({ path: targetPath, readOnly: false });
+  const db = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
   storeArtifacts(db, meta, artifacts);
   db.close();
   const writeMs = Date.now() - writeStart;
@@ -273,9 +331,11 @@ for (const mode of modes) {
     pending: false,
     schemaVersion: LMDB_SCHEMA_VERSION,
     buildMode,
-    path: targetPath
+    path: targetPath,
+    mapSizeBytes,
+    mapSizeEstimatedBytes: estimatedBytes
   });
-  const finalDb = open({ path: targetPath, readOnly: false });
+  const finalDb = open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes });
   storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState);
   finalDb.close();
 
@@ -288,7 +348,12 @@ for (const mode of modes) {
     files: { candidates: stats.fileCount },
     chunks: { total: stats.chunkCount },
     tokens: { total: stats.tokenCount },
-    lmdb: { path: targetPath },
+    lmdb: {
+      path: targetPath,
+      mapSizeBytes,
+      mapSizeEstimatedBytes: estimatedBytes,
+      mapSizeFactor: LMDB_MAP_SIZE_FACTOR
+    },
     timings: {
       totalMs,
       readMs,

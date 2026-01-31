@@ -71,11 +71,44 @@ export function normalizeHnswConfig(raw = {}) {
   };
 }
 
-export function resolveHnswPaths(indexDir) {
+export function resolveHnswPaths(indexDir, target = 'merged') {
+  const resolveTarget = (value) => {
+    if (typeof value !== 'string') return 'merged';
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'doc') return 'doc';
+    if (trimmed === 'code') return 'code';
+    return 'merged';
+  };
+  const resolvedTarget = resolveTarget(target);
+  if (resolvedTarget === 'doc') {
+    return {
+      indexPath: path.join(indexDir, 'dense_vectors_doc_hnsw.bin'),
+      metaPath: path.join(indexDir, 'dense_vectors_doc_hnsw.meta.json')
+    };
+  }
+  if (resolvedTarget === 'code') {
+    return {
+      indexPath: path.join(indexDir, 'dense_vectors_code_hnsw.bin'),
+      metaPath: path.join(indexDir, 'dense_vectors_code_hnsw.meta.json')
+    };
+  }
   return {
     indexPath: path.join(indexDir, 'dense_vectors_hnsw.bin'),
     metaPath: path.join(indexDir, 'dense_vectors_hnsw.meta.json')
   };
+}
+
+export function resolveHnswTarget(mode, denseVectorMode) {
+  const resolved = typeof denseVectorMode === 'string'
+    ? denseVectorMode.trim().toLowerCase()
+    : '';
+  if (resolved === 'code') return 'code';
+  if (resolved === 'doc') return 'doc';
+  if (resolved === 'auto') {
+    if (mode === 'code') return 'code';
+    if (mode === 'prose' || mode === 'extracted-prose') return 'doc';
+  }
+  return 'merged';
 }
 
 export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = null }) {
@@ -108,7 +141,15 @@ export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = n
   for (const candidate of candidates) {
     const index = new HNSW(resolvedSpace, resolvedDims);
     try {
-      index.readIndexSync(candidate.path, normalized.allowReplaceDeleted);
+      const read = index.readIndexSync;
+      if (typeof read !== 'function') {
+        throw new Error('readIndexSync unavailable');
+      }
+      if (read.length <= 1) {
+        read.call(index, candidate.path);
+      } else {
+        read.call(index, candidate.path, normalized.allowReplaceDeleted);
+      }
     } catch (err) {
       lastErr = err;
       continue;

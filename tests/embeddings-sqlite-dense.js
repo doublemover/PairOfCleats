@@ -4,13 +4,13 @@ import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { updateSqliteDense } from '../tools/build-embeddings/sqlite-dense.js';
+import { skip } from './helpers/skip.js';
 
 let Database;
 try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch (err) {
-  console.error('better-sqlite3 is required for embeddings sqlite dense test.');
-  process.exit(1);
+  skip('better-sqlite3 not available; skipping embeddings sqlite dense test.');
 }
 
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-embeddings-sqlite-'));

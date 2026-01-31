@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { attachSilentLogging } from './helpers/test-env.js';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'dicts');
@@ -45,6 +46,7 @@ function run(cmd, args, options = {}) {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: options.env || process.env
     });
+    attachSilentLogging(child, 'download-dicts');
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {

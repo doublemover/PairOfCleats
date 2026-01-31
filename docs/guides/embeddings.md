@@ -25,7 +25,18 @@ These fields MUST be recorded in:
 - service embedding queue payloads (when used)
 - optionally ANN meta files (HNSW, LanceDB, sqlite dense_meta) for redundancy
 
-## 2) `index_state.json` requirements
+## 2) Terminology (Phase 7)
+
+- **repoRoot**: repository being indexed or searched.
+- **buildRoot**: build output root containing `index-code/`, `index-prose/`, etc.
+- **indexDir**: per-mode index directory under `buildRoot` (for example, `<buildRoot>/index-code`).
+- **mode**: `code | prose | extracted-prose | records`.
+- **denseVectorMode**: `merged | code | doc | auto` (controls vector target selection).
+- **denseVectorMode precedence**: `--dense-vector-mode` (CLI) > `search.denseVectorMode` (config) > defaults; CLI overrides log a warning.
+- **sqlite-vec ANN**: the SQLite ANN extension indexes merged vectors only. When `denseVectorMode` resolves to `code`, `doc`, or `auto`, sqlite-vec ANN is disabled and search falls back to other ANN backends.
+- **ANN variants**: dense vectors, HNSW, and LanceDB artifacts are emitted for merged/doc/code variants so `denseVectorMode` can target them.
+
+## 3) `index_state.json` requirements
 
 When embeddings are enabled (either inline or via service), `index_state.json` MUST include:
 
@@ -36,6 +47,7 @@ embeddings: {
   pending?: boolean;
   mode?: string | null;                 // inline | service | off
   service?: boolean;
+  lastError?: string | null;
 
   embeddingIdentity?: object | null;
   embeddingIdentityKey?: string | null;
@@ -45,9 +57,9 @@ embeddings: {
   scale?: number | null;
 
   backends?: {
-    hnsw?: { present: boolean; dims?: number|null; space?: string|null };
-    lancedb?: { present: boolean; dims?: number|null; metric?: string|null };
-    sqlite?: { present: boolean; dims?: number|null };
+    hnsw?: { enabled: boolean; available: boolean; target?: string|null; dims?: number|null; count?: number|null };
+    lancedb?: { enabled: boolean; available: boolean; target?: string|null; dims?: number|null; count?: number|null };
+    sqliteVec?: { enabled: boolean; available: boolean; dims?: number|null; count?: number|null };
   };
 
   missing?: {
@@ -60,14 +72,15 @@ embeddings: {
 }
 ```
 
-## 3) Quantization invariants
+## 4) Quantization invariants
 
 For uint8 embeddings:
 - `levels` MUST be clamped to `[2, 256]`
 - emitted vectors MUST only contain values in `[0, 255]` (no wrap)
 - dequantization MUST use the same `(minVal, maxVal, levels)` used for quantization
+- clamping indicates the embedding cache may be stale; clear the embeddings cache before rebuilding
 
-## 4) ANN backend behavior
+## 5) ANN backend behavior
 
 ### 4.1 Similarity contract
 
@@ -86,7 +99,16 @@ When a candidate set is provided:
 - the backend MUST return up to `topN` results from within the candidate set
 - if pushdown filtering is not available, the backend MUST over-fetch deterministically until it can fill `topN` or reaches a documented cap
 
-## 5) Service job scoping
+## 6) Service job scoping
 
-Embedding jobs run via `indexer-service` MUST include `indexRoot` and the worker MUST pass `--index-root` to `build-embeddings`. The worker MUST refuse to run if the target build root does not exist.
+Embedding jobs run via `indexer-service` MUST include `buildRoot` and `indexDir`:
+- `buildRoot` is the base build directory passed to `build-embeddings` via `--index-root`.
+- `indexDir` is the per-mode directory (used for validation/logging).
 
+Jobs must include `embeddingPayloadFormatVersion` and must not reuse ambiguous legacy fields without explicit upgrade logic + warning.
+
+The worker MUST refuse to run if `buildRoot` does not exist and should treat `indexDir` as invalid if it is outside `buildRoot` (path escape).
+
+## 7) Strict manifest compliance
+
+Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See the Phase 7 strict manifest addendum in `GIGAROADMAP_2.md`.

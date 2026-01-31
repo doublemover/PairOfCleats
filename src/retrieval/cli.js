@@ -195,6 +195,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       explain,
       denseVectorMode,
+      strict,
       backendArg,
       lancedbConfig,
       tantivyConfig,
@@ -347,6 +348,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdDefault,
       fileChargramN,
       hnswConfig,
+      denseVectorMode,
       root: rootDir,
       userConfig
     });
@@ -498,6 +500,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       lancedbConfig,
       tantivyConfig,
+      indexStates: {
+        code: sqliteStateCode || null,
+        prose: sqliteStateProse || null
+      },
+      strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
@@ -676,7 +683,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   } catch (err) {
     recordSearchMetrics('error');
     if (emitOutput && jsonOutput && !err?.emitted) {
-      const message = err?.message || 'Search failed.';
+      let message = err?.message || 'Search failed.';
+      if (err?.code && String(err.code).startsWith('ERR_MANIFEST')
+        && !String(message).toLowerCase().includes('manifest')) {
+        message = message && message !== 'Search failed.'
+          ? `Manifest error: ${message}`
+          : 'Missing pieces manifest.';
+      }
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
       console.log(JSON.stringify({ ok: false, code, message }));
       if (err) err.emitted = true;
