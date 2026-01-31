@@ -170,7 +170,7 @@ These have landed and should be used as the canonical helpers.
 #### R.4.2 Integrations/core split (spec drift fix)
 
 **Spec drift:** The old roadmap targeted `src/integrations/core/index.js` as a 700+ LOC monolith.  
-In the current codebase, `src/integrations/core/index.js` is a tiny re-export façade, and the largest module is now:
+In the current codebase, `src/integrations/core/index.js` is a tiny re-export facade, and the largest module is now:
 
 - **Current monolith target:** `src/integrations/core/build-index.js` (~735 LOC)
 
@@ -225,7 +225,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 
 #### R.4.6 Worker pool split
 - [x] Worker pool logic is now under `src/index/build/workers/*`
-- `src/index/build/worker-pool.js` is a façade.
+- `src/index/build/worker-pool.js` is a facade.
 
 #### R.4.7 File processor split (CPU + chunk processing)
 
@@ -264,7 +264,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
   - Move `loadIndexArtifacts(...)` and any “find pieces / read manifest / read artifacts” logic.
 - [x] Extract merge logic to `src/index/build/piece-assembly/merge.js`
   - “merge postings / merge bundles / merge filter index / merge relations” helpers
-- [ ] Keep `assembleIndexPieces(...)` in `piece-assembly.js` as orchestrator (or move to `piece-assembly/index.js` with a façade).
+- [ ] Keep `assembleIndexPieces(...)` in `piece-assembly.js` as orchestrator (or move to `piece-assembly/index.js` with a facade).
 
 **Callers**
 - `tools/assemble-pieces.js` (CLI tool)
@@ -280,7 +280,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.5.1 `filterChunks` split (`src/retrieval/output/filters.js`)
 
 **Current state**
-- [.] `src/retrieval/output/filters.js` (~570 LOC) is still a large “everything bagel”.
+- [x] `src/retrieval/output/filters.js` now delegates to `src/retrieval/output/filters/*` helpers; `filterChunks` remains the orchestrator.
 - [x] Candidate selection helpers already extracted:
   - `src/retrieval/output/filters/candidates.js` exports `createCandidateHelpers(...)`
 - The file implements:
@@ -343,7 +343,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 *(Search for additional filter tests in `/tests` prefixed with `filter-` and run them too.)*
 
 #### R.5.2 Search CLI split (`src/retrieval/cli.js`)
-- [.] The CLI already delegates many responsibilities to `src/retrieval/cli/*`, but `src/retrieval/cli.js` is still ~700 LOC because `runSearchCli(...)` contains large inline glue (nested helpers + massive destructure).
+- [x] `runSearchCli(...)` now delegates inline helpers and run-config normalization to `src/retrieval/cli/*`; `cli.js` is orchestration glue.
 
 **Refactor goal**
 - Keep `runSearchCli(...)` export stable (callers: `src/integrations/core/search.js`).
@@ -371,8 +371,8 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 #### R.5.4 Search pipeline split (`src/retrieval/pipeline.js`)
 
 **Current state**
-- [.] Candidate-building has been extracted to `src/retrieval/pipeline/candidates.js`.
-- `src/retrieval/pipeline.js` is still ~640 LOC and mixes:
+- [x] `src/retrieval/pipeline.js` now delegates query-AST, ANN backend normalization, and fusion helpers to `src/retrieval/pipeline/*`.
+- `src/retrieval/pipeline.js` still mixes:
   - query-AST phrase checks
   - backend selection (ANN, sqlite FTS, etc.)
   - scoring logic (RRF, blend, symbol boosts, phrase boosts)
@@ -413,7 +413,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - plus `node tests/run.js --lane pr`
 
 #### R.5.5 JSON stream split
-- [x] `src/shared/json-stream.js` is a façade over `src/shared/json-stream/*`
+- [x] `src/shared/json-stream.js` is a facade over `src/shared/json-stream/*`
 
 #### R.5.6 Filter merge module
 - [x] `src/retrieval/filters.js` uses `src/shared/filter/merge.js`
@@ -479,7 +479,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] `tools/config-inventory.js` delegates to `tools/config-inventory/*`
 
 #### R.6.6 dict-utils split
-- [x] `tools/dict-utils.js` is the public façade; internal helpers live in `tools/dict-utils/*`
+- [x] `tools/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
 
 ---
 
@@ -515,8 +515,6 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 
 ### R.8 Post-refactor follow-ups
 
-- [ ] After the above splits, re-evaluate `eslint.config.js` `max-lines`:
-  - Optionally lower the threshold for non-generated files if monoliths are under control.
 - [ ] Update `docs/guides/architecture.md` if module boundaries materially change (filters/pipeline/tools).
 - [ ] Update `docs/guides/commands.md` and `docs/tooling/script-inventory.json` if any script entrypoints changed.
 
