@@ -27,12 +27,18 @@ const result = spawnSync(
 
 if (result.status === 0) {
   console.error('Expected search to fail when index is missing.');
+  console.error('stdout:', result.stdout || '<empty>');
+  console.error('stderr:', result.stderr || '<empty>');
   process.exit(1);
 }
 
 const output = getCombinedOutput(result);
 if (!output.includes('build-index')) {
   console.error('Expected missing index message to include build-index hint.');
+  console.error('exit status:', result.status);
+  console.error('stdout:', result.stdout || '<empty>');
+  console.error('stderr:', result.stderr || '<empty>');
+  console.error('combined output:', output || '<empty>');
   process.exit(1);
 }
 

@@ -106,7 +106,6 @@ export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
     embeddingProvider,
     embeddingOnnx,
     hnswConfig,
-    sqliteConfig,
     sqliteAutoChunkThreshold,
     sqliteAutoArtifactBytes,
     postingsConfig,

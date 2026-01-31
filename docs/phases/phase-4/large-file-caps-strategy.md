@@ -177,6 +177,8 @@ Implement:
    * Ensure `fileHashAlgo` is not hardcoded in new paths.
 
 ### 5.6 `src/index/build/watch.js` (recommended hardening)
+Maintenance note: if `watch.js` grows again, prefer extracting additional pure helpers to
+`src/index/build/watch/*.js` instead of adding large inline blocks.
 1. Replace the local `resolveMaxBytesForExt()` logic with calls to the canonical `resolveFileCaps()`:
    * compute `languageId = getLanguageForFile(ext, relKey)?.id ?? null` where available.
 2. Use `effectiveMaxBytes = min(runtime.maxFileBytes, caps.maxBytes)` for skip decisions.

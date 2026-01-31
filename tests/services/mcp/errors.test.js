@@ -49,14 +49,17 @@ try {
   });
   const missingIndex = await readMessage();
   if (!missingIndex.result?.isError) {
+    console.error('missing index raw response:', JSON.stringify(missingIndex, null, 2));
     throw new Error('search without indexes should return isError');
   }
   const missingPayload = JSON.parse(missingIndex.result?.content?.[0]?.text || '{}');
   if (!missingPayload.message?.toLowerCase().includes('index')) {
+    console.error('missing index payload:', JSON.stringify(missingPayload, null, 2));
     throw new Error('search missing index error payload missing message');
   }
   const hint = missingPayload.hint || '';
   if (!hint.includes('build-index') && !hint.includes('build-sqlite-index')) {
+    console.error('missing index payload:', JSON.stringify(missingPayload, null, 2));
     throw new Error('search missing index error payload missing hint');
   }
 

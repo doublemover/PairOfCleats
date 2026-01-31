@@ -1,5 +1,3 @@
-Do not do anything in this roadmap unless GIGAROADMAP has been completed fully. 
-
 # PairOfCleats NextRoadmap
 
     ## Status legend
@@ -13,632 +11,117 @@ Do not do anything in this roadmap unless GIGAROADMAP has been completed fully.
 
     Completed Phases: `COMPLETED_PHASES.md`
 
-## Roadmap List
-### Foundational
-- Phase 6 Audit checklist
-  - Phase 6.1 VFS hardening: stable virtual paths + manifest roundtrip
-    - 6.1.1 VFS Virtual Path specification (source of truth)
-    - 6.1.2 Virtual path stability test
-    - 6.1.3 VFS manifest roundtrip test (unsharded + sharded)
-    - 6.1.4 Add a minimal VFS disk-path safety test (recommended)
-- Phase 6.2 CI coverage: schema validation + clearer CI OS lanes
-    - 6.2.1 Ensure schema & index validation always run in PR CI
-    - 6.2.2 Refine GitHub Actions CI job naming and OS coverage
-- Phase 6.3 Determinism + metaV2 correctness after post-processing
-    - 6.3.1 call_sites determinism test
-    - 6.3.2 Ensure metaV2 is finalized after cross-file inference mutations
-- Phase 6.4 Heuristic noise reduction: reserved words + code dictionaries + token classification
-    - 6.4.1 Promote per-language reserved word sets to “complete” keyword lists
-    - 6.4.2 Per-language “code dictionaries” for identifier segmentation
-    - 6.4.3 Token classification (keyword vs identifier vs operator) + weighting
-- Phase 6.5 CI-Long lane: isolate long-running tests
-    - 6.5.1 Create a “CI-Long” lane that runs only tests tagged `long`
-- Phase 7 -- Embeddings + ANN: Determinism, Policy, and Backend Parity
-    - 7.1 - Build-scoped embeddings jobs and Best-Effort Enqueue Semantics
-    - 7.2 - Embeddings Artifact Contract and Explicit Capability Signaling
-    - 7.3 - Quantization Invariants
-    - 7.4 - Normalization Policy Consistency Across Build Paths and Query-Time ANN
-    - 7.5 - LanceDB ANN correctness and resilience
-    - 7.6 - HNSW ANN correctness, compatibility, and failure observability
-    - 7.7 - ANN Backend Policy and Parity 
-    - 7.8 - Backend Storage Resilience Required by Embeddings/ANN Workflows
-- Phase 9 -- Symbol Identity + Cross-File Linking
-    - 9.1 - Verify Identity Primitives 
-    - 9.2 - Symbol Identity 
-        - 9.2.1 Implement Symbol Identity Helpers
-        - 9.2.2 Attach `metaV2.symbol`
-    - 9.3 - Import Bindings + resolver
-        - 9.3.1 Emit `importBindings` in `file_relations`
-        - 9.3.2 Relative Import Resolver Helper
-        - 9.3.3 SymbolRef Resolver
-        - 9.3.4 Tests
-    - 9.4 - Cross-file Linking Pipeline 
-        - 9.4.1 Replace `file::name` Join Logic with SymbolRef resolution
-        - 9.4.2 Emit new-format `callLinks` and `usageLinks`
-        - 9.4.3 Keep `callSummaries`, but add resolved IDs where possible
-        - 9.4.4 Tooling Provider Audit
-        - 9.4.5 Pipeline Tests
-    - 9.5 - Symbol Graph Artifacts
-        - 9.5.1 Writers
-        - 9.5.2 Artifact Integration
-    - 9.6 - Graph Building
-        - 9.6.1 Update Graph Builder to ingest SymbolRef links
-        - 9.6.2 Version Bump
-    - 9.7 - Map Build (stop using `file::name` as member identity)
-        - 9.7.1 Member ID Strategy
-        - 9.7.2 Backward Compatibility
-    - 9.8 - Determinism + throughput
-        - 9.8.2 Throughput Checks
-- Phase 10 -- Interprocedural Risk Flows
-    - 10.1 - Configuration + Runtime Wiring
-    - 10.2 - Contract Hardening Prerequisites
-    - 10.3 - Risk Summaries
-    - 10.4 - Call-Site Sampling + `call_sites.jsonl`
-    - 10.5 - Propagation engine + `risk_flows.jsonl`
-    - 10.6 - Artifact writing, Sharding, Validation, & determinism (E2E)
-    - 10.7 - Explainability Tooling (CLI)
-    - 10.8 - End-to-End Test Matrix & Performance Guardrails
-    - 10.A - Risk Interprocedural Config Spec 
-    - 10.B - `risk_summaries.jsonl` Spec 
-    - 10.C - `risk_flows.jsonl` + `call_sites.jsonl` Spec 
-    - 10.D - `risk_interprocedural_stats.json` Spec 
-    - 10.E -- Implementation Notes 
+### Source-of-truth hierarchy (when specs disagree)
+When a document/spec conflicts with the running code, follow this order:
+
+1) **`src/contracts/**` and validators** are authoritative for artifact shapes and required keys.
+2) **Current implementation** is authoritative for runtime behavior *when it is already validated by contracts/tests*.
+3) **Docs** (`docs/contracts/**`, `docs/specs/**`, `docs/phases/**`) must be updated to match (never the other way around) unless we have a deliberate migration plan.
+
+If you discover a conflict:
+- **Prefer “fix docs to match code”** when the code is already contract-validated and has tests.
+- **Prefer “fix code to match docs/contracts”** only when the contract/validator is explicit and the code violates it.
+
+### Touchpoints + line ranges (important: line ranges are approximate)
+This document includes file touchpoints with **approximate** line ranges like:
+
+- `src/foo/bar.js` **(~L120–L240)** — anchor: `someFunctionName`
+
+Line numbers drift as the repo changes. Treat them as a **starting hint**, not a hard reference.
+Always use the **anchor string** (function name / constant / error message) as the primary locator.
+
+### Tests: lanes + name filters (use them aggressively)
+The repo has a first-class test runner with lanes + filters:
+
+- Runner: `npm test` (alias for `node tests/run.js`)
+- List lanes/tags: `npm test -- --list-lanes` / `npm test -- --list-tags`
+- Run a lane: `npm run test:unit`, `npm run test:integration`, `npm run test:services`, etc.
+- Filter by name/path (selectors):  
+  - `npm test -- --match risk_interprocedural`  
+  - `npm run test:unit -- --match chunk-uid`  
+  - `npm run test:integration -- --match crossfile`
+
+**Lane rules are defined in:** `tests/run.rules.jsonc` (keep new tests named/placed so they land in the intended lane).
+
+### Deprecating spec documents: archive policy (MANDATORY)
+When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
+
+- **Move the deprecated doc to:** `docs/archived/` (create this folder if missing).
+- Keep a short header in the moved file indicating:
+  - what replaced it,
+  - why it was deprecated,
+  - the date/PR.
+- Add/update the repository process in **`AGENTS.md`** so future agents follow the same archival convention.
+
+This roadmap includes explicit tasks to enforce this process (see Phase 10 doc merge).
 
 ---
 
-## Phase 6 -- Finalization
 
-> **Important:** A meaningful portion of this phase may already be implemented in this repo.  
-> Before writing new code, **audit the referenced files/tests** and only add/modify what’s missing or incorrect.
+## Roadmap Table of Contents
+> **Reminder:** This list is a navigational summary. The authoritative implementation details live in the phase bodies below.
 
-### Goals
+- **Phase 7 — Embeddings + ANN unification**
+  - 7.0 — Foundation: contracts, terminology, and execution order
+  - 7.1 — Embedding jobs are build-scoped, deterministic, idempotent
+  - 7.2 — Artifact contract parity for embeddings + ANN
+  - 7.3 — Quantization invariants end-to-end
+  - 7.4 — Normalization policy consistency across build + query-time ANN
+  - 7.5 — LanceDB ANN correctness and resilience
+  - 7.6 — HNSW ANN correctness, compatibility, and failure observability
+  - 7.7 — ANN backend policy and parity
+  - 7.8 — Backend storage resilience required by embeddings/ANN workflows
+  - Phase 7 mapping + strict manifest compliance addendum (mandatory)
 
-1. **Determinism & portability:** VFS virtual paths and “call_sites” output must be stable across runs/OSes.
-2. **Artifact correctness:** VFS manifest and metaV2 must be correct, schema-valid, and consistent with post-processing.
-3. **Noise reduction:** Improve call/usage heuristics and tokenization so keyword noise is controlled without losing queryability.
-4. **CI completeness:** CI lanes must always run schema/validator coverage; long tests must be runnable in a dedicated lane.
+- **Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking**
+  - Phase 9 objective + non-goals + locked decisions
+  - Phase 9 contracts (normative; implementation-ready)
+  - Phase 9 implementation plan (tasks/tests)
+    - 9.1 — Verify identity primitives
+    - 9.2 — Symbol identity
+      - 9.2.1 — Implement/extend symbol identity helpers
+      - 9.2.2 — Attach `metaV2.symbol`
+    - 9.3 — Import bindings + resolver
+      - 9.3.1 — Emit `importBindings` in `file_relations`
+      - 9.3.2 — Relative import resolver helper
+      - 9.3.3 — SymbolRef resolver
+      - 9.3.4 — Tests
+    - 9.4 — Cross-file linking pipeline
+      - 9.4.1 — Replace `file::name` join logic with SymbolRef resolution
+      - 9.4.2 — Emit new-format `callLinks` and `usageLinks`
+      - 9.4.3 — Keep `callSummaries`, but add resolved IDs where possible
+      - 9.4.4 — Tooling provider audit
+      - 9.4.5 — Pipeline tests
+    - 9.5 — Symbol graph artifacts
+      - 9.5.1 — Writers
+      - 9.5.2 — Artifact integration
+    - 9.6 — Graph building
+      - 9.6.1 — Update graph builder to ingest SymbolRef links
+      - 9.6.2 — Version bump
+    - 9.7 — Map build (stop using `file::name` as member identity)
+      - 9.7.1 — Member ID strategy
+      - 9.7.2 — Backward compatibility
+    - 9.8 — Performance, determinism, and regression guardrails
+      - 9.8.1 — Determinism requirements
+      - 9.8.2 — Throughput requirements
+  - Phase 9 exit criteria + addendum (dependencies, ordering, artifacts, tests, edge cases)
 
----
-
-## 6.0 Audit checklist (do this first)
-
-- [ ] Confirm these Phase 6 tests already exist and are green:
-  - `tests/vfs/virtual-path-stability.test.js`
-  - `tests/vfs/vfs-manifest-roundtrip.test.js`
-  - `tests/indexer/call-sites-determinism.test.js`
-  - `tests/indexer/metav2-recompute-equivalence.test.js`
-- [ ] Confirm VFS manifest is actually produced during an index build:
-  - Collection: `src/index/build/file-processor/process-chunks.js` → `buildVfsManifestRowsForFile()`
-  - State aggregation: `src/index/build/indexer/steps/process-files.js` → `state.vfsManifestRows`
-  - Emission: `src/index/build/artifacts/writers/vfs-manifest.js` → `enqueueVfsManifestArtifacts()`
-  - Manifest wiring: `src/index/build/artifacts.js` adds piece `vfs_manifest`
-- [ ] Confirm metaV2 finalization happens *after* any mutation steps:
-  - Cross-file inference: `src/index/build/indexer/steps/relations.js` → `runCrossFileInference()` mutates `chunk.docmeta` / `chunk.codeRelations`
-  - Finalization: `src/index/build/indexer/steps/write.js` → `finalizeMetaV2({ chunks })` **before** writing artifacts
-- [ ] Confirm GitHub Actions PR CI runs `ci-lite` (and thus includes contracts + validate coverage):
-  - Workflow: `.github/workflows/ci.yml`
-  - Test command: `npm run test:ci-lite`
-  - Source of truth list: `tests/ci-lite/ci-lite.order.txt`
-
-If any item above is missing, fix it as part of Phase 6 (details below).
-
----
-
-## 6.1 VFS hardening: stable virtual paths + manifest roundtrip
-
-### 6.1.1 VFS Virtual Path specification (source of truth)
-
-**Primary implementation:** `src/index/tooling/vfs.js`
-
-- `VFS_PREFIX` is `".poc-vfs"`.
-- `buildVfsVirtualPath({ containerPath, segmentUid, ext, effectiveExt })` must be:
-  - **Pure & deterministic** (same inputs → same output across runs/OS).
-  - **Path-safe for LSP/tooling** (no OS separators except `/`).
-  - **Stable across host paths**: uses `normalizeRelPath()` and `encodeContainerPath()`:
-    - `encodeContainerPath()` base64url-encodes the normalized relative path.
-    - `decodeContainerPath()` reverses it.
-  - **Segment addressing is explicit**:
-    - If `segmentUid` is present: suffix is `"#seg:<segmentUid>"`.
-    - Otherwise, no segment suffix.
-  - **Extension selection rules**:
-    - `effectiveExt` (if non-empty) takes precedence over `ext`.
-    - Both are normalized to include a leading dot when present.
-    - If neither exists, no extension suffix is added.
-
-**Disk path mapping for tooling (not “virtual path”):**
-- `resolveVfsDiskPath({ baseDir, virtualPath })`:
-  - Splits the virtual path on `/` into components.
-  - Encodes Windows-illegal characters in each component via `encodeURIComponent()` for `[:*?"<>|]`.
-  - Joins using `path.sep` and roots at `baseDir`.
-
-The **stable spec** is: *virtual paths are posix-style with `/`, disk paths are OS-safe via escaping.*
+- **Phase 10 — Interprocedural risk propagation + explainability artifacts**
+  - Source-of-truth decisions + conflicts resolved (A–C)
+  - 10.0 — Documentation merge + canonical spec cleanup (FOUNDATION)
+  - 10.1 — Config wiring + runtime gating (FOUNDATION)
+  - 10.2 — Param name stabilization for arg-aware mode (FOUNDATION)
+  - 10.3 — Risk summaries (artifact + compact docmeta)
+  - 10.4 — Shared callsite utilities (FOUNDATION)
+  - 10.5 — Interprocedural propagation → `risk_flows`
+  - 10.6 — Artifact writing + contracts + manifest integration
+  - 10.7 — Validation + referential integrity
+  - 10.8 — CLI: explain interprocedural risk flows
+  - 10.9 — Cross-cutting robustness improvements (recommended)
+  - Phase 10 completion checklist
+  - 10.A–10.E — Spec appendices (output of 10.0 merge; keep in-sync with contracts)
 
 ---
-
-### 6.1.2 Task: Virtual path stability test
-
-**Test file (must exist and pass):** `tests/vfs/virtual-path-stability.test.js`
-
-**Must validate:**
-- [ ] Determinism: multiple invocations with identical inputs are string-equal.
-- [ ] Segment switching: changing `segmentUid` changes output only in the `#seg:` suffix.
-- [ ] Effective extension: `effectiveExt` overrides `ext`.
-- [ ] Cross-platform invariants:
-  - The returned string always starts with `".poc-vfs/"`.
-  - It never contains `\` (backslash), even on Windows.
-  - It does not include raw absolute paths.
-
-**Key implementation references:**
-- `src/index/tooling/vfs.js`:
-  - `buildVfsVirtualPath()`
-  - `encodeContainerPath()`, `decodeContainerPath()`
-  - `normalizeRelPath()` (imported from `../../shared/paths.js`)
-
-If the existing test doesn’t cover the invariants above, extend it.
-
----
-
-### 6.1.3 Task: VFS manifest roundtrip test (unsharded + sharded)
-
-**Test file (must exist and pass):** `tests/vfs/vfs-manifest-roundtrip.test.js`
-
-**Manifest schema reference (authoritative):**
-- `src/contracts/schemas/artifacts.js` → `vfsManifestRow` schema
-- Manifest writer uses:
-  - `src/index/build/artifacts/writers/vfs-manifest.js`
-  - `VFS_MANIFEST_SCHEMA_VERSION` from `src/index/tooling/vfs.js`
-
-**Roundtrip requirements:**
-- [ ] **Unsharded mode**: writing `vfs_manifest.jsonl` and reading it back returns identical rows.
-- [ ] **Sharded mode**: forcing shard split via `maxJsonBytes` writes:
-  - `vfs_manifest.meta.json`
-  - `vfs_manifest.parts/…`
-  - reading back yields the same rows.
-- [ ] Ordering:
-  - Writer sorts rows with `sortVfsManifestRows()` so output is deterministic.
-- [ ] Row trimming:
-  - Writer enforces `MAX_ROW_BYTES` (32 KB). Oversized rows must be trimmed in a deterministic way (`maybeTrimRow()`).
-
-**Key implementation references:**
-- Writer: `src/index/build/artifacts/writers/vfs-manifest.js`
-  - `createVfsManifestRows()`
-  - `sortVfsManifestRows()`
-  - `buildManifestRow()` / `maybeTrimRow()`
-  - `enqueueVfsManifestArtifacts()`
-- Reader: `src/index/tooling/vfs.js`
-  - `readVfsManifestRowsFromDisk()`
-  - `readVfsManifestFromIndexRoot()`
-
----
-
-### 6.1.4 Task: Add a minimal VFS disk-path safety test (recommended)
-
-**Why:** `resolveVfsDiskPath()` is used on Windows, macOS, Linux. It must not create illegal filename components.
-
-**New test (add):**
-- `tests/vfs/vfs-disk-path-safety.test.js`
-
-**Test cases:**
-- [ ] A virtual path containing illegal Windows characters in a component (e.g. `":"`, `"*"`, `"?"`, `"|"`) is converted to a disk path where those characters are percent-encoded.
-- [ ] Returned disk path is under `baseDir` (no traversal).
-- [ ] `virtualPath` containing `..` as a segment is treated as a literal component (still joined under baseDir), not as traversal.
-  - If you consider `..` unsafe, then explicitly encode it or reject it; document the decision and test accordingly.
-
-**Key implementation reference:** `src/index/tooling/vfs.js` → `resolveVfsDiskPath()`.
-
----
-
-## 6.2 CI coverage: schema validation + clearer CI OS lanes
-
-### 6.2.1 Task: Ensure schema & index validation always run in PR CI
-
-**Goal:** If artifact schemas or validators break, PR CI must fail.
-
-**What must be covered by the PR CI lane (`ci-lite`):**
-- [ ] **Contract/schema tests** (minimum):
-  - `tests/contracts/schema-registry-single-source.test.js`
-  - `tests/contracts/public-artifact-surface-doc.test.js`
-  - `tests/contracts/artifact-surface-version.test.js`
-- [ ] **Index validator tests** (minimum):
-  - `tests/validate/index-validate-strict.test.js`
-  - `tests/validate/index-validate-load-manifest.test.js`
-  - `tests/validate/index-validate-missing-pieces.test.js`
-  - `tests/validate/index-validate-unknown-piece.test.js`
-
-**Source of truth for what runs in `ci-lite`:**
-- `tests/ci-lite/ci-lite.order.txt`  
-  CI-lite is special-cased in `tests/run.js` and uses this order file verbatim.
-
-**Acceptance criteria:**
-- The list above is present in `ci-lite.order.txt`.
-- `npm run test:ci-lite` fails when you intentionally break a schema or validator check.
-
-**Implementation references:**
-- Workflow: `.github/workflows/ci.yml`
-- Test runner: `tests/run.js` (ci-lite order-file logic)
-
----
-
-### 6.2.2 Task: Refine GitHub Actions CI job naming and OS coverage
-
-**Workflow file:** `.github/workflows/ci.yml`
-
-**Problems to address:**
-- Job name `test` is ambiguous (it is really **Ubuntu**).
-- Windows job is named `test-windows` but uses different OS runner (`windows-2022`) than nightly (`windows-latest`).
-- macOS is covered in nightly, but not PR CI.
-
-**Required changes:**
-- [ ] Rename job ids + display names:
-  - `test` → `ubuntu`
-  - `test-windows` → `windows`
-- [ ] Add a `macos` job running `npm run test:ci-lite`:
-  - Runner: `macos-latest`
-  - Keep it blocking if it’s fast enough; otherwise make it non-blocking but visible.
-- [ ] Align Windows runner choice with nightly unless you have a reason:
-  - Prefer `windows-latest` unless a specific toolchain requires `windows-2022`.
-
-**Acceptance criteria:**
-- PR CI UI clearly shows `ubuntu`, `windows`, and `macos`.
-- All jobs run the same Node version and `npm run test:ci-lite`.
-
-**Related workflow:** `.github/workflows/nightly.yml` (already includes macOS).
-
----
-
-## 6.3 Determinism + metaV2 correctness after post-processing
-
-### 6.3.1 Task: call_sites determinism test
-
-**Test file (must exist and pass):** `tests/indexer/call-sites-determinism.test.js`
-
-**What the test must guarantee:**
-- [ ] Two consecutive builds of the same fixture repository produce `call_sites.jsonl` output that is **line-identical**.
-- [ ] The fixture repo must be stable and self-contained (no network).
-- [ ] The test must not depend on wall-clock timestamps:
-  - Compare content files, not meta `generatedAt` timestamps.
-
-**Key implementation references:**
-- Writer: `src/index/build/artifacts/writers/call-sites.js`
-  - Determinism is primarily controlled by `sortCallSites(rows)`.
-- Call detail production:
-  - Call details are stored on `chunk.codeRelations.callDetails`.
-  - Cross-file inference may add `targetChunkUid`/`targetDocId`/`targetCandidates`.
-
-If determinism fails on Windows, inspect any path normalization differences and ensure ordering sort keys use normalized file paths (posix style `src/...`) rather than OS paths.
-
----
-
-### 6.3.2 Task: Ensure metaV2 is finalized after cross-file inference mutations
-
-**Why:** `metaV2` is a “flattened” structure derived from `chunk` + `chunk.docmeta` + `chunk.codeRelations`.  
-Cross-file inference **mutates** those, so stale metaV2 would be a correctness bug.
-
-**How it currently must work:**
-- First metaV2 build (per-chunk) happens during assembly:
-  - `src/index/build/file-processor/assemble.js` → `buildMetaV2(chunk)`
-- Mutations happen later:
-  - `src/index/build/indexer/steps/relations.js` → `runCrossFileInference()` (calls `applyCrossFileInference()`)
-- Final metaV2 rebuild must happen at the end:
-  - `src/index/build/indexer/steps/write.js` → `finalizeMetaV2({ chunks })`
-
-**Acceptance criteria:**
-- `finalizeMetaV2()` is invoked for every write mode (`code`, `prose`) **after** all mutation steps.
-- Any artifact that includes `chunk.metaV2` is written after this finalization.
-
-**Add/extend an integration assertion (recommended):**
-- Update `tests/indexing/type-inference/crossfile-output.integration.test.js` to also assert:
-  - `buildWidget.metaV2.docmeta.inferredTypes.returns` includes `{ type: "Widget", source: "flow" }`
-  - `buildWidget.metaV2.codeRelations.callLinks` includes the link to `createWidget`
-  - `buildWidget.metaV2.codeRelations.usageLinks` includes the link to `Widget`
-- This specifically catches stale metaV2 after inference.
-
----
-
-## 6.4 Heuristic noise reduction: reserved words + code dictionaries + token classification
-
-This subsection affects:
-- Call/usage extraction in heuristic parsers (C-like, Go, Java, Kotlin, C#, Lua, Perl, PHP, Ruby, Shell, TypeScript).
-- Tokenization quality (identifier splitting / keyword noise).
-
-### 6.4.1 Task: Promote per-language reserved word sets to “complete” keyword lists
-
-**Current problem:** the existing `*_CALL_KEYWORDS` and `*_USAGE_SKIP` sets are partial.  
-This causes false-positive calls/usages for keywords and builtin type names.
-
-**Primary implementation locations to update:**
-- C-like:
-  - `src/index/constants.js` → `CLIKE_CALL_KEYWORDS`, `CLIKE_USAGE_SKIP`
-- TypeScript:
-  - `src/lang/typescript/constants.js` → `TS_CALL_KEYWORDS`, `TS_USAGE_SKIP`, `TS_FLOW_SKIP`
-- Others (inline in file):
-  - `src/lang/csharp.js` → `CSHARP_CALL_KEYWORDS`, `CSHARP_USAGE_SKIP`
-  - `src/lang/go.js` → `GO_CALL_KEYWORDS`, `GO_USAGE_SKIP`
-  - `src/lang/java.js` → `JAVA_CALL_KEYWORDS`, `JAVA_USAGE_SKIP`
-  - `src/lang/kotlin.js` → `KOTLIN_CALL_KEYWORDS`, `KOTLIN_USAGE_SKIP`
-  - `src/lang/lua.js` → `LUA_CALL_KEYWORDS`, `LUA_USAGE_SKIP`
-  - `src/lang/perl.js` → `PERL_CALL_KEYWORDS`, `PERL_USAGE_SKIP`
-  - `src/lang/php.js` → `PHP_CALL_KEYWORDS`, `PHP_USAGE_SKIP`
-  - `src/lang/ruby.js` → `RUBY_CALL_KEYWORDS`, `RUBY_USAGE_SKIP`
-  - `src/lang/shell.js` → `SHELL_CALL_KEYWORDS`, `SHELL_USAGE_SKIP`
-  - Rust (flow/dataflow only):
-    - `src/lang/rust.js` → `RUST_USAGE_SKIP`
-
-**Required refactor (recommended for maintainability):**
-- [ ] For each language module above, introduce a single exported `*_RESERVED_WORDS` (or `*_KEYWORDS`) set that is the **superset**.
-- [ ] Define:
-  - `*_CALL_KEYWORDS = RESERVED_WORDS ∩ {things that can appear before “(” in syntax but are not calls}`
-  - `*_USAGE_SKIP = RESERVED_WORDS ∪ {primitive types, literals, ultra-common words}`  
-    (keep it *strictly* a superset to reduce false positives)
-- [ ] Ensure all sets are:
-  - lowercased where language is case-sensitive (except where language semantics require case, e.g., Rust `Self`)
-  - sorted in source for readability (alphabetical)
-  - have no duplicates
-
-**Acceptance criteria:**
-- Fewer false positives in `calls`/`usages` for the targeted languages.
-- No existing tests regress.
-
-**Add regression tests (must add):**
-- `tests/relations/keyword-skip-heuristics.test.js` (new)
-
-Design:
-- For each language that uses regex `\bNAME\s*\(` call extraction, feed a snippet that contains:
-  - control structures that look like calls: `if(...)`, `for(...)`, `while(...)`, etc
-  - real calls: `foo(...)`, `obj.foo(...)`
-- Assert that:
-  - control structure keywords are **not** included in `calls`
-  - `foo`/`obj.foo` **are** included
-
-Implementation hint:
-- Use the existing relation entrypoints:
-  - C-like: `src/lang/clike.js` exports `buildCLikeRelations` (or equivalent; see file exports)
-  - Go: `buildGoRelations(...)` or the module export that returns `{ calls, usages }`
-  - etc.
-
-If you don’t have a clean exported function, test the internal `collect*CallsAndUsages()` functions directly.
-
----
-
-### 6.4.2 Task: Per-language “code dictionaries” for identifier segmentation
-
-**Goal:** Improve identifier splitting (e.g., `HTTPRequest` → `http` + `request`, `userID` → `user` + `id`)  
-**without changing core scoring/ranking logic** (only segmentation quality).
-
-**Current segmentation engine:** `src/shared/tokenize.js`
-- `splitWordsWithDict(token, dictWords, config)` is already used by:
-  - index-time tokenization: `src/index/build/tokenization.js`
-  - query-time tokenization: `src/retrieval/query.js`
-
-**Proposed design:**
-- [ ] Add a second dictionary source: **code dictionaries**, separate from natural-language dictionaries.
-- [ ] Code dictionaries are loaded, and applied only when tokenizing code (index mode `code`).
-- [ ] Provide:
-  - `common-code.txt` (shared abbreviations): `http`, `url`, `uuid`, `json`, `yaml`, `html`, `css`, `sql`, `api`, `cli`, `ui`, `db`, `rpc`, `grpc`, `tls`, `ssl`, `jwt`, `oauth`, etc.
-  - Per-language additions: `go.txt`, `java.txt`, `typescript.txt`, etc.
-
-**Where to implement:**
-- Dictionary path discovery:
-  - Extend `tools/dict-utils/paths/dictionaries.js` (or add sibling `code-dictionaries.js`)
-  - Add config shape to `tools/dict-utils/config/schema` (if present) or document it in roadmap.
-- Runtime load:
-  - `src/index/build/runtime/runtime.js` → `loadDictionaryWords(...)` currently loads `dictWords`
-  - Add `codeDictWords` and/or `codeDictWordsByLanguage`
-- Tokenization:
-  - `src/index/build/tokenization.js`:
-    - When `mode === "code"`, pass a dictionary set that unions:
-      - natural dict words (`dictWords`)
-      - common code dict
-      - effective-language-specific code dict (if any)
-  - Ensure worker tokenization has access too:
-    - `src/index/build/workers/indexer-worker.js` uses `createTokenizationContext()`
-
-**Acceptance criteria:**
-- Turning on code dictionaries improves segmentation for representative identifiers.
-- Prose segmentation is unaffected unless explicitly configured.
-
-**Add tests (must add):**
-- `tests/tokenize-code-dictionaries.test.js` (new)
-  - Verify that with a code dictionary containing `http` and `request`, `HTTPRequest` splits to include `http` and `request`.
-  - Verify that with code dictionaries disabled, splitting falls back to existing behavior.
-
----
-
-### 6.4.3 Task: Token classification (keyword vs identifier vs operator) + weighting
-
-**Goal:** Keep keywords/operators searchable but reduce their ranking impact (keyword-noise control).
-
-**Core requirements:**
-- [ ] Add classification for code tokens into at least:
-  - `identifier`
-  - `keyword`
-  - `operator`
-  - `literal` (numbers/strings)
-- [ ] Use Tree-sitter token/node types when available, **fallback** to keyword lists only when necessary.
-  - Tree-sitter config: `src/lang/tree-sitter/config.js` lists supported `TREE_SITTER_LANGUAGE_IDS`.
-- [ ] Keep keywords indexable but **down-weight** them relative to identifiers.
-
-#### Proposed implementation strategy (fits current architecture)
-
-**A) Extend tokenization output to carry typed token buckets**
-- Modify `src/index/build/tokenization.js`:
-  - Currently returns `{ tokens, frequencies, positions, totalTokens }`
-  - Extend to also return:
-    - `identifierTokens` (array)
-    - `keywordTokens` (array)
-    - `operatorTokens` (array)
-  - `tokens` should continue to exist for backward compatibility (initially keep it as the union).
-
-**B) Feed typed buckets into `fieldTokens`**
-- Modify `src/index/build/file-processor/assemble.js` `buildChunkPayload()`:
-  - Currently sets `fieldTokens = { name, signature, doc, comment, body }`
-  - Add new fields:
-    - `fieldTokens.keyword = keywordTokens`
-    - `fieldTokens.operator = operatorTokens`
-  - Decide what `body` should contain:
-    - **Recommended final shape:** `body = identifierTokens` only
-    - But do this behind a config flag for compatibility (see below).
-
-**C) Build field postings for new token fields**
-- Modify `src/index/build/state.js`:
-  - `fieldPostings` currently has `name`, `signature`, `doc`, `comment`, `body`.
-  - Add `keyword` and `operator` maps (or make this dynamic by iterating keys from `chunk.fieldTokens`).
-- Ensure `src/index/build/postings.js` writes `field_postings.json` with the additional fields.
-
-**D) Retrieval: add default weights for new fields**
-- Modify `src/retrieval/query-intent.js`:
-  - Extend `DEFAULT_FIELD_WEIGHTS` to include:
-    - `keyword`: small weight (e.g., 0.15–0.35)
-    - `operator`: tiny weight (e.g., 0.05) or 0 (indexable but not scoring)
-- Ensure `src/retrieval/pipeline.js` still operates if these fields are missing (older index).
-
-**E) Compatibility plan**
-- Add config flag (suggested):
-  - `indexing.postings.tokenClassification.enabled` (default: `false` initially)
-- When disabled:
-  - Keep current behavior: `body = tokens` (union), no new fields required.
-- When enabled:
-  - `body = identifierTokens`
-  - `keyword`/`operator` fields populated and weighted.
-
-**Acceptance criteria:**
-- Queries with only identifiers behave the same or better.
-- Queries that are mostly keywords (e.g., `async await`) still return results, but keyword-only matches don’t dominate ranking.
-
-**New tests (must add):**
-1. `tests/tokenization/token-classification-tree-sitter.test.js`
-   - Feed a small snippet in a Tree-sitter-supported language (e.g., JS or Go).
-   - Assert that tokens are classified as expected:
-     - identifiers go to `identifierTokens`
-     - `if`, `for`, `return` go to `keywordTokens`
-     - `=>`, `.`, `::`, `(`, `)` go to `operatorTokens` (depending on which operators you choose to index)
-2. `tests/retrieval/keyword-downweighting.test.js`
-   - Build a tiny synthetic index with two chunks:
-     - Chunk A: many keyword tokens, few identifiers
-     - Chunk B: fewer keywords, matching identifiers
-   - Query for identifiers + keyword; assert chunk B ranks above A when classification is enabled.
-
----
-
-## 6.5 CI-Long lane: isolate long-running tests
-
-### 6.5.1 Task: Create a “CI-Long” lane that runs only tests tagged `long`
-
-**Why:** Long tests slow PR feedback; they belong in scheduled/nightly lanes.
-
-**Source of truth for “long”:**
-- Tag rules in `tests/run.rules.jsonc` under `"tagRules"` include tag `"long"`.
-
-**Required changes (recommended design: lane alias)**
-- [ ] Update `tests/run.rules.jsonc`:
-  - Add `"ci-long"` to `"knownLanes"`.
-- [ ] Update `tests/run-discovery.js` `resolveLanes()`:
-  - Treat `ci-long` the same as `ci` (expand to `unit`, `integration`, `services`).
-- [ ] Update `tests/run.js`:
-  - When lane `ci-long` is requested, automatically add `--tag long` (as if user passed it).
-  - Ensure `--exclude-tag` still works as expected.
-- [ ] Add npm script in `package.json`:
-  - `"test:ci-long": "node tests/run.js --lane ci-long"`
-- [ ] Add a GitHub Actions workflow lane/job (choose one):
-  - **Option A:** Add to `.github/workflows/nightly.yml` (best): run `npm run test:ci-long` on all OSes.
-  - **Option B:** Add a separate scheduled workflow `.github/workflows/ci-long.yml`.
-
-**Acceptance criteria:**
-- `npm run test:ci-long` runs **only** tests tagged `long`.
-- PR CI remains fast (ci-lite).
-- Nightly (or scheduled) runs include ci-long.
-
-**Implementation references:**
-- Tags/lane system:
-  - `tests/run.rules.jsonc`
-  - `tests/run-discovery.js`
-  - `tests/run.js`
-
----
-
-## Appendix: Suggested “complete” reserved word lists (copy/paste seeds)
-
-> These are intended as **seed lists** to prevent having to web-search during implementation.  
-> Prefer Tree-sitter classification where possible, but keep these sets for heuristic parsers.
-
-### JavaScript / TypeScript (seed keywords)
-```
-await break case catch class const continue debugger default delete do else enum export extends false finally for function if import in instanceof new null return super switch this throw true try typeof var void while with yield let
-as implements interface package private protected public static
-any boolean bigint number object string symbol unknown never
-keyof readonly infer satisfies asserts is require namespace module type from of get set constructor declare abstract override
-```
-
-### C / C++ (seed keywords)
-```
-auto break case char const continue default do double else enum extern float for goto if inline int long register restrict return short signed sizeof static struct switch typedef union unsigned void volatile while
-_Alignas _Alignof _Atomic _Bool _Complex _Generic _Imaginary _Noreturn _Static_assert _Thread_local
-alignas alignof and and_eq asm bitand bitor bool catch char8_t char16_t char32_t class compl concept const_cast consteval constexpr constinit co_await co_return co_yield decltype delete dynamic_cast explicit export false friend import module mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public reinterpret_cast requires static_assert static_cast template this thread_local throw true try typeid typename using virtual wchar_t xor xor_eq final override
-```
-
-### Go (seed keywords + predeclared)
-```
-break default func interface select case defer go map struct chan else goto package switch const fallthrough if range type continue for import return var
-nil true false iota
-append cap close complex copy delete imag len make new panic print println real recover
-bool byte complex64 complex128 error float32 float64 int int8 int16 int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr any
-```
-
-### Java (seed)
-```
-abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while
-true false null
-var record yield sealed permits non-sealed
-module open requires exports opens to uses provides with transitive
-```
-
-### Kotlin (seed)
-```
-as as? break class continue do else false for fun if in !in interface is !is null object package return super this throw true try typealias val var when while
-by catch constructor delegate dynamic field file finally get import init param property receiver set setparam where
-actual abstract annotation companion const crossinline data enum expect external final infix inline inner internal lateinit noinline open operator out override private protected public reified sealed suspend tailrec vararg value
-```
-
-### C# (seed)
-```
-abstract as base bool break byte case catch char checked class const continue decimal default delegate do double else enum event explicit extern false finally fixed float for foreach goto if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly ref return sbyte sealed short sizeof stackalloc static string struct switch this throw true try typeof uint ulong unchecked unsafe ushort using virtual void volatile while
-add alias ascending async await by descending dynamic equals from get global group into join let nameof on orderby partial remove select set value var when where yield record init with
-```
-
-### Lua (seed)
-```
-and break do else elseif end false for function goto if in local nil not or repeat return then true until while
-```
-
-### PHP (seed)
-```
-__halt_compiler abstract and array as break callable case catch class clone const continue declare default die do echo else elseif empty enddeclare endfor endforeach endif endswitch endwhile eval exit extends final finally fn for foreach function global goto if implements include include_once instanceof insteadof interface isset list match namespace new or print private protected public readonly require require_once return static switch throw trait try unset use var while xor yield yield from
-true false null
-```
-
-### Ruby (seed)
-```
-BEGIN END alias and begin break case class def defined? do else elsif end ensure false for if in module next nil not or redo rescue retry return self super then true undef unless until when while yield
-__FILE__ __LINE__ __ENCODING__
-```
-
-### Shell (bash/sh seed)
-```
-if then else elif fi for while until do done case esac in select function time coproc
-break continue return exit shift eval exec trap wait local declare typeset readonly export set unset source
-true false
-```
-
-### Perl (seed)
-```
-my our use sub package if elsif else unless while until for foreach continue do given when default
-next last redo goto return
-BEGIN END INIT CHECK UNITCHECK
-die warn print say
-```
-
----
-
 ## Phase 7 — Embeddings + ANN unification
 
 This section is a **fully expanded, implementation-ready** rewrite of the Phase 7 roadmap. 
@@ -777,10 +260,10 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.1 Define the embedding job payload schema (versioned)
 
 **Touchpoints**
-- `src/index/build/indexer/embedding-queue.js`
-- `tools/service/queue.js`
-- `tools/indexer-service.js`
-- Tests: `tests/embedding-queue.js`, `tests/embedding-queue-defaults.js`
+- `src/index/build/indexer/embedding-queue.js` (~L1–L49)
+- `tools/service/queue.js` (~L1–L270)
+- `tools/indexer-service.js` (~L1–L441)
+- Tests: `tests/embedding-queue.js` (~L1–L51), `tests/embedding-queue-defaults.js` (~L1–L37)
 
 **New canonical job payload fields** (JSON):
 ```json
@@ -826,8 +309,8 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.2 Fix the enqueue site to emit correct fields
 
 **Touchpoints**
-- `src/index/build/indexer/pipeline.js` (search: `enqueueEmbeddingJob({`)
-- `src/index/build/indexer/embedding-queue.js`
+- `src/index/build/indexer/pipeline.js` (~L1–L326) (search: `enqueueEmbeddingJob({`)
+- `src/index/build/indexer/embedding-queue.js` (~L1–L49)
 
 **Current bug**
 - Pipeline passes `indexRoot: outDir` where `outDir` is already the per-mode index directory. This is incompatible with build-embeddings `--index-root` semantics and breaks any future “join index dir” logic.
@@ -846,9 +329,9 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.3 Worker must run build-embeddings against the correct build root
 
 **Touchpoints**
-- `tools/indexer-service.js` (function `runBuildEmbeddings`)
-- `tools/build-embeddings/cli.js` (already supports `--index-root`)
-- `tools/build-embeddings/runner.js` (already expects indexRoot base)
+- `tools/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
+- `tools/build-embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
+- `tools/build-embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
 
 **Required changes**
 - Update `runBuildEmbeddings({ job })` to include:
@@ -866,8 +349,8 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.4 Index state should clearly represent “pending embeddings”
 
 **Touchpoints**
-- `src/index/build/indexer/steps/write.js` (writes initial index_state during stage2)
-- `tools/build-embeddings/runner.js` (updates index_state during stage3)
+- `src/index/build/indexer/steps/write.js` (~L1–L101) (writes initial index_state during stage2)
+- `tools/build-embeddings/runner.js` (~L1–L763) (updates index_state during stage3)
 
 **Required state machine**
 - Stage2 build when embeddings are configured to run later via service:
@@ -972,7 +455,7 @@ SQLite vector extension ANN presence:
 ### 7.2.2 Update the embeddings manifest writer to include non-JSON artifacts
 
 **Touchpoints**
-- `tools/build-embeddings/manifest.js`
+- `tools/build-embeddings/manifest.js` (~L1–L111)
 
 **Current behavior**
 - Builds `embeddingPieces`, then filters by `ARTIFACT_SCHEMA_DEFS` names, which excludes:
@@ -997,10 +480,10 @@ SQLite vector extension ANN presence:
 ### 7.2.3 Update readers to use manifest in strict mode
 
 **Touchpoints**
-- `src/retrieval/cli-index.js` (file-backed load)
-- `src/retrieval/cli/load-indexes.js` (LanceDB attach)
-- `src/index/validate.js`
-- `src/shared/artifact-io.js` and `src/shared/artifact-io/manifest.js`
+- `src/retrieval/cli-index.js` (~L1–L416) (file-backed load)
+- `src/retrieval/cli/load-indexes.js` (~L1–L368) (LanceDB attach)
+- `src/index/validate.js` (~L1–L581)
+- `src/shared/artifact-io.js` (~L1–L12) and `src/shared/artifact-io/manifest.js` (~L1–L291)
 
 **Required behavior**
 - In strict mode:
@@ -1028,9 +511,9 @@ SQLite vector extension ANN presence:
 ### 7.2.4 Index state should include embedding identity and backend presence
 
 **Touchpoints**
-- `src/index/build/indexer/steps/write.js` (stage2)
-- `tools/build-embeddings/runner.js` (stage3)
-- Tests: `tests/embeddings-validate.js`, `tools/index-validate.js` output
+- `src/index/build/indexer/steps/write.js` (~L1–L101) (stage2)
+- `tools/build-embeddings/runner.js` (~L1–L763) (stage3)
+- Tests: `tests/embeddings-validate.js` (~L1–L82), `tools/index-validate.js` (~L1–L130) output
 
 **Required new fields**
 - `index_state.embeddings.embeddingIdentity` (object)
@@ -1087,12 +570,12 @@ This phase enforces correct quantization everywhere.
 ### 7.3.1 Clamp quantization levels globally to [2, 256]
 
 **Touchpoints**
-- `src/storage/sqlite/vector.js` (function `resolveQuantizationParams`)
-- `src/shared/embedding-utils.js` (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`, `dequantizeUint8ToFloat32`)
-- `src/index/embedding.js` (`quantizeVec`, `quantizeVecUint8`)
-- `tools/build-embeddings/embed.js`
-- `src/storage/sqlite/build/incremental-update.js`
-- `src/index/build/file-processor/embeddings.js`
+- `src/storage/sqlite/vector.js` (~L1–L71) (function `resolveQuantizationParams`)
+- `src/shared/embedding-utils.js` (~L1–L176) (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`, `dequantizeUint8ToFloat32`)
+- `src/index/embedding.js` (~L1–L56) (`quantizeVec`, `quantizeVecUint8`)
+- `tools/build-embeddings/embed.js` (~L1–L119)
+- `src/storage/sqlite/build/incremental-update.js` (~L1–L567)
+- `src/index/build/file-processor/embeddings.js` (~L1–L260)
 
 **Required changes**
 1. In `resolveQuantizationParams()`:
@@ -1136,18 +619,18 @@ Current code often assumes `minVal=-1` and `levels=256`, which breaks if config 
 
 **Touchpoints**
 - Writers:
-  - `tools/build-embeddings/runner.js` (when writing dense_vectors*.json and meta)
-  - `tools/build-embeddings/hnsw.js` (meta output)
-  - `tools/build-embeddings/lancedb.js` (meta output)
+  - `tools/build-embeddings/runner.js` (~L1–L763) (when writing dense_vectors*.json and meta)
+  - `tools/build-embeddings/hnsw.js` (~L1–L115) (meta output)
+  - `tools/build-embeddings/lancedb.js` (~L1–L143) (meta output)
 - Readers:
-  - `src/retrieval/rankers.js` (rankDenseVectors: stop hardcoding `minVal=-1`)
-  - `src/retrieval/sqlite-helpers.js` (dense meta: stop hardcoding minVal)
-  - `tools/build-embeddings/lancedb.js` (dequantizeUint8ToFloat32 must use correct quantization)
+  - `src/retrieval/rankers.js` (~L1–L292) (rankDenseVectors: stop hardcoding `minVal=-1`)
+  - `src/retrieval/sqlite-helpers.js` (~L1–L544) (dense meta: stop hardcoding minVal)
+  - `tools/build-embeddings/lancedb.js` (~L1–L143) (dequantizeUint8ToFloat32 must use correct quantization)
 
 ### 7.3.4 Update LanceDB build to dequantize correctly
 
 **Touchpoints**
-- `tools/build-embeddings/lancedb.js`
+- `tools/build-embeddings/lancedb.js` (~L1–L143)
 
 **Required changes**
 - `buildBatch()` currently calls `dequantizeUint8ToFloat32(row.vec)` without passing params (defaults to -1..1, 256).
@@ -1201,10 +684,10 @@ Normalization affects:
   - storage may contain raw vectors, but ANN backend selection must respect configured metric.
 
 **Touchpoints**
-- `src/shared/embedding-adapter.js` (ensures embedding providers normalize)
-- `tools/build-embeddings/embed.js` (mergeEmbeddingVectors + normalizeEmbeddingVector)
-- `src/index/build/file-processor/embeddings.js` (inline embeddings path)
-- `tools/build-embeddings/runner.js` (cache load path where HNSW vectors are dequantized)
+- `src/shared/embedding-adapter.js` (~L1–L158) (ensures embedding providers normalize)
+- `tools/build-embeddings/embed.js` (~L1–L119) (mergeEmbeddingVectors + normalizeEmbeddingVector)
+- `src/index/build/file-processor/embeddings.js` (~L1–L260) (inline embeddings path)
+- `tools/build-embeddings/runner.js` (~L1–L763) (cache load path where HNSW vectors are dequantized)
 
 **Required changes**
 - Ensure build-embeddings cache load path normalizes HNSW float vectors whenever identity.normalize is true, not only when `hnswConfig.space === 'cosine'`.
@@ -1240,7 +723,7 @@ Candidate filtering semantics and robustness issues:
 ### 7.5.1 Implement iterative overfetch for candidateSet filtering
 
 **Touchpoints**
-- `src/retrieval/lancedb.js` (function `searchLanceDbCandidates`)
+- `src/retrieval/lancedb.js` (~L1–L180) (function `searchLanceDbCandidates`)
 
 **Required behavior**
 - When `candidateSet` is provided:
@@ -1250,9 +733,9 @@ Candidate filtering semantics and robustness issues:
     2. Execute query with that limit.
     3. Filter results by candidateSet.
     4. If filtered count < topN AND raw results length == limit:
-       - increase limit (e.g., *2) up to a cap (candidateCount or a global max).
+       - increase limit (e.g., x2) up to a cap (candidateCount or a global max).
        - repeat.
-    5. Stop when enough results or when limit reaches cap.
+     5. Stop when enough results or when limit reaches cap.
 
 **Correctness requirement**
 - Deterministic: same inputs yield same outputs (stable sort tie-breakers).
@@ -1261,7 +744,7 @@ Candidate filtering semantics and robustness issues:
 ### 7.5.2 Make connection caching concurrency-safe
 
 **Touchpoints**
-- `src/retrieval/lancedb.js` (`connectionCache`)
+- `src/retrieval/lancedb.js` (~L1–L180) (`connectionCache`)
 
 **Required changes**
 - Store a Promise in the cache while connecting:
@@ -1271,7 +754,7 @@ Candidate filtering semantics and robustness issues:
 ### 7.5.3 Harden filter construction
 
 **Touchpoints**
-- `src/retrieval/lancedb.js`
+- `src/retrieval/lancedb.js` (~L1–L180)
 
 **Required changes**
 - Validate `idColumn` is a safe identifier (e.g., `/^[A-Za-z_][A-Za-z0-9_]*$/`).
@@ -1325,8 +808,8 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 ### 7.6.1 Make loadHnswIndex tolerant to signature differences
 
 **Touchpoints**
-- `src/shared/hnsw.js` (function `loadHnswIndex`)
-- `src/shared/hnsw.js` (function `resolveHnswPaths` if extended to support variants)
+- `src/shared/hnsw.js` (~L1–L160) (function `loadHnswIndex`)
+- `src/shared/hnsw.js` (~L1–L160) (function `resolveHnswPaths` if extended to support variants)
 
 **Required changes**
 - Detect `readIndexSync` signature:
@@ -1348,12 +831,12 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 
 **Touchpoints**
 - Writer:
-  - `tools/build-embeddings/runner.js`
-  - `tools/build-embeddings/hnsw.js`
+  - `tools/build-embeddings/runner.js` (~L1–L763)
+  - `tools/build-embeddings/hnsw.js` (~L1–L115)
 - Reader:
-  - `src/retrieval/cli-index.js` (HNSW load)
-  - `src/retrieval/ann/providers/hnsw.js` (already uses idx.hnsw)
-  - `src/shared/hnsw.js` path resolver
+  - `src/retrieval/cli-index.js` (~L1–L416) (HNSW load)
+  - `src/retrieval/ann/providers/hnsw.js` (~L1–L27) (already uses idx.hnsw)
+  - `src/shared/hnsw.js` (~L1–L160) path resolver
 
 **Required behavior**
 - For each mode, if embeddings are ready and HNSW is enabled and available:
@@ -1374,7 +857,7 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 ### 7.6.3 Improve insert failure observability
 
 **Touchpoints**
-- `tools/build-embeddings/hnsw.js`
+- `tools/build-embeddings/hnsw.js` (~L1–L115)
 
 **Required changes**
 - Preserve and rely on the existing atomic write pattern:
@@ -1447,11 +930,11 @@ We need a single coherent way to:
 ### 7.7.1 Wire denseVectorMode from config/CLI into retrieval
 
 **Touchpoints**
-- `docs/guides/search.md` (already references denseVectorMode)
-- `src/retrieval/cli/normalize-options.js` (currently hardcodes denseVectorMode='merged')
-- `src/retrieval/cli/options.js` (CLI option definitions)
-- `src/retrieval/query-plan.js` (already passes denseVectorMode into plan)
-- `src/retrieval/query-intent.js` (resolveIntentVectorMode)
+- `docs/guides/search.md` (~L1–L74) (already references denseVectorMode)
+- `src/retrieval/cli/normalize-options.js` (~L1–L273) (currently hardcodes denseVectorMode='merged')
+- `src/retrieval/cli/options.js` (~L1–L141) (CLI option definitions)
+- `src/retrieval/cli/query-plan.js` (~L1–L205) (already passes denseVectorMode into plan)
+- `src/retrieval/query-intent.js` (~L1–L84) (resolveIntentVectorMode)
 
 **Required changes**
 - Add CLI option: `--dense-vector-mode merged|doc|code|auto`
@@ -1464,11 +947,11 @@ We need a single coherent way to:
 
 **Touchpoints**
 - LanceDB:
-  - `src/shared/lancedb.js` (`resolveLanceDbTarget`) ✅ already supports.
+  - `src/shared/lancedb.js` (~L1–L65) (`resolveLanceDbTarget`) ✅ already supports.
 - HNSW:
-  - `src/shared/hnsw.js` path resolver must support variants.
+  - `src/shared/hnsw.js` (~L1–L160) path resolver must support variants.
 - SQLite-vec:
-  - `tools/build-embeddings/sqlite-dense.js` and `tools/vector-extension.js`
+  - `tools/build-embeddings/sqlite-dense.js` (~L1–L209) and `tools/vector-extension.js` (~L1–L393)
   - If SQLite-vec is kept as merged-only, it must be documented and enforced.
 
 **Required behavior**
@@ -1533,9 +1016,9 @@ Add/Update tests:
 ### 7.8.1 LMDB mapSize planning
 
 **Touchpoints**
-- `tools/build-lmdb-index.js`
-- `src/storage/lmdb/schema.js` (meta keys)
-- Tests: `tests/lmdb-backend.js`, `tests/lmdb-corruption.js`, `tests/lmdb-report-artifacts.js`
+- `tools/build-lmdb-index.js` (~L1–L311)
+- `src/storage/lmdb/schema.js` (~L1–L49) (meta keys)
+- Tests: `tests/lmdb-backend.js` (~L1–L122), `tests/lmdb-corruption.js` (~L1–L105), `tests/lmdb-report-artifacts.js` (~L1–L125)
 
 **Required behavior**
 - Compute a conservative mapSize before writing:
@@ -1547,8 +1030,8 @@ Add/Update tests:
 ### 7.8.2 SQLite dense writer safety for shared DB paths
 
 **Touchpoints**
-- `tools/build-embeddings/sqlite-dense.js`
-- `tools/dict-utils/paths/db.js` (resolveSqlitePaths)
+- `tools/build-embeddings/sqlite-dense.js` (~L1–L209)
+- `tools/dict-utils/paths/db.js` (~L1–L62) (resolveSqlitePaths)
 
 **Current risk**
 - `DELETE FROM dense_vectors_ann` is unscoped; if code and prose share the same DB file, one run can delete the other mode’s ANN table.
@@ -1565,8 +1048,8 @@ Update all query code accordingly:
 ### 7.8.3 Embedding cache preflight metadata
 
 **Touchpoints**
-- `tools/build-embeddings/cache.js`
-- `tools/build-embeddings/runner.js`
+- `tools/build-embeddings/cache.js` (~L1–L26)
+- `tools/build-embeddings/runner.js` (~L1–L763)
 
 **Goal**
 - Avoid scanning full cache to validate dims/identity each run on huge repos.
@@ -2266,17 +1749,29 @@ One record per reference edge (call, usage) emitted from chunk relations:
 ### 9.2 Implement symbol identity (`metaV2.symbol`, `SymbolRef`) and helpers
 
 **Primary touchpoints**
-- `src/index/metadata-v2.js`
-- New: `src/index/identity/symbol.js`
+- `src/index/metadata-v2.js` — attach `metaV2.symbol` (definition chunks only).
+- `src/shared/identity.js` — **already exists** and contains symbol identity primitives. Phase 9 MUST extend/reuse this (do **not** fork identity algorithms).
+- New (optional wrapper): `src/index/identity/symbol.js` — if created, keep it as a thin adapter over `src/shared/identity.js` for index-specific policy (definition chunk detection, kind-group mapping, etc).
 - Update callsites: graph builder, cross-file resolver, map builder
 
 #### 9.2.1 Implement symbol identity builder
 
+- [ ] **Update `src/shared/identity.js` (do this first)**
+  - [ ] Confirm/export the primitives used by every symbol identity producer:
+    - `buildSymbolKey(...)`
+    - `buildSignatureKey(...)`
+    - `buildScopedSymbolId(...)`
+    - `buildSymbolId(...)`
+    - `resolveSymbolJoinKey(...)` (used to join calls/usages to symbol definitions)
+  - [ ] Ensure the primitives accept the Phase 9 canonical inputs (`virtualPath`, `qualifiedName`, `signature`, `kindGroup`, `chunkUid`/`segmentUid` as required by the Phase 9 contracts) and **do not depend on legacy `chunkId`** for uniqueness unless explicitly marked legacy/back-compat.
+
 - [ ] **Add `src/index/identity/kind-group.js`**
   - [ ] Implement `toKindGroup(kind: string | null): string`
 
-- [ ] **Add `src/index/identity/symbol.js`**
-  - [ ] `buildSymbolIdentity({ metaV2 }): { scheme, kindGroup, qualifiedName, symbolKey, signatureKey, scopedId, symbolId } | null`
+- [ ] **Add `src/index/identity/symbol.js`** *(thin adapter over `src/shared/identity.js`)*
+  - [ ] Export `buildSymbolIdentity({ metaV2 }): { scheme, kindGroup, qualifiedName, symbolKey, signatureKey, scopedId, symbolId } | null`
+  - [ ] **Hard requirement:** implement hashing/key building by calling helpers from `src/shared/identity.js` (e.g., `buildSymbolKey`, `buildSignatureKey`, `buildScopedSymbolId`, `buildSymbolId`).  
+    Do **not** create a second independent SymbolKey/SignatureKey algorithm.
   - [ ] Return null when chunk is not a "definition chunk" (policy below).
 
 **Definition chunk policy (v1):**
@@ -2421,19 +1916,32 @@ One record per reference edge (call, usage) emitted from chunk relations:
   - `resolvedCalleeChunkUid: string | null`
   - Keep `target/file/kind` for display backward compatibility.
 
-#### 9.4.4 Update tooling providers to key by chunkUid (no silent overwrites)
+#### 9.4.4 Tooling provider audit (chunkUid-keyed outputs are already implemented)
 
-These providers currently map results by `file::name`:
+✅ **Current repo state (verified in code):** all built-in tooling providers already return results keyed by `chunkUid` (no `file::name` Maps).
 
-- `src/index/tooling/clangd-provider.js`
-- `src/index/tooling/pyright-provider.js`
-- `src/index/tooling/sourcekit-provider.js`
-- `src/index/tooling/typescript-provider.js`
+Providers (current touchpoints):
+- `src/index/tooling/clangd-provider.js` — returns `{ byChunkUid }` (capability: `supportsSymbolRef: false`)
+- `src/index/tooling/pyright-provider.js` — returns `{ byChunkUid }` (capability: `supportsSymbolRef: false`)
+- `src/index/tooling/sourcekit-provider.js` — returns `{ byChunkUid }` (capability: `supportsSymbolRef: false`)
+- `src/index/tooling/typescript-provider.js` — returns `{ byChunkUid }` (capability: `supportsSymbolRef: true`)
 
-- [ ] For each provider:
-  - [ ] Replace Maps keyed by `file::name` with Maps keyed by `chunkUid`.
-  - [ ] Where tool outputs are only name-addressable (TS map), apply the resolved entry to all matching chunks but do not overwrite unrelated chunks.
-  - [ ] Add defensive warnings if multiple chunks match same name within a file (for diagnostics only; do not pick arbitrarily).
+**Why keep this task anyway?**  
+Phase 9 relies on `chunkUid` as the canonical join key, so we need a regression-proof audit + tests that prevent reintroducing `file::name` joins.
+
+- [x] Confirm each provider’s public output surface is `{ provider, byChunkUid }` (not `{ byFile }`).
+- [ ] Add a targeted regression test per provider that asserts:
+  - [ ] the top-level key is `byChunkUid`,
+  - [ ] keys look like `ck64:v1:` / `chunk:`-style UIDs (not `file::name`),
+  - [ ] duplicate keys are not silently overwritten (throw or log+count, but do not drop).
+  - Suggested test files (choose lane explicitly):
+    - `tests/unit/tooling/clangd-provider-output-shape.test.js`
+    - `tests/unit/tooling/pyright-provider-output-shape.test.js`
+    - `tests/unit/tooling/sourcekit-provider-output-shape.test.js`
+    - `tests/unit/tooling/typescript-provider-output-shape.test.js`
+
+**Additional Phase 9 requirement for TS provider**
+- [ ] Ensure the TS provider’s `symbolRef` emission uses the Phase 9 symbol identity scheme (see 9.2), and does not embed legacy `chunkId` in any join-critical field unless explicitly marked “legacy/back-compat”.
 
 #### 9.4.5 Pipeline tests
 
@@ -2609,7 +2117,7 @@ Add tests/benchmarks (optional but recommended):
 
 ---
 
-## Appendix A -- Concrete file-by-file change list (for Codex)
+## Appendix A -- Concrete file-by-file change list
 
 This appendix is purely to reduce "search time" during implementation. Each file lists the exact intent.
 
@@ -3030,7 +2538,37 @@ Create a small table (in whichever canonical spec is most appropriate, or at the
 - spec file → implemented-by code module → status (implemented / draft / planned)
 - version numbers (schemaVersion) and compatibility notes
 
-This table prevents future drift.
+
+### 10.0.3 Archive deprecated specs + codify the process (MANDATORY)
+
+This implements the repo-wide rule:
+
+> Deprecated/replaced spec documents must be moved to `docs/archived/` (never deleted), and the process must be documented in `AGENTS.md`.
+
+**Tasks**
+- [ ] Create `docs/archived/README.md` explaining:
+  - what belongs here,
+  - how to name/archive files,
+  - how to reference the replacement spec.
+- [ ] Create `docs/archived/phase-10/` (or `docs/archived/specs/phase-10/`) as the destination for Phase 10 spec deprecations.
+- [ ] After the merges in **10.0.1** are complete:
+  - [ ] Move the *staging* source docs from `docs/new_docs/` that are no longer meant to be edited:
+    - `docs/new_docs/spec_risk-interprocedural-config_IMPROVED.md`
+    - `docs/new_docs/spec_risk-summaries_IMPROVED.md`
+    - `docs/new_docs/spec_risk-flows-and-call-sites_RECONCILED.md`
+    - `docs/new_docs/risk-callsite-id-and-stats_IMPROVED.md`
+    - `docs/new_docs/interprocedural-state-and-pipeline_DRAFT.md`
+    - Destination: `docs/archived/phase-10/` (keep filenames intact).
+  - [ ] Add a short “DEPRECATED” header block to each moved file that points to the canonical replacement(s) in `docs/specs/…`.
+- [ ] Update **`AGENTS.md`** with a “Spec deprecation + archival process” section:
+  - When to archive vs update-in-place.
+  - Required metadata to include in the archived file header (replacement link + date/PR).
+  - A reminder that contracts (`src/contracts/**`) remain authoritative and specs must track them.
+
+**Why this is required**
+- `docs/new_docs/` is a staging area; leaving parallel variants creates drift and confusion.
+- `docs/archived/` preserves context without keeping multiple “active” specs.
+
 
 ---
 
@@ -3194,7 +2732,7 @@ Required changes:
 **Cross-file inference dependency:**  
 `applyCrossFileInference` populates `callLinks.paramNames` via `extractParamTypes`. That function must rely on stable `docmeta.params` or a new stable `docmeta.paramNames`. If needed:
 
-- Update `src/index/type-inference-crossfile/symbol-table.js` (function `extractParamTypes`) to prefer:
+- Update `src/index/type-inference-crossfile/extract.js` (function `extractParamTypes`) to prefer:
   - `docmeta.paramNames` if present
   - else fall back to `docmeta.params`
 
@@ -3910,6 +3448,7 @@ Before marking Phase 10 complete, verify:
 
 ## Phase 10 completion checklist (must be true)
 - [ ] Docs are merged; canonical specs in `docs/specs/` match code contracts (especially `call_sites`).
+- [ ] Deprecated/replaced spec docs have been moved to `docs/archived/` and the process is documented in `AGENTS.md` (see 10.0.3).
 - [ ] `indexing.riskInterprocedural` survives config load and is normalized deterministically.
 - [ ] Cross-file inference runs when riskInterprocedural is enabled.
 - [ ] `docmeta.risk.summary` is present, compact, and deterministic.
@@ -3930,4 +3469,431 @@ Before marking Phase 10 complete, verify:
 - [ ] `docs/specs/risk-interprocedural-stats.md` ← expand from placeholder using merged stats schema
 - [ ] `docs/new_docs/interprocedural-state-and-pipeline_DRAFT.md` ← either promote to `docs/specs/` or merge key content into the canonical specs
 
---- 
+---
+
+## 10.A Risk Interprocedural Config Spec (canonical)
+
+**Canonical spec file (post-merge):** `docs/specs/risk-interprocedural-config.md`  
+**Validator/contract authority:** `docs/config/schema.json` + runtime normalization in `tools/dict-utils/config.js`
+
+### Required config keys (must exist; exact spelling)
+- `indexing.riskInterprocedural.enabled` — boolean (default: `false`)
+- `indexing.riskInterprocedural.mode` — `"off" | "conservative" | "argAware"`
+- `indexing.riskInterprocedural.callsiteSampling.enabled` — boolean
+- `indexing.riskInterprocedural.callsiteSampling.perCalleeLimit` — integer
+- `indexing.riskInterprocedural.callsiteSampling.totalLimit` — integer
+- `indexing.riskInterprocedural.callsiteSampling.seed` — string
+- `indexing.riskInterprocedural.limits.maxDepth` — integer
+- `indexing.riskInterprocedural.limits.maxPathsPerRisk` — integer
+- `indexing.riskInterprocedural.limits.maxTotalPaths` — integer
+- `indexing.riskInterprocedural.limits.maxFanOutPerCallsite` — integer
+- `indexing.riskInterprocedural.timeouts.propagationMs` — integer
+- `indexing.riskInterprocedural.emitArtifacts` — boolean (default: `false`)
+
+**Touchpoints**
+- `tools/dict-utils/config.js` (~L1–L310) — add/validate keys; normalize defaults.
+- `docs/config/schema.json` (~L1–L264) — ensure schema accepts these keys.
+- `src/index/build/runtime/runtime.js` (~L1–L683) — pass normalized config into runtime.
+
+**Minimum test coverage**
+- Add/keep `tests/risk-interprocedural/config-normalization.test.js` (lane: integration unless placed under `tests/unit/`).
+- Verify `enabled=false` short-circuits all extra work (no new artifacts).
+
+---
+
+## 10.B `risk_summaries.jsonl` Spec (canonical)
+
+**Canonical spec file (post-merge):** `docs/specs/risk-summaries.md`  
+**Contract authority (must match):** `src/contracts/schemas/artifacts.js`
+
+### Minimum record schema (must be stable)
+- `riskId: string` (deterministic; stable across runs)
+- `kind: string` (risk kind/category)
+- `title: string`
+- `severity: "low" | "medium" | "high" | "critical"` (or project-defined enum — pick one and enforce)
+- `primaryLocation: { virtualPath, startLine, startCol, endLine, endCol }`
+- `evidence: Array<{ virtualPath, startLine, startCol, endLine, endCol, excerpt?: string }>`
+- `sinks: Array<{ symbol: SymbolRefV1, chunkUid?: string|null }>`
+- `sources: Array<{ symbol: SymbolRefV1, chunkUid?: string|null }>`
+- `counts: { sinks: number, sources: number, flows: number }`
+- `truncated: { evidence?: boolean, sinks?: boolean, sources?: boolean, flows?: boolean }`
+
+**Touchpoints**
+- `src/index/risk.js` (~L1–L404) — risk extraction output.
+- `src/index/metadata-v2.js` (~L1–L301) — where compact docmeta may surface summary signals.
+- `src/index/validate.js` (~L1–L581) — schema enforcement for artifact output.
+
+**Minimum test coverage**
+- Schema validation test: `tests/risk-interprocedural/summaries-schema.test.js`
+- Determinism test: `tests/risk-interprocedural/summaries-determinism.test.js`
+- Truncation/caps test: `tests/risk-interprocedural/summaries-truncation.test.js`
+
+---
+
+## 10.C `risk_flows.jsonl` + `call_sites.jsonl` Spec (canonical)
+
+**Canonical spec file (post-merge):** `docs/specs/risk-flows-and-call-sites.md`  
+**Call-sites contract authority:** `src/contracts/schemas/artifacts.js` (`call_sites` already exists)
+
+### `call_sites` (existing artifact; do not break)
+- Must remain a superset-friendly artifact: interprocedural flow logic should consume a **subset**.
+
+**Touchpoints**
+- `src/index/build/artifacts/writers/call-sites.js` (~L1–L276) — `buildCallSiteId` is canonical algorithm.
+- `src/contracts/schemas/artifacts.js` (~L1–L677) — contract schema for `call_sites`.
+
+### `risk_flows` (new artifact)
+Must include:
+- `flowId` (deterministic)
+- `riskId`
+- `source: { symbol: SymbolRefV1, chunkUid?: string|null }`
+- `sink: { symbol: SymbolRefV1, chunkUid?: string|null }`
+- `path: Array<{ callSiteId: string, callee: SymbolRefV1, calleeChunkUid?: string|null }>`
+- `mode: "conservative" | "argAware"`
+- `confidence: "high" | "medium" | "low"`
+- `notes?: string[]`
+- `truncated?: boolean`
+
+**Minimum test coverage**
+- Conservative mode: `tests/risk-interprocedural/flows-conservative.test.js`
+- Arg-aware negative test: `tests/risk-interprocedural/flows-argaware-negative.test.js`
+- Sanitizer policy: `tests/risk-interprocedural/flows-sanitizer-policy.test.js`
+- Timeout behavior: `tests/risk-interprocedural/flows-timeout.test.js`
+
+---
+
+## 10.D Risk Interprocedural Stats Spec (canonical)
+
+**Canonical spec file (post-merge):** `docs/specs/risk-interprocedural-stats.md`  
+Clarify counts vs artifacts (especially because `call_sites` is a general artifact).
+
+### Required counters (explicit semantics)
+- `flowsEmitted`: number of risk flow records written
+- `risksWithFlows`: count of riskIds that emitted ≥1 flow
+- `uniqueCallSitesReferenced`: count of unique callSiteIds referenced by emitted `risk_flows`
+- `callSiteSampling`: { `enabled`, `perCalleeLimit`, `totalLimit`, `seed` }
+- `mode`: propagation mode
+- `timingMs`: { `total`, `propagation`, `io` }
+- `capsHit`: record which caps were hit (depth, fanout, paths, timeout)
+
+**Minimum test coverage**
+- Stats correctness test (small fixture): add/keep `tests/risk-interprocedural/callsite-sampling.test.js`
+- Validator test: `tests/validator/risk-interprocedural.test.js`
+
+---
+
+## 10.E Implementation notes (non-normative)
+
+These are constraints to keep implementations coherent:
+
+- **Determinism:** All emitted artifacts must be stable under re-run; enforce deterministic sorting at every aggregation boundary.
+- **No hidden global state:** Cache keys must include buildRoot/buildId where applicable.
+- **Runtime gating:** When `riskInterprocedural.enabled=false`, do not emit new artifacts, and do not pay traversal costs.
+- **Back-compat:** Never break existing `call_sites` readers; new fields must be additive.
+- **Archival policy:** Deprecated spec docs move to `docs/archived/` and are documented in `AGENTS.md` (see 10.0.3).
+
+# Appendices — touchpoint mappings (with line ranges) + test lane hints
+
+These appendices are generated to remove scavenger-hunts:
+- Every file path referenced in a phase body appears here.
+- Existing files include **approximate** line ranges.
+- Planned files/dirs are labeled **NEW**.
+
+## Appendix P0 — Root-level touchpoints referenced by this roadmap
+
+- `AGENTS.md` (~L1–L63) — agent workflow; must include the spec archival policy.
+- `COMPLETED_PHASES.md` (~L1–L12) — record of completed roadmap phases.
+- `GIGAROADMAP.md` (~L1–L4692) — prerequisite plan; this roadmap assumes it is complete.
+- `package.json` (~L1–L278) — test lane scripts (`test:unit`, `test:services`, etc).
+
+## Appendix P7 — repo touchpoint map
+
+> Line ranges are approximate. Prefer anchor strings (function/export names) over line numbers.
+
+### Existing directories referenced
+- `docs/contracts/` (DIR; exists)
+- `src/contracts/` (DIR; exists)
+- `tests/fixtures/sample/` (DIR; exists)
+
+### Existing src/ files referenced (edit candidates)
+- `src/contracts/registry.js` (~L1–L10) — exports/anchors: `ARTIFACT_SCHEMA_REGISTRY`, `ARTIFACT_SCHEMA_HASH`, `ARTIFACT_SCHEMA_NAMES`, `getArtifactSchema`
+- `src/contracts/schemas/artifacts.js` (~L1–L677) — exports/anchors: `ARTIFACT_SCHEMA_DEFS`
+- `src/index/build/file-processor/embeddings.js` (~L1–L260)
+- `src/index/build/indexer/embedding-queue.js` (~L1–L49) — exports/anchors: `enqueueEmbeddingJob`
+- `src/index/build/indexer/pipeline.js` (~L1–L326)
+- `src/index/build/indexer/steps/write.js` (~L1–L101) — exports/anchors: `writeIndexArtifactsForMode`
+- `src/index/embedding.js` (~L1–L56) — exports/anchors: `quantizeVec`, `quantizeVecUint8`, `normalizeVec`, `createEmbedder`
+- `src/index/validate.js` (~L1–L581)
+- `src/retrieval/ann/providers/hnsw.js` (~L1–L27) — exports/anchors: `createHnswAnnProvider`
+- `src/retrieval/ann/providers/lancedb.js` (~L1–L39) — exports/anchors: `createLanceDbAnnProvider`
+- `src/retrieval/cli-index.js` (~L1–L416) — exports/anchors: `resolveIndexDir`, `requireIndexDir`, `buildQueryCacheKey`, `getIndexSignature`
+- `src/retrieval/cli/load-indexes.js` (~L1–L368)
+- `src/retrieval/cli/normalize-options.js` (~L1–L273) — exports/anchors: `normalizeSearchOptions`
+- `src/retrieval/cli/options.js` (~L1–L141) — exports/anchors: `getMissingFlagMessages`, `estimateIndexBytes`, `resolveIndexedFileCount`, `resolveBm25Defaults`, `loadBranchFromMetrics`
+- `src/retrieval/cli/query-plan.js` (~L1–L205) — exports/anchors: `buildQueryPlan`
+- `src/retrieval/lancedb.js` (~L1–L180)
+- `src/retrieval/query-intent.js` (~L1–L84) — exports/anchors: `classifyQuery`, `resolveIntentVectorMode`, `resolveIntentFieldWeights`
+- `src/retrieval/rankers.js` (~L1–L292) — exports/anchors: `rankBM25Legacy`, `getTokenIndex`, `rankBM25`, `rankBM25Fields`, `rankMinhash`
+- `src/retrieval/sqlite-helpers.js` (~L1–L544) — exports/anchors: `createSqliteHelpers`
+- `src/shared/artifact-io.js` (~L1–L12)
+- `src/shared/artifact-io/manifest.js` (~L1–L291) — exports/anchors: `resolveManifestPath`, `loadPiecesManifest`, `readCompatibilityKey`, `normalizeMetaParts`, `resolveMetaFormat`
+- `src/shared/embedding-adapter.js` (~L1–L158) — exports/anchors: `getEmbeddingAdapter`
+- `src/shared/embedding-utils.js` (~L1–L176) — exports/anchors: `DEFAULT_EMBEDDING_POOLING`, `DEFAULT_EMBEDDING_NORMALIZE`, `DEFAULT_EMBEDDING_TRUNCATION`, `isVectorLike`, `mergeEmbeddingVectors`
+- `src/shared/hnsw.js` (~L1–L160) — exports/anchors: `normalizeHnswConfig`, `resolveHnswPaths`, `loadHnswIndex`, `rankHnswIndex`
+- `src/shared/lancedb.js` (~L1–L65) — exports/anchors: `normalizeLanceDbConfig`, `resolveLanceDbPaths`, `resolveLanceDbTarget`
+- `src/storage/lmdb/schema.js` (~L1–L49) — exports/anchors: `LMDB_SCHEMA_VERSION`, `LMDB_META_KEYS`, `LMDB_ARTIFACT_KEYS`, `LMDB_ARTIFACT_LIST`, `LMDB_REQUIRED_ARTIFACT_KEYS`
+- `src/storage/sqlite/build/incremental-update.js` (~L1–L567)
+- `src/storage/sqlite/vector.js` (~L1–L71) — exports/anchors: `quantizeVec`, `resolveQuantizationParams`, `dequantizeUint8ToFloat32`, `toSqliteRowId`, `packUint32`
+
+### Existing tools/ files referenced (edit candidates)
+- `tools/build-embeddings.js` (~L1–L12)
+- `tools/build-embeddings/cache.js` (~L1–L26) — exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
+- `tools/build-embeddings/cli.js` (~L1–L95) — exports/anchors: `parseBuildEmbeddingsArgs`
+- `tools/build-embeddings/embed.js` (~L1–L119) — exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
+- `tools/build-embeddings/hnsw.js` (~L1–L115) — exports/anchors: `createHnswBuilder`
+- `tools/build-embeddings/lancedb.js` (~L1–L143)
+- `tools/build-embeddings/manifest.js` (~L1–L111) — exports/anchors: `updatePieceManifest`
+- `tools/build-embeddings/runner.js` (~L1–L763)
+- `tools/build-embeddings/sqlite-dense.js` (~L1–L209) — exports/anchors: `updateSqliteDense`
+- `tools/build-lmdb-index.js` (~L1–L311)
+- `tools/dict-utils/paths/db.js` (~L1–L62) — exports/anchors: `resolveLmdbPaths`, `resolveSqlitePaths`
+- `tools/index-validate.js` (~L1–L130)
+- `tools/indexer-service.js` (~L1–L441)
+- `tools/service/queue.js` (~L1–L270) — exports/anchors: `resolveQueueName`, `getQueuePaths`
+- `tools/vector-extension.js` (~L1–L393) — exports/anchors: `getBinarySuffix`, `getPlatformKey`, `getVectorExtensionConfig`, `resolveVectorExtensionPath`, `loadVectorExtension`
+
+### Existing docs/ files referenced (edit candidates)
+- `docs/contracts/artifact-schemas.md` (~L1–L67)
+- `docs/contracts/public-artifact-surface.md` (~L1–L104)
+- `docs/guides/embeddings.md` (~L1–L92)
+- `docs/guides/search.md` (~L1–L74)
+
+### Existing tests/ files referenced (edit candidates)
+- `tests/artifact-io-manifest-discovery.test.js` (~L1–L60) — lane: `integration`; run: `npm run test:integration -- --match artifact-io-manifest-discovery.test`
+- `tests/embedding-queue-defaults.js` (~L1–L37) — lane: `integration`; run: `npm run test:integration -- --match embedding-queue-defaults`
+- `tests/embedding-queue.js` (~L1–L51) — lane: `integration`; run: `npm run test:integration -- --match embedding-queue`
+- `tests/embeddings-validate.js` (~L1–L82) — lane: `integration`; run: `npm run test:integration -- --match embeddings-validate`
+- `tests/hnsw-ann.js` (~L1–L124) — lane: `integration`; run: `npm run test:integration -- --match hnsw-ann`
+- `tests/hnsw-atomic.js` (~L1–L90) — lane: `integration`; run: `npm run test:integration -- --match hnsw-atomic`
+- `tests/hnsw-candidate-set.js` (~L1–L78) — lane: `integration`; run: `npm run test:integration -- --match hnsw-candidate-set`
+- `tests/lancedb-ann.js` (~L1–L100) — lane: `integration`; run: `npm run test:integration -- --match lancedb-ann`
+- `tests/lmdb-backend.js` (~L1–L122) — lane: `integration`; run: `npm run test:integration -- --match lmdb-backend`
+- `tests/lmdb-corruption.js` (~L1–L105) — lane: `integration`; run: `npm run test:integration -- --match lmdb-corruption`
+- `tests/lmdb-report-artifacts.js` (~L1–L125) — lane: `integration`; run: `npm run test:integration -- --match lmdb-report-artifacts`
+
+### Planned/new paths referenced in this phase (create as needed)
+- **tests/**
+  - `tests/ann-parity.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match ann-parity`
+  - `tests/embedding-normalization-consistency.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match embedding-normalization-consistency`
+  - `tests/embedding-quantization-no-wrap.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match embedding-quantization-no-wrap`
+  - `tests/fixtures/embeddings` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/embeddings/basic-repo` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/embeddings/missing-vectors` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/embeddings/quantization-caps` (NEW fixture/dir — create as part of this phase)
+  - `tests/hnsw-target-selection.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match hnsw-target-selection`
+  - `tests/indexer-service-embedding-job-uses-build-root.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match indexer-service-embedding-job-uses-build-root`
+  - `tests/integration/ann-parity.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match ann-parity.test`
+  - `tests/lancedb-candidate-filtering.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match lancedb-candidate-filtering`
+  - `tests/manifest-embeddings-pieces.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match manifest-embeddings-pieces`
+  - `tests/quantize-embedding-utils.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match quantize-embedding-utils`
+  - `tests/retrieval-strict-manifest-embeddings.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match retrieval-strict-manifest-embeddings`
+  - `tests/storage/embeddings-backend-resilience.test.js` (NEW) — intended lane: `storage`; run (once created): `npm run test:storage -- --match embeddings-backend-resilience.test`
+  - `tests/unit/ann-backend-selection.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match ann-backend-selection.test`
+  - `tests/unit/cache-preflight-meta.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match cache-preflight-meta.test`
+  - `tests/unit/dense-vector-mode.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match dense-vector-mode.test`
+  - `tests/unit/hnsw-insert-failures.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match hnsw-insert-failures.test`
+  - `tests/unit/hnsw-load-signature.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match hnsw-load-signature.test`
+  - `tests/unit/lancedb-candidate-filtering.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match lancedb-candidate-filtering.test`
+  - `tests/unit/lancedb-connection-cache.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match lancedb-connection-cache.test`
+  - `tests/unit/lancedb-filter-pushdown.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match lancedb-filter-pushdown.test`
+  - `tests/unit/lmdb-mapsize.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match lmdb-mapsize.test`
+  - `tests/unit/sqlite-ann-mode-scope.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match sqlite-ann-mode-scope.test`
+
+
+## Appendix P9 — repo touchpoint map
+
+> Line ranges are approximate. Prefer anchor strings (function/export names) over line numbers.
+
+### Existing directories referenced
+- `src/index/build/artifacts/writers/` (DIR; exists)
+- `src/index/identity/` (DIR; exists)
+- `src/index/tooling/` (DIR; exists)
+- `tests/type-inference-crossfile/` (DIR; exists)
+- `tools/bench/` (DIR; exists)
+
+### Existing src/ files referenced (edit candidates)
+- `src/contracts/schemas/artifacts.js` (~L1–L677) — exports/anchors: `ARTIFACT_SCHEMA_DEFS`
+- `src/index/build/artifacts.js` (~L1–L528)
+- `src/index/build/file-processor.js` (~L1–L529) — exports/anchors: `createFileProcessor`
+- `src/index/build/file-processor/assemble.js` (~L1–L127) — exports/anchors: `buildChunkPayload`
+- `src/index/build/file-processor/relations.js` (~L1–L71) — exports/anchors: `buildCallIndex`, `buildFileRelations`, `stripFileRelations`
+- `src/index/build/graphs.js` (~L1–L267) — exports/anchors: `buildRelationGraphs`
+- `src/index/chunk-id.js` (~L1–L21) — exports/anchors: `buildChunkId`, `resolveChunkId`
+- `src/index/identity/chunk-uid.js` (~L1–L204) — exports/anchors: `PRE_CONTEXT_CHARS`, `POST_CONTEXT_CHARS`, `ESCALATION_CONTEXT_CHARS`, `MAX_COLLISION_PASSES`, `normalizeForUid`
+- `src/index/metadata-v2.js` (~L1–L301) — exports/anchors: `buildMetaV2`, `finalizeMetaV2`
+- `src/index/segments.js` (~L1–L190) — exports/anchors: `assignSegmentUids`, `discoverSegments`, `chunkSegments`
+- `src/index/tooling/clangd-provider.js` (~L1–L187) — exports/anchors: `CLIKE_EXTS`, `createClangdProvider`
+- `src/index/tooling/pyright-provider.js` (~L1–L127) — exports/anchors: `PYTHON_EXTS`, `createPyrightProvider`
+- `src/index/tooling/sourcekit-provider.js` (~L1–L93) — exports/anchors: `SWIFT_EXTS`, `createSourcekitProvider`
+- `src/index/tooling/typescript-provider.js` (~L1–L467) — exports/anchors: `createTypeScriptProvider`
+- `src/index/type-inference-crossfile/pipeline.js` (~L1–L438)
+- `src/index/type-inference-crossfile/symbols.js` (~L1–L30) — exports/anchors: `leafName`, `isTypeDeclaration`, `addSymbol`, `resolveUniqueSymbol`
+- `src/index/validate.js` (~L1–L581)
+- `src/lang/javascript/relations.js` (~L1–L687) — exports/anchors: `buildCodeRelations`
+- `src/map/build-map.js` (~L1–L288) — exports/anchors: `buildNodeList`, `buildMapCacheKey`
+- `src/map/build-map/edges.js` (~L1–L186) — exports/anchors: `buildEdgesFromGraph`, `buildEdgesFromCalls`, `buildEdgesFromUsage`, `buildEdgesFromCallSummaries`, `buildImportEdges`
+- `src/map/build-map/filters.js` (~L1–L229) — exports/anchors: `resolveFocus`, `normalizeIncludeList`, `applyLimits`, `applyScopeFilter`, `applyCollapse`
+- `src/map/build-map/symbols.js` (~L1–L95) — exports/anchors: `buildSymbolId`, `buildPortId`, `upsertMember`, `buildMemberIndex`, `resolveMemberByName`
+- `src/map/isometric/client/map-data.js` (~L1–L47) — exports/anchors: `initMapData`
+- `src/shared/artifact-io.js` (~L1–L12)
+- `src/shared/artifact-io/jsonl.js` (~L1–L79) — exports/anchors: `resolveJsonlRequiredKeys`, `parseJsonlLine`
+- `src/shared/artifact-schemas.js` (~L1–L2)
+- `src/shared/identity.js` (~L1–L104) — exports/anchors: `buildChunkRef`, `isSemanticSymbolId`, `resolveSymbolJoinKey`, `resolveChunkJoinKey`, `buildSymbolKey`
+
+### Existing docs/ files referenced (edit candidates)
+- `docs/phases/phase-9/identity-contracts.md` (~L1–L132)
+- `docs/phases/phase-9/migration-and-backcompat.md` (~L1–L45)
+- `docs/phases/phase-9/symbol-artifacts-and-pipeline.md` (~L1–L122)
+- `docs/specs/identity-contract.md` (~L1–L313)
+
+### Existing tests/ files referenced (edit candidates)
+- `tests/graph-chunk-id.js` (~L1–L43) — lane: `integration`; run: `npm run test:integration -- --match graph-chunk-id`
+
+### Planned/new paths referenced in this phase (create as needed)
+- **src/**
+  - `src/index/build/artifacts/writers/symbol-edges.js` (NEW — create as part of this phase)
+  - `src/index/build/artifacts/writers/symbol-occurrences.js` (NEW — create as part of this phase)
+  - `src/index/build/artifacts/writers/symbols.js` (NEW — create as part of this phase)
+  - `src/index/identity/kind-group.js` (NEW — create as part of this phase)
+  - `src/index/identity/normalize.js` (NEW — create as part of this phase)
+  - `src/index/identity/segment-uid.js` (NEW — create as part of this phase)
+  - `src/index/identity/symbol.js` (NEW — create as part of this phase)
+  - `src/index/identity/virtual-path.js` (NEW — create as part of this phase)
+  - `src/index/type-inference-crossfile/resolve-relative-import.js` (NEW — create as part of this phase)
+  - `src/index/type-inference-crossfile/resolver.js` (NEW — create as part of this phase)
+- **tools/**
+  - `tools/bench/symbol-resolution-bench.js` (NEW — create as part of this phase)
+- **docs/**
+  - `docs/specs/symbol-artifacts.md` (NEW doc/spec — create as part of this phase)
+  - `docs/specs/symbol-identity-and-symbolref.md` (NEW doc/spec — create as part of this phase)
+- **tests/**
+  - `tests/artifacts/symbol-artifacts-smoke.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbol-artifacts-smoke.test`
+  - `tests/benchmarks` (NEW fixture/dir — create as part of this phase)
+  - `tests/crossfile/resolve-relative-import.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match resolve-relative-import.test`
+  - `tests/crossfile/symbolref-resolution.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbolref-resolution.test`
+  - `tests/determinism` (NEW fixture/dir — create as part of this phase)
+  - `tests/determinism/symbol-artifact-order.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbol-artifact-order.test`
+  - `tests/fixtures/graph/chunkuid-join` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/identity/chunkuid-collision` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/imports/relative-ambiguous` (NEW fixture/dir — create as part of this phase)
+  - `tests/fixtures/symbols/ambiguous-defs` (NEW fixture/dir — create as part of this phase)
+  - `tests/identity/chunk-uid-stability.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match chunk-uid-stability.test`
+  - `tests/identity/segment-uid-stability.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match segment-uid-stability.test`
+  - `tests/identity/symbol-identity.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbol-identity.test`
+  - `tests/integration/chunkuid-determinism.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match chunkuid-determinism.test`
+  - `tests/integration/file-name-collision-no-wrong-join.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match file-name-collision-no-wrong-join.test`
+  - `tests/integration/graph-relations-v2-chunkuid.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match graph-relations-v2-chunkuid.test`
+  - `tests/integration/import-resolver-relative.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match import-resolver-relative.test`
+  - `tests/integration/map-chunkuid-join.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match map-chunkuid-join.test`
+  - `tests/integration/symbol-artifact-determinism.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbol-artifact-determinism.test`
+  - `tests/map/map-build-symbol-identity.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match map-build-symbol-identity.test`
+  - `tests/services/symbol-artifacts-emission.test.js` (NEW) — intended lane: `services`; run (once created): `npm run test:services -- --match symbol-artifacts-emission.test`
+  - `tests/services/symbol-edges-ambiguous.test.js` (NEW) — intended lane: `services`; run (once created): `npm run test:services -- --match symbol-edges-ambiguous.test`
+  - `tests/services/symbol-links-by-chunkuid.test.js` (NEW) — intended lane: `services`; run (once created): `npm run test:services -- --match symbol-links-by-chunkuid.test`
+  - `tests/unit/chunk-uid-stability.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match chunk-uid-stability.test`
+  - `tests/unit/identity-symbolkey-scopedid.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match identity-symbolkey-scopedid.test`
+  - `tests/unit/segment-uid-stability.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match segment-uid-stability.test`
+  - `tests/unit/symbolref-envelope.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match symbolref-envelope.test`
+  - `tests/unit/tooling/clangd-provider-output-shape.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match clangd-provider-output-shape.test`
+  - `tests/unit/tooling/pyright-provider-output-shape.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match pyright-provider-output-shape.test`
+  - `tests/unit/tooling/sourcekit-provider-output-shape.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match sourcekit-provider-output-shape.test`
+  - `tests/unit/tooling/typescript-provider-output-shape.test.js` (NEW) — intended lane: `unit`; run (once created): `npm run test:unit -- --match typescript-provider-output-shape.test`
+  - `tests/validate/chunk-uid-required.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match chunk-uid-required.test`
+  - `tests/validate/symbol-integrity-strict.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match symbol-integrity-strict.test`
+
+
+## Appendix P10 — repo touchpoint map
+
+> Line ranges are approximate. Prefer anchor strings (function/export names) over line numbers.
+
+### Existing directories referenced
+- `docs/new_docs/` (DIR; exists)
+- `docs/specs/` (DIR; exists)
+- `src/contracts/` (DIR; exists)
+
+### Existing src/ files referenced (edit candidates)
+- `src/contracts/registry.js` (~L1–L10) — exports/anchors: `ARTIFACT_SCHEMA_REGISTRY`, `ARTIFACT_SCHEMA_HASH`, `ARTIFACT_SCHEMA_NAMES`, `getArtifactSchema`
+- `src/contracts/schemas/artifacts.js` (~L1–L677) — exports/anchors: `ARTIFACT_SCHEMA_DEFS`
+- `src/index/build/artifacts/compression.js` (~L1–L46) — exports/anchors: `resolveCompressionConfig`
+- `src/index/build/artifacts/writers/call-sites.js` (~L1–L276) — exports/anchors: `createCallSites`, `enqueueCallSitesArtifacts`
+- `src/index/build/graphs.js` (~L1–L267) — exports/anchors: `buildRelationGraphs`
+- `src/index/build/indexer/pipeline.js` (~L1–L326)
+- `src/index/build/indexer/signatures.js` (~L1–L120) — exports/anchors: `SIGNATURE_VERSION`, `buildIncrementalSignatureSummary`, `buildIncrementalSignaturePayload`, `buildTokenizationKey`, `buildIncrementalSignature`
+- `src/index/build/indexer/steps/relations.js` (~L1–L205) — exports/anchors: `resolveImportScanPlan`, `preScanImports`, `postScanImports`, `runCrossFileInference`
+- `src/index/build/indexer/steps/write.js` (~L1–L101) — exports/anchors: `writeIndexArtifactsForMode`
+- `src/index/build/piece-assembly.js` (~L1–L512)
+- `src/index/build/runtime/runtime.js` (~L1–L683)
+- `src/index/metadata-v2.js` (~L1–L301) — exports/anchors: `buildMetaV2`, `finalizeMetaV2`
+- `src/index/risk.js` (~L1–L404) — exports/anchors: `normalizeRiskConfig`, `detectRiskSignals`
+- `src/index/type-inference-crossfile/extract.js` (~L1–L84) — exports/anchors: `extractReturnTypes`, `extractParamTypes`, `extractReturnCalls`, `inferArgType`
+- `src/index/validate.js` (~L1–L581)
+- `src/index/validate/artifacts.js` (~L1–L38) — exports/anchors: `buildArtifactLists`
+- `src/index/validate/presence.js` (~L1–L183) — exports/anchors: `createArtifactPresenceHelpers`
+- `src/lang/javascript/relations.js` (~L1–L687) — exports/anchors: `buildCodeRelations`
+- `src/shared/artifact-io/jsonl.js` (~L1–L79) — exports/anchors: `resolveJsonlRequiredKeys`, `parseJsonlLine`
+- `src/shared/hash.js` (~L1–L74) — exports/anchors: `sha1`, `sha1File`, `setXxhashBackend`
+
+### Existing tools/ files referenced (edit candidates)
+- `tools/dict-utils/config.js` (~L1–L310) — exports/anchors: `loadUserConfig`, `getEffectiveConfigHash`, `getCacheRoot`, `getDictConfig`, `applyAdaptiveDictConfig`
+
+### Existing docs/ files referenced (edit candidates)
+- `docs/config/contract.md` (~L1–L70)
+- `docs/config/schema.json` (~L1–L264)
+- `docs/new_docs/interprocedural-state-and-pipeline_DRAFT.md` (~L1–L156)
+- `docs/new_docs/risk-callsite-id-and-stats_IMPROVED.md` (~L1–L120)
+- `docs/new_docs/spec_risk-flows-and-call-sites_RECONCILED.md` (~L1–L141)
+- `docs/new_docs/spec_risk-interprocedural-config_IMPROVED.md` (~L1–L99)
+- `docs/new_docs/spec_risk-summaries_IMPROVED.md` (~L1–L169)
+- `docs/specs/risk-callsite-id-and-stats.md` (~L1–L162)
+- `docs/specs/risk-flows-and-call-sites.md` (~L1–L341)
+- `docs/specs/risk-interprocedural-config.md` (~L1–L171)
+- `docs/specs/risk-interprocedural-stats.md` (~L1–L9)
+- `docs/specs/risk-summaries.md` (~L1–L253)
+
+### Existing bin/ files referenced (edit candidates)
+- `bin/pairofcleats.js` (~L1–L279)
+
+### Planned/new paths referenced in this phase (create as needed)
+- **src/**
+  - `src/index/build/artifacts/writers/risk-interprocedural.js` (NEW — create as part of this phase)
+  - `src/index/callsite-id.js` (NEW — create as part of this phase)
+  - `src/index/risk-interprocedural/config.js` (NEW — create as part of this phase)
+  - `src/index/risk-interprocedural/edges.js` (NEW — create as part of this phase)
+  - `src/index/risk-interprocedural/engine.js` (NEW — create as part of this phase)
+  - `src/index/risk-interprocedural/summaries.js` (NEW — create as part of this phase)
+  - `src/index/validate/risk-interprocedural.js` (NEW — create as part of this phase)
+- **tools/**
+  - `tools/explain-risk.js` (NEW — create as part of this phase)
+- **docs/**
+  - `docs/archived` (NEW — create as part of this phase)
+  - `docs/archived/README.md` (NEW doc/spec — create as part of this phase)
+  - `docs/archived/phase-10` (NEW — create as part of this phase)
+  - `docs/archived/specs/phase-10` (NEW — create as part of this phase)
+- **tests/**
+  - `tests/cli/risk-explain.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match risk-explain.test`
+  - `tests/fixtures/risk-interprocedural/js-simple` (NEW fixture/dir — create as part of this phase)
+  - `tests/lang/javascript-paramnames.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match javascript-paramnames.test`
+  - `tests/risk-interprocedural/artifacts-written.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match artifacts-written.test`
+  - `tests/risk-interprocedural/callsite-id.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match callsite-id.test`
+  - `tests/risk-interprocedural/callsite-sampling.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match callsite-sampling.test`
+  - `tests/risk-interprocedural/config-normalization.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match config-normalization.test`
+  - `tests/risk-interprocedural/flows-argaware-negative.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match flows-argaware-negative.test`
+  - `tests/risk-interprocedural/flows-conservative.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match flows-conservative.test`
+  - `tests/risk-interprocedural/flows-sanitizer-policy.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match flows-sanitizer-policy.test`
+  - `tests/risk-interprocedural/flows-timeout.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match flows-timeout.test`
+  - `tests/risk-interprocedural/runtime-gating.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match runtime-gating.test`
+  - `tests/risk-interprocedural/summaries-determinism.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match summaries-determinism.test`
+  - `tests/risk-interprocedural/summaries-schema.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match summaries-schema.test`
+  - `tests/risk-interprocedural/summaries-truncation.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match summaries-truncation.test`
+  - `tests/unit` (NEW fixture/dir — create as part of this phase)
+  - `tests/validator/risk-interprocedural.test.js` (NEW) — intended lane: `integration`; run (once created): `npm run test:integration -- --match risk-interprocedural.test`

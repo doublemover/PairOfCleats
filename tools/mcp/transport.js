@@ -28,7 +28,7 @@ function getRemediationHint(error) {
     || parts.includes('index not found')
     || parts.includes('build-index')
     || parts.includes('build index')) {
-    return 'Run `pairofcleats index build` (or `pairofcleats setup`/`pairofcleats bootstrap`) to generate indexes.';
+    return 'Run `pairofcleats index build` (build-index) or `pairofcleats setup`/`pairofcleats bootstrap` to generate indexes.';
   }
   if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
     && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {

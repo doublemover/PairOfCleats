@@ -227,7 +227,7 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
     const suffix = (mode === 'records' || mode === 'extracted-prose')
       ? ` --mode ${mode}`
       : '';
-    const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats index build${suffix}" or "node build_index.js${suffix}".`;
+    const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats index build${suffix}" (build-index) or "node build_index.js${suffix}".`;
     const emitOutput = options.emitOutput !== false;
     const exitOnError = options.exitOnError !== false;
     if (emitOutput) console.error(message);
