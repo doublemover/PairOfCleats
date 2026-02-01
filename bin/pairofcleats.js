@@ -62,7 +62,6 @@ function resolveCommand(primary, rest) {
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
-    validateArgs(rest, ['repo', 'mode', 'top', 'json', 'explain', 'filter', 'backend'], ['repo', 'mode', 'top', 'filter', 'backend']);
     const backend = readFlagValue(rest, 'backend');
     if (backend && !['auto', 'sqlite', 'lmdb'].includes(backend.toLowerCase())) {
       console.error(`Unsupported --backend ${backend}. Use auto|sqlite|lmdb.`);
@@ -92,6 +91,223 @@ function resolveCommand(primary, rest) {
     console.error(`Unknown service subcommand: ${sub}`);
     printHelp();
     process.exit(1);
+  }
+  if (primary === 'graph-context') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'depth',
+        'direction',
+        'format',
+        'json',
+        'includePaths',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'depth',
+        'direction',
+        'format',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'architecture-check') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'rules',
+        'format',
+        'json',
+        'fail-on-violation',
+        'failOnViolation',
+        'maxViolations',
+        'maxEdgesExamined'
+      ],
+      ['repo', 'rules', 'format', 'maxViolations', 'maxEdgesExamined']
+    );
+    return { script: 'tools/architecture-check.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'suggest-tests') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'changed',
+        'changedFile',
+        'changed-file',
+        'max',
+        'format',
+        'json',
+        'testPattern',
+        'test-pattern',
+        'maxDepth',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'changed',
+        'changedFile',
+        'changed-file',
+        'max',
+        'format',
+        'testPattern',
+        'test-pattern',
+        'maxDepth',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/suggest-tests.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'context-pack') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'hops',
+        'maxTokens',
+        'maxBytes',
+        'includeGraph',
+        'includeTypes',
+        'includeRisk',
+        'includeImports',
+        'includeUsages',
+        'includeCallersCallees',
+        'includePaths',
+        'maxTypeEntries',
+        'format',
+        'json',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'hops',
+        'maxTokens',
+        'maxBytes',
+        'maxTypeEntries',
+        'format',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/context-pack.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'api-contracts') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'onlyExports',
+        'failOnWarn',
+        'format',
+        'json',
+        'maxSymbols',
+        'maxCallsPerSymbol',
+        'maxCalls',
+        'maxWarnings',
+        'emitArtifact',
+        'artifactDir'
+      ],
+      ['repo', 'format', 'maxSymbols', 'maxCallsPerSymbol', 'maxCalls', 'maxWarnings', 'artifactDir']
+    );
+    return { script: 'tools/api-contracts.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'impact') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'changed',
+        'changedFile',
+        'depth',
+        'direction',
+        'format',
+        'json',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'changed',
+        'changedFile',
+        'depth',
+        'direction',
+        'format',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/impact.js', extraArgs: [], args: rest };
   }
   if (primary === 'tooling') {
     const sub = rest.shift();
@@ -294,6 +510,14 @@ Tooling:
 
 LMDB:
   lmdb build              Build LMDB indexes
+
+Graph:
+  graph-context          Build a graph context pack for a seed
+  context-pack           Build a composite context pack for a seed
+  api-contracts          Report cross-file API contracts
+  architecture-check     Evaluate architecture rules over graphs
+  suggest-tests          Suggest tests impacted by a change list
+  impact                 Compute bounded graph impact for a seed or change set
 
 Risk:
   risk explain            Explain interprocedural risk flows

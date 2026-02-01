@@ -1,0 +1,4 @@
+[
+  { "id": 42, "chunkUid": "u1", "file": "src/a.js", "name": "alpha" },
+  { "id": 7, "chunkUid": "u2", "file": "src/b.js", "name": "beta" }
+]

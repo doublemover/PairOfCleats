@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "callGraph": {
+    "nodeCount": 6,
+    "edgeCount": 5,
+    "nodes": [
+      { "id": "seed", "file": "src/seed.js", "name": "seed", "kind": "function", "chunkId": "seed", "out": ["c1", "c2", "c3", "c4", "c5"], "in": [] },
+      { "id": "c1", "file": "src/c1.js", "name": "c1", "kind": "function", "chunkId": "c1", "out": [], "in": ["seed"] },
+      { "id": "c2", "file": "src/c2.js", "name": "c2", "kind": "function", "chunkId": "c2", "out": [], "in": ["seed"] },
+      { "id": "c3", "file": "src/c3.js", "name": "c3", "kind": "function", "chunkId": "c3", "out": [], "in": ["seed"] },
+      { "id": "c4", "file": "src/c4.js", "name": "c4", "kind": "function", "chunkId": "c4", "out": [], "in": ["seed"] },
+      { "id": "c5", "file": "src/c5.js", "name": "c5", "kind": "function", "chunkId": "c5", "out": [], "in": ["seed"] }
+    ]
+  },
+  "usageGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "importGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  }
+}

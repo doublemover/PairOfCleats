@@ -52,6 +52,10 @@ export function parseSearchArgs(rawArgs) {
     'modified-since': { type: 'string' },
     risk: { type: 'string' },
     'risk-tag': { type: 'string' },
+    'graph-ranking-max-work': { type: 'number' },
+    'graph-ranking-max-ms': { type: 'number' },
+    'graph-ranking-seeds': { type: 'string' },
+    'graph-ranking-seed-k': { type: 'number' },
     'stub-embeddings': { type: 'boolean' },
     'non-strict': { type: 'boolean', default: false }
   };
@@ -96,6 +100,10 @@ export function getSearchUsage() {
     '  --modified-after <iso-date>',
     '  --modified-since <days>',
     '  --filter "<expr>"',
+    '  --graph-ranking-max-work <N>',
+    '  --graph-ranking-max-ms <N>',
+    '  --graph-ranking-seeds top1|topK|none',
+    '  --graph-ranking-seed-k <N>',
     '  --non-strict'
   ].join('\n');
 }

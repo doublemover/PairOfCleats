@@ -36,7 +36,7 @@ const env = {
 const result = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tests', 'parity.js'),
+    path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
     '--search',
     path.join(root, 'search.js'),
     '--sqlite-backend',

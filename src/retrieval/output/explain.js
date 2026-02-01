@@ -1,7 +1,11 @@
 const formatExplainLine = (label, parts, color) => {
   const filtered = parts.filter(Boolean);
   if (!filtered.length) return null;
-  return color.gray(`   ${label}: `) + filtered.join(', ');
+  const prefix = `   ${label}: `;
+  if (color?.gray && typeof color.gray === 'function') {
+    return color.gray(prefix) + filtered.join(', ');
+  }
+  return prefix + filtered.join(', ');
 };
 
 const formatScorePiece = (label, parts, color) => {
@@ -50,6 +54,19 @@ export function formatScoreBreakdown(scoreBreakdown, color) {
     const piece = formatScorePiece('Symbol', entry, color);
     if (piece) parts.push(piece);
   }
+  const graph = scoreBreakdown.graph || null;
+  if (graph) {
+    const entry = [];
+    if (Number.isFinite(graph.score)) entry.push(graph.score.toFixed(3));
+    if (Number.isFinite(graph.degree)) entry.push(`deg=${graph.degree}`);
+    if (Number.isFinite(graph.proximity)) entry.push(`prox=${graph.proximity}`);
+    const piece = formatScorePiece('Graph', entry, color);
+    if (piece) parts.push(piece);
+  }
   if (!parts.length) return [];
-  return [color.gray('   Scores: ') + parts.join(' | ')];
+  const prefix = '   Scores: ';
+  if (color?.gray && typeof color.gray === 'function') {
+    return [color.gray(prefix) + parts.join(' | ')];
+  }
+  return [prefix + parts.join(' | ')];
 }

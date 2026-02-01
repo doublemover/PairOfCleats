@@ -21,10 +21,12 @@ const baseEnv = {
   ...process.env,
   PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  PAIROFCLEATS_WORKER_POOL: 'off',
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_WORKER_POOL = 'off';
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const runBuild = (label, testConfig) => {

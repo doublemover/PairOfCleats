@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T14:14:27.540Z",
+  "generatedAt": "2026-02-01T21:55:58.006Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -101,6 +101,8 @@
       "indexing.fileCaps.byMode.records.maxLines",
       "indexing.fileCaps.default.maxBytes",
       "indexing.fileCaps.default.maxLines",
+      "indexing.graph.caps.maxEdges",
+      "indexing.graph.caps.maxNodes",
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
       "indexing.maxFileBytes",
@@ -117,6 +119,36 @@
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
       "quality",
+      "retrieval.contextExpansion.enabled",
+      "retrieval.contextExpansion.includeCalls",
+      "retrieval.contextExpansion.includeExports",
+      "retrieval.contextExpansion.includeImports",
+      "retrieval.contextExpansion.includeUsages",
+      "retrieval.contextExpansion.maxCallEdges",
+      "retrieval.contextExpansion.maxExportEdges",
+      "retrieval.contextExpansion.maxImportEdges",
+      "retrieval.contextExpansion.maxNameCandidates",
+      "retrieval.contextExpansion.maxPerHit",
+      "retrieval.contextExpansion.maxReasons",
+      "retrieval.contextExpansion.maxTotal",
+      "retrieval.contextExpansion.maxUsageEdges",
+      "retrieval.contextExpansion.maxWallClockMs",
+      "retrieval.contextExpansion.maxWorkUnits",
+      "retrieval.contextExpansion.respectFilters",
+      "retrieval.graph.caps.maxCandidates",
+      "retrieval.graph.caps.maxDepth",
+      "retrieval.graph.caps.maxEdges",
+      "retrieval.graph.caps.maxFanoutPerNode",
+      "retrieval.graph.caps.maxNodes",
+      "retrieval.graph.caps.maxPaths",
+      "retrieval.graph.caps.maxWallClockMs",
+      "retrieval.graph.caps.maxWorkUnits",
+      "retrieval.graphRanking.enabled",
+      "retrieval.graphRanking.maxGraphWorkUnits",
+      "retrieval.graphRanking.maxWallClockMs",
+      "retrieval.graphRanking.seedK",
+      "retrieval.graphRanking.seedSelection",
+      "retrieval.graphRanking.weights",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
@@ -172,8 +204,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 113,
-    "leafKeys": 87,
+    "totalKeys": 152,
+    "leafKeys": 119,
     "topLevel": [
       {
         "key": "cache",
@@ -181,11 +213,15 @@
       },
       {
         "key": "indexing",
-        "count": 50
+        "count": 54
       },
       {
         "key": "quality",
         "count": 1
+      },
+      {
+        "key": "retrieval",
+        "count": 35
       },
       {
         "key": "runtime",
@@ -382,6 +418,26 @@
       "enum": null
     },
     {
+      "path": "indexing.graph",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.graph.caps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.graph.caps.maxEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.graph.caps.maxNodes",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.importConcurrency",
       "type": "number",
       "enum": null
@@ -485,6 +541,181 @@
         "balanced",
         "max"
       ]
+    },
+    {
+      "path": "retrieval",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.includeCalls",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.includeExports",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.includeImports",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.includeUsages",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxCallEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxExportEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxImportEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxNameCandidates",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxPerHit",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxReasons",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxTotal",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxUsageEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxWallClockMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.maxWorkUnits",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.contextExpansion.respectFilters",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxCandidates",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxDepth",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxFanoutPerNode",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxNodes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxPaths",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxWallClockMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graph.caps.maxWorkUnits",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.maxGraphWorkUnits",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.maxWallClockMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.seedK",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.seedSelection",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "retrieval.graphRanking.weights",
+      "type": "object",
+      "enum": null
     },
     {
       "path": "runtime",
@@ -970,7 +1201,6 @@
       "name": "PAIROFCLEATS_DEBUG_CRASH",
       "files": [
         "src/shared/env.js",
-        "tools/build-embeddings/runner.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1571,7 +1801,9 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
@@ -1595,7 +1827,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 208,
+    "totalFlags": 251,
     "publicFlags": [
       "backend",
       "host",
@@ -1607,6 +1839,7 @@
       "watch"
     ],
     "internalFlags": [
+      "additionalProperties",
       "all",
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -1615,6 +1848,7 @@
       "ann-modes",
       "arch",
       "args",
+      "artifactDir",
       "auth-token",
       "backends",
       "backup",
@@ -1626,7 +1860,10 @@
       "build-sqlite",
       "cache-dir",
       "cache-root",
+      "caps",
       "cert-dir",
+      "changed",
+      "changedFile",
       "chunk",
       "chunk-meta-size",
       "clean",
@@ -1644,12 +1881,16 @@
       "count",
       "ctags",
       "dataset",
+      "depth",
       "destination",
       "dict",
       "dims",
       "dir",
+      "direction",
       "dp-max",
       "dry-run",
+      "edgeTypes",
+      "emitArtifact",
       "encoding",
       "enforce",
       "enforce-fts",
@@ -1659,6 +1900,8 @@
       "extensions",
       "extracted-prose-dir",
       "fail-fast",
+      "failOnViolation",
+      "failOnWarn",
       "fields",
       "finding",
       "fixture",
@@ -1669,11 +1912,19 @@
       "format",
       "from",
       "global",
+      "graphFixture",
+      "graphs",
+      "hops",
       "in",
       "include",
       "include-prose",
+      "includeCallersCallees",
       "includeCalls",
+      "includeGraph",
       "includeImports",
+      "includePaths",
+      "includeRisk",
+      "includeTypes",
       "includeUsages",
       "incremental",
       "index",
@@ -1701,13 +1952,31 @@
       "max-files",
       "max-gb",
       "max-members-per-file",
+      "maxBytes",
+      "maxCalls",
+      "maxCallsPerSymbol",
+      "maxCandidates",
+      "maxDepth",
+      "maxEdges",
+      "maxEdgesExamined",
+      "maxFanoutPerNode",
+      "maxNodes",
+      "maxPaths",
       "maxPerHit",
+      "maxSymbols",
+      "maxTokens",
       "maxTotal",
+      "maxTypeEntries",
+      "maxViolations",
+      "maxWallClockMs",
+      "maxWarnings",
+      "maxWorkUnits",
       "meta",
       "min-count",
       "min-overlap",
       "min-overlap-single",
       "min-rank-corr",
+      "minConfidence",
       "model",
       "model-out",
       "models",
@@ -1720,6 +1989,7 @@
       "non-strict",
       "only-exported",
       "onlyExported",
+      "onlyExports",
       "onnx",
       "onnx-path",
       "open",
@@ -1727,6 +1997,7 @@
       "options",
       "out",
       "out-dir",
+      "outDir",
       "output",
       "pack",
       "path",
@@ -1734,6 +2005,7 @@
       "platform",
       "pretty",
       "progress",
+      "properties",
       "prose-dir",
       "provider",
       "queries",
@@ -1748,11 +2020,13 @@
       "require-dicts",
       "require-index",
       "require-sqlite",
+      "required",
       "results",
       "retries",
       "reviewer",
       "root",
       "rule",
+      "rules",
       "run",
       "sample",
       "schema",
@@ -1783,6 +2057,7 @@
       "strict",
       "stub-embeddings",
       "table",
+      "testPattern",
       "three-url",
       "timeout-ms",
       "token-postings-size",
@@ -1812,9 +2087,141 @@
     "publicUnknown": [],
     "byFile": [
       {
+        "file": "src/contracts/schemas/analysis.js",
+        "flags": [
+          "additionalProperties",
+          "properties",
+          "required",
+          "type"
+        ]
+      },
+      {
         "file": "src/integrations/mcp/defs.js",
         "flags": [
           "type"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/api-contracts.js",
+        "flags": [
+          "artifactDir",
+          "caps",
+          "emitArtifact",
+          "failOnWarn",
+          "format",
+          "json",
+          "maxCalls",
+          "maxCallsPerSymbol",
+          "maxSymbols",
+          "maxWarnings",
+          "onlyExports",
+          "repo"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/architecture-check.js",
+        "flags": [
+          "failOnViolation",
+          "format",
+          "json",
+          "maxEdgesExamined",
+          "maxViolations",
+          "repo",
+          "rules"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/context-pack.js",
+        "flags": [
+          "format",
+          "hops",
+          "includeCallersCallees",
+          "includeGraph",
+          "includeImports",
+          "includePaths",
+          "includeRisk",
+          "includeTypes",
+          "includeUsages",
+          "json",
+          "maxBytes",
+          "maxCandidates",
+          "maxDepth",
+          "maxEdges",
+          "maxFanoutPerNode",
+          "maxNodes",
+          "maxPaths",
+          "maxTokens",
+          "maxTypeEntries",
+          "maxWallClockMs",
+          "maxWorkUnits",
+          "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/graph-context.js",
+        "flags": [
+          "depth",
+          "direction",
+          "edgeTypes",
+          "format",
+          "graphs",
+          "includePaths",
+          "json",
+          "maxCandidates",
+          "maxDepth",
+          "maxEdges",
+          "maxFanoutPerNode",
+          "maxNodes",
+          "maxPaths",
+          "maxWallClockMs",
+          "maxWorkUnits",
+          "minConfidence",
+          "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/impact.js",
+        "flags": [
+          "changed",
+          "changedFile",
+          "depth",
+          "direction",
+          "edgeTypes",
+          "format",
+          "graphs",
+          "json",
+          "maxCandidates",
+          "maxDepth",
+          "maxEdges",
+          "maxFanoutPerNode",
+          "maxNodes",
+          "maxPaths",
+          "maxWallClockMs",
+          "maxWorkUnits",
+          "minConfidence",
+          "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "src/integrations/tooling/suggest-tests.js",
+        "flags": [
+          "changed",
+          "changedFile",
+          "format",
+          "json",
+          "max",
+          "maxCandidates",
+          "maxDepth",
+          "maxEdges",
+          "maxNodes",
+          "maxPaths",
+          "maxWallClockMs",
+          "maxWorkUnits",
+          "repo",
+          "testPattern"
         ]
       },
       {
@@ -1886,6 +2293,40 @@
         ]
       },
       {
+        "file": "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
+        "flags": [
+          "includeCalls",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
+        "file": "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js",
+        "flags": [
+          "includeCalls",
+          "maxPerHit",
+          "maxTotal",
+          "maxWorkUnits"
+        ]
+      },
+      {
+        "file": "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
+        "flags": [
+          "includeCalls",
+          "includeUsages",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
+        "file": "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
+        "flags": [
+          "includeCalls",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
         "file": "tests/retrieval/context/context-expansion.test.js",
         "flags": [
           "includeCalls",
@@ -1921,6 +2362,14 @@
           "retries",
           "skip-bench",
           "skip-script-coverage"
+        ]
+      },
+      {
+        "file": "tests/shared/contracts/phase11-schemas-validate.test.js",
+        "flags": [
+          "caps",
+          "failOnWarn",
+          "onlyExports"
         ]
       },
       {
@@ -2010,6 +2459,15 @@
           "out",
           "repo",
           "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/graph-caps-harness.js",
+        "flags": [
+          "depth",
+          "graphFixture",
+          "index",
+          "outDir"
         ]
       },
       {
@@ -2590,8 +3048,14 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 45,
+        "count": 51,
         "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
           "tools/api-server.js",
           "tools/assemble-pieces.js",
           "tools/bench-query-generator.js",
@@ -2641,8 +3105,14 @@
       },
       {
         "flag": "json",
-        "count": 25,
+        "count": 31,
         "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/api-server.js",
           "tools/bench-dict-seg.js",
@@ -2731,6 +3201,20 @@
           "tools/compact-sqlite-index.js",
           "tools/download-extensions.js",
           "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "format",
+        "count": 8,
+        "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "tools/report-code-map.js",
+          "tools/structural-search.js"
         ]
       },
       {
@@ -2836,6 +3320,17 @@
         ]
       },
       {
+        "flag": "includeCalls",
+        "count": 5,
+        "files": [
+          "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
+          "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js",
+          "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
+          "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
+          "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
         "flag": "input",
         "count": 5,
         "files": [
@@ -2844,6 +3339,50 @@
           "tools/gtags-ingest.js",
           "tools/lsif-ingest.js",
           "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "maxPerHit",
+        "count": 5,
+        "files": [
+          "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
+          "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js",
+          "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
+          "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
+          "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "maxTotal",
+        "count": 5,
+        "files": [
+          "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
+          "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js",
+          "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
+          "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
+          "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "maxWorkUnits",
+        "count": 5,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js"
+        ]
+      },
+      {
+        "flag": "seed",
+        "count": 5,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js"
         ]
       },
       {
@@ -2884,6 +3423,66 @@
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "maxCandidates",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "maxDepth",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "maxEdges",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "maxNodes",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "maxPaths",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "maxWallClockMs",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
         ]
       },
       {
@@ -2944,12 +3543,39 @@
         ]
       },
       {
+        "flag": "depth",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js"
+        ]
+      },
+      {
+        "flag": "includeUsages",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
+          "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
         "flag": "log",
         "count": 3,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
+        ]
+      },
+      {
+        "flag": "maxFanoutPerNode",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js"
         ]
       },
       {
@@ -3029,6 +3655,30 @@
         ]
       },
       {
+        "flag": "caps",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "tests/shared/contracts/phase11-schemas-validate.test.js"
+        ]
+      },
+      {
+        "flag": "changed",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "changedFile",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
         "flag": "collapse",
         "count": 2,
         "files": [
@@ -3042,6 +3692,30 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench-query-generator.js"
+        ]
+      },
+      {
+        "flag": "direction",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "edgeTypes",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "failOnWarn",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "tests/shared/contracts/phase11-schemas-validate.test.js"
         ]
       },
       {
@@ -3061,11 +3735,35 @@
         ]
       },
       {
-        "flag": "format",
+        "flag": "graphs",
         "count": 2,
         "files": [
-          "tools/report-code-map.js",
-          "tools/structural-search.js"
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "includeImports",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "includePaths",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js"
+        ]
+      },
+      {
+        "flag": "index",
+        "count": 2,
+        "files": [
+          "tools/bench/graph-caps-harness.js",
+          "tools/explain-risk.js"
         ]
       },
       {
@@ -3085,11 +3783,27 @@
         ]
       },
       {
+        "flag": "max",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/suggest-tests.js",
+          "tools/explain-risk.js"
+        ]
+      },
+      {
         "flag": "meta",
         "count": 2,
         "files": [
           "tools/triage/decision.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "minConfidence",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js"
         ]
       },
       {
@@ -3106,6 +3820,14 @@
         "files": [
           "tools/combined-summary.js",
           "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "onlyExports",
+        "count": 2,
+        "files": [
+          "src/integrations/tooling/api-contracts.js",
+          "tests/shared/contracts/phase11-schemas-validate.test.js"
         ]
       },
       {
@@ -3181,14 +3903,6 @@
         ]
       },
       {
-        "flag": "seed",
-        "count": 2,
-        "files": [
-          "tests/fixtures/medium/generate.js",
-          "tools/bench-query-generator.js"
-        ]
-      },
-      {
         "flag": "sha256",
         "count": 2,
         "files": [
@@ -3258,6 +3972,14 @@
         "files": [
           "tools/map-iso-serve.js",
           "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "type",
+        "count": 2,
+        "files": [
+          "src/contracts/schemas/analysis.js",
+          "src/integrations/mcp/defs.js"
         ]
       },
       {

@@ -93,6 +93,11 @@ function normalizeUserConfig(baseConfig) {
     if (isPlainObject(indexing.riskInterprocedural)) {
       normalizedIndexing.riskInterprocedural = indexing.riskInterprocedural;
     }
+    if (isPlainObject(indexing.graph)) {
+      const graph = {};
+      if (isPlainObject(indexing.graph.caps)) graph.caps = indexing.graph.caps;
+      if (Object.keys(graph).length) normalizedIndexing.graph = graph;
+    }
     if (indexing.treeSitter) normalizedIndexing.treeSitter = indexing.treeSitter;
     if (indexing.fileFilters) normalizedIndexing.fileFilters = indexing.fileFilters;
     if (Object.keys(normalizedIndexing).length) normalized.indexing = normalizedIndexing;
@@ -226,6 +231,22 @@ function normalizeUserConfig(baseConfig) {
       }
     }
     if (Object.keys(search).length) normalized.search = search;
+  }
+  if (isPlainObject(baseConfig.retrieval)) {
+    const retrieval = baseConfig.retrieval;
+    const normalizedRetrieval = {};
+    if (isPlainObject(retrieval.graph)) {
+      const graph = {};
+      if (isPlainObject(retrieval.graph.caps)) graph.caps = retrieval.graph.caps;
+      if (Object.keys(graph).length) normalizedRetrieval.graph = graph;
+    }
+    if (isPlainObject(retrieval.graphRanking)) {
+      normalizedRetrieval.graphRanking = retrieval.graphRanking;
+    }
+    if (isPlainObject(retrieval.contextExpansion)) {
+      normalizedRetrieval.contextExpansion = retrieval.contextExpansion;
+    }
+    if (Object.keys(normalizedRetrieval).length) normalized.retrieval = normalizedRetrieval;
   }
   return normalized;
 }

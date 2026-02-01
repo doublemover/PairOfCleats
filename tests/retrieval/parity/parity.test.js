@@ -31,8 +31,8 @@ const argv = createCli({
 const root = process.cwd();
 const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
+const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
 const searchPath = argv.search
   ? path.resolve(argv.search)
@@ -80,6 +80,7 @@ function ensureParityIndexes() {
     const metaPath = resolveChunkMetaPath(dir);
     return !fsSync.existsSync(metaPath);
   });
+  const sqlitePaths = resolveSqlitePathsForRoot();
   const missingSqlite = !fsSync.existsSync(sqlitePaths.codePath) || !fsSync.existsSync(sqlitePaths.prosePath);
   if (!missingIndex && !missingSqlite) return;
 
@@ -110,6 +111,7 @@ function ensureParityIndexes() {
 }
 
 ensureParityIndexes();
+const sqlitePaths = resolveSqlitePathsForRoot();
 
 requireIndex('code');
 requireIndex('prose');

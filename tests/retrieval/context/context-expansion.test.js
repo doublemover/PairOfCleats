@@ -13,7 +13,7 @@ const fileRelations = new Map([
 
 const hits = [{ id: 0, file: 'src/a.js' }];
 const contextIndex = buildContextIndex({ chunkMeta, repoMap: null });
-const contextHits = expandContext({
+const contextResult = expandContext({
   hits,
   chunkMeta,
   fileRelations,
@@ -28,13 +28,13 @@ const contextHits = expandContext({
   }
 });
 
-const ids = new Set(contextHits.map((hit) => hit.id));
+const ids = new Set(contextResult.contextHits.map((hit) => hit.id));
 if (!ids.has(1) || !ids.has(2)) {
   console.error('Expected context expansion to include call and import targets.');
   process.exit(1);
 }
 
-const filteredHits = expandContext({
+const filteredResult = expandContext({
   hits,
   chunkMeta,
   fileRelations,
@@ -49,7 +49,7 @@ const filteredHits = expandContext({
     includeUsages: true
   }
 });
-const filteredIds = new Set(filteredHits.map((hit) => hit.id));
+const filteredIds = new Set(filteredResult.contextHits.map((hit) => hit.id));
 if (filteredIds.size !== 1 || !filteredIds.has(2)) {
   console.error('Expected context expansion to honor allowedIds.');
   process.exit(1);

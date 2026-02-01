@@ -17,7 +17,7 @@ cache.set(dbPath, db);
 const first = cache.get(dbPath);
 assert.equal(first, db, 'should return cached db');
 
-await fs.writeFile(dbPath, 'changed');
+await fs.writeFile(dbPath, 'changed-value');
 const second = cache.get(dbPath);
 assert.equal(second, null, 'should invalidate on signature change');
 assert.equal(closed, true, 'should close invalidated db');

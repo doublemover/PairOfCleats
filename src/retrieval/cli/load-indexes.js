@@ -13,10 +13,12 @@ import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
 import {
   MAX_JSON_BYTES,
+  loadGraphRelations,
   loadJsonObjectArtifact,
   loadPiecesManifest,
   readJsonFile,
   readCompatibilityKey,
+  resolveArtifactPresence,
   resolveDirArtifactPath
 } from '../../shared/artifact-io.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
@@ -42,6 +44,7 @@ export async function loadSearchIndexes({
   annActive,
   filtersActive,
   contextExpansionEnabled,
+  graphRankingEnabled,
   sqliteFtsRequested,
   backendLabel,
   backendForcedTantivy,
@@ -362,6 +365,45 @@ export async function loadSearchIndexes({
     return idx.lancedb;
   };
 
+  const attachGraphRelations = async (idx, dir) => {
+    if (!idx || !dir || (!contextExpansionEnabled && !graphRankingEnabled)) return null;
+    let manifest = null;
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+    } catch (err) {
+      if (err?.code === 'ERR_MANIFEST_MISSING' || err?.code === 'ERR_MANIFEST_INVALID') {
+        return null;
+      }
+      throw err;
+    }
+    const presence = resolveArtifactPresence(dir, 'graph_relations', {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict
+    });
+    if (!presence || presence.format === 'missing' || presence.error || presence.missingPaths?.length) {
+      idx.graphRelations = null;
+      return null;
+    }
+    try {
+      idx.graphRelations = await loadGraphRelations(dir, {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict
+      });
+      return idx.graphRelations;
+    } catch (err) {
+      if (emitOutput) {
+        console.warn(
+          `[search] graph_relations load failed (${err?.message || err}); using name-based context expansion.`
+        );
+      }
+      idx.graphRelations = null;
+      return null;
+    }
+  };
+
+  await attachGraphRelations(idxCode, codeIndexDir);
   await attachLanceDb(idxCode, 'code', codeIndexDir);
   await attachLanceDb(idxProse, 'prose', proseIndexDir);
   await attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);

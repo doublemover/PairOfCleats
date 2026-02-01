@@ -1,12 +1,17 @@
-# Search contract
+# Search contract (0.0.2)
 
 This document defines the expected search semantics across backends and modes.
 It is the correctness reference for the search pipeline.
 
+Phase 11 extends the contract with:
+- hardened, bounded context expansion semantics (still post-ranking),
+- opt-in graph-aware ranking hooks that **must not change membership**,
+- and explain payload extensions for graph ranking.
+
 ## Ranking components
 
 Search uses a blended ranking model:
-- **Sparse (BM25)** over token postings.
+- **Sparse (BM25/FTS)** over token postings.
 - **Dense similarity** over embedding vectors (when enabled).
 - **Minhash similarity** for near-duplicate signals.
 - **Symbol boosts** for definitions/exports (configurable).
@@ -47,3 +52,33 @@ fused using RRF by default; each mode can be weighted independently via config.
 - `phrase`: phrase/chargram boost metadata
 
 Backends must emit this schema consistently so that parity checks are meaningful.
+
+### Phase 11: Graph ranking explain additions (optional)
+When graph-aware ranking is enabled, explain SHOULD include:
+
+- `scoreBreakdown.graph`:
+  - `enabled` (boolean)
+  - `delta` (number)
+  - `features` (object of named features)
+  - optional truncation metadata when caps trigger
+
+## Phase 11: Graph-aware ranking (membership invariant)
+
+Graph ranking is an opt-in reordering step using bounded graph-derived features.
+
+**Membership invariant (required):**
+- With graph ranking enabled, search may change ordering but MUST NOT change which hits are returned (membership), compared to graph ranking disabled under the same filters/top parameters.
+
+Implementation guidance:
+- Select baseline membership (`topN`) first, then reorder within it.
+
+## Phase 11: Context expansion hardening (post-ranking; optional)
+
+Context expansion remains post-ranking and may append additional context hits, but Phase 11 requires:
+- explicit caps and deterministic truncation behavior,
+- identity-first joins when graph artifacts exist,
+- and no unbounded intermediate candidate sets.
+
+See:
+- `docs/contracts/retrieval-ranking.md` (Phase 11 section)
+- `docs/phases/phase-11/spec.md`

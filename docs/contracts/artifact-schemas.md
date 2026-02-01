@@ -1,6 +1,8 @@
-# Artifact Schemas (0.0.1)
+# Artifact Schemas (0.0.2)
 
 This document is the canonical contract for on-disk index artifacts. Schema validation is enforced by `src/index/validate` against the registry in `src/contracts/schemas/artifacts.js`.
+
+> Phase 11 adds an optional new artifact (`api_contracts`) if artifact emission is enabled for cross-file API contract reports.
 
 ## General expectations
 
@@ -16,7 +18,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
-Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `repo_map_meta`, `graph_relations_meta`.
+Sharded meta is defined for: `chunk_meta_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `repo_map_meta`, `graph_relations_meta`, and (Phase 11 optional) `api_contracts_meta`.
 
 ## Artifact registry
 
@@ -54,6 +56,29 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
 - `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional fields include `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`, `warnings[]`.
 
+### Phase 11 optional: `api_contracts` (JSONL)
+If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MAY be produced.
+
+- `api_contracts` (array/JSONL): one record per symbol.
+  - Required fields (recommended):
+    - `symbol` (object):
+      - `symbolId` (string)
+      - `chunkUid` (string|null)
+      - `file` (string|null)
+      - `name` (string|null)
+      - `kind` (string|null)
+    - `signature` (object: `declared`, `tooling`)
+    - `observedCalls[]` (bounded)
+    - `warnings[]` (bounded)
+    - `truncation[]` (bounded)
+  - Optional fields:
+    - `schemaVersion` (int, starting at 1) if a version tag is needed in JSONL rows
+  - The artifact MUST be bounded (caps) and deterministic in ordering when emitted.
+  - If sharded, `api_contracts_meta` follows the sharded JSONL meta schema.
+
+Canonical contract for the report surface:
+- `docs/phases/phase-11/spec.md` (`ApiContractsReportV1`)
+
 ## Additions and phase notes
 
 - `filter_index` may include an optional `byLang` map keyed by effective language id (Phase 5).
@@ -68,4 +93,3 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
-

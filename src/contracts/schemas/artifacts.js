@@ -850,6 +850,53 @@ export const ARTIFACT_SCHEMA_DEFS = {
     type: 'array',
     items: callSiteEntry
   },
+  api_contracts: {
+    type: 'array',
+    items: {
+      type: 'object',
+      required: ['symbol', 'signature', 'observedCalls'],
+      properties: {
+        symbol: {
+          type: 'object',
+          required: ['symbolId'],
+          properties: {
+            symbolId: { type: 'string' },
+            chunkUid: nullableString,
+            file: nullableString,
+            name: nullableString,
+            kind: nullableString
+          },
+          additionalProperties: true
+        },
+        signature: {
+          type: 'object',
+          properties: {
+            declared: nullableString,
+            tooling: nullableString
+          },
+          additionalProperties: true
+        },
+        observedCalls: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              arity: { type: ['number', 'null'] },
+              args: { type: ['array', 'null'], items: { type: 'string' } },
+              callSiteId: nullableString,
+              file: nullableString,
+              startLine: { type: ['number', 'null'] },
+              confidence: { type: ['number', 'null'] }
+            },
+            additionalProperties: true
+          }
+        },
+        warnings: { type: ['array', 'null'], items: { type: 'object' } },
+        truncation: { type: ['array', 'null'], items: { type: 'object' } }
+      },
+      additionalProperties: true
+    }
+  },
   risk_summaries: {
     type: 'array',
     items: riskSummaryRow
