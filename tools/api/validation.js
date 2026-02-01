@@ -132,7 +132,7 @@ export const normalizeMetaFilters = (meta) => {
 };
 
 export const createSearchValidator = () => {
-  const ajv = new Ajv({ allErrors: true, strict: false });
+  const ajv = new Ajv({ allErrors: false, strict: false });
   const validateSearchRequest = ajv.compile(searchRequestSchema);
   return (payload) => {
     const valid = validateSearchRequest(payload);

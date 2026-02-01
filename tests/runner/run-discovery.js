@@ -1,5 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { compileSafeRegex } from '../../src/shared/safe-regex.js';
 
 export const splitCsv = (values) => values
   .flatMap((value) => String(value).split(','))
@@ -72,9 +73,11 @@ const parseRegexLiteral = (raw) => {
   };
 };
 
-const escapeRegexLiteral = (value) => (
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-);
+const SAFE_MATCH_REGEX_CONFIG = {
+  maxPatternLength: 256,
+  maxProgramSize: 1500,
+  maxInputLength: 2000
+};
 
 export const compileMatchers = (patterns, label) => {
   const matchers = [];
@@ -83,15 +86,14 @@ export const compileMatchers = (patterns, label) => {
     if (!pattern) continue;
     const literal = parseRegexLiteral(pattern);
     if (literal) {
-      try {
-        const regex = new RegExp(escapeRegexLiteral(literal.source), literal.flags);
-        matchers.push({ raw: pattern, test: (value) => regex.test(value) });
-        continue;
-      } catch (error) {
-        console.error(`Invalid ${label} regex: ${pattern}`);
-        console.error(String(error?.message || error));
+      const { regex, error } = compileSafeRegex(literal.source, literal.flags, SAFE_MATCH_REGEX_CONFIG);
+      if (!regex || error) {
+        console.error(`Invalid or unsafe ${label} regex: ${pattern}`);
+        if (error?.message) console.error(String(error.message));
         process.exit(2);
       }
+      matchers.push({ raw: pattern, test: (value) => regex.test(value) });
+      continue;
     }
     const lowered = pattern.toLowerCase();
     matchers.push({ raw: pattern, test: (value) => value.toLowerCase().includes(lowered) });

@@ -14,7 +14,6 @@
     "build-index": "node build_index.js",
     "watch-index": "node build_index.js --watch",
     "search": "node search.js",
-    "merge-append": "node tools/mergeAppendOnly.js",
     "download-dicts": "node tools/download-dicts.js",
     "download-models": "node tools/download-models.js",
     "download-extensions": "node tools/download-extensions.js",

@@ -56,6 +56,21 @@ const expectedUnscoped = 'https://www.npmjs.com/package/left-pad';
 const encodedScoped = 'https://www.npmjs.com/package/%40scope/pkg';
 
 const allDocs = files.flatMap((file) => file.externalDocs || []);
+const allowedHosts = ['npmjs.com', 'pypi.org', 'pkg.go.dev'];
+const isAllowedHost = (urlValue) => {
+  let host = '';
+  try {
+    host = new URL(urlValue).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+};
+const invalidHosts = allDocs.filter((doc) => !isAllowedHost(doc));
+if (invalidHosts.length) {
+  console.error(`External docs must use allowed hosts: ${invalidHosts.join(', ')}`);
+  process.exit(1);
+}
 if (!allDocs.includes(expectedScoped)) {
   console.error(`Missing scoped npm doc link: ${expectedScoped}`);
   process.exit(1);
