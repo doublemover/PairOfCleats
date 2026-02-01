@@ -22,9 +22,9 @@ const normalizeOptionalNumber = (value) => (
 );
 
 const normalizeAnnBackend = (value) => {
-  if (typeof value !== 'string') return 'lancedb';
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return 'lancedb';
+  if (!trimmed) return null;
   if (trimmed === 'sqlite' || trimmed === 'sqlite-extension' || trimmed === 'vector-extension') {
     return 'sqlite-vector';
   }
@@ -32,7 +32,7 @@ const normalizeAnnBackend = (value) => {
   if (['auto', 'lancedb', 'sqlite-vector', 'hnsw', 'js'].includes(trimmed)) {
     return trimmed;
   }
-  return 'lancedb';
+  return null;
 };
 
 const normalizeDenseVectorMode = (value) => {
@@ -57,11 +57,11 @@ export function normalizeSearchOptions({
   const missingValueMessages = getMissingFlagMessages(argv, rawArgs);
   const query = argv._.join(' ').trim();
 
-  const embeddingsConfig = {};
-  const embeddingProvider = normalizeEmbeddingProvider();
-  const embeddingOnnx = normalizeOnnxConfig({});
-  const hnswConfig = normalizeHnswConfig({});
-  const lancedbConfig = normalizeLanceDbConfig({});
+  const embeddingsConfig = userConfig?.indexing?.embeddings || {};
+  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
+  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
+  const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   const sqliteConfig = {};
   const sqliteAutoChunkThreshold = normalizeOptionalNumber(
@@ -71,7 +71,7 @@ export function normalizeSearchOptions({
     userConfig?.search?.sqliteAutoArtifactBytes
   ) ?? 0;
 
-  const postingsConfig = normalizePostingsConfig({});
+  const postingsConfig = normalizePostingsConfig(userConfig?.indexing?.postings || {});
   const filePrefilterConfig = {};
   const filePrefilterEnabled = true;
   const searchRegexConfig = null;
@@ -79,7 +79,6 @@ export function normalizeSearchOptions({
 
   const vectorExtension = getVectorExtensionConfig(rootDir, userConfig);
 
-  const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
   const filterInfo = parseFilterExpression(argv.filter);
   if (filterInfo.errors && filterInfo.errors.length) {
     throw new Error(`Invalid --filter: ${filterInfo.errors.join(', ')}`);
@@ -146,15 +145,24 @@ export function normalizeSearchOptions({
   const langImpossible = langFilterInfo.impossible;
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
+  const searchConfig = userConfig?.search || {};
+  const maxCandidates = normalizeOptionalNumber(searchConfig.maxCandidates);
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const policyAnn = policy?.retrieval?.ann?.enabled;
-  const annEnabled = annFlagPresent ? argv.ann : (policyAnn ?? true);
-  const annBackendRaw = argv['ann-backend'] ?? 'lancedb';
-  const annBackend = normalizeAnnBackend(annBackendRaw);
+  const annDefault = typeof searchConfig.annDefault === 'boolean'
+    ? searchConfig.annDefault
+    : null;
+  const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
+  const annBackendRaw = argv['ann-backend'];
+  const annBackend = annBackendRaw == null ? 'lancedb' : normalizeAnnBackend(annBackendRaw);
+  if (annBackendRaw != null && !annBackend) {
+    throw new Error(`Invalid --ann-backend "${annBackendRaw}". Use auto|lancedb|sqlite|hnsw|js.`);
+  }
 
-  const scoreBlendEnabled = false;
-  const scoreBlendSparseWeight = 1;
-  const scoreBlendAnnWeight = 1;
+  const scoreBlendConfig = searchConfig.scoreBlend || {};
+  const scoreBlendEnabled = scoreBlendConfig.enabled === true;
+  const scoreBlendSparseWeight = normalizeOptionalNumber(scoreBlendConfig.sparseWeight) ?? 1;
+  const scoreBlendAnnWeight = normalizeOptionalNumber(scoreBlendConfig.annWeight) ?? 1;
 
   const symbolBoostEnabled = true;
   const symbolBoostDefinitionWeight = 1.2;
@@ -166,9 +174,14 @@ export function normalizeSearchOptions({
   const queryCacheMaxEntries = 200;
   const queryCacheTtlMs = 0;
 
+  const rrfConfig = searchConfig.rrf || {};
   const policyRrfEnabled = policy?.retrieval?.rrf?.enabled;
-  const rrfEnabled = policyRrfEnabled ?? true;
-  const rrfK = normalizeOptionalNumber(policy?.retrieval?.rrf?.k) ?? 60;
+  const rrfEnabled = typeof rrfConfig.enabled === 'boolean'
+    ? rrfConfig.enabled
+    : (policyRrfEnabled ?? true);
+  const rrfK = normalizeOptionalNumber(rrfConfig.k)
+    ?? normalizeOptionalNumber(policy?.retrieval?.rrf?.k)
+    ?? 60;
 
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
@@ -219,7 +232,7 @@ export function normalizeSearchOptions({
     argv['fts-profile']
       || (['fast', 'balanced', 'max'].includes(policyQuality) ? policyQuality : 'balanced')
   ).toLowerCase();
-  let sqliteFtsWeightsConfig = null;
+  let sqliteFtsWeightsConfig = searchConfig.sqliteFtsWeights ?? null;
   if (argv['fts-weights']) {
     const parsed = parseJson(argv['fts-weights'], null);
     if (parsed) {
@@ -260,7 +273,6 @@ export function normalizeSearchOptions({
     jsonOutput,
     missingValueMessages,
     query,
-    contextLines,
     searchType,
     searchAuthor,
     searchImport,
@@ -311,6 +323,7 @@ export function normalizeSearchOptions({
     symbolBoostDefinitionWeight,
     symbolBoostExportWeight,
     minhashMaxDocs,
+    maxCandidates,
     queryCacheEnabled,
     queryCacheMaxEntries,
     queryCacheTtlMs,
@@ -323,7 +336,7 @@ export function normalizeSearchOptions({
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
-    fieldWeightsConfig: null,
+    fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
     denseVectorMode,
     strict,

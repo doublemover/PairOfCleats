@@ -17,7 +17,8 @@ export function createSqliteVectorAnnProvider({
       && isEmbeddingReady(embedding)
       && vectorAnnState?.[mode]?.available
     ),
-    query: ({ mode, embedding, topN, candidateSet }) => {
+    query: ({ mode, embedding, topN, candidateSet, signal }) => {
+      if (signal?.aborted) return [];
       if (!isEmbeddingReady(embedding)) return [];
       if (candidateSet && candidateSet.size === 0) return [];
       if (typeof rankVectorAnnSqlite !== 'function') return [];

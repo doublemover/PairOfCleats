@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T21:55:58.006Z",
+  "generatedAt": "2026-02-01T23:28:01.090Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -153,9 +153,18 @@
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
       "runtime.uvThreadpoolSize",
+      "search.annDefault",
       "search.denseVectorMode",
+      "search.fieldWeights",
+      "search.maxCandidates",
+      "search.rrf.enabled",
+      "search.rrf.k",
+      "search.scoreBlend.annWeight",
+      "search.scoreBlend.enabled",
+      "search.scoreBlend.sparseWeight",
       "search.sqliteAutoArtifactBytes",
       "search.sqliteAutoChunkThreshold",
+      "search.sqliteFtsWeights",
       "threads",
       "tooling.allowGlobalFallback",
       "tooling.autoEnableOnDetect",
@@ -204,8 +213,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 152,
-    "leafKeys": 119,
+    "totalKeys": 163,
+    "leafKeys": 128,
     "topLevel": [
       {
         "key": "cache",
@@ -229,7 +238,7 @@
       },
       {
         "key": "search",
-        "count": 4
+        "count": 15
       },
       {
         "key": "threads",
@@ -748,6 +757,11 @@
       "enum": null
     },
     {
+      "path": "search.annDefault",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "search.denseVectorMode",
       "type": "string",
       "enum": [
@@ -758,6 +772,51 @@
       ]
     },
     {
+      "path": "search.fieldWeights",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.maxCandidates",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.rrf",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.rrf.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.rrf.k",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.annWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.sparseWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "search.sqliteAutoArtifactBytes",
       "type": "number",
       "enum": null
@@ -765,6 +824,11 @@
     {
       "path": "search.sqliteAutoChunkThreshold",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights",
+      "type": null,
       "enum": null
     },
     {

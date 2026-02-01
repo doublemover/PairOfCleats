@@ -13,7 +13,8 @@ export function createHnswAnnProvider({ hnswAnnState, hnswAnnUsed }) {
       isEmbeddingReady(embedding)
       && (idx?.hnsw?.available || hnswAnnState?.[mode]?.available)
     ),
-    query: ({ idx, mode, embedding, topN, candidateSet }) => {
+    query: ({ idx, mode, embedding, topN, candidateSet, signal }) => {
+      if (signal?.aborted) return [];
       if (!isEmbeddingReady(embedding)) return [];
       if (candidateSet && candidateSet.size === 0) return [];
       if (!(idx?.hnsw?.available || hnswAnnState?.[mode]?.available)) return [];

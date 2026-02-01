@@ -179,7 +179,7 @@ Manifest-driven and output-driven filesystem reads must be safe **regardless of 
 Make search behavior deterministic, debuggable, and aligned with its public CLI surface.
 
 #### 4.1 SQLite FTS auto-enable inconsistency (backend initialization vs downstream usage)
-- [?] Fix divergent booleans for FTS enablement.
+- [x] Fix divergent booleans for FTS enablement.
   - In `src/retrieval/cli.js`, FTS is derived as:
     - `sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection)`
   - But `createBackendContext(...)` receives the **original** `sqliteFtsRequested`, while index-loading receives `sqliteFtsEnabled`.
@@ -189,7 +189,7 @@ Make search behavior deterministic, debuggable, and aligned with its public CLI 
   - Action: compute one canonical “FTS enabled” boolean and pass it everywhere.
 
 #### 4.2 Flag surface is far larger than yargs declarations (types/missing-value hazards)
-- [?] Declare every consumed `argv.*` option in yargs (or intentionally mark them as “advanced” but still declare them).
+- [x] Declare every consumed `argv.*` option in yargs (or intentionally mark them as “advanced” but still declare them).
   - Current state:
     - ~70+ `argv.*` keys are read in the search path; ~40+ are not declared in yargs.
     - `.strict(false)` means unknown flags are accepted but are not typed/coerced and are absent from `--help`.
@@ -198,28 +198,28 @@ Make search behavior deterministic, debuggable, and aligned with its public CLI 
     - string filters can silently become `"true"`.
     - numeric knobs can silently become `1` (`Number(true) === 1`) (e.g., `--bm25-k1`, `--modified-since`).
   - Action:
-    - [ ] Add yargs declarations for all read flags with correct types and `.requiresArg()` where applicable.
-    - [ ] Expand `getMissingFlagMessages()` beyond `type/author/import` to include “must-have-value” flags.
-    - [ ] Add tests for missing-value behavior (`--repo`, `--modified-since`, `--bm25-k1`, `--path`, etc.).
+    - [x] Add yargs declarations for all read flags with correct types and `.requiresArg()` where applicable.
+    - [x] Expand `getMissingFlagMessages()` beyond `type/author/import` to include “must-have-value” flags.
+    - [x] Add tests for missing-value behavior (`--repo`, `--modified-since`, `--bm25-k1`, `--path`, etc.).
 
-- [?] Fix `--context` dead flag.
+- [x] Fix `--context` dead flag.
   - `contextLines` is computed from `argv.context` but not used downstream.
   - Action: wire it to output context, or remove the flag.
 
-- [?] Fix Windows drive-letter token parsing in `--filter`.
+- [x] Fix Windows drive-letter token parsing in `--filter`.
   - `parseFilterExpression()` splits on `:`; `C:\...` becomes key `c`.
   - Action: special-case `/^[A-Za-z]:[\\/]/` as a file path token.
 
-- [?] Fix LMDB chunk hydration overwriting valid zeros.
+- [x] Fix LMDB chunk hydration overwriting valid zeros.
   - `src/retrieval/lmdb-helpers.js` uses falsy checks (`if (!chunk.churn)`) causing `0` to be overwritten.
   - Action: use nullish checks (`== null`).
 
 #### 4.3 Retrieval pipeline safety and determinism
-- [?] Propagate abort/cancellation signals into provider calls.
+- [x] Propagate abort/cancellation signals into provider calls.
   - Current pattern checks `signal` at boundaries but providers don’t accept/obey it.
-- [?] Validate unknown ANN backend strings rather than silently defaulting.
-- [?] Add candidate set caps to prevent “candidate explosion” on pathological tokens.
-- [?] Document and/or wire search config knobs.
+- [x] Validate unknown ANN backend strings rather than silently defaulting.
+- [x] Add candidate set caps to prevent “candidate explosion” on pathological tokens.
+- [x] Document and/or wire search config knobs.
   - Current normalization hard-codes several behaviors (`contextExpansionEnabled=false`, `scoreBlendEnabled=false`, etc.) while docs imply configurability.
   - Many backend config normalizers are called with `{}` (ignoring `userConfig`), limiting real-world configurability.
 

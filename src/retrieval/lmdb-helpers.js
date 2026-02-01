@@ -74,10 +74,10 @@ export function createLmdbHelpers(options) {
         if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
         if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
         if (!chunk.last_author) chunk.last_author = meta.last_author;
-        if (!chunk.churn) chunk.churn = meta.churn;
-        if (!chunk.churn_added) chunk.churn_added = meta.churn_added;
-        if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
-        if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
+        if (chunk.churn == null) chunk.churn = meta.churn;
+        if (chunk.churn_added == null) chunk.churn_added = meta.churn_added;
+        if (chunk.churn_deleted == null) chunk.churn_deleted = meta.churn_deleted;
+        if (chunk.churn_commits == null) chunk.churn_commits = meta.churn_commits;
       }
     }
 

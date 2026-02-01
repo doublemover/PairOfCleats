@@ -4,8 +4,12 @@ export const createCandidateSetBuilder = ({
   useSqlite,
   postingsConfig,
   buildCandidateSetSqlite,
-  chargramMaxTokenLength
+  chargramMaxTokenLength,
+  maxCandidates
 }) => {
+  const candidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
+    ? Math.floor(Number(maxCandidates))
+    : null;
   return function buildCandidateSet(idx, tokens, mode) {
     if (useSqlite && (mode === 'code' || mode === 'prose')) {
       return buildCandidateSetSqlite(mode, tokens);
@@ -13,6 +17,10 @@ export const createCandidateSetBuilder = ({
 
     const candidates = new Set();
     let matched = false;
+    const addCandidate = (id) => {
+      candidates.add(id);
+      return candidateCap && candidates.size >= candidateCap;
+    };
 
     if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
       const vocabIndex = idx.phraseNgrams.vocabIndex
@@ -22,7 +30,9 @@ export const createCandidateSetBuilder = ({
         const hit = vocabIndex.get(ng);
         if (hit === undefined) continue;
         const posting = idx.phraseNgrams.postings[hit] || [];
-        posting.forEach((id) => candidates.add(id));
+        for (const id of posting) {
+          if (addCandidate(id)) return null;
+        }
         matched = matched || posting.length > 0;
       }
     }
@@ -37,7 +47,9 @@ export const createCandidateSetBuilder = ({
             const hit = vocabIndex.get(gram);
             if (hit === undefined) continue;
             const posting = idx.chargrams.postings[hit] || [];
-            posting.forEach((id) => candidates.add(id));
+            for (const id of posting) {
+              if (addCandidate(id)) return null;
+            }
             matched = matched || posting.length > 0;
           }
         }
