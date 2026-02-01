@@ -11,6 +11,7 @@ import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
+import { attachSilentLogging } from '../../helpers/test-env.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 
@@ -199,6 +200,7 @@ function runSearch(query, backend) {
   }
   return new Promise((resolve) => {
     const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    attachSilentLogging(child, `bench:${backend}`);
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk) => {

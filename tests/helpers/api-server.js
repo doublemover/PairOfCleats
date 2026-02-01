@@ -3,6 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { attachSilentLogging } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -45,6 +46,7 @@ export const startApiServer = async ({
   }
 
   const server = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  attachSilentLogging(server, 'api-server');
 
   const readStartup = async () => {
     const rl = readline.createInterface({ input: server.stdout });

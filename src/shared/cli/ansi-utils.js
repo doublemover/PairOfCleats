@@ -10,6 +10,10 @@ export const ANSI = {
   fgLightBlue: '\x1b[94m',
   fgBrightWhite: '\x1b[97m',
   fgDarkGray: '\x1b[90m',
+  fgBlack: '\x1b[30m',
+  fgLightGreen: '\x1b[92m',
+  fgDarkerCyan: '\x1b[38;5;30m',
+  fgPurple: '\x1b[38;5;129m',
   fgSoftBlue: '\x1b[38;5;117m',
   fgPink: '\x1b[38;5;213m',
   fgPinkMuted: '\x1b[38;5;176m',
@@ -28,7 +32,8 @@ export const ANSI = {
   bgOutputLine: '\x1b[48;5;21m',
   bgOutputTail: '\x1b[48;5;20m',
   dim: '\x1b[2m',
-  bold: '\x1b[1m'
+  bold: '\x1b[1m',
+  italic: '\x1b[3m'
 };
 
 export const wrapAnsi = (prefix, suffix = ANSI.reset) => (text) => `${prefix}${text}${suffix}`;

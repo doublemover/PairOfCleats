@@ -83,6 +83,16 @@ function normalizeUserConfig(baseConfig) {
     if (indexing.embeddings) normalizedIndexing.embeddings = indexing.embeddings;
     if (indexing.pythonAst) normalizedIndexing.pythonAst = indexing.pythonAst;
     if (indexing.typeInference) normalizedIndexing.typeInference = indexing.typeInference;
+    if (indexing.typeInferenceCrossFile !== undefined) {
+      normalizedIndexing.typeInferenceCrossFile = indexing.typeInferenceCrossFile;
+    }
+    if (indexing.riskAnalysis !== undefined) normalizedIndexing.riskAnalysis = indexing.riskAnalysis;
+    if (indexing.riskAnalysisCrossFile !== undefined) {
+      normalizedIndexing.riskAnalysisCrossFile = indexing.riskAnalysisCrossFile;
+    }
+    if (isPlainObject(indexing.riskInterprocedural)) {
+      normalizedIndexing.riskInterprocedural = indexing.riskInterprocedural;
+    }
     if (indexing.treeSitter) normalizedIndexing.treeSitter = indexing.treeSitter;
     if (indexing.fileFilters) normalizedIndexing.fileFilters = indexing.fileFilters;
     if (Object.keys(normalizedIndexing).length) normalized.indexing = normalizedIndexing;

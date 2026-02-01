@@ -37,6 +37,7 @@ import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
+import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
@@ -194,6 +195,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       explain,
       denseVectorMode,
+      strict,
       backendArg,
       lancedbConfig,
       tantivyConfig,
@@ -346,6 +348,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdDefault,
       fileChargramN,
       hnswConfig,
+      denseVectorMode,
       root: rootDir,
       userConfig
     });
@@ -393,7 +396,23 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runRecords
       })
     );
-    const { dict } = await loadDictionary(rootDir, dictConfig);
+    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+    let codeDictLanguages = baseCodeDictLanguages;
+    if (langFilter && langFilter.length) {
+      const filterLangs = normalizeCodeDictLanguages(langFilter);
+      if (filterLangs.size) {
+        const intersect = new Set();
+        for (const lang of baseCodeDictLanguages) {
+          if (filterLangs.has(lang)) intersect.add(lang);
+        }
+        codeDictLanguages = intersect;
+      }
+    }
+    const includeCodeDicts = runCode && codeDictLanguages.size > 0;
+    const { dict } = await loadDictionary(rootDir, dictConfig, {
+      includeCode: includeCodeDicts,
+      codeDictLanguages: Array.from(codeDictLanguages)
+    });
     throwIfAborted();
 
     const queryPlan = buildQueryPlan({
@@ -481,6 +500,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       lancedbConfig,
       tantivyConfig,
+      indexStates: {
+        code: sqliteStateCode || null,
+        prose: sqliteStateProse || null
+      },
+      strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
@@ -659,7 +683,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   } catch (err) {
     recordSearchMetrics('error');
     if (emitOutput && jsonOutput && !err?.emitted) {
-      const message = err?.message || 'Search failed.';
+      let message = err?.message || 'Search failed.';
+      if (err?.code && String(err.code).startsWith('ERR_MANIFEST')
+        && !String(message).toLowerCase().includes('manifest')) {
+        message = message && message !== 'Search failed.'
+          ? `Manifest error: ${message}`
+          : 'Missing pieces manifest.';
+      }
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
       console.log(JSON.stringify({ ok: false, code, message }));
       if (err) err.emitted = true;

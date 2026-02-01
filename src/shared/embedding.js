@@ -14,7 +14,7 @@ export const resolveStubDims = (dims) => {
  * @param {number} dims
  * @returns {Float32Array}
  */
-export function stubEmbedding(text, dims) {
+export function stubEmbedding(text, dims, normalize = true) {
   const safeDims = resolveStubDims(dims);
   const hash = crypto.createHash('sha256').update(text).digest();
   let seed = 0;
@@ -24,6 +24,9 @@ export function stubEmbedding(text, dims) {
   for (let i = 0; i < safeDims; i++) {
     x = (x * 1664525 + 1013904223) >>> 0;
     vec[i] = (x / 0xffffffff) * 2 - 1;
+  }
+  if (!normalize) {
+    return vec;
   }
   let norm = 0;
   for (let i = 0; i < safeDims; i++) {

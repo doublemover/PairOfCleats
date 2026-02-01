@@ -32,7 +32,8 @@ export function createEmbedder({
   dims,
   modelsDir,
   provider,
-  onnx
+  onnx,
+  normalize
 }) {
   const adapter = getEmbeddingAdapter({
     rootDir,
@@ -41,7 +42,8 @@ export function createEmbedder({
     dims,
     modelsDir,
     provider,
-    onnxConfig: onnx
+    onnxConfig: onnx,
+    normalize
   });
 
   async function getChunkEmbedding(text) {

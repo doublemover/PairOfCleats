@@ -4,12 +4,16 @@ export const buildAnalysisPolicy = ({
   typeInferenceCrossFileEnabled,
   riskAnalysisEnabled,
   riskAnalysisCrossFileEnabled,
+  riskInterproceduralEnabled,
+  riskInterproceduralSummaryOnly,
   gitBlameEnabled
 }) => ({
   metadata: { enabled: true },
   risk: {
     enabled: riskAnalysisEnabled,
-    crossFile: riskAnalysisCrossFileEnabled
+    crossFile: riskAnalysisCrossFileEnabled,
+    interprocedural: riskInterproceduralEnabled,
+    interproceduralSummaryOnly: riskInterproceduralSummaryOnly
   },
   git: {
     enabled: gitBlameEnabled,

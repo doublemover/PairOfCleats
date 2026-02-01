@@ -22,7 +22,24 @@ const chunks = [
     chunkUid: 'uid-caller',
     codeRelations: {
       callLinks: [
-        { file: 'dup.js', target: 'dup', kind: 'function' }
+        {
+          v: 1,
+          edgeKind: 'call',
+          fromChunkUid: 'uid-caller',
+          to: {
+            v: 1,
+            targetName: 'dup',
+            kindHint: null,
+            importHint: null,
+            candidates: [
+              { symbolId: 'sym1:heur:dup-1', chunkUid: 'uid-dup-1', symbolKey: 'dup', signatureKey: null, kindGroup: 'function' },
+              { symbolId: 'sym1:heur:dup-2', chunkUid: 'uid-dup-2', symbolKey: 'dup', signatureKey: null, kindGroup: 'function' }
+            ],
+            status: 'ambiguous',
+            resolved: null
+          },
+          legacy: { legacy: true, file: 'dup.js', target: 'dup', kind: 'function' }
+        }
       ]
     }
   }

@@ -107,13 +107,21 @@ if (!inferredReturns.some((entry) => entry.type === 'Widget' && entry.source ===
 }
 
 const callLinks = buildWidget.codeRelations?.callLinks || [];
-if (!callLinks.some((link) => link.target === 'createWidget' && link.file === 'src/creator.js')) {
+if (!callLinks.some((link) =>
+  link.to?.status === 'resolved'
+  && link.legacy?.target === 'createWidget'
+  && link.legacy?.file === 'src/creator.js'
+)) {
   console.error('Cross-file inference missing call link to createWidget.');
   process.exit(1);
 }
 
 const usageLinks = buildWidget.codeRelations?.usageLinks || [];
-if (!usageLinks.some((link) => link.target === 'Widget' && link.file === 'src/creator.js')) {
+if (!usageLinks.some((link) =>
+  link.to?.status === 'resolved'
+  && link.legacy?.target === 'Widget'
+  && link.legacy?.file === 'src/creator.js'
+)) {
   console.error('Cross-file inference missing usage link to Widget.');
   process.exit(1);
 }

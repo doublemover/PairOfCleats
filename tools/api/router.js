@@ -77,267 +77,267 @@ export const createApiRouter = ({
         return;
       }
 
-    if (requestUrl.pathname === '/health' && req.method === 'GET') {
-      sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) }, corsHeaders || {});
-      return;
-    }
-
-    if (requestUrl.pathname === '/metrics' && req.method === 'GET') {
-      try {
-        const body = await metricsRegistry.metrics();
-        res.writeHead(200, {
-          'Content-Type': metricsRegistry.contentType || 'text/plain; version=0.0.4; charset=utf-8',
-          ...(corsHeaders || {})
-        });
-        res.end(body);
-      } catch (err) {
-        sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to render metrics.', {
-          error: err?.message || String(err)
-        }, corsHeaders || {});
-      }
-      return;
-    }
-
-    if (requestUrl.pathname === '/status/stream' && req.method === 'GET') {
-      const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
-      let repoPath = '';
-      try {
-        repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
-      } catch (err) {
-        await sse.sendHeaders();
-        await sse.sendEvent('error', {
-          ok: false,
-          code: err?.code || ERROR_CODES.INVALID_REQUEST,
-          message: err?.message || 'Invalid repo path.'
-        });
-        await sse.sendEvent('done', { ok: false });
-        sse.end();
+      if (requestUrl.pathname === '/health' && req.method === 'GET') {
+        sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) }, corsHeaders || {});
         return;
       }
-      await sse.sendHeaders();
-      await sse.sendEvent('start', { ok: true, repo: repoPath });
-      try {
-        const payload = await status(repoPath);
-        if (!sse.isClosed()) {
-          await sse.sendEvent('result', { ok: true, repo: repoPath, status: payload });
-          await sse.sendEvent('done', { ok: true });
+
+      if (requestUrl.pathname === '/metrics' && req.method === 'GET') {
+        try {
+          const body = await metricsRegistry.metrics();
+          res.writeHead(200, {
+            'Content-Type': metricsRegistry.contentType || 'text/plain; version=0.0.4; charset=utf-8',
+            ...(corsHeaders || {})
+          });
+          res.end(body);
+        } catch (err) {
+          sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to render metrics.', {
+            error: err?.message || String(err)
+          }, corsHeaders || {});
         }
-      } catch (err) {
-        await sse.sendEvent('error', {
-          ok: false,
-          code: ERROR_CODES.INTERNAL,
-          message: err?.message || 'Failed to collect status.'
-        });
-        await sse.sendEvent('done', { ok: false });
+        return;
       }
-      sse.end();
-      return;
-    }
 
-    if (requestUrl.pathname === '/status' && req.method === 'GET') {
-      let repoPath = '';
-      try {
-        repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
-      } catch (err) {
-        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-        return;
-      }
-      try {
-        const payload = await status(repoPath);
-        sendJson(res, 200, { ok: true, repo: repoPath, status: payload }, corsHeaders || {});
-      } catch (err) {
-        sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to collect status.', {
-          error: err?.message || String(err)
-        }, corsHeaders || {});
-      }
-      return;
-    }
-
-    if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
-      const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
-      const abortController = new AbortController();
-      const abort = () => abortController.abort();
-      req.on('aborted', abort);
-      res.on('close', abort);
-      res.on('error', abort);
-      let raw;
-      try {
-        raw = await parseJsonBody(req);
-      } catch (err) {
-        const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
-          : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
-            : 400;
-        sendError(
-          res,
-          status,
-          ERROR_CODES.INVALID_REQUEST,
-          err?.message || 'Invalid request body.',
-          {},
-          corsHeaders || {}
-        );
-        return;
-      }
-      const payload = raw;
-      const validation = validateSearchPayload(payload);
-      if (!validation.ok) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-          errors: validation.errors
-        }, corsHeaders || {});
-        return;
-      }
-      let repoPath = '';
-      try {
-        repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
-      } catch (err) {
-        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-        return;
-      }
-      const searchParams = buildSearchParams(repoPath, payload || {});
-      if (!searchParams.ok) {
-        sendError(
-          res,
-          400,
-          ERROR_CODES.INVALID_REQUEST,
-          searchParams.message || 'Invalid search payload.',
-          {},
-          corsHeaders || {}
-        );
-        return;
-      }
-      const controller = new AbortController();
-      const abortRequest = () => controller.abort();
-      req.on('aborted', abortRequest);
-      res.on('close', abortRequest);
-      res.on('error', abortRequest);
-      await sse.sendHeaders();
-      await sse.sendEvent('start', { ok: true });
-      await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Searching.' });
-      const caches = getRepoCaches(repoPath);
-      await refreshBuildPointer(caches);
-      try {
-        await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Running search.' });
-        const body = await search(repoPath, {
-          args: searchParams.args,
-          query: searchParams.query,
-          emitOutput: false,
-          exitOnError: false,
-          indexCache: caches.indexCache,
-          sqliteCache: caches.sqliteCache,
-          signal: controller.signal
-        });
-        if (!sse.isClosed()) {
-          await sse.sendEvent('result', { ok: true, repo: repoPath, result: body });
-          await sse.sendEvent('done', { ok: true });
-        }
-      } catch (err) {
-        if (controller.signal.aborted || sse.isClosed()) {
+      if (requestUrl.pathname === '/status/stream' && req.method === 'GET') {
+        const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
+        let repoPath = '';
+        try {
+          repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
+        } catch (err) {
+          await sse.sendHeaders();
+          await sse.sendEvent('error', {
+            ok: false,
+            code: err?.code || ERROR_CODES.INVALID_REQUEST,
+            message: err?.message || 'Invalid repo path.'
+          });
+          await sse.sendEvent('done', { ok: false });
           sse.end();
           return;
         }
-        const isNoIndex = isNoIndexError(err);
-        await sse.sendEvent('error', {
-          ok: false,
-          code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
-          message: err?.message || 'Search failed.'
-        });
-        await sse.sendEvent('done', { ok: false });
+        await sse.sendHeaders();
+        await sse.sendEvent('start', { ok: true, repo: repoPath });
+        try {
+          const payload = await status(repoPath);
+          if (!sse.isClosed()) {
+            await sse.sendEvent('result', { ok: true, repo: repoPath, status: payload });
+            await sse.sendEvent('done', { ok: true });
+          }
+        } catch (err) {
+          await sse.sendEvent('error', {
+            ok: false,
+            code: ERROR_CODES.INTERNAL,
+            message: err?.message || 'Failed to collect status.'
+          });
+          await sse.sendEvent('done', { ok: false });
+        }
+        sse.end();
+        return;
       }
-      sse.end();
-      return;
-    }
 
-    if (requestUrl.pathname === '/search' && req.method === 'POST') {
-      const abortController = new AbortController();
-      const abort = () => abortController.abort();
-      req.on('aborted', abort);
-      res.on('close', abort);
-      res.on('error', abort);
-      let payload = null;
-      try {
-        payload = await parseJsonBody(req);
-      } catch (err) {
-        const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
-          : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
-            : 400;
-        sendError(
-          res,
-          status,
-          ERROR_CODES.INVALID_REQUEST,
-          err?.message || 'Invalid request body.',
-          {},
-          corsHeaders || {}
-        );
+      if (requestUrl.pathname === '/status' && req.method === 'GET') {
+        let repoPath = '';
+        try {
+          repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
+        } catch (err) {
+          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          return;
+        }
+        try {
+          const payload = await status(repoPath);
+          sendJson(res, 200, { ok: true, repo: repoPath, status: payload }, corsHeaders || {});
+        } catch (err) {
+          sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to collect status.', {
+            error: err?.message || String(err)
+          }, corsHeaders || {});
+        }
         return;
       }
-      const validation = validateSearchPayload(payload);
-      if (!validation.ok) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
-          errors: validation.errors
-        }, corsHeaders || {});
-        return;
-      }
-      let repoPath = '';
-      try {
-        repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
-      } catch (err) {
-        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
-        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
-        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
-        return;
-      }
-      const searchParams = buildSearchParams(repoPath, payload || {});
-      if (!searchParams.ok) {
-        sendError(
-          res,
-          400,
-          ERROR_CODES.INVALID_REQUEST,
-          searchParams.message || 'Invalid search payload.',
-          {},
-          corsHeaders || {}
-        );
-        return;
-      }
-      try {
+
+      if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
+        const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
+        const abortController = new AbortController();
+        const abort = () => abortController.abort();
+        req.on('aborted', abort);
+        res.on('close', abort);
+        res.on('error', abort);
+        let raw;
+        try {
+          raw = await parseJsonBody(req);
+        } catch (err) {
+          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
+            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
+              : 400;
+          sendError(
+            res,
+            status,
+            ERROR_CODES.INVALID_REQUEST,
+            err?.message || 'Invalid request body.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        const payload = raw;
+        const validation = validateSearchPayload(payload);
+        if (!validation.ok) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+            errors: validation.errors
+          }, corsHeaders || {});
+          return;
+        }
+        let repoPath = '';
+        try {
+          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
+        } catch (err) {
+          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          return;
+        }
+        const searchParams = buildSearchParams(repoPath, payload || {});
+        if (!searchParams.ok) {
+          sendError(
+            res,
+            400,
+            ERROR_CODES.INVALID_REQUEST,
+            searchParams.message || 'Invalid search payload.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
         const controller = new AbortController();
         const abortRequest = () => controller.abort();
         req.on('aborted', abortRequest);
         res.on('close', abortRequest);
         res.on('error', abortRequest);
+        await sse.sendHeaders();
+        await sse.sendEvent('start', { ok: true });
+        await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Searching.' });
         const caches = getRepoCaches(repoPath);
         await refreshBuildPointer(caches);
-        const body = await search(repoPath, {
-          args: searchParams.args,
-          query: searchParams.query,
-          emitOutput: false,
-          exitOnError: false,
-          indexCache: caches.indexCache,
-          sqliteCache: caches.sqliteCache,
-          signal: controller.signal
-        });
-        sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
-      } catch (err) {
-        if (req.aborted || res.writableEnded) return;
-        if (isNoIndexError(err)) {
-          sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
-            error: err?.message || String(err)
+        try {
+          await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Running search.' });
+          const body = await search(repoPath, {
+            args: searchParams.args,
+            query: searchParams.query,
+            emitOutput: false,
+            exitOnError: false,
+            indexCache: caches.indexCache,
+            sqliteCache: caches.sqliteCache,
+            signal: controller.signal
+          });
+          if (!sse.isClosed()) {
+            await sse.sendEvent('result', { ok: true, repo: repoPath, result: body });
+            await sse.sendEvent('done', { ok: true });
+          }
+        } catch (err) {
+          if (controller.signal.aborted || sse.isClosed()) {
+            sse.end();
+            return;
+          }
+          const isNoIndex = isNoIndexError(err);
+          await sse.sendEvent('error', {
+            ok: false,
+            code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
+            message: err?.message || 'Search failed.'
+          });
+          await sse.sendEvent('done', { ok: false });
+        }
+        sse.end();
+        return;
+      }
+
+      if (requestUrl.pathname === '/search' && req.method === 'POST') {
+        const abortController = new AbortController();
+        const abort = () => abortController.abort();
+        req.on('aborted', abort);
+        res.on('close', abort);
+        res.on('error', abort);
+        let payload = null;
+        try {
+          payload = await parseJsonBody(req);
+        } catch (err) {
+          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
+            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
+              : 400;
+          sendError(
+            res,
+            status,
+            ERROR_CODES.INVALID_REQUEST,
+            err?.message || 'Invalid request body.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        const validation = validateSearchPayload(payload);
+        if (!validation.ok) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+            errors: validation.errors
           }, corsHeaders || {});
           return;
         }
-        sendError(
-          res,
-          500,
-          ERROR_CODES.INTERNAL,
-          'Search failed.',
-          { error: err?.message || String(err) },
-          corsHeaders || {}
-        );
+        let repoPath = '';
+        try {
+          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
+        } catch (err) {
+          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          return;
+        }
+        const searchParams = buildSearchParams(repoPath, payload || {});
+        if (!searchParams.ok) {
+          sendError(
+            res,
+            400,
+            ERROR_CODES.INVALID_REQUEST,
+            searchParams.message || 'Invalid search payload.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        try {
+          const controller = new AbortController();
+          const abortRequest = () => controller.abort();
+          req.on('aborted', abortRequest);
+          res.on('close', abortRequest);
+          res.on('error', abortRequest);
+          const caches = getRepoCaches(repoPath);
+          await refreshBuildPointer(caches);
+          const body = await search(repoPath, {
+            args: searchParams.args,
+            query: searchParams.query,
+            emitOutput: false,
+            exitOnError: false,
+            indexCache: caches.indexCache,
+            sqliteCache: caches.sqliteCache,
+            signal: controller.signal
+          });
+          sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
+        } catch (err) {
+          if (req.aborted || res.writableEnded) return;
+          if (isNoIndexError(err)) {
+            sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
+              error: err?.message || String(err)
+            }, corsHeaders || {});
+            return;
+          }
+          sendError(
+            res,
+            500,
+            ERROR_CODES.INTERNAL,
+            'Search failed.',
+            { error: err?.message || String(err) },
+            corsHeaders || {}
+          );
+        }
+        return;
       }
-      return;
-    }
 
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {

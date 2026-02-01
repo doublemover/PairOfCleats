@@ -260,14 +260,14 @@ const chunkNix = (text) => {
     const trimmed = line.trim();
     return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
   };
-    return chunkByLineRegex(text, /^\s*([A-Za-z0-9_.-]+)\s*=/, {
-      format: 'nix',
-      kind: 'Section',
-      defaultName: 'nix',
-      skipLine,
-      precheck: (line) => line.includes('=')
-    });
-  };
+  return chunkByLineRegex(text, /^\s*([A-Za-z0-9_.-]+)\s*=/, {
+    format: 'nix',
+    kind: 'Section',
+    defaultName: 'nix',
+    skipLine,
+    precheck: (line) => line.includes('=')
+  });
+};
 
 const chunkDart = (text) => {
   const lines = text.split('\n');
@@ -603,19 +603,20 @@ export function smartChunk({
   }
   if (mode === 'prose' && EXTS_PROSE.has(ext)) {
     return applyChunkingLimits(
-      [{ start: 0, end: text.length, name: 'root', kind: 'Section', meta: {} }],
+      [{ start: 0, end: text.length, name: null, kind: 'Section', meta: {} }],
       text,
       context
     );
   }
   const fallbackChunkSize = 800;
   const out = [];
+  const fallbackKind = mode === 'code' ? 'Module' : 'Section';
   for (let off = 0; off < text.length; off += fallbackChunkSize) {
     out.push({
       start: off,
       end: Math.min(text.length, off + fallbackChunkSize),
-      name: 'blob',
-      kind: 'Blob',
+      name: null,
+      kind: fallbackKind,
       meta: {}
     });
   }

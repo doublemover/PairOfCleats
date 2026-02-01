@@ -6,6 +6,7 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { sha1 } from '../../../../shared/hash.js';
+import { buildCallSiteId } from '../../../callsite-id.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 const MAX_ARGS_PER_CALL = 5;
@@ -55,12 +56,6 @@ const normalizeEvidence = (evidence) => {
     if (normalized) output.push(normalized);
   }
   return output;
-};
-
-const buildCallSiteId = ({ file, startLine, startCol, endLine, endCol, calleeRaw }) => {
-  if (!file || !startLine || !startCol || !endLine || !endCol || !calleeRaw) return null;
-  const key = `${file}:${startLine}:${startCol}:${endLine}:${endCol}:${calleeRaw}`;
-  return `sha1:${sha1(key)}`;
 };
 
 const buildSnippetHash = (calleeRaw, args) => {
@@ -168,13 +163,14 @@ export const enqueueCallSitesArtifacts = ({
   maxJsonBytes = null,
   compression = null,
   gzipOptions = null,
+  forceEmpty = false,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
   log = null
 }) => {
   const rows = createCallSites({ chunks: state?.chunks || [] });
-  if (!rows.length) return;
+  if (!rows.length && !forceEmpty) return null;
 
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
   let totalBytes = 0;
@@ -217,7 +213,13 @@ export const enqueueCallSitesArtifacts = ({
       count: rows.length,
       compression: compression || null
     }, callSitesPath);
-    return;
+    return {
+      name: 'call_sites',
+      format: 'jsonl',
+      sharded: false,
+      entrypoint: formatArtifactLabel(callSitesPath),
+      totalEntries: rows.length
+    };
   }
 
   if (log) {
@@ -273,4 +275,11 @@ export const enqueueCallSitesArtifacts = ({
       addPieceFile({ type: 'relations', name: 'call_sites_meta', format: 'json' }, callSitesMetaPath);
     }
   );
+  return {
+    name: 'call_sites',
+    format: 'jsonl',
+    sharded: true,
+    entrypoint: formatArtifactLabel(callSitesMetaPath),
+    totalEntries: rows.length
+  };
 };

@@ -143,7 +143,7 @@ export async function assembleIndexPieces({
   const indexingConfig = userConfig?.indexing || {};
   const isCodeMode = mode === 'code';
   const typeInferenceEnabled = isCodeMode && indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = isCodeMode && indexingConfig.typeInferenceCrossFile === true;
+  const typeInferenceCrossFileEnabled = isCodeMode && indexingConfig.typeInferenceCrossFile !== false;
   const riskAnalysisEnabled = isCodeMode && indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = isCodeMode
     && riskAnalysisEnabled
@@ -233,11 +233,14 @@ export async function assembleIndexPieces({
     if (chunk?.file) uniqueFiles.add(chunk.file);
   }
   const timing = { start: Date.now() };
+  const resolvedCallSites = mergedCallSites.filter(
+    (site) => site?.callerChunkUid && site?.targetChunkUid
+  );
   const graphRelations = mode === 'code'
     ? buildRelationGraphs({
       chunks: state.chunks,
       fileRelations: state.fileRelations,
-      callSites: mergedCallSites.length ? mergedCallSites : null
+      callSites: resolvedCallSites.length ? resolvedCallSites : null
     })
     : null;
   state.fileRelations = state.fileRelations || new Map();

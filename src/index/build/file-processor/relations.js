@@ -47,6 +47,9 @@ export const buildFileRelations = (relations, relKey = null) => {
     exports: normalizeList(relations.exports),
     usages: normalizeList(relations.usages),
     importLinks: normalizeList(relations.importLinks, relKey),
+    importBindings: relations.importBindings && typeof relations.importBindings === 'object'
+      ? relations.importBindings
+      : null,
     functionMeta: relations.functionMeta && typeof relations.functionMeta === 'object'
       ? relations.functionMeta
       : {},
@@ -63,6 +66,7 @@ export const stripFileRelations = (codeRelations) => {
     exports,
     usages,
     importLinks,
+    importBindings,
     functionMeta,
     classMeta,
     ...rest

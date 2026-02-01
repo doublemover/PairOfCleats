@@ -1,11 +1,18 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../../../../tools/dict-utils.js';
 import { log } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 
-export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null, abortSignal = null }) => {
+export const enqueueEmbeddingJob = async ({
+  runtime,
+  mode,
+  indexDir = null,
+  indexRoot = null,
+  abortSignal = null
+}) => {
   if (!runtime.embeddingService) return null;
   throwIfAborted(abortSignal);
   try {
@@ -16,6 +23,25 @@ export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null, abo
       ? runtime.embeddingQueue.maxQueued
       : 10;
     const jobId = crypto.randomUUID();
+    const repoRoot = runtime.root ? path.resolve(runtime.root) : null;
+    const buildRoot = runtime.buildRoot ? path.resolve(runtime.buildRoot) : null;
+    const resolvedIndexDir = indexDir ? path.resolve(indexDir) : (indexRoot ? path.resolve(indexRoot) : null);
+    if (!buildRoot) {
+      throw new Error('Embedding job enqueue requires runtime.buildRoot.');
+    }
+    if (!resolvedIndexDir) {
+      throw new Error('Embedding job enqueue requires indexDir.');
+    }
+    if (!fs.existsSync(buildRoot)) {
+      throw new Error(`Embedding job buildRoot missing: ${buildRoot}`);
+    }
+    if (!fs.existsSync(resolvedIndexDir)) {
+      throw new Error(`Embedding job indexDir missing: ${resolvedIndexDir}`);
+    }
+    const rel = path.relative(buildRoot, resolvedIndexDir);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error(`Embedding job indexDir must live under buildRoot (${resolvedIndexDir}).`);
+    }
     await ensureQueueDir(queueDir);
     throwIfAborted(abortSignal);
     const result = await enqueueJob(
@@ -23,15 +49,19 @@ export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null, abo
       {
         id: jobId,
         createdAt: new Date().toISOString(),
-        repo: runtime.root,
+        repo: repoRoot,
+        repoRoot,
         mode,
         reason: 'embeddings',
         buildId: runtime.buildId || null,
-        buildRoot: runtime.buildRoot || null,
+        buildRoot,
+        indexDir: resolvedIndexDir,
         indexRoot: indexRoot ? path.resolve(indexRoot) : null,
+        configHash: runtime.configHash || null,
+        repoProvenance: runtime.repoProvenance || null,
         embeddingIdentity: runtime.embeddingIdentity || null,
         embeddingIdentityKey: runtime.embeddingIdentityKey || null,
-        embeddingPayloadFormatVersion: 1
+        embeddingPayloadFormatVersion: 2
       },
       maxQueued,
       'embeddings'

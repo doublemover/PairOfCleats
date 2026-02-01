@@ -9,7 +9,9 @@ const suffix = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
   ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
   : '';
 const cacheName = suffix ? `mcp-search-${suffix}` : 'mcp-search';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
+const cacheRoot = path.join(process.cwd(), '.testCache', cacheName);
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const testConfig = {
@@ -72,7 +74,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'exec',
+        query: 'req',
         mode: 'code',
         top: 5,
         backend: 'memory'
@@ -85,7 +87,19 @@ try {
   if (!baselineRiskHits.length) {
     throw new Error('baseline risk MCP search returned no results');
   }
-  const hitKey = (hit) => hit?.file || hit?.path || hit?.relPath || hit?.id || JSON.stringify(hit);
+  const hitKey = (hit) => {
+    if (!hit || typeof hit !== 'object') return JSON.stringify(hit);
+    const file = hit.file || hit.path || hit.relPath || null;
+    if (file) {
+      const start = hit.startLine ?? hit.start ?? 0;
+      const end = hit.endLine ?? hit.end ?? 0;
+      const kind = hit.kind || '';
+      const name = hit.name || '';
+      return `${file}:${start}:${end}:${kind}:${name}`;
+    }
+    if (hit.id != null) return String(hit.id);
+    return JSON.stringify(hit);
+  };
   const baselineRiskKeys = new Set(baselineRiskHits.map(hitKey));
 
   send({
@@ -96,7 +110,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'exec',
+        query: 'req',
         mode: 'code',
         top: 5,
         riskTag: 'command-exec',

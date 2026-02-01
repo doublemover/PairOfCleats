@@ -206,11 +206,11 @@ export function spawnSubprocess(command, args, options = {}) {
         child.stdin.end();
       } catch {}
     }
-  if (typeof options.onSpawn === 'function') {
-    try {
-      options.onSpawn(child);
-    } catch {}
-  }
+    if (typeof options.onSpawn === 'function') {
+      try {
+        options.onSpawn(child);
+      } catch {}
+    }
     if (options.unref === true) {
       child.unref();
     }

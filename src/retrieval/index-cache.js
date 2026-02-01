@@ -14,6 +14,10 @@ const INDEX_FILES = [
   'dense_vectors_code_uint8.json',
   'dense_vectors_hnsw.meta.json',
   'dense_vectors_hnsw.bin',
+  'dense_vectors_doc_hnsw.meta.json',
+  'dense_vectors_doc_hnsw.bin',
+  'dense_vectors_code_hnsw.meta.json',
+  'dense_vectors_code_hnsw.bin',
   'dense_vectors.lancedb.meta.json',
   'dense_vectors_doc.lancedb.meta.json',
   'dense_vectors_code.lancedb.meta.json',
@@ -196,7 +200,8 @@ export function createIndexCache({
 export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
-  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}`;
+  const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
+  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}`;
   const signature = buildIndexSignature(dir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {

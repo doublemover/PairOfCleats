@@ -5,7 +5,7 @@
 | `build_index.js` | `docs/contracts/indexing.md` | `tests/core-api.js`, `tests/indexing/fixtures/build-and-artifacts.test.js`, `tests/build-index-all.js`, `tests/extracted-prose.js` | - |
 | `tools/build-embeddings.js` | `docs/contracts/indexing.md` | `tests/build-embeddings-cache.js`, `tests/embeddings-validate.js`, `tests/embeddings-dims-mismatch.js` | - |
 | `tools/build-sqlite-index.js` | `docs/contracts/sqlite.md` | `tests/storage/sqlite/incremental/file-manifest-updates.test.js`, `tests/storage/sqlite/migrations/schema-mismatch-rebuild.test.js`, `tests/sqlite-build-indexes.js`, `tests/sqlite-ann-extension.js`, `tests/sqlite-ann-fallback.js` | - |
-| `search.js` | `docs/contracts/search-cli.md` | `tests/search-help.js`, `tests/retrieval/filters/query-syntax/negative-terms.test.js`, `tests/search-explain.js`, `tests/search-rrf.js`, `tests/search-symbol-boost.js` | - |
+| `search.js` | `docs/contracts/search-cli.md` | `tests/search-help.js`, `tests/retrieval/filters/query-syntax/negative-terms.test.js`, `tests/search-rrf.js`, `tests/search-symbol-boost.js` | - |
 | `search.js --backend sqlite` | `docs/contracts/sqlite.md` | `tests/sqlite-auto-backend.js`, `tests/sqlite-missing-dep.js` | - |
 | `bin/pairofcleats.js` | `docs/contracts/search-cli.md` | `tests/cli.js` | - |
 | `tools/api-server.js` | `docs/contracts/mcp-api.md` | `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/api-server-stream.js` | - |

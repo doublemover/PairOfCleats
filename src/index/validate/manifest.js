@@ -108,3 +108,17 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
 
   return { manifest };
 };
+
+export const sumManifestCounts = (manifest, name) => {
+  if (!manifest || !Array.isArray(manifest.pieces)) return null;
+  let total = 0;
+  let saw = false;
+  for (const piece of manifest.pieces) {
+    if (piece?.name !== name) continue;
+    const count = Number(piece?.count);
+    if (!Number.isFinite(count)) continue;
+    total += count;
+    saw = true;
+  }
+  return saw ? total : null;
+};

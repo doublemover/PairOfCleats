@@ -7,20 +7,64 @@ import {
   tokenizeChunkText
 } from '../tokenization.js';
 import { createSharedDictionaryView } from '../../../shared/dictionary.js';
+import { preloadTreeSitterLanguages } from '../../../lang/tree-sitter.js';
+import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
+import { resolveTreeSitterLanguageForSegment } from '../file-processor/tree-sitter.js';
+import {
+  normalizeCodeDictLanguage,
+  normalizeCodeDictLanguages
+} from '../../../shared/code-dictionaries.js';
 
 const dictShared = createSharedDictionaryView(workerData?.dictShared);
 const dictWords = dictShared || new Set(Array.isArray(workerData?.dictWords) ? workerData.dictWords : []);
 const dictConfig = workerData?.dictConfig || {};
 const postingsConfig = workerData?.postingsConfig || {};
+const treeSitterConfig = workerData?.treeSitter || null;
+const codeDictWords = new Set(Array.isArray(workerData?.codeDictWords) ? workerData.codeDictWords : []);
+const codeDictWordsByLanguage = new Map();
+if (workerData?.codeDictWordsByLanguage && typeof workerData.codeDictWordsByLanguage === 'object') {
+  for (const [lang, words] of Object.entries(workerData.codeDictWordsByLanguage)) {
+    const normalized = normalizeCodeDictLanguage(lang);
+    if (!normalized) continue;
+    const list = Array.isArray(words) ? words.filter((entry) => typeof entry === 'string') : [];
+    if (list.length) {
+      codeDictWordsByLanguage.set(normalized, new Set(list));
+    }
+  }
+}
+const codeDictLanguages = workerData?.codeDictLanguages == null
+  ? null
+  : normalizeCodeDictLanguages(workerData.codeDictLanguages);
 const tokenContext = createTokenizationContext({
   dictWords,
   dictConfig,
-  postingsConfig
+  postingsConfig,
+  codeDictWords,
+  codeDictWordsByLanguage,
+  codeDictLanguages,
+  treeSitter: treeSitterConfig
 });
 
 // Reuse tokenization scratch buffers to reduce per-task allocations and GC pressure.
 // Piscina runs one task at a time per worker thread, so this shared instance is safe.
 const tokenBuffers = createTokenizationBuffers();
+
+const treeSitterOptions = treeSitterConfig ? { treeSitter: treeSitterConfig } : null;
+const treeSitterLoadCache = new Map();
+
+const ensureTreeSitterLanguage = async (languageId, ext) => {
+  if (!treeSitterConfig || treeSitterConfig.enabled === false) return false;
+  const resolved = resolveTreeSitterLanguageForSegment(languageId, ext);
+  if (!resolved) return false;
+  if (treeSitterOptions && !isTreeSitterEnabled(treeSitterOptions, resolved)) return false;
+  if (treeSitterLoadCache.has(resolved)) return treeSitterLoadCache.get(resolved);
+  const promise = preloadTreeSitterLanguages([resolved], {
+    maxLoadedLanguages: treeSitterConfig.maxLoadedLanguages,
+    parallel: false
+  }).then(() => true).catch(() => false);
+  treeSitterLoadCache.set(resolved, promise);
+  return promise;
+};
 
 const normalizeEmptyMessage = (value) => {
   if (typeof value !== 'string') return value;
@@ -197,6 +241,10 @@ const sanitizeTokenizeResult = (result) => {
     seq: normalizeStringArray(result?.seq),
     ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
     chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,
+    identifierTokens: normalizeStringArray(result?.identifierTokens),
+    keywordTokens: normalizeStringArray(result?.keywordTokens),
+    operatorTokens: normalizeStringArray(result?.operatorTokens),
+    literalTokens: normalizeStringArray(result?.literalTokens),
     minhashSig: normalizeNumberArray(result?.minhashSig),
     stats: {
       unique: Number(stats.unique) || 0,
@@ -283,7 +331,7 @@ let lastStage = null;
 let lastPayload = null;
 let lastResult = null;
 
-const withWorkerError = (fn, label) => (input) => {
+const withWorkerError = (fn, label) => async (input) => {
   const startedAt = process.hrtime.bigint();
   lastTask = label;
   lastStage = 'payload';
@@ -292,7 +340,7 @@ const withWorkerError = (fn, label) => (input) => {
 
   try {
     validateCloneable(input, `${label} payload`);
-    const result = fn(input);
+    const result = await fn(input);
     lastStage = 'result';
     lastResult = result;
     validateCloneable(result, `${label} result`);
@@ -310,15 +358,24 @@ const withWorkerError = (fn, label) => (input) => {
 };
 
 export const tokenizeChunk = withWorkerError(
-  (input) => {
+  async (input) => {
     const hasOverrides = input && (input.dictConfig || input.postingsConfig);
     const context = hasOverrides
       ? createTokenizationContext({
         dictWords,
         dictConfig: input.dictConfig || dictConfig,
-        postingsConfig: input.postingsConfig || postingsConfig
+        postingsConfig: input.postingsConfig || postingsConfig,
+        codeDictWords,
+        codeDictWordsByLanguage,
+        codeDictLanguages,
+        treeSitter: treeSitterConfig
       })
       : tokenContext;
+    const classificationEnabled = context?.tokenClassification?.enabled === true
+      && input?.mode === 'code';
+    if (classificationEnabled) {
+      await ensureTreeSitterLanguage(input?.languageId, input?.ext);
+    }
     const result = tokenizeChunkText({ ...input, context, buffers: tokenBuffers });
     return sanitizeTokenizeResult(result);
   },

@@ -9,19 +9,80 @@ import { buildTreeSitterChunks } from './tree-sitter.js';
  * Heuristic parser focused on top-level types, functions, and methods.
  */
 
+export const GO_RESERVED_WORDS = new Set([
+  'any',
+  'append',
+  'bool',
+  'break',
+  'byte',
+  'cap',
+  'case',
+  'chan',
+  'close',
+  'complex',
+  'complex128',
+  'complex64',
+  'const',
+  'continue',
+  'copy',
+  'default',
+  'defer',
+  'delete',
+  'else',
+  'error',
+  'fallthrough',
+  'false',
+  'float32',
+  'float64',
+  'for',
+  'func',
+  'go',
+  'goto',
+  'if',
+  'imag',
+  'import',
+  'int',
+  'int16',
+  'int32',
+  'int64',
+  'int8',
+  'interface',
+  'iota',
+  'len',
+  'make',
+  'map',
+  'new',
+  'nil',
+  'package',
+  'panic',
+  'print',
+  'println',
+  'range',
+  'real',
+  'recover',
+  'return',
+  'rune',
+  'select',
+  'string',
+  'struct',
+  'switch',
+  'true',
+  'type',
+  'uint',
+  'uint16',
+  'uint32',
+  'uint64',
+  'uint8',
+  'uintptr',
+  'var'
+]);
+
 const GO_CALL_KEYWORDS = new Set([
-  'if', 'for', 'switch', 'case', 'return', 'func', 'go', 'defer', 'range', 'select',
-  'type', 'struct', 'interface', 'map', 'chan', 'var', 'const', 'package',
-  'break', 'continue', 'fallthrough', 'default', 'make', 'new', 'len', 'cap',
-  'append', 'delete', 'copy', 'close', 'panic', 'recover', 'print', 'println'
+  ...GO_RESERVED_WORDS
 ]);
 
 const GO_USAGE_SKIP = new Set([
-  ...GO_CALL_KEYWORDS,
-  'bool', 'byte', 'rune', 'string', 'int', 'int8', 'int16', 'int32', 'int64',
-  'uint', 'uint8', 'uint16', 'uint32', 'uint64', 'uintptr',
-  'float32', 'float64', 'complex64', 'complex128', 'error', 'any',
-  'nil', 'true', 'false'
+  ...GO_RESERVED_WORDS
 ]);
 
 const GO_DOC_OPTIONS = {

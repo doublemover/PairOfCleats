@@ -5,7 +5,8 @@ import {
   ensureVectorTable,
   getVectorExtensionConfig,
   hasVectorTable,
-  loadVectorExtension
+  loadVectorExtension,
+  resolveVectorExtensionConfigForMode
 } from '../vector-extension.js';
 import { resolveSqlitePaths } from '../dict-utils.js';
 import {
@@ -71,18 +72,32 @@ export const updateSqliteDense = ({
   modelId,
   quantization,
   dbPath,
+  sharedDb = false,
   emitOutput = true,
   warnOnMissing = true,
   logger = console
 }) => {
+  const vectorExtensionBase = getVectorExtensionConfig(root, userConfig);
+  const vectorExtension = resolveVectorExtensionConfigForMode(
+    vectorExtensionBase,
+    mode,
+    { sharedDb }
+  );
+  const vectorAnnState = {
+    enabled: vectorExtension.enabled === true,
+    available: false,
+    table: vectorExtension.table || 'dense_vectors_ann',
+    column: vectorExtension.column || 'embedding',
+    idColumn: 'rowid'
+  };
   if (userConfig?.sqlite?.use === false) {
-    return { skipped: true, reason: 'sqlite disabled' };
+    return { skipped: true, reason: 'sqlite disabled', vectorAnn: vectorAnnState };
   }
   if (!Database) {
     if (emitOutput) {
       logger.warn(`[embeddings] better-sqlite3 not available; skipping SQLite update for ${mode}.`);
     }
-    return { skipped: true, reason: 'sqlite unavailable' };
+    return { skipped: true, reason: 'sqlite unavailable', vectorAnn: vectorAnnState };
   }
   const resolvedDbPath = dbPath || (() => {
     const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
@@ -92,7 +107,7 @@ export const updateSqliteDense = ({
     if (emitOutput && warnOnMissing) {
       logger.warn(`[embeddings] SQLite ${mode} index missing; skipping.`);
     }
-    return { skipped: true, reason: 'sqlite missing' };
+    return { skipped: true, reason: 'sqlite missing', vectorAnn: vectorAnnState };
   }
 
   const db = new Database(resolvedDbPath);
@@ -101,7 +116,7 @@ export const updateSqliteDense = ({
       if (emitOutput && warnOnMissing) {
         logger.warn(`[embeddings] SQLite ${mode} index missing dense tables; skipping.`);
       }
-      return { skipped: true, reason: 'missing dense tables' };
+      return { skipped: true, reason: 'missing dense tables', vectorAnn: vectorAnnState };
     }
     ensureDenseMetaSchema(db);
     try {
@@ -109,7 +124,6 @@ export const updateSqliteDense = ({
       db.pragma('synchronous = NORMAL');
     } catch {}
 
-    const vectorExtension = getVectorExtensionConfig(root, userConfig);
     let vectorAnnReady = false;
     let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
     let vectorAnnColumn = vectorExtension.column || 'embedding';
@@ -152,6 +166,11 @@ export const updateSqliteDense = ({
       } else if (emitOutput) {
         logger.warn(`[embeddings] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
       }
+    }
+    if (vectorAnnReady) {
+      vectorAnnState.available = true;
+      vectorAnnState.table = vectorAnnTable;
+      vectorAnnState.column = vectorAnnColumn;
     }
 
     const deleteDense = db.prepare('DELETE FROM dense_vectors WHERE mode = ?');
@@ -201,7 +220,7 @@ export const updateSqliteDense = ({
     if (emitOutput) {
       logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
     }
-    return { skipped: false, count: vectors.length };
+    return { skipped: false, count: vectors.length, vectorAnn: vectorAnnState };
   } finally {
     db.close();
   }

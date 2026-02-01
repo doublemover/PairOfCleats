@@ -82,16 +82,16 @@ try {
     {
       file: containerPath,
       lang: 'javascript',
-      segment: segmentA,
-      start: segmentA.start,
-      end: segmentA.end
+      segment: segmentB,
+      start: segmentB.start,
+      end: segmentB.end
     },
     {
       file: containerPath,
       lang: 'javascript',
-      segment: segmentB,
-      start: segmentB.start,
-      end: segmentB.end
+      segment: segmentA,
+      start: segmentA.start,
+      end: segmentA.end
     }
   ];
 
@@ -104,6 +104,8 @@ try {
   });
 
   assert.equal(rows.length, 2, 'Expected one vfs_manifest row per distinct segmentUid.');
+  assert.equal(rows[0].segmentUid, segmentA.segmentUid, 'rows should be sorted by segmentStart');
+  assert.equal(rows[1].segmentUid, segmentB.segmentUid, 'rows should be sorted by segmentStart');
 
   for (const row of rows) {
     const expectedVirtualPath = buildVfsVirtualPath({

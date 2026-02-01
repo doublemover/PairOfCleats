@@ -40,7 +40,7 @@ const resolveQuality = ({ requested, resources, repo }) => {
   const memGb = resources.memoryGb;
   let value = 'max';
   if (memGb < 16 || cpu <= 4) value = 'fast';
-  else if (memGb < 48 || cpu < 12) value = 'balanced';
+  else if (memGb < 32 || cpu < 12) value = 'balanced';
   if (repo.huge) value = downgradeQuality(value);
   return { value, source: 'auto' };
 };

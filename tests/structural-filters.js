@@ -11,14 +11,19 @@ const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'structural-filters');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
+const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
+await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'eval("x");\n', 'utf8');
 
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+
 const userConfig = loadUserConfig(repoRoot);
-const cacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-const structuralDir = path.join(cacheRoot, 'structural');
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+const structuralDir = path.join(repoCacheRoot, 'structural');
 await fsPromises.mkdir(structuralDir, { recursive: true });
 const match = {
   engine: 'semgrep',
@@ -41,7 +46,7 @@ const buildResult = spawnSync(process.execPath, [
   '--stub-embeddings',
   '--repo',
   repoRoot
-], { encoding: 'utf8' });
+], { encoding: 'utf8', env: { ...process.env, PAIROFCLEATS_TESTING: '1', PAIROFCLEATS_CACHE_ROOT: cacheRoot } });
 if (buildResult.status !== 0) {
   console.error(buildResult.stderr || buildResult.stdout || 'build_index failed');
   process.exit(buildResult.status ?? 1);

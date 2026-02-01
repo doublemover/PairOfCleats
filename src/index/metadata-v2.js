@@ -1,4 +1,5 @@
 import { buildChunkId } from './chunk-id.js';
+import { buildSymbolIdentity } from './identity/symbol.js';
 import { collectDeclaredReturnTypes, pickDeclaredReturnType } from '../shared/docmeta.js';
 
 const normalizeString = (value) => {
@@ -272,6 +273,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
   if (!metadata.annotations.length) metadata.annotations = null;
   if (!metadata.params.length) metadata.params = null;
   if (!metadata.modifiers.length) metadata.modifiers = null;
+  metadata.symbol = buildSymbolIdentity({ metaV2: metadata });
 
   return metadata;
 }

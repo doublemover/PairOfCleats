@@ -162,6 +162,14 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && !jsonOutput) {
+    const makeSectionHeader = (label) => {
+      const bar = '─';
+      const width = 94;
+      const text = ` ${label} `;
+      const left = Math.max(1, Math.floor((width - text.length) / 2));
+      const right = Math.max(1, width - text.length - left);
+      return `${bar.repeat(left)}${text}${bar.repeat(right)}`;
+    };
     let showProse = runProse ? topN : 0;
     let showExtractedProse = runExtractedProse ? topN : 0;
     let showCode = runCode ? topN : 0;
@@ -182,15 +190,16 @@ export function renderSearchOutput({
       showRecords += expandedHits.records.contextHits.length;
     }
 
-    if (runProse) {
-      console.error(color.bold(`\n===== Markdown Results (${backendLabel}) =====`));
+    if (runCode) {
+      const backendSuffix = explain ? ` (${backendLabel})` : '';
+      console.error(color.bold(`\n${makeSectionHeader(`Code Results${backendSuffix}`)}`));
       const summaryState = { lastCount: 0 };
-      proseHitsFinal.slice(0, showProse).forEach((hit, index) => {
-        if (index < 2) {
+      codeHitsFinal.slice(0, showCode).forEach((hit, index) => {
+        if (index < 1) {
           process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
-            mode: 'prose',
+            mode: 'code',
             score: hit.score,
             scoreType: hit.scoreType,
             explain,
@@ -205,7 +214,7 @@ export function renderSearchOutput({
           process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
-            mode: 'prose',
+            mode: 'code',
             score: hit.score,
             scoreType: hit.scoreType,
             explain,
@@ -220,7 +229,8 @@ export function renderSearchOutput({
     }
 
     if (runExtractedProse) {
-      console.error(color.bold(`===== Extracted Prose Results (${backendLabel}) =====`));
+      const backendSuffix = explain ? ` (${backendLabel})` : '';
+      console.error(color.bold(makeSectionHeader(`Code Comments Results${backendSuffix}`)));
       const summaryState = { lastCount: 0 };
       extractedProseHitsFinal.slice(0, showExtractedProse).forEach((hit, index) => {
         if (index < 2) {
@@ -256,15 +266,16 @@ export function renderSearchOutput({
       console.error('\n');
     }
 
-    if (runCode) {
-      console.error(color.bold(`===== Code Results (${backendLabel}) =====`));
+    if (runProse) {
+      const backendSuffix = explain ? ` (${backendLabel})` : '';
+      console.error(color.bold(makeSectionHeader(`Text Search Results${backendSuffix}`)));
       const summaryState = { lastCount: 0 };
-      codeHitsFinal.slice(0, showCode).forEach((hit, index) => {
-        if (index < 1) {
+      proseHitsFinal.slice(0, showProse).forEach((hit, index) => {
+        if (index < 2) {
           process.stderr.write(formatFullChunk({
             chunk: hit,
             index,
-            mode: 'code',
+            mode: 'prose',
             score: hit.score,
             scoreType: hit.scoreType,
             explain,
@@ -279,7 +290,7 @@ export function renderSearchOutput({
           process.stderr.write(formatShortChunk({
             chunk: hit,
             index,
-            mode: 'code',
+            mode: 'prose',
             score: hit.score,
             scoreType: hit.scoreType,
             explain,

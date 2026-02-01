@@ -7,12 +7,20 @@ export const listSourceFiles = async (scanRoot) => {
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
     const normalized = filePath.replace(/\\/g, '/');
+    if (normalized.includes('/.testCache/')) return false;
+    if (normalized.includes('/.testLogs/')) return false;
+    if (normalized.includes('/tests/.cache/')) return false;
+    if (normalized.includes('/.cache/')) return false;
+    if (normalized.includes('/.logs/')) return false;
+    if (normalized.includes('/.venv/')) return false;
+    if (normalized.includes('/.diagnostics/')) return false;
     if (normalized.includes('/node_modules/')) return false;
     if (normalized.includes('/.git/')) return false;
     if (normalized.includes('/worktrees/')) return false;
     if (normalized.includes('/.worktrees/')) return false;
     if (normalized.includes('/benchmarks/repos/')) return false;
     if (normalized.includes('/benchmarks/cache/')) return false;
+    if (normalized.includes('/benchmarks/results/')) return false;
     return true;
   });
 };
@@ -277,7 +285,13 @@ export const scanSourceFiles = async (root, sourceFiles) => {
 
   for (const filePath of sourceFiles) {
     const relPath = path.relative(root, filePath).replace(/\\/g, '/');
-    const source = await fs.readFile(filePath, 'utf8');
+    let source = '';
+    try {
+      source = await fs.readFile(filePath, 'utf8');
+    } catch (err) {
+      if (err?.code === 'ENOENT') continue;
+      throw err;
+    }
 
     const envMatches = source.match(/PAIROFCLEATS_[A-Z0-9_]+/g) || [];
     for (const match of envMatches) {

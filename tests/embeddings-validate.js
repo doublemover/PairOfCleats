@@ -77,6 +77,51 @@ if (embeddings.enabled !== true || embeddings.ready !== true || embeddings.pendi
   console.error('index_state embeddings flags not marked ready after build-embeddings.');
   process.exit(1);
 }
+if (!embeddings.embeddingIdentity || typeof embeddings.embeddingIdentity !== 'object') {
+  console.error('index_state embeddings missing embeddingIdentity after build-embeddings.');
+  process.exit(1);
+}
+if (!embeddings.embeddingIdentityKey || typeof embeddings.embeddingIdentityKey !== 'string') {
+  console.error('index_state embeddings missing embeddingIdentityKey after build-embeddings.');
+  process.exit(1);
+}
+const backends = embeddings.backends || null;
+if (!backends || typeof backends !== 'object') {
+  console.error('index_state embeddings missing backends after build-embeddings.');
+  process.exit(1);
+}
+if (!('hnsw' in backends) || !('lancedb' in backends) || !('sqliteVec' in backends)) {
+  console.error('index_state embeddings backends missing expected keys.');
+  process.exit(1);
+}
+
+const denseJsonFiles = [
+  path.join(codeDir, 'dense_vectors_uint8.json'),
+  path.join(codeDir, 'dense_vectors_doc_uint8.json'),
+  path.join(codeDir, 'dense_vectors_code_uint8.json')
+];
+for (const densePath of denseJsonFiles) {
+  let densePayload;
+  try {
+    densePayload = JSON.parse(await fsPromises.readFile(densePath, 'utf8'));
+  } catch {
+    console.error(`Failed to read ${densePath}.`);
+    process.exit(1);
+  }
+  const fields = densePayload?.fields || densePayload || {};
+  if (!Number.isFinite(fields.minVal)) {
+    console.error(`dense vectors missing minVal in ${densePath}.`);
+    process.exit(1);
+  }
+  if (!Number.isFinite(fields.maxVal)) {
+    console.error(`dense vectors missing maxVal in ${densePath}.`);
+    process.exit(1);
+  }
+  if (!Number.isFinite(fields.levels)) {
+    console.error(`dense vectors missing levels in ${densePath}.`);
+    process.exit(1);
+  }
+}
 
 console.log('Stage3 embeddings validation test passed');
 

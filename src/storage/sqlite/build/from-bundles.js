@@ -128,10 +128,10 @@ export async function buildDatabaseFromBundles({
       fileCounts.set(record.normalized, 0);
     }
 
-  const vectorExtension = vectorConfig?.extension || {};
-  const vectorAnnEnabled = vectorConfig?.enabled === true;
-  const encodeVector = vectorConfig?.encodeVector;
-  const quantization = resolveQuantizationParams(vectorConfig?.quantization);
+    const vectorExtension = vectorConfig?.extension || {};
+    const vectorAnnEnabled = vectorConfig?.enabled === true;
+    const encodeVector = vectorConfig?.encodeVector;
+    const quantization = resolveQuantizationParams(vectorConfig?.quantization);
     let denseMetaSet = false;
     let denseDims = null;
     let vectorAnnWarned = false;

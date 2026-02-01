@@ -1,0 +1,10 @@
+{
+  "indexing": {
+    "riskInterprocedural": {
+      "enabled": true,
+      "summaryOnly": false,
+      "strictness": "conservative",
+      "emitArtifacts": "jsonl"
+    }
+  }
+}

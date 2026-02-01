@@ -23,6 +23,15 @@ if (!Array.isArray(ingestGeneric.recordIds) || ingestGeneric.recordIds.length ==
 }
 const findingId = ingestGeneric.recordIds[0];
 
+runJson('decision', [
+  path.join(root, 'tools', 'triage', 'decision.js'),
+  '--finding', findingId,
+  '--status', 'accept',
+  '--repo', repoRoot,
+  '--meta', 'service=api',
+  '--meta', 'env=prod'
+], { env });
+
 run('build-index', [
   path.join(root, 'build_index.js'),
   '--stub-embeddings',

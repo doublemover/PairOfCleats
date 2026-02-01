@@ -2,6 +2,9 @@ export const FLOW_SOURCE = 'flow';
 export const TOOLING_SOURCE = 'tooling';
 export const FLOW_CONFIDENCE = 0.55;
 export const TOOLING_CONFIDENCE = 0.85;
+export const MAX_CANDIDATES_PER_REF = 25;
+export const MAX_CANDIDATES_GLOBAL_SCAN = 200;
+export const MAX_SYMBOL_ROW_BYTES = 32768;
 
 export const TYPE_KIND_PATTERNS = [
   /class/i,

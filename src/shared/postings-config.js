@@ -11,7 +11,8 @@
  *   chargramMaxTokenLength:number|null,
  *   chargramSource:string,
  *   phraseSource:string,
- *   fielded:boolean
+ *   fielded:boolean,
+ *   tokenClassification:{enabled:boolean}
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
@@ -19,6 +20,12 @@ export function normalizePostingsConfig(input = {}) {
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
   const fielded = cfg.fielded !== false;
+  const tokenClassificationRaw = cfg.tokenClassification;
+  const tokenClassificationEnabled = typeof tokenClassificationRaw === 'boolean'
+    ? tokenClassificationRaw
+    : (tokenClassificationRaw && typeof tokenClassificationRaw === 'object'
+      ? tokenClassificationRaw.enabled !== false
+      : true);
 
   // Phrase n-grams are very high-cardinality when derived from the full token
   // stream of source code. Default to deriving them from low-cardinality fields
@@ -72,6 +79,9 @@ export function normalizePostingsConfig(input = {}) {
     chargramMaxN: chargramRange.max,
     chargramMaxTokenLength,
     chargramSource,
-    fielded
+    fielded,
+    tokenClassification: {
+      enabled: tokenClassificationEnabled
+    }
   };
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-31T00:57:44.298Z",
+  "generatedAt": "2026-02-01T01:50:00.452Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -103,11 +103,23 @@
       "indexing.ioConcurrencyCap",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
+      "indexing.riskInterprocedural.caps.maxDepth",
+      "indexing.riskInterprocedural.caps.maxEdgeExpansions",
+      "indexing.riskInterprocedural.caps.maxMs",
+      "indexing.riskInterprocedural.caps.maxPathsPerPair",
+      "indexing.riskInterprocedural.caps.maxTotalFlows",
+      "indexing.riskInterprocedural.emitArtifacts",
+      "indexing.riskInterprocedural.enabled",
+      "indexing.riskInterprocedural.sanitizerPolicy",
+      "indexing.riskInterprocedural.strictness",
+      "indexing.riskInterprocedural.summaryOnly",
       "quality",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
       "runtime.uvThreadpoolSize",
+      "search.denseVectorMode",
       "search.sqliteAutoArtifactBytes",
       "search.sqliteAutoChunkThreshold",
       "threads",
@@ -158,8 +170,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 99,
-    "leafKeys": 75,
+    "totalKeys": 113,
+    "leafKeys": 87,
     "topLevel": [
       {
         "key": "cache",
@@ -167,7 +179,7 @@
       },
       {
         "key": "indexing",
-        "count": 37
+        "count": 50
       },
       {
         "key": "quality",
@@ -179,7 +191,7 @@
       },
       {
         "key": "search",
-        "count": 3
+        "count": 4
       },
       {
         "key": "threads",
@@ -388,6 +400,81 @@
       "enum": null
     },
     {
+      "path": "indexing.riskInterprocedural",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxDepth",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxEdgeExpansions",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxMs",
+      "type": "number|null",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxPathsPerPair",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.caps.maxTotalFlows",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.emitArtifacts",
+      "type": "string",
+      "enum": [
+        "none",
+        "jsonl",
+        "off"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.sanitizerPolicy",
+      "type": "string",
+      "enum": [
+        "terminate",
+        "weaken"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.strictness",
+      "type": "string",
+      "enum": [
+        "conservative",
+        "argAware"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.summaryOnly",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "quality",
       "type": "string",
       "enum": [
@@ -426,6 +513,16 @@
       "path": "search",
       "type": "object",
       "enum": null
+    },
+    {
+      "path": "search.denseVectorMode",
+      "type": "string",
+      "enum": [
+        "merged",
+        "code",
+        "doc",
+        "auto"
+      ]
     },
     {
       "path": "search.sqliteAutoArtifactBytes",
@@ -706,6 +803,7 @@
       "name": "PAIROFCLEATS_API_TOKEN",
       "files": [
         "src/shared/env.js",
+        "tests/filter-index-config-hash.test.js",
         "tools/api-server.js",
         "tools/config-inventory.js"
       ]
@@ -787,13 +885,18 @@
         "tests/index-metrics-options.js",
         "tests/index-validate.js",
         "tests/indexer/call-sites-determinism.test.js",
+        "tests/indexer/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
+        "tests/integration/chunkuid-determinism.test.js",
+        "tests/integration/symbol-artifact-determinism.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
         "tests/lmdb-corruption.js",
         "tests/lmdb-report-artifacts.js",
+        "tests/manifest-embeddings-pieces.js",
         "tests/mcp-robustness.js",
         "tests/mcp-schema.js",
         "tests/perf/baseline-artifacts.test.js",
@@ -807,18 +910,20 @@
         "tests/repo-root.js",
         "tests/repometrics-dashboard.js",
         "tests/report-artifacts-manifest-driven.test.js",
+        "tests/retrieval-strict-manifest-embeddings.js",
+        "tests/risk-interprocedural/runtime-gating.test.js",
         "tests/run.js",
         "tests/runtime-records-config.js",
         "tests/script-coverage.js",
         "tests/search-contract.js",
         "tests/search-determinism.js",
         "tests/search-explain-symbol.js",
-        "tests/search-explain.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
         "tests/search-tie-order.js",
         "tests/search-topn-filters.js",
         "tests/search-windows-path-filter.js",
+        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/setup-index-detection.js",
         "tests/setup.js",
         "tests/shard-merge.js",
@@ -835,7 +940,12 @@
         "tests/sqlite-index-state-fail-closed.js",
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
+        "tests/structural-filters.js",
         "tests/subprocess-quoting.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
         "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/tool-root.js",
@@ -844,6 +954,7 @@
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
         "tests/uninstall.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tests/vector-extension-missing.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
@@ -856,6 +967,7 @@
       "name": "PAIROFCLEATS_DEBUG_CRASH",
       "files": [
         "src/shared/env.js",
+        "tools/build-embeddings/runner.js",
         "tools/config-inventory.js"
       ]
     },
@@ -925,13 +1037,19 @@
         "tests/index-metrics-options.js",
         "tests/index-validate.js",
         "tests/indexer/call-sites-determinism.test.js",
+        "tests/indexer/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
+        "tests/integration/chunkuid-determinism.test.js",
+        "tests/integration/symbol-artifact-determinism.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
         "tests/lmdb-corruption.js",
         "tests/lmdb-report-artifacts.js",
+        "tests/manifest-embeddings-pieces.js",
+        "tests/parity.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
@@ -942,11 +1060,11 @@
         "tests/query-cache.js",
         "tests/records-exclusion.js",
         "tests/repo-root.js",
+        "tests/retrieval-strict-manifest-embeddings.js",
         "tests/script-coverage.js",
         "tests/search-contract.js",
         "tests/search-determinism.js",
         "tests/search-explain-symbol.js",
-        "tests/search-explain.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
         "tests/search-tie-order.js",
@@ -966,6 +1084,10 @@
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
         "tests/subprocess-quoting.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
         "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/tool-root.js",
@@ -973,6 +1095,7 @@
         "tests/type-inference-crossfile-go.js",
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
@@ -1071,6 +1194,7 @@
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
+        "tests/summary-report.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1097,7 +1221,6 @@
       "files": [
         "tests/fixture-parity.js",
         "tests/structural-search.js",
-        "tests/summary-report.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1175,13 +1298,17 @@
         "tests/artifact-size-guardrails.js",
         "tests/build-index-all.js",
         "tests/contracts/golden-surface-suite.test.js",
+        "tests/helpers/test-env.js",
         "tests/incremental-cache-signature.js",
         "tests/incremental-tokenization-cache.js",
         "tests/index-validate.js",
         "tests/indexer/call-sites-determinism.test.js",
+        "tests/indexer/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/symbol-artifact-determinism.test.js",
         "tests/lmdb-report-artifacts.js",
+        "tests/piece-assembly.js",
         "tests/query-cache-extracted-prose.js",
         "tests/query-cache.js",
         "tests/retrieval/filters/types.test.js",
@@ -1203,6 +1330,12 @@
         "tests/script-coverage.js",
         "tests/script-coverage/runner.js",
         "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_LOG_SILENT",
+      "files": [
+        "tests/helpers/test-env.js"
       ]
     },
     {
@@ -1277,9 +1410,12 @@
         "tests/build-embeddings/args-parsing.test.js",
         "tests/build-embeddings/runtime-defaults.test.js",
         "tests/build-index-all.js",
+        "tests/cli/risk-explain.test.js",
         "tests/code-map-basic.js",
         "tests/code-map-determinism.js",
         "tests/code-map-dot.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
         "tests/comment-join.js",
         "tests/contracts/golden-surface-suite.test.js",
         "tests/contracts/index-compatibility-key-enforced-on-load.test.js",
@@ -1291,6 +1427,7 @@
         "tests/file-line-guard.js",
         "tests/file-size-guard.js",
         "tests/filter-index-artifact.js",
+        "tests/fixture-empty.js",
         "tests/format-fidelity.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
@@ -1300,30 +1437,42 @@
         "tests/incremental-cache-signature.js",
         "tests/incremental-manifest.js",
         "tests/incremental-tokenization-cache.js",
+        "tests/index-lifecycle-contract.js",
         "tests/index-metrics-options.js",
         "tests/index-validate.js",
         "tests/indexer/call-sites-determinism.test.js",
+        "tests/indexer/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/integration/ann-parity.test.js",
+        "tests/integration/chunkuid-determinism.test.js",
+        "tests/integration/symbol-artifact-determinism.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
         "tests/lmdb-backend.js",
         "tests/lmdb-corruption.js",
         "tests/lmdb-report-artifacts.js",
         "tests/logging/stdout-contract.test.js",
+        "tests/manifest-embeddings-pieces.js",
         "tests/mcp-robustness.js",
         "tests/mcp-schema.js",
+        "tests/parity.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
+        "tests/piece-assembly.js",
         "tests/prose-rust-exclusion.js",
         "tests/query-cache-extracted-prose.js",
         "tests/query-cache.js",
         "tests/records-exclusion.js",
+        "tests/retrieval-strict-manifest-embeddings.js",
         "tests/retrieval/query-cache-signature-sharded-chunk-meta.test.js",
+        "tests/risk-interprocedural/artifacts-written.test.js",
+        "tests/risk-interprocedural/runtime-gating.test.js",
         "tests/run.js",
         "tests/runtime-records-config.js",
         "tests/script-coverage.js",
+        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/setup-index-detection.js",
         "tests/shard-merge.js",
         "tests/shard-progress-determinism.js",
@@ -1335,10 +1484,17 @@
         "tests/sqlite-build-indexes.js",
         "tests/sqlite-incremental-no-change.js",
         "tests/sqlite-missing-dep.js",
+        "tests/structural-filters.js",
+        "tests/summary-report-compare-memory.js",
+        "tests/summary-report-compare-sqlite.js",
+        "tests/summary-report-parity-sqlite-fts.js",
+        "tests/summary-report-parity-sqlite.js",
+        "tests/summary-report.js",
         "tests/tantivy-smoke.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
         "tests/type-inference-lsp-enrichment.js",
+        "tests/unit/lmdb-mapsize.test.js",
         "tests/vector-extension-missing.js",
         "tools/ci/run-suite.js",
         "tools/config-inventory.js",
@@ -1395,10 +1551,15 @@
       "files": [
         "src/index/build/failure-taxonomy.js",
         "src/shared/env.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
         "tests/encoding-fallback.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/incremental-cache-signature.js",
         "tests/indexer/call-sites-determinism.test.js",
+        "tests/indexer/call-sites-emit-artifacts-none.test.js",
         "tests/js-tree-sitter-maxbytes.js",
         "tests/perf/sqlite-p95-latency.test.js",
         "tests/search-explain-symbol.js",
@@ -1419,9 +1580,11 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_TEST_LOG_SILENT"
+  ],
   "cliFlags": {
-    "totalFlags": 203,
+    "totalFlags": 208,
     "publicFlags": [
       "backend",
       "host",
@@ -1453,6 +1616,7 @@
       "cache-dir",
       "cache-root",
       "cert-dir",
+      "chunk",
       "chunk-meta-size",
       "clean",
       "code",
@@ -1501,6 +1665,7 @@
       "includeImports",
       "includeUsages",
       "incremental",
+      "index",
       "index-root",
       "input",
       "inputs",
@@ -1516,6 +1681,7 @@
       "log",
       "log-dir",
       "match-mode",
+      "max",
       "max-age-days",
       "max-body-bytes",
       "max-bytes",
@@ -1584,6 +1750,7 @@
       "search",
       "seed",
       "sha256",
+      "sink-rule",
       "skip-artifacts",
       "skip-bench",
       "skip-build",
@@ -1598,6 +1765,7 @@
       "skip-validate",
       "sort",
       "source",
+      "source-rule",
       "sqlite-backend",
       "stage",
       "status",
@@ -1721,6 +1889,20 @@
         "file": "tests/imports-options-forwarding-flowmode.js",
         "flags": [
           "flowMode"
+        ]
+      },
+      {
+        "file": "tests/integration/map-chunkuid-join.test.js",
+        "flags": [
+          "include",
+          "strict"
+        ]
+      },
+      {
+        "file": "tests/map/map-build-symbol-identity.test.js",
+        "flags": [
+          "include",
+          "strict"
         ]
       },
       {
@@ -2069,6 +2251,17 @@
           "repo",
           "top",
           "verbose"
+        ]
+      },
+      {
+        "file": "tools/explain-risk.js",
+        "flags": [
+          "chunk",
+          "index",
+          "json",
+          "max",
+          "sink-rule",
+          "source-rule"
         ]
       },
       {
@@ -2437,7 +2630,7 @@
       },
       {
         "flag": "json",
-        "count": 24,
+        "count": 25,
         "files": [
           "tests/fixture-eval.js",
           "tools/api-server.js",
@@ -2448,6 +2641,7 @@
           "tools/compare-models.js",
           "tools/config-dump.js",
           "tools/ctags-ingest.js",
+          "tools/explain-risk.js",
           "tools/gtags-ingest.js",
           "tools/index-validate.js",
           "tools/lsif-ingest.js",
@@ -2662,6 +2856,16 @@
         ]
       },
       {
+        "flag": "include",
+        "count": 4,
+        "files": [
+          "src/map/build-map.js",
+          "tests/integration/map-chunkuid-join.test.js",
+          "tests/map/map-build-symbol-identity.test.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
         "flag": "limit",
         "count": 4,
         "files": [
@@ -2679,6 +2883,16 @@
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "strict",
+        "count": 4,
+        "files": [
+          "tests/integration/map-chunkuid-join.test.js",
+          "tests/map/map-build-symbol-identity.test.js",
+          "tools/index-validate.js",
+          "tools/tooling-doctor.js"
         ]
       },
       {
@@ -2841,14 +3055,6 @@
         "files": [
           "tools/report-code-map.js",
           "tools/structural-search.js"
-        ]
-      },
-      {
-        "flag": "include",
-        "count": 2,
-        "files": [
-          "src/map/build-map.js",
-          "tools/report-code-map.js"
         ]
       },
       {
@@ -3033,14 +3239,6 @@
         "files": [
           "tools/assemble-pieces.js",
           "tools/indexer-service.js"
-        ]
-      },
-      {
-        "flag": "strict",
-        "count": 2,
-        "files": [
-          "tools/index-validate.js",
-          "tools/tooling-doctor.js"
         ]
       },
       {

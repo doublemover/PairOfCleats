@@ -31,6 +31,12 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   const riskAnalysisCrossFileEnabled = typeof analysisPolicy?.risk?.crossFile === 'boolean'
     ? analysisPolicy.risk.crossFile
     : runtime.riskAnalysisCrossFileEnabled;
+  const riskInterproceduralEnabled = typeof analysisPolicy?.risk?.interprocedural === 'boolean'
+    ? analysisPolicy.risk.interprocedural
+    : runtime.riskInterproceduralEnabled;
+  const riskInterproceduralSummaryOnly = typeof analysisPolicy?.risk?.interproceduralSummaryOnly === 'boolean'
+    ? analysisPolicy.risk.interproceduralSummaryOnly
+    : runtime.riskInterproceduralConfig?.summaryOnly === true;
   const typeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
     ? analysisPolicy.typeInference.local.enabled
     : runtime.typeInferenceEnabled;
@@ -53,10 +59,13 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       complexityEnabled: runtime.complexityEnabled,
       riskAnalysisEnabled,
       riskAnalysisCrossFileEnabled,
+      riskInterproceduralEnabled,
+      riskInterproceduralSummaryOnly,
       typeInferenceEnabled,
       typeInferenceCrossFileEnabled,
       gitBlameEnabled
     },
+    riskInterproceduralConfig: runtime.riskInterproceduralConfig || null,
     riskRules: runtime.indexingConfig?.riskRules || null,
     riskCaps: runtime.indexingConfig?.riskCaps || null,
     parsers: {

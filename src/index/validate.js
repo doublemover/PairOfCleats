@@ -12,7 +12,9 @@ import {
   loadGraphRelations,
   loadJsonArrayArtifact,
   loadTokenPostings,
-  readJsonFile
+  readJsonFile,
+  resolveBinaryArtifactPath,
+  resolveDirArtifactPath
 } from '../shared/artifact-io.js';
 import { resolveLanceDbPaths } from '../shared/lancedb.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
@@ -30,9 +32,10 @@ import {
 import { addIssue } from './validate/issues.js';
 import { validateSchema } from './validate/schema.js';
 import { createArtifactPresenceHelpers } from './validate/presence.js';
-import { loadAndValidateManifest } from './validate/manifest.js';
+import { loadAndValidateManifest, sumManifestCounts } from './validate/manifest.js';
 import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
+import { validateRiskInterproceduralArtifacts } from './validate/risk-interprocedural.js';
 import {
   validateChunkIds,
   validateChunkIdentity,
@@ -77,6 +80,7 @@ export async function validateIndexArtifacts(input = {}) {
     optionalArtifacts,
     lanceConfig
   } = buildArtifactLists(userConfig, postingsConfig);
+  const symbolArtifacts = new Set(['symbols', 'symbol_occurrences', 'symbol_edges']);
 
   for (const mode of modes) {
     const dir = resolveIndexDir(root, mode, userConfig, indexRoot, strict);
@@ -108,7 +112,25 @@ export async function validateIndexArtifacts(input = {}) {
       report,
       modeReport
     });
+    const resolveManifestCount = (name) => {
+      if (!strict || !manifest) return null;
+      return sumManifestCounts(manifest, name);
+    };
+    const validateManifestCount = (name, actualCount, label = name) => {
+      const expected = resolveManifestCount(name);
+      if (!Number.isFinite(expected)) return;
+      if (!Number.isFinite(actualCount)) return;
+      if (expected !== actualCount) {
+        const issue = `${label} manifest count mismatch (${expected} !== ${actualCount})`;
+        modeReport.ok = false;
+        modeReport.missing.push(issue);
+        report.issues.push(`[${mode}] ${issue}`);
+      }
+    };
 
+    const optionalArtifactsForMode = mode === 'code'
+      ? optionalArtifacts
+      : optionalArtifacts.filter((name) => !symbolArtifacts.has(name));
     if (strict) {
       for (const name of requiredArtifacts) {
         checkPresence(name, { required: true });
@@ -116,7 +138,7 @@ export async function validateIndexArtifacts(input = {}) {
       for (const name of strictOnlyRequiredArtifacts) {
         checkPresence(name, { required: true });
       }
-      for (const name of optionalArtifacts) {
+      for (const name of optionalArtifactsForMode) {
         checkPresence(name, { required: false });
       }
     } else {
@@ -128,7 +150,7 @@ export async function validateIndexArtifacts(input = {}) {
           report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
         }
       }
-      for (const name of optionalArtifacts) {
+      for (const name of optionalArtifactsForMode) {
         if (!hasLegacyArtifact(name)) {
           modeReport.warnings.push(name);
           report.warnings.push(`[${mode}] optional ${name} missing`);
@@ -137,6 +159,7 @@ export async function validateIndexArtifacts(input = {}) {
     }
     try {
       let chunkMeta = null;
+      const indexState = readJsonArtifact('index_state', { required: strict });
       try {
         chunkMeta = await loadChunkMeta(dir, { manifest, strict });
       } catch (err) {
@@ -170,11 +193,28 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
       validateChunkIds(report, mode, chunkMeta);
+      const chunkUidSet = new Set();
+      for (const entry of chunkMeta) {
+        const uid = entry?.chunkUid || entry?.metaV2?.chunkUid || null;
+        if (uid) chunkUidSet.add(uid);
+      }
+      await validateRiskInterproceduralArtifacts({
+        report,
+        mode,
+        dir,
+        manifest,
+        strict,
+        chunkUidSet,
+        indexState,
+        readJsonArtifact,
+        shouldLoadOptional,
+        checkPresence
+      });
       if (strict) {
         validateChunkIdentity(report, mode, chunkMeta);
         validateMetaV2Types(report, mode, chunkMeta);
         validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
-          if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
+        if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
           const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
           const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
           if (dbPath && fs.existsSync(dbPath)) {
@@ -301,7 +341,6 @@ export async function validateIndexArtifacts(input = {}) {
         validateIdPostings(report, mode, 'filter_index', fileChunks, chunkMeta.length);
       }
 
-      const indexState = readJsonArtifact('index_state', { required: strict });
       if (indexState) {
         validateSchema(report, mode, 'index_state', indexState, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
         if (strict && !isSupportedVersion(indexState?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
@@ -341,6 +380,88 @@ export async function validateIndexArtifacts(input = {}) {
       }
       if (callSites) {
         validateSchema(report, mode, 'call_sites', callSites, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
+      if (mode === 'code') {
+        let symbols = null;
+        if (shouldLoadOptional('symbols')) {
+          try {
+            symbols = await loadJsonArrayArtifact(dir, 'symbols', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbols load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbols) {
+          validateSchema(report, mode, 'symbols', symbols, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbols', symbols.length, 'symbols');
+          for (const entry of symbols) {
+            if (!entry?.chunkUid) continue;
+            if (!chunkUidSet.has(entry.chunkUid)) {
+              addIssue(report, mode, `symbols chunkUid missing in chunk_meta (${entry.chunkUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+          }
+        }
+
+        let symbolOccurrences = null;
+        if (shouldLoadOptional('symbol_occurrences')) {
+          try {
+            symbolOccurrences = await loadJsonArrayArtifact(dir, 'symbol_occurrences', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbol_occurrences load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbolOccurrences) {
+          validateSchema(report, mode, 'symbol_occurrences', symbolOccurrences, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbol_occurrences', symbolOccurrences.length, 'symbol_occurrences');
+          for (const entry of symbolOccurrences) {
+            const hostUid = entry?.host?.chunkUid || null;
+            if (!hostUid) continue;
+            if (!chunkUidSet.has(hostUid)) {
+              addIssue(report, mode, `symbol_occurrences host chunkUid missing in chunk_meta (${hostUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+          }
+        }
+
+        let symbolEdges = null;
+        if (shouldLoadOptional('symbol_edges')) {
+          try {
+            symbolEdges = await loadJsonArrayArtifact(dir, 'symbol_edges', { manifest, strict });
+          } catch (err) {
+            addIssue(report, mode, `symbol_edges load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          }
+        }
+        if (symbolEdges) {
+          validateSchema(report, mode, 'symbol_edges', symbolEdges, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+          validateManifestCount('symbol_edges', symbolEdges.length, 'symbol_edges');
+          const counts = { resolved: 0, ambiguous: 0, unresolved: 0 };
+          for (const edge of symbolEdges) {
+            const fromUid = edge?.from?.chunkUid || null;
+            if (fromUid && !chunkUidSet.has(fromUid)) {
+              addIssue(report, mode, `symbol_edges from chunkUid missing in chunk_meta (${fromUid})`, 'Rebuild index artifacts for this mode.');
+              break;
+            }
+            const status = edge?.to?.status || null;
+            if (status && Object.prototype.hasOwnProperty.call(counts, status)) {
+              counts[status] += 1;
+            }
+            if (edge?.to?.status === 'resolved') {
+              const resolvedUid = edge?.to?.resolved?.chunkUid || null;
+              if (!resolvedUid || !chunkUidSet.has(resolvedUid)) {
+                addIssue(report, mode, `symbol_edges resolved chunkUid missing in chunk_meta (${resolvedUid || 'missing'})`, 'Rebuild index artifacts for this mode.');
+                break;
+              }
+            }
+          }
+          const total = counts.resolved + counts.ambiguous + counts.unresolved;
+          if (total) {
+            const resolvedRate = (counts.resolved / total).toFixed(3);
+            const ambiguousRate = (counts.ambiguous / total).toFixed(3);
+            const unresolvedRate = (counts.unresolved / total).toFixed(3);
+            report.hints.push(`[${mode}] symbol_edges resolution: resolved=${resolvedRate}, ambiguous=${ambiguousRate}, unresolved=${unresolvedRate}`);
+          }
+        }
       }
 
       let vfsManifest = null;
@@ -434,6 +555,7 @@ export async function validateIndexArtifacts(input = {}) {
         const dense = normalizeDenseVectors(denseRaw);
         validateSchema(report, mode, target.name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
         const vectors = dense.vectors || [];
+        validateManifestCount(target.name, vectors.length, target.label);
         if (vectors.length && vectors.length !== chunkMeta.length) {
           const issue = `${target.label} mismatch (${vectors.length} !== ${chunkMeta.length})`;
           modeReport.ok = false;
@@ -449,56 +571,134 @@ export async function validateIndexArtifacts(input = {}) {
           }
         }
       }
-      const hnswMetaPath = path.join(dir, 'dense_vectors_hnsw.meta.json');
-      if (fs.existsSync(hnswMetaPath)) {
-        const hnswMeta = readJsonFile(hnswMetaPath);
+      const hnswTargets = [
+        {
+          label: 'dense_vectors_hnsw',
+          metaName: 'dense_vectors_hnsw_meta',
+          binName: 'dense_vectors_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_hnsw.bin')
+        },
+        {
+          label: 'dense_vectors_doc_hnsw',
+          metaName: 'dense_vectors_doc_hnsw_meta',
+          binName: 'dense_vectors_doc_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_doc_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_doc_hnsw.bin')
+        },
+        {
+          label: 'dense_vectors_code_hnsw',
+          metaName: 'dense_vectors_code_hnsw_meta',
+          binName: 'dense_vectors_code_hnsw',
+          metaPath: path.join(dir, 'dense_vectors_code_hnsw.meta.json'),
+          binPath: path.join(dir, 'dense_vectors_code_hnsw.bin')
+        }
+      ];
+      for (const target of hnswTargets) {
+        const hnswMeta = strict
+          ? readJsonArtifact(target.metaName)
+          : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+        if (!hnswMeta) continue;
         validateSchema(
           report,
           mode,
-          'dense_vectors_hnsw_meta',
+          target.metaName,
           hnswMeta,
           'Rebuild embeddings for this mode.',
           { strictSchema: strict }
         );
+        const hnswCount = Number.isFinite(hnswMeta?.count) ? hnswMeta.count : chunkMeta.length;
+        validateManifestCount(target.metaName, hnswCount, `${target.label} meta`);
+        validateManifestCount(target.binName, hnswCount, `${target.label} bin`);
         if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
-          const issue = `dense_vectors_hnsw count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
+          const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
           modeReport.ok = false;
           modeReport.missing.push(issue);
           report.issues.push(`[${mode}] ${issue}`);
         }
-        const hnswIndexPath = path.join(dir, 'dense_vectors_hnsw.bin');
-        if (!fs.existsSync(hnswIndexPath)) {
-          addIssue(report, mode, 'dense_vectors_hnsw index missing', 'Rebuild embeddings for this mode.');
+        const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
+          manifest,
+          strict,
+          fallbackPath: target.binPath
+        });
+        if (!hnswIndexPath || !fs.existsSync(hnswIndexPath)) {
+          addIssue(report, mode, `${target.label} index missing`, 'Rebuild embeddings for this mode.');
         }
       }
       if (lanceConfig.enabled) {
         const lancePaths = resolveLanceDbPaths(dir);
         const lanceTargets = [
-          { label: 'dense_vectors_lancedb', metaPath: lancePaths.merged.metaPath, dir: lancePaths.merged.dir },
-          { label: 'dense_vectors_doc_lancedb', metaPath: lancePaths.doc.metaPath, dir: lancePaths.doc.dir },
-          { label: 'dense_vectors_code_lancedb', metaPath: lancePaths.code.metaPath, dir: lancePaths.code.dir }
+          {
+            label: 'dense_vectors_lancedb',
+            metaName: 'dense_vectors_lancedb_meta',
+            dirName: 'dense_vectors_lancedb',
+            metaPath: lancePaths.merged.metaPath,
+            dir: lancePaths.merged.dir
+          },
+          {
+            label: 'dense_vectors_doc_lancedb',
+            metaName: 'dense_vectors_doc_lancedb_meta',
+            dirName: 'dense_vectors_doc_lancedb',
+            metaPath: lancePaths.doc.metaPath,
+            dir: lancePaths.doc.dir
+          },
+          {
+            label: 'dense_vectors_code_lancedb',
+            metaName: 'dense_vectors_code_lancedb_meta',
+            dirName: 'dense_vectors_code_lancedb',
+            metaPath: lancePaths.code.metaPath,
+            dir: lancePaths.code.dir
+          }
         ];
         for (const target of lanceTargets) {
-          if (!fs.existsSync(target.metaPath)) continue;
-          const meta = readJsonFile(target.metaPath);
+          const meta = strict
+            ? readJsonArtifact(target.metaName)
+            : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+          if (!meta) continue;
           validateSchema(
             report,
             mode,
-            'dense_vectors_lancedb_meta',
+            target.metaName,
             meta,
             'Rebuild embeddings for this mode.',
             { strictSchema: strict }
           );
+          const lanceCount = Number.isFinite(meta?.count) ? meta.count : chunkMeta.length;
+          validateManifestCount(target.metaName, lanceCount, `${target.label} meta`);
+          validateManifestCount(target.dirName, lanceCount, `${target.label} dir`);
           if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
             const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
             modeReport.ok = false;
             modeReport.missing.push(issue);
             report.issues.push(`[${mode}] ${issue}`);
           }
-          if (!fs.existsSync(target.dir)) {
+          const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
+            manifest,
+            strict,
+            fallbackPath: target.dir
+          });
+          if (!lanceDir || !fs.existsSync(lanceDir)) {
             addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
           }
         }
+      }
+      const sqliteVecMeta = strict
+        ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
+        : (() => {
+          const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
+          return fs.existsSync(sqliteMetaPath) ? readJsonFile(sqliteMetaPath) : null;
+        })();
+      if (sqliteVecMeta) {
+        validateSchema(
+          report,
+          mode,
+          'dense_vectors_sqlite_vec_meta',
+          sqliteVecMeta,
+          'Rebuild embeddings for this mode.',
+          { strictSchema: strict }
+        );
+        const sqliteCount = Number.isFinite(sqliteVecMeta?.count) ? sqliteVecMeta.count : chunkMeta.length;
+        validateManifestCount('dense_vectors_sqlite_vec_meta', sqliteCount, 'dense_vectors_sqlite_vec_meta');
       }
     } catch (err) {
       const issue = `validation failed (${err?.code || err?.message || 'error'})`;

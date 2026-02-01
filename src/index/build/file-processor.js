@@ -31,6 +31,9 @@ export function createFileProcessor(options) {
     dictConfig,
     dictWords,
     dictShared,
+    codeDictWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
     languageOptions,
     postingsConfig,
     segmentsConfig,
@@ -61,6 +64,7 @@ export function createFileProcessor(options) {
     fileScan = null,
     skippedFiles = null,
     embeddingEnabled = true,
+    embeddingNormalize = true,
     toolInfo = null,
     tokenizationStats = null,
     featureMetrics = null,
@@ -125,7 +129,11 @@ export function createFileProcessor(options) {
   const tokenContext = createTokenizationContext({
     dictWords: tokenDictWords,
     dictConfig,
-    postingsConfig
+    postingsConfig,
+    codeDictWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
+    treeSitter: languageOptions?.treeSitter || null
   });
   const normalizedSegmentsConfig = normalizeSegmentsConfig(segmentsConfig);
   const normalizedCommentsConfig = normalizeCommentConfig(commentsConfig);
@@ -435,6 +443,7 @@ export function createFileProcessor(options) {
       workerState,
       tokenizationStats,
       embeddingEnabled,
+      embeddingNormalize,
       embeddingBatchSize,
       getChunkEmbedding,
       getChunkEmbeddings,

@@ -3,7 +3,9 @@ import { normalizePath, sortBy } from '../utils.js';
 
 const ANON_NAMES = new Set(['(anonymous)', '<anonymous>', 'anonymous']);
 
-export const buildSymbolId = ({ file, name, kind, startLine, chunkId }) => {
+export const buildSymbolId = ({ symbolId, chunkUid, file, name, kind, startLine, chunkId }) => {
+  if (symbolId) return symbolId;
+  if (chunkUid) return chunkUid;
   const safeFile = normalizePath(file || '');
   const safeName = String(name || '').trim();
   const lowered = safeName.toLowerCase();

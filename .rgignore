@@ -1,1 +1,12 @@
+benchmarks/cache/
 benchmarks/repos/
+benchmarks/results/
+node_modules/
+worktrees/
+.testCache/
+.testLogs/
+.cache/
+.logs/
+.venv/
+.diagnostics/
+.diagonostics/

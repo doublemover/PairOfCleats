@@ -22,9 +22,9 @@ export const readJsonArrayOptional = (dir, baseName, warnings) => {
   }
 };
 
-export const readGraphRelationsOptional = (dir, warnings) => {
+export const readGraphRelationsOptional = (dir, warnings, { strict = true } = {}) => {
   try {
-    return loadGraphRelationsSync(dir);
+    return loadGraphRelationsSync(dir, { strict });
   } catch (err) {
     const detail = err?.message ? ` (${err.message})` : '';
     warnings.push(`Failed to read graph_relations${detail}`);

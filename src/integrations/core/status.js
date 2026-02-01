@@ -199,14 +199,14 @@ export async function getStatus(input = {}) {
     repo: {
       root: path.resolve(repoCacheRoot),
       totalBytes: repoCacheSize,
-        artifacts: repoArtifactSizes,
-        sqlite: {
-          code: sqliteStats.code,
-          prose: sqliteStats.prose,
-          extractedProse: sqliteStats['extracted-prose'],
-          records: sqliteStats.records,
-          legacy: sqlitePaths.legacyExists ? { path: sqlitePaths.legacyPath } : null
-        },
+      artifacts: repoArtifactSizes,
+      sqlite: {
+        code: sqliteStats.code,
+        prose: sqliteStats.prose,
+        extractedProse: sqliteStats['extracted-prose'],
+        records: sqliteStats.records,
+        legacy: sqlitePaths.legacyExists ? { path: sqlitePaths.legacyPath } : null
+      },
       lmdb: {
         code: lmdbStats.code,
         prose: lmdbStats.prose

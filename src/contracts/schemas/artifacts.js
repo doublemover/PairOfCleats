@@ -76,6 +76,141 @@ const graphPayload = {
   additionalProperties: true
 };
 
+const symbolRefSchema = {
+  type: 'object',
+  required: ['v', 'targetName', 'candidates', 'status', 'resolved'],
+  properties: {
+    v: posInt,
+    targetName: { type: 'string' },
+    kindHint: nullableString,
+    importHint: {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            moduleSpecifier: nullableString,
+            resolvedFile: nullableString
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    },
+    candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['symbolId', 'chunkUid', 'symbolKey', 'kindGroup'],
+        properties: {
+          symbolId: { type: 'string' },
+          chunkUid: { type: 'string' },
+          symbolKey: { type: 'string' },
+          signatureKey: nullableString,
+          kindGroup: { type: 'string' }
+        },
+        additionalProperties: true
+      }
+    },
+    status: { type: 'string', enum: ['resolved', 'ambiguous', 'unresolved'] },
+    resolved: {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['symbolId', 'chunkUid'],
+          properties: {
+            symbolId: { type: 'string' },
+            chunkUid: { type: 'string' }
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    }
+  },
+  additionalProperties: true
+};
+
+const symbolRecord = {
+  type: 'object',
+  required: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],
+  properties: {
+    v: posInt,
+    symbolId: { type: 'string' },
+    scopedId: { type: 'string' },
+    scheme: nullableString,
+    symbolKey: { type: 'string' },
+    signatureKey: nullableString,
+    chunkUid: { type: 'string' },
+    virtualPath: { type: 'string' },
+    segmentUid: nullableString,
+    file: { type: 'string' },
+    lang: nullableString,
+    kind: nullableString,
+    kindGroup: { type: 'string' },
+    name: nullableString,
+    qualifiedName: { type: 'string' },
+    signature: nullableString,
+    extensions: { type: 'object' }
+  },
+  additionalProperties: true
+};
+
+const symbolOccurrence = {
+  type: 'object',
+  required: ['v', 'host', 'role', 'ref'],
+  properties: {
+    v: posInt,
+    host: {
+      type: 'object',
+      required: ['file', 'chunkUid'],
+      properties: {
+        file: { type: 'string' },
+        chunkUid: { type: 'string' }
+      },
+      additionalProperties: true
+    },
+    role: { type: 'string' },
+    ref: symbolRefSchema,
+    range: {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['start', 'end'],
+          properties: {
+            start: intId,
+            end: intId
+          },
+          additionalProperties: true
+        },
+        { type: 'null' }
+      ]
+    }
+  },
+  additionalProperties: true
+};
+
+const symbolEdge = {
+  type: 'object',
+  required: ['v', 'type', 'from', 'to'],
+  properties: {
+    v: posInt,
+    type: { type: 'string' },
+    from: {
+      type: 'object',
+      required: ['file', 'chunkUid'],
+      properties: {
+        file: { type: 'string' },
+        chunkUid: { type: 'string' }
+      },
+      additionalProperties: true
+    },
+    to: symbolRefSchema,
+    confidence: { type: ['number', 'null'] },
+    reason: nullableString
+  },
+  additionalProperties: true
+};
+
 const idPostingList = {
   type: 'array',
   items: { type: 'array', items: intId }
@@ -208,7 +343,72 @@ const denseVectorsSchema = {
     dims: { type: 'integer', minimum: 1 },
     model: nullableString,
     scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 },
     vectors: { type: 'array', items: denseVectorArray }
+  },
+  additionalProperties: true
+};
+
+const denseVectorsHnswMetaSchema = {
+  type: 'object',
+  required: ['dims', 'count', 'space', 'm', 'efConstruction', 'efSearch'],
+  properties: {
+    version: { type: 'integer', minimum: 1 },
+    generatedAt: nullableString,
+    model: nullableString,
+    dims: { type: 'integer', minimum: 1 },
+    count: { type: 'integer', minimum: 0 },
+    space: { type: 'string' },
+    m: { type: 'integer', minimum: 1 },
+    efConstruction: { type: 'integer', minimum: 1 },
+    efSearch: { type: 'integer', minimum: 1 },
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
+  },
+  additionalProperties: true
+};
+
+const denseVectorsLanceDbMetaSchema = {
+  type: 'object',
+  required: ['dims', 'count', 'metric', 'table', 'embeddingColumn', 'idColumn'],
+  properties: {
+    version: { type: 'integer', minimum: 1 },
+    generatedAt: nullableString,
+    model: nullableString,
+    dims: { type: 'integer', minimum: 1 },
+    count: { type: 'integer', minimum: 0 },
+    metric: { type: 'string' },
+    table: { type: 'string' },
+    embeddingColumn: { type: 'string' },
+    idColumn: { type: 'string' },
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
+  },
+  additionalProperties: true
+};
+
+const denseVectorsSqliteVecMetaSchema = {
+  type: 'object',
+  required: ['dims', 'count', 'table'],
+  properties: {
+    version: { type: 'integer', minimum: 1 },
+    generatedAt: nullableString,
+    model: nullableString,
+    dims: { type: 'integer', minimum: 1 },
+    count: { type: 'integer', minimum: 0 },
+    table: { type: 'string' },
+    embeddingColumn: nullableString,
+    idColumn: nullableString,
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
   },
   additionalProperties: true
 };
@@ -327,6 +527,195 @@ const callSiteEntry = {
   additionalProperties: true
 };
 
+const evidenceRef = {
+  type: 'object',
+  required: ['file', 'startLine', 'startCol', 'endLine', 'endCol', 'snippetHash'],
+  properties: {
+    file: { type: 'string' },
+    startLine: posInt,
+    startCol: posInt,
+    endLine: posInt,
+    endCol: posInt,
+    snippetHash: nullableString
+  },
+  additionalProperties: true
+};
+
+const riskSignalSummary = {
+  type: 'object',
+  required: ['ruleId', 'ruleName', 'ruleType', 'category', 'severity', 'confidence', 'tags', 'evidence'],
+  properties: {
+    ruleId: { type: 'string' },
+    ruleName: { type: 'string' },
+    ruleType: { type: 'string' },
+    category: nullableString,
+    severity: nullableString,
+    confidence: { type: ['number', 'null'] },
+    tags: { type: 'array', items: { type: 'string' } },
+    evidence: { type: 'array', items: evidenceRef }
+  },
+  additionalProperties: true
+};
+
+const riskLocalFlowSummary = {
+  type: 'object',
+  required: ['sourceRuleId', 'sinkRuleId', 'category', 'severity', 'confidence', 'evidence'],
+  properties: {
+    sourceRuleId: { type: 'string' },
+    sinkRuleId: { type: 'string' },
+    category: nullableString,
+    severity: nullableString,
+    confidence: { type: ['number', 'null'] },
+    evidence: { type: 'array', items: evidenceRef }
+  },
+  additionalProperties: true
+};
+
+const riskSummaryRow = {
+  type: 'object',
+  required: ['schemaVersion', 'chunkUid', 'file', 'signals', 'totals', 'truncated'],
+  properties: {
+    schemaVersion: posInt,
+    chunkUid: { type: 'string' },
+    file: { type: 'string' },
+    languageId: nullableString,
+    symbol: {
+      type: 'object',
+      required: ['name', 'kind', 'signature'],
+      properties: {
+        name: nullableString,
+        kind: nullableString,
+        signature: nullableString
+      },
+      additionalProperties: true
+    },
+    signals: {
+      type: 'object',
+      required: ['sources', 'sinks', 'sanitizers', 'localFlows'],
+      properties: {
+        sources: { type: 'array', items: riskSignalSummary },
+        sinks: { type: 'array', items: riskSignalSummary },
+        sanitizers: { type: 'array', items: riskSignalSummary },
+        localFlows: { type: 'array', items: riskLocalFlowSummary }
+      },
+      additionalProperties: true
+    },
+    taintHints: {
+      type: 'object',
+      required: ['taintedIdentifiers'],
+      properties: {
+        taintedIdentifiers: { type: 'array', items: { type: 'string' } }
+      },
+      additionalProperties: true
+    },
+    totals: {
+      type: 'object',
+      required: ['sources', 'sinks', 'sanitizers', 'localFlows'],
+      properties: {
+        sources: intId,
+        sinks: intId,
+        sanitizers: intId,
+        localFlows: intId
+      },
+      additionalProperties: true
+    },
+    truncated: {
+      type: 'object',
+      required: ['sources', 'sinks', 'sanitizers', 'localFlows', 'evidence'],
+      properties: {
+        sources: { type: 'boolean' },
+        sinks: { type: 'boolean' },
+        sanitizers: { type: 'boolean' },
+        localFlows: { type: 'boolean' },
+        evidence: { type: 'boolean' }
+      },
+      additionalProperties: true
+    }
+  },
+  additionalProperties: true
+};
+
+const riskFlowRow = {
+  type: 'object',
+  required: ['schemaVersion', 'flowId', 'source', 'sink', 'path', 'confidence', 'notes'],
+  properties: {
+    schemaVersion: posInt,
+    flowId: { type: 'string', pattern: '^sha1:[0-9a-f]{40}$' },
+    source: {
+      type: 'object',
+      required: ['chunkUid', 'ruleId', 'ruleName', 'ruleType', 'category', 'severity', 'confidence'],
+      properties: {
+        chunkUid: { type: 'string' },
+        ruleId: { type: 'string' },
+        ruleName: { type: 'string' },
+        ruleType: { type: 'string' },
+        category: nullableString,
+        severity: nullableString,
+        confidence: { type: ['number', 'null'] }
+      },
+      additionalProperties: true
+    },
+    sink: {
+      type: 'object',
+      required: ['chunkUid', 'ruleId', 'ruleName', 'ruleType', 'category', 'severity', 'confidence'],
+      properties: {
+        chunkUid: { type: 'string' },
+        ruleId: { type: 'string' },
+        ruleName: { type: 'string' },
+        ruleType: { type: 'string' },
+        category: nullableString,
+        severity: nullableString,
+        confidence: { type: ['number', 'null'] }
+      },
+      additionalProperties: true
+    },
+    path: {
+      type: 'object',
+      required: ['chunkUids', 'callSiteIdsByStep'],
+      properties: {
+        chunkUids: { type: 'array', items: { type: 'string' } },
+        callSiteIdsByStep: {
+          type: 'array',
+          items: { type: 'array', items: { type: 'string' } }
+        }
+      },
+      additionalProperties: true
+    },
+    confidence: { type: 'number' },
+    notes: {
+      type: 'object',
+      required: ['strictness', 'sanitizerPolicy', 'hopCount', 'sanitizerBarriersHit', 'capsHit'],
+      properties: {
+        strictness: { type: 'string' },
+        sanitizerPolicy: { type: 'string' },
+        hopCount: intId,
+        sanitizerBarriersHit: intId,
+        capsHit: { type: 'array', items: { type: 'string' } }
+      },
+      additionalProperties: true
+    }
+  },
+  additionalProperties: true
+};
+
+const riskInterproceduralStats = {
+  type: 'object',
+  required: ['schemaVersion', 'generatedAt', 'status', 'effectiveConfig', 'counts', 'capsHit', 'timingMs'],
+  properties: {
+    schemaVersion: posInt,
+    generatedAt: { type: 'string' },
+    status: { type: 'string' },
+    reason: nullableString,
+    effectiveConfig: { type: 'object', additionalProperties: true },
+    counts: { type: 'object', additionalProperties: true },
+    capsHit: { type: 'array', items: { type: 'string' } },
+    timingMs: { type: 'object', additionalProperties: true },
+    artifacts: { type: 'object', additionalProperties: true },
+    droppedRecords: { type: 'array', items: { type: 'object' } }
+  },
+  additionalProperties: true
+};
+
 const vfsManifestRow = {
   type: 'object',
   required: [
@@ -379,6 +768,15 @@ const chunkUidMapRow = {
   additionalProperties: false
 };
 
+export const MANIFEST_ONLY_ARTIFACT_NAMES = [
+  'dense_vectors_hnsw',
+  'dense_vectors_doc_hnsw',
+  'dense_vectors_code_hnsw',
+  'dense_vectors_lancedb',
+  'dense_vectors_doc_lancedb',
+  'dense_vectors_code_lancedb'
+];
+
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
     type: 'array',
@@ -430,15 +828,37 @@ export const ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object' }
+        relations: { type: 'object' },
+        importBindings: { type: 'object' }
       },
       additionalProperties: true
     }
+  },
+  symbols: {
+    type: 'array',
+    items: symbolRecord
+  },
+  symbol_occurrences: {
+    type: 'array',
+    items: symbolOccurrence
+  },
+  symbol_edges: {
+    type: 'array',
+    items: symbolEdge
   },
   call_sites: {
     type: 'array',
     items: callSiteEntry
   },
+  risk_summaries: {
+    type: 'array',
+    items: riskSummaryRow
+  },
+  risk_flows: {
+    type: 'array',
+    items: riskFlowRow
+  },
+  risk_interprocedural_stats: riskInterproceduralStats,
   token_postings: {
     type: 'object',
     required: ['vocab', 'postings', 'docLengths'],
@@ -517,38 +937,13 @@ export const ARTIFACT_SCHEMA_DEFS = {
   dense_vectors: denseVectorsSchema,
   dense_vectors_doc: denseVectorsSchema,
   dense_vectors_code: denseVectorsSchema,
-  dense_vectors_hnsw_meta: {
-    type: 'object',
-    required: ['dims', 'count', 'space', 'm', 'efConstruction', 'efSearch'],
-    properties: {
-      version: { type: 'integer', minimum: 1 },
-      generatedAt: nullableString,
-      model: nullableString,
-      dims: { type: 'integer', minimum: 1 },
-      count: { type: 'integer', minimum: 0 },
-      space: { type: 'string' },
-      m: { type: 'integer', minimum: 1 },
-      efConstruction: { type: 'integer', minimum: 1 },
-      efSearch: { type: 'integer', minimum: 1 }
-    },
-    additionalProperties: true
-  },
-  dense_vectors_lancedb_meta: {
-    type: 'object',
-    required: ['dims', 'count', 'metric', 'table', 'embeddingColumn', 'idColumn'],
-    properties: {
-      version: { type: 'integer', minimum: 1 },
-      generatedAt: nullableString,
-      model: nullableString,
-      dims: { type: 'integer', minimum: 1 },
-      count: { type: 'integer', minimum: 0 },
-      metric: { type: 'string' },
-      table: { type: 'string' },
-      embeddingColumn: { type: 'string' },
-      idColumn: { type: 'string' }
-    },
-    additionalProperties: true
-  },
+  dense_vectors_hnsw_meta: denseVectorsHnswMetaSchema,
+  dense_vectors_doc_hnsw_meta: denseVectorsHnswMetaSchema,
+  dense_vectors_code_hnsw_meta: denseVectorsHnswMetaSchema,
+  dense_vectors_lancedb_meta: denseVectorsLanceDbMetaSchema,
+  dense_vectors_doc_lancedb_meta: denseVectorsLanceDbMetaSchema,
+  dense_vectors_code_lancedb_meta: denseVectorsLanceDbMetaSchema,
+  dense_vectors_sqlite_vec_meta: denseVectorsSqliteVecMetaSchema,
   phrase_ngrams: {
     type: 'object',
     required: ['vocab', 'postings'],
@@ -574,9 +969,9 @@ export const ARTIFACT_SCHEMA_DEFS = {
       fileChargramN: { type: 'integer', minimum: 2 },
       fileById: { type: 'array', items: { type: 'string' } },
       fileChunksById: idPostingList,
-        byExt: { type: 'object' },
-        byLang: { type: 'object' },
-        byKind: { type: 'object' },
+      byExt: { type: 'object' },
+      byLang: { type: 'object' },
+      byKind: { type: 'object' },
       byAuthor: { type: 'object' },
       byChunkAuthor: { type: 'object' },
       byVisibility: { type: 'object' },
@@ -626,6 +1021,16 @@ export const ARTIFACT_SCHEMA_DEFS = {
       filterIndex: { type: 'object', additionalProperties: true },
       sqlite: { type: 'object', additionalProperties: true },
       lmdb: { type: 'object', additionalProperties: true },
+      riskInterprocedural: {
+        type: 'object',
+        required: ['enabled', 'summaryOnly', 'emitArtifacts'],
+        properties: {
+          enabled: { type: 'boolean' },
+          summaryOnly: { type: 'boolean' },
+          emitArtifacts: { type: ['string', 'null'] }
+        },
+        additionalProperties: true
+      },
       riskRules: {
         anyOf: [RISK_RULES_BUNDLE_SCHEMA, { type: 'null' }]
       },
@@ -671,7 +1076,12 @@ export const ARTIFACT_SCHEMA_DEFS = {
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
+  symbols_meta: buildShardedJsonlMeta('symbols'),
+  symbol_occurrences_meta: buildShardedJsonlMeta('symbol_occurrences'),
+  symbol_edges_meta: buildShardedJsonlMeta('symbol_edges'),
   call_sites_meta: buildShardedJsonlMeta('call_sites'),
+  risk_summaries_meta: buildShardedJsonlMeta('risk_summaries'),
+  risk_flows_meta: buildShardedJsonlMeta('risk_flows'),
   repo_map_meta: buildShardedJsonlMeta('repo_map'),
   graph_relations_meta: buildShardedJsonlMeta('graph_relations')
 };

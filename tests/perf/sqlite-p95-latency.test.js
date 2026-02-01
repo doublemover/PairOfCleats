@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveSilentStdio } from '../helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -63,7 +64,11 @@ const runSearch = (query) => {
     repoRoot
   ];
   const start = process.hrtime.bigint();
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'ignore' });
+  const result = spawnSync(
+    process.execPath,
+    args,
+    { cwd: repoRoot, env, stdio: resolveSilentStdio('ignore') }
+  );
   const end = process.hrtime.bigint();
   if (result.status !== 0) {
     console.error(`Search failed for query "${query}".`);

@@ -32,6 +32,7 @@ const root = process.cwd();
 const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
+const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 
 const searchPath = argv.search
   ? path.resolve(argv.search)
@@ -71,6 +72,44 @@ function requireIndex(mode) {
     process.exit(1);
   }
 }
+
+function ensureParityIndexes() {
+  if (!isTestRun) return;
+  const missingIndex = ['code', 'prose'].some((mode) => {
+    const dir = resolveIndexDir(mode);
+    const metaPath = resolveChunkMetaPath(dir);
+    return !fsSync.existsSync(metaPath);
+  });
+  const missingSqlite = !fsSync.existsSync(sqlitePaths.codePath) || !fsSync.existsSync(sqlitePaths.prosePath);
+  if (!missingIndex && !missingSqlite) return;
+
+  const env = { ...process.env };
+  if (!env.PAIROFCLEATS_EMBEDDINGS) {
+    env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  }
+
+  const buildResult = spawnSync(
+    process.execPath,
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', root],
+    { env, cwd: root, stdio: 'inherit' }
+  );
+  if (buildResult.status !== 0) {
+    console.error('Parity test failed: build index');
+    process.exit(buildResult.status ?? 1);
+  }
+
+  const sqliteResult = spawnSync(
+    process.execPath,
+    [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', root],
+    { env, cwd: root, stdio: 'inherit' }
+  );
+  if (sqliteResult.status !== 0) {
+    console.error('Parity test failed: build sqlite index');
+    process.exit(sqliteResult.status ?? 1);
+  }
+}
+
+ensureParityIndexes();
 
 requireIndex('code');
 requireIndex('prose');
@@ -138,12 +177,23 @@ if (!['sqlite', 'sqlite-fts', 'fts'].includes(sqliteBackendRaw)) {
 }
 const sqliteBackend = sqliteBackendRaw === 'fts' ? 'sqlite-fts' : sqliteBackendRaw;
 
+const formatDuration = (ms) => {
+  if (!Number.isFinite(ms) || ms <= 0) return '0ms';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const secs = ms / 1000;
+  if (secs < 60) return `${secs.toFixed(1)}s`;
+  const mins = Math.floor(secs / 60);
+  const rem = secs - (mins * 60);
+  return `${mins}m${rem.toFixed(0)}s`;
+};
+
 function runSearch(query, backend) {
   const args = [
     searchPath,
     query,
     '--json',
     '--stats',
+    '--compact',
     '--backend',
     backend,
     '-n',
@@ -152,10 +202,14 @@ function runSearch(query, backend) {
     ...repoArgs
   ];
   const start = performance.now();
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024
+  });
   const wallMs = performance.now() - start;
   if (result.status !== 0) {
     console.error(`Search failed for backend=${backend} query="${query}"`);
+    if (result.error?.message) console.error(result.error.message.trim());
     if (result.stderr) console.error(result.stderr.trim());
     process.exit(result.status || 1);
   }
@@ -254,7 +308,11 @@ function toMb(bytes) {
 }
 
 const results = [];
+const totalQueries = selectedQueries.length;
+const overallStart = performance.now();
+let completed = 0;
 for (const query of selectedQueries) {
+  const queryStart = performance.now();
   const memRun = runSearch(query, 'memory');
   const sqlRun = runSearch(query, sqliteBackend);
   const memPayload = memRun.payload;
@@ -273,6 +331,18 @@ for (const query of selectedQueries) {
     code: summarizeMatch(memPayload.code || [], sqlPayload.code || []),
     prose: summarizeMatch(memPayload.prose || [], sqlPayload.prose || [])
   });
+
+  completed += 1;
+  const elapsed = performance.now() - overallStart;
+  const avg = elapsed / completed;
+  const remaining = avg * Math.max(0, totalQueries - completed);
+  const queryElapsed = performance.now() - queryStart;
+  console.log(
+    `[parity] ${completed}/${totalQueries} (${Math.round((completed / totalQueries) * 100)}%) ` +
+    `query="${query}" last=${formatDuration(queryElapsed)} ` +
+    `mem=${formatDuration(memRun.wallMs)} sqlite=${formatDuration(sqlRun.wallMs)} ` +
+    `elapsed=${formatDuration(elapsed)} eta=${formatDuration(remaining)}`
+  );
 }
 
 const overlapValues = results.flatMap((entry) => [entry.code.overlap, entry.prose.overlap]);

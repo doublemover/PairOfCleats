@@ -26,12 +26,16 @@ export function extractDocMeta(text, chunk, astMeta = null) {
 
   const nameMeta = astMeta?.functionMeta?.[chunk.name] || astMeta?.classMeta?.[chunk.name] || null;
   const metaParams = Array.isArray(nameMeta?.params) && nameMeta.params.length ? nameMeta.params : params;
+  const metaParamNames = Array.isArray(nameMeta?.paramNames) && nameMeta.paramNames.length
+    ? nameMeta.paramNames
+    : metaParams;
   const mergedSignature = nameMeta?.signature || signature;
   const mergedReturnType = nameMeta?.returnType || returnType || null;
 
   return {
     doc: docLines.join('\n').slice(0, 300),
     params: metaParams,
+    paramNames: metaParamNames,
     paramTypes,
     paramDefaults: nameMeta?.paramDefaults || {},
     returnType: mergedReturnType,

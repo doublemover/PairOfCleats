@@ -29,6 +29,7 @@ export const createBackendContext = async ({
   modelIdDefault,
   fileChargramN,
   hnswConfig,
+  denseVectorMode,
   root,
   userConfig
 }) => {
@@ -70,6 +71,7 @@ export const createBackendContext = async ({
 
   const vectorAnnState = sqliteBackend.vectorAnnState;
   const vectorAnnUsed = sqliteBackend.vectorAnnUsed;
+  const vectorAnnConfigByMode = sqliteBackend.vectorAnnConfigByMode;
   const backendLabel = backendForcedTantivy
     ? 'tantivy'
     : (useSqlite
@@ -96,6 +98,7 @@ export const createBackendContext = async ({
     postingsConfig,
     sqliteFtsWeights,
     vectorExtension,
+    vectorAnnConfigByMode,
     vectorAnnState,
     queryVectorAnn,
     modelIdDefault,
@@ -109,6 +112,7 @@ export const createBackendContext = async ({
   const lmdbHelpers = createLmdbHelpers({
     getDb: getLmdbDb,
     hnswConfig,
+    denseVectorMode,
     modelIdDefault,
     fileChargramN,
     indexDirs: lmdbIndexDirs

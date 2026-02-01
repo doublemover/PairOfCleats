@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
@@ -6,6 +7,8 @@ import { getTestEnvConfig } from '../env.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
+const warnedMissingManifest = new Set();
+const warnedNonStrictFallback = new Set();
 
 const normalizeManifest = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
@@ -62,6 +65,12 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
       const err = new Error(`Missing pieces manifest: ${manifestPath}`);
       err.code = 'ERR_MANIFEST_MISSING';
       throw err;
+    }
+    if (!warnedMissingManifest.has(manifestPath)) {
+      warnedMissingManifest.add(manifestPath);
+      console.warn(
+        `[manifest] Non-strict mode: missing pieces manifest; falling back to legacy paths (${manifestPath}).`
+      );
     }
     return null;
   }
@@ -196,28 +205,31 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     const metaRaw = readJsonFile(metaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const parts = normalizeMetaParts(meta?.parts);
-    if (!parts.length) {
+    if (parts.length) {
+      const partSet = new Set(entries.map((entry) => entry?.path));
+      if (strict) {
+        for (const part of parts) {
+          if (!partSet.has(part)) {
+            const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
+            err.code = 'ERR_MANIFEST_INCOMPLETE';
+            throw err;
+          }
+        }
+      }
+      const paths = parts.map((part) => resolveManifestPath(dir, part, strict));
+      return {
+        format: resolveMetaFormat(meta, 'jsonl'),
+        paths,
+        meta,
+        metaPath
+      };
+    }
+    const rawFormat = typeof meta?.format === 'string' ? meta.format : null;
+    if (rawFormat === 'jsonl-sharded' || rawFormat === 'sharded') {
       const err = new Error(`Manifest meta missing parts for ${name}`);
       err.code = 'ERR_MANIFEST_INVALID';
       throw err;
     }
-    const partSet = new Set(entries.map((entry) => entry?.path));
-    if (strict) {
-      for (const part of parts) {
-        if (!partSet.has(part)) {
-          const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
-          err.code = 'ERR_MANIFEST_INCOMPLETE';
-          throw err;
-        }
-      }
-    }
-    const paths = parts.map((part) => resolveManifestPath(dir, part, strict));
-    return {
-      format: resolveMetaFormat(meta, 'jsonl'),
-      paths,
-      meta,
-      metaPath
-    };
   }
   if (!entries.length) return null;
   if (entries.length > 1 && strict) {
@@ -288,4 +300,93 @@ export const resolveArtifactPresence = (
     missingMeta,
     error
   };
+};
+
+const resolveFallbackPath = (fallbackPath, { dirEntry = false } = {}) => {
+  if (!fallbackPath) return null;
+  if (dirEntry) {
+    return fs.existsSync(fallbackPath) ? fallbackPath : null;
+  }
+  return existsOrBak(fallbackPath) ? fallbackPath : null;
+};
+
+const warnNonStrictFallback = (dir, name) => {
+  const key = `${dir}:${name}`;
+  if (warnedNonStrictFallback.has(key)) return;
+  warnedNonStrictFallback.add(key);
+  console.warn(
+    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy path (${dir}).`
+  );
+};
+
+export const resolveBinaryArtifactPath = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.paths.length > 1 && strict) {
+      const err = new Error(`Ambiguous manifest entries for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    return sources.paths[0] || null;
+  }
+  if (strict) {
+    const err = new Error(`Missing manifest entry for ${name}`);
+    err.code = 'ERR_MANIFEST_MISSING';
+    throw err;
+  }
+  const fallback = resolveFallbackPath(fallbackPath);
+  if (fallback) warnNonStrictFallback(dir, name);
+  return fallback;
+};
+
+export const resolveDirArtifactPath = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true,
+    fallbackPath = null
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.paths.length > 1 && strict) {
+      const err = new Error(`Ambiguous manifest entries for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    return sources.paths[0] || null;
+  }
+  if (strict) {
+    const err = new Error(`Missing manifest entry for ${name}`);
+    err.code = 'ERR_MANIFEST_MISSING';
+    throw err;
+  }
+  const fallback = resolveFallbackPath(fallbackPath, { dirEntry: true });
+  if (fallback) warnNonStrictFallback(dir, name);
+  return fallback;
 };

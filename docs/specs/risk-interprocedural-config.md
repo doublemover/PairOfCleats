@@ -27,11 +27,11 @@ This configuration lives in the repo config object under:
 }
 ```
 
-> Note: PairOfCleats currently validates `.pairofcleats.json` against `docs/config/schema.json`, which does not yet include `indexing.*`. If/when user-configurable exposure is desired, the schema MUST be expanded accordingly. The implementation MUST still accept the config when it is provided programmatically (tests, internal wiring, or future schema expansion).
+The config keys **must** be preserved through config normalization and validated in `docs/config/schema.json`.
 
-## 3) Object shape and defaults
+## 3) Authoritative keys and defaults
 
-### 3.1 Canonical shape
+### 3.1 Canonical shape (authoritative)
 ```jsonc
 {
   "indexing": {
@@ -43,10 +43,11 @@ This configuration lives in the repo config object under:
       "sanitizerPolicy": "terminate",
       "caps": {
         "maxDepth": 4,
-        "maxPathsPerPair": 200,
-        "maxTotalFlows": 500,
+        "maxPathsPerPair": 3,
+        "maxTotalFlows": 5000,
         "maxCallSitesPerEdge": 3,
-        "maxMs": null
+        "maxEdgeExpansions": 200000,
+        "maxMs": 2500
       }
     }
   }
@@ -58,51 +59,73 @@ This configuration lives in the repo config object under:
 | Key | Type | Default | Meaning |
 |---|---:|---:|---|
 | `enabled` | boolean | `false` | Enables the interprocedural risk pipeline. |
-| `summaryOnly` | boolean | `false` | If `true`, compute summaries + compact in-chunk summary, but **do not** compute `risk_flows` or `call_sites`. |
-| `strictness` | enum | `"conservative"` | Propagation policy. See §6. |
-| `emitArtifacts` | enum | `"jsonl"` | Artifact emission policy. See §5. |
-| `sanitizerPolicy` | enum | `"terminate"` | How sanitizer-bearing chunks affect propagation. See §7. |
-| `caps.maxDepth` | integer ≥ 0 | `4` | Maximum call depth (edges traversed) for propagation. |
-| `caps.maxPathsPerPair` | integer ≥ 1 | `200` | Maximum number of distinct paths per `(sourceChunkId, sinkChunkId, sourceRuleId, sinkRuleId)` pair. |
-| `caps.maxTotalFlows` | integer ≥ 1 | `500` | Hard cap on total `risk_flows` rows emitted for the build. |
-| `caps.maxCallSitesPerEdge` | integer ≥ 1 | `3` | Maximum number of call-site samples preserved per call edge. |
-| `caps.maxMs` | integer ≥ 1 or `null` | `null` | Optional time guard for **flow propagation only**. See §8. |
+| `summaryOnly` | boolean | `false` | If `true`, compute summaries + compact in-chunk summary, but **do not** compute `risk_flows`. |
+| `strictness` | enum | `"conservative"` | Propagation policy. See Section 6. |
+| `emitArtifacts` | enum | `"jsonl"` | Artifact emission policy. See Section 5. |
+| `sanitizerPolicy` | enum | `"terminate"` | How sanitizer-bearing chunks affect propagation. See Section 7. |
+| `caps.maxDepth` | integer >= 1 | `4` | Maximum call depth (edges traversed) for propagation. |
+| `caps.maxPathsPerPair` | integer >= 1 | `3` | Maximum number of distinct paths per `(sourceChunkUid, sourceRuleId, sinkChunkUid, sinkRuleId)` pair. |
+| `caps.maxTotalFlows` | integer >= 0 | `5000` | Hard cap on total `risk_flows` rows emitted for the build. Use `0` to disable flow emission. |
+| `caps.maxCallSitesPerEdge` | integer >= 1 | `3` | Maximum number of call-site samples preserved per call edge. |
+| `caps.maxEdgeExpansions` | integer >= 10000 | `200000` | Global cap on edge expansions to prevent blowups. |
+| `caps.maxMs` | integer >= 10 or null | `2500` | Optional time guard for **flow propagation only**. See Section 8. |
 
-## 4) Interactions with existing features (non-negotiable)
+### 3.3 Normalization rules (deterministic)
+Implement normalization in `src/index/risk-interprocedural/config.js`:
+
+* `emitArtifacts`:
+  * accept `off` or `none` -> `none`
+  * accept `jsonl` -> `jsonl`
+  * anything else -> default `jsonl`
+* `strictness`: unknown -> `conservative`
+* `sanitizerPolicy`: unknown -> `terminate`
+* numeric caps:
+  * coerce to integers
+  * clamp to sane ranges:
+    * `maxDepth`: 1..20
+    * `maxPathsPerPair`: 1..50
+    * `maxTotalFlows`: 0..1_000_000 (`0` disables flow emission)
+    * `maxCallSitesPerEdge`: 1..50
+    * `maxEdgeExpansions`: 10_000..10_000_000
+    * `maxMs`: null OR 10..60_000
+* `summaryOnly=true` forces **no flows** even if caps allow.
+* If `enabled=false`, downstream code must treat the entire feature as disabled and avoid heavy compute.
+
+## 4) Interactions with existing features (required)
 
 ### 4.1 Local risk analysis dependency
 Interprocedural risk **requires** local risk signals (`src/index/risk.js`).
 
 Normative rules:
-1. If local risk analysis is disabled for the build (effective `riskAnalysisEnabled === false`), then `riskInterprocedural.enabled` MUST be treated as `false` regardless of config.
-2. Interprocedural risk MUST NOT change the local risk detector's regex ruleset or caps, other than enabling cross-file linking (§4.2) and emitting additional artifacts.
+1. If local risk analysis is disabled for the build (effective `riskAnalysisEnabled === false`), then `riskInterprocedural.enabled` **must** be treated as `false`.
+2. Interprocedural risk **must not** change the local risk detector's regex ruleset or caps, other than enabling cross-file linking and emitting additional artifacts.
 
 ### 4.2 Cross-file call linking requirement
-Interprocedural risk requires resolved call edges (`chunk.codeRelations.callLinks`).
+Interprocedural risk requires resolved call edges (`callDetails[].targetChunkUid`).
 
 Normative rule:
-* If `riskInterprocedural.enabled === true`, the build MUST run the cross-file linking stage at least to populate `chunk.codeRelations.callLinks` (even if type inference is disabled).
+* If `riskInterprocedural.enabled === true`, the build **must** run the cross-file linking stage at least to populate resolved call edges (even if type inference is disabled).
 
 Implementation hook (current code):
 * `src/index/type-inference-crossfile/pipeline.js` is invoked when:
   * `typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled`
-* This condition MUST be extended to include:
+* This condition **must** be extended to include:
   * `|| riskInterproceduralEnabled`
 
 ### 4.3 Type inference must not be enabled implicitly
 Normative rule:
-* Enabling interprocedural risk MUST NOT force `typeInferenceEnabled` or `typeInferenceCrossFileEnabled` to `true`.
+* Enabling interprocedural risk **must not** force `typeInferenceEnabled` or `typeInferenceCrossFileEnabled` to `true`.
 
 ## 5) Artifact emission policy (`emitArtifacts`)
 `emitArtifacts` controls whether on-disk artifacts are written:
 
 * `"none"`:
   * No new `risk_*` artifacts are written.
-  * The implementation MUST still attach the compact summary to `chunk.docmeta.risk.summary` (and therefore `metaV2` after rebuild).
-  * The implementation SHOULD still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level "no artifacts" settings.
+  * The implementation **must** still attach the compact summary to `chunk.docmeta.risk.summary` (and therefore `metaV2` after rebuild).
+  * The implementation **should** still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level "no artifacts" settings.
 * `"jsonl"`:
-  * Artifacts are written in JSONL form and MAY be automatically sharded (see the artifact specs).
-  * Global artifact compression settings (if any) MUST apply consistently.
+  * Artifacts are written in JSONL form and may be sharded.
+  * Global artifact compression settings (if any) must apply consistently.
 
 ## 6) Strictness modes (`strictness`)
 
@@ -115,12 +138,12 @@ This mode prioritizes recall (may over-approximate).
 ### 6.2 `argAware` (optional but fully specified)
 `argAware` adds an additional constraint to edge traversal using call-site argument summaries and source rules:
 
-A call edge `(caller → callee)` is traversable for taint **only if** there exists at least one sampled call-site on that edge where **at least one argument** is considered tainted by either:
+A call edge `(caller -> callee)` is traversable for taint **only if** there exists at least one sampled call-site on that edge where **at least one argument** is considered tainted by either:
 
-1. Identifier-boundary matching against the caller's current taint identifier set (tainted params + locally-tainted variables), **OR**
-2. Matching any configured **source rule regex** from the same local risk ruleset used by the local detector (covers direct source expressions like `req.body.userId`).
+1. Identifier-boundary matching against the caller's current taint identifier set, **or**
+2. Matching any configured **source rule regex** from the same local risk ruleset used by the local detector.
 
-The implementation MUST:
+The implementation must:
 1. Track a bounded taint identifier set per traversal state.
 2. Use identifier-boundary matching (no naive substring matches).
 3. When traversing to the callee, derive the callee's initial taint identifier set by mapping tainted argument positions to callee parameter names.
@@ -134,38 +157,39 @@ Allowed values:
 * `"weaken"`: sanitizer-bearing chunks allow traversal but apply a confidence penalty (see flows spec).
 
 Normative rule:
-* The pipeline MUST treat sanitizers as a property of a chunk summary (not of a call-site). Policy is applied during traversal.
+* The pipeline **must** treat sanitizers as a property of a chunk summary (not of a call-site). Policy is applied during traversal.
 
-## 8) Determinism and the time guard (`caps.maxMs`)
+## 8) Determinism and time guard (`caps.maxMs`)
 
 ### 8.1 Determinism requirements (always)
-All outputs MUST be stable across runs given the same repository contents and config.
+All outputs must be stable across runs given the same repository contents and config.
 
 Minimum required ordering rules:
-* Source roots processed in lexicographic order of `sourceChunkId`, then `sourceRuleId`.
-* Outgoing edges processed in lexicographic order of `calleeChunkId`.
+* Source roots processed in lexicographic order of `sourceChunkUid`, then `sourceRuleId`.
+* Outgoing edges processed in lexicographic order of `calleeChunkUid`.
 * Sinks within a chunk processed in lexicographic order of `sinkRuleId`.
 
 ### 8.2 Time guard semantics (no partial nondeterministic output)
-`caps.maxMs` is a **fail-safe** for flow propagation only. It MUST NOT produce "first N flows" based on runtime speed.
+`caps.maxMs` is a **fail-safe** for flow propagation only. It must **not** produce "first N flows" based on runtime speed.
 
 Normative behavior:
-1. If the time budget is exceeded during propagation, the implementation MUST:
+1. If the time budget is exceeded during propagation, the implementation must:
    * abort propagation entirely,
    * emit **zero** `risk_flows` rows and **zero** `call_sites` rows,
    * record `status="timed_out"` in the stats artifact.
-2. Summaries MUST still be produced (they are computed before propagation).
+2. Summaries must still be produced (they are computed before propagation).
 
 Disallowed behavior:
 * emitting a partial prefix of flows that depends on machine speed or scheduling.
 
-## 9) Observability (required)
-When `enabled === true`, the build MUST record:
-* counts: summaries, edges, flows, call-sites
-* cap hits (including which cap)
-* whether a timeout occurred (`status="timed_out"`)
+## 9) Incremental build signature + index_state
+Turning interprocedural risk on/off (or changing its effective behavior) must invalidate incremental build caches.
 
-The recommended mechanism is the dedicated stats artifact defined in:
-* `docs/specs/risk-callsite-id-and-stats.md`
+Update:
+- `src/index/build/indexer/signatures.js` to include the normalized effective config (or a stable hash of it).
+- `src/index/build/indexer/steps/write.js` to record `riskInterprocedural` state in `index_state.json`.
 
-
+## 10) Implementation references
+- Runtime: `src/index/build/runtime/runtime.js`
+- Relations step: `src/index/build/indexer/steps/relations.js`
+- Signature: `src/index/build/indexer/signatures.js`

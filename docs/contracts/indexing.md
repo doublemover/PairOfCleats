@@ -38,6 +38,7 @@ Optional (feature/config driven):
 - Artifact counts and dimensions must be internally consistent.
 - Readers gate on `index_state.json` for staged outputs.
 - Artifact writes are atomic; file-backed writers use temp files + `.bak` fallback, while sharded artifacts are built in staging directories and swapped into place on success.
+- Artifact `configHash` values must not incorporate secrets (e.g., API tokens); only content-relevant config/environment inputs are allowed.
 
 ## Sharded meta schema
 - `chunk_meta.meta.json` contains `{ format: "jsonl", shardSize, totalChunks, parts: [<posix paths>] }`.

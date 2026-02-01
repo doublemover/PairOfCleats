@@ -15,16 +15,84 @@ const JAVA_MODIFIERS = new Set([
   'default', 'sealed', 'non-sealed'
 ]);
 
+export const JAVA_RESERVED_WORDS = new Set([
+  'abstract',
+  'assert',
+  'boolean',
+  'break',
+  'byte',
+  'case',
+  'catch',
+  'char',
+  'class',
+  'const',
+  'continue',
+  'default',
+  'do',
+  'double',
+  'else',
+  'enum',
+  'exports',
+  'extends',
+  'false',
+  'final',
+  'finally',
+  'float',
+  'for',
+  'goto',
+  'if',
+  'implements',
+  'import',
+  'instanceof',
+  'int',
+  'interface',
+  'long',
+  'module',
+  'native',
+  'new',
+  'non-sealed',
+  'null',
+  'open',
+  'opens',
+  'package',
+  'permits',
+  'private',
+  'protected',
+  'provides',
+  'public',
+  'record',
+  'requires',
+  'return',
+  'sealed',
+  'short',
+  'static',
+  'strictfp',
+  'super',
+  'switch',
+  'synchronized',
+  'this',
+  'throw',
+  'throws',
+  'to',
+  'transient',
+  'transitive',
+  'true',
+  'try',
+  'uses',
+  'var',
+  'void',
+  'volatile',
+  'while',
+  'with',
+  'yield'
+]);
+
 const JAVA_CALL_KEYWORDS = new Set([
-  'if', 'for', 'while', 'switch', 'case', 'return', 'new', 'throw', 'catch',
-  'try', 'else', 'do', 'this', 'super', 'synchronized', 'assert'
+  ...JAVA_RESERVED_WORDS
 ]);
 
 const JAVA_USAGE_SKIP = new Set([
-  ...JAVA_CALL_KEYWORDS,
-  'class', 'interface', 'enum', 'record', 'void',
-  'int', 'long', 'short', 'byte', 'float', 'double', 'boolean', 'char',
-  'null', 'true', 'false'
+  ...JAVA_RESERVED_WORDS
 ]);
 
 function extractJavaModifiers(signature) {

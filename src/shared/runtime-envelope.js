@@ -127,6 +127,9 @@ export function resolveRuntimeEnvelope(input = {}) {
   const resolvedEnv = env && typeof env === 'object' ? env : {};
   const resolvedExecArgv = Array.isArray(execArgv) ? execArgv : [];
   const resolvedProcessInfo = processInfo && typeof processInfo === 'object' ? processInfo : {};
+  const resolvedCpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0
+    ? Math.floor(cpuCountInput)
+    : (Number.isFinite(resolvedProcessInfo.cpuCount) ? Math.max(1, Math.floor(resolvedProcessInfo.cpuCount)) : 1);
   const runtimeConfig = userConfig.runtime || {};
   const indexingConfig = userConfig.indexing || {};
   const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
@@ -195,7 +198,7 @@ export function resolveRuntimeEnvelope(input = {}) {
     configDetail: 'config.runtime.uvThreadpoolSize',
     env: envUvThreadpool,
     envDetail: 'PAIROFCLEATS_UV_THREADPOOL_SIZE',
-    fallback: null,
+    fallback: clampUvThreadpool(Math.max(4, Math.ceil(resolvedCpuCount / 2))),
     fallbackSource: 'default'
   });
 
@@ -297,10 +300,6 @@ export function resolveRuntimeEnvelope(input = {}) {
     : (canPatchNodeOptions && Number.isFinite(requestedMaxOldSpace.value)
       ? makeSourcedValue(requestedMaxOldSpace.value, requestedMaxOldSpace.source, requestedMaxOldSpace.detail)
       : makeSourcedValue(null, 'default'));
-
-  const resolvedCpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0
-    ? Math.floor(cpuCountInput)
-    : (Number.isFinite(resolvedProcessInfo.cpuCount) ? Math.max(1, Math.floor(resolvedProcessInfo.cpuCount)) : 1);
 
   const threadLimits = resolveThreadLimits({
     argv: { threads: requestedThreads.value },

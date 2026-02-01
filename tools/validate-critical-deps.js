@@ -39,8 +39,8 @@ const run = async () => {
   const critical = await readJson(criticalPath);
   const criticalPackages = Array.isArray(critical?.packages)
     ? critical.packages
-        .map((entry) => entry?.package)
-        .filter(Boolean)
+      .map((entry) => entry?.package)
+      .filter(Boolean)
     : [];
 
   if (!fs.existsSync(manifestPath)) {

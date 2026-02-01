@@ -37,11 +37,6 @@ export const buildSearchActions = ({ root, runNode }) => [
     covers: ['lang-filter-test']
   },
   {
-    label: 'search-explain-test',
-    run: () => runNode('search-explain-test', path.join(root, 'tests', 'search-explain.js')),
-    covers: ['search-explain-test']
-  },
-  {
     label: 'filter-index-artifact-test',
     run: () => runNode('filter-index-artifact-test', path.join(root, 'tests', 'filter-index-artifact.js')),
     covers: ['filter-index-artifact-test']

@@ -44,6 +44,7 @@ export function parseSearchArgs(rawArgs) {
     import: { type: 'string' },
     lang: { type: 'string' },
     ext: { type: 'string' },
+    'dense-vector-mode': { type: 'string' },
     calls: { type: 'string' },
     uses: { type: 'string' },
     'chunk-author': { type: 'string' },
@@ -51,7 +52,8 @@ export function parseSearchArgs(rawArgs) {
     'modified-since': { type: 'string' },
     risk: { type: 'string' },
     'risk-tag': { type: 'string' },
-    'stub-embeddings': { type: 'boolean' }
+    'stub-embeddings': { type: 'boolean' },
+    'non-strict': { type: 'boolean', default: false }
   };
 
   return yargs(rawArgs)
@@ -90,9 +92,11 @@ export function getSearchUsage() {
     '  --import "<path>"',
     '  --lang <language-id>',
     '  --ext <extension>',
+    '  --dense-vector-mode merged|code|doc|auto',
     '  --modified-after <iso-date>',
     '  --modified-since <days>',
-    '  --filter "<expr>"'
+    '  --filter "<expr>"',
+    '  --non-strict'
   ].join('\n');
 }
 

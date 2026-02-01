@@ -3,10 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   getCacheRuntimeConfig,
+  getCodeDictionaryPaths,
   getDictionaryPaths,
   getDictConfig,
   getEffectiveConfigHash,
   getBuildsRoot,
+  getCacheRoot,
   getRepoCacheRoot,
   getToolVersion,
   getToolingConfig,
@@ -18,7 +20,7 @@ import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -28,7 +30,9 @@ import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
+import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
+import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
@@ -55,14 +59,31 @@ import {
  * @returns {Promise<object>}
  */
 export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
-  const userConfig = loadUserConfig(root);
+  const initStartedAt = Date.now();
+  const logInit = (label, startedAt) => {
+    const elapsed = Math.max(0, Date.now() - startedAt);
+    log(`[init] ${label} (${elapsed}ms)`);
+  };
+  const timeInit = async (label, fn) => {
+    const startedAt = Date.now();
+    const result = await fn();
+    logInit(label, startedAt);
+    return result;
+  };
+
+  const userConfig = await timeInit('load config', () => loadUserConfig(root));
   const envConfig = getEnvConfig();
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
-  const autoPolicy = policy || await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+  const autoPolicy = policy
+    ? policy
+    : await timeInit('auto policy', () => buildAutoPolicy({ repoRoot: root, config: policyConfig }));
+  if (policy) {
+    log('[init] auto policy (provided)');
+  }
   const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
   const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
   const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
@@ -99,7 +120,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-  const envelope = resolveRuntimeEnvelope({
+  const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
+  const cacheRootSource = userConfig.cache?.root
+    ? 'config'
+    : (envConfig.cacheRoot ? 'env' : 'default');
+  log(`[init] cache root (${cacheRootSource}): ${path.resolve(cacheRoot)}`);
+  log(`[init] repo cache root: ${path.resolve(repoCacheRoot)}`);
+  const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
@@ -117,7 +144,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       cpuCount: os.cpus().length
     },
     toolVersion: getToolVersion()
-  });
+  }));
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
   const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
   const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
@@ -140,7 +167,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, policyConfig);
   const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
-  const repoProvenance = await getRepoProvenance(root);
+  const repoProvenance = await timeInit('repo provenance', () => getRepoProvenance(root));
   const toolVersion = getToolVersion();
   const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
@@ -164,7 +191,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
   const typeInferenceEnabled = indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
+  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile !== false;
   const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
@@ -174,6 +201,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     caps: indexingConfig.riskCaps,
     regex: indexingConfig.riskRegex || indexingConfig.riskRules?.regex
   }, { rootDir: root });
+  const riskInterproceduralConfig = normalizeRiskInterproceduralConfig(
+    indexingConfig.riskInterprocedural,
+    {}
+  );
+  const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
@@ -183,6 +215,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskInterproceduralEnabled,
+    riskInterproceduralSummaryOnly: riskInterproceduralConfig.summaryOnly,
     gitBlameEnabled
   });
   const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
@@ -233,6 +267,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
     maxLines: normalizeLimit(chunkingConfig.maxLines, null)
   };
+  const treeSitterStart = Date.now();
   const {
     treeSitterEnabled,
     treeSitterLanguages,
@@ -251,6 +286,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     treeSitterDeferMissingMax,
     treeSitterWorker
   } = resolveTreeSitterRuntime(indexingConfig);
+  logInit('tree-sitter config', treeSitterStart);
   const applyTreeSitterJsCaps = (caps, maxBytes) => {
     if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
     const targets = ['.js', '.jsx', '.mjs', '.cjs', '.jsm'];
@@ -298,7 +334,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
 
-  const embeddingRuntime = await resolveEmbeddingRuntime({
+  const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
     userConfig,
     recordsDir: triageConfig.recordsDir,
@@ -307,7 +343,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     envConfig,
     argv,
     cpuConcurrency
-  });
+  }));
   const {
     embeddingBatchSize,
     embeddingConcurrency,
@@ -316,7 +352,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     embeddingService,
     embeddingProvider,
     embeddingOnnx,
+    embeddingNormalize,
     embeddingQueue,
+    embeddingIdentity,
+    embeddingIdentityKey,
     embeddingCache,
     useStubEmbeddings,
     modelConfig,
@@ -352,8 +391,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     : null;
   const debugCrash = argv['debug-crash'] === true
     || envConfig.debugCrash === true
-    || indexingConfig.debugCrash === true;
+    || indexingConfig.debugCrash === true
+    || isTestingEnv();
 
+  const dictStartedAt = Date.now();
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir;
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
@@ -367,6 +408,45 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       }
     } catch {}
   }
+  const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+  const codeDictEnabled = codeDictLanguages.size > 0;
+  const codeDictPaths = codeDictEnabled
+    ? await getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
+    : { baseDir: path.join(dictDir || '', 'code-dicts'), common: [], byLanguage: new Map(), all: [] };
+  const codeDictCommonWords = new Set();
+  const codeDictWordsByLanguage = new Map();
+  const codeDictWordsAll = new Set();
+  const addCodeWord = (target, word) => {
+    if (!word) return;
+    const normalized = word.toLowerCase();
+    if (!normalized) return;
+    target.add(normalized);
+    codeDictWordsAll.add(normalized);
+  };
+  for (const dictFile of codeDictPaths.common) {
+    try {
+      const contents = await fs.readFile(dictFile, 'utf8');
+      for (const line of contents.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed) addCodeWord(codeDictCommonWords, trimmed);
+      }
+    } catch {}
+  }
+  for (const [lang, dictFiles] of codeDictPaths.byLanguage.entries()) {
+    const words = new Set();
+    for (const dictFile of dictFiles) {
+      try {
+        const contents = await fs.readFile(dictFile, 'utf8');
+        for (const line of contents.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed) addCodeWord(words, trimmed);
+        }
+      } catch {}
+    }
+    if (words.size) {
+      codeDictWordsByLanguage.set(lang, words);
+    }
+  }
   const dictSignatureParts = [];
   for (const dictFile of dictionaryPaths) {
     const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
@@ -377,23 +457,41 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       dictSignatureParts.push(`${signaturePath}:missing`);
     }
   }
+  for (const dictFile of codeDictPaths.all) {
+    const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
+    try {
+      const stat = await fs.stat(dictFile);
+      dictSignatureParts.push(`code:${signaturePath}:${stat.size}:${stat.mtimeMs}`);
+    } catch {
+      dictSignatureParts.push(`code:${signaturePath}:missing`);
+    }
+  }
   dictSignatureParts.sort();
   const dictSignature = dictSignatureParts.length
     ? sha1(dictSignatureParts.join('|'))
     : null;
-  const dictSummary = { files: dictionaryPaths.length, words: dictWords.size };
+  const dictSummary = {
+    files: dictionaryPaths.length,
+    words: dictWords.size,
+    code: {
+      files: codeDictPaths.all.length,
+      words: codeDictWordsAll.size,
+      languages: Array.from(codeDictWordsByLanguage.keys()).sort()
+    }
+  };
   const LARGE_DICT_SHARED_THRESHOLD = 200000;
   const shouldShareDict = dictSummary.words
     && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
   const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
+  logInit('dictionaries', dictStartedAt);
 
   const {
     ignoreMatcher,
     config: ignoreConfig,
     ignoreFiles,
     warnings: ignoreWarnings
-  } = await buildIgnoreMatcher({ root, userConfig });
+  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig }));
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -401,6 +499,16 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
   } else {
     log('Wordlists disabled: no dictionary files found; identifier splitting will be limited.');
+  }
+  if (codeDictEnabled && dictSummary.code?.files) {
+    const langs = dictSummary.code.languages && dictSummary.code.languages.length
+      ? ` (${dictSummary.code.languages.join(', ')})`
+      : '';
+    log(`Code dictionaries enabled: ${dictSummary.code.files} file(s), ${dictSummary.code.words.toLocaleString()} words${langs}.`);
+  } else if (codeDictEnabled) {
+    log('Code dictionaries enabled: no code dictionary files found for gated languages.');
+  } else {
+    log('Code dictionaries disabled: no gated languages configured.');
   }
   if (ignoreWarnings?.length) {
     for (const warning of ignoreWarnings) {
@@ -447,6 +555,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   if (!treeSitterEnabled) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
   } else {
+    const preloadStart = Date.now();
     await preloadTreeSitterRuntimeLanguages({
       treeSitterEnabled,
       treeSitterLanguages,
@@ -455,6 +564,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       treeSitterMaxLoadedLanguages,
       log
     });
+    logInit('tree-sitter preload', preloadStart);
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
@@ -484,16 +594,29 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
 
-  const workerPoolsResult = await createRuntimeWorkerPools({
+  const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
     repoCacheRoot,
     dictWords,
     dictSharedPayload,
     dictConfig,
+    codeDictWords: codeDictCommonWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
     postingsConfig,
+    treeSitterConfig: {
+      enabled: treeSitterEnabled,
+      languages: treeSitterLanguages,
+      maxBytes: treeSitterMaxBytes,
+      maxLines: treeSitterMaxLines,
+      maxParseMs: treeSitterMaxParseMs,
+      byLanguage: treeSitterByLanguage,
+      deferMissing: treeSitterDeferMissing,
+      maxLoadedLanguages: treeSitterMaxLoadedLanguages
+    },
     debugCrash,
     log
-  });
+  }));
   const { workerPools, workerPool, quantizePool } = workerPoolsResult;
 
   log('Build environment snapshot.', {
@@ -570,6 +693,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   try {
     await fs.mkdir(buildRoot, { recursive: true });
   } catch {}
+  logInit('runtime ready', initStartedAt);
 
   return {
     envelope,
@@ -602,6 +726,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskInterproceduralConfig,
+    riskInterproceduralEnabled,
     riskConfig,
     embeddingBatchSize,
     embeddingConcurrency,
@@ -610,7 +736,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     embeddingService,
     embeddingProvider,
     embeddingOnnx,
+    embeddingNormalize,
     embeddingQueue,
+    embeddingIdentity,
+    embeddingIdentityKey,
     embeddingCache,
     fileCaps,
     guardrails,
@@ -650,6 +779,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     dictShared,
     dictSummary,
     dictSignature,
+    codeDictWords: codeDictCommonWords,
+    codeDictWordsByLanguage,
+    codeDictLanguages,
+    codeDictionaryPaths: codeDictPaths,
     getChunkEmbedding,
     getChunkEmbeddings,
     languageOptions,

@@ -35,6 +35,16 @@ const normalizeAnnBackend = (value) => {
   return 'lancedb';
 };
 
+const normalizeDenseVectorMode = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  if (trimmed === 'merged' || trimmed === 'code' || trimmed === 'doc' || trimmed === 'auto') {
+    return trimmed;
+  }
+  return null;
+};
+
 export function normalizeSearchOptions({
   argv,
   rawArgs,
@@ -194,7 +204,23 @@ export function normalizeSearchOptions({
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
   const explain = argv.explain === true || argv.why === true;
-  const denseVectorMode = 'merged';
+  const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
+  const configDenseVectorMode = normalizeDenseVectorMode(configDenseVectorRaw) || 'merged';
+  const cliDenseVectorRaw = argv['dense-vector-mode'];
+  const cliDenseVectorMode = cliDenseVectorRaw != null
+    ? normalizeDenseVectorMode(cliDenseVectorRaw)
+    : null;
+  if (cliDenseVectorRaw != null && !cliDenseVectorMode) {
+    throw new Error(`Invalid --dense-vector-mode "${cliDenseVectorRaw}". Use merged|code|doc|auto.`);
+  }
+  const configDenseVectorExplicit = typeof configDenseVectorRaw === 'string' && configDenseVectorRaw.trim();
+  if (cliDenseVectorMode && configDenseVectorExplicit && cliDenseVectorMode !== configDenseVectorMode) {
+    console.warn(
+      `[search] Ignoring config search.denseVectorMode=${configDenseVectorMode}; CLI --dense-vector-mode=${cliDenseVectorMode} takes precedence.`
+    );
+  }
+  const denseVectorMode = cliDenseVectorMode || configDenseVectorMode;
+  const strict = argv['non-strict'] ? false : true;
 
   const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
 
@@ -267,6 +293,7 @@ export function normalizeSearchOptions({
     fieldWeightsConfig: null,
     explain,
     denseVectorMode,
+    strict,
     backendArg,
     lancedbConfig
   };

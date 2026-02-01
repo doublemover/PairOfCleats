@@ -29,19 +29,8 @@ export const buildStageOverrides = (twoStageConfig, stage) => {
         embeddings: { enabled: false, mode: 'off' }
       }
       : stage === 'stage3'
-      ? {
-        embeddings: { enabled: true, mode: 'auto' },
-        treeSitter: { enabled: false },
-        lint: false,
-        complexity: false,
-        riskAnalysis: false,
-        riskAnalysisCrossFile: false,
-        typeInference: false,
-        typeInferenceCrossFile: false
-      }
-      : stage === 'stage4'
         ? {
-          embeddings: { enabled: false, mode: 'off' },
+          embeddings: { enabled: true, mode: 'auto' },
           treeSitter: { enabled: false },
           lint: false,
           complexity: false,
@@ -50,7 +39,18 @@ export const buildStageOverrides = (twoStageConfig, stage) => {
           typeInference: false,
           typeInferenceCrossFile: false
         }
-        : {};
+        : stage === 'stage4'
+          ? {
+            embeddings: { enabled: false, mode: 'off' },
+            treeSitter: { enabled: false },
+            lint: false,
+            complexity: false,
+            riskAnalysis: false,
+            riskAnalysisCrossFile: false,
+            typeInference: false,
+            typeInferenceCrossFile: false
+          }
+          : {};
   const stageOverrides = stage === 'stage1'
     ? (isPlainObject(twoStageConfig.stage1) ? twoStageConfig.stage1 : {})
     : stage === 'stage2'

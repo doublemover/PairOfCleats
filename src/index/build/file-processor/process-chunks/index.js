@@ -3,7 +3,7 @@ import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../git.js';
 import { isJsLike } from '../../../constants.js';
-import { createTokenizationBuffers, tokenizeChunkText } from '../../tokenization.js';
+import { createTokenizationBuffers, resolveTokenDictWords, tokenizeChunkText } from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';
 import { buildChunkPayload } from '../assemble.js';
 import { attachEmbeddings } from '../embeddings.js';
@@ -45,6 +45,7 @@ export const processChunks = async (context) => {
     contextWin,
     tokenMode,
     embeddingEnabled,
+    embeddingNormalize,
     embeddingBatchSize,
     getChunkEmbedding,
     getChunkEmbeddings,
@@ -195,6 +196,11 @@ export const processChunks = async (context) => {
     const effectiveLang = getLanguageForFile(effectiveExt, relKey);
     const effectiveLanguageId = effectiveLang?.id || c.segment?.languageId || containerLanguageId || 'unknown';
     const chunkLanguageId = effectiveLanguageId;
+    const dictWordsForChunk = resolveTokenDictWords({
+      context: tokenContext,
+      mode: chunkMode,
+      languageId: chunkLanguageId
+    });
     const activeLang = effectiveLang || lang;
     const activeContext = effectiveLang && lang && effectiveLang.id === lang.id
       ? languageContext
@@ -301,6 +307,7 @@ export const processChunks = async (context) => {
           text: tokenText,
           mode: chunkMode,
           ext: effectiveExt,
+          languageId: chunkLanguageId,
           file: relKey,
           size: fileStat.size,
           // chargramTokens is intentionally omitted (see note above).
@@ -352,6 +359,7 @@ export const processChunks = async (context) => {
         mode: chunkMode,
         ext: effectiveExt,
         context: tokenContext,
+        languageId: chunkLanguageId,
         // chargramTokens is intentionally omitted (see note above).
         buffers: tokenBuffers
       });
@@ -364,7 +372,11 @@ export const processChunks = async (context) => {
       tokens,
       seq,
       minhashSig,
-      stats
+      stats,
+      identifierTokens,
+      keywordTokens,
+      operatorTokens,
+      literalTokens
     } = tokenPayload;
 
     if (tokenizationStats) {
@@ -415,6 +427,10 @@ export const processChunks = async (context) => {
       fileHashAlgo,
       fileSize: fileStat.size,
       tokens,
+      identifierTokens,
+      keywordTokens,
+      operatorTokens,
+      literalTokens,
       seq,
       codeRelations,
       docmeta,
@@ -425,7 +441,7 @@ export const processChunks = async (context) => {
       postContext,
       minhashSig,
       commentFieldTokens,
-      dictWords: tokenDictWords,
+      dictWords: dictWordsForChunk,
       dictConfig,
       postingsConfig,
       tokenMode: chunkMode,
@@ -449,6 +465,7 @@ export const processChunks = async (context) => {
     codeTexts,
     docTexts,
     embeddingEnabled,
+    embeddingNormalize,
     getChunkEmbedding,
     getChunkEmbeddings,
     runEmbedding,

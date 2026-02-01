@@ -225,7 +225,6 @@
 - 2026-01-18 07:50:03 | `tests\search-contract.js` | 1.01s | timeout
 - 2026-01-18 07:50:04 | `tests\search-determinism.js` | 1.02s | timeout
 - 2026-01-18 07:50:05 | `tests\search-explain-symbol.js` | 1.02s | timeout
-- 2026-01-18 07:50:06 | `tests\search-explain.js` | 1.02s | timeout
 - 2026-01-18 07:50:07 | `tests\search-help.js` | 1.03s | timeout
 - 2026-01-18 07:50:08 | `tests\search-missing-flag-values.js` | 1.03s | timeout
 - 2026-01-18 07:50:09 | `tests\search-missing-index.js` | 1.02s | timeout
@@ -436,7 +435,6 @@
 - 2026-01-18 08:08:26 | `tests\search-contract.js` | 5.02s | timeout
 - 2026-01-18 08:08:31 | `tests\search-determinism.js` | 5.02s | timeout
 - 2026-01-18 08:08:36 | `tests\search-explain-symbol.js` | 5.02s | timeout
-- 2026-01-18 08:08:41 | `tests\search-explain.js` | 5.02s | timeout
 - 2026-01-18 08:08:44 | `tests\search-help.js` | 2.24s | exit 1
 - 2026-01-18 08:08:49 | `tests\search-missing-flag-values.js` | 5.03s | timeout
 - 2026-01-18 08:08:51 | `tests\search-missing-index.js` | 2.09s | exit 0

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getExtensionsDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
-import { getBinarySuffix, getPlatformKey } from '../tools/vector-extension.js';
+import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { requireSqliteVec } from './helpers/optional-deps.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -22,18 +21,7 @@ await fsPromises.writeFile(
   'export const annDeletable = "ann_deletable_token";\n'
 );
 
-const extensionsDir = getExtensionsDir(repoRoot, null);
-const extensionPath = path.join(
-  extensionsDir,
-  'sqlite-vec',
-  getPlatformKey(),
-  `vec0${getBinarySuffix()}`
-);
-
-if (!fs.existsSync(extensionPath)) {
-  console.warn(`sqlite ann extension missing; skipping test (${extensionPath})`);
-  process.exit(0);
-}
+const extensionPath = requireSqliteVec({ repoRoot });
 
 const env = {
   ...process.env,

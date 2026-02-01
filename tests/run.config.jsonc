@@ -2,7 +2,6 @@
   // Tags excluded unless explicitly included via --tag.
   "excludeTags": [
     "destructive",
-    "CheckAfterPhase10",
     "long"
   ],
   "timeoutOverrides": {

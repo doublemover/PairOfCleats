@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { tryImport } from '../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../src/shared/lancedb.js';
 
@@ -39,13 +40,21 @@ const addRows = async (table, rows) => {
   }
 };
 
-const buildBatch = (vectors, start, end, idColumn, embeddingColumn) => {
+const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization, normalize) => {
   const rows = [];
   for (let i = start; i < end; i += 1) {
     const vec = vectors[i];
     if (!vec || typeof vec.length !== 'number') continue;
-    const floatVec = dequantizeUint8ToFloat32(vec);
+    const floatVec = dequantizeUint8ToFloat32(
+      vec,
+      quantization?.minVal,
+      quantization?.maxVal,
+      quantization?.levels
+    );
     if (!floatVec) continue;
+    if (normalize !== false) {
+      normalizeEmbeddingVectorInPlace(floatVec);
+    }
     rows.push({
       [idColumn]: i,
       [embeddingColumn]: Array.from(floatVec)
@@ -60,6 +69,9 @@ export async function writeLanceDbIndex({
   vectors,
   dims,
   modelId,
+  quantization,
+  scale,
+  normalize,
   config,
   emitOutput = true,
   label = null,
@@ -98,7 +110,15 @@ export async function writeLanceDbIndex({
 
   let table = null;
   try {
-    const firstBatch = buildBatch(vectors, 0, Math.min(batchSize, vectors.length), idColumn, embeddingColumn);
+    const firstBatch = buildBatch(
+      vectors,
+      0,
+      Math.min(batchSize, vectors.length),
+      idColumn,
+      embeddingColumn,
+      quantization,
+      normalize
+    );
     table = await createTable(db, tableName, firstBatch);
     if (!table && typeof db.openTable === 'function') {
       table = await db.openTable(tableName);
@@ -110,7 +130,9 @@ export async function writeLanceDbIndex({
         start,
         Math.min(start + batchSize, vectors.length),
         idColumn,
-        embeddingColumn
+        embeddingColumn,
+        quantization,
+        normalize
       );
       if (rows.length) {
         await addRows(table, rows);
@@ -131,7 +153,11 @@ export async function writeLanceDbIndex({
     metric: resolvedConfig.metric,
     table: tableName,
     embeddingColumn,
-    idColumn
+    idColumn,
+    scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
+    minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
+    maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
+    levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
   };
   await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
 

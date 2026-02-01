@@ -35,7 +35,8 @@ export default [
     },
     rules: {
       'local/no-regex-double-escape': 'error',
-      'max-lines': ['error', { max: 1200, skipBlankLines: true, skipComments: false }]
+      'max-lines': ['error', { max: 1200, skipBlankLines: true, skipComments: false }],
+      indent: ['error', 2, { SwitchCase: 1 }]
     }
   }
 ];

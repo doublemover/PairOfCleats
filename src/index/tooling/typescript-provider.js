@@ -1,13 +1,13 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
-import { buildScopedSymbolId, buildSignatureKey, buildSymbolKey } from '../../shared/identity.js';
+import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 
-const normalizePathKey = (value) => {
+const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  return useCaseSensitive ? resolved : resolved.toLowerCase();
 };
 
 const normalizeTypeText = (value) => {
@@ -76,13 +76,13 @@ const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
 
 const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
 
-const findNearestConfig = (startDir, repoRoot, cache) => {
+const findNearestConfig = (startDir, repoRoot, cache, useCaseSensitive) => {
   if (!startDir) return null;
-  const rootKey = normalizePathKey(repoRoot || startDir);
+  const rootKey = normalizePathKey(repoRoot || startDir, useCaseSensitive);
   let current = startDir;
   const visited = [];
   while (true) {
-    const currentKey = normalizePathKey(current);
+    const currentKey = normalizePathKey(current, useCaseSensitive);
     if (cache.has(currentKey)) {
       const cached = cache.get(currentKey) || null;
       for (const key of visited) cache.set(key, cached);
@@ -285,18 +285,23 @@ export const createTypeScriptProvider = () => ({
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+    const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
+    const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'typescript' });
+    const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
     if (ctx?.toolingConfig?.typescript?.enabled === false) {
       log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
-      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
-    const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
-    const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
     const config = ctx?.toolingConfig?.typescript || {};
+    const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
+      ? ts.sys.useCaseSensitiveFileNames
+      : process.platform !== 'win32';
     const allowJs = config.allowJs !== false;
     const includeJsx = config.includeJsx !== false;
     const allowedExts = new Set([
@@ -305,7 +310,13 @@ export const createTypeScriptProvider = () => ({
       ...(allowJs && includeJsx ? ['.jsx'] : [])
     ]);
     const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
-    if (!rootDocs.length) return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+    if (!rootDocs.length) {
+      return {
+        provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: baseDiagnostics
+      };
+    }
 
     const maxFiles = Number.isFinite(config.maxFiles) ? Math.max(1, config.maxFiles) : null;
     const maxProgramFiles = Number.isFinite(config.maxProgramFiles) ? Math.max(1, config.maxProgramFiles) : null;
@@ -321,7 +332,7 @@ export const createTypeScriptProvider = () => ({
       const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
       const configPath = configOverride
         ? configOverride
-        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache) : null);
+        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive) : null);
       const key = configPath || '__default__';
       const group = configGroups.get(key) || { configPath, documents: [] };
       group.documents.push(doc);
@@ -330,6 +341,7 @@ export const createTypeScriptProvider = () => ({
 
     const byChunkUid = {};
     const diagnostics = [];
+    if (duplicateChecks.length) diagnostics.push(...duplicateChecks);
     const targetsByDoc = new Map();
     for (const target of targets) {
       const chunkRef = target?.chunkRef || target?.chunk || null;
@@ -384,7 +396,7 @@ export const createTypeScriptProvider = () => ({
       const rootNames = [];
       for (const doc of groupDocs) {
         const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
-        vfsMap.set(normalizePathKey(absPath), doc.text);
+        vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
         rootNames.push(absPath);
       }
       const finalRootNames = parsedConfig?.fileNames
@@ -422,23 +434,30 @@ export const createTypeScriptProvider = () => ({
           const extracted = extractTypes(ts, checker, sourceFile, result.node);
           if (!extracted) continue;
           const nodeName = getNodeName(ts, result.node, sourceFile) || target?.symbolHint?.name || null;
+          const kindGroup = target?.symbolHint?.kind || null;
           const symbolKey = buildSymbolKey({
             virtualPath: target.virtualPath,
-            name: nodeName,
-            chunkId: target.chunkRef?.chunkId
+            qualifiedName: nodeName,
+            kindGroup
           });
-          const signatureKey = buildSignatureKey(extracted.signature);
-          const scopedId = buildScopedSymbolId(symbolKey, signatureKey);
+          const signatureKey = buildSignatureKey({ qualifiedName: nodeName, signature: extracted.signature });
+          const scopedId = buildScopedSymbolId({
+            kindGroup: kindGroup || 'other',
+            symbolKey,
+            signatureKey,
+            chunkUid: target.chunkRef?.chunkUid || null
+          });
+          const symbolId = buildSymbolId({ scopedId, scheme: 'heur' });
           const symbolRef = symbolKey ? {
             symbolKey,
-            symbolId: null,
+            symbolId,
             signatureKey,
             scopedId,
             kind: target?.symbolHint?.kind || null,
             qualifiedName: nodeName,
             languageId: doc.languageId || null,
             definingChunk: target.chunkRef || null,
-            evidence: { scheme: 'heuristic-v1', confidence: result.status === 'ok' ? 'medium' : 'low' }
+            evidence: { scheme: 'heur', confidence: result.status === 'ok' ? 'medium' : 'low' }
           } : null;
           byChunkUid[target.chunkRef.chunkUid] = {
             chunk: target.chunkRef,

@@ -23,6 +23,10 @@ import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes, summarizeFilterIndex } from './artifacts/helpers.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from './artifacts/writers/call-sites.js';
+import { enqueueRiskInterproceduralArtifacts } from './artifacts/writers/risk-interprocedural.js';
+import { enqueueSymbolsArtifacts } from './artifacts/writers/symbols.js';
+import { enqueueSymbolOccurrencesArtifacts } from './artifacts/writers/symbol-occurrences.js';
+import { enqueueSymbolEdgesArtifacts } from './artifacts/writers/symbol-edges.js';
 import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
   createChunkMetaIterator,
@@ -53,7 +57,8 @@ export async function writeIndexArtifacts(input) {
     fileCounts,
     perfProfile,
     indexState,
-    graphRelations
+    graphRelations,
+    riskInterproceduralEmitArtifacts = null
   } = input;
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
@@ -417,17 +422,87 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel
   });
   const callSitesCompression = resolveShardCompression('call_sites');
-  enqueueCallSitesArtifacts({
-    state,
-    outDir,
-    maxJsonBytes,
-    log,
-    compression: callSitesCompression,
-    gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
-    enqueueWrite,
-    addPieceFile,
-    formatArtifactLabel
-  });
+  const riskStats = state?.riskInterproceduralStats || null;
+  const riskConfig = riskStats?.effectiveConfig || null;
+  const riskState = indexState?.riskInterprocedural || null;
+  const emitArtifactsMode = riskInterproceduralEmitArtifacts
+    || riskState?.emitArtifacts
+    || riskConfig?.emitArtifacts
+    || null;
+  const allowCallSitesArtifacts = emitArtifactsMode !== 'none';
+  const callSitesRequired = allowCallSitesArtifacts
+    && riskState?.enabled === true
+    && riskState?.summaryOnly !== true;
+  const callSitesRef = allowCallSitesArtifacts
+    ? enqueueCallSitesArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      forceEmpty: callSitesRequired,
+      compression: callSitesCompression,
+      gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    })
+    : null;
+  const riskSummariesCompression = resolveShardCompression('risk_summaries');
+  const riskFlowsCompression = resolveShardCompression('risk_flows');
+  if (mode === 'code' && state?.riskInterproceduralStats) {
+    enqueueRiskInterproceduralArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: riskSummariesCompression,
+      flowsCompression: riskFlowsCompression,
+      gzipOptions: compressionGzipOptions,
+      emitArtifacts: riskInterproceduralEmitArtifacts || 'jsonl',
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel,
+      callSitesRef
+    });
+  }
+  if (mode === 'code') {
+    const symbolsCompression = resolveShardCompression('symbols');
+    await enqueueSymbolsArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolsCompression,
+      gzipOptions: symbolsCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+    const symbolOccurrencesCompression = resolveShardCompression('symbol_occurrences');
+    await enqueueSymbolOccurrencesArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolOccurrencesCompression,
+      gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+    const symbolEdgesCompression = resolveShardCompression('symbol_edges');
+    await enqueueSymbolEdgesArtifacts({
+      state,
+      outDir,
+      maxJsonBytes,
+      log,
+      compression: symbolEdgesCompression,
+      gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+  }
   await enqueueGraphRelationsArtifacts({
     graphRelations,
     outDir,

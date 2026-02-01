@@ -3,6 +3,7 @@ import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
+import { log } from '../../../shared/progress.js';
 
 export function reuseCachedBundle({
   abs,
@@ -127,6 +128,12 @@ export function reuseCachedBundle({
         toolInfo,
         analysisPolicy
       });
+      if (analysisPolicy?.metadata?.enabled !== false && !updatedChunk.metaV2) {
+        log(
+          `[metaV2] missing metadata for cached chunk ${relKey} ` +
+          `(${updatedChunk.start}-${updatedChunk.end})`
+        );
+      }
     }
     return updatedChunk;
   });

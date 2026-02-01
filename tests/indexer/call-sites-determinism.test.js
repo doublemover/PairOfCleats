@@ -52,7 +52,11 @@ const buildOnce = async (fixtureRoot, { label }) => {
   }
 
   const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+  const prevTesting = process.env.PAIROFCLEATS_TESTING;
+  const prevTestConfig = process.env.PAIROFCLEATS_TEST_CONFIG;
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  process.env.PAIROFCLEATS_TESTING = '1';
+  process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(TEST_CONFIG);
 
   try {
     const userConfig = loadUserConfig(fixtureRoot);
@@ -65,10 +69,20 @@ const buildOnce = async (fixtureRoot, { label }) => {
     } else {
       process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
     }
+    if (prevTesting === undefined) {
+      delete process.env.PAIROFCLEATS_TESTING;
+    } else {
+      process.env.PAIROFCLEATS_TESTING = prevTesting;
+    }
+    if (prevTestConfig === undefined) {
+      delete process.env.PAIROFCLEATS_TEST_CONFIG;
+    } else {
+      process.env.PAIROFCLEATS_TEST_CONFIG = prevTestConfig;
+    }
   }
 };
 
-const fixtureRoot = await copyFixtureToTemp('sample', { prefix: 'pairofcleats-determinism-' });
+const fixtureRoot = await copyFixtureToTemp('call-sites-determinism', { prefix: 'pairofcleats-determinism-' });
 const fixtureParent = path.dirname(fixtureRoot);
 
 const cleanupDirs = [];

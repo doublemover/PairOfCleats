@@ -1,7 +1,7 @@
 import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
-import { cleanContext } from './context.js';
 import { formatScoreBreakdown } from './explain.js';
 import { getBodySummary } from './summary.js';
+import { ANSI, applyLineBackground, stripAnsi as stripAnsiShared } from '../../shared/cli/ansi-utils.js';
 
 const formatInferredEntry = (entry) => {
   if (!entry?.type) return '';
@@ -26,10 +26,148 @@ const formatInferredMap = (map, limit = 3) => {
   return entries.join(', ');
 };
 
-const formatScore = (score, scoreType, color) => {
-  if (!Number.isFinite(score)) return '';
-  const label = scoreType ? `${score.toFixed(2)} ${scoreType}` : score.toFixed(2);
-  return color.green(label);
+const formatLastModified = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const now = Date.now();
+  const diffMs = Math.max(0, now - date.getTime());
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  if (diffMs <= weekMs) {
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const year = String(date.getFullYear()).slice(-2);
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const period = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${month}/${day}/${year} ${hours}:${minutes}${period}`;
+};
+
+const INDENT = '     ';
+
+const stripAnsi = (value) => stripAnsiShared(String(value));
+
+const styleText = (text, ...codes) => (
+  codes.length ? `${codes.join('')}${text}${ANSI.reset}` : String(text)
+);
+const colorText = (text, color) => (color ? styleText(text, color) : String(text));
+const boldText = (text) => styleText(text, ANSI.bold);
+const italicColor = (text, color) => styleText(text, ANSI.italic, color);
+const labelToken = (label, color = '') => (
+  `${ANSI.bold}${color}${label}${ANSI.fgBrightWhite}:${ANSI.reset}`
+);
+
+const BG_IMPORTS = '\x1b[48;5;52m';
+const BG_EXPORTS = '\x1b[48;5;23m';
+const BG_CALLS = '\x1b[48;5;17m';
+const BG_CALL_SUMMARY = '\x1b[48;5;17m';
+const BG_IMPORT_LINKS = '\x1b[48;5;22m';
+
+const buildWrappedLines = (label, items, { indent = INDENT, maxWidth = 110 } = {}) => {
+  if (!Array.isArray(items) || !items.length) return [];
+  const prefix = `${indent}${label} `;
+  const pad = ' '.repeat(stripAnsi(prefix).length);
+  let line = prefix;
+  const lines = [];
+  items.forEach((item, index) => {
+    const text = String(item);
+    const sep = (line === prefix) ? '' : ', ';
+    if (stripAnsi(line + sep + text).length > maxWidth && line !== prefix) {
+      lines.push(line.trimEnd());
+      line = pad + text;
+    } else {
+      line += sep + text;
+    }
+    if (index === items.length - 1) {
+      lines.push(line);
+    }
+  });
+  return lines;
+};
+
+const formatWrappedList = (label, items, options) => {
+  const lines = buildWrappedLines(label, items, options);
+  if (!lines.length) return '';
+  return lines.map((line) => `${line}\n`).join('');
+};
+
+const buildVerticalLines = (label, items, { indent = INDENT } = {}) => {
+  if (!Array.isArray(items) || !items.length) return [];
+  const prefix = `${indent}${label} `;
+  const pad = ' '.repeat(stripAnsi(prefix).length);
+  const lines = [`${prefix}${items[0]}`];
+  for (const item of items.slice(1)) {
+    lines.push(`${pad}${item}`);
+  }
+  return lines;
+};
+
+const formatVerticalList = (label, items, options) => {
+  const lines = buildVerticalLines(label, items, options);
+  if (!lines.length) return '';
+  return lines.map((line) => `${line}\n`).join('');
+};
+
+const formatControlFlow = (controlFlow) => {
+  if (!controlFlow) return [];
+  const parts = [];
+  const push = (label, value) => {
+    if (!Number.isFinite(value) || value <= 0) return;
+    let plural = value === 1 ? label : `${label}s`;
+    if (label === 'Branch' && value !== 1) plural = 'Branches';
+    parts.push({ label: plural, value });
+  };
+  push('Branch', controlFlow.branches);
+  push('Loop', controlFlow.loops);
+  push('Return', controlFlow.returns);
+  push('Break', controlFlow.breaks);
+  push('Continue', controlFlow.continues);
+  push('Throw', controlFlow.throws);
+  push('Await', controlFlow.awaits);
+  push('Yield', controlFlow.yields);
+  return parts;
+};
+
+const formatSignature = (signature, nameLabel) => {
+  const raw = String(signature || '').trim();
+  if (!raw) return '';
+  const styleNameArgs = (name, args, rest = '') => {
+    const argsStyled = args.length
+      ? `${ANSI.bold}${ANSI.fgBrightWhite}${args}${ANSI.reset}`
+      : '';
+    return `${boldText(name)}${boldText('(')}${argsStyled}${boldText(')')}${rest}`;
+  };
+  if (nameLabel) {
+    const index = raw.indexOf(nameLabel);
+    if (index !== -1) {
+      const before = raw.slice(0, index);
+      const after = raw.slice(index + nameLabel.length);
+      if (after.startsWith('(')) {
+        const closeIdx = after.indexOf(')');
+        if (closeIdx !== -1) {
+          const args = after.slice(1, closeIdx);
+          const rest = after.slice(closeIdx + 1);
+          return `${before}${styleNameArgs(nameLabel, args, rest)}`;
+        }
+      }
+      return `${before}${boldText(nameLabel)}${after}`;
+    }
+  }
+  const match = raw.match(/^([A-Za-z0-9_$\.]+)\((.*)\)(.*)$/);
+  if (match) {
+    return styleNameArgs(match[1], match[2], match[3]);
+  }
+  return raw;
 };
 
 /**
@@ -57,58 +195,166 @@ export function formatFullChunk({
   const c = color;
   let out = '';
 
-  const line1 = [
-    c.bold(c[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`)),
-    c.cyan(chunk.name || ''),
-    c.yellow(chunk.kind || ''),
-    formatScore(score, scoreType, c),
-    c.gray(`Start/End: ${chunk.start}/${chunk.end}`),
-    (chunk.startLine && chunk.endLine)
-      ? c.gray(`Lines: ${chunk.startLine}-${chunk.endLine}`)
-      : '',
-    typeof chunk.churn === 'number' ? c.yellow(`Churn: ${chunk.churn}`) : ''
-  ].filter(Boolean).join('  ');
+  const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
+    ? `[${chunk.startLine}-${chunk.endLine}]`
+    : '';
+  const fileLabel = lineRange ? `${chunk.file}:${lineRange}` : chunk.file;
+  const signature = chunk.docmeta?.signature || '';
+  const isPlaceholderName = chunk.name === 'blob' || chunk.name === 'root';
+  const isPlaceholderKind = chunk.kind === 'Blob' || (chunk.kind === 'Section' && !chunk.name) || (chunk.kind === 'Module' && !chunk.name);
+  const nameLabel = (!isPlaceholderName && chunk.name) ? String(chunk.name) : '';
+  const kindLabel = isPlaceholderKind ? '' : (chunk.kind ? String(chunk.kind) : '');
+  const fallbackSig = [kindLabel, nameLabel].filter(Boolean).join(' ').trim();
+  const signatureLabel = signature || fallbackSig;
+  const displayName = nameLabel || signatureLabel || fileLabel;
+  const signaturePart = signatureLabel && signatureLabel !== displayName
+    ? formatSignature(signatureLabel, nameLabel || displayName)
+    : '';
+  const lastModLabel = formatLastModified(chunk.last_modified);
+  const filePathStyled = italicColor(chunk.file, ANSI.fgLight);
+  const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
+  const fileStyled = lineRange
+    ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
+    : filePathStyled;
+  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgBlack) : '';
+  const line1Parts = [
+    `${index + 1}. ${boldText(displayName)}`,
+    signaturePart,
+    displayName === fileLabel ? '' : fileStyled,
+    timeStyled
+  ].filter(Boolean);
+  out += line1Parts.join(' - ') + '\n';
 
-  out += line1 + '\n';
-
-  if (explain && chunk.scoreBreakdown) {
-    const explainLines = formatScoreBreakdown(chunk.scoreBreakdown, c);
-    if (explainLines.length) {
-      out += explainLines.join('\n') + '\n';
+  if (explain) {
+    const chunkAuthors = Array.isArray(chunk.chunk_authors)
+      ? chunk.chunk_authors
+      : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
+    const authorParts = [];
+    if (chunk.last_author) authorParts.push(`last=${chunk.last_author}`);
+    if (chunkAuthors.length) {
+      const authors = chunkAuthors.slice(0, 6);
+      const suffix = chunkAuthors.length > authors.length ? ' ...' : '';
+      authorParts.push(`chunks=${authors.join(', ')}${suffix}`);
+    }
+    if (authorParts.length) {
+      out += c.gray(`${INDENT}Authors: `) + c.green(authorParts.join(' | ')) + '\n';
     }
   }
 
-  const headlinePart = chunk.headline ? c.bold('Headline: ') + c.underline(chunk.headline) : '';
-  const lastModPart = chunk.last_modified ? c.gray('Last Modified: ') + c.bold(chunk.last_modified) : '';
-  const secondLine = [headlinePart, lastModPart].filter(Boolean).join('   ');
-  if (secondLine) out += '   ' + secondLine + '\n';
+  const summaryBits = [];
+  const pipeSeparator = ` ${colorText('|', ANSI.fgBlack)} `;
+  const declaredReturns = collectDeclaredReturnTypes(chunk.docmeta);
+  if (declaredReturns.length) {
+    summaryBits.push(
+      `${labelToken('Returns', ANSI.fgDarkGreen)} ${colorText(declaredReturns.join(' | '), ANSI.fgLightGreen)}`
+    );
+  } else if (chunk.docmeta?.returnsValue) {
+    summaryBits.push(
+      `${labelToken('Returns', ANSI.fgDarkGreen)} ${colorText('value', ANSI.fgLightGreen)}`
+    );
+  }
+  if (chunk.docmeta?.throws?.length) {
+    summaryBits.push(
+      `${labelToken('Throws', ANSI.fgDarkOrange)} ${chunk.docmeta.throws.slice(0, 6).join(', ')}`
+    );
+  }
+  const controlParts = formatControlFlow(chunk.docmeta?.controlFlow || null);
+  if (controlParts.length) {
+    const labelColors = {
+      Branch: ANSI.fgPurple,
+      Branches: ANSI.fgPurple,
+      Return: ANSI.fgGreen,
+      Returns: ANSI.fgGreen,
+      Throw: ANSI.fgDarkOrange,
+      Throws: ANSI.fgDarkOrange
+    };
+    const controlValue = controlParts.map(({ label, value }) => {
+      const count = colorText(String(value), ANSI.fgBrightWhite);
+      const labelColor = labelColors[label];
+      const renderedLabel = labelColor ? colorText(label, labelColor) : label;
+      return `${count} ${renderedLabel}`;
+    }).join(', ');
+    summaryBits.push(`${labelToken('Control', ANSI.fgDarkerCyan)} ${controlValue}`);
+  }
+  if (summaryBits.length) {
+    out += `${INDENT}${summaryBits.join(pipeSeparator)}\n`;
+  }
 
-  if (chunk.last_author) {
-    out += c.gray('   Last Author: ') + c.green(chunk.last_author) + '\n';
-  }
-  const chunkAuthors = Array.isArray(chunk.chunk_authors)
-    ? chunk.chunk_authors
-    : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
-  if (chunkAuthors.length) {
-    const authors = chunkAuthors.slice(0, 6);
-    const suffix = chunkAuthors.length > authors.length ? ' ...' : '';
-    out += c.gray('   Chunk Authors: ') + c.green(authors.join(', ') + suffix) + '\n';
-  }
+  const backgroundSections = [];
+  const pushBackgroundSection = (lines, bg) => {
+    if (lines.length) backgroundSections.push({ lines, bg });
+  };
+  const formatFileItem = (item) => italicColor(String(item), ANSI.fgLight);
+  const formatExportItem = (item) => colorText(String(item), ANSI.fgBrightWhite);
+  const formatCallValue = (value) => {
+    const raw = String(value).trim();
+    if (!raw) return '';
+    if (raw === '...') return colorText(raw, ANSI.fgDarkGray);
+    const match = raw.match(/^(.*?)(\s*\((\d+)\))$/);
+    if (match) {
+      const name = match[1].trim();
+      const count = match[3];
+      return `${colorText(name, ANSI.fgBlack)} ${colorText(`(${count})`, ANSI.fgBrightWhite)}`;
+    }
+    return colorText(raw, ANSI.fgBlack);
+  };
+  const formatCallSummary = (text) => {
+    const raw = String(text);
+    const match = raw.match(/^([A-Za-z0-9_$\.]+)(.*)$/);
+    if (match) {
+      return `${colorText(match[1], ANSI.fgBlue)}${colorText(match[2], ANSI.fgBrightWhite)}`;
+    }
+    return colorText(raw, ANSI.fgBrightWhite);
+  };
 
-  if (chunk.imports?.length) {
-    out += c.magenta('   Imports: ') + chunk.imports.join(', ') + '\n';
-  } else if (chunk.codeRelations?.imports?.length) {
-    out += c.magenta('   Imports: ') + chunk.codeRelations.imports.join(', ') + '\n';
-  }
+  const importItems = chunk.imports?.length
+    ? chunk.imports
+    : (chunk.codeRelations?.imports?.length ? chunk.codeRelations.imports : []);
+  const importLines = importItems.length
+    ? buildWrappedLines(labelToken('Imports', ANSI.fgPink), importItems.map(formatFileItem))
+    : [];
+  pushBackgroundSection(importLines, BG_IMPORTS);
 
-  if (chunk.exports?.length) {
-    out += c.blue('   Exports: ') + chunk.exports.join(', ') + '\n';
-  } else if (chunk.codeRelations?.exports?.length) {
-    out += c.blue('   Exports: ') + chunk.codeRelations.exports.join(', ') + '\n';
-  }
+  const exportItems = chunk.exports?.length
+    ? chunk.exports
+    : (chunk.codeRelations?.exports?.length ? chunk.codeRelations.exports : []);
+  const exportLines = exportItems.length
+    ? buildWrappedLines(labelToken('Exports', ANSI.fgCyan), exportItems.map(formatExportItem))
+    : [];
+  pushBackgroundSection(exportLines, BG_EXPORTS);
 
   if (chunk.codeRelations?.calls?.length) {
-    out += c.yellow('   Calls: ') + chunk.codeRelations.calls.map(([a, b]) => `${a}->${b}`).join(', ') + '\n';
+    const callPairs = chunk.codeRelations.calls;
+    const callers = new Set();
+    const calleeCounts = new Map();
+    for (const [caller, callee] of callPairs) {
+      if (caller) callers.add(caller);
+      if (!callee) continue;
+      calleeCounts.set(callee, (calleeCounts.get(callee) || 0) + 1);
+    }
+    const entries = Array.from(calleeCounts.entries())
+      .sort((a, b) => (b[1] - a[1]) || String(a[0]).localeCompare(String(b[0])));
+    const maxEntries = 8;
+    const rendered = entries.slice(0, maxEntries).map(([callee, count]) => (
+      count > 1 ? `${callee} (${count})` : callee
+    ));
+    const trimmed = entries.length > rendered.length;
+    if (rendered.length) {
+      const callerName = callers.size === 1 ? Array.from(callers)[0] : '';
+      const callerPrefixPlain = callerName ? `${callerName}->` : '';
+      const callerPrefixStyled = callerName
+        ? `${colorText(callerName, ANSI.fgBlue)}${colorText('->', ANSI.fgBrightWhite)}`
+        : '';
+      const values = rendered.map(formatCallValue);
+      if (trimmed) values.push(formatCallValue('...'));
+      const callLabel = labelToken('Calls', ANSI.fgBlue);
+      const prefixVisible = stripAnsi(`${INDENT}${callLabel} ${callerPrefixPlain}`).length;
+      const pad = ' '.repeat(prefixVisible);
+      const firstLine = `${INDENT}${callLabel} ${callerPrefixStyled}${values[0]}`;
+      const rest = values.slice(1).map((value) => `${pad}${value}`);
+      const callLines = [firstLine, ...rest];
+      pushBackgroundSection(callLines, BG_CALLS);
+    }
   }
   if (chunk.codeRelations?.callSummaries?.length) {
     const summaries = chunk.codeRelations.callSummaries.slice(0, 3).map((summary) => {
@@ -116,15 +362,55 @@ export function formatFullChunk({
       const returns = Array.isArray(summary.returnTypes) && summary.returnTypes.length
         ? ` -> ${summary.returnTypes.join(' | ')}`
         : '';
-      return `${summary.name}(${args})${returns}`;
+      return formatCallSummary(`${summary.name}(${args})${returns}`);
     });
-    out += c.yellow('   CallSummary: ') + summaries.join(', ') + '\n';
+    const summaryLines = buildVerticalLines(labelToken('Call Summary', ANSI.fgBlue), summaries);
+    pushBackgroundSection(summaryLines, BG_CALL_SUMMARY);
   }
 
-  if (chunk.importLinks?.length) {
-    out += c.green('   ImportLinks: ') + chunk.importLinks.join(', ') + '\n';
-  } else if (chunk.codeRelations?.importLinks?.length) {
-    out += c.green('   ImportLinks: ') + chunk.codeRelations.importLinks.join(', ') + '\n';
+  const importLinkItems = chunk.importLinks?.length
+    ? chunk.importLinks
+    : (chunk.codeRelations?.importLinks?.length ? chunk.codeRelations.importLinks : []);
+  const importLinkLines = importLinkItems.length
+    ? buildWrappedLines(labelToken('Import Links', ANSI.fgGreen), importLinkItems.map(formatFileItem))
+    : [];
+  pushBackgroundSection(importLinkLines, BG_IMPORT_LINKS);
+
+  const maxSectionWidth = backgroundSections.length
+    ? Math.max(...backgroundSections.flatMap((section) => section.lines.map((line) => {
+      const content = line.startsWith(INDENT) ? line.slice(INDENT.length) : line;
+      return stripAnsi(content).length;
+    })))
+    : 0;
+  for (const section of backgroundSections) {
+    for (const line of section.lines) {
+      const indent = line.startsWith(INDENT) ? INDENT : '';
+      const content = line.startsWith(INDENT) ? line.slice(INDENT.length) : line;
+      out += `${indent}${applyLineBackground(content, {
+        enabled: true,
+        columns: maxSectionWidth,
+        bg: section.bg || ANSI.bgBlack
+      })}\n`;
+    }
+  }
+
+  const modifiers = chunk.docmeta?.modifiers || null;
+  const modifierParts = [];
+  if (chunk.docmeta?.async || modifiers?.async) modifierParts.push('async');
+  if (modifiers?.generator || chunk.docmeta?.yields) modifierParts.push('generator');
+  if (modifiers?.static) modifierParts.push('static');
+  const visibility = chunk.docmeta?.visibility || modifiers?.visibility || null;
+  if (visibility) modifierParts.push(`visibility=${visibility}`);
+  if (chunk.docmeta?.methodKind) modifierParts.push(`kind=${chunk.docmeta.methodKind}`);
+  if (modifierParts.length) {
+    out += formatWrappedList(labelToken('Modifiers', ANSI.fgDarkGray), modifierParts);
+  }
+  if (chunk.docmeta?.decorators?.length) {
+    out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), chunk.docmeta.decorators);
+  }
+  const bases = chunk.docmeta?.extends || chunk.docmeta?.bases || [];
+  if (Array.isArray(bases) && bases.length) {
+    out += formatWrappedList(labelToken('Extends', ANSI.fgMagenta), bases);
   }
 
   if (chunk.usages?.length) {
@@ -144,7 +430,7 @@ export function formatFullChunk({
       return c.cyan(`${usage} (${count})`);
     }).join(', ');
 
-    if (usageStr.length) out += c.cyan('   Usages: ') + usageStr + '\n';
+    if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
   } else if (chunk.codeRelations?.usages?.length) {
     const usageFreq = Object.create(null);
     chunk.codeRelations.usages.forEach((raw) => {
@@ -162,7 +448,7 @@ export function formatFullChunk({
       return c.cyan(`${usage} (${count})`);
     }).join(', ');
 
-    if (usageStr.length) out += c.cyan('   Usages: ') + usageStr + '\n';
+    if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
   }
 
   if (matched && queryTokens.length && chunk.headline) {
@@ -195,46 +481,11 @@ export function formatFullChunk({
       out += c.gray('   Route: ') + routeParts.join(', ') + '\n';
     }
     if (chunk.docmeta?.doc) {
-      out += c.gray('   Summary: ') + chunk.docmeta.doc + '\n';
+      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${chunk.docmeta.doc}\n`;
     }
   }
 
-  if (chunk.docmeta?.signature) {
-    out += c.cyan('   Signature: ') + chunk.docmeta.signature + '\n';
-  }
-  if (explain && chunk.metaV2) {
-    const containerExt = chunk.metaV2?.container?.ext || chunk.ext || null;
-    const containerLang = chunk.metaV2?.container?.languageId || null;
-    const effectiveExt = chunk.metaV2?.effective?.ext || null;
-    const effectiveLang = chunk.metaV2?.effective?.languageId || chunk.metaV2?.lang || null;
-    const segment = chunk.metaV2?.segment || null;
-    const identityParts = [];
-    const containerBits = [];
-    if (chunk.file) containerBits.push(chunk.file);
-    if (containerExt) containerBits.push(containerExt);
-    if (containerLang) containerBits.push(`lang=${containerLang}`);
-    if (containerBits.length) identityParts.push(`container=${containerBits.join(' ')}`);
-    const effectiveBits = [];
-    if (effectiveExt) effectiveBits.push(effectiveExt);
-    if (effectiveLang) effectiveBits.push(`lang=${effectiveLang}`);
-    if (effectiveBits.length) identityParts.push(`effective=${effectiveBits.join(' ')}`);
-    if (segment) {
-      const segmentBits = [];
-      if (segment.segmentId) segmentBits.push(`id=${segment.segmentId}`);
-      if (segment.segmentUid) segmentBits.push(`uid=${segment.segmentUid}`);
-      if (segment.type) segmentBits.push(`type=${segment.type}`);
-      if (Number.isFinite(segment.start) && Number.isFinite(segment.end)) {
-        segmentBits.push(`span=${segment.start}-${segment.end}`);
-      }
-      if (Number.isFinite(segment.startLine) && Number.isFinite(segment.endLine)) {
-        segmentBits.push(`lines=${segment.startLine}-${segment.endLine}`);
-      }
-      if (segmentBits.length) identityParts.push(`segment=${segmentBits.join(' ')}`);
-    }
-    if (identityParts.length) {
-      out += c.gray('   Identity: ') + identityParts.join(' | ') + '\n';
-    }
-  }
+  // Signature/identity are folded into the first line; omit the verbose block by default.
   const commentEntries = Array.isArray(chunk.docmeta?.commentExcerpts)
     ? chunk.docmeta.commentExcerpts
     : null;
@@ -246,128 +497,77 @@ export function formatFullChunk({
     const snippet = normalized.length > 240 ? `${normalized.slice(0, 240)}...` : normalized;
     out += c.gray('   Comment: ') + snippet + '\n';
   }
-  const modifiers = chunk.docmeta?.modifiers || null;
-  const modifierParts = [];
-  if (chunk.docmeta?.async || modifiers?.async) modifierParts.push('async');
-  if (modifiers?.generator || chunk.docmeta?.yields) modifierParts.push('generator');
-  if (modifiers?.static) modifierParts.push('static');
-  const visibility = chunk.docmeta?.visibility || modifiers?.visibility || null;
-  if (visibility) modifierParts.push(`visibility=${visibility}`);
-  if (chunk.docmeta?.methodKind) modifierParts.push(`kind=${chunk.docmeta.methodKind}`);
-  if (modifierParts.length) {
-    out += c.gray('   Modifiers: ') + modifierParts.join(', ') + '\n';
-  }
-  if (chunk.docmeta?.decorators?.length) {
-    out += c.magenta('   Decorators: ') + chunk.docmeta.decorators.join(', ') + '\n';
-  }
-  const bases = chunk.docmeta?.extends || chunk.docmeta?.bases || [];
-  if (Array.isArray(bases) && bases.length) {
-    out += c.magenta('   Extends: ') + bases.join(', ') + '\n';
-  }
-  const declaredReturns = collectDeclaredReturnTypes(chunk.docmeta);
-  if (declaredReturns.length) {
-    out += c.cyan('   Return Type: ') + declaredReturns.join(' | ') + '\n';
-  } else if (chunk.docmeta?.returnsValue) {
-    out += c.cyan('   Returns: ') + 'value' + '\n';
-  }
-  const inferredTypes = chunk.docmeta?.inferredTypes || null;
-  if (inferredTypes) {
-    const inferredParams = formatInferredMap(inferredTypes.params);
-    if (inferredParams) {
-      out += c.gray('   Inferred Params: ') + inferredParams + '\n';
+  if (explain) {
+    const inferredTypes = chunk.docmeta?.inferredTypes || null;
+    if (inferredTypes) {
+      const inferredParams = formatInferredMap(inferredTypes.params);
+      if (inferredParams) {
+        out += c.gray('   Inferred Params: ') + inferredParams + '\n';
+      }
+      const inferredReturns = formatInferredEntries(inferredTypes.returns, 2);
+      if (inferredReturns) {
+        out += c.gray('   Inferred Returns: ') + inferredReturns + '\n';
+      }
+      const inferredFields = formatInferredMap(inferredTypes.fields);
+      if (inferredFields) {
+        out += c.gray('   Inferred Fields: ') + inferredFields + '\n';
+      }
+      const inferredLocals = formatInferredMap(inferredTypes.locals);
+      if (inferredLocals) {
+        out += c.gray('   Inferred Locals: ') + inferredLocals + '\n';
+      }
     }
-    const inferredReturns = formatInferredEntries(inferredTypes.returns, 2);
-    if (inferredReturns) {
-      out += c.gray('   Inferred Returns: ') + inferredReturns + '\n';
-    }
-    const inferredFields = formatInferredMap(inferredTypes.fields);
-    if (inferredFields) {
-      out += c.gray('   Inferred Fields: ') + inferredFields + '\n';
-    }
-    const inferredLocals = formatInferredMap(inferredTypes.locals);
-    if (inferredLocals) {
-      out += c.gray('   Inferred Locals: ') + inferredLocals + '\n';
-    }
-  }
-  if (chunk.docmeta?.throws?.length) {
-    out += c.red('   Throws: ') + chunk.docmeta.throws.slice(0, 6).join(', ') + '\n';
   }
   if (chunk.docmeta?.awaits?.length) {
-    out += c.blue('   Awaits: ') + chunk.docmeta.awaits.slice(0, 6).join(', ') + '\n';
+    out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), chunk.docmeta.awaits.slice(0, 6));
   }
   if (chunk.docmeta?.yields) {
-    out += c.blue('   Yields: ') + 'yes' + '\n';
+    out += c.blue(`${INDENT}Yields: `) + 'yes' + '\n';
   }
   const dataflow = chunk.docmeta?.dataflow || null;
   if (dataflow) {
     if (dataflow.reads?.length) {
-      out += c.gray('   Reads: ') + dataflow.reads.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), dataflow.reads.slice(0, 6));
     }
     if (dataflow.writes?.length) {
-      out += c.gray('   Writes: ') + dataflow.writes.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), dataflow.writes.slice(0, 6));
     }
     if (dataflow.mutations?.length) {
-      out += c.gray('   Mutates: ') + dataflow.mutations.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), dataflow.mutations.slice(0, 6));
     }
     if (dataflow.aliases?.length) {
-      out += c.gray('   Aliases: ') + dataflow.aliases.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), dataflow.aliases.slice(0, 6));
     }
     if (dataflow.globals?.length) {
-      out += c.gray('   Globals: ') + dataflow.globals.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), dataflow.globals.slice(0, 6));
     }
     if (dataflow.nonlocals?.length) {
-      out += c.gray('   Nonlocals: ') + dataflow.nonlocals.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), dataflow.nonlocals.slice(0, 6));
     }
   }
   const risk = chunk.docmeta?.risk || null;
   if (risk) {
     if (risk.severity) {
-      out += c.red(`   RiskLevel: ${risk.severity}`) + '\n';
+      out += c.red(`${INDENT}RiskLevel: ${risk.severity}`) + '\n';
     }
     if (risk.tags?.length) {
-      out += c.red('   RiskTags: ') + risk.tags.slice(0, 6).join(', ') + '\n';
+      out += formatWrappedList(labelToken('RiskTags', ANSI.fgRed), risk.tags.slice(0, 6));
     }
     if (risk.flows?.length) {
       const flowList = risk.flows.slice(0, 3).map((flow) =>
         `${flow.source}->${flow.sink} (${flow.category})`
       );
-      out += c.red('   RiskFlows: ') + flowList.join(', ') + '\n';
-    }
-  }
-  const controlFlow = chunk.docmeta?.controlFlow || null;
-  if (controlFlow) {
-    const entries = [
-      ['branches', controlFlow.branches],
-      ['loops', controlFlow.loops],
-      ['returns', controlFlow.returns],
-      ['breaks', controlFlow.breaks],
-      ['continues', controlFlow.continues],
-      ['throws', controlFlow.throws],
-      ['awaits', controlFlow.awaits],
-      ['yields', controlFlow.yields]
-    ].filter(([, value]) => Number.isFinite(value) && value > 0);
-    if (entries.length) {
-      out += c.gray('   Control: ') + entries.map(([key, value]) => `${key}=${value}`).join(', ') + '\n';
+      out += formatWrappedList(labelToken('RiskFlows', ANSI.fgRed), flowList);
     }
   }
 
   if (chunk.lint?.length) {
-    out += c.red(`   Lint: ${chunk.lint.length} issues`) +
+    out += c.red(`${INDENT}Lint: ${chunk.lint.length} issues`) +
       (chunk.lint.length ? c.gray(' | ') + chunk.lint.slice(0, 2).map((lintMsg) => JSON.stringify(lintMsg.message)).join(', ') : '') + '\n';
   }
 
   if (chunk.externalDocs?.length) {
-    out += c.blue('   Docs: ') + chunk.externalDocs.join(', ') + '\n';
-  }
-
-  const cleanedPreContext = chunk.preContext ? cleanContext(chunk.preContext) : [];
-  if (cleanedPreContext.length) {
-    out += c.gray('   preContext: ') + cleanedPreContext.map((line) => c.green(line.trim())).join(' | ') + '\n';
-  }
-
-  const cleanedPostContext = chunk.postContext ? cleanContext(chunk.postContext) : [];
-  if (cleanedPostContext.length) {
-    out += c.gray('   postContext: ') + cleanedPostContext.map((line) => c.green(line.trim())).join(' | ') + '\n';
+    out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), chunk.externalDocs);
   }
 
   if (summaryState && rootDir && !chunk.docmeta?.record) {
@@ -382,11 +582,17 @@ export function formatFullChunk({
         maxWords = summaryWords;
       }
       summaryState.lastCount = summaryWords;
-      out += c.gray('   Summary: ') + bodySummary + '\n';
+      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${bodySummary}\n`;
     }
   }
 
-  out += c.gray(''.padEnd(60, '-')) + '\n';
+  if (explain && chunk.scoreBreakdown) {
+    const explainLines = formatScoreBreakdown(chunk.scoreBreakdown, c);
+    if (explainLines.length) {
+      out += explainLines.join('\n') + '\n';
+    }
+  }
+  out += '\n';
   return out;
 }
 
@@ -411,15 +617,35 @@ export function formatShortChunk({
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
   let out = '';
-  out += `${color.bold(color[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`))}`;
-  const scoreLabel = Number.isFinite(score)
-    ? `[${scoreType ? `${score.toFixed(2)} ${scoreType}` : score.toFixed(2)}]`
+  const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
+    ? `[${chunk.startLine}-${chunk.endLine}]`
     : '';
-  if (scoreLabel) {
-    out += color.yellow(` ${scoreLabel}`);
-  }
-  if (chunk.name) out += ' ' + color.cyan(chunk.name);
-  out += color.gray(` (${chunk.kind || 'unknown'})`);
+  const fileLabel = lineRange ? `${chunk.file}:${lineRange}` : chunk.file;
+  const signature = chunk.docmeta?.signature || '';
+  const isPlaceholderName = chunk.name === 'blob' || chunk.name === 'root';
+  const isPlaceholderKind = chunk.kind === 'Blob' || (chunk.kind === 'Section' && !chunk.name) || (chunk.kind === 'Module' && !chunk.name);
+  const nameLabel = (!isPlaceholderName && chunk.name) ? String(chunk.name) : '';
+  const kindLabel = isPlaceholderKind ? '' : (chunk.kind ? String(chunk.kind) : '');
+  const fallbackSig = [kindLabel, nameLabel].filter(Boolean).join(' ').trim();
+  const signatureLabel = signature || fallbackSig;
+  const displayName = nameLabel || signatureLabel || fileLabel;
+  const signaturePart = signatureLabel && signatureLabel !== displayName
+    ? formatSignature(signatureLabel, nameLabel || displayName)
+    : '';
+  const lastModLabel = formatLastModified(chunk.last_modified);
+  const filePathStyled = italicColor(chunk.file, ANSI.fgLight);
+  const rangeStyled = lineRange ? colorText(lineRange, ANSI.fgLight) : '';
+  const fileStyled = lineRange
+    ? `${filePathStyled}${colorText(':', ANSI.fgLight)}${rangeStyled}`
+    : filePathStyled;
+  const timeStyled = lastModLabel ? colorText(lastModLabel, ANSI.fgBlack) : '';
+  const line1Parts = [
+    `${index + 1}. ${boldText(displayName)}`,
+    signaturePart,
+    displayName === fileLabel ? '' : fileStyled,
+    timeStyled
+  ].filter(Boolean);
+  out += line1Parts.join(' - ');
   const recordMeta = chunk.docmeta?.record || null;
   if (recordMeta) {
     const recordBits = [];
@@ -432,9 +658,8 @@ export function formatShortChunk({
       out += color.yellow(` [${recordBits.join(' | ')}]`);
     }
   }
-  if (chunk.last_author) out += color.green(` by ${chunk.last_author}`);
-  if (chunk.headline) out += ` - ${color.underline(chunk.headline)}`;
-  else if (chunk.headline && rx) {
+  if (explain && chunk.last_author) out += color.green(` by ${chunk.last_author}`);
+  if (chunk.headline && rx) {
     out += ' - ' + chunk.headline.replace(rx, (m) => color.bold(color.yellow(m)));
   }
 

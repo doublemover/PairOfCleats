@@ -97,7 +97,15 @@ export const compileMatchers = (patterns, label) => {
 
 const matchesAny = (value, matchers) => matchers.some((matcher) => matcher.test(value));
 
-export const applyFilters = ({ tests, lanes, includeMatchers, excludeMatchers, tagInclude, tagExclude }) => {
+export const applyFilters = ({
+  tests,
+  lanes,
+  includeMatchers,
+  excludeMatchers,
+  tagInclude,
+  tagExclude,
+  dropTags = []
+}) => {
   let filtered = tests.filter((test) => lanes.has(test.lane));
   if (tagInclude.length) {
     filtered = filtered.filter((test) => tagInclude.some((tag) => test.tags.includes(tag)));
@@ -112,7 +120,11 @@ export const applyFilters = ({ tests, lanes, includeMatchers, excludeMatchers, t
       matchesAny(test.id, excludeMatchers) || matchesAny(test.relPath, excludeMatchers)
     ));
   }
-  const hasExcludedTag = (test) => tagExclude.some((tag) => test.tags.includes(tag));
+  const dropSet = new Set(dropTags);
+  if (dropSet.size && tagExclude.length) {
+    filtered = filtered.filter((test) => !test.tags.some((tag) => dropSet.has(tag)));
+  }
+  const hasExcludedTag = (test) => tagExclude.some((tag) => !dropSet.has(tag) && test.tags.includes(tag));
   const skipped = tagExclude.length
     ? filtered.filter((test) => hasExcludedTag(test)).map((test) => ({
       ...test,
@@ -139,7 +151,7 @@ export const resolveLanes = (argvLanes, knownLanes) => {
   }
   const resolved = new Set();
   for (const lane of raw) {
-    if (lane === 'ci') {
+    if (lane === 'ci' || lane === 'ci-long') {
       resolved.add('unit');
       resolved.add('integration');
       resolved.add('services');

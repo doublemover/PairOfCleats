@@ -73,7 +73,6 @@
 - `tests\search-contract.js`
 - `tests\search-determinism.js`
 - `tests\search-explain-symbol.js`
-- `tests\search-explain.js`
 - `tests\search-missing-flag-values.js`
 - `tests\search-rrf.js`
 - `tests\search-tie-order.js`

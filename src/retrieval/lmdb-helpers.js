@@ -1,6 +1,6 @@
 import { Unpackr } from 'msgpackr';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 
 const unpackr = new Unpackr();
@@ -22,7 +22,8 @@ export function createLmdbHelpers(options) {
     hnswConfig: rawHnswConfig,
     modelIdDefault,
     fileChargramN,
-    indexDirs
+    indexDirs,
+    denseVectorMode
   } = options;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
 
@@ -112,7 +113,8 @@ export function createLmdbHelpers(options) {
     if (hnswMeta && includeHnsw && hnswConfig.enabled) {
       const indexDir = indexDirs?.[mode] || null;
       if (indexDir) {
-        const { indexPath } = resolveHnswPaths(indexDir);
+        const target = resolveHnswTarget(mode, denseVectorMode);
+        const { indexPath } = resolveHnswPaths(indexDir, target);
         const mergedConfig = {
           ...hnswConfig,
           space: hnswMeta.space || hnswConfig.space,

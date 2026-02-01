@@ -204,6 +204,8 @@ These invariants are validated by `pairofcleats index validate`:
 - Vector dimensionality matches `dims`.
 - `filter_index.fileChunksById` references valid chunk IDs.
 - `pieces/manifest.json` paths exist and `xxh64` checksums match (legacy `sha1` accepted).
+- Manifest `count` values (summed across shards with the same `name`) match loaded record counts in strict validation.
+- Artifact `configHash` values must exclude secrets (e.g., API tokens) and include only content-relevant inputs.
 
 ## Validation and remediation
 

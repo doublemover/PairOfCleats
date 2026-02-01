@@ -159,7 +159,8 @@ For sharded output:
 ## 6) Size limits
 
 - No row may exceed 32KB UTF-8.
-- If a row would exceed the limit, the producer MUST drop the row and MUST record a warning in build logs (or a future stats artifact, if one exists).
+- If a row would exceed the limit, the producer MUST deterministically trim optional fields (e.g., `extensions`, `segmentId`) to fit.
+- If the row still exceeds the limit after trimming, the producer MUST drop the row and MUST record a warning in build logs (or a future stats artifact, if one exists).
 
 ---
 

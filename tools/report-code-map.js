@@ -93,14 +93,14 @@ const buildOptions = {
     openUriTemplate: argv['open-uri-template'] || null,
     ...(isIso
       ? {
-          performance: {
-            displayLimits: {
-              maxFiles: resolvedMaxFiles ?? isoDisplayLimits.maxFiles,
-              maxMembersPerFile: resolvedMaxMembers ?? isoDisplayLimits.maxMembersPerFile,
-              maxEdges: resolvedMaxEdges ?? isoDisplayLimits.maxEdges
-            }
+        performance: {
+          displayLimits: {
+            maxFiles: resolvedMaxFiles ?? isoDisplayLimits.maxFiles,
+            maxMembersPerFile: resolvedMaxMembers ?? isoDisplayLimits.maxMembersPerFile,
+            maxEdges: resolvedMaxEdges ?? isoDisplayLimits.maxEdges
           }
         }
+      }
       : {})
   }
 };

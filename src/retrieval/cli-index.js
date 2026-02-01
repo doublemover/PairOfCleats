@@ -9,9 +9,11 @@ import {
   loadChunkMeta,
   loadJsonArrayArtifact,
   loadTokenPostings,
-  readJsonFile
+  loadJsonObjectArtifact,
+  loadPiecesManifest,
+  resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -22,18 +24,23 @@ import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/
 export async function loadIndex(dir, options) {
   const {
     modelIdDefault,
+    mode = null,
+    denseVectorMode = null,
     fileChargramN,
     includeHnsw = true,
-    hnswConfig: rawHnswConfig
+    hnswConfig: rawHnswConfig,
+    strict = true
   } = options || {};
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
-  const readJson = (name) => {
-    const filePath = path.join(dir, name);
-    return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
-  };
-  const loadOptional = (name) => {
+  const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+  const loadOptionalObject = async (name, fallbackPath = null) => {
     try {
-      return readJson(name);
+      return await loadJsonObjectArtifact(dir, name, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict,
+        fallbackPath
+      });
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
         console.warn(
@@ -43,8 +50,20 @@ export async function loadIndex(dir, options) {
       return null;
     }
   };
-  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
-  const fileMetaRaw = loadOptional('file_meta.json');
+  const loadOptionalArray = async (baseName) => {
+    try {
+      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES, manifest, strict });
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(
+          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
+        );
+      }
+      return null;
+    }
+  };
+  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict });
+  const fileMetaRaw = await loadOptionalArray('file_meta');
   let fileMetaById = null;
   if (Array.isArray(fileMetaRaw)) {
     fileMetaById = new Map();
@@ -74,18 +93,6 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const loadOptionalArray = async (baseName) => {
-    try {
-      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES });
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(
-          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
-        );
-      }
-      return null;
-    }
-  };
   const fileRelationsRaw = await loadOptionalArray('file_relations');
   const repoMap = await loadOptionalArray('repo_map');
   let fileRelations = null;
@@ -97,19 +104,37 @@ export async function loadIndex(dir, options) {
     }
     fileRelations = map;
   }
-  const indexState = loadOptional('index_state.json');
+  const indexState = await loadOptionalObject('index_state', path.join(dir, 'index_state.json'));
   const embeddingsState = indexState?.embeddings || null;
   const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
-  const denseVec = embeddingsReady ? loadOptional('dense_vectors_uint8.json') : null;
-  const denseVecDoc = embeddingsReady ? loadOptional('dense_vectors_doc_uint8.json') : null;
-  const denseVecCode = embeddingsReady ? loadOptional('dense_vectors_code_uint8.json') : null;
+  const denseVec = embeddingsReady
+    ? await loadOptionalObject('dense_vectors', path.join(dir, 'dense_vectors_uint8.json'))
+    : null;
+  const denseVecDoc = embeddingsReady
+    ? await loadOptionalObject('dense_vectors_doc', path.join(dir, 'dense_vectors_doc_uint8.json'))
+    : null;
+  const denseVecCode = embeddingsReady
+    ? await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
+    : null;
+  const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
+  const hnswArtifact = hnswTarget === 'doc'
+    ? 'dense_vectors_doc_hnsw'
+    : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw' : 'dense_vectors_hnsw');
+  const hnswMetaName = hnswTarget === 'doc'
+    ? 'dense_vectors_doc_hnsw_meta'
+    : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw_meta' : 'dense_vectors_hnsw_meta');
+  const hnswPaths = resolveHnswPaths(dir, hnswTarget);
   const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
-    ? loadOptional('dense_vectors_hnsw.meta.json')
+    ? await loadOptionalObject(hnswMetaName, hnswPaths.metaPath)
     : null;
   let hnswIndex = null;
   let hnswAvailable = false;
   if (hnswMeta && includeHnsw && hnswConfig.enabled) {
-    const { indexPath } = resolveHnswPaths(dir);
+    const indexPath = resolveBinaryArtifactPath(dir, hnswArtifact, {
+      manifest,
+      strict,
+      fallbackPath: hnswPaths.indexPath
+    });
     const mergedConfig = {
       ...hnswConfig,
       space: hnswMeta.space || hnswConfig.space,
@@ -126,12 +151,12 @@ export async function loadIndex(dir, options) {
     });
     hnswAvailable = Boolean(hnswIndex);
   }
-  const fieldPostings = loadOptional('field_postings.json');
-  const fieldTokens = loadOptional('field_tokens.json');
+  const fieldPostings = await loadOptionalObject('field_postings', path.join(dir, 'field_postings.json'));
+  const fieldTokens = await loadOptionalArray('field_tokens');
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
   if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
-  const filterIndexRaw = loadOptional('filter_index.json');
+  const filterIndexRaw = await loadOptionalObject('filter_index', path.join(dir, 'filter_index.json'));
   const idx = {
     chunkMeta,
     fileRelations,
@@ -143,14 +168,15 @@ export async function loadIndex(dir, options) {
       available: hnswAvailable,
       index: hnswIndex,
       meta: hnswMeta,
-      space: hnswMeta.space || hnswConfig.space
-    } : { available: false, index: null, meta: null, space: hnswConfig.space },
+      space: hnswMeta.space || hnswConfig.space,
+      target: hnswTarget
+    } : { available: false, index: null, meta: null, space: hnswConfig.space, target: hnswTarget },
     state: indexState,
     fieldPostings,
     fieldTokens,
-    minhash: loadOptional('minhash_signatures.json'),
-    phraseNgrams: loadOptional('phrase_ngrams.json'),
-    chargrams: loadOptional('chargram_postings.json')
+    minhash: await loadOptionalObject('minhash_signatures', path.join(dir, 'minhash_signatures.json')),
+    phraseNgrams: await loadOptionalObject('phrase_ngrams', path.join(dir, 'phrase_ngrams.json')),
+    chargrams: await loadOptionalObject('chargram_postings', path.join(dir, 'chargram_postings.json'))
   };
   if (idx.phraseNgrams?.vocab && !idx.phraseNgrams.vocabIndex) {
     idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((term, i) => [term, i]));

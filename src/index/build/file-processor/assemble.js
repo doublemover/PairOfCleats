@@ -3,6 +3,7 @@ import { getFieldWeight } from '../../field-weighting.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { buildTokenSequence } from '../tokenization.js';
 import { buildExternalDocs } from './meta.js';
+import { log } from '../../../shared/progress.js';
 
 export function buildChunkPayload({
   chunk,
@@ -16,6 +17,10 @@ export function buildChunkPayload({
   fileHashAlgo,
   fileSize,
   tokens,
+  identifierTokens,
+  keywordTokens,
+  operatorTokens,
+  literalTokens,
   seq,
   codeRelations,
   docmeta,
@@ -40,6 +45,7 @@ export function buildChunkPayload({
   const resolvedExt = effectiveExt || ext;
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
+  const tokenClassificationEnabled = postingsConfig?.tokenClassification?.enabled === true;
   const wantsFieldTokens = fieldedEnabled
     || postingsConfig?.chargramSource === 'fields'
     || postingsConfig?.phraseSource === 'fields';
@@ -54,6 +60,9 @@ export function buildChunkPayload({
       }).tokens
       : tokens)
     : [];
+  const resolvedBodyTokens = tokenClassificationEnabled && Array.isArray(identifierTokens)
+    ? identifierTokens
+    : tokens;
   const fieldTokens = wantsFieldTokens ? {
     name: chunk.name ? buildTokenSequence({
       text: chunk.name,
@@ -73,7 +82,12 @@ export function buildChunkPayload({
       : [],
     doc: docTokens,
     comment: commentFieldTokens,
-    body: fieldedEnabled ? tokens : []
+    body: fieldedEnabled ? resolvedBodyTokens : [],
+    ...(tokenClassificationEnabled ? {
+      keyword: Array.isArray(keywordTokens) ? keywordTokens : [],
+      operator: Array.isArray(operatorTokens) ? operatorTokens : [],
+      literal: Array.isArray(literalTokens) ? literalTokens : []
+    } : {})
   } : null;
   const headline = getHeadline(chunk, tokens);
   const externalDocs = relationsEnabled
@@ -123,5 +137,11 @@ export function buildChunkPayload({
     toolInfo,
     analysisPolicy
   });
+  if (analysisPolicy?.metadata?.enabled !== false && !chunkPayload.metaV2) {
+    log(
+      `[metaV2] missing metadata for ${relKey} ` +
+      `(${chunkPayload.start}-${chunkPayload.end})`
+    );
+  }
   return chunkPayload;
 }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getRepoId } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache-extracted-prose');
@@ -31,7 +32,39 @@ const env = {
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
-const run = (args, label) => {
+const repoId = getRepoId(repoRoot);
+const repoCacheBase = path.join(cacheRoot, 'repos', repoId);
+const readTail = (filePath, maxLines = 120) => {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const lines = raw.split(/\r?\n/);
+    return lines.slice(Math.max(0, lines.length - maxLines)).join('\n');
+  } catch {
+    return '';
+  }
+};
+const logCrash = () => {
+  const logsDir = path.join(repoCacheBase, 'logs');
+  const crashLog = path.join(logsDir, 'index-crash.log');
+  const crashState = path.join(logsDir, 'index-crash-state.json');
+  console.error(`Crash logs: ${logsDir}`);
+  if (fs.existsSync(crashState)) {
+    const stateText = readTail(crashState);
+    if (stateText) {
+      console.error('index-crash-state.json:');
+      console.error(stateText);
+    }
+  }
+  if (fs.existsSync(crashLog)) {
+    const tail = readTail(crashLog);
+    if (tail) {
+      console.error('index-crash.log (tail):');
+      console.error(tail);
+    }
+  }
+};
+
+const run = (args, label, { includeCrashLog = false } = {}) => {
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     env,
@@ -40,12 +73,18 @@ const run = (args, label) => {
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());
+    if (result.stdout) console.error(result.stdout.trim());
+    if (includeCrashLog) logCrash();
     process.exit(result.status ?? 1);
   }
   return result.stdout || '';
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot, '--mode', 'extracted-prose'], 'build index');
+run(
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot, '--mode', 'extracted-prose'],
+  'build index',
+  { includeCrashLog: true }
+);
 
 const searchArgs = [
   path.join(root, 'search.js'),

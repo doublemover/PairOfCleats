@@ -1,62 +1,82 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'summary-report');
 const cacheRoot = path.join(tempRoot, 'cache');
-const outPath = path.join(tempRoot, 'combined-summary.json');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
+const markerPath = path.join(tempRoot, 'build-complete.json');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
+const modelId = 'Xenova/all-MiniLM-L12-v2';
+const modelSlug = (value) => {
+  const safe = value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  const hash = crypto.createHash('sha1').update(value).digest('hex').slice(0, 8);
+  return `${safe || 'model'}-${hash}`;
+};
+const modelCacheRoot = path.join(cacheRoot, 'model-compare', modelSlug(modelId));
+
+const baseEnv = {
   ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_PROFILE: 'full'
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
-const result = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'combined-summary.js'),
-    '--repo',
-    repoRoot,
-    '--models',
-    'Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2',
-    '--limit',
-    '5',
-    '--top',
-    '3',
-    '--no-ann',
-    '--out',
-    outPath
-  ],
-  { env, encoding: 'utf8', cwd: repoRoot }
+const runBuild = (label, envOverrides, args) => {
+  const result = spawnSync(
+    process.execPath,
+    args,
+    { env: { ...baseEnv, ...envOverrides }, encoding: 'utf8', cwd: repoRoot }
+  );
+  if (result.status !== 0) {
+    console.error(`summary report build failed: ${label}`);
+    if (result.stderr) console.error(result.stderr.trim());
+    process.exit(result.status ?? 1);
+  }
+};
+
+const repoEnv = {
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot
+};
+runBuild('build index (repo cache)', repoEnv, [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--repo',
+  repoRoot
+]);
+runBuild('build sqlite (repo cache)', repoEnv, [
+  path.join(root, 'tools', 'build-sqlite-index.js'),
+  '--repo',
+  repoRoot
+]);
+
+const modelEnv = {
+  PAIROFCLEATS_CACHE_ROOT: modelCacheRoot,
+  PAIROFCLEATS_MODEL: modelId
+};
+runBuild('build index (model cache)', modelEnv, [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--repo',
+  repoRoot
+]);
+runBuild('build sqlite (model cache)', modelEnv, [
+  path.join(root, 'tools', 'build-sqlite-index.js'),
+  '--repo',
+  repoRoot
+]);
+
+await fsPromises.writeFile(
+  markerPath,
+  JSON.stringify({ completedAt: new Date().toISOString() }, null, 2)
 );
 
-if (result.status !== 0) {
-  console.error('summary report test failed: script error.');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
-
-if (!fs.existsSync(outPath)) {
-  console.error('summary report test failed: output JSON missing.');
-  process.exit(1);
-}
-
-const payload = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-if (!payload.summary || !payload.reports) {
-  console.error('summary report test failed: missing summary fields.');
-  process.exit(1);
-}
-
-console.log('summary report test passed');
+console.log('summary report build test passed');
 

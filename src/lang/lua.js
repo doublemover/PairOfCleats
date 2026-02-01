@@ -6,14 +6,38 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './
  * Lua language chunking and relations.
  * Line-based parser for functions and method definitions.
  */
+export const LUA_RESERVED_WORDS = new Set([
+  'and',
+  'break',
+  'do',
+  'else',
+  'elseif',
+  'end',
+  'false',
+  'for',
+  'function',
+  'goto',
+  'if',
+  'in',
+  'local',
+  'nil',
+  'not',
+  'or',
+  'repeat',
+  'return',
+  'then',
+  'true',
+  'until',
+  'while'
+]);
+
 const LUA_CALL_KEYWORDS = new Set([
-  'if', 'then', 'elseif', 'else', 'for', 'while', 'repeat', 'until', 'return',
-  'function', 'local', 'end', 'do'
+  ...LUA_RESERVED_WORDS
 ]);
 
 const LUA_USAGE_SKIP = new Set([
-  ...LUA_CALL_KEYWORDS,
-  'nil', 'true', 'false', 'self'
+  ...LUA_RESERVED_WORDS,
+  'self'
 ]);
 
 const LUA_DOC_OPTIONS = {

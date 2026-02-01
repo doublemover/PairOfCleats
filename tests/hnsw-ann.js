@@ -4,7 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
-import { rankHnswIndex } from '../src/shared/hnsw.js';
+import { normalizeHnswConfig, rankHnswIndex } from '../src/shared/hnsw.js';
+import { requireHnswLib } from './helpers/optional-deps.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -39,6 +40,8 @@ if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
   process.exit(1);
 }
 
+requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' });
+
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
@@ -70,19 +73,66 @@ run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mo
 run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot], 'build embeddings (prose)');
 
 const userConfig = loadUserConfig(repoRoot);
+const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
 const codeIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
 const codeMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
+const codeDocIndex = path.join(codeDir, 'dense_vectors_doc_hnsw.bin');
+const codeDocMeta = path.join(codeDir, 'dense_vectors_doc_hnsw.meta.json');
+const codeCodeIndex = path.join(codeDir, 'dense_vectors_code_hnsw.bin');
+const codeCodeMeta = path.join(codeDir, 'dense_vectors_code_hnsw.meta.json');
 const proseIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
 const proseMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
+const proseDocIndex = path.join(proseDir, 'dense_vectors_doc_hnsw.bin');
+const proseDocMeta = path.join(proseDir, 'dense_vectors_doc_hnsw.meta.json');
+const proseCodeIndex = path.join(proseDir, 'dense_vectors_code_hnsw.bin');
+const proseCodeMeta = path.join(proseDir, 'dense_vectors_code_hnsw.meta.json');
 
 if (!fs.existsSync(codeIndex) || !fs.existsSync(codeMeta)) {
   console.error('HNSW index missing for code mode.');
   process.exit(1);
 }
+if (!fs.existsSync(codeDocIndex) || !fs.existsSync(codeDocMeta)) {
+  console.error('HNSW doc index missing for code mode.');
+  process.exit(1);
+}
+if (!fs.existsSync(codeCodeIndex) || !fs.existsSync(codeCodeMeta)) {
+  console.error('HNSW code index missing for code mode.');
+  process.exit(1);
+}
 if (!fs.existsSync(proseIndex) || !fs.existsSync(proseMeta)) {
   console.error('HNSW index missing for prose mode.');
+  process.exit(1);
+}
+if (!fs.existsSync(proseDocIndex) || !fs.existsSync(proseDocMeta)) {
+  console.error('HNSW doc index missing for prose mode.');
+  process.exit(1);
+}
+if (!fs.existsSync(proseCodeIndex) || !fs.existsSync(proseCodeMeta)) {
+  console.error('HNSW code index missing for prose mode.');
+  process.exit(1);
+}
+
+const codeState = JSON.parse(fs.readFileSync(path.join(codeDir, 'index_state.json'), 'utf8'));
+const proseState = JSON.parse(fs.readFileSync(path.join(proseDir, 'index_state.json'), 'utf8'));
+if (codeState?.embeddings?.embeddingIdentity?.normalize !== true) {
+  console.error('Expected code embeddingIdentity.normalize=true in index_state.json.');
+  process.exit(1);
+}
+if (proseState?.embeddings?.embeddingIdentity?.normalize !== true) {
+  console.error('Expected prose embeddingIdentity.normalize=true in index_state.json.');
+  process.exit(1);
+}
+
+const codeMetaPayload = JSON.parse(fs.readFileSync(codeMeta, 'utf8'));
+const proseMetaPayload = JSON.parse(fs.readFileSync(proseMeta, 'utf8'));
+if (codeMetaPayload.space !== hnswConfig.space) {
+  console.error(`Expected HNSW code space=${hnswConfig.space}, got ${codeMetaPayload.space}`);
+  process.exit(1);
+}
+if (proseMetaPayload.space !== hnswConfig.space) {
+  console.error(`Expected HNSW prose space=${hnswConfig.space}, got ${proseMetaPayload.space}`);
   process.exit(1);
 }
 

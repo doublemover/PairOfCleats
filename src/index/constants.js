@@ -143,6 +143,7 @@ export const EXTS_PROSE = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc', '.asc
 export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
 export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 export const CLIKE_EXTS = new Set(['.c', '.h', '.cc', '.cpp', '.hpp', '.hh', '.m', '.mm']);
+export const CPP_EXTS = new Set(['.cc', '.cpp', '.hpp', '.hh']);
 export const OBJC_EXTS = new Set(['.m', '.mm']);
 export const RUST_EXTS = new Set(['.rs']);
 export const GO_EXTS = new Set(['.go']);
@@ -252,18 +253,197 @@ export const CLIKE_MODIFIERS = new Set([
   'volatile', 'friend', 'register'
 ]);
 
+export const CLIKE_RESERVED_WORDS = new Set([
+  '_Alignas',
+  '_Alignof',
+  '_Atomic',
+  '_Bool',
+  '_Complex',
+  '_Generic',
+  '_Imaginary',
+  '_Noreturn',
+  '_Static_assert',
+  '_Thread_local',
+  'alignas',
+  'alignof',
+  'and',
+  'and_eq',
+  'asm',
+  'auto',
+  'bitand',
+  'bitor',
+  'bool',
+  'break',
+  'case',
+  'catch',
+  'char',
+  'char16_t',
+  'char32_t',
+  'char8_t',
+  'class',
+  'co_await',
+  'co_return',
+  'co_yield',
+  'compl',
+  'concept',
+  'const',
+  'const_cast',
+  'consteval',
+  'constexpr',
+  'constinit',
+  'continue',
+  'decltype',
+  'default',
+  'delete',
+  'do',
+  'double',
+  'dynamic_cast',
+  'else',
+  'enum',
+  'explicit',
+  'export',
+  'extern',
+  'false',
+  'final',
+  'float',
+  'for',
+  'friend',
+  'goto',
+  'if',
+  'import',
+  'inline',
+  'int',
+  'long',
+  'module',
+  'mutable',
+  'namespace',
+  'new',
+  'noexcept',
+  'not',
+  'not_eq',
+  'nullptr',
+  'operator',
+  'or',
+  'or_eq',
+  'override',
+  'private',
+  'protected',
+  'public',
+  'register',
+  'reinterpret_cast',
+  'requires',
+  'restrict',
+  'return',
+  'short',
+  'signed',
+  'sizeof',
+  'static',
+  'static_assert',
+  'static_cast',
+  'struct',
+  'switch',
+  'template',
+  'this',
+  'thread_local',
+  'throw',
+  'true',
+  'try',
+  'typedef',
+  'typeid',
+  'typename',
+  'union',
+  'unsigned',
+  'using',
+  'virtual',
+  'void',
+  'volatile',
+  'wchar_t',
+  'while',
+  'xor',
+  'xor_eq'
+]);
+
+const OBJC_ONLY_RESERVED_WORDS = [
+  'assign',
+  'atomic',
+  'autoreleasepool',
+  'available',
+  'class',
+  'compatibility_alias',
+  'copy',
+  'defs',
+  'dynamic',
+  'encode',
+  'end',
+  'implementation',
+  'import',
+  'instancetype',
+  'interface',
+  'nonatomic',
+  'null_resettable',
+  'null_unspecified',
+  'nonnull',
+  'nullable',
+  'optional',
+  'package',
+  'private',
+  'property',
+  'protocol',
+  'protected',
+  'public',
+  'readonly',
+  'readwrite',
+  'required',
+  'retain',
+  'selector',
+  'strong',
+  'synchronized',
+  'synthesize',
+  'try',
+  'weak'
+];
+
+export const CPP_RESERVED_WORDS = new Set([
+  ...CLIKE_RESERVED_WORDS
+]);
+
+export const OBJC_RESERVED_WORDS = new Set([
+  ...CLIKE_RESERVED_WORDS,
+  ...OBJC_ONLY_RESERVED_WORDS
+]);
+
 export const CLIKE_CALL_KEYWORDS = new Set([
-  ...CLIKE_SKIP_PREFIXES,
-  'sizeof', 'alignof', 'catch', 'throw', 'new', 'delete', 'goto',
-  'static_cast', 'reinterpret_cast', 'const_cast', 'dynamic_cast'
+  ...CLIKE_RESERVED_WORDS
 ]);
 
 export const CLIKE_USAGE_SKIP = new Set([
-  ...CLIKE_CALL_KEYWORDS,
-  'void', 'int', 'char', 'short', 'long', 'float', 'double', 'bool',
-  'signed', 'unsigned', 'const', 'volatile', 'static', 'extern', 'register',
-  'public', 'private', 'protected', 'template', 'typename', 'using', 'namespace',
-  'true', 'false', 'null', 'nullptr', 'nil', 'self', 'super'
+  ...CLIKE_RESERVED_WORDS,
+  'nil',
+  'null',
+  'self',
+  'super'
+]);
+
+export const CPP_CALL_KEYWORDS = new Set([
+  ...CPP_RESERVED_WORDS
+]);
+
+export const CPP_USAGE_SKIP = new Set([
+  ...CPP_RESERVED_WORDS,
+  'null',
+  'nullptr'
+]);
+
+export const OBJC_CALL_KEYWORDS = new Set([
+  ...OBJC_RESERVED_WORDS
+]);
+
+export const OBJC_USAGE_SKIP = new Set([
+  ...OBJC_RESERVED_WORDS,
+  'nil',
+  'null',
+  'self',
+  'super'
 ]);
 
 export const CLIKE_EXPORT_KINDS = new Set([
@@ -295,6 +475,12 @@ export const isTypeScript = (ext) => TS_EXTS.has(ext);
  * @returns {boolean}
  */
 export const isCLike = (ext) => CLIKE_EXTS.has(ext);
+/**
+ * Check if an extension is C++.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isCpp = (ext) => CPP_EXTS.has(ext);
 /**
  * Check if an extension is Objective-C.
  * @param {string} ext

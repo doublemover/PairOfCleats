@@ -14,7 +14,7 @@ export function getHeadline(chunk, tokens, n = 7, tokenMaxLen = 30, headlineMaxL
     return chunk.docmeta.doc.split(/\s+/).slice(0, n).join(' ');
   }
 
-  if (chunk.name) return chunk.name;
+  if (chunk.name && chunk.name !== 'blob' && chunk.name !== 'root') return chunk.name;
   if (chunk.codeRelations && chunk.codeRelations.name) {
     return chunk.codeRelations.name;
   }

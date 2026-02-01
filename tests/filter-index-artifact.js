@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getEffectiveConfigHash, getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { getEnvConfig } from '../src/shared/env.js';
+import { buildContentConfigHash } from '../src/index/build/runtime/hash.js';
 import { readJsonFile } from '../src/shared/artifact-io.js';
 import { loadIndex } from '../src/retrieval/cli-index.js';
 
@@ -43,7 +45,15 @@ const filterIndexPath = path.join(indexDir, 'filter_index.json');
 const raw = readJsonFile(filterIndexPath);
 assert.ok(Number.isFinite(raw.fileChargramN) && raw.fileChargramN > 0, 'expected fileChargramN to be set');
 assert.equal(raw.schemaVersion, 2, 'expected filter_index schemaVersion=2');
-assert.equal(raw.configHash, getEffectiveConfigHash(repoRoot, userConfig), 'expected filter_index configHash to match');
+assert.equal(
+  raw.configHash,
+  buildContentConfigHash(userConfig, (() => {
+    const envConfig = getEnvConfig() || {};
+    const { apiToken, ...envWithoutSecrets } = envConfig;
+    return envWithoutSecrets;
+  })()),
+  'expected filter_index configHash to match'
+);
 assert.ok(raw.byLang && raw.byLang.javascript, 'expected filter_index to include byLang');
 
 const idx = await loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 1 });

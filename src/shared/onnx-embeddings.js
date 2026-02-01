@@ -119,8 +119,6 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
 
 const onnxCache = new Map();
 
-const normalizeVecInPlace = normalizeEmbeddingVectorInPlace;
-
 export const createRunQueue = () => {
   let runQueue = Promise.resolve();
   return (runStep) => {
@@ -227,7 +225,7 @@ const findOutput = (outputs) => {
   return fallbackKey ? outputs[fallbackKey] : null;
 };
 
-const meanPool = (tensor, attentionMask) => {
+const meanPool = (tensor, attentionMask, normalizeVec) => {
   const dims = tensor?.dims || [];
   if (dims.length !== 3) return [];
   const [batch, seq, hidden] = dims;
@@ -253,12 +251,12 @@ const meanPool = (tensor, attentionMask) => {
         vec[h] = vec[h] / count;
       }
     }
-    output[b] = normalizeVecInPlace(vec);
+    output[b] = normalizeVec(vec);
   }
   return output;
 };
 
-const rowsFromTensor = (tensor) => {
+const rowsFromTensor = (tensor, normalizeVec) => {
   const dims = tensor?.dims || [];
   if (dims.length !== 2) return [];
   const [rows, cols] = dims;
@@ -275,12 +273,13 @@ const rowsFromTensor = (tensor) => {
         vec[c] = data[start + c] ?? 0;
       }
     }
-    out[r] = normalizeVecInPlace(vec);
+    out[r] = normalizeVec(vec);
   }
   return out;
 };
 
-export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) {
+export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, normalize }) {
+  const normalizeVec = normalize === false ? (vec) => vec : normalizeEmbeddingVectorInPlace;
   const normalized = normalizeOnnxConfig(onnxConfig);
   const resolvedModelPath = resolveOnnxModelPath({
     rootDir,
@@ -355,10 +354,10 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
     const mainOutput = findOutput(outputs);
     if (!mainOutput) return Array.from({ length: list.length }, () => []);
     if (Array.isArray(mainOutput?.dims) && mainOutput.dims.length === 2) {
-      return rowsFromTensor(mainOutput);
+      return rowsFromTensor(mainOutput, normalizeVec);
     }
     const mask = encoded.attention_mask;
-    return meanPool(mainOutput, mask);
+    return meanPool(mainOutput, mask, normalizeVec);
   };
   return {
     embedderPromise,

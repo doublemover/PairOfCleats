@@ -125,6 +125,7 @@ export async function attachEmbeddings({
   codeTexts,
   docTexts,
   embeddingEnabled,
+  embeddingNormalize,
   getChunkEmbedding,
   getChunkEmbeddings,
   runEmbedding,
@@ -226,6 +227,7 @@ export async function attachEmbeddings({
   // instead of an empty one to keep downstream consumers consistent.
   const zeroU8 = mergedDims ? new Uint8Array(mergedDims).fill(128) : EMPTY_U8;
 
+  const shouldNormalize = embeddingNormalize !== false;
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     const embedCode = isVectorLike(codeVectors[i]) ? codeVectors[i] : EMPTY_FLOAT;
@@ -233,11 +235,17 @@ export async function attachEmbeddings({
     const hasDoc = isVectorLike(rawDoc) && rawDoc.length;
     const merged = mergeEmbeddingVectors({ codeVector: embedCode, docVector: hasDoc ? rawDoc : missingDoc });
 
-    // Normalize + quantize immediately. Holding full float embeddings for every chunk
+    // Normalize (when enabled) + quantize immediately. Holding full float embeddings for every chunk
     // dramatically increases peak heap usage during indexing.
-    const codeNorm = embedCode.length ? normalizeVec(embedCode) : null;
-    const docNorm = hasDoc ? normalizeVec(rawDoc) : null;
-    const mergedNorm = merged.length ? normalizeVec(merged) : null;
+    const codeNorm = embedCode.length
+      ? (shouldNormalize ? normalizeVec(embedCode) : embedCode)
+      : null;
+    const docNorm = hasDoc
+      ? (shouldNormalize ? normalizeVec(rawDoc) : rawDoc)
+      : null;
+    const mergedNorm = merged.length
+      ? (shouldNormalize ? normalizeVec(merged) : merged)
+      : null;
     const mergedU8 = mergedNorm && mergedNorm.length ? quantizeVecUint8(mergedNorm) : zeroU8;
     const codeU8 = codeNorm && codeNorm.length ? quantizeVecUint8(codeNorm) : mergedU8;
     const docU8 = docNorm && docNorm.length ? quantizeVecUint8(docNorm) : EMPTY_U8;

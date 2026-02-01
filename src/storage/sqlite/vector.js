@@ -1,4 +1,7 @@
-import { quantizeEmbeddingVector } from '../../shared/embedding-utils.js';
+import {
+  clampQuantizedVectorInPlace,
+  quantizeEmbeddingVector
+} from '../../shared/embedding-utils.js';
 
 /**
  * Quantize a float vector into uint8 bins for storage.
@@ -15,7 +18,11 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
 export function resolveQuantizationParams(quantization = {}) {
   const minVal = Number.isFinite(quantization?.minVal) ? Number(quantization.minVal) : -1;
   const maxVal = Number.isFinite(quantization?.maxVal) ? Number(quantization.maxVal) : 1;
-  const levels = Number.isFinite(quantization?.levels) ? Math.floor(Number(quantization.levels)) : 256;
+  const rawLevels = Number(quantization?.levels);
+  let levels = Number.isFinite(rawLevels) ? Math.floor(rawLevels) : 256;
+  if (!Number.isFinite(levels)) levels = 256;
+  if (levels < 2) levels = 2;
+  if (levels > 256) levels = 256;
   return { minVal, maxVal, levels };
 }
 
@@ -29,7 +36,12 @@ export function resolveQuantizationParams(quantization = {}) {
  */
 export function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 256) {
   if (!vec || typeof vec.length !== 'number') return null;
-  const scale = (maxVal - minVal) / (levels - 1);
+  const rawLevels = Number(levels);
+  let resolvedLevels = Number.isFinite(rawLevels) ? Math.floor(rawLevels) : 256;
+  if (!Number.isFinite(resolvedLevels)) resolvedLevels = 256;
+  if (resolvedLevels < 2) resolvedLevels = 2;
+  if (resolvedLevels > 256) resolvedLevels = 256;
+  const scale = (maxVal - minVal) / (resolvedLevels - 1);
   const out = new Float32Array(vec.length);
   for (let i = 0; i < vec.length; i++) {
     out[i] = vec[i] * scale + minVal;
@@ -66,6 +78,13 @@ export function packUint32(values) {
  * @returns {Buffer}
  */
 export function packUint8(values) {
-  const arr = Uint8Array.from(values || []);
+  const list = Array.isArray(values) || ArrayBuffer.isView(values)
+    ? values
+    : Array.from(values || []);
+  const clamped = clampQuantizedVectorInPlace(list);
+  if (clamped > 0) {
+    console.warn(`[sqlite] Uint8 vector values clamped (${clamped} value${clamped === 1 ? '' : 's'}).`);
+  }
+  const arr = list instanceof Uint8Array ? list : Uint8Array.from(list);
   return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
 }

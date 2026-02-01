@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-30T22:53:47.593Z",
+  "generatedAt": "2026-01-31T03:50:28.739Z",
   "scripts": [
     {
       "name": "api-server",
@@ -632,12 +632,6 @@
       "replacement": null
     },
     {
-      "name": "search-explain-test",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
       "name": "search-filters-test",
       "category": "indexing",
       "ciAllowed": false,
@@ -837,6 +831,12 @@
     },
     {
       "name": "test:ci-lite",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:ci-long",
       "category": "test",
       "ciAllowed": true,
       "replacement": null

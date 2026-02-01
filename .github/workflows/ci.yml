@@ -1,12 +1,16 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
   pull_request:
 
 jobs:
-  test:
+  ubuntu:
+    name: ubuntu
     runs-on: ubuntu-latest
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
@@ -35,9 +39,9 @@ jobs:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: PR suite
+      - name: CI Lite
         run: |
-          node tests/run.js --lane ci-lite
+          npm run test:ci-lite
 
       - name: Upload test artifacts
         if: always()
@@ -51,7 +55,8 @@ jobs:
           if-no-files-found: ignore
 
   windows:
-    runs-on: windows-2022
+    name: windows
+    runs-on: windows-latest
     continue-on-error: true
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
@@ -80,15 +85,60 @@ jobs:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Windows CI Lite
+      - name: CI Lite
         run: |
-          node tests/run.js --lane ci-lite
+          npm run test:ci-lite
 
       - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-artifacts-windows
+          path: |
+            tests/.logs/**
+            artifacts/junit.xml
+            .diagnostics/**
+          if-no-files-found: ignore
+
+  macos:
+    name: macos
+    runs-on: macos-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Restore PairOfCleats cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/pairofcleats
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: CI Lite
+        run: |
+          npm run test:ci-lite
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-macos
           path: |
             tests/.logs/**
             artifacts/junit.xml
