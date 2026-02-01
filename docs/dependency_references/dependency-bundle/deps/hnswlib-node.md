@@ -19,4 +19,4 @@ Build/persist a fast approximate nearest neighbor index for embedding vectors wh
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: create HNSW index, addPoint(), searchKnn() for ANN.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: M, efConstruction, efSearch, distance space.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/sqlite-ann-extension.js or a dedicated ANN test. Planned benchmark: tests/bench.js with ANN enabled.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/storage/sqlite/ann/sqlite-ann-extension.test.js or a dedicated ANN test. Planned benchmark: tests/perf/bench/run.test.js with ANN enabled.)

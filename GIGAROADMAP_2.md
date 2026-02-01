@@ -126,28 +126,34 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
     - When graph artifacts exist, resolve neighbors via canonical ids rather than `byName` joins.
     - Keep name-based joins only as an explicit fallback mode with low-confidence markers.
 
-#### Tests
-- [ ] `tests/graph/context-pack-basic.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/retrieval/graph/context-pack-basic.test.js`
   - Build a small fixture graph; request a context pack for a known seed; assert expected caller/callee/import/usage neighbors are present.
-- [ ] `tests/graph/context-pack-caps.test.js`
+- [ ] `tests/retrieval/graph/context-pack-caps.test.js`
   - Use a large synthetic graph fixture; assert truncation metadata is present and stable when caps trigger.
-- [ ] `tests/retrieval/context-expansion-no-candidate-explosion.test.js`
+- [ ] `tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js`
   - Stress fixture with many relations; assert expansion completes within a time/memory budget and does not allocate unbounded candidate arrays.
-- [ ] `tests/retrieval/context-expansion-reason-precedence.test.js`
+- [ ] `tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js`
   - A chunk reachable via multiple relation types records the highest-priority reason deterministically.
-- [ ] `tests/retrieval/context-expansion-shuffled-chunkmeta.test.js`
+- [ ] `tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js`
   - Provide a shuffled `chunkMeta` where array index != docId; assert expansion still resolves correct chunks via a map-based dereference.
 
-Touchpoints (consolidated):
-- `src/retrieval/context-expansion.js` (refactor to become the bounded neighborhood engine)
-- `src/shared/artifact-io.js` (manifest/presence checks)
+Touchpoints (consolidated; anchors are approximate):
+- `src/retrieval/context-expansion.js` (~L1 `pushIds`, ~L8 `buildContextIndex`, ~L77 `expandContext`)
+- `src/shared/artifact-io/manifest.js` (~L254 `resolveArtifactPresence`)
+- `src/shared/artifact-io/loaders.js` (~L312 `loadGraphRelations`)
 - `src/graph/neighborhood.js` (new; deterministic bounded traversal)
 - `src/graph/context-pack.js` (new; pack construction + truncation metadata)
-- `src/retrieval/pipeline.js` (wire expansion hooks)
-- `src/retrieval/output/context.js` (render context packs; harden sanitization)
-- `src/retrieval/cli/options.js` + `src/retrieval/cli/normalize-options.js` (CLI flags)
-- `bin/pairofcleats.js` (CLI wiring: `search --graph-context/--context-pack`)
-- `docs/contracts/search-cli.md` (document CLI + JSON output contract)
+- `src/retrieval/cli/index-loader.js` (~L73 `loadFileRelations`, ~L89 `loadRepoMap`; add `loadGraphRelations`)
+- `src/retrieval/cli/run-search-session.js` (~L86 `contextExpansionEnabled`, ~L486 expansion block)
+- `src/retrieval/cli/normalize-options.js` (~L173 `contextExpansionEnabled`)
+- `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` (CLI flags/help)
+- `src/retrieval/cli/render.js` (~L4 `renderSearchOutput`)
+- `src/retrieval/output/context.js` (~L1 `cleanContext` for context-pack rendering)
+- `bin/pairofcleats.js` (CLI wiring: `search --context-pack` / `--graph-context`)
+- `src/contracts/schemas/analysis.js` (add `GRAPH_CONTEXT_PACK_SCHEMA`)
+- `src/contracts/validators/analysis.js` (add `validateGraphContextPack`)
+- `docs/contracts/analysis-schemas.md` + `docs/contracts/search-cli.md` (schema + CLI JSON)
 
 
 
@@ -172,22 +178,24 @@ Touchpoints (consolidated):
     - impacted symbols in and around changed files, then traverse upstream/downstream bounded.
   - If SCM integration is unavailable, degrade gracefully (explicit warning; still supports explicit `--changed` lists).
 
-#### Tests
-- [ ] `tests/graph/impact-analysis-downstream.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/retrieval/graph/impact-analysis-downstream.test.js`
   - Seed a function; assert downstream impacted nodes include an expected callee and a witness path is returned.
-- [ ] `tests/graph/impact-analysis-upstream.test.js`
+- [ ] `tests/retrieval/graph/impact-analysis-upstream.test.js`
   - Seed a function; assert upstream impacted nodes include an expected caller and a witness path is returned.
-- [ ] `tests/graph/impact-analysis-caps-and-truncation.test.js`
+- [ ] `tests/retrieval/graph/impact-analysis-caps-and-truncation.test.js`
   - Trigger caps deterministically; assert truncation metadata identifies which cap fired and results remain stable.
 
-Touchpoints (consolidated):
+Touchpoints (consolidated; anchors are approximate):
 - `src/graph/impact.js` (new; bounded impact analysis)
 - `src/graph/witness-paths.js` (new; witness path reconstruction)
 - `src/graph/neighborhood.js` (shared traversal primitives)
 - `src/retrieval/cli/impact.js` (new; CLI command implementation)
 - `src/retrieval/output/impact.js` (new; stable human + JSON renderers)
-- `bin/pairofcleats.js` (CLI wiring: `impact`, `impact:explain`)
-- `docs/contracts/search-cli.md` (document new surfaces + JSON schema)
+- `bin/pairofcleats.js` (CLI wiring: `impact`)
+- `src/contracts/schemas/analysis.js` (add `GRAPH_IMPACT_SCHEMA`)
+- `src/contracts/validators/analysis.js` (add `validateGraphImpact`)
+- `docs/contracts/analysis-schemas.md` + `docs/contracts/search-cli.md` (schema + CLI JSON)
 
 
 
@@ -234,24 +242,24 @@ Touchpoints (consolidated):
   - [ ] Explain formatting must not assume `color.gray()` exists.
     - Provide a no-color fallback when `color?.gray` is not a function.
 
-#### Tests
-- [ ] `tests/graph-features/context-pack-assembly.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/retrieval/context-pack/context-pack-assembly.test.js`
   - Build fixture; assemble a context pack; assert it contains primary + at least one neighbor + deterministic truncation structure.
-- [ ] `tests/graph-features/risk-explain-render.test.js`
+- [ ] `tests/retrieval/output/risk-explain-render.test.js`
   - Use a risk-flow fixture; assert output includes a call path and evidence coordinates and remains bounded.
-- [ ] `tests/output/clean-context-fences.test.js`
+- [ ] `tests/retrieval/output/clean-context-fences.test.js`
   - Ensure ```ts / ```json fences are removed (not just bare ```).
-- [ ] `tests/output/clean-context-nonstring-guard.test.js`
+- [ ] `tests/retrieval/output/clean-context-nonstring-guard.test.js`
   - Feed non-string items; assert no crash and only string lines survive.
-- [ ] `tests/output/explain-color-fallback.test.js`
+- [ ] `tests/retrieval/output/explain-color-fallback.test.js`
   - Provide a partial color impl; assert explain rendering does not throw.
 
 Touchpoints (consolidated):
-- `src/retrieval/output/context.js` (hardening: fence stripping, type guards, truncation reporting)
-- `src/retrieval/output/explain.js` (null-safe + color fallback; stable explain schema)
-- `src/retrieval/output/format.js` (structured output plumbing; context-pack JSON integration)
-- `src/retrieval/cli/render-output.js` + `src/retrieval/cli/render.js` (output modes + JSON formatting)
-- `src/retrieval/cli/options.js` (flags: `--context-pack`, `--explain-json`, etc.)
+- `src/retrieval/output/context.js` (~L1 `cleanContext`; hardening: fence stripping, type guards)
+- `src/retrieval/output/explain.js` (~L1 `formatExplainLine`; null-safe + color fallback)
+- `src/retrieval/output/format.js` (~L178 `formatFullChunk`, ~L604 `formatShortChunk`; context-pack JSON integration)
+- `src/retrieval/cli/render-output.js` + `src/retrieval/cli/render.js` (~L4 `renderSearchOutput`)
+- `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` (flags: `--context-pack`, `--explain-json`, etc.)
 - `bin/pairofcleats.js` (CLI wiring for new output modes)
 - `docs/contracts/search-cli.md` (update contract + examples)
 
@@ -272,9 +280,12 @@ Touchpoints (consolidated):
     - Default behavior remains unchanged unless explicitly enabled.
 
 - [ ] Integrate into retrieval ranking with an explicit feature-hook layer.
-  - Touchpoints (expected):
-    - `src/retrieval/pipeline.js` (scoring assembly + explain output)
-    - `src/retrieval/cli/run-search-session.js` / options normalization (flag plumbing)
+  - Touchpoints (expected; anchors are approximate):
+    - `src/retrieval/pipeline.js` (~L25 `createSearchPipeline`; scoring assembly + explain output)
+    - `src/retrieval/cli/run-search-session.js` (~L86 context options + ~L486 expansion block)
+    - `src/retrieval/cli/normalize-options.js` (~L173 context defaults; add graph ranking config)
+    - `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` (flag plumbing + help text)
+    - `src/retrieval/output/explain.js` (~L12 `formatScoreBreakdown` for graph section)
   - Configuration:
     - `retrieval.graphRanking.enabled` (default false)
     - `retrieval.graphRanking.weights` (explicit; versioned defaults)
@@ -283,12 +294,12 @@ Touchpoints (consolidated):
     - When `--explain` (or a dedicated `--explain-ranking`) is enabled, include a `graph` section in the score breakdown:
       - feature contributions and the final blended delta.
 
-#### Tests
-- [ ] `tests/retrieval/graph-ranking-toggle.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/retrieval/ranking/graph-ranking-toggle.test.js`
   - Run the same query with graph ranking off/on; assert result sets are identical but ordering may differ.
-- [ ] `tests/retrieval/graph-ranking-explain.test.js`
+- [ ] `tests/retrieval/ranking/graph-ranking-explain.test.js`
   - With explain enabled, assert output includes named graph feature contributions.
-- [ ] `tests/retrieval/graph-ranking-determinism.test.js`
+- [ ] `tests/retrieval/ranking/graph-ranking-determinism.test.js`
   - Re-run the same query twice with graph ranking enabled; assert ordering and explain payload are stable.
 
 ---
@@ -296,11 +307,13 @@ Touchpoints (consolidated):
 ### 11.5 Graph expansion caps as a config surface + calibration harness (language × size tier)
 
 - [ ] Make graph expansion caps first-class, shared configuration rather than hard-coded constants.
-  - Touchpoints (expected):
-    - `src/index/build/graphs.js` (replace `GRAPH_MAX_NODES/EDGES` constants with config-driven caps; record which cap triggered)
+  - Touchpoints (expected; anchors are approximate):
+    - `src/index/build/graphs.js` (~L6 `GRAPH_MAX_*`, ~L24 `createGraphGuard`; replace constants with config-driven caps; record which cap triggered)
       - Also enforce identity-first graph node IDs for new writes (no `file::name` fallbacks); legacy keys, if still needed, are read-compat only and must not overwrite collisions.
-    - `src/retrieval/context-expansion.js` (use the same cap vocabulary; always emit truncation metadata when caps trigger)
-    - `docs/perf/graph-caps.md` (document defaults and tuning)
+    - `src/index/build/indexer/steps/relations.js` (~L191 `graphRelations` construction; cap logging)
+    - `src/index/build/artifacts/graph-relations.js` (~L19 `graph_relations` meta extensions)
+    - `src/retrieval/context-expansion.js` (~L77 `expandContext`; use same cap vocabulary)
+    - `docs/perf/graph-caps.md` (new; document defaults and tuning)
   - Required behavior:
     - Every expansion returns truncation metadata when it truncates.
     - Truncation metadata must indicate which cap fired and provide counts (omitted nodes/edges/paths) when measurable.
@@ -316,13 +329,13 @@ Touchpoints (consolidated):
     - record timing and output sizes
   - Outputs:
     - versioned bundle under `benchmarks/results/<date>/graph-caps/`
-    - machine-readable defaults: `defaults/graph-caps.json` keyed by language (and optionally tier)
+    - machine-readable defaults: `docs/perf/graph-caps-defaults.json` (new; keyed by language and optional tier)
     - documentation: `docs/perf/graph-caps.md` (p95 behavior for typical tier + presets for huge/problematic)
 
-#### Tests
-- [ ] `tests/graphs/caps-enforced-and-reported.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/indexing/graphs/caps-enforced-and-reported.test.js`
   - Build a small fixture; request deep expansion; assert caps trigger deterministically and truncation metadata is present.
-- [ ] `tests/bench/graph-caps-harness-smoke.test.js`
+- [ ] `tests/perf/bench/graph-caps-harness-smoke.test.js`
   - Run the harness on a tiny in-tree fixture; assert it writes a results JSON file with required fields and deterministic ordering.
 
 ---
@@ -348,11 +361,21 @@ Touchpoints (consolidated):
 - [ ] Optional: enable an artifact emitter for downstream automation.
   - `api_contracts.jsonl` (one record per symbol) with strict schema validation and caps.
 
-#### Tests
-- [ ] `tests/contracts/api-contracts-basic.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/tooling/api-contracts/api-contracts-basic.test.js`
   - Fixture with an exported function called with multiple shapes; assert contract report includes observed calls and a mismatch warning.
-- [ ] `tests/contracts/api-contracts-caps.test.js`
+- [ ] `tests/tooling/api-contracts/api-contracts-caps.test.js`
   - Trigger caps; assert truncation metadata is present and stable.
+
+Touchpoints (consolidated; anchors are approximate):
+- `src/analysis/api-contracts.js` (new; report builder)
+- `src/shared/artifact-io/loaders.js` (~L312 `loadGraphRelations`; add loaders for call_sites/symbols as needed)
+- `src/contracts/schemas/analysis.js` (add `API_CONTRACTS_SCHEMA`)
+- `src/contracts/validators/analysis.js` (add `validateApiContracts`)
+- `src/contracts/schemas/artifacts.js` (add `api_contracts` artifact schema if emitted)
+- `src/index/validate.js` (strict validation for new artifact)
+- `bin/pairofcleats.js` (CLI wiring: `api-contracts`)
+- `docs/contracts/analysis-schemas.md` + `docs/contracts/search-cli.md` (schema + CLI JSON)
 
 ---
 
@@ -370,11 +393,19 @@ Touchpoints (consolidated):
 - [ ] CLI surface:
   - `pairofcleats architecture-check --repo … --rules <path> --format json|md [--fail-on-violation]`
 
-#### Tests
-- [ ] `tests/architecture/forbidden-import-edge.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/tooling/architecture/forbidden-import-edge.test.js`
   - Fixture with a forbidden import; assert violation is reported deterministically.
-- [ ] `tests/architecture/report-is-bounded.test.js`
+- [ ] `tests/tooling/architecture/report-is-bounded.test.js`
   - Large fixture triggers caps; assert truncation metadata exists and report remains parseable.
+
+Touchpoints (consolidated; anchors are approximate):
+- `src/graph/architecture.js` (new; rule evaluation)
+- `src/graph/neighborhood.js` (shared traversal primitives)
+- `src/contracts/schemas/analysis.js` (add `ARCHITECTURE_REPORT_SCHEMA`)
+- `src/contracts/validators/analysis.js` (add `validateArchitectureReport`)
+- `bin/pairofcleats.js` (CLI wiring: `architecture-check`)
+- `docs/contracts/analysis-schemas.md` + `docs/contracts/search-cli.md` (schema + CLI JSON)
 
 ---
 
@@ -393,20 +424,43 @@ Touchpoints (consolidated):
 - [ ] CLI surface:
   - `pairofcleats suggest-tests --repo … --changed <...> --max 50 --format json|md`
 
-#### Tests
-- [ ] `tests/tests-selection/suggest-tests-basic.test.js`
+#### Tests (path-corrected for current test layout)
+- [ ] `tests/tooling/test-selection/suggest-tests-basic.test.js`
   - Fixture where a changed function is called by a test; assert the test is suggested.
-- [ ] `tests/tests-selection/suggest-tests-bounded.test.js`
+- [ ] `tests/tooling/test-selection/suggest-tests-bounded.test.js`
   - Trigger caps; assert truncation metadata is present and ordering is stable.
 
 Touchpoints (consolidated):
 - `src/retrieval/rankers.js` (add graph-aware ranker; keep it opt-in)
 - `src/retrieval/pipeline.js` (ranker selection + scoring integration)
 - `src/retrieval/query-intent.js` (intent signals used by ranker)
-- `src/graph/*` (re-use context pack + neighborhood metadata for ranking features)
-- `src/retrieval/cli/options.js` + `bin/pairofcleats.js` (flags: `--rank graph`, `--rank-default <...>`)
+- `src/graph/*` (new; re-use context pack + neighborhood metadata for ranking features)
+- `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` + `bin/pairofcleats.js` (flags: `--rank graph`, `--rank-default <...>`)
 - `src/retrieval/output/explain.js` (surface ranker contributions in explain)
 - `docs/contracts/search-cli.md` (document ranker options + explain additions)
 
+Additional touchpoints for test selection (new):
+- `src/tooling/suggest-tests.js` (new; core suggestion engine)
+- `bin/pairofcleats.js` (CLI wiring: `suggest-tests`)
+- `docs/contracts/search-cli.md` (document output schema + flags)
+
 ---
+
+### Phase 11 draft schemas (v1 placeholders; to be formalized in `src/contracts/schemas/analysis.js`)
+
+- Graph context pack:
+  - `{ version, seed, nodes[], edges[], paths[], truncation[], warnings[] }`
+  - `seed` should use the canonical reference envelope (resolved/ambiguous/unresolved + candidates + reason + confidence).
+- Impact analysis:
+  - `{ version, seed, direction, depth, impacted[], truncation[], warnings[] }`
+  - `impacted[]` items include `distance`, `confidence`, `witnessPath` (bounded).
+- Context pack assembly:
+  - `{ version, primary, graph, types, risk, truncation[], warnings[] }`
+- API contracts report:
+  - `{ version, symbolId, signature, observedCalls[], warnings[], truncation[] }`
+- Architecture report:
+  - `{ version, rules[], violations[], truncation[] }`
+- Suggest-tests:
+  - `{ version, changed[], suggestions[], truncation[] }`
+
 

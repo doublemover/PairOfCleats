@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadRunConfig, loadRunRules } from './run-config.js';
+import { loadRunConfig, loadRunRules } from './runner/run-config.js';
 import {
   applyFilters,
   assignLane,
@@ -13,8 +13,8 @@ import {
   listTags,
   resolveLanes,
   splitCsv
-} from './run-discovery.js';
-import { parseArgs } from './run-args.js';
+} from './runner/run-discovery.js';
+import { parseArgs } from './runner/run-args.js';
 import {
   mergeNodeOptions,
   normalizeLaneArgs,
@@ -22,9 +22,9 @@ import {
   resolvePhysicalCores,
   resolveRetries,
   resolveTimeout
-} from './run-helpers.js';
-import { runTests } from './run-execution.js';
-import { summarizeResults } from './run-results.js';
+} from './runner/run-helpers.js';
+import { runTests } from './runner/run-execution.js';
+import { summarizeResults } from './runner/run-results.js';
 import {
   buildJsonReport,
   createInitReporter,
@@ -35,7 +35,7 @@ import {
   writeJUnit,
   writeLatestLogPointer,
   writeTimings
-} from './run-reporting.js';
+} from './runner/run-reporting.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');

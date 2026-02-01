@@ -7,7 +7,12 @@ const escapeHtml = (value) => String(value || '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;');
 
-const escapeDot = (value) => String(value || '').replace(/"/g, '\\"');
+const escapeDot = (value) => String(value || '')
+  .replace(/\\/g, '\\\\')
+  .replace(/"/g, '\\"')
+  .replace(/\r/g, '\\r')
+  .replace(/\n/g, '\\n')
+  .replace(/\t/g, '\\t');
 
 const dotId = (value) => `"${escapeDot(value)}"`;
 

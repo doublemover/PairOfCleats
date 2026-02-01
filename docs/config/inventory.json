@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T01:50:00.452Z",
+  "generatedAt": "2026-02-01T14:14:27.540Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -58,10 +58,12 @@
       "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "PAIROFCLEATS_TESTING",
       "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
+      "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
       "PAIROFCLEATS_TEST_LOG_DIR",
+      "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
       "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
       "PAIROFCLEATS_TEST_NODE_OPTIONS",
@@ -803,7 +805,7 @@
       "name": "PAIROFCLEATS_API_TOKEN",
       "files": [
         "src/shared/env.js",
-        "tests/filter-index-config-hash.test.js",
+        "tests/retrieval/filters/filter-index-config-hash.test.js",
         "tools/api-server.js",
         "tools/config-inventory.js"
       ]
@@ -811,10 +813,10 @@
     {
       "name": "PAIROFCLEATS_BENCH_RUN",
       "files": [
-        "tests/perf/bench/scenarios/ann-on-off.js",
-        "tests/perf/bench/scenarios/bm25-params.js",
-        "tests/perf/bench/scenarios/memory-vs-sqlite.js",
-        "tests/perf/bench/scenarios/sqlite-fts.js",
+        "tests/perf/bench/scenarios/ann-on-off.test.js",
+        "tests/perf/bench/scenarios/bm25-params.test.js",
+        "tests/perf/bench/scenarios/memory-vs-sqlite.test.js",
+        "tests/perf/bench/scenarios/sqlite-fts.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -823,7 +825,7 @@
       "files": [
         "src/shared/env.js",
         "tests/perf/baseline-artifacts.test.js",
-        "tests/sqlite-ann-extension.js",
+        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tools/ci/run-suite.js",
         "tools/config-inventory.js"
       ]
@@ -832,130 +834,131 @@
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
         "src/shared/env.js",
-        "tests/api-server-stream.js",
-        "tests/artifact-size-guardrails.js",
-        "tests/build-embeddings-cache.js",
-        "tests/build-embeddings/args-parsing.test.js",
-        "tests/build-embeddings/runtime-defaults.test.js",
-        "tests/build-index-all.js",
-        "tests/cache-gc.js",
-        "tests/chunk-id-backend-parity.js",
-        "tests/churn-filter.js",
-        "tests/clean-artifacts.js",
-        "tests/code-map-basic.js",
-        "tests/code-map-determinism.js",
-        "tests/code-map-dot.js",
-        "tests/code-map-graphviz-fallback.js",
-        "tests/code-map-guardrails.js",
-        "tests/code-map-performance.js",
-        "tests/comment-join.js",
-        "tests/core-api.js",
-        "tests/dict-utils/paths-builds-root.test.js",
-        "tests/e2e-smoke.js",
-        "tests/embedding-batch-autotune.js",
-        "tests/embeddings-cache-identity.js",
-        "tests/embeddings-dims-mismatch.js",
-        "tests/embeddings-validate.js",
-        "tests/encoding-fallback.js",
-        "tests/eval-quality.js",
-        "tests/external-docs.js",
-        "tests/extracted-prose.js",
-        "tests/fielded-bm25.js",
-        "tests/file-line-guard.js",
-        "tests/file-size-guard.js",
-        "tests/filter-index-artifact.js",
-        "tests/fixture-empty.js",
-        "tests/fixture-eval.js",
-        "tests/fixture-parity.js",
-        "tests/format-fidelity.js",
-        "tests/git-blame-range.js",
+        "tests/cli/build-index/build-index-all.test.js",
+        "tests/cli/general/repo-root.test.js",
+        "tests/cli/search/search-contract.test.js",
+        "tests/cli/search/search-determinism.test.js",
+        "tests/cli/search/search-explain-symbol.test.js",
+        "tests/cli/search/search-missing-index.test.js",
+        "tests/cli/search/search-rrf.test.js",
+        "tests/cli/search/search-tie-order.test.js",
+        "tests/cli/search/search-topn-filters.test.js",
+        "tests/cli/search/search-windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
-        "tests/hnsw-ann.js",
-        "tests/hnsw-atomic.js",
-        "tests/import-links.js",
-        "tests/incremental-cache-signature.js",
-        "tests/incremental-manifest.js",
-        "tests/incremental-tokenization-cache.js",
-        "tests/index-lifecycle-contract.js",
-        "tests/index-metrics-options.js",
-        "tests/index-validate.js",
-        "tests/indexer/call-sites-determinism.test.js",
-        "tests/indexer/call-sites-emit-artifacts-none.test.js",
-        "tests/indexer/metav2-finalization-after-inference.test.js",
-        "tests/indexing/type-inference/crossfile-output.integration.test.js",
-        "tests/integration/ann-parity.test.js",
-        "tests/integration/chunkuid-determinism.test.js",
-        "tests/integration/symbol-artifact-determinism.test.js",
-        "tests/js-tree-sitter-maxbytes.js",
-        "tests/lancedb-ann.js",
-        "tests/lmdb-backend.js",
-        "tests/lmdb-corruption.js",
-        "tests/lmdb-report-artifacts.js",
-        "tests/manifest-embeddings-pieces.js",
-        "tests/mcp-robustness.js",
-        "tests/mcp-schema.js",
+        "tests/indexer/call-sites/call-sites-determinism.test.js",
+        "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
+        "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/artifacts/clean-artifacts.test.js",
+        "tests/indexing/artifacts/manifest/report-artifacts-manifest-driven.test.js",
+        "tests/indexing/chunk-id/chunk-id-backend-parity.test.js",
+        "tests/indexing/chunking/comment-join.test.js",
+        "tests/indexing/chunking/formats/format-fidelity.test.js",
+        "tests/indexing/determinism/chunkuid-determinism.test.js",
+        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
+        "tests/indexing/embeddings/build/args-parsing.test.js",
+        "tests/indexing/embeddings/build/build-embeddings-cache.test.js",
+        "tests/indexing/embeddings/build/runtime-defaults.test.js",
+        "tests/indexing/embeddings/embedding-batch-autotune.test.js",
+        "tests/indexing/embeddings/embeddings-cache-identity.test.js",
+        "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
+        "tests/indexing/embeddings/embeddings-validate.test.js",
+        "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
+        "tests/indexing/extracted-prose/extracted-prose.test.js",
+        "tests/indexing/file-caps/file-line-guard.test.js",
+        "tests/indexing/file-caps/file-size-guard.test.js",
+        "tests/indexing/file-processor/skip-minified-binary.test.js",
+        "tests/indexing/git/git-blame-range.test.js",
+        "tests/indexing/imports/import-links.test.js",
+        "tests/indexing/imports/prose-skip-imports.test.js",
+        "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-manifest.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
+        "tests/indexing/lifecycle/index-lifecycle-contract.test.js",
+        "tests/indexing/map/code-map-basic.test.js",
+        "tests/indexing/map/code-map-determinism.test.js",
+        "tests/indexing/map/code-map-dot.test.js",
+        "tests/indexing/map/code-map-graphviz-fallback.test.js",
+        "tests/indexing/map/code-map-guardrails.test.js",
+        "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/metadata/external-docs.test.js",
+        "tests/indexing/metrics/index-metrics-options.test.js",
+        "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/records/records-exclusion.test.js",
+        "tests/indexing/risk/interprocedural/runtime-gating.test.js",
+        "tests/indexing/runtime/two-stage-state.test.js",
+        "tests/indexing/shards/shard-merge.test.js",
+        "tests/indexing/shards/shard-progress-determinism.test.js",
+        "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
+        "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
+        "tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js",
+        "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
+        "tests/indexing/validate/index-validate.test.js",
+        "tests/lang/rust/prose-rust-exclusion.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
-        "tests/piece-assembly.js",
-        "tests/prose-rust-exclusion.js",
-        "tests/prose-skip-imports.js",
-        "tests/query-cache-extracted-prose.js",
-        "tests/query-cache.js",
-        "tests/records-exclusion.js",
-        "tests/repo-root.js",
-        "tests/repometrics-dashboard.js",
-        "tests/report-artifacts-manifest-driven.test.js",
-        "tests/retrieval-strict-manifest-embeddings.js",
-        "tests/risk-interprocedural/runtime-gating.test.js",
+        "tests/retrieval/ann/ann-parity.test.js",
+        "tests/retrieval/ann/hnsw-ann.test.js",
+        "tests/retrieval/ann/hnsw-atomic.test.js",
+        "tests/retrieval/ann/lancedb-ann.test.js",
+        "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
+        "tests/retrieval/cache/query-cache-extracted-prose.test.js",
+        "tests/retrieval/cache/query-cache.test.js",
+        "tests/retrieval/filters/churn-filter.test.js",
+        "tests/retrieval/filters/filter-index-artifact.test.js",
+        "tests/retrieval/ranking/fielded-bm25.test.js",
         "tests/run.js",
-        "tests/runtime-records-config.js",
-        "tests/script-coverage.js",
-        "tests/search-contract.js",
-        "tests/search-determinism.js",
-        "tests/search-explain-symbol.js",
-        "tests/search-missing-index.js",
-        "tests/search-rrf.js",
-        "tests/search-tie-order.js",
-        "tests/search-topn-filters.js",
-        "tests/search-windows-path-filter.js",
+        "tests/services/api/api-server-stream.test.js",
+        "tests/services/api/core-api.test.js",
+        "tests/services/mcp/mcp-robustness.test.js",
+        "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
-        "tests/setup-index-detection.js",
-        "tests/setup.js",
-        "tests/shard-merge.js",
-        "tests/shard-progress-determinism.js",
-        "tests/skip-minified-binary.js",
-        "tests/smoke-retrieval.js",
-        "tests/sqlite-ann-extension.js",
-        "tests/sqlite-ann-fallback.js",
-        "tests/sqlite-auto-backend.js",
-        "tests/sqlite-build-indexes.js",
-        "tests/sqlite-bundle-missing.js",
-        "tests/sqlite-compact.js",
-        "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-index-state-fail-closed.js",
-        "tests/sqlite-missing-dep.js",
-        "tests/sqlite-sidecar-cleanup.js",
-        "tests/structural-filters.js",
-        "tests/subprocess-quoting.js",
-        "tests/summary-report-compare-memory.js",
-        "tests/summary-report-compare-sqlite.js",
-        "tests/summary-report-parity-sqlite-fts.js",
-        "tests/summary-report-parity-sqlite.js",
-        "tests/summary-report.js",
-        "tests/tantivy-smoke.js",
-        "tests/tool-root.js",
-        "tests/two-stage-state.js",
-        "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-lsp-enrichment.js",
-        "tests/unicode-offset.js",
-        "tests/uninstall.js",
-        "tests/unit/lmdb-mapsize.test.js",
-        "tests/vector-extension-missing.js",
+        "tests/shared/cache/cache-gc.test.js",
+        "tests/shared/encoding/encoding-fallback.test.js",
+        "tests/shared/encoding/unicode-offset.test.js",
+        "tests/shared/runtime/runtime-records-config.test.js",
+        "tests/shared/subprocess/subprocess-quoting.test.js",
+        "tests/smoke/e2e-smoke.test.js",
+        "tests/smoke/smoke-retrieval.test.js",
+        "tests/smoke/tantivy-smoke.test.js",
+        "tests/storage/lmdb/lmdb-backend.test.js",
+        "tests/storage/lmdb/lmdb-corruption.test.js",
+        "tests/storage/lmdb/lmdb-mapsize.test.js",
+        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
+        "tests/storage/sqlite/sqlite-auto-backend.test.js",
+        "tests/storage/sqlite/sqlite-build-indexes.test.js",
+        "tests/storage/sqlite/sqlite-bundle-missing.test.js",
+        "tests/storage/sqlite/sqlite-compact.test.js",
+        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
+        "tests/storage/sqlite/sqlite-index-state-fail-closed.test.js",
+        "tests/storage/sqlite/sqlite-missing-dep.test.js",
+        "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
+        "tests/storage/vector-extension/vector-extension-missing.test.js",
+        "tests/tooling/dict-utils/paths-builds-root.test.js",
+        "tests/tooling/eval/eval-quality.test.js",
+        "tests/tooling/fixtures/fixture-empty.test.js",
+        "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/fixtures/fixture-parity.test.js",
+        "tests/tooling/install/setup-index-detection.test.js",
+        "tests/tooling/install/setup.test.js",
+        "tests/tooling/install/tool-root.test.js",
+        "tests/tooling/install/uninstall.test.js",
+        "tests/tooling/reports/repometrics-dashboard.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report.test.js",
+        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/structural/structural-filters.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
@@ -974,7 +977,6 @@
     {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
-        "tests/uninstall.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -990,112 +992,113 @@
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
         "src/shared/env.js",
-        "tests/api-server-stream.js",
-        "tests/artifact-size-guardrails.js",
-        "tests/build-embeddings-cache.js",
-        "tests/build-embeddings/runtime-defaults.test.js",
-        "tests/build-index-all.js",
-        "tests/chunk-id-backend-parity.js",
-        "tests/churn-filter.js",
-        "tests/code-map-basic.js",
-        "tests/code-map-determinism.js",
-        "tests/code-map-dot.js",
-        "tests/code-map-graphviz-fallback.js",
-        "tests/code-map-guardrails.js",
-        "tests/code-map-performance.js",
-        "tests/comment-join.js",
-        "tests/core-api.js",
-        "tests/e2e-smoke.js",
-        "tests/embeddings-cache-identity.js",
-        "tests/embeddings-dims-mismatch.js",
-        "tests/embeddings-validate.js",
-        "tests/encoding-fallback.js",
-        "tests/eval-quality.js",
-        "tests/external-docs.js",
-        "tests/extracted-prose.js",
-        "tests/fielded-bm25.js",
-        "tests/file-line-guard.js",
-        "tests/file-size-guard.js",
-        "tests/filter-index-artifact.js",
-        "tests/fixture-empty.js",
-        "tests/fixture-eval.js",
-        "tests/fixture-parity.js",
-        "tests/format-fidelity.js",
-        "tests/git-blame-range.js",
+        "tests/cli/build-index/build-index-all.test.js",
+        "tests/cli/general/repo-root.test.js",
+        "tests/cli/search/search-contract.test.js",
+        "tests/cli/search/search-determinism.test.js",
+        "tests/cli/search/search-explain-symbol.test.js",
+        "tests/cli/search/search-missing-index.test.js",
+        "tests/cli/search/search-rrf.test.js",
+        "tests/cli/search/search-tie-order.test.js",
+        "tests/cli/search/search-topn-filters.test.js",
+        "tests/cli/search/search-windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
-        "tests/hnsw-ann.js",
-        "tests/hnsw-atomic.js",
-        "tests/import-links.js",
-        "tests/incremental-cache-signature.js",
-        "tests/incremental-manifest.js",
-        "tests/incremental-tokenization-cache.js",
-        "tests/index-lifecycle-contract.js",
-        "tests/index-metrics-options.js",
-        "tests/index-validate.js",
-        "tests/indexer/call-sites-determinism.test.js",
-        "tests/indexer/call-sites-emit-artifacts-none.test.js",
-        "tests/indexer/metav2-finalization-after-inference.test.js",
-        "tests/indexing/type-inference/crossfile-output.integration.test.js",
-        "tests/integration/ann-parity.test.js",
-        "tests/integration/chunkuid-determinism.test.js",
-        "tests/integration/symbol-artifact-determinism.test.js",
-        "tests/js-tree-sitter-maxbytes.js",
-        "tests/lancedb-ann.js",
-        "tests/lmdb-backend.js",
-        "tests/lmdb-corruption.js",
-        "tests/lmdb-report-artifacts.js",
-        "tests/manifest-embeddings-pieces.js",
-        "tests/parity.js",
+        "tests/indexer/call-sites/call-sites-determinism.test.js",
+        "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
+        "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/chunk-id/chunk-id-backend-parity.test.js",
+        "tests/indexing/chunking/comment-join.test.js",
+        "tests/indexing/chunking/formats/format-fidelity.test.js",
+        "tests/indexing/determinism/chunkuid-determinism.test.js",
+        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
+        "tests/indexing/embeddings/build/build-embeddings-cache.test.js",
+        "tests/indexing/embeddings/build/runtime-defaults.test.js",
+        "tests/indexing/embeddings/embeddings-cache-identity.test.js",
+        "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
+        "tests/indexing/embeddings/embeddings-validate.test.js",
+        "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
+        "tests/indexing/extracted-prose/extracted-prose.test.js",
+        "tests/indexing/file-caps/file-line-guard.test.js",
+        "tests/indexing/file-caps/file-size-guard.test.js",
+        "tests/indexing/file-processor/skip-minified-binary.test.js",
+        "tests/indexing/git/git-blame-range.test.js",
+        "tests/indexing/imports/import-links.test.js",
+        "tests/indexing/imports/prose-skip-imports.test.js",
+        "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-manifest.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
+        "tests/indexing/lifecycle/index-lifecycle-contract.test.js",
+        "tests/indexing/map/code-map-basic.test.js",
+        "tests/indexing/map/code-map-determinism.test.js",
+        "tests/indexing/map/code-map-dot.test.js",
+        "tests/indexing/map/code-map-graphviz-fallback.test.js",
+        "tests/indexing/map/code-map-guardrails.test.js",
+        "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/metadata/external-docs.test.js",
+        "tests/indexing/metrics/index-metrics-options.test.js",
+        "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/records/records-exclusion.test.js",
+        "tests/indexing/runtime/two-stage-state.test.js",
+        "tests/indexing/shards/shard-merge.test.js",
+        "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
+        "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
+        "tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js",
+        "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
+        "tests/indexing/validate/index-validate.test.js",
+        "tests/lang/rust/prose-rust-exclusion.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
-        "tests/piece-assembly.js",
-        "tests/prose-rust-exclusion.js",
-        "tests/prose-skip-imports.js",
-        "tests/query-cache-extracted-prose.js",
-        "tests/query-cache.js",
-        "tests/records-exclusion.js",
-        "tests/repo-root.js",
-        "tests/retrieval-strict-manifest-embeddings.js",
-        "tests/script-coverage.js",
-        "tests/search-contract.js",
-        "tests/search-determinism.js",
-        "tests/search-explain-symbol.js",
-        "tests/search-missing-index.js",
-        "tests/search-rrf.js",
-        "tests/search-tie-order.js",
-        "tests/search-topn-filters.js",
-        "tests/search-windows-path-filter.js",
-        "tests/shard-merge.js",
-        "tests/skip-minified-binary.js",
-        "tests/smoke-retrieval.js",
-        "tests/sqlite-ann-extension.js",
-        "tests/sqlite-ann-fallback.js",
-        "tests/sqlite-auto-backend.js",
-        "tests/sqlite-build-indexes.js",
-        "tests/sqlite-bundle-missing.js",
-        "tests/sqlite-compact.js",
-        "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-index-state-fail-closed.js",
-        "tests/sqlite-missing-dep.js",
-        "tests/sqlite-sidecar-cleanup.js",
-        "tests/subprocess-quoting.js",
-        "tests/summary-report-compare-memory.js",
-        "tests/summary-report-compare-sqlite.js",
-        "tests/summary-report-parity-sqlite-fts.js",
-        "tests/summary-report-parity-sqlite.js",
-        "tests/summary-report.js",
-        "tests/tantivy-smoke.js",
-        "tests/tool-root.js",
-        "tests/two-stage-state.js",
-        "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-lsp-enrichment.js",
-        "tests/unicode-offset.js",
-        "tests/unit/lmdb-mapsize.test.js",
+        "tests/retrieval/ann/ann-parity.test.js",
+        "tests/retrieval/ann/hnsw-ann.test.js",
+        "tests/retrieval/ann/hnsw-atomic.test.js",
+        "tests/retrieval/ann/lancedb-ann.test.js",
+        "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
+        "tests/retrieval/cache/query-cache-extracted-prose.test.js",
+        "tests/retrieval/cache/query-cache.test.js",
+        "tests/retrieval/filters/churn-filter.test.js",
+        "tests/retrieval/filters/filter-index-artifact.test.js",
+        "tests/retrieval/parity/parity.test.js",
+        "tests/retrieval/ranking/fielded-bm25.test.js",
+        "tests/services/api/api-server-stream.test.js",
+        "tests/services/api/core-api.test.js",
+        "tests/shared/encoding/encoding-fallback.test.js",
+        "tests/shared/encoding/unicode-offset.test.js",
+        "tests/shared/subprocess/subprocess-quoting.test.js",
+        "tests/smoke/e2e-smoke.test.js",
+        "tests/smoke/smoke-retrieval.test.js",
+        "tests/smoke/tantivy-smoke.test.js",
+        "tests/storage/lmdb/lmdb-backend.test.js",
+        "tests/storage/lmdb/lmdb-corruption.test.js",
+        "tests/storage/lmdb/lmdb-mapsize.test.js",
+        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
+        "tests/storage/sqlite/sqlite-auto-backend.test.js",
+        "tests/storage/sqlite/sqlite-build-indexes.test.js",
+        "tests/storage/sqlite/sqlite-bundle-missing.test.js",
+        "tests/storage/sqlite/sqlite-compact.test.js",
+        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
+        "tests/storage/sqlite/sqlite-index-state-fail-closed.test.js",
+        "tests/storage/sqlite/sqlite-missing-dep.test.js",
+        "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
+        "tests/tooling/eval/eval-quality.test.js",
+        "tests/tooling/fixtures/fixture-empty.test.js",
+        "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/fixtures/fixture-parity.test.js",
+        "tests/tooling/install/tool-root.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report.test.js",
+        "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
@@ -1107,7 +1110,6 @@
     {
       "name": "PAIROFCLEATS_EXTENSIONS_DIR",
       "files": [
-        "tests/uninstall.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1122,9 +1124,8 @@
       "name": "PAIROFCLEATS_HOME",
       "files": [
         "tests/helpers/mcp-client.js",
-        "tests/mcp-robustness.js",
-        "tests/mcp-schema.js",
-        "tests/uninstall.js",
+        "tests/services/mcp/mcp-robustness.test.js",
+        "tests/services/mcp/mcp-schema.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1162,9 +1163,9 @@
         "src/shared/runtime-envelope.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/perf/bench/run.test.js",
-        "tests/runtime-envelope-node-options-merge.js",
-        "tests/runtime/runtime-envelope-spawn-env.test.js",
-        "tests/sqlite-incremental-no-change.js",
+        "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
+        "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
+        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1179,7 +1180,7 @@
       "name": "PAIROFCLEATS_MCP_QUEUE_MAX",
       "files": [
         "src/shared/env.js",
-        "tests/mcp-robustness.js",
+        "tests/services/mcp/mcp-robustness.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1187,14 +1188,14 @@
       "name": "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
       "files": [
         "src/shared/env.js",
-        "tests/mcp-robustness.js",
+        "tests/services/mcp/mcp-robustness.test.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
-        "tests/summary-report.js",
+        "tests/tooling/reports/summary/summary-report.test.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1202,7 +1203,6 @@
     {
       "name": "PAIROFCLEATS_MODELS_DIR",
       "files": [
-        "tests/uninstall.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1211,38 +1211,38 @@
       "name": "PAIROFCLEATS_NODE_OPTIONS",
       "files": [
         "src/shared/runtime-envelope.js",
-        "tests/runtime-envelope-node-options-merge.js",
-        "tests/runtime/runtime-envelope-spawn-env.test.js",
+        "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
+        "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_PROFILE",
       "files": [
-        "tests/fixture-parity.js",
-        "tests/structural-search.js",
+        "tests/tooling/fixtures/fixture-parity.test.js",
+        "tests/tooling/structural/structural-search.test.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
-        "tests/all.js",
+        "tests/runner/all.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "files": [
-        "tests/all.js",
+        "tests/runner/all.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
       "files": [
-        "tests/all.js",
-        "tests/script-coverage/actions.js",
+        "tests/runner/all.js",
+        "tests/tooling/script-coverage/actions.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1276,10 +1276,18 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
+      "files": [
+        "tests/runner/harness/timeout-kills-tree.test.js",
+        "tests/runner/harness/timeout-target.test.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "files": [
         "tests/helpers/fixture-index.js",
-        "tests/run-execution.js",
+        "tests/runner/run-execution.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tools/config-inventory.js"
       ]
@@ -1287,7 +1295,7 @@
     {
       "name": "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "files": [
-        "tests/code-map-performance.js",
+        "tests/indexing/map/code-map-performance.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1295,30 +1303,31 @@
       "name": "PAIROFCLEATS_TEST_CONFIG",
       "files": [
         "src/shared/env.js",
-        "tests/artifact-size-guardrails.js",
-        "tests/build-index-all.js",
-        "tests/contracts/golden-surface-suite.test.js",
+        "tests/cli/build-index/build-index-all.test.js",
         "tests/helpers/test-env.js",
-        "tests/incremental-cache-signature.js",
-        "tests/incremental-tokenization-cache.js",
-        "tests/index-validate.js",
-        "tests/indexer/call-sites-determinism.test.js",
-        "tests/indexer/call-sites-emit-artifacts-none.test.js",
-        "tests/indexer/metav2-finalization-after-inference.test.js",
-        "tests/indexing/type-inference/crossfile-output.integration.test.js",
-        "tests/integration/symbol-artifact-determinism.test.js",
-        "tests/lmdb-report-artifacts.js",
-        "tests/piece-assembly.js",
-        "tests/query-cache-extracted-prose.js",
-        "tests/query-cache.js",
+        "tests/indexer/call-sites/call-sites-determinism.test.js",
+        "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
+        "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/contracts/golden-surface-suite.test.js",
+        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
+        "tests/indexing/file-processor/skip-minified-binary.test.js",
+        "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
+        "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/shards/shard-merge.test.js",
+        "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
+        "tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js",
+        "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
+        "tests/indexing/validate/index-validate.test.js",
+        "tests/retrieval/cache/query-cache-extracted-prose.test.js",
+        "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
-        "tests/shard-merge.js",
-        "tests/skip-minified-binary.js",
-        "tests/sqlite-ann-extension.js",
-        "tests/sqlite-auto-backend.js",
-        "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-lsp-enrichment.js",
+        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
+        "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1327,22 +1336,23 @@
       "files": [
         "tests/helpers/triage.js",
         "tests/run.js",
-        "tests/script-coverage.js",
-        "tests/script-coverage/runner.js",
+        "tests/tooling/script-coverage/runner.js",
+        "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_LOG_SILENT",
       "files": [
-        "tests/helpers/test-env.js"
+        "tests/helpers/test-env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
       "files": [
         "src/shared/env.js",
-        "tests/artifact-size-guardrails.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1363,9 +1373,9 @@
     {
       "name": "PAIROFCLEATS_TEST_PID_FILE",
       "files": [
-        "tests/harness/timeout-kills-tree.test.js",
-        "tests/harness/timeout-target.js",
-        "tests/run-execution.js",
+        "tests/runner/harness/timeout-kills-tree.test.js",
+        "tests/runner/harness/timeout-target.test.js",
+        "tests/runner/run-execution.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1373,14 +1383,14 @@
       "name": "PAIROFCLEATS_TEST_RETRIES",
       "files": [
         "tests/run.js",
-        "tests/script-coverage.js",
+        "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_TANTIVY",
       "files": [
-        "tests/tantivy-smoke.js",
+        "tests/smoke/tantivy-smoke.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1394,8 +1404,8 @@
     {
       "name": "PAIROFCLEATS_TEST_TIMEOUT_MS",
       "files": [
-        "tests/indexer/metav2-finalization-after-inference.test.js",
-        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
         "tests/run.js",
         "tools/config-inventory.js"
       ]
@@ -1404,98 +1414,100 @@
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/env.js",
-        "tests/all.js",
-        "tests/artifact-size-guardrails.js",
-        "tests/build-embeddings-cache.js",
-        "tests/build-embeddings/args-parsing.test.js",
-        "tests/build-embeddings/runtime-defaults.test.js",
-        "tests/build-index-all.js",
-        "tests/cli/risk-explain.test.js",
-        "tests/code-map-basic.js",
-        "tests/code-map-determinism.js",
-        "tests/code-map-dot.js",
-        "tests/code-map-guardrails.js",
-        "tests/code-map-performance.js",
-        "tests/comment-join.js",
-        "tests/contracts/golden-surface-suite.test.js",
-        "tests/contracts/index-compatibility-key-enforced-on-load.test.js",
-        "tests/contracts/index-compatibility-key-federation-block.test.js",
-        "tests/contracts/loader-matrix-parity.test.js",
-        "tests/dict-utils/paths-builds-root.test.js",
-        "tests/embedding-batch-autotune.js",
-        "tests/extracted-prose.js",
-        "tests/file-line-guard.js",
-        "tests/file-size-guard.js",
-        "tests/filter-index-artifact.js",
-        "tests/fixture-empty.js",
-        "tests/format-fidelity.js",
+        "tests/cli/build-index/build-index-all.test.js",
+        "tests/cli/general/risk-explain.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/test-env.js",
-        "tests/hnsw-ann.js",
-        "tests/incremental-cache-signature.js",
-        "tests/incremental-manifest.js",
-        "tests/incremental-tokenization-cache.js",
-        "tests/index-lifecycle-contract.js",
-        "tests/index-metrics-options.js",
-        "tests/index-validate.js",
-        "tests/indexer/call-sites-determinism.test.js",
-        "tests/indexer/call-sites-emit-artifacts-none.test.js",
-        "tests/indexer/metav2-finalization-after-inference.test.js",
-        "tests/indexing/type-inference/crossfile-output.integration.test.js",
-        "tests/integration/ann-parity.test.js",
-        "tests/integration/chunkuid-determinism.test.js",
-        "tests/integration/symbol-artifact-determinism.test.js",
-        "tests/js-tree-sitter-maxbytes.js",
-        "tests/lancedb-ann.js",
-        "tests/lmdb-backend.js",
-        "tests/lmdb-corruption.js",
-        "tests/lmdb-report-artifacts.js",
-        "tests/logging/stdout-contract.test.js",
-        "tests/manifest-embeddings-pieces.js",
-        "tests/mcp-robustness.js",
-        "tests/mcp-schema.js",
-        "tests/parity.js",
+        "tests/indexer/call-sites/call-sites-determinism.test.js",
+        "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
+        "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/chunking/comment-join.test.js",
+        "tests/indexing/chunking/formats/format-fidelity.test.js",
+        "tests/indexing/contracts/golden-surface-suite.test.js",
+        "tests/indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+        "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
+        "tests/indexing/contracts/loader-matrix-parity.test.js",
+        "tests/indexing/determinism/chunkuid-determinism.test.js",
+        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
+        "tests/indexing/embeddings/build/args-parsing.test.js",
+        "tests/indexing/embeddings/build/build-embeddings-cache.test.js",
+        "tests/indexing/embeddings/build/runtime-defaults.test.js",
+        "tests/indexing/embeddings/embedding-batch-autotune.test.js",
+        "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
+        "tests/indexing/extracted-prose/extracted-prose.test.js",
+        "tests/indexing/file-caps/file-line-guard.test.js",
+        "tests/indexing/file-caps/file-size-guard.test.js",
+        "tests/indexing/file-processor/skip-minified-binary.test.js",
+        "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-manifest.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
+        "tests/indexing/lifecycle/index-lifecycle-contract.test.js",
+        "tests/indexing/map/code-map-basic.test.js",
+        "tests/indexing/map/code-map-determinism.test.js",
+        "tests/indexing/map/code-map-dot.test.js",
+        "tests/indexing/map/code-map-guardrails.test.js",
+        "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/metrics/index-metrics-options.test.js",
+        "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/records/records-exclusion.test.js",
+        "tests/indexing/risk/interprocedural/artifacts-written.test.js",
+        "tests/indexing/risk/interprocedural/runtime-gating.test.js",
+        "tests/indexing/runtime/two-stage-state.test.js",
+        "tests/indexing/shards/shard-merge.test.js",
+        "tests/indexing/shards/shard-progress-determinism.test.js",
+        "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
+        "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
+        "tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js",
+        "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
+        "tests/indexing/validate/index-validate.test.js",
+        "tests/lang/rust/prose-rust-exclusion.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
-        "tests/piece-assembly.js",
-        "tests/prose-rust-exclusion.js",
-        "tests/query-cache-extracted-prose.js",
-        "tests/query-cache.js",
-        "tests/records-exclusion.js",
-        "tests/retrieval-strict-manifest-embeddings.js",
-        "tests/retrieval/query-cache-signature-sharded-chunk-meta.test.js",
-        "tests/risk-interprocedural/artifacts-written.test.js",
-        "tests/risk-interprocedural/runtime-gating.test.js",
+        "tests/retrieval/ann/ann-parity.test.js",
+        "tests/retrieval/ann/hnsw-ann.test.js",
+        "tests/retrieval/ann/lancedb-ann.test.js",
+        "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
+        "tests/retrieval/cache/query-cache-extracted-prose.test.js",
+        "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
+        "tests/retrieval/cache/query-cache.test.js",
+        "tests/retrieval/filters/filter-index-artifact.test.js",
+        "tests/retrieval/parity/parity.test.js",
         "tests/run.js",
-        "tests/runtime-records-config.js",
-        "tests/script-coverage.js",
+        "tests/runner/all.js",
+        "tests/services/mcp/mcp-robustness.test.js",
+        "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
-        "tests/setup-index-detection.js",
-        "tests/shard-merge.js",
-        "tests/shard-progress-determinism.js",
-        "tests/skip-minified-binary.js",
-        "tests/smoke-retrieval.js",
-        "tests/sqlite-ann-extension.js",
-        "tests/sqlite-ann-fallback.js",
-        "tests/sqlite-auto-backend.js",
-        "tests/sqlite-build-indexes.js",
-        "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-missing-dep.js",
-        "tests/structural-filters.js",
-        "tests/summary-report-compare-memory.js",
-        "tests/summary-report-compare-sqlite.js",
-        "tests/summary-report-parity-sqlite-fts.js",
-        "tests/summary-report-parity-sqlite.js",
-        "tests/summary-report.js",
-        "tests/tantivy-smoke.js",
-        "tests/two-stage-state.js",
-        "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-lsp-enrichment.js",
-        "tests/unit/lmdb-mapsize.test.js",
-        "tests/vector-extension-missing.js",
+        "tests/shared/logging/stdout-contract.test.js",
+        "tests/shared/runtime/runtime-records-config.test.js",
+        "tests/smoke/smoke-retrieval.test.js",
+        "tests/smoke/tantivy-smoke.test.js",
+        "tests/storage/lmdb/lmdb-backend.test.js",
+        "tests/storage/lmdb/lmdb-corruption.test.js",
+        "tests/storage/lmdb/lmdb-mapsize.test.js",
+        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
+        "tests/storage/sqlite/sqlite-auto-backend.test.js",
+        "tests/storage/sqlite/sqlite-build-indexes.test.js",
+        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
+        "tests/storage/sqlite/sqlite-missing-dep.test.js",
+        "tests/storage/vector-extension/vector-extension-missing.test.js",
+        "tests/tooling/dict-utils/paths-builds-root.test.js",
+        "tests/tooling/fixtures/fixture-empty.test.js",
+        "tests/tooling/install/setup-index-detection.test.js",
+        "tests/tooling/install/uninstall.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
+        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
+        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report.test.js",
+        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/structural/structural-filters.test.js",
         "tools/ci/run-suite.js",
         "tools/config-inventory.js",
         "tools/dict-utils/cache.js",
@@ -1518,7 +1530,7 @@
     {
       "name": "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "files": [
-        "tests/mcp-schema.js",
+        "tests/services/mcp/mcp-schema.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1526,8 +1538,8 @@
       "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "files": [
         "src/shared/runtime-envelope.js",
-        "tests/runtime-envelope-uv-threadpool-precedence.js",
-        "tests/runtime/runtime-envelope-spawn-env.test.js",
+        "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
+        "tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1542,7 +1554,7 @@
       "name": "PAIROFCLEATS_WATCHER_BACKEND",
       "files": [
         "src/shared/env.js",
-        "tests/watch-backend-selection.js",
+        "tests/indexing/watch/watch-backend-selection.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1551,20 +1563,21 @@
       "files": [
         "src/index/build/failure-taxonomy.js",
         "src/shared/env.js",
-        "tests/artifact-size-guardrails.js",
-        "tests/code-map-guardrails.js",
-        "tests/code-map-performance.js",
-        "tests/encoding-fallback.js",
+        "tests/cli/search/search-explain-symbol.test.js",
+        "tests/cli/search/search-windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/sqlite-incremental.js",
-        "tests/incremental-cache-signature.js",
-        "tests/indexer/call-sites-determinism.test.js",
-        "tests/indexer/call-sites-emit-artifacts-none.test.js",
-        "tests/js-tree-sitter-maxbytes.js",
+        "tests/indexer/call-sites/call-sites-determinism.test.js",
+        "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
+        "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/map/code-map-guardrails.test.js",
+        "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
-        "tests/search-explain-symbol.js",
-        "tests/search-windows-path-filter.js",
-        "tests/sqlite-incremental-no-change.js",
+        "tests/shared/encoding/encoding-fallback.test.js",
+        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tools/ci/run-suite.js",
         "tools/config-inventory.js"
       ]
@@ -1580,9 +1593,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_TEST_LOG_SILENT"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 208,
     "publicFlags": [
@@ -1839,44 +1850,6 @@
         ]
       },
       {
-        "file": "tests/all.js",
-        "flags": [
-          "log-dir",
-          "retries",
-          "skip-bench",
-          "skip-script-coverage"
-        ]
-      },
-      {
-        "file": "tests/context-expansion.js",
-        "flags": [
-          "includeCalls",
-          "includeImports",
-          "includeUsages",
-          "maxPerHit",
-          "maxTotal"
-        ]
-      },
-      {
-        "file": "tests/fixture-eval.js",
-        "flags": [
-          "backend",
-          "json",
-          "out",
-          "top",
-          "write-report"
-        ]
-      },
-      {
-        "file": "tests/fixture-parity.js",
-        "flags": [
-          "all",
-          "fixture",
-          "fixtures",
-          "timeout-ms"
-        ]
-      },
-      {
         "file": "tests/fixtures/medium/generate.js",
         "flags": [
           "clean",
@@ -1886,27 +1859,44 @@
         ]
       },
       {
-        "file": "tests/imports-options-forwarding-flowmode.js",
+        "file": "tests/indexing/imports/imports-options-forwarding-flowmode.test.js",
         "flags": [
           "flowMode"
         ]
       },
       {
-        "file": "tests/integration/map-chunkuid-join.test.js",
+        "file": "tests/indexing/map/map-build-symbol-identity.test.js",
         "flags": [
           "include",
           "strict"
         ]
       },
       {
-        "file": "tests/map/map-build-symbol-identity.test.js",
+        "file": "tests/indexing/map/map-chunkuid-join.test.js",
         "flags": [
           "include",
           "strict"
         ]
       },
       {
-        "file": "tests/parity.js",
+        "file": "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/retrieval/context/context-expansion.test.js",
+        "flags": [
+          "includeCalls",
+          "includeImports",
+          "includeUsages",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
+        "file": "tests/retrieval/parity/parity.test.js",
         "flags": [
           "ann",
           "enforce",
@@ -1925,14 +1915,16 @@
         ]
       },
       {
-        "file": "tests/script-coverage.js",
+        "file": "tests/runner/all.js",
         "flags": [
           "log-dir",
-          "retries"
+          "retries",
+          "skip-bench",
+          "skip-script-coverage"
         ]
       },
       {
-        "file": "tests/smoke.js",
+        "file": "tests/smoke/smoke.test.js",
         "flags": [
           "require-dicts",
           "require-index",
@@ -1940,10 +1932,29 @@
         ]
       },
       {
-        "file": "tests/tree-sitter-chunks.js",
+        "file": "tests/tooling/fixtures/fixture-eval.test.js",
         "flags": [
-          "log",
-          "treeSitter"
+          "backend",
+          "json",
+          "out",
+          "top",
+          "write-report"
+        ]
+      },
+      {
+        "file": "tests/tooling/fixtures/fixture-parity.test.js",
+        "flags": [
+          "all",
+          "fixture",
+          "fixtures",
+          "timeout-ms"
+        ]
+      },
+      {
+        "file": "tests/tooling/script-coverage/script-coverage.test.js",
+        "flags": [
+          "log-dir",
+          "retries"
         ]
       },
       {
@@ -2632,7 +2643,7 @@
         "flag": "json",
         "count": 25,
         "files": [
-          "tests/fixture-eval.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/api-server.js",
           "tools/bench-dict-seg.js",
           "tools/bench-query-generator.js",
@@ -2663,9 +2674,9 @@
         "flag": "out",
         "count": 23,
         "files": [
-          "tests/fixture-eval.js",
           "tests/fixtures/medium/generate.js",
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/assemble-pieces.js",
           "tools/bench-dict-seg.js",
           "tools/bench-query-generator.js",
@@ -2793,8 +2804,8 @@
         "flag": "top",
         "count": 7,
         "files": [
-          "tests/fixture-eval.js",
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/eval/run.js",
@@ -2806,7 +2817,7 @@
         "flag": "ann",
         "count": 5,
         "files": [
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/eval/run.js",
@@ -2839,7 +2850,7 @@
         "flag": "backend",
         "count": 4,
         "files": [
-          "tests/fixture-eval.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/compare-models.js",
           "tools/eval/run.js",
           "tools/parity-matrix.js"
@@ -2860,8 +2871,8 @@
         "count": 4,
         "files": [
           "src/map/build-map.js",
-          "tests/integration/map-chunkuid-join.test.js",
-          "tests/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-chunkuid-join.test.js",
           "tools/report-code-map.js"
         ]
       },
@@ -2869,7 +2880,7 @@
         "flag": "limit",
         "count": 4,
         "files": [
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/parity-matrix.js"
@@ -2879,7 +2890,7 @@
         "flag": "queries",
         "count": 4,
         "files": [
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/parity-matrix.js"
@@ -2889,8 +2900,8 @@
         "flag": "strict",
         "count": 4,
         "files": [
-          "tests/integration/map-chunkuid-join.test.js",
-          "tests/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-chunkuid-join.test.js",
           "tools/index-validate.js",
           "tools/tooling-doctor.js"
         ]
@@ -2909,7 +2920,7 @@
         "flag": "all",
         "count": 3,
         "files": [
-          "tests/fixture-parity.js",
+          "tests/tooling/fixtures/fixture-parity.test.js",
           "tools/clean-artifacts.js",
           "tools/report-artifacts.js"
         ]
@@ -2938,7 +2949,7 @@
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
-          "tests/tree-sitter-chunks.js"
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
         ]
       },
       {
@@ -2974,7 +2985,7 @@
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
-          "tests/tree-sitter-chunks.js"
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
         ]
       },
       {
@@ -3037,7 +3048,7 @@
         "flag": "fixture",
         "count": 2,
         "files": [
-          "tests/fixture-parity.js",
+          "tests/tooling/fixtures/fixture-parity.test.js",
           "tools/bench-dict-seg.js"
         ]
       },
@@ -3069,8 +3080,8 @@
         "flag": "log-dir",
         "count": 2,
         "files": [
-          "tests/all.js",
-          "tests/script-coverage.js"
+          "tests/runner/all.js",
+          "tests/tooling/script-coverage/script-coverage.test.js"
         ]
       },
       {
@@ -3149,8 +3160,8 @@
         "flag": "retries",
         "count": 2,
         "files": [
-          "tests/all.js",
-          "tests/script-coverage.js"
+          "tests/runner/all.js",
+          "tests/tooling/script-coverage/script-coverage.test.js"
         ]
       },
       {
@@ -3165,7 +3176,7 @@
         "flag": "search",
         "count": 2,
         "files": [
-          "tests/parity.js",
+          "tests/retrieval/parity/parity.test.js",
           "tools/parity-matrix.js"
         ]
       },
@@ -3293,8 +3304,8 @@
         "flag": "write-report",
         "count": 2,
         "files": [
-          "tests/fixture-eval.js",
-          "tests/parity.js"
+          "tests/retrieval/parity/parity.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js"
         ]
       }
     ],

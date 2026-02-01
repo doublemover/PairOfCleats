@@ -40,7 +40,7 @@ jobs:
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Nightly suite
-        run: npm run test:nightly
+        run: node tools/ci/run-suite.js --mode nightly
 
       - name: Upload test artifacts
         if: always()
@@ -48,7 +48,7 @@ jobs:
         with:
           name: nightly-artifacts-${{ matrix.os }}
           path: |
-            tests/.logs/**
+            .testLogs/**
             artifacts/junit.xml
             .diagnostics/**
           if-no-files-found: ignore

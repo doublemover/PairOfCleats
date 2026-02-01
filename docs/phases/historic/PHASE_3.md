@@ -449,7 +449,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phas
 - [x] Expand tests to cover surrogate pairs (emoji), CRLF offsets, and risk rules/config edge cases.
   - Primary touchpoints:
     - `src/integrations/tooling/lsp/positions.js`
-    - `tests/metadata-v2.js`
+    - `tests/indexing/metav2/metadata-v2.test.js`
     - `docs/guides/risk-rules.md`
   - Tests:
     - Add emoji + CRLF offset tests for LSP mapping.

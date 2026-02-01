@@ -1,7 +1,7 @@
 # Test Runner Entrypoint -- Interface Sketch
 
 ## Context / problem
-The current developer experience for running tests is dominated by a very large `package.json` scripts surface that mostly expands to `node tests/<file>.js`. In this repo, **204** top-level scripts live directly under `tests/*.js` (plus many more under `tests/**`). This causes:
+Historically the test surface was flat and dominated by many one-off scripts under `tests/*.js`. The suite now lives under subsystem folders with `*.test.js` files, but the same discovery and triage issues remain without a stable runner entrypoint. This causes:
 
 - **Discovery overhead:** developers search for "the right script name" instead of selecting a test intent (unit/integration/services/etc.).
 - **Poor triage:** many "tests" are actually *suites* that cover multiple domains; a single failure gives little guidance.
@@ -13,7 +13,7 @@ This document specifies a **single, stable test entrypoint** and its interface, 
 
 1. Provide one canonical entrypoint to run tests locally and in CI.
 2. Support **lanes** (curated groups) and **selectors** (run a subset quickly).
-3. Preserve existing tests as-is (at first): the runner can execute the existing `tests/*.js` scripts.
+3. Preserve existing tests as-is (at first): the runner can execute existing `tests/**/*.test.js` scripts.
 4. Make failures easier to interpret: stable output, deterministic ordering, and clear summaries.
 5. Support CI needs: retries, timeouts, logging, and optionally machine-readable output.
 
@@ -28,7 +28,6 @@ Canonical entrypoints:
 
 - `pairofcleats test ...` (CLI subcommand)
 - `node tests/run.js ...` (repo-local runner)
-- `npm test` (wired to `node tests/run.js`)
 
 The docs below describe behavior independent of the concrete executable name.
 
@@ -121,11 +120,10 @@ The runner needs a stable way to know "what tests exist." Two compatible approac
 
 ### A) Convention-based discovery (recommended initially)
 
-- Discover tests as executable Node scripts under `tests/`, e.g. `tests/*.js`, excluding:
+- Discover tests as executable Node scripts under `tests/`, e.g. `tests/**/*.test.js`, excluding:
   - `tests/fixtures/**`
-  - `tests/**/helpers/**` (if created)
-  - Orchestrators that are not leaf tests (`tests/all.js`, `tests/run.js`, `tests/script-coverage.js`)
-  - Internal helpers under `tests/script-coverage/**`
+  - `tests/helpers/**`
+  - Any non-`*.test.js` helper modules
 
 Test **id** is the relative path from `tests/` without extension, e.g. `storage/sqlite/incremental/file-manifest-updates.test`.
 
@@ -152,7 +150,7 @@ Lanes are the main lever for "few comprehensive entrypoints." Proposed lane set:
 
 - `smoke`
   - Fast, high-signal checks.
-  - Example contents: `tests/smoke.js`, plus a small set of fast contract tests.
+  - Example contents: `tests/smoke/smoke.test.js`, plus a small set of fast contract tests.
 
 - `unit`
   - Pure logic tests, no indexing, no servers, no external binaries.
@@ -220,7 +218,7 @@ pairofcleats test perf/bench/run.test -- --limit 10
 
 ## Migration plan (runner adoption)
 
-1. **Introduce runner (no test moves required):** runner discovers and executes existing `tests/*.js` scripts.
+1. **Introduce runner (no test moves required):** runner discovers and executes existing `tests/**/*.test.js` scripts.
 2. **Define lanes:** start with a small explicit map for `smoke`, `services`, `storage`, `perf`; default everything else to `integration`.
 3. **Split monolith tests (see companion document):** convert the biggest multi-domain suites into multiple smaller tests.
 4. **Optional:** move to a manifest-based system to stabilize ids and lane membership.

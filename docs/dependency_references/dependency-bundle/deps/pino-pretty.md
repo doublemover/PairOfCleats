@@ -19,4 +19,4 @@ Pretty-print Pino JSON logs in dev while keeping structured logs for production;
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use pino transport target `pino-pretty` when pretty logging is enabled (src/shared/progress.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (pretty flag, level, ringMax, ringMaxBytes; transport options colorize/translateTime (src/shared/progress.js).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/fixture-smoke.js (logging path). Benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/fixtures/build-and-artifacts.test.js (logging path). Benchmark: tools/bench-language-repos.js.)

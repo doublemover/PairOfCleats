@@ -82,13 +82,13 @@ These documents define the "best version" design details:
     - [x] Ensure indexing concurrency fields referenced by envelope are schema-valid
 
 #### Tests / Verification
-- [x] `tests/runtime-envelope-uv-threadpool-precedence.js`
+- [x] `tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js`
   - [x] Cover default, config request, and external UV override cases
-- [x] `tests/runtime-envelope-node-options-merge.js`
+- [x] `tests/shared/runtime/runtime-envelope-node-options-merge.test.js`
   - [x] Cover max-old-space merge + external NODE_OPTIONS override
-- [x] `tests/index-config-dump.js`
+- [x] `tests/indexing/config/index-config-dump.test.js`
   - [x] Assert dump includes schemaVersion/runtime/concurrency/queues/envPatch
-- [x] `tests/runtime/runtime-envelope-spawn-env.test.js`
+- [x] `tests/shared/runtime/runtime-envelope-spawn-env.test.js`
   - [x] Spawn a tiny Node child via the tool's wrapper
   - [x] Assert child sees expected `UV_THREADPOOL_SIZE` and `NODE_OPTIONS`
   - [x] Assert `NODE_OPTIONS` merge preserves unrelated flags
@@ -123,10 +123,10 @@ These documents define the "best version" design details:
   - [x] Ensure queues reject/enqueue with backpressure once pending limit is hit
 
 #### Tests / Verification
-- [x] `tests/thread-limits-precedence-cli-over-env.js`
-- [x] `tests/io-concurrency-cap-uv-threadpool.js`
-- [x] `tests/shard-runtime-uses-threadlimits-io.js`
-- [x] `tests/concurrency/pending-limit-enforced.test.js`
+- [x] `tests/shared/runtime/thread-limits-precedence-cli-over-env.test.js`
+- [x] `tests/shared/concurrency/io-concurrency-cap-uv-threadpool.test.js`
+- [x] `tests/indexing/shards/shard-runtime-uses-threadlimits-io.test.js`
+- [x] `tests/shared/concurrency/pending-limit-enforced.test.js`
 
 ---
 
@@ -156,9 +156,9 @@ These documents define the "best version" design details:
   - [x] Any embedding batch scheduling
 
 #### Tests / Verification
-- [x] `tests/concurrency-run-with-queue-best-effort.js`
-- [x] `tests/concurrency-run-with-queue-abort.js`
-- [x] `tests/async/runwithqueue-failfast.test.js`
+- [x] `tests/shared/concurrency/concurrency-run-with-queue-best-effort.test.js`
+- [x] `tests/shared/concurrency/concurrency-run-with-queue-abort.test.js`
+- [x] `tests/shared/async/runwithqueue-failfast.test.js`
 
 ---
 
@@ -185,8 +185,8 @@ These documents define the "best version" design details:
   - [x] Integrate with `docs/phases/phase-4/subprocess-helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
 
 #### Tests / Verification
-- [x] `tests/abort/abort-propagates-to-queues.test.js`
-- [x] `tests/abort/abort-propagates-to-subprocess.test.js`
+- [x] `tests/shared/abort/abort-propagates-to-queues.test.js`
+- [x] `tests/shared/abort/abort-propagates-to-subprocess.test.js`
 
 ---
 
@@ -219,9 +219,9 @@ These documents define the "best version" design details:
   - [x] Stable truncation rules
 
 #### Tests / Verification
-- [x] `tests/logging/stdout-contract.test.js`
-- [x] `tests/progress/total-zero-safe.test.js`
-- [x] `tests/progress/tty-normalization.test.js`
+- [x] `tests/shared/logging/stdout-contract.test.js`
+- [x] `tests/shared/progress/total-zero-safe.test.js`
+- [x] `tests/shared/progress/tty-normalization.test.js`
 
 ---
 
@@ -245,9 +245,9 @@ These documents define the "best version" design details:
   - [x] tie into Phase 4.4 abort semantics
 
 #### Tests / Verification
-- [x] `tests/json-stream/gzip-options-forwarded.test.js`
-- [x] `tests/json-stream/maxbytes-enforced.test.js`
-- [x] `tests/json-stream/abort-closes-stream.test.js`
+- [x] `tests/shared/json-stream/gzip-options-forwarded.test.js`
+- [x] `tests/shared/json-stream/maxbytes-enforced.test.js`
+- [x] `tests/shared/json-stream/abort-closes-stream.test.js`
 
 ---
 
@@ -275,9 +275,9 @@ These documents define the "best version" design details:
   - [x] `src/index/build/discover.js`
 
 #### Tests / Verification
-- [x] `tests/file-caps/pre-read-skip-respects-language.test.js`
-- [x] `tests/file-caps/cached-bundle-respects-caps.test.js`
-- [x] `tests/file-caps/doc-mode-large-markdown-not-skipped.test.js` (only if `byMode` exists)
+- [x] `tests/indexing/file-caps/pre-read-skip-respects-language.test.js`
+- [x] `tests/indexing/file-caps/cached-bundle-respects-caps.test.js`
+- [x] `tests/indexing/file-caps/doc-mode-large-markdown-not-skipped.test.js` (only if `byMode` exists)
 
 ---
 
@@ -308,10 +308,10 @@ These documents define the "best version" design details:
   - [x] prove inputs are not user-driven and are bounded
 
 #### Tests / Verification
-- [x] `tests/safe-regex/program-size-cap.test.js`
-- [x] `tests/safe-regex/input-length-cap.test.js`
-- [x] `tests/safe-regex/flags-normalization.test.js`
-- [x] `tests/risk-rules/invalid-pattern-diagnostics.test.js`
+- [x] `tests/shared/safe-regex/program-size-cap.test.js`
+- [x] `tests/shared/safe-regex/input-length-cap.test.js`
+- [x] `tests/shared/safe-regex/flags-normalization.test.js`
+- [x] `tests/indexing/risk/rules/invalid-pattern-diagnostics.test.js`
 
 ---
 
@@ -340,10 +340,10 @@ These documents define the "best version" design details:
     `tools/map-iso-serve.js`
 
 #### Tests / Verification
-- [x] `tests/subprocess/spawn-error-propagates.test.js`
-- [x] `tests/subprocess/abort-kills-child.test.js`
-- [x] `tests/subprocess/timeout-kills-child.test.js`
-- [x] `tests/subprocess/capture-bounds.test.js`
+- [x] `tests/shared/subprocess/spawn-error-propagates.test.js`
+- [x] `tests/shared/subprocess/abort-kills-child.test.js`
+- [x] `tests/shared/subprocess/timeout-kills-child.test.js`
+- [x] `tests/shared/subprocess/capture-bounds.test.js`
 
 ---
 
@@ -371,9 +371,9 @@ These documents define the "best version" design details:
     - [x] fallback decoding warnings must be bounded and "warn once per file per run"
 
 #### Tests / Verification
-- [x] `tests/embeddings/merge-vectors-no-nan.test.js`
-- [x] `tests/embeddings/quantize-normalization-parity.test.js` (if multiple forms emitted)
-- [x] `tests/encoding/metadata-plumbed-and-reused.test.js`
+- [x] `tests/indexing/embeddings/merge-vectors-no-nan.test.js`
+- [x] `tests/indexing/embeddings/quantize-normalization-parity.test.js` (if multiple forms emitted)
+- [x] `tests/shared/encoding/metadata-plumbed-and-reused.test.js`
 
 ---
 
@@ -397,8 +397,8 @@ These documents define the "best version" design details:
   - [x] all artifact writes that claim atomicity must call the same helper
 
 #### Tests / Verification
-- [x] `tests/fs/atomic-replace-cleans-bak.test.js`
-- [x] `tests/fs/atomic-replace-cross-device-fallback.test.js`
+- [x] `tests/shared/fs/atomic-replace-cleans-bak.test.js`
+- [x] `tests/shared/fs/atomic-replace-cross-device-fallback.test.js`
 
 ---
 

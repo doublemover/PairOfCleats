@@ -298,13 +298,13 @@ These are the most relevant existing modules to modify:
 
 ## 9. Tests (exact)
 
-1. `tests/tooling/provider-registry-normalizes-legacy-keys.test.js`
+1. `tests/tooling/providers/provider-registry-normalizes-legacy-keys.test.js`
    - Feed a fake provider output keyed by `file::name` and assert it normalizes into `byChunkUid`.
 
-2. `tests/tooling/provider-registry-merges-deterministically.test.js`
+2. `tests/tooling/providers/provider-registry-merges-deterministically.test.js`
    - Two fake providers emit overlapping chunks; assert merge is deterministic and provenance retained.
 
-3. `tests/tooling/provider-registry-strict-missing-chunkuid.test.js`
+3. `tests/tooling/providers/provider-registry-strict-missing-chunkuid.test.js`
    - Provide a target missing chunkUid; assert strict mode fails fast with actionable error.
 
 

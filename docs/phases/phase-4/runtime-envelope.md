@@ -254,7 +254,7 @@ Additionally, because runtime envelope must resolve concurrency from indexing co
 Add Node test modules under `tests/` (Node's built-in test runner is already used).
 
 ### 8.1 runtime envelope requested/effective semantics
-Create: `tests/runtime-envelope-uv-threadpool-precedence.js`
+Create: `tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js`
 
 Cases:
 1. No requested value, no base env: effective is 4 (default), patch is empty.
@@ -262,7 +262,7 @@ Cases:
 3. Base env UV_THREADPOOL_SIZE set: patch does not override; warning emitted if requested differs.
 
 ### 8.2 NODE_OPTIONS and max-old-space merging
-Create: `tests/runtime-envelope-node-options-merge.js`
+Create: `tests/shared/runtime/runtime-envelope-node-options-merge.test.js`
 
 Cases:
 1. Requested maxOldSpaceMb when base NODE_OPTIONS absent ⇒ patch adds `--max-old-space-size=...`.
@@ -270,7 +270,7 @@ Cases:
 3. Requested nodeOptions appended only once.
 
 ### 8.3 config dump surface
-Create: `tests/index-config-dump.js`
+Create: `tests/indexing/config/index-config-dump.test.js`
 
 Run `node scripts/build_index.js --config-dump --json` and assert:
 * exit code 0
@@ -286,7 +286,7 @@ Run `node scripts/build_index.js --config-dump --json` and assert:
   * delete it (preferred), or
   * re-implement it as a thin wrapper around envelope resolution.
 
-* Keep do-not-clobber behavior for `UV_THREADPOOL_SIZE` and `NODE_OPTIONS` to align with later roadmap phases and existing tests (`tests/uv-threadpool-no-override.js`).
+* Keep do-not-clobber behavior for `UV_THREADPOOL_SIZE` and `NODE_OPTIONS` to align with later roadmap phases and existing tests (`tests/shared/runtime/uv-threadpool-no-override.test.js`).
 
 ---
 

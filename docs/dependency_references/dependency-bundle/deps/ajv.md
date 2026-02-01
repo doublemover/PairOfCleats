@@ -21,4 +21,4 @@ Validate `.pairofcleats.json` and other JSON-based config artifacts with predict
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use `new Ajv({ allErrors: true, allowUnionTypes: true, strict: true })` and `ajv.compile(schema)` for artifact and failure schema validators; persist compiled validators in memory (src/shared/artifact-schemas.js, src/index/build/failure-taxonomy.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (Options: allErrors, strict, allowUnionTypes (configured in src/shared/artifact-schemas.js and src/index/build/failure-taxonomy.js).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/index-validate.js (tools/index-validate.js on fixtures). Benchmark: tools/bench-language-repos.js (index build + validation).)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/validate/index-validate.test.js (tools/index-validate.js on fixtures). Benchmark: tools/bench-language-repos.js (index build + validation).)

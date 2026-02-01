@@ -173,15 +173,15 @@ If two targets share the same `chunkUid` (should not happen if chunkUid collisio
 
 ## 10. Tests (exact)
 
-1. `tests/tooling/lsp-bychunkuid-keying.test.js`
+1. `tests/tooling/lsp/lsp-bychunkuid-keying.test.js`
    - Fake LSP client returns deterministic payload; assert map keys are chunkUid.
 
-2. `tests/tooling/lsp-restart-generation-safety.test.js`
+2. `tests/tooling/lsp/lsp-restart-generation-safety.test.js`
    - Simulate old process exit after new start; assert new process remains active.
 
-3. `tests/tooling/lsp-vfs-didopen.test.js`
+3. `tests/tooling/lsp/lsp-vfs-didopen.test.js`
    - Ensure didOpen is sent for virtual doc before hover.
 
-4. `tests/tooling/lsp-failure-accounting-per-target.test.js`
+4. `tests/tooling/lsp/lsp-failure-accounting-per-target.test.js`
    - Retry loop triggers one failure count per target.
 

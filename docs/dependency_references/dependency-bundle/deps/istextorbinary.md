@@ -18,4 +18,4 @@ Determine whether a file should be decoded/parsed as text when magic-number dete
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use isText/isBinary on buffers to skip binary files during discovery.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: sample size, non-text threshold.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/binary/. Planned benchmark: tests/discover.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/binary/. Planned benchmark: tests/indexing/discovery/discover.test.js.)

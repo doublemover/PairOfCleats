@@ -19,4 +19,4 @@ Use a RE2-compatible engine in JS contexts that must avoid catastrophic backtrac
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: compile regexes via re2js for safe matching in risk rules and search filters.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: max program size, flags, timeout.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/language-fidelity.js risk rules. Planned benchmark: tests/bench.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/retrieval/filters/risk.test.js. Planned benchmark: tests/perf/bench/run.test.js.)

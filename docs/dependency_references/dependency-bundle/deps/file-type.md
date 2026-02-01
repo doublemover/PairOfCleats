@@ -18,4 +18,4 @@ Detect file types by signature to avoid treating binary assets as text and to ro
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use fileTypeFromBuffer() for magic-byte detection before text parsing.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: sample byte count, allowlist/denylist by type.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/binary/ (png/pdf/zip). Planned benchmark: tests/discover.js or tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/binary/ (png/pdf/zip). Planned benchmark: tests/indexing/discovery/discover.test.js or tools/bench-language-repos.js.)

@@ -275,18 +275,18 @@ Never cache legacy `file::name` keys.
 
 ## 13. Tests (exact)
 
-1. `tests/tooling/typescript-js-parity-basic.test.js`
+1. `tests/tooling/lsp/typescript/typescript-js-parity-basic.test.js`
    - Fixture: `.js` file with JSDoc types.
    - Assert provider returns non-empty returnType for a target.
 
-2. `tests/tooling/typescript-vfs-segment-vue.test.js`
+2. `tests/tooling/lsp/typescript/typescript-vfs-segment-vue.test.js`
    - Fixture: `.vue` with `<script lang="ts">`.
    - Assert provider runs on the virtual doc and returns types for chunks inside script.
 
-3. `tests/tooling/typescript-node-matching-range.test.js`
+3. `tests/tooling/lsp/typescript/typescript-node-matching-range.test.js`
    - Provide two same-named functions; ensure range-based match picks correct one.
 
-4. `tests/tooling/typescript-ambiguous-fallback-does-not-guess.test.js`
+4. `tests/tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess.test.js`
    - Remove reliable range mapping and create two candidates; ensure provider marks ambiguous.
 
 

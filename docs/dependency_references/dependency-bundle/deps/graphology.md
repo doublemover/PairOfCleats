@@ -20,4 +20,4 @@ Represent call/import/usage graphs and run standard graph algorithms for ranking
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use Graph/DirectedGraph to store call and flow graphs; persist adjacency lists to artifacts.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: directed vs undirected, multigraph, weighted edges.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/graphs/. Planned benchmark: tests/type-inference-crossfile.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/graphs/. Planned benchmark: tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js.)

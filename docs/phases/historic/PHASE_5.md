@@ -133,13 +133,13 @@ Ensure `metaV2.types.inferred.params` (and `tooling.params`) is **never silently
 
 ## Tests
 
-- [x] Extend `tests/metadata-v2.js` (or add targeted tests under `tests/contracts/`) to cover param maps:
+- [x] Extend `tests/indexing/metav2/metadata-v2.test.js` (or add targeted tests under `tests/contracts/`) to cover param maps:
   - Fixture docmeta includes `inferredTypes.params = { opts: [{type:'WidgetOpts', source:'tooling'}] }`.
   - Assert `metaV2.types.inferred.params.opts` exists and is a non-empty array.
-- [x] Add `tests/metadata-v2-param-map-tooling-split.test.js`
+- [x] Add `tests/indexing/metav2/metadata-v2-param-map-tooling-split.test.js`
   - `docmeta.inferredTypes.params` contains mixed `source: tooling` and non-tooling entries.
   - Assert `metaV2.types.tooling.params.<name>` contains only tooling entries and `metaV2.types.inferred.params.<name>` contains the rest.
-- [x] Add `tests/validate/metav2-rejects-invalid-type-shapes.test.js`
+- [x] Add `tests/indexing/validate/metav2-rejects-invalid-type-shapes.test.js`
   - Tamper `metaV2.types.inferred.params` into an array; strict validate must fail.
 
 ---
@@ -193,13 +193,13 @@ Guarantee that any enrichment that mutates `chunk.docmeta` or `chunk.codeRelatio
 
 ## Tests
 
-- [x] `tests/indexer/metav2-finalization-after-inference.test.js`
+- [x] `tests/indexer/metav2/metav2-finalization-after-inference.test.js`
   - Build a fixture with `typeInferenceCrossFile: true`.
   - Assert `metaV2.types.inferred.params` and/or `metaV2.relations.callLinks` reflect cross-file inference results.
-- [x] `tests/file-processor/cached-bundle-does-not-emit-stale-metav2.test.js`
+- [x] `tests/indexing/file-processor/cached-bundle-does-not-emit-stale-metav2.test.js`
   - Force a cached-bundle reuse path.
   - Assert serialized `chunk_meta.metaV2` still includes post-inference enrichment.
-- [x] (Optional) `tests/indexer/metav2-recompute-equivalence.test.js`
+- [x] (Optional) `tests/indexer/metav2/metav2-recompute-equivalence.test.js`
   - Sample a subset of chunks; recompute metaV2 from chunk state; assert deep equality.
 
 ---
@@ -381,22 +381,22 @@ This is a prerequisite for correct caching, SQLite identity, and future graph jo
 
 ## Tests
 
-- [x] `tests/segments/tsx-jsx-hint-preserved.test.js`
+- [x] `tests/indexing/segments/tsx-jsx-hint-preserved.test.js`
   - Markdown fixture containing ` ```tsx ` and ` ```jsx ` fences.
   - Assert `chunk.segment.languageId` preserves `tsx` / `jsx` (raw hints).
-- [x] `tests/segments/effective-identity-md-fence.test.js`
+- [x] `tests/indexing/segments/effective-identity-md-fence.test.js`
   - `.md` file with a `tsx` fence.
   - Assert:
     - `metaV2.container.ext === '.md'`
     - `metaV2.effective.ext === '.tsx'`
     - `metaV2.lang === 'typescript'`
-- [x] `tests/segments/segment-uid-derived.test.js`
+- [x] `tests/indexing/segments/segment-uid-derived.test.js`
   - `.md` file with a `ts` fence.
   - Assert `segmentUid` is derived and deterministic.
-- [x] `tests/file-processor/effective-language-drives-docmeta.test.js`
+- [x] `tests/indexing/file-processor/effective-language-drives-docmeta.test.js`
   - Fixture with embedded TS fence defining a function.
   - Assert the chunk extracted from the fence has a non-null `signature` as produced by the TS handler (not markdown).
-- [x] `tests/chunk-id/stable-id-does-not-depend-on-name-or-kind.test.js`
+- [x] `tests/indexing/chunk-id/stable-id-does-not-depend-on-name-or-kind.test.js`
   - Build two chunk-like objects identical in `{file, segmentId, start, end}` but differing `name/kind`.
   - Assert `buildChunkId(...)` returns the same value for both.
 
@@ -447,12 +447,12 @@ Make `--lang` filters (and any future language predicates) operate on **effectiv
 
 ## Tests
 
-- [x] `tests/retrieval/lang-filter-matches-embedded-segments.test.js`
+- [x] `tests/retrieval/filters/lang-filter-matches-embedded-segments.test.js`
     - Fixture with `.md` TS fence.
     - Query with `--lang typescript` and assert embedded chunks are returned.
-- [x] `tests/retrieval/filter-index-bylang.test.js`
+- [x] `tests/retrieval/filters/filter-index-bylang.test.js`
     - Build filter index and assert `byLang.typescript` includes embedded chunk ids.
-- [x] `tests/validate/filter-index-requires-bylang-when-segment-aware.test.js`
+- [x] `tests/indexing/validate/filter-index-requires-bylang-when-segment-aware.test.js`
     - Strict validate fails if segment-aware metadata is present but `byLang` missing (opt-in rule).
 
 ---
@@ -487,8 +487,8 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
 
 ## Tests (optional / Phase 8 if deferred)
 
-- [ ] `tests/vfs/virtual-path-stability.test.js` (Phase 8)
-- [ ] `tests/vfs/vfs-manifest-roundtrip.test.js` (Phase 8)
+- [ ] `tests/indexing/vfs/virtual-path-stability.test.js` (Phase 8)
+- [ ] `tests/indexing/vfs/vfs-manifest-roundtrip.test.js` (Phase 8)
 
 ---
 

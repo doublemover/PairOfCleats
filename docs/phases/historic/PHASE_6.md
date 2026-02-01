@@ -268,9 +268,9 @@ This phase explicitly targets:
     - docs/contracts/artifact-schemas.md references docs/specs/risk-flows-and-call-sites.md; ensure Phase 6 contract matches that spec's required keys.
 - Tests / Verification
   - Files to change/create:
-    - tests/contracts/call-sites-schema.test.js (new; validate good + bad entries)
-    - tests/jsonl-validation.js (add call_sites JSONL required-key failure case)
-    - tests/sharded-meta-schema.test.js (ensure call_sites_meta validates SemVer + required fields)
+    - tests/indexing/contracts/call-sites-schema.test.js (new; validate good + bad entries)
+    - tests/shared/json-stream/jsonl-validation.test.js (add call_sites JSONL required-key failure case)
+    - tests/indexing/artifacts/sharded-meta/sharded-meta-schema.test.js (ensure call_sites_meta validates SemVer + required fields)
 
 ### 6.2 Emit call_sites artifact (sharded JSONL + manifest)
 - Task: Implement writer + manifest entry
@@ -297,7 +297,7 @@ This phase explicitly targets:
     - src/index/build/artifacts/writers/file-relations.js:104-147 (deterministic shards + meta)
 - Tests / Verification
   - Files to change/create:
-    - tests/artifact-formats.js (assert call_sites presence in manifest)
+    - tests/indexing/artifacts/artifact-formats.test.js (assert call_sites presence in manifest)
     - tests/perf/baseline-artifacts.test.js (ensure meta schemaVersion and counts)
     - tests/relations/call-sites-determinism.test.js (new; rebuild twice, compare JSONL)
 
@@ -348,7 +348,7 @@ This phase explicitly targets:
 - Tests / Verification
   - Files to change/create:
     - tests/relations/segment-call-sites.test.js (new; .vue or fenced block fixture)
-    - tests/relations/call-sites-ordering.test.js (new; ensures stable ordering)
+    - tests/indexing/relations/call-sites-ordering.test.js (new; ensures stable ordering)
 
 ### 6.5 Graph integration and cross-file linking (prefer call_sites)
 - Task: Emit resolved callee identity in call_sites
@@ -463,9 +463,9 @@ This phase explicitly targets:
   4) Attach location (start/end + line/col) and emit CallDetails.
 
 ### 6.3 Acceptance criteria + tests (lane)
-- tests/relations/js-call-details-v2.test.js (test:unit)
-- tests/relations/ts-call-details-v2.test.js (test:unit)
-- tests/relations/ts-call-details-tsx.test.js (test:unit)
+- tests/indexing/relations/js-call-details-v2.test.js (test:unit)
+- tests/indexing/relations/ts-call-details-v2.test.js (test:unit)
+- tests/indexing/relations/ts-call-details-tsx.test.js (test:unit)
 
 ### 6.3 Edge cases and fallback behavior
 - Optional chaining / computed callee: calleeRaw captured, calleeNormalized best-effort, receiver may be null.
