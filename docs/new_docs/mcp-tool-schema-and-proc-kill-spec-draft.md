@@ -237,7 +237,7 @@ After success/error response, do not emit further progress for that tool call.
 Recommended minimum test suite additions:
 
 - Schema snapshot tests:
-  - `tests/mcp-schema.js` should assert stable tool names, required fields, and `schemaVersion`.
+  - `tests/services/mcp/mcp-schema.test.js` should assert stable tool names, required fields, and `schemaVersion`.
 - Argument mapping tests:
   - for each tool field, ensure it affects behavior or is rejected.
 - Cancellation tests:

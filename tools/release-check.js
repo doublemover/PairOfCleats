@@ -26,7 +26,8 @@ if (!version) {
 }
 
 const changelog = fs.readFileSync(changelogPath, 'utf8');
-const headerRe = new RegExp(`^##\\s+v?${version.replace(/\./g, '\\.')}(\\b|\\s)`, 'm');
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const headerRe = new RegExp(`^##\\s+v?${escapeRegex(version)}(\\b|\\s)`, 'm');
 const match = headerRe.exec(changelog);
 if (!match) {
   console.error(`release-check: CHANGELOG.md missing section for v${version}.`);

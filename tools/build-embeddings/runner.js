@@ -18,7 +18,7 @@ import {
   normalizeEmbeddingVectorInPlace
 } from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../src/shared/env.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig, resolveSqlitePaths } from '../dict-utils.js';
 import {
   buildCacheIdentity,
@@ -172,9 +172,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const envConfig = getEnvConfig();
   const crashLoggingEnabled = isTestingEnv()
-    || process.env.PAIROFCLEATS_DEBUG_CRASH === '1'
-    || process.env.PAIROFCLEATS_DEBUG_CRASH === 'true';
+    || envConfig.debugCrash === true;
   const crashLogger = await createCrashLogger({
     repoCacheRoot,
     enabled: crashLoggingEnabled,

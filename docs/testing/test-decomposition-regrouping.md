@@ -3,8 +3,8 @@
 ## Context / problem
 The test surface is currently flat and extremely broad:
 
-- The repository has **204** executable scripts directly under `tests/*.js`.
-- Many of those scripts are *not single-purpose tests*; they are **multi-domain suites** that validate artifacts, indexing, search, filters, protocol behavior, and error handling in one run.
+- The repository historically had many executable scripts directly under `tests/*.js` (now reorganized into subsystem folders).
+- Many of those scripts were *not single-purpose tests*; they were **multi-domain suites** that validate artifacts, indexing, search, filters, protocol behavior, and error handling in one run.
 - This structure makes failures hard to triage ("one red test" can mean many unrelated things), and it encourages a proliferation of one-off scripts and npm entries.
 
 This document identifies the **largest / most multi-responsibility test scripts** that should be split, and proposes a **manageable regrouping** of the overall test suite into coherent chunks.
@@ -30,7 +30,7 @@ This document identifies the **largest / most multi-responsibility test scripts*
 
 Introduce a small set of top-level test groups (these become runner lanes/tags and folder names over time):
 
-1. **`harness/`** -- meta-tests and suite controllers
+1. **`runner/`** -- meta-tests and suite controllers
    - script-coverage harness, discovery checks, suite sanity
 
 2. **`unit/`** -- pure logic (no indexing, no servers)
@@ -56,27 +56,27 @@ Introduce a small set of top-level test groups (these become runner lanes/tags a
 
 These eight groups are few enough to be learnable and broad enough to cover the repo.
 
-## Inventory: largest top-level test scripts (and what to do about them)
+## Inventory: largest multi-responsibility suites (and what to do about them)
 
 Sizes below are approximate (filesystem block sizes) and are used only to prioritize refactors.
 
 | File | Approx. size | What it currently mixes | Recommended action |
 |---|---:|---|---|
-| `tests/language-fidelity.js` | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | **Split into a small suite** under `indexing/`, `retrieval/`, and `lang/` |
-| `tests/bench.js` | 24 KB | benchmark harness + correctness self-checks + build orchestration | **Move to `perf/`** and split scenarios |
-| `tests/fixture-smoke.js` | 18 KB | fixture generation, artifact presence, minhash checks, search invariants, compact json shape, language-specific assertions | **Split into fixture contracts** under `indexing/` and `retrieval/` |
-| `tests/parity.js` | 13 KB | cross-backend parity runner + reporting + thresholds | Keep as tool-like test; optionally split reporting |
-| `tests/type-inference-crossfile.js` | 12 KB | unit-ish inference stats + full index build + graph relations assertions | **Split into unit + integration** |
-| `tests/mcp-server.js` | 9 KB | protocol init, tools registry, build-index tool, search tool, filters, progress events, error behavior | **Split by MCP contract areas** |
-| `tests/sqlite-incremental.js` | 8 KB | incremental index build, sqlite build, manifest normalization, schema downgrade/rebuild, search check | **Split into incremental + schema/migration + normalization** |
-| `tests/search-filters.js` | 8 KB | git repo setup + query parser behavior + author/time/branch filters + file/token case semantics | **Split by filter family** |
-| `tests/type-inference-crossfile-go.js` | 7 KB | Go-specific cross-file inference behavior + index build | Consider splitting similarly to JS cross-file |
-| `tests/triage-records.js` | 7 KB | triage ingest, markdown rendering, decision updates, records indexing/search, context-pack assembly | **Split by triage pipeline stage** |
-| `tests/type-inference-lsp-enrichment.js` | 6 KB | multi-language LSP enrichment (C++/Swift/Python) | Optional split by language; keep together if stable |
-| `tests/mcp-schema.js` | 6 KB | tool schema snapshot + server response shape snapshot | Optional: split snapshot types |
-| `tests/mcp-robustness.js` | 6 KB | queue overload + tool timeout scenarios | Split into two tests (queue vs timeout) |
-| `tests/api-server.js` | 6 KB | startup + health/status + search + request validation + repo authorization + no-index | Split by endpoint family |
-| `tests/api-server-stream.js` | 6 KB | stream-specific behavior | Keep separate; consider splitting by stream mode |
+| `tests/lang/contracts/*.test.js` (split suite) | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | Split completed across `tests/indexing/language-fixture/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/lang/contracts/*.test.js` |
+| `tests/perf/bench/run.test.js` | 24 KB | benchmark harness + correctness self-checks + build orchestration | **Move to `perf/`** and split scenarios |
+| `tests/indexing/fixtures/*.test.js` (split suite) | 18 KB | fixture generation, artifact presence, minhash checks, search invariants, compact json shape, language-specific assertions | Split completed across `tests/indexing/fixtures/*.test.js`, `tests/retrieval/contracts/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/lang/fixtures-sample/*.test.js` |
+| `tests/retrieval/parity/parity.test.js` | 13 KB | cross-backend parity runner + reporting + thresholds | Keep as tool-like test; optionally split reporting |
+| `tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js` + `tests/tooling/type-inference/crossfile-stats.unit.test.js` | 12 KB | unit-ish inference stats + full index build + graph relations assertions | Split complete: keep unit + integration separation |
+| `tests/services/mcp/*.test.js` | 9 KB | protocol init, tools registry, build-index tool, search tool, filters, progress events, error behavior | Split complete across MCP contract areas |
+| `tests/storage/sqlite/incremental/*.test.js` | 8 KB | incremental index build, sqlite build, manifest normalization, schema downgrade/rebuild, search check | Split complete across incremental + schema/migration + normalization |
+| `tests/retrieval/filters/query-syntax/*.test.js` + `tests/retrieval/filters/file-and-token/*.test.js` | 8 KB | git repo setup + query parser behavior + author/time/branch filters + file/token case semantics | Split complete by filter family |
+| `tests/indexing/type-inference/crossfile/type-inference-crossfile-go.test.js` | 7 KB | Go-specific cross-file inference behavior + index build | Consider splitting similarly to JS cross-file |
+| `tests/tooling/triage/*.test.js` | 7 KB | triage ingest, markdown rendering, decision updates, records indexing/search, context-pack assembly | Split complete by triage pipeline stage |
+| `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` | 6 KB | multi-language LSP enrichment (C++/Swift/Python) | Optional split by language; keep together if stable |
+| `tests/services/mcp/mcp-schema.test.js` | 6 KB | tool schema snapshot + server response shape snapshot | Optional: split snapshot types |
+| `tests/services/mcp/mcp-robustness.test.js` | 6 KB | queue overload + tool timeout scenarios | Split into two tests (queue vs timeout) |
+| `tests/services/api/*.test.js` | 6 KB | startup + health/status + search + request validation + repo authorization + no-index | Split complete by endpoint family |
+| `tests/services/api/api-server-stream.test.js` | 6 KB | stream-specific behavior | Keep separate; consider splitting by stream mode |
 
 The remainder of the suite can be regrouped largely by path/tagging without splitting, but the above scripts are the biggest "multipliers" for confusion and should be tackled first.
 
@@ -84,9 +84,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ## Detailed split plans (by script)
 
-### 1) `tests/language-fidelity.js` (split aggressively)
+### 1) Language fidelity suite (split across indexing/retrieval/lang)
 
-**Current responsibilities (all in one file):**
+**Legacy responsibilities (formerly in one file):**
 - Builds a language fixture index.
 - Validates postings payload integrity (including sharded postings metadata).
 - Runs search queries to validate **filter flags** (`--branches`, `--inferred-type`, `--return-type`, `--returns`, `--async`, file regex, risk tags/flows).
@@ -126,9 +126,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 2) `tests/fixture-smoke.js` (split by contract area)
+### 2) Fixture smoke suite (split by contract area)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Iterates fixtures (or single fixture), optionally runs a generator.
 - Builds memory index and sqlite index.
 - Validates a long list of required artifact files.
@@ -167,9 +167,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 3) `tests/sqlite-incremental.js` (split by behavior axis)
+### 3) SQLite incremental suite (split by behavior axis)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Builds incremental index + sqlite index.
 - Asserts sqlite build output contains "Validation (smoke) ok ...".
 - Uses `better-sqlite3` to read `file_manifest` and validate hash/chunk_count change after a file edit.
@@ -196,9 +196,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 4) `tests/search-filters.js` (split by filter family)
+### 4) Search filter suite (split by filter family)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Creates a git repo with authored commits at different times.
 - Builds index.
 - Tests:
@@ -232,9 +232,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 5) `tests/mcp-server.js` (split into MCP contract areas)
+### 5) MCP server suite (split into MCP contract areas)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - JSON-RPC framing + initialization.
 - Tool registry (`tools/list`).
 - Tool calls: `index_status`, `config_status`, `build_index`, `search`, `clean_artifacts`.
@@ -258,9 +258,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 6) `tests/api-server.js` (split by endpoint family)
+### 6) API server suite (split by endpoint family)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Builds fixture index.
 - Starts API server (port 0), parses startup JSON.
 - Validates `/health`, `/status`.
@@ -284,9 +284,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 7) `tests/type-inference-crossfile.js` (split unit vs integration)
+### 7) Cross-file inference suite (split unit vs integration)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Unit-like scenarios using `applyCrossFileInference()` directly (stats assertions).
 - Full index build on a synthetic repo and validation of:
   - inferred return types (`Widget`)
@@ -308,9 +308,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 8) `tests/triage-records.js` (split by pipeline stage)
+### 8) Triage records suite (split by pipeline stage)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Ingest multiple sources (`generic`, `dependabot`, `aws_inspector`).
 - Validate stored JSON + rendered markdown contain exposure metadata.
 - Apply a decision.
@@ -332,9 +332,9 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 ---
 
-### 9) `tests/bench.js` (move + split scenarios)
+### 9) Bench suite (move + split scenarios)
 
-**Current responsibilities:**
+**Legacy responsibilities:**
 - Bench CLI parsing + validation.
 - Correctness self-checks (safe-regex guards).
 - Optional index build orchestration.
@@ -375,5 +375,3 @@ Once the large scripts above are decomposed, the remainder of the test suite can
 - The largest multi-domain scripts are split so failures point to a subsystem.
 - CI can run the `ci` lane deterministically with clear logs and minimal flake.
 - The test tree communicates intent through folder structure and ids.
-
-

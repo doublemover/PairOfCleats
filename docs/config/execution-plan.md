@@ -95,7 +95,7 @@ This document is an **execution-ready** plan: phased checklist, PR slices, file-
 **Where**
 - New tests (suggested):
   - `tests/config/minimal-schema.test.js`
-  - `tests/config/auto-policy.test.js`
+  - `tests/shared/config/auto-policy.test.js`
 
 **Exit criteria**
 - [ ] `pairofcleats config validate` only accepts minimal config.

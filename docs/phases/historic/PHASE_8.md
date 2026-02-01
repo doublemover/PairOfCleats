@@ -294,9 +294,9 @@ Create a single authoritative provider system that:
 
 ### Tests / Verification
 
-- [.] Add `tests/tooling/provider-registry-gating.js`
+- [.] Add `tests/tooling/providers/provider-registry-gating.test.js`
   - Construct fake providers + config allow/deny cases and assert selected provider ids are deterministic.
-- [.] Add `tests/tooling/provider-registry-ordering.js`
+- [.] Add `tests/tooling/providers/provider-registry-ordering.test.js`
   - Assert `(priority,id)` ordering is stable even if registration order changes.
 
 ---
@@ -422,7 +422,7 @@ while attaching results using stable chunk identity.
     - second has `collisionOf` pointing to original
 - [.] Add `tests/tooling/vfs-offset-mapping-segment.js`
   - Use a container with a segment range, build VFS, assert container→virtual offsets map exactly and obey assertions.
-- [.] Extend/confirm `tests/type-inference-lsp-enrichment.js` still passes after tooling join changes.
+- [.] Extend/confirm `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` still passes after tooling join changes.
 
 ---
 
@@ -540,9 +540,9 @@ with stable chunk-keyed results and high-confidence signatures.
   - Build a virtual doc `.jsx` with a simple component and assert return/param types are non-empty and stable.
 - [.] Add `tests/tooling/typescript-range-matching.js`
   - Create a file with two functions of same name in different scopes; ensure the correct chunk range maps to correct function.
-- [.] Add `tests/tooling/typescript-destructured-param-names.js`
+- [.] Add `tests/tooling/lsp/typescript/typescript-destructured-param-names.test.js`
   - Function `f({a,b}, [c])` should produce stable paramNames like `{a,b}` and `[c]` (whitespace-insensitive).
-- [.] Extend `tests/type-inference-typescript-provider-no-ts.js`
+- [.] Extend `tests/indexing/type-inference/providers/type-inference-typescript-provider-no-ts.test.js`
   - Ensure provider cleanly no-ops when TypeScript module missing (existing behavior preserved).
 
 ---
@@ -686,9 +686,9 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### Tests / Verification
 
-- [.] Add `tests/tooling/doctor-json-stable.js`
+- [.] Add `tests/tooling/doctor/doctor-json-stable.test.js`
   - Run doctor against a fixture repo and assert JSON keys and key fields are present.
-- [.] Add `tests/tooling/doctor-gating-reasons.js`
+- [.] Add `tests/tooling/doctor/doctor-gating-reasons.test.js`
   - Provide config with denylist and assert provider shows `enabled:false` with correct reason.
 - [.] Unskip phase-tagged LMDB tests once Phase 7/8 deliverables land:
   - Remove `DelayedUntilPhase7_8` from `tests/run.config.jsonc`.
@@ -877,10 +877,10 @@ Provide an operator-facing workflow to explain tooling state:
   3) Emit results keyed by chunkUid.
 
 ### 8.3 Acceptance criteria + tests (lane)
-- tests/tooling/typescript-js-parity-basic.test.js (test:services)
-- tests/tooling/typescript-vfs-segment-vue.test.js (test:services)
-- tests/tooling/typescript-node-matching-range.test.js (test:services)
-- tests/tooling/typescript-ambiguous-fallback-does-not-guess.test.js (test:services)
+- tests/tooling/lsp/typescript/typescript-js-parity-basic.test.js (test:services)
+- tests/tooling/lsp/typescript/typescript-vfs-segment-vue.test.js (test:services)
+- tests/tooling/lsp/typescript/typescript-node-matching-range.test.js (test:services)
+- tests/tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess.test.js (test:services)
 
 ### 8.3 Edge cases and fallback behavior
 - Multiple candidate nodes: mark ambiguous, do not guess in strict mode.
@@ -992,4 +992,4 @@ Provide an operator-facing workflow to explain tooling state:
 
 - Consider adding validation for `tooling.lsp.servers[]` shape (optional, schema allows it but config normalize is shallow).
 - Reconcile `chunkUid` collision post-docId guidance vs identity-contract spec (8.2.5).
-- Extend/confirm `tests/type-inference-lsp-enrichment.js` coverage after tooling join changes.
+- Extend/confirm `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` coverage after tooling join changes.

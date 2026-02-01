@@ -66,6 +66,13 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
     - [ ] `tools/mcp-server.js` — entrypoint dispatch
     - [ ] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
 
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
+- `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
+- `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
+- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
+
 #### Tests / Verification
 
 - [ ] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
@@ -86,12 +93,18 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
     - [ ] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
 
 - [ ] Add a deprecation window for the legacy transport.
-  - [ ] Document the cutover plan and timeline in `docs/mcp.md`.
+  - [ ] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
   - [ ] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/tools.js` (tool execution entrypoint)
+- `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
 
 #### Tests / Verification
 
-- [ ] Services: `tests/services/mcp/sdk-mode.services.js` (new)
+- [ ] Services: `tests/services/mcp/sdk-mode.test.js` (new)
   - Skip if SDK is not installed.
   - Start `tools/mcp-server-sdk.js` and run at least:
     - `tools/list`
@@ -105,7 +118,7 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 - [ ] Make tool schemas explicitly versioned and enforce bump discipline.
   - Touchpoints:
     - [ ] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolingVersion`
-    - [ ] `docs/mcp.md` — document compatibility rules for schema changes
+    - [ ] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
 
 - [ ] Consolidate MCP argument → execution mapping to one audited path.
   - Touchpoints:
@@ -123,17 +136,23 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 - [ ] Fix known MCP tool wiring correctness hazards in modified files:
   - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
 
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/defs.js` (~L1 exports; add `schemaVersion`)
+- `tools/mcp/tools.js` (~L? `runSearchTool` / arg mapping)
+- `src/integrations/mcp/protocol.js` (error + envelope helpers)
+- `docs/contracts/mcp-api.md` (schema versioning rules)
+
 #### Tests / Verification
 
-- [ ] Unit: `tests/unit/mcp-schema-version.unit.js` (new)
+- [ ] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
   - Assert `schemaVersion` exists.
   - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
 
-- [ ] Unit: `tests/unit/mcp-search-arg-mapping.unit.js` (new)
+- [ ] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
   - For each supported schema field, assert mapping produces the expected CLI flag(s).
   - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
 
-- [ ] Update existing: `tests/mcp-schema.js`
+- [ ] Update existing: `tests/services/mcp/mcp-schema.test.js`
   - Keep snapshotting tool property sets.
   - Add schemaVersion presence check.
 
@@ -163,6 +182,12 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 - [ ] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
 - [ ] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
 
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
+- `tools/mcp/transport.js` (legacy transport)
+- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `src/shared/error-codes.js` (canonical internal codes)
+
 ---
 
 ### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
@@ -187,20 +212,20 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 
 #### Tests / Verification
 
-- [ ] Update existing: `tests/mcp-robustness.js`
+- [ ] Update existing: `tests/services/mcp/mcp-robustness.test.js`
   - Add “wait for exit” after `exit` (bounded).
   - Add cancellation test:
     - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
   - Add progress-throttle assertion (if practical): bursty progress is coalesced.
 
-- [ ] Unit: `tests/unit/mcp-runner-abort-kills-child.unit.js` (new)
+- [ ] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
   - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
 
 ---
 
 ### 12.6 Documentation and migration notes
 
-- [ ] Add `docs/mcp.md` (new) describing:
+- [ ] Add `docs/guides/mcp.md` (new) describing:
   - [ ] how to run legacy vs SDK server modes
   - [ ] how to install/enable the SDK (per the chosen dependency strategy)
   - [ ] tool schemas and `schemaVersion` policy
@@ -280,12 +305,19 @@ Touchpoints:
 - `src/index/build/runtime/runtime.js` (thread config into runtime)
 - `docs/config/schema.json` (document `indexing.scm.*` keys)
 
-#### Tests / verification
-- [ ] `tests/unit/scm-provider-selection.unit.js` (new)
+Touchpoints (anchors; approximate):
+- `src/index/git.js` (~L63 `getGitMetaForFile`, ~L157 `getGitBranch`)
+- `src/index/build/discover.js` (~L138 `discoverRepoRoots`, ~L176 `listGitFiles`)
+- `src/index/build/build-state.js` (~L1 `buildState`)
+- `src/index/build/indexer/signatures.js` (~L46 `gitBlameEnabled`)
+- `src/index/build/runtime/runtime.js` (~L172 `buildId`, ~L209 `gitBlameEnabled`)
+
+#### Tests / verification (path-corrected for current test layout)
+- [ ] `tests/indexing/scm/scm-provider-selection.test.js` (new)
   - [ ] `auto` selects `git` when `.git/` exists and git is runnable.
   - [ ] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
   - [ ] `auto` falls back to `none` when neither exists (or binaries missing).
-- [ ] `tests/unit/build-state-repo-provenance.unit.js` (new)
+- [ ] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
   - [ ] `build_state.json` includes `repo.provider` and normalized `repo.head`.
 
 ---
@@ -312,8 +344,8 @@ Touchpoints:
 - `src/index/scm/providers/git.js` (new)
 - `src/index/scm/registry.js`
 
-#### Tests / verification
-- [ ] `tests/services/index-build-git-provider.services.js` (new)
+#### Tests / verification (path-corrected for current test layout)
+- [ ] `tests/indexing/scm/index-build-git-provider.test.js` (new)
   - [ ] Build index inside a git repo and assert:
     - [ ] `build_state.json.repo.provider === "git"`
     - [ ] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
@@ -350,10 +382,10 @@ Touchpoints:
 - `src/index/scm/providers/jj-parse.js` (new: isolated parsing helpers)
 - `src/index/build/indexer/signatures.js` (include JJ head/changeId + op pin when used)
 
-#### Tests / verification
+#### Tests / verification (path-corrected for current test layout)
 - [ ] Unit: parsing helpers
-  - [ ] `tests/unit/jj-changed-files-parse.unit.js`
-  - [ ] `tests/unit/jj-head-parse.unit.js`
+  - [ ] `tests/indexing/scm/jj-changed-files-parse.test.js`
+  - [ ] `tests/indexing/scm/jj-head-parse.test.js`
 - [ ] CI behavior:
   - [ ] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
 
@@ -386,14 +418,15 @@ Touchpoints:
     - [ ] file discovery uses filesystem crawl (current fallback)
     - [ ] build state records `repo.provider="none"` and `repo.head=null`
     - [ ] incremental reuse features that require SCM provenance must be disabled with an explicit reason (no silent partial behavior)
-  - [ ] Document this mode as “try it anywhere” for non-code/non-repo folders.
+- [ ] Document this mode as “try it anywhere” for non-code/non-repo folders.
 
 Touchpoints:
 - `src/index/scm/providers/none.js` (new)
-- `docs/` (add a short section in `docs/indexing.md` or `docs/scm.md`)
+- `docs/contracts/indexing.md` (document provider="none" behavior)
+- `docs/guides/commands.md` (CLI flags and behavior notes)
 
 #### Tests / verification
-- [ ] `tests/services/index-build-no-scm.services.js` (new)
+  - [ ] `tests/indexing/scm/index-build-no-scm.test.js` (new)
   - [ ] Build index in a temp folder without `.git/` and assert build succeeds and provenance is explicitly null.
 
 ## Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
@@ -757,15 +790,17 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 **Touchpoints:**
 - `tools/dict-utils.js` (repo root resolution, `getRepoId`, cacheRoot overrides)
 - `src/shared/stable-json.js` (stable serialization for hashing)
-- New: `src/workspace/config.js` (or `src/retrieval/federation/workspace.js`) — loader + validator + `repoSetId`
+- New: `src/retrieval/federation/workspace.js` — loader + validator + `repoSetId`
 
 #### Tests
 
-- [ ] Workspace config parsing accepts absolute and relative repo roots and produces canonical `repoRoot`.
-- [ ] `repoSetId` is deterministic:
-  - [ ] independent of repo list order in the workspace file
-  - [ ] stable across runs/platforms for the same canonical set (Windows casing normalized)
-- [ ] Canonicalization prevents duplicate repo entries that differ only by symlink/subdir pathing.
+- [ ] `tests/retrieval/federation/workspace-config-parsing.test.js`
+  - [ ] Accepts absolute + relative repo roots and produces canonical `repoRoot`.
+- [ ] `tests/retrieval/federation/repo-set-id-determinism.test.js`
+  - [ ] Independent of repo list order in the workspace file.
+  - [ ] Stable across runs/platforms for the same canonical set (Windows casing normalized).
+- [ ] `tests/retrieval/federation/repo-canonicalization-dedup.test.js`
+  - [ ] Prevents duplicate repo entries that differ only by symlink/subdir pathing.
 
 ---
 
@@ -803,17 +838,20 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 **Touchpoints:**
 - `tools/dict-utils.js` (cache root resolution, build pointer paths)
 - `build_index.js` (add `--workspace` or create `workspace_build.js`)
-- New: `src/workspace/catalog.js` (cacheRoot scanning)
-- New: `src/workspace/manifest.js` (manifest writer/reader)
+- New: `src/retrieval/federation/catalog.js` (cacheRoot scanning)
+- New: `src/retrieval/federation/manifest.js` (manifest writer/reader)
 
 #### Tests
 
-- [ ] Catalog discovery returns the same repo list regardless of filesystem directory enumeration order.
-- [ ] Workspace manifest generation:
-  - [ ] records accurate per-repo buildId and per-mode index paths
-  - [ ] records compatibilityKey for each indexed mode (when present)
-  - [ ] is stable/deterministic for the same underlying catalog state
-- [ ] Invalid `builds/current.json` does not preserve stale build IDs in memory caches (treated as “pointer invalid”).
+- [ ] `tests/retrieval/federation/catalog-discovery-determinism.test.js`
+  - [ ] Returns the same repo list regardless of filesystem directory enumeration order.
+- [ ] `tests/retrieval/federation/workspace-manifest-contents.test.js`
+  - [ ] Records accurate per-repo buildId and per-mode index paths.
+  - [ ] Records compatibilityKey for each indexed mode (when present).
+- [ ] `tests/retrieval/federation/workspace-manifest-determinism.test.js`
+  - [ ] Stable/deterministic for the same underlying catalog state.
+- [ ] `tests/retrieval/federation/build-pointer-invalid-clears.test.js`
+  - [ ] Invalid `builds/current.json` does not preserve stale build IDs (treated as “pointer invalid”).
 
 ---
 
@@ -868,14 +906,15 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 
 #### Tests
 
-- [ ] Multi-repo fixture (two tiny repos) proves:
-  - [ ] federated search returns results from both repos
-  - [ ] results include repo attribution fields
-  - [ ] collisions in `relPath` do not cause ambiguity
-- [ ] Determinism test: same workspace + query yields byte-identical JSON output across repeated runs.
-- [ ] Repo selection tests:
-  - [ ] repeated `--repo` works
-  - [ ] `--repo-filter` / `--tag` selection works and is deterministic
+- [ ] `tests/retrieval/federation/search-multi-repo-basic.test.js`
+  - [ ] Federated search returns results from both repos.
+  - [ ] Results include repo attribution fields.
+  - [ ] Collisions in `relPath` do not cause ambiguity.
+- [ ] `tests/retrieval/federation/search-determinism.test.js`
+  - [ ] Same workspace + query yields byte-identical JSON output across repeated runs.
+- [ ] `tests/retrieval/federation/repo-selection.test.js`
+  - [ ] repeated `--repo` works.
+  - [ ] `--repo-filter` / `--tag` selection works and is deterministic.
 
 ---
 
@@ -904,16 +943,18 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 - New: `src/contracts/compat/index-compat.js` (key builder + comparator)
 - `src/index/build/indexer/signatures.js` (source of some inputs; do not duplicate logic)
 - `src/retrieval/cli-index.js` (read compatibilityKey from index_state / manifest)
-- `src/workspace/manifest.js` (persist compatibilityKey per repo/mode)
+- `src/retrieval/federation/manifest.js` (persist compatibilityKey per repo/mode)
 - `src/retrieval/federation/coordinator.js` (cohort partitioning)
 
 #### Tests
 
-- [ ] CompatibilityKey is stable for the same index inputs and changes when any compatibility input changes.
-- [ ] Federated search with two repos in different cohorts:
-  - [ ] returns warning + does not silently mix results by default
-  - [ ] succeeds when restricted to a cohort explicitly
-- [ ] Cohort partition ordering is deterministic (no “random cohort chosen”).
+- [ ] `tests/retrieval/federation/compatibility-key-stability.test.js`
+  - [ ] Stable for the same index inputs and changes when any compatibility input changes.
+- [ ] `tests/retrieval/federation/compat-cohort-defaults.test.js`
+  - [ ] Warns + does not silently mix results by default.
+  - [ ] Succeeds when restricted to a cohort explicitly.
+- [ ] `tests/retrieval/federation/compat-cohort-determinism.test.js`
+  - [ ] Cohort partition ordering is deterministic (no “random cohort chosen”).
 
 ---
 
@@ -955,16 +996,16 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 
 #### Tests
 
-- [ ] Federated query cache key changes when:
-  - [ ] any repo’s indexSignature changes
-  - [ ] `fileChargramN` (or other ranking knobs) changes
-  - [ ] repo selection changes (subset vs full workspace)
-- [ ] Sharded chunk_meta invalidation test:
-  - [ ] updating a shard or `chunk_meta.meta.json` invalidates cached queries
-- [ ] MCP repo path canonicalization test:
-  - [ ] passing a subdirectory path resolves to repo root and shares the same caches as passing the repo root
-- [ ] Build-pointer parse failure test:
-  - [ ] invalid `builds/current.json` clears buildId and closes/clears caches (no stale serving)
+- [ ] `tests/retrieval/federation/query-cache-key-stability.test.js`
+  - [ ] Changes when any repo’s indexSignature changes.
+  - [ ] Changes when `fileChargramN` (or other ranking knobs) changes.
+  - [ ] Changes when repo selection changes (subset vs full workspace).
+- [ ] `tests/retrieval/federation/query-cache-sharded-meta-invalidation.test.js`
+  - [ ] Updating a shard or `chunk_meta.meta.json` invalidates cached queries.
+- [ ] `tests/retrieval/federation/mcp-repo-canonicalization.test.js`
+  - [ ] Passing a subdirectory resolves to repo root and shares caches with repo root.
+- [ ] `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
+  - [ ] Invalid `builds/current.json` clears buildId and closes/clears caches (no stale serving).
 
 ---
 
@@ -1006,10 +1047,14 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 
 #### Tests
 
-- [ ] Two-repo workspace build proves global caches are reused (no duplicate downloads; stable cache paths).
-- [ ] CAS reuse test: identical input across repos yields identical object keys and avoids recomputation.
-- [ ] GC test: removes unreferenced objects while preserving those referenced by workspace/snapshot manifests.
-- [ ] Concurrency test: workspace indexing/search honors configured limits (does not exceed).
+- [ ] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
+  - [ ] Two-repo workspace build proves global caches are reused (no duplicate downloads; stable cache paths).
+- [ ] `tests/indexing/cache/cas-reuse-across-repos.test.js`
+  - [ ] Identical input across repos yields identical object keys and avoids recomputation.
+- [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
+  - [ ] Removes unreferenced objects while preserving those referenced by workspace/snapshot manifests.
+- [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
+  - [ ] Workspace indexing/search honors configured limits (does not exceed).
 
 ---
 
@@ -1057,13 +1102,13 @@ Touchpoints:
 - Refactor/reuse logic from `tools/bench/micro/extractors.js` into the runtime extractors (bench remains a consumer).
 
 #### Tests
-- [ ] `tests/extractors/pdf-missing-dep-skips.test.js`
+- [ ] `tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js`
   - [ ] When PDF capability is false, extraction path is skipped cleanly and build remains green.
-- [ ] `tests/extractors/docx-missing-dep-skips.test.js`
+- [ ] `tests/indexing/extracted-prose/docx-missing-dep-skips.test.js`
   - [ ] When DOCX capability is false, extraction path is skipped cleanly and build remains green.
-- [ ] `tests/extractors/pdf-smoke.test.js` (conditional; only when deps available)
+- [ ] `tests/indexing/extracted-prose/pdf-smoke.test.js` (conditional; only when deps available)
   - [ ] Extract a fixture PDF and assert known phrase is present.
-- [ ] `tests/extractors/docx-smoke.test.js` (conditional; only when deps available)
+- [ ] `tests/indexing/extracted-prose/docx-smoke.test.js` (conditional; only when deps available)
   - [ ] Extract a fixture DOCX and assert known phrase is present.
 
 ### 16.2 Deterministic doc chunking (page/paragraph aware) + doc-mode limits that scale to large files
@@ -1091,11 +1136,11 @@ Touchpoints:
 - `src/index/chunking/limits.js`
 
 #### Tests
-- [ ] `tests/prose/pdf-chunking-deterministic.test.js`
+- [ ] `tests/indexing/chunking/pdf-chunking-deterministic.test.js`
   - [ ] Two-page fixture; assert stable chunk count, anchors, and page ranges across repeated runs.
-- [ ] `tests/prose/docx-chunking-deterministic.test.js`
+- [ ] `tests/indexing/chunking/docx-chunking-deterministic.test.js`
   - [ ] Multi-paragraph fixture; assert stable chunk grouping and heading boundary behavior.
-- [ ] `tests/perf/chunking-limits-large-input.test.js`
+- [ ] `tests/perf/chunking/chunking-limits-large-input.test.js`
   - [ ] Regression guard: chunking limits on a large string must complete within a bounded time.
 
 ### 16.3 Integrate extraction into indexing build (discovery, skip logic, file processing, state)
@@ -1131,11 +1176,11 @@ Touchpoints:
 - `src/index/chunking/dispatch.js`
 
 #### Tests
-- [ ] `tests/indexing/documents-included-when-available.test.js` (conditional; when deps available)
+- [ ] `tests/indexing/extracted-prose/documents-included-when-available.test.js` (conditional; when deps available)
   - [ ] Build fixture containing a sample PDF and DOCX; assert chunks exist with `segment.type:'pdf'|'docx'` and searchable text is present.
-- [ ] `tests/indexing/documents-skipped-when-unavailable.test.js`
+- [ ] `tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js`
   - [ ] Force capabilities off; build succeeds; skipped docs are reported deterministically with reasons.
-- [ ] `tests/indexing/document-bytes-hash-stable.test.js`
+- [ ] `tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
   - [ ] Ensure caching identity remains tied to bytes + extractor version/config.
 
 ### 16.4 metaV2 and chunk_meta contract extensions for extracted documents
@@ -1155,9 +1200,9 @@ Touchpoints:
 - Retrieval loaders that depend on metaV2 (for parity checks)
 
 #### Tests
-- [ ] `tests/unit/metaV2-extracted-doc.unit.js`
+- [ ] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
   - [ ] Verify extracted-doc schema fields are present, typed, and deterministic.
-- [ ] `tests/services/sqlite-hydration-metaV2-parity.services.js`
+- [ ] `tests/services/sqlite-hydration-metaV2-parity.test.js`
   - [ ] Build an index; load hits via artifact-backed and SQLite-backed paths; assert canonical metaV2 fields match for extracted docs.
 
 ### 16.5 Prose retrieval routing defaults + FTS query compilation correctness (explainable, deterministic)
@@ -1189,11 +1234,11 @@ Touchpoints:
 - `src/retrieval/sqlite-cache.js`
 
 #### Tests
-- [ ] `tests/retrieval/search-routing-policy.test.js`
+- [ ] `tests/retrieval/backend/search-routing-policy.test.js`
   - [ ] Prose defaults to FTS; code defaults to postings; overrides behave deterministically and are explained.
-- [ ] `tests/retrieval/sqlite-fts-query-escape.test.js`
+- [ ] `tests/retrieval/query/sqlite-fts-query-escape.test.js`
   - [ ] Punctuation cannot inject operators; the compiled `MATCH` string is stable and safe.
-- [ ] `tests/retrieval/fts-tokenizer-config.test.js`
+- [ ] `tests/retrieval/backend/fts-tokenizer-config.test.js`
   - [ ] Assert baseline tokenizer uses diacritic-insensitive configuration; include a diacritic recall fixture.
 
 ### 16.6 Sweep-driven correctness fixes in retrieval helpers touched by prose FTS routing
@@ -1219,9 +1264,9 @@ Touchpoints:
 - `src/retrieval/sqlite-helpers.js`
 
 #### Tests
-- [ ] `tests/retrieval/rankSqliteFts-allowedIds-correctness.test.js`
-- [ ] `tests/retrieval/rankSqliteFts-weight-before-limit.test.js`
-- [ ] `tests/retrieval/unpackUint32-buffer-alignment.test.js`
+- [ ] `tests/retrieval/backend/rankSqliteFts-allowedIds-correctness.test.js`
+- [ ] `tests/retrieval/backend/rankSqliteFts-weight-before-limit.test.js`
+- [ ] `tests/retrieval/backend/unpackUint32-buffer-alignment.test.js`
 
 ### 16.7 Query intent classification + boolean parsing semantics (route-aware, non-regressing)
 
@@ -1242,9 +1287,9 @@ Touchpoints:
 - `src/retrieval/query.js`
 
 #### Tests
-- [ ] `tests/retrieval/query-intent-path-heuristics.test.js`
-- [ ] `tests/retrieval/boolean-unary-not-whitespace.test.js`
-- [ ] `tests/retrieval/boolean-inventory-vs-semantics.test.js`
+- [ ] `tests/retrieval/query/query-intent-path-heuristics.test.js`
+- [ ] `tests/retrieval/query/boolean-unary-not-whitespace.test.js`
+- [ ] `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`
 
 ### 16.8 Retrieval output shaping: `scoreBreakdown` consistency + explain fidelity, plus harness drift repair
 
@@ -1260,18 +1305,18 @@ Touchpoints:
     - capability gating decisions when features are unavailable
 
 - [ ] Repair script-coverage harness drift affecting CI signal quality:
-  - [ ] Align `tests/script-coverage/actions.js` `covers` entries with actual `package.json` scripts.
-  - [ ] Ensure `tests/script-coverage/report.js` does not fail with `unknownCovers` for legitimate cases.
+  - [ ] Align `tests/tooling/script-coverage/actions.test.js` `covers` entries with actual `package.json` scripts.
+  - [ ] Ensure `tests/tooling/script-coverage/report.test.js` does not fail with `unknownCovers` for legitimate cases.
 
 Touchpoints:
 - `src/retrieval/output/*`
-- `tests/script-coverage/*`
+- `tests/tooling/script-coverage/*`
 - `package.json`
 
 #### Tests
-- [ ] `tests/retrieval/scoreBreakdown-contract-parity.test.js`
-- [ ] `tests/retrieval/explain-output-includes-routing-and-fts-match.test.js`
-- [ ] `tests/script-coverage/harness-parity.test.js`
+- [ ] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
+- [ ] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
+- [ ] `tests/tooling/script-coverage/harness-parity.test.js`
 
 
 
@@ -1341,11 +1386,11 @@ Touchpoints:
 - `docs/config/schema.json`
 - `src/index/build/runtime/runtime.js` (read + normalize `indexing.profile`)
 - `src/index/build/indexer/signatures.js` (include profile in signature)
-- `src/index/build/state.js` / `src/index/build/artifacts.js` (index_state emission)
+- `src/index/build/artifacts.js` (index_state emission + artifacts presence block)
 - `src/retrieval/cli/index-state.js` (surface profile + artifacts in `index_status`)
 
 #### Tests
-- [ ] `tests/index/profile-index-state-contract.test.js`
+- [ ] `tests/indexing/contracts/profile-index-state-contract.test.js`
   - [ ] Build tiny index with each profile and assert `index_state.json.profile` + `index_state.json.artifacts` satisfy schema invariants.
 
 ---
@@ -1375,9 +1420,9 @@ Touchpoints:
 - `src/index/build/file-processor/embeddings.js` (missing-doc marker regression)
 
 #### Tests
-- [ ] `tests/index/vector-only-does-not-emit-sparse.test.js`
+- [ ] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
   - [ ] Assert absence of `token_postings*`, `token_vocab*`, `token_stats*`, `minhash*`.
-- [ ] `tests/index/vector-only-switching-cleans-stale-sparse.test.js`
+- [ ] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
   - [ ] Build default, then vector_only into same outDir; assert sparse artifacts removed.
 
 ---
@@ -1407,9 +1452,9 @@ Touchpoints:
 - `src/retrieval/output/explain.js` (surface profile + warnings)
 
 #### Tests
-- [ ] `tests/retrieval/vector-only-search-requires-ann.test.js`
-- [ ] `tests/retrieval/vector-only-rejects-sparse-mode.test.js`
-- [ ] `tests/retrieval/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+- [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
+- [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
+- [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
 
 ---
 
@@ -1452,7 +1497,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 ### Phase 20.1 — Release target matrix + deterministic release smoke-check
 - [ ] Define and publish the **release target matrix** and optional-dependency policy.
   - Primary output:
-    - `docs/release-matrix.md` (or `docs/release/targets.md`)
+    - `docs/guides/release-matrix.md` (new)
   - Include:
     - Supported OSes and runners (Linux/macOS/Windows) and architectures (x64/arm64 where supported).
     - Supported Node versions (minimum + tested versions).
@@ -1489,9 +1534,9 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - Align CI Node version(s) with the release target matrix, and ensure the matrix is explicitly documented.
 
 #### Tests / Verification
-- [ ] `tests/release/release-check-smoke.test.js`
+- [ ] `tests/tooling/release/release-check-smoke.test.js`
   - Runs `node tools/release-check.js` in a temp environment and asserts it succeeds on a healthy checkout.
-- [ ] `tests/release/release-check-json.test.js`
+- [ ] `tests/tooling/release/release-check-json.test.js`
   - Runs `release-check --json` and asserts stable JSON envelope fields (schemaVersion, steps[], status).
 - [ ] CI verification:
   - [ ] Add a job that runs the smoke check on at least Linux/macOS/Windows with pinned Node versions per the matrix.
@@ -1513,17 +1558,17 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - be explicitly deferred to a named follow-on phase (with a concrete subsection placeholder).
 - [ ] Add regression tests for path safety and quoting.
   - Touchpoints:
-    - `tests/platform/paths-with-spaces.test.js` (new)
-    - `tests/platform/windows-paths-smoke.test.js` (new; conditional when not on Windows)
+    - `tests/tooling/platform/paths-with-spaces.test.js` (new)
+    - `tests/tooling/platform/windows-paths-smoke.test.js` (new; conditional when not on Windows)
   - Requirements:
     - Create a temp repo directory whose absolute path includes spaces.
     - Run build + validate + search using explicit `cwd` and temp cacheRoot.
     - Ensure the artifacts still store repo-relative paths with `/` separators.
 
 #### Tests / Verification
-- [ ] `tests/platform/paths-with-spaces.test.js`
+- [ ] `tests/tooling/platform/paths-with-spaces.test.js`
   - Creates `repo with spaces/` under a temp dir; runs build + search; asserts success.
-- [ ] `tests/platform/windows-paths-smoke.test.js`
+- [ ] `tests/tooling/platform/windows-paths-smoke.test.js`
   - On Windows CI, verifies key commands succeed and produce valid outputs.
 - [ ] Extend `tools/release-check.js` to include a `--paths` step that runs the above regression checks in quick mode.
 
@@ -1544,16 +1589,16 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - Packaging must be Node-only (must not assume Python is present).
 - [ ] Add installation and distribution documentation.
   - Touchpoints (choose one canonical location):
-    - `docs/editor-integration.md` (add Sublime section), and/or
+    - `docs/guides/editor-integration.md` (add Sublime section), and/or
     - `sublime/PairOfCleats/README.md` (distribution instructions)
   - Include:
     - Manual install steps and Package Control posture.
     - Compatibility notes (service-mode requirements, supported CLI flags, cacheRoot expectations).
 
 #### Tests / Verification
-- [ ] `tests/sublime/package-structure.test.js`
+- [ ] `tests/tooling/sublime/package-structure.test.js`
   - Runs the packaging script; asserts expected files exist in the output and that version metadata matches root `package.json`.
-- [ ] `tests/sublime/package-determinism.test.js` (if feasible)
+- [ ] `tests/tooling/sublime/package-determinism.test.js` (if feasible)
   - Packages twice; asserts the archive is byte-identical (or semantically identical with a stable file list + checksums).
 
 ---
@@ -1561,8 +1606,8 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 ### Phase 20.4 — Make Python tests and tooling optional (skip cleanly when Python is missing)
 - [ ] Update Python-related tests to detect absence of Python and **skip with a clear message** (not fail).
   - Touchpoints:
-    - `tests/sublime-pycompile.js` (must be guarded)
-    - `tests/sublime/test_*.py` (only if these are invoked by CI or tooling; otherwise keep as optional)
+    - `tests/tooling/sublime/sublime-pycompile.test.js` (must be guarded)
+    - `tests/tooling/sublime/test_*.py` (only if these are invoked by CI or tooling; otherwise keep as optional)
   - Requirements:
     - Prefer `spawnSync(python, ['--version'])` and treat ENOENT as “Python unavailable”.
     - When Python is unavailable:
@@ -1579,16 +1624,16 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - JSON output must include `status: 'skipped'`.
 - [ ] Add a small unit test that proves the “Python missing → skipped” path is wired correctly.
   - Touchpoints:
-    - `tests/python/python-availability-skip.test.js` (new)
+    - `tests/tooling/python/python-availability-skip.test.js` (new)
   - Approach:
     - mock or simulate ENOENT from spawnSync and assert the test exits with the “skip” code and emits the expected message.
 
 #### Tests / Verification
-- [ ] `tests/sublime-pycompile.js`
+- [ ] `tests/tooling/sublime/sublime-pycompile.test.js`
   - Verified behavior:
     - Without Python: skips (non-failing) with a clear message.
     - With Python: compiles all `.py` files under `sublime/PairOfCleats/**` and fails on syntax errors.
-- [ ] `tests/python/python-availability-skip.test.js`
+- [ ] `tests/tooling/python/python-availability-skip.test.js`
   - Asserts skip-path correctness and ensures we do not “skip on real failures”.
 
 ---
@@ -1614,9 +1659,9 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - If the toolchain is intentionally absent in some environments, the test must skip (not fail) with an explicit message.
 
 #### Tests / Verification
-- [ ] `tests/vscode/extension-packaging.test.js`
+- [ ] `tests/tooling/vscode/extension-packaging.test.js`
   - Packages a VSIX and asserts the output exists (skips if packaging toolchain is unavailable).
-- [ ] Extend `tests/vscode-extension.js`
+- [ ] Extend `tests/tooling/vscode/vscode-extension.test.js`
   - Validate required activation events/commands and required configuration keys (and add any cacheRoot-related keys if the contract requires them).
 
 ---
@@ -1627,7 +1672,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - `tools/api-server.js`
     - `tools/indexer-service.js`
     - `tools/service/**` (queue + worker)
-    - `docs/service-mode.md` (new) or a section in `docs/commands.md`
+    - `docs/guides/service-mode.md` (add bundle section) or a section in `docs/guides/commands.md`
   - Requirements:
     - Define canonical startup commands, required environment variables, and queue storage paths.
     - Document security posture and safe defaults:
@@ -1639,7 +1684,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - Use stub embeddings or other deterministic modes where possible; do not require external services.
 
 #### Tests / Verification
-- [ ] `tests/service/service-mode-smoke.test.js`
+- [ ] `tests/services/service-mode-smoke.test.js`
   - Starts API server + worker in a temp environment; enqueues a small job; asserts it is processed and the API responds.
 - [ ] Extend `tools/release-check.js` to optionally run a bounded-time service-mode smoke step (`--service-mode`).
 

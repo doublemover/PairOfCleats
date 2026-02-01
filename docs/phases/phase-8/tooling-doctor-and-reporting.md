@@ -168,12 +168,12 @@ Emit a short summary at the end of the indexing run, e.g.:
 
 ## 9. Tests (exact)
 
-1. `tests/tooling/doctor-emits-report.test.js`
+1. `tests/tooling/doctor/doctor-emits-report.test.js`
    - Assert artifact file exists and matches schema.
 
-2. `tests/tooling/doctor-detects-missing-typescript.test.js`
+2. `tests/tooling/doctor/doctor-detects-missing-typescript.test.js`
    - Simulate missing typescript module; report error.
 
-3. `tests/tooling/doctor-reports-xxhash-backend.test.js`
+3. `tests/tooling/doctor/doctor-reports-xxhash-backend.test.js`
    - Force backend selection; report correct backend field.
 

@@ -20,4 +20,4 @@ Compress cache bundles and index artifacts, including streaming zip/unzip for la
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use gzip/deflate streaming APIs for large artifact compression and decompression.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: compression level, window size, chunk size.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/artifact-formats.js (compressed artifact variants). Planned benchmark: tools/report-artifacts.js throughput.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/indexing/artifacts/artifact-formats.test.js (compressed artifact variants). Planned benchmark: tools/report-artifacts.js throughput.)

@@ -18,4 +18,4 @@ Run external tools (ripgrep, pyright, git, language servers) with robust stdio h
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use `execa`/`execaSync` to run tool invocations; rely on exitCode/stdout/stderr/all (tools/bench-language-repos.js, tools/tooling-utils.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (reject=false, stdio, encoding, cwd, env, timeout (tools/bench-language-repos.js, tools/triage/ingest.js).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/triage-records.js (tools/triage/ingest.js). Benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/tooling/triage/ingest-generic.exposure.test.js (tools/triage/ingest.js). Benchmark: tools/bench-language-repos.js.)

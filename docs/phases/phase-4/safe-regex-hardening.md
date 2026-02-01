@@ -172,12 +172,12 @@ For safe-regex specifically:
 ## 5. Tests / Verification
 
 ### 5.1 Required tests (as per Phase 4.8 roadmap)
-1. `tests/safe-regex/program-size-cap.test.js`
+1. `tests/shared/safe-regex/program-size-cap.test.js`
    * Configure `maxProgramSize` small and ensure compilation returns null / error code.
-2. `tests/safe-regex/input-length-cap.test.js`
+2. `tests/shared/safe-regex/input-length-cap.test.js`
    * Compile a simple matcher with small `maxInputLength`.
    * Ensure `.test()` returns `null` / false deterministically on oversized inputs.
-3. `tests/safe-regex/flags-normalization.test.js`
+3. `tests/shared/safe-regex/flags-normalization.test.js`
    * Verify:
      * duplicates removed
      * ordering canonical (`gims`)
@@ -187,7 +187,7 @@ For safe-regex specifically:
 ### 5.2 Additional recommended tests
 4. `tests/safe-regex/no-timeout-semantics.test.js`
    * Ensure `timeoutMs` does not affect evaluation (ignored/deprecated).
-5. `tests/risk-rules/invalid-pattern-diagnostics.test.js`
+5. `tests/indexing/risk/rules/invalid-pattern-diagnostics.test.js`
    * Provide a ruleset with an invalid regex.
    * Ensure diagnostics are produced and the rest of rules still load.
 

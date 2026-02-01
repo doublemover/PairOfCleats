@@ -20,6 +20,7 @@ const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
     .scriptName('pairofcleats ci-suite')
     .option('mode', { type: 'string', default: 'pr', choices: ['pr', 'nightly'] })
+    .option('lane', { type: 'string', default: '' })
     .option('dry-run', { type: 'boolean', default: false })
     .option('junit', { type: 'string', default: DEFAULT_JUNIT })
     .option('diagnostics', { type: 'string', default: DEFAULT_DIAGNOSTICS })
@@ -80,6 +81,7 @@ const ensureDir = async (dir) => {
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
+  const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
@@ -109,7 +111,7 @@ const main = async () => {
       args: [
         'tests/run.js',
         '--lane',
-        'ci',
+        baseLane,
         '--exclude',
         'services/api/',
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
@@ -126,7 +128,7 @@ const main = async () => {
       ? [{
         label: 'Script coverage',
         command: process.execPath,
-        args: ['tests/script-coverage.js', '--log-dir', logDir]
+        args: ['tests/tooling/script-coverage/script-coverage.test.js', '--log-dir', logDir]
       }]
       : []),
     {

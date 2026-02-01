@@ -18,4 +18,4 @@ Fast directory traversal with filtering, depth controls, and symlink policy; use
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use `new fdir().withFullPaths().crawl(root).withPromise()` to enumerate repo files (src/index/build/discover.js, tools/config-inventory.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (withFullPaths() and crawl(root) shape path outputs and traversal scope.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/discover.js (discovery pipeline). Benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/discovery/discover.test.js (discovery pipeline). Benchmark: tools/bench-language-repos.js.)

@@ -192,18 +192,18 @@ Maintenance note: if `watch.js` grows again, prefer extracting additional pure h
 ## 6. Tests / Verification
 
 ### 6.1 Required tests (as per roadmap)
-1. `tests/file-caps/pre-read-skip-respects-language.test.js`
+1. `tests/indexing/file-caps/pre-read-skip-respects-language.test.js`
    * Configure `fileCaps.byLanguage.javascript.maxBytes = 1`.
    * Create a `.js` file of size > 1 byte.
    * Ensure `resolvePreReadSkip(...)` returns `reason='oversize'` and includes `maxBytes=1`.
    * This test must fail on the current ext-only implementation and pass once `languageId` is threaded.
 
-2. `tests/file-caps/cached-bundle-respects-caps.test.js`
+2. `tests/indexing/file-caps/cached-bundle-respects-caps.test.js`
    * Construct a cached bundle where `maxLine > cap`.
    * Set `fileCaps.byLanguage.<lang>.maxLines` small enough to force a skip.
    * Ensure `reuseCachedBundle(...)` returns `{result:null, skip:{reason:'oversize', stage:'cached-reuse', ...}}`.
 
-3. `tests/file-caps/doc-mode-large-markdown-not-skipped.test.js` (**only if `byMode` is implemented**)
+3. `tests/indexing/file-caps/doc-mode-large-markdown-not-skipped.test.js` (**only if `byMode` is implemented**)
    * Set `fileCaps.default.maxBytes` small.
    * Set `fileCaps.byMode.prose.maxBytes` large.
    * Ensure that in prose mode, the same markdown file is **not** skipped.

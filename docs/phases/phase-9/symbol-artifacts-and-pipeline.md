@@ -109,14 +109,14 @@ Strict validation must verify:
 
 ## Tests (required)
 ### Unit tests
-- `tests/unit/identity-symbolkey-scopedid.test.js`
+- `tests/indexing/identity/identity-symbolkey-scopedid.test.js`
   - stable output for stable inputs
   - collision disambiguation is deterministic
 
 ### Services tests
-- `tests/services/symbol-artifacts-emission.test.js`
+- `tests/indexing/artifacts/symbols/symbol-artifacts-emission.test.js`
   - build fixture index, assert all three artifacts exist and validate
-- `tests/services/symbol-edges-ambiguous.test.js`
+- `tests/indexing/artifacts/symbols/symbol-edges-ambiguous.test.js`
   - fixture with two same-named symbols; assert `status: ambiguous` and both candidates present
-- `tests/validate/symbol-integrity-strict.test.js`
+- `tests/indexing/validate/symbol-integrity-strict.test.js`
   - tamper symbol edge endpoint; strict validate fails

@@ -87,6 +87,13 @@ if (!models.length) {
   process.exit(1);
 }
 
+const knownModels = new Set(models);
+const resolveModelLabel = (env) => {
+  const candidate = typeof env?.PAIROFCLEATS_MODEL === 'string' ? env.PAIROFCLEATS_MODEL.trim() : '';
+  if (candidate && knownModels.has(candidate)) return candidate;
+  return 'unknown';
+};
+
 let baseline;
 try {
   baseline = resolveBaseline(models, argv.baseline);
@@ -279,7 +286,7 @@ function runSearch(query, env) {
   });
   const wallMs = Date.now() - start;
   if (result.exitCode !== 0) {
-    console.error(`Search failed for query="${query}" (model=${env.PAIROFCLEATS_MODEL})`);
+    console.error(`Search failed for query="${query}" (model=${resolveModelLabel(env)})`);
     if (result.stderr) console.error(String(result.stderr).trim());
     process.exit(result.exitCode ?? 1);
   }

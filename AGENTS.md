@@ -22,7 +22,7 @@
 ## Script Policy References
 - `docs/tooling/script-inventory.json` (generated inventory)
 - `docs/guides/commands.md` (generated commands list)
-- `tests/policy/script-surface-policy.test.js` (inventory enforcement)
+- `tests/indexing/policy/script-surface-policy.test.js` (inventory enforcement)
 
 ## Spec deprecation + archival process
 - Move deprecated or superseded spec docs to `docs/archived/` (do not delete them).

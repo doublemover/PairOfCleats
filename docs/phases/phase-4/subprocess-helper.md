@@ -190,7 +190,7 @@ This is required to prevent leaks in watch mode.
 
 ## 6. Tests
 
-Create: `tests/subprocess/abort-kills-child.test.js`
+Create: `tests/shared/subprocess/abort-kills-child.test.js`
 
 Steps:
 1. Spawn: `node -e "setInterval(() => {}, 1000)"` with `stdio: 'ignore'`, `killTree=true`.
@@ -199,14 +199,14 @@ Steps:
    * promise rejects with AbortError (code ABORT_ERR)
    * process is not alive after a short delay (best effort: attempt `process.kill(pid, 0)` and expect failure on POSIX)
 
-Create: `tests/subprocess/timeout-kills-child.test.js`
+Create: `tests/shared/subprocess/timeout-kills-child.test.js`
 
 1. Spawn the same long-running process with `timeoutMs=200`.
 2. Assert:
    * rejects with SubprocessTimeoutError
    * process is killed.
 
-Create: `tests/subprocess/capture-bounds.test.js`
+Create: `tests/shared/subprocess/capture-bounds.test.js`
 
 1. Spawn a process that prints > maxOutputBytes to stdout.
 2. Assert stdout in result is truncated to <= maxOutputBytes and contains the tail.

@@ -42,7 +42,7 @@ const formatQueryValue = (value) => {
   if (!value) return null;
   const cleaned = String(value).replace(/\s+/g, ' ').trim();
   if (!cleaned) return null;
-  const escaped = cleaned.replace(/"/g, '\\"');
+  const escaped = cleaned.replace(/[\\"]/g, '\\$&');
   return /\s/.test(escaped) ? `"${escaped}"` : escaped;
 };
 const tokensFromDoc = (text) => {

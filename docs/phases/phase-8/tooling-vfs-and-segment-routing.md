@@ -273,14 +273,14 @@ This ensures:
 
 ## 10. Tests (exact)
 
-1. `tests/tooling/vfs-maps-segment-offsets.test.js`
+1. `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
    - Fixture: `.md` file with fenced TS.
    - Assert `virtualRange` maps to the correct substring in `virtualDoc.text`.
 
-2. `tests/tooling/vfs-virtualpath-deterministic.test.js`
+2. `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
    - Build twice; assert identical virtualPath generation.
 
-3. `tests/tooling/vfs-routing-by-effective-language.test.js`
+3. `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
    - `.vue` with `<script lang="ts">` and `<template>`.
    - Ensure TS tooling runs only on TS virtual doc, not on template.
 

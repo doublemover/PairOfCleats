@@ -380,19 +380,19 @@ Until all consumers are migrated:
 
 Create tests (names are suggestions; align with repo conventions):
 
-1. `tests/identity/chunkuid-stability-lineshift.test.js`
+1. `tests/indexing/identity/chunkuid-stability-lineshift.test.js`
    - Build fixture, record all `chunkUid`.
    - Insert text above chunks without changing chunk spans.
    - Rebuild and assert `chunkUid` unchanged for unchanged spans.
 
-2. `tests/identity/chunkuid-collision-disambiguation.test.js`
+2. `tests/indexing/identity/chunkuid-collision-disambiguation.test.js`
    - Create fixture with two identical spans in same file+segment and identical context windows.
    - Assert collision detected and `collisionOf` recorded; chunkUid disambiguated deterministically.
 
-3. `tests/identity/symbolref-envelope-required.test.js`
+3. `tests/indexing/identity/symbolref-envelope-required.test.js`
    - Ensure any emitted symbol edges/occurrences use `SymbolRef` object, not raw strings.
 
-4. `tests/identity/join-precedence.test.js`
+4. `tests/indexing/identity/join-precedence.test.js`
    - Construct fake symbol refs with symbolId/scopedId/symbolKey and assert join policy.
 
 ---

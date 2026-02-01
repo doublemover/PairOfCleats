@@ -3,13 +3,20 @@ export const createAuthGuard = (auth = {}) => {
     ? auth.token.trim()
     : null;
   const authRequired = auth.required === true;
+  const parseBearerToken = (header) => {
+    const value = String(header || '').trim();
+    if (!value) return null;
+    if (!value.toLowerCase().startsWith('bearer ')) return null;
+    const token = value.slice(7).trim();
+    return token || null;
+  };
   const isAuthorized = (req) => {
     if (!authRequired) return true;
     if (!authToken) return false;
     const header = req?.headers?.authorization || '';
-    const match = /^Bearer\s+(.+)$/i.exec(String(header));
-    if (!match) return false;
-    return match[1] === authToken;
+    const token = parseBearerToken(header);
+    if (!token) return false;
+    return token === authToken;
   };
   return { isAuthorized };
 };

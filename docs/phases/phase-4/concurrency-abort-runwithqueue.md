@@ -241,7 +241,7 @@ This is largely already satisfied by temp+atomic replace patterns, but the key i
 ## 8. Tests
 
 ### 8.1 Thread precedence
-Create: `tests/thread-limits-precedence-cli-over-env.js`
+Create: `tests/shared/runtime/thread-limits-precedence-cli-over-env.test.js`
 
 * Call `resolveThreadLimits()` with:
   * `argv.threads = 8`
@@ -252,7 +252,7 @@ Also add:
 * configThreads vs envThreads precedence tests (depends on desired semantics; chosen order is CLI > config > env > default).
 
 ### 8.2 IO cap clamping
-Create: `tests/io-concurrency-cap-uv-threadpool.js`
+Create: `tests/shared/concurrency/io-concurrency-cap-uv-threadpool.test.js`
 
 * Use `resolveThreadLimits()` (or the new `resolveThreadLimitsV2`) with:
   * cpuCount = 64
@@ -265,12 +265,12 @@ Add oversubscribe case:
 * with ioOversubscribe true, expect `fileConcurrency` can be 64 and `ioConcurrency` up to platform cap.
 
 ### 8.3 createShardRuntime uses computed IO
-Create: `tests/shard-runtime-uses-threadlimits-io.js`
+Create: `tests/indexing/shards/shard-runtime-uses-threadlimits-io.test.js`
 * Call `createShardRuntime({ threadLimits: { ..., ioConcurrency: 12, fileConcurrency: 32, importConcurrency: 32 } ... })`
 * Assert `runtimeRef.threadLimits.ioConcurrency === 12` and `runtimeRef.queues.io.concurrency === 12`.
 
 ### 8.4 runWithQueue bestEffort
-Create: `tests/concurrency-run-with-queue-best-effort.js`
+Create: `tests/shared/concurrency/concurrency-run-with-queue-best-effort.test.js`
 * Worker fails for some items
 * With `bestEffort=true`, ensure:
   * all items processed
@@ -279,7 +279,7 @@ Create: `tests/concurrency-run-with-queue-best-effort.js`
   * onError called exactly once per failure
 
 ### 8.5 runWithQueue abort signal
-Create: `tests/concurrency-run-with-queue-abort.js`
+Create: `tests/shared/concurrency/concurrency-run-with-queue-abort.test.js`
 * Create AbortController; abort after a few items start.
 * Ensure:
   * scheduling stops
