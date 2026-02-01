@@ -232,7 +232,6 @@ pairofcleats architecture-check --repo . --rules ./architecture.rules.json --for
 - caps:
   - `--maxViolations <n>`
   - `--maxEdgesExamined <n>`
-  - plus shared graph caps when traversal is required
 
 ### Output
 - JSON: `ArchitectureReport` (validated)
@@ -258,7 +257,7 @@ pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 
 
 ### Optional flags
 - `--test-pattern <glob>` repeatable (override default discovery patterns)
-- shared graph caps + `--maxSuggestions <n>`
+- shared graph caps (maxDepth/maxNodes/maxEdges/maxCandidates/maxWorkUnits)
 
 ### Output
 - JSON: `SuggestTestsReport` (validated)

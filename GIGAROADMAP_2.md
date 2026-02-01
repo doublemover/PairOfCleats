@@ -609,18 +609,18 @@ Touchpoints (test selection):
 ### 11.9 Docs + CLI wiring
 
 #### 11.9.1 CLI wiring
-- [ ] Update `bin/pairofcleats.js`:
+- [x] Update `bin/pairofcleats.js`:
   - add new commands (graph-context, impact, context-pack, api-contracts, architecture-check, suggest-tests)
   - remove/repair stale `search` flag allowlist validation so wrapper accepts all supported search flags
-- [ ] Implement per-command handlers under `src/integrations/tooling/`:
+- [x] Implement per-command handlers under `src/integrations/tooling/`:
   - `graph-context.js`, `impact.js`, `context-pack.js`, `api-contracts.js`, `architecture-check.js`, `suggest-tests.js`
 
 #### 11.9.2 Documentation updates
-- [ ] Update:
+- [x] Update:
   - `docs/contracts/analysis-schemas.md`
   - `docs/contracts/search-cli.md`
   - `docs/contracts/mcp-api.md`
-- [ ] Add:
+- [x] Add:
   - `docs/contracts/graph-tools-cli.md`
   - `docs/perf/graph-caps.md`
   - `docs/phases/phase-11/spec.md`

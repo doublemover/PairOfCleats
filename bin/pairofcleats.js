@@ -62,23 +62,6 @@ function resolveCommand(primary, rest) {
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
-    validateArgs(
-      rest,
-      [
-        'repo',
-        'mode',
-        'top',
-        'json',
-        'explain',
-        'filter',
-        'backend',
-        'graph-ranking-max-work',
-        'graph-ranking-max-ms',
-        'graph-ranking-seeds',
-        'graph-ranking-seed-k'
-      ],
-      ['repo', 'mode', 'top', 'filter', 'backend', 'graph-ranking-seeds']
-    );
     const backend = readFlagValue(rest, 'backend');
     if (backend && !['auto', 'sqlite', 'lmdb'].includes(backend.toLowerCase())) {
       console.error(`Unsupported --backend ${backend}. Use auto|sqlite|lmdb.`);

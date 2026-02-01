@@ -52,7 +52,8 @@ Phase 11 adds JSON-first outputs that are validated under `src/contracts/schemas
 
 All Phase 11 outputs share:
 - **Deterministic ordering** for all arrays.
-- **Strict caps** (depth/fanout/nodes/edges/paths/candidates/work-units).
+- **Strict caps** (depth/fanout/nodes/edges/paths/candidates/work-units plus feature-specific caps like
+  maxSymbols/maxCallsPerSymbol/maxWarnings, maxViolations/maxEdgesExamined, maxSuggestions/maxSeeds).
 - **Truncation records** when caps trigger:
   - which cap fired + measurable counts when available.
 - **Warning records** for partial/missing artifact behavior.
