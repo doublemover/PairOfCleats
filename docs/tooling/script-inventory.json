@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-31T03:50:28.739Z",
+  "generatedAt": "2026-02-01T20:50:32.685Z",
   "scripts": [
     {
       "name": "api-server",
@@ -225,12 +225,6 @@
     },
     {
       "name": "mcp-server",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "merge-append",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
