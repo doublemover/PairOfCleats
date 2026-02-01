@@ -44,7 +44,7 @@ PairOfCleats combines the strengths:
 - Optional (recommended for best Python chunk metadata): **Python 3** (`indexing.pythonAst.*`)
 - Optional (recommended for large repos): **SQLite backend** (via `better-sqlite3`)
 - Optional (recommended for fastest semantic search): **sqlite-vec** extension for ANN
-- Optional (document extraction): **PDF/DOCX support** via `pdfjs-dist` + `mammoth` (`indexing.documentExtraction.enabled` or `PAIROFCLEATS_DOC_EXTRACT=on`)
+- Optional (document extraction): **PDF/DOCX support** via `pdfjs-dist` + `mammoth` (`indexing.documentExtraction.enabled`)
 - Optional performance backends (auto-selected when available): **LMDB**, **LanceDB**, SQLite ANN extension. Set explicit config to force a backend.
 
 ---
@@ -63,7 +63,7 @@ npm install
 
 ### CI/PR test suite
 ```bash
-npm run test:pr
+node tests/run.js --lane ci-lite
 ```
 
 ### Guided setup (recommended)
@@ -79,7 +79,7 @@ pairofcleats bootstrap
 ### Build index
 ```bash
 pairofcleats index build
-# Add --mode code|prose|both to scope the index
+# Add --mode code|prose|extracted-prose|records|all|both to scope the index
 # Add --quality auto|fast|balanced|max to tune AutoPolicy
 ```
 
@@ -102,7 +102,9 @@ Modes:
 - `--mode code` (code-focused)
 - `--mode prose` (docs/readmes/comments)
 - `--mode extracted-prose` (comment-prose only; requires extracted-prose index)
-- `--mode both` (default in many workflows)
+- `--mode records` (triage records)
+- `--mode both` (alias for all when indexing)
+- `--mode all` (code + prose + extracted-prose + records)
 
 Use `--explain` (or `--why`) to see score breakdowns.
 
@@ -115,8 +117,6 @@ PairOfCleats can query indexes through different backends:
 - **memory**: file-backed JSON artifacts loaded into memory
 - **sqlite**: SQLite tables used as the backend (same general scoring model)
 - **lmdb**: LMDB tables used as the backend (build separately)
-- **sqlite-fts**: FTS5 scoring mode (fast, but scoring differs)
-
 For large repos, SQLite is usually the best experience.
 
 Build LMDB indexes:
@@ -180,11 +180,11 @@ Detailed diagrams: `docs/guides/architecture.md`
 
 ## Status
 
-Active development. See `GIGAROADMAP.md` for current execution status.
+Active development. See `GIGAROADMAP_2.md` for current execution status.
 
 ---
 
 ## License
 
-See the repository license file.
+License not yet specified in this repo.
 

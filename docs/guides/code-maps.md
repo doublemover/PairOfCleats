@@ -28,15 +28,6 @@ Useful options (subset):
 - `--include imports,calls,usages,dataflow,exports`
 - Guardrails: `--max-files`, `--max-members-per-file`, `--max-edges`, `--top-k-by-degree`
 
-## API server usage
-
-When running `pairofcleats service api`, the server exposes:
-
-- `GET /map?format=<...>`
-- `GET /map/nodes`
-
-See [docs/api/server.md](api-server.md) for details.
-
 ## Graphviz is optional
 
 PairOfCleats can always produce **DOT** output (and the JSON map model) without Graphviz.

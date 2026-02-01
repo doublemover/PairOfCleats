@@ -61,7 +61,7 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
 ### Objective
 Stop shipping docs that describe commands, endpoints, and flags that don’t exist.
 
-- [?] Implement or de-document the `pairofcleats report ...` command family.
+- [x] Implement or de-document the `pairofcleats report ...` command family.
   - Docs reference:
     - `docs/guides/code-maps.md` (`pairofcleats report map`)
     - `docs/benchmarks/evaluation.md` (`pairofcleats report eval`)
@@ -74,22 +74,22 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
     - [ ] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
     - [ ] Update docs to use `node tools/...` or `npm run ...`.
 
-- [?] Implement or de-document `pairofcleats sqlite ...`.
+- [x] Implement or de-document `pairofcleats sqlite ...`.
   - Docs reference: `docs/sqlite/incremental-updates.md` (`pairofcleats sqlite build --incremental`)
   - Reality: `bin/pairofcleats.js` has no `sqlite` group.
   - Action: wire a `sqlite` command group or change docs to `npm run build-sqlite-index ...`.
 
-- [?] Implement or de-document `pairofcleats service indexer ...`.
+- [x] Implement or de-document `pairofcleats service indexer ...`.
   - Docs reference: `docs/guides/service-mode.md` (`service indexer start/status/stop`)
   - Reality: CLI only supports `pairofcleats service api`. `tools/indexer-service.js` exists but is not routed.
   - Action: route `service indexer` or change docs to `npm run indexer-service`.
 
-- [?] Fix broken doc links and API surface claims.
+- [x] Fix broken doc links and API surface claims.
   - `docs/guides/code-maps.md` links to `./api-server.md` which does not exist.
   - Map endpoints described in docs don’t appear in the API router.
   - Action: fix link + reconcile endpoints vs router.
 
-- [?] README drift and missing references.
+- [x] README drift and missing references.
   - Missing/incorrect references:
     - README references `GIGAROADMAP.md` but file is `GIGAROADMAP_2.md`.
     - README implies a license file exists; none found at repo root.
