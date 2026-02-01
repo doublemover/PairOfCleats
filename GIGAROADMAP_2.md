@@ -255,7 +255,7 @@ Touchpoints (consolidated; anchors are approximate):
 
 ### 11.2 Impact analysis (callers/callees + k-hop impact radius) with witness paths
 
-- [ ] Implement bounded impact analysis on top of the same neighborhood extraction primitives.
+- [x] Implement bounded impact analysis on top of the same neighborhood extraction primitives.
   - Provide `impactAnalysis(seed, { direction, depth, caps, edgeFilters })` returning:
     - impacted nodes (bounded; stable ordering)
     - at least one witness path per impacted node when available (bounded; do not enumerate all paths)
@@ -263,12 +263,12 @@ Touchpoints (consolidated; anchors are approximate):
   - Deterministic ordering:
     - stable sort by `(distance, confidence desc, name/id asc)` (or equivalent stable rule), and document it.
 
-- [ ] CLI surface (API-ready internal design).
+- [x] CLI surface (API-ready internal design).
   - Add `pairofcleats impact --repo … --seed <id> --direction upstream|downstream --depth 2 --format json|md`.
   - Add graph filters: `--graphs`, `--edgeTypes`, `--minConfidence`.
   - Ensure the implementation is factored so an API/MCP handler can call the same core function with the same caps and output schema.
 
-- [ ] Optional “changed-set” impact mode (non-blocking in this phase).
+- [x] Optional “changed-set” impact mode (non-blocking in this phase).
   - Accept `--changed <file>` repeated and `--changed-file <path>` (newline-separated paths) and compute:
     - impacted symbols in and around changed files, then traverse upstream/downstream bounded.
   - If `seed` is omitted, derive candidate seeds deterministically and emit a `ReferenceEnvelope` with bounded candidates.
@@ -278,15 +278,15 @@ Touchpoints (consolidated; anchors are approximate):
     - max seeds cap + truncation behavior
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/retrieval/graph/impact-analysis-downstream.test.js`
+- [x] `tests/retrieval/graph/impact-analysis-downstream.test.js`
   - Seed a function; assert downstream impacted nodes include an expected callee and a witness path is returned.
-- [ ] `tests/retrieval/graph/impact-analysis-upstream.test.js`
+- [x] `tests/retrieval/graph/impact-analysis-upstream.test.js`
   - Seed a function; assert upstream impacted nodes include an expected caller and a witness path is returned.
-- [ ] `tests/retrieval/graph/impact-analysis-caps-and-truncation.test.js`
+- [x] `tests/retrieval/graph/impact-analysis-caps-and-truncation.test.js`
   - Trigger caps deterministically; assert truncation metadata identifies which cap fired and results remain stable.
-- [ ] `tests/retrieval/graph/impact-analysis-determinism.test.js`
+- [x] `tests/retrieval/graph/impact-analysis-determinism.test.js`
   - Run the same request twice; assert stable ordering and identical payloads.
-- [ ] `tests/retrieval/graph/impact-analysis-changed-set.test.js`
+- [x] `tests/retrieval/graph/impact-analysis-changed-set.test.js`
   - Provide `--changed` inputs; assert deterministic seed derivation and bounded output.
 
 Fixture sources:

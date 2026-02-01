@@ -137,6 +137,53 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
   }
+  if (primary === 'impact') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'changed',
+        'changedFile',
+        'depth',
+        'direction',
+        'format',
+        'json',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'changed',
+        'changedFile',
+        'depth',
+        'direction',
+        'format',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/impact.js', extraArgs: [], args: rest };
+  }
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
@@ -341,6 +388,7 @@ LMDB:
 
 Graph:
   graph-context          Build a graph context pack for a seed
+  impact                 Compute bounded graph impact for a seed or change set
 
 Risk:
   risk explain            Explain interprocedural risk flows

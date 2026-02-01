@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "callGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "usageGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "importGraph": {
+    "nodeCount": 2,
+    "edgeCount": 1,
+    "nodes": [
+      { "id": "src/changed.js", "file": "src/changed.js", "out": ["src/target.js"], "in": [] },
+      { "id": "src/target.js", "file": "src/target.js", "out": [], "in": ["src/changed.js"] }
+    ]
+  }
+}
