@@ -28,6 +28,7 @@ export const isManifestPathSafe = (value) => {
   if (path.isAbsolute(value)) return false;
   if (value.startsWith('/')) return false;
   const normalized = normalizeManifestPath(value);
-  if (normalized.includes('..')) return false;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..')) return false;
   return true;
 };

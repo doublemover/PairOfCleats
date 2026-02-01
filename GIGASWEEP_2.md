@@ -153,7 +153,7 @@ Ensure the config file (`.pairofcleats.json`) is:
 ### Objective
 Manifest-driven and output-driven filesystem reads must be safe **regardless of “strict” mode**.
 
-- [?] Always enforce manifest path containment, even in non-strict mode.
+- [x] Always enforce manifest path containment, even in non-strict mode.
   - Findings:
     - `src/index/validate/manifest.js` only validates entry paths when `strict===true`, but still `existsSync()` / hashes resolved paths when non-strict.
     - `src/shared/artifact-io/manifest.js` similarly only enforces safety when strict.
@@ -163,11 +163,11 @@ Manifest-driven and output-driven filesystem reads must be safe **regardless of 
     - [ ] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
     - [ ] In non-strict mode: downgrade to warnings + skip unsafe entries (but do not read them).
 
-- [?] Fix path safety predicate false-positives.
+- [x] Fix path safety predicate false-positives.
   - Current logic uses substring `normalized.includes('..')`, which rejects benign strings like `foo..bar`.
   - Action: check path segments for equality to `'..'`.
 
-- [?] Fix output summarization path traversal.
+- [x] Fix output summarization path traversal.
   - `src/retrieval/output/summary.js` uses `path.join(rootDir, chunk.file)` without containment validation.
   - Action: resolve and ensure resulting path remains under `rootDir` before reading.
 

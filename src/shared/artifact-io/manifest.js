@@ -9,6 +9,7 @@ const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
 const warnedMissingManifest = new Set();
 const warnedNonStrictFallback = new Set();
+const warnedUnsafePaths = new Set();
 
 const normalizeManifest = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
@@ -28,9 +29,17 @@ const isSafeManifestPath = (value) => {
   if (!value) return false;
   if (path.isAbsolute(value)) return false;
   const normalized = value.split('\\').join('/');
-  if (normalized.includes('..')) return false;
   if (normalized.startsWith('/')) return false;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..')) return false;
   return true;
+};
+
+const warnUnsafePath = (dir, relPath, reason) => {
+  const key = `${dir}:${relPath}:${reason}`;
+  if (warnedUnsafePaths.has(key)) return;
+  warnedUnsafePaths.add(key);
+  console.warn(`[manifest] Non-strict mode: skipping unsafe path (${reason}): ${relPath}`);
 };
 
 const resolveManifestMaxBytes = (maxBytes) => {
@@ -41,19 +50,27 @@ const resolveManifestMaxBytes = (maxBytes) => {
 
 export const resolveManifestPath = (dir, relPath, strict) => {
   if (!relPath) return null;
-  if (strict && !isSafeManifestPath(relPath)) {
-    const err = new Error(`Invalid manifest path: ${relPath}`);
-    err.code = 'ERR_MANIFEST_PATH';
-    throw err;
+  if (!isSafeManifestPath(relPath)) {
+    if (strict) {
+      const err = new Error(`Invalid manifest path: ${relPath}`);
+      err.code = 'ERR_MANIFEST_PATH';
+      throw err;
+    }
+    warnUnsafePath(dir, relPath, 'invalid');
+    return null;
   }
   const resolved = path.resolve(dir, relPath.split('/').join(path.sep));
-  if (strict) {
-    const root = path.resolve(dir);
-    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+  const root = path.resolve(dir);
+  const relative = path.relative(root, resolved);
+  const escapes = relative.startsWith('..') || path.isAbsolute(relative);
+  if (escapes) {
+    if (strict) {
       const err = new Error(`Manifest path escapes index root: ${relPath}`);
       err.code = 'ERR_MANIFEST_PATH';
       throw err;
     }
+    warnUnsafePath(dir, relPath, 'escape');
+    return null;
   }
   return resolved;
 };
@@ -202,33 +219,39 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   if (metaEntries.length === 1) {
     const metaEntry = metaEntries[0];
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
-    const metaRaw = readJsonFile(metaPath, { maxBytes });
-    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-    const parts = normalizeMetaParts(meta?.parts);
-    if (parts.length) {
-      const partSet = new Set(entries.map((entry) => entry?.path));
-      if (strict) {
-        for (const part of parts) {
-          if (!partSet.has(part)) {
-            const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
-            err.code = 'ERR_MANIFEST_INCOMPLETE';
-            throw err;
+    if (metaPath) {
+      const metaRaw = readJsonFile(metaPath, { maxBytes });
+      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const parts = normalizeMetaParts(meta?.parts);
+      if (parts.length) {
+        const partSet = new Set(entries.map((entry) => entry?.path));
+        if (strict) {
+          for (const part of parts) {
+            if (!partSet.has(part)) {
+              const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
+              err.code = 'ERR_MANIFEST_INCOMPLETE';
+              throw err;
+            }
           }
         }
+        const paths = parts
+          .map((part) => resolveManifestPath(dir, part, strict))
+          .filter(Boolean);
+        if (paths.length) {
+          return {
+            format: resolveMetaFormat(meta, 'jsonl'),
+            paths,
+            meta,
+            metaPath
+          };
+        }
       }
-      const paths = parts.map((part) => resolveManifestPath(dir, part, strict));
-      return {
-        format: resolveMetaFormat(meta, 'jsonl'),
-        paths,
-        meta,
-        metaPath
-      };
-    }
-    const rawFormat = typeof meta?.format === 'string' ? meta.format : null;
-    if (rawFormat === 'jsonl-sharded' || rawFormat === 'sharded') {
-      const err = new Error(`Manifest meta missing parts for ${name}`);
-      err.code = 'ERR_MANIFEST_INVALID';
-      throw err;
+      const rawFormat = typeof meta?.format === 'string' ? meta.format : null;
+      if (rawFormat === 'jsonl-sharded' || rawFormat === 'sharded') {
+        const err = new Error(`Manifest meta missing parts for ${name}`);
+        err.code = 'ERR_MANIFEST_INVALID';
+        throw err;
+      }
     }
   }
   if (!entries.length) return null;
@@ -245,6 +268,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   const paths = resolvedEntries
     .map((entry) => resolveManifestPath(dir, entry?.path, strict))
     .filter(Boolean);
+  if (!paths.length) return null;
   return {
     format: inferEntryFormat(resolvedEntries[0]),
     paths
