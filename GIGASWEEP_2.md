@@ -253,14 +253,14 @@ Remove dead code paths, misleading cleanup, and brittle precondition assumptions
 ### Objective
 No request should hang without a response; cancellation/timeout semantics should be deterministic.
 
-- [?] Fix tool-call cancellation: ensure a response is emitted even if handler resolves after cancellation.
+- [x] Fix tool-call cancellation: ensure a response is emitted even if handler resolves after cancellation.
   - Current behavior: if cancelled flag is set, success path returns without sending a reply.
   - Touchpoints:
     - `tools/mcp/transport.js`
     - tool handlers (e.g., `tools/mcp/tools/handlers/search.js`)
   - Action:
-    - [ ] On cancellation: send a deterministic “cancelled” response for the original request id.
-    - [ ] Add a `$ /cancelRequest` test asserting a response always arrives.
+    - [x] On cancellation: send a deterministic “cancelled” response for the original request id.
+    - [x] Add a `$ /cancelRequest` test asserting a response always arrives.
 
 ---
 

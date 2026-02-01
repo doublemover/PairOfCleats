@@ -90,6 +90,25 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
   const queue = [];
   const inFlight = new Map();
 
+  const sendCancelledResponse = (id) => {
+    sendResult(id, {
+      content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' }, null, 2) }],
+      isError: true
+    });
+  };
+
+  const applyCancellation = (params) => {
+    const cancelId = params?.id;
+    if (cancelId === null || cancelId === undefined) return false;
+    const entry = inFlight.get(cancelId);
+    if (entry) {
+      entry.cancelled = true;
+      entry.controller.abort();
+      return true;
+    }
+    return false;
+  };
+
   /**
    * Handle a JSON-RPC message from stdin.
    * @param {object} message
@@ -131,13 +150,7 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
     }
 
     if (method === '$/cancelRequest') {
-      const cancelId = params?.id;
-      if (cancelId === null || cancelId === undefined) return;
-      const entry = inFlight.get(cancelId);
-      if (entry) {
-        entry.cancelled = true;
-        entry.controller.abort();
-      }
+      applyCancellation(params);
       return;
     }
 
@@ -167,17 +180,17 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
             }
           }
         );
-        if (entry.cancelled) return;
+        if (entry.cancelled) {
+          sendCancelledResponse(id);
+          return;
+        }
         sendResult(id, {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
         });
       } catch (error) {
         const entry = inFlight.get(id);
         if (entry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
-          sendResult(id, {
-            content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' }, null, 2) }],
-            isError: true
-          });
+          sendCancelledResponse(id);
           return;
         }
         const payload = formatToolError(error);
@@ -223,6 +236,10 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
    * @param {object} message
    */
   function enqueueMessage(message) {
+    if (message?.method === '$/cancelRequest') {
+      applyCancellation(message.params);
+      return;
+    }
     const inFlight = processing ? 1 : 0;
     if (queue.length + inFlight >= queueMax) {
       if (message?.id !== undefined && message?.id !== null) {
