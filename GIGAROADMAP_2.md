@@ -475,7 +475,7 @@ Touchpoints (consolidated):
 
 ### 11.6 Cross-file API contracts (report + optional artifact)
 
-- [ ] Provide an API-contract extraction/report surface based on existing artifacts (do not require new parsing).
+- [x] Provide an API-contract extraction/report surface based on existing artifacts (do not require new parsing).
   - For each exported symbol (as available via symbol artifacts):
     - canonical signature (declared + tooling-backed when available)
     - observed call signatures (from bounded callsite evidence / callDetails summaries)
@@ -493,20 +493,20 @@ Touchpoints (consolidated):
     - deterministic call sampling rules
     - warning/mismatch criteria (language-aware + confidence)
 
-- [ ] CLI surface:
+- [x] CLI surface:
   - `pairofcleats api-contracts --repo … [--only-exports] [--fail-on-warn] --format json|md`
 
-- [ ] Optional: enable an artifact emitter for downstream automation.
+- [x] Optional: enable an artifact emitter for downstream automation.
   - `api_contracts.jsonl` (one record per symbol) with strict schema validation and caps.
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/tooling/api-contracts/api-contracts-basic.test.js`
+- [x] `tests/tooling/api-contracts/api-contracts-basic.test.js`
   - Fixture with an exported function called with multiple shapes; assert contract report includes observed calls and a mismatch warning.
-- [ ] `tests/tooling/api-contracts/api-contracts-caps.test.js`
+- [x] `tests/tooling/api-contracts/api-contracts-caps.test.js`
   - Trigger caps; assert truncation metadata is present and stable.
-- [ ] `tests/tooling/api-contracts/api-contracts-fail-on-warn.test.js`
+- [x] `tests/tooling/api-contracts/api-contracts-fail-on-warn.test.js`
   - Ensure `--fail-on-warn` yields non-zero exit when warnings are present.
-- [ ] `tests/tooling/api-contracts/api-contracts-schema-validate.test.js`
+- [x] `tests/tooling/api-contracts/api-contracts-schema-validate.test.js`
   - Validate output against `API_CONTRACTS_SCHEMA` (including truncation + warnings).
 
 Fixture sources:
@@ -645,5 +645,6 @@ Touchpoints (test selection):
   - `{ version, rules[], violations[], truncation?, warnings? }`
 - Suggest-tests:
   - `{ version, changed[], suggestions[], truncation?, warnings? }`
+
 
 

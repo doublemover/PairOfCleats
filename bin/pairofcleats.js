@@ -201,6 +201,26 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/context-pack.js', extraArgs: [], args: rest };
   }
+  if (primary === 'api-contracts') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'onlyExports',
+        'failOnWarn',
+        'format',
+        'json',
+        'maxSymbols',
+        'maxCallsPerSymbol',
+        'maxCalls',
+        'maxWarnings',
+        'emitArtifact',
+        'artifactDir'
+      ],
+      ['repo', 'format', 'maxSymbols', 'maxCallsPerSymbol', 'maxCalls', 'maxWarnings', 'artifactDir']
+    );
+    return { script: 'tools/api-contracts.js', extraArgs: [], args: rest };
+  }
   if (primary === 'impact') {
     validateArgs(
       rest,
@@ -453,6 +473,7 @@ LMDB:
 Graph:
   graph-context          Build a graph context pack for a seed
   context-pack           Build a composite context pack for a seed
+  api-contracts          Report cross-file API contracts
   impact                 Compute bounded graph impact for a seed or change set
 
 Risk:

@@ -201,8 +201,11 @@ pairofcleats api-contracts --repo . --only-exports --format json
 - `--fail-on-warn` (boolean; non-zero exit if any warnings)
 - caps:
   - `--maxSymbols <n>`
-  - `--maxCallsPerSymbol <n>`
+  - `--maxCallsPerSymbol <n>` (alias: `--maxCalls`)
   - `--maxWarnings <n>`
+- artifact emission:
+  - `--emitArtifact` (boolean; write `api_contracts.jsonl`)
+  - `--artifactDir <path>` (optional target dir; defaults to the index dir)
 
 ### Output
 - JSON: `ApiContractsReport` (validated)

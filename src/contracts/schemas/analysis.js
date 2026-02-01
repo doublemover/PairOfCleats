@@ -382,7 +382,10 @@ const truncationRecordSchema = {
         'maxPaths',
         'maxCandidates',
         'maxWorkUnits',
-        'maxWallClockMs'
+        'maxWallClockMs',
+        'maxSymbols',
+        'maxCallsPerSymbol',
+        'maxWarnings'
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
