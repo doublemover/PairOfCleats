@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "callGraph": {
+    "nodeCount": 2,
+    "edgeCount": 1,
+    "nodes": [
+      {
+        "id": "chunk-a",
+        "file": "src/app/alpha.js",
+        "name": "alpha",
+        "kind": "function",
+        "out": ["chunk-b"],
+        "in": []
+      },
+      {
+        "id": "chunk-b",
+        "file": "src/core/beta.js",
+        "name": "beta",
+        "kind": "function",
+        "out": [],
+        "in": ["chunk-a"]
+      }
+    ]
+  },
+  "usageGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "importGraph": {
+    "nodeCount": 2,
+    "edgeCount": 1,
+    "nodes": [
+      {
+        "id": "src/app/app.js",
+        "file": "src/app/app.js",
+        "out": ["src/core/core.js"],
+        "in": []
+      },
+      {
+        "id": "src/core/core.js",
+        "file": "src/core/core.js",
+        "out": [],
+        "in": ["src/app/app.js"]
+      }
+    ]
+  }
+}

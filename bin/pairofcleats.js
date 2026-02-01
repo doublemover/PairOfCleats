@@ -153,6 +153,23 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
   }
+  if (primary === 'architecture-check') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'rules',
+        'format',
+        'json',
+        'fail-on-violation',
+        'failOnViolation',
+        'maxViolations',
+        'maxEdgesExamined'
+      ],
+      ['repo', 'rules', 'format', 'maxViolations', 'maxEdgesExamined']
+    );
+    return { script: 'tools/architecture-check.js', extraArgs: [], args: rest };
+  }
   if (primary === 'context-pack') {
     validateArgs(
       rest,
@@ -474,6 +491,7 @@ Graph:
   graph-context          Build a graph context pack for a seed
   context-pack           Build a composite context pack for a seed
   api-contracts          Report cross-file API contracts
+  architecture-check     Evaluate architecture rules over graphs
   impact                 Compute bounded graph impact for a seed or change set
 
 Risk:

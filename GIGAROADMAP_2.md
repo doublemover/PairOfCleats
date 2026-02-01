@@ -526,7 +526,7 @@ Touchpoints (consolidated; anchors are approximate):
 
 ### 11.7 Architecture slicing and boundary enforcement (rules + CI-friendly output)
 
-- [ ] Add a rules format for architectural constraints over graphs.
+- [x] Add a rules format for architectural constraints over graphs.
   - Rule types (minimum viable):
     - forbidden edges by path glob/module group (importGraph)
     - forbidden call edges by symbol tags or file globs (callGraph)
@@ -537,17 +537,17 @@ Touchpoints (consolidated; anchors are approximate):
   - Add reusable module groups:
     - named selector sets referenced by rules
 
-- [ ] CLI surface:
+- [x] CLI surface:
   - `pairofcleats architecture-check --repo … --rules <path> --format json|md [--fail-on-violation]`
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/tooling/architecture/forbidden-import-edge.test.js`
+- [x] `tests/tooling/architecture/forbidden-import-edge.test.js`
   - Fixture with a forbidden import; assert violation is reported deterministically.
-- [ ] `tests/tooling/architecture/forbidden-call-edge.test.js`
+- [x] `tests/tooling/architecture/forbidden-call-edge.test.js`
   - Fixture with a forbidden call edge; assert violation is reported deterministically.
-- [ ] `tests/tooling/architecture/report-is-bounded.test.js`
+- [x] `tests/tooling/architecture/report-is-bounded.test.js`
   - Large fixture triggers caps; assert truncation metadata exists and report remains parseable.
-- [ ] `tests/tooling/architecture/report-determinism.test.js`
+- [x] `tests/tooling/architecture/report-determinism.test.js`
   - Run the same rules twice; assert ordering and output are identical.
 
 Fixture sources:

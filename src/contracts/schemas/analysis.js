@@ -385,7 +385,9 @@ const truncationRecordSchema = {
         'maxWallClockMs',
         'maxSymbols',
         'maxCallsPerSymbol',
-        'maxWarnings'
+        'maxWarnings',
+        'maxViolations',
+        'maxEdgesExamined'
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
