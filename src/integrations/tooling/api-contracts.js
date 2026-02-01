@@ -22,6 +22,14 @@ const normalizeOptionalNumber = (value) => {
   return parsed;
 };
 
+const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
+  const caps = {};
+  if (Number.isFinite(maxSymbols)) caps.maxSymbols = maxSymbols;
+  if (Number.isFinite(maxCallsPerSymbol)) caps.maxCallsPerSymbol = maxCallsPerSymbol;
+  if (Number.isFinite(maxWarnings)) caps.maxWarnings = maxWarnings;
+  return caps;
+};
+
 const resolveProvenance = ({
   provenance,
   indexSignature,
@@ -65,12 +73,224 @@ const isExportedSymbol = (symbol) => {
 
 const parseSignatureArity = (signature) => {
   if (!signature || typeof signature !== 'string') return null;
-  const match = signature.match(/\(([^)]*)\)/);
-  if (!match) return null;
-  const raw = match[1].trim();
-  if (!raw) return 0;
-  const count = raw.split(',').map((part) => part.trim()).filter(Boolean).length;
-  return count;
+  const text = String(signature);
+  const start = text.indexOf('(');
+  if (start === -1) return null;
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inBacktick = false;
+  let escaped = false;
+  let end = -1;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (inSingle) {
+      if (ch === '\'') inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inBacktick) {
+      if (ch === '`') inBacktick = false;
+      continue;
+    }
+    if (ch === '\'') {
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      inBacktick = true;
+      continue;
+    }
+    if (ch === '(') {
+      depth += 1;
+      continue;
+    }
+    if (ch === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end === -1) return null;
+  const raw = text.slice(start + 1, end).trim();
+  if (!raw) {
+    return {
+      requiredCount: 0,
+      maxCount: 0,
+      variadic: false
+    };
+  }
+
+  const params = [];
+  let current = '';
+  depth = 0;
+  inSingle = false;
+  inDouble = false;
+  inBacktick = false;
+  escaped = false;
+  let angleDepth = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      current += ch;
+      escaped = true;
+      continue;
+    }
+    if (inSingle) {
+      current += ch;
+      if (ch === '\'') inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      current += ch;
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inBacktick) {
+      current += ch;
+      if (ch === '`') inBacktick = false;
+      continue;
+    }
+    if (ch === '\'') {
+      current += ch;
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      current += ch;
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      current += ch;
+      inBacktick = true;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') {
+      depth += 1;
+      current += ch;
+      continue;
+    }
+    if (ch === ')' || ch === ']' || ch === '}') {
+      depth = Math.max(0, depth - 1);
+      current += ch;
+      continue;
+    }
+    if (ch === '<') {
+      angleDepth += 1;
+      current += ch;
+      continue;
+    }
+    if (ch === '>') {
+      angleDepth = Math.max(0, angleDepth - 1);
+      current += ch;
+      continue;
+    }
+    if (ch === ',' && depth === 0 && angleDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed) params.push(trimmed);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  const final = current.trim();
+  if (final) params.push(final);
+
+  const isTopLevelTokenMatch = (value, predicate) => {
+    let level = 0;
+    let angle = 0;
+    let inS = false;
+    let inD = false;
+    let inB = false;
+    let esc = false;
+    for (let i = 0; i < value.length; i += 1) {
+      const ch = value[i];
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (ch === '\\') {
+        esc = true;
+        continue;
+      }
+      if (inS) {
+        if (ch === '\'') inS = false;
+        continue;
+      }
+      if (inD) {
+        if (ch === '"') inD = false;
+        continue;
+      }
+      if (inB) {
+        if (ch === '`') inB = false;
+        continue;
+      }
+      if (ch === '\'') { inS = true; continue; }
+      if (ch === '"') { inD = true; continue; }
+      if (ch === '`') { inB = true; continue; }
+      if (ch === '(' || ch === '[' || ch === '{') { level += 1; continue; }
+      if (ch === ')' || ch === ']' || ch === '}') { level = Math.max(0, level - 1); continue; }
+      if (ch === '<') { angle += 1; continue; }
+      if (ch === '>') { angle = Math.max(0, angle - 1); continue; }
+      if (level === 0 && angle === 0 && predicate(ch, i, value)) return true;
+    }
+    return false;
+  };
+
+  let requiredCount = 0;
+  let optionalCount = 0;
+  let variadic = false;
+
+  for (const param of params) {
+    const trimmed = param.trim();
+    if (!trimmed) continue;
+    if (trimmed === '*') continue;
+    if (trimmed.startsWith('...') || trimmed.startsWith('*')) {
+      variadic = true;
+      continue;
+    }
+    const hasDefault = isTopLevelTokenMatch(trimmed, (ch) => ch === '=');
+    const hasOptionalMark = isTopLevelTokenMatch(trimmed, (ch, idx, value) => {
+      if (ch !== '?') return false;
+      const rest = value.slice(idx + 1);
+      return !rest || rest.startsWith(':') || rest.startsWith(' =') || rest.startsWith('=');
+    });
+    if (hasDefault || hasOptionalMark) {
+      optionalCount += 1;
+    } else {
+      requiredCount += 1;
+    }
+  }
+
+  const maxCount = variadic ? null : requiredCount + optionalCount;
+  return {
+    requiredCount,
+    maxCount,
+    variadic
+  };
 };
 
 export const buildApiContractsReport = ({
@@ -91,6 +311,7 @@ export const buildApiContractsReport = ({
     ? Math.max(0, Math.floor(caps.maxCallsPerSymbol))
     : null;
   const maxWarnings = Number.isFinite(caps.maxWarnings) ? Math.max(0, Math.floor(caps.maxWarnings)) : null;
+  const capsPayload = buildCapsPayload({ maxSymbols, maxCallsPerSymbol, maxWarnings });
 
   const truncation = [];
   const warnings = [];
@@ -153,15 +374,29 @@ export const buildApiContractsReport = ({
       observedCalls = observedCalls.slice(0, maxCallsPerSymbol);
     }
 
-    const signatureArity = parseSignatureArity(symbol.signature);
+    const signatureInfo = parseSignatureArity(symbol.signature);
     const entryWarnings = [];
-    if (signatureArity != null) {
+    if (signatureInfo) {
+      const requiredCount = Number.isFinite(signatureInfo.requiredCount) ? signatureInfo.requiredCount : null;
+      const maxCount = Number.isFinite(signatureInfo.maxCount) ? signatureInfo.maxCount : null;
       for (const call of observedCalls) {
         const arity = Array.isArray(call.args) ? call.args.length : null;
-        if (arity != null && arity !== signatureArity) {
+        const belowRequired = requiredCount != null && arity != null && arity < requiredCount;
+        const aboveMax = maxCount != null && arity != null && arity > maxCount;
+        if (arity != null && (belowRequired || aboveMax)) {
+          let expected = '';
+          if (requiredCount != null && maxCount != null) {
+            expected = requiredCount === maxCount
+              ? `Expected ${requiredCount}.`
+              : `Expected ${requiredCount}-${maxCount}.`;
+          } else if (requiredCount != null && maxCount == null && signatureInfo.variadic) {
+            expected = `Expected ${requiredCount}+ (variadic).`;
+          } else if (requiredCount != null) {
+            expected = `Expected >= ${requiredCount}.`;
+          }
           const warning = {
             code: 'ARITY_MISMATCH',
-            message: `Observed arity ${arity} differs from signature arity ${signatureArity}.`,
+            message: `Observed arity ${arity} differs from signature arity. ${expected}`.trim(),
             data: { symbolId, callSiteId: call.callSiteId }
           };
           if (maxWarnings == null || warnings.length < maxWarnings) {
@@ -213,7 +448,7 @@ export const buildApiContractsReport = ({
       provenance,
       indexSignature,
       indexCompatKey,
-      capsUsed: { apiContracts: { maxSymbols, maxCallsPerSymbol, maxWarnings } },
+      capsUsed: { apiContracts: capsPayload },
       repo,
       indexDir,
       now
@@ -221,11 +456,7 @@ export const buildApiContractsReport = ({
     options: {
       onlyExports,
       failOnWarn,
-      caps: {
-        maxSymbols,
-        maxCallsPerSymbol,
-        maxWarnings
-      }
+      caps: capsPayload
     },
     symbols: symbolEntries,
     truncation: truncation.length ? truncation : null,
