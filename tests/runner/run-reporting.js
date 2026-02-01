@@ -14,6 +14,7 @@ import {
   formatLogPath,
   formatOutputLines,
   formatSkipReason,
+  formatTestId,
   padEndRaw,
   padEndVisible,
   resolveSlowestColor,
@@ -287,7 +288,8 @@ export const reportTestResult = ({ context, result }) => {
     const duration = formatDurationBadge(result.durationMs, { useColor });
     const label = formatLabel('PASS', { useColor, mode: 'pass' });
     const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
-    const passLine = `${label}${gap}${duration} ${result.id}`;
+    const nameText = formatTestId(result.id, { useColor });
+    const passLine = `${label}${gap}${duration} ${nameText}`;
     const render = () => {
       consoleStream.write(`${applyLineBackground(passLine, { useColor, columns: consoleStream.columns })}\n`);
       if (captureOutput && !context.argv.json) {
@@ -429,7 +431,9 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
       : 'Excluded Tags';
     const exclusionValue = useColor ? `${ANSI.fgBrightWhite}${exclusionCount}${ANSI.reset}` : String(exclusionCount);
     const testsValue = useColor ? `${ANSI.fgBrightWhite}${testsCount}${ANSI.reset}` : String(testsCount);
-    const headerLine = `${sectionIndent}${labelText} - ${exclusionValue} Exclusions bypassing ${testsValue} Tests`;
+    const exclusionWord = resolveWord(exclusionCount, 'Exclusion', 'Exclusions');
+    const testWord = resolveWord(testsCount, 'Test', 'Tests');
+    const headerLine = `${sectionIndent}${labelText} - ${exclusionValue} ${exclusionWord} bypassing ${testsValue} ${testWord}`;
     consoleStream.write(`${applyLineBackground(headerLine, summaryBg)}\n`);
     const tagsList = Array.from(exclusions).sort((a, b) => a.localeCompare(b));
     if (tagsList.length) {

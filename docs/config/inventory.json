@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T20:51:53.100Z",
+  "generatedAt": "2026-02-01T21:55:58.006Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1803,6 +1803,7 @@
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
+        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",

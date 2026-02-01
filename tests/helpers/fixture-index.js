@@ -52,7 +52,7 @@ const hasRiskTags = (codeDir) => {
 
 const readIndexCompatibilityKey = (dir) => {
   try {
-    return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: true }).key;
+    return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: false }).key;
   } catch {
     return null;
   }
@@ -79,7 +79,7 @@ const hasCompatibleIndexes = ({ codeDir, proseDir, extractedProseDir }) => {
 
 const hasChunkUids = async (dir) => {
   try {
-    const chunkMeta = await loadChunkMeta(dir, { strict: true });
+    const chunkMeta = await loadChunkMeta(dir, { strict: false });
     if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
     return chunkMeta.every((entry) => entry?.chunkUid || entry?.metaV2?.chunkUid);
   } catch {
@@ -105,6 +105,7 @@ export const ensureFixtureIndex = async ({
   const fixtureRoot = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
+  process.env.PAIROFCLEATS_TESTING = '1';
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);

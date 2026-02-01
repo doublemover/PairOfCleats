@@ -135,6 +135,21 @@ export const formatSkipReason = (reason, { useColor = false } = {}) => {
   return `${ANSI.fgDarkGray} (${prefix} ${ANSI.reset}${ANSI.fgPinkDark}${tagsPart}${ANSI.reset}${ANSI.fgDarkGray})${ANSI.reset}`;
 };
 
+export const formatTestId = (id, { useColor = false } = {}) => {
+  const raw = String(id || '');
+  if (!useColor) return raw;
+  const normalized = raw.replace(/\\/g, '/');
+  const parts = normalized.split('/');
+  if (parts.length <= 1) {
+    return `${ANSI.dim}${ANSI.fgLight}${normalized}${ANSI.reset}`;
+  }
+  const name = parts.pop();
+  const folder = parts.join('/');
+  const folderText = folder ? `${ANSI.fgDarkGray}${folder}${ANSI.reset}/` : '';
+  const nameText = `${ANSI.fgLight}${name}${ANSI.reset}`;
+  return `${folderText}${nameText}`;
+};
+
 export const buildBorder = (pattern, length) => {
   if (length <= 0) return '';
   let out = '';

@@ -4,11 +4,11 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const buildIndexPath = path.join(root, 'build_index.js');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const buildIndexPath = path.join(repoRoot, 'build_index.js');
 
 const result = spawnSync(process.execPath, [buildIndexPath, '--config-dump', '--json'], {
-  cwd: root,
+  cwd: repoRoot,
   env: process.env,
   encoding: 'utf8'
 });
