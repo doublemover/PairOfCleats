@@ -100,10 +100,6 @@ try {
     rawArgv: process.argv,
     abortSignal: abortController.signal
   });
-  const buildInfo = getCurrentBuildInfo(resolvedRoot);
-  const buildStatePath = buildInfo?.buildRoot
-    ? path.join(buildInfo.buildRoot, 'build_state.json')
-    : null;
   if (result?.stage3?.embeddings?.cancelled) {
     closeDisplay();
     writeLine('Index build cancelled during embeddings.');

@@ -14,6 +14,12 @@
 - `records` indexes log/record artifacts and excludes those files from other modes.
 - `all` == `{code, prose, extracted-prose, records}`.
 
+## Optional document extraction dependencies
+- PDF and DOCX extraction require optional packages:
+  - `pdfjs-dist` (PDF)
+  - `mammoth` (DOCX)
+- When these dependencies are missing, extraction for those formats is skipped and a warning is emitted.
+
 ## Artifact minimum set
 Required (baseline search):
 - `chunk_meta.json` (or `chunk_meta.jsonl` / sharded `chunk_meta.parts` + `chunk_meta.meta.json`).

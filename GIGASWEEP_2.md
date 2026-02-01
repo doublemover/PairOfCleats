@@ -230,20 +230,20 @@ Make search behavior deterministic, debuggable, and aligned with its public CLI 
 ### Objective
 Remove dead code paths, misleading cleanup, and brittle precondition assumptions.
 
-- [?] Clean up SQLite build runner resource handling.
+- [x] Clean up SQLite build runner resource handling.
   - `tools/build-sqlite-index/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
   - Unused variables like `hasVectorTableBefore` and wording mismatches in warnings.
   - Action: make return types explicit, remove dead cleanup, fix warnings.
 
-- [?] Improve Tantivy build error messaging and prerequisite checks.
+- [x] Improve Tantivy build error messaging and prerequisite checks.
   - `tools/build-tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
   - Action: explicitly detect required artifacts and print remediation steps.
 
-- [?] Optional doc extraction deps are capability-probed but not declared.
+- [x] Optional doc extraction deps are capability-probed but not declared.
   - `src/shared/capabilities.js` checks `pdfjs-dist`/`mammoth`, but `package.json` doesn’t declare them.
   - Action: either document “install to enable” or move them to `optionalDependencies`.
 
-- [?] Fix unused/leftover build-state variable.
+- [x] Fix unused/leftover build-state variable.
   - `build_index.js` defines `buildStatePath` but doesn’t use it.
 
 ---
