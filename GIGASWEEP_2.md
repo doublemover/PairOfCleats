@@ -270,30 +270,30 @@ No request should hang without a response; cancellation/timeout semantics should
 Fix correctness bugs in local risk detection and close test gaps in type inference.
 
 #### 7.1 Local risk detector correctness gaps
-- [?] Fix “taint confidence” bug (reads the wrong field).
+- [x] Fix “taint confidence” bug (reads the wrong field).
   - `src/index/risk.js` uses `entry.confidence` where entries are `{ rule, evidence }`.
   - Action: use `entry.rule.confidence` (or remove if unused).
-- [?] Fix rule-id aggregation mismatch in `combineSourceEvidence()`.
-- [?] Document/expand assignment heuristics:
+- [x] Fix rule-id aggregation mismatch in `combineSourceEvidence()`.
+- [x] Document/expand assignment heuristics:
   - current parsing skips `=>` and misses destructuring/multi-line patterns.
-- [?] Sanitizer matching is overly broad (clears taint if variable name appears on any matching line).
+- [x] Sanitizer matching is overly broad (clears taint if variable name appears on any matching line).
 
 #### 7.2 Risk rules diagnostics shape
-- [?] `src/index/risk-rules.js` has an `errors` array that is never used.
+- [x] `src/index/risk-rules.js` has an `errors` array that is never used.
   - Action: either classify fatal issues into `errors` or remove it for clarity.
 
 #### 7.3 Interprocedural risk behavior clarity
-- [?] Document and surface “timeout ⇒ zero flows” behavior (it’s deterministic and tested but surprising).
-- [?] Clarify/verify `taintHints` production wiring (appears optional/dormant in some paths).
-- [?] Consider artifact metadata clarity for sharded JSONL (entrypoint is `.meta.json` but format labeled `jsonl`).
+- [x] Document and surface “timeout ⇒ zero flows” behavior (it’s deterministic and tested but surprising).
+- [x] Clarify/verify `taintHints` production wiring (appears optional/dormant in some paths).
+- [x] Consider artifact metadata clarity for sharded JSONL (entrypoint is `.meta.json` but format labeled `jsonl`).
 
 #### 7.4 Type inference coverage and unused outputs
-- [?] Local type inference exports `aliases` but caller ignores it.
+- [x] Local type inference exports `aliases` but caller ignores it.
   - Action: remove dead output or wire alias propagation.
-- [?] Add unit tests for `src/index/type-inference.js` (cross-file tests exist; local inference is largely untested).
+- [x] Add unit tests for `src/index/type-inference.js` (cross-file tests exist; local inference is largely untested).
 
 #### 7.5 Cross-file pipeline implementation smells
-- [?] Avoid attaching private `_keys` Sets to arrays for dedupe.
+- [x] Avoid attaching private `_keys` Sets to arrays for dedupe.
   - Action: use local Sets/Maps or a `WeakMap`.
 - [?] Layering concern: `src/index/*` importing from `tools/*` may complicate packaging boundaries.
 

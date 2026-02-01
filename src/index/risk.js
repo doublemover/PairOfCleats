@@ -55,22 +55,44 @@ const isIdentCharCode = (code) => (
   || code === 36 // $
 );
 
-const lineContainsVar = (line, name) => {
+const lineContainsVarRange = (line, name, start = 0, end = null) => {
   if (!name) return false;
   const hay = String(line || '');
   const needle = String(name);
   if (!needle) return false;
+  const limit = Number.isFinite(end) ? Math.min(hay.length, Math.max(0, end)) : hay.length;
+  if (limit <= 0) return false;
   let idx = 0;
   const nLen = needle.length;
+  idx = Math.max(0, start);
   while ((idx = hay.indexOf(needle, idx)) !== -1) {
+    if (idx + nLen > limit) return false;
     const beforePos = idx - 1;
     const afterPos = idx + nLen;
-    const beforeOk = beforePos < 0 || !isIdentCharCode(hay.charCodeAt(beforePos));
-    const afterOk = afterPos >= hay.length || !isIdentCharCode(hay.charCodeAt(afterPos));
+    const beforeOk = beforePos < start || !isIdentCharCode(hay.charCodeAt(beforePos));
+    const afterOk = afterPos >= limit || !isIdentCharCode(hay.charCodeAt(afterPos));
     if (beforeOk && afterOk) return true;
     idx = idx + 1;
   }
   return false;
+};
+
+const lineContainsVar = (line, name) => lineContainsVarRange(line, name);
+
+const findCallArgRange = (line, startIndex) => {
+  if (!line || !Number.isFinite(startIndex)) return null;
+  const openIndex = line.indexOf('(', Math.max(0, startIndex));
+  if (openIndex === -1) return null;
+  let depth = 0;
+  for (let i = openIndex; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth -= 1;
+    if (depth === 0) {
+      return { start: openIndex + 1, end: i };
+    }
+  }
+  return null;
 };
 
 const matchRuleOnLine = (rule, line, languageId, lineLowerRef) => {
@@ -118,7 +140,9 @@ const collectLineMatches = (rules, line, lineNo, languageId, lineLowerRef) => {
     if (!hit) continue;
     matches.push({
       rule,
-      evidence: buildEvidence(line, lineNo, hit.index + 1)
+      evidence: buildEvidence(line, lineNo, hit.index + 1),
+      matchIndex: hit.index,
+      matchLength: hit.match?.length || 0
     });
   }
   return matches;
@@ -165,14 +189,16 @@ const isAssignment = (line) => {
   const trimmed = line.trim();
   if (!trimmed) return null;
   if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) return null;
-  if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) return null;
+  if (trimmed.includes('==') || trimmed.includes('!=')) return null;
   if (trimmed.includes('>=') || trimmed.includes('<=')) return null;
   let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
   if (!match) {
     match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
   }
-  if (!match) return null;
-  return { name: match[1], rhs: match[2] };
+  if (match) return { name: match[1], rhs: match[2] };
+  const destructured = trimmed.match(/^(?:const|let|var)\s*[{[]\s*([A-Za-z_$][\w$]*)[\s\S]*=\s*(.+)$/);
+  if (destructured) return { name: destructured[1], rhs: destructured[2] };
+  return null;
 };
 
 const combineSourceEvidence = (sourceMatches, taintedSources) => {
@@ -186,6 +212,7 @@ const combineSourceEvidence = (sourceMatches, taintedSources) => {
     if (!entry) continue;
     sources.push(entry);
     if (entry.ruleId) ruleIds.add(entry.ruleId);
+    if (entry.rule?.id) ruleIds.add(entry.rule.id);
   }
   return { sources, ruleIds: Array.from(ruleIds) };
 };
@@ -279,8 +306,26 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
 
     const sanitizedVars = [];
     if (sanitizerMatches.length && taint.size) {
+      const ranges = sanitizerMatches
+        .map((match) => {
+          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : null;
+          return findCallArgRange(line, startIndex);
+        })
+        .filter(Boolean);
       for (const name of taint.keys()) {
-        if (lineContainsVar(line, name)) sanitizedVars.push(name);
+        if (!lineContainsVar(line, name)) continue;
+        if (ranges.length) {
+          if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
+            sanitizedVars.push(name);
+          }
+          continue;
+        }
+        if (sanitizerMatches.some((match) => {
+          const startIndex = Number.isFinite(match.matchIndex) ? match.matchIndex + (match.matchLength || 0) : 0;
+          return lineContainsVarRange(line, name, startIndex);
+        })) {
+          sanitizedVars.push(name);
+        }
       }
       for (const name of sanitizedVars) taint.delete(name);
     }
@@ -295,7 +340,16 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       }
       const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
       if (newSources.length) {
-        const confidence = Math.max(...newSources.map((entry) => entry.confidence || 0));
+        const confidence = Math.max(
+          0,
+          ...newSources.map((entry) => (
+            Number.isFinite(entry?.confidence)
+              ? entry.confidence
+              : Number.isFinite(entry?.rule?.confidence)
+                ? entry.rule.confidence
+                : 0
+          ))
+        );
         taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
         edges += newSources.length;
       }
