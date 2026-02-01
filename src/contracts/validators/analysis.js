@@ -1,5 +1,15 @@
 import Ajv from 'ajv';
-import { METADATA_V2_SCHEMA, RISK_RULES_BUNDLE_SCHEMA, ANALYSIS_POLICY_SCHEMA } from '../schemas/analysis.js';
+import {
+  METADATA_V2_SCHEMA,
+  RISK_RULES_BUNDLE_SCHEMA,
+  ANALYSIS_POLICY_SCHEMA,
+  GRAPH_CONTEXT_PACK_SCHEMA,
+  GRAPH_IMPACT_SCHEMA,
+  COMPOSITE_CONTEXT_PACK_SCHEMA,
+  API_CONTRACTS_SCHEMA,
+  ARCHITECTURE_REPORT_SCHEMA,
+  SUGGEST_TESTS_SCHEMA
+} from '../schemas/analysis.js';
 
 const ajv = new Ajv({
   allErrors: true,
@@ -17,6 +27,12 @@ const cloneSchema = (schema) => {
 const META_V2_VALIDATOR = ajv.compile(cloneSchema(METADATA_V2_SCHEMA));
 const RISK_RULES_VALIDATOR = ajv.compile(cloneSchema(RISK_RULES_BUNDLE_SCHEMA));
 const ANALYSIS_POLICY_VALIDATOR = ajv.compile(cloneSchema(ANALYSIS_POLICY_SCHEMA));
+const GRAPH_CONTEXT_PACK_VALIDATOR = ajv.compile(cloneSchema(GRAPH_CONTEXT_PACK_SCHEMA));
+const GRAPH_IMPACT_VALIDATOR = ajv.compile(cloneSchema(GRAPH_IMPACT_SCHEMA));
+const COMPOSITE_CONTEXT_PACK_VALIDATOR = ajv.compile(cloneSchema(COMPOSITE_CONTEXT_PACK_SCHEMA));
+const API_CONTRACTS_VALIDATOR = ajv.compile(cloneSchema(API_CONTRACTS_SCHEMA));
+const ARCHITECTURE_REPORT_VALIDATOR = ajv.compile(cloneSchema(ARCHITECTURE_REPORT_SCHEMA));
+const SUGGEST_TESTS_VALIDATOR = ajv.compile(cloneSchema(SUGGEST_TESTS_SCHEMA));
 
 const formatError = (error) => {
   const path = error.instancePath || '/';
@@ -41,4 +57,34 @@ export function validateRiskRulesBundle(payload) {
 export function validateAnalysisPolicy(payload) {
   const ok = Boolean(ANALYSIS_POLICY_VALIDATOR(payload));
   return { ok, errors: ok ? [] : formatErrors(ANALYSIS_POLICY_VALIDATOR) };
+}
+
+export function validateGraphContextPack(payload) {
+  const ok = Boolean(GRAPH_CONTEXT_PACK_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(GRAPH_CONTEXT_PACK_VALIDATOR) };
+}
+
+export function validateGraphImpact(payload) {
+  const ok = Boolean(GRAPH_IMPACT_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(GRAPH_IMPACT_VALIDATOR) };
+}
+
+export function validateCompositeContextPack(payload) {
+  const ok = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR) };
+}
+
+export function validateApiContracts(payload) {
+  const ok = Boolean(API_CONTRACTS_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(API_CONTRACTS_VALIDATOR) };
+}
+
+export function validateArchitectureReport(payload) {
+  const ok = Boolean(ARCHITECTURE_REPORT_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(ARCHITECTURE_REPORT_VALIDATOR) };
+}
+
+export function validateSuggestTests(payload) {
+  const ok = Boolean(SUGGEST_TESTS_VALIDATOR(payload));
+  return { ok, errors: ok ? [] : formatErrors(SUGGEST_TESTS_VALIDATOR) };
 }

@@ -130,6 +130,9 @@ Defaults MUST be calibrated via the harness. Until calibration exists, start wit
 - Harness MUST accept:
   - a deterministic RNG seed (for selecting representative nodes)
   - explicit caps preset selection
+  - `--outDir` to override output root
+  - `--runId` to force a stable run identifier
+  - `--now` (ISO timestamp) to inject a deterministic clock for CI
 
 ### 6.2 What the harness measures
 For each repo:
@@ -202,4 +205,3 @@ The harness SHOULD also emit:
   - caps trigger deterministically in graph build and are reported
 - `tests/perf/bench/graph-caps-harness-smoke.test.js`
   - harness runs on an in-tree fixture and writes a deterministic results JSON file
-

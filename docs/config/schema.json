@@ -234,6 +234,20 @@
             }
           }
         },
+        "graph": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caps": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxNodes": { "type": "number" },
+                "maxEdges": { "type": "number" }
+              }
+            }
+          }
+        },
         "embeddings": {
           "type": "object",
           "additionalProperties": true,
@@ -271,6 +285,58 @@
                 "maxMs": { "type": ["number", "null"] }
               }
             }
+          }
+        }
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "graph": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "caps": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxDepth": { "type": "number" },
+                "maxFanoutPerNode": { "type": "number" },
+                "maxNodes": { "type": "number" },
+                "maxEdges": { "type": "number" },
+                "maxPaths": { "type": "number" },
+                "maxCandidates": { "type": "number" },
+                "maxWorkUnits": { "type": "number" },
+                "maxWallClockMs": { "type": "number" }
+              }
+            }
+          }
+        },
+        "graphRanking": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "weights": { "type": "object", "additionalProperties": true },
+            "maxGraphWorkUnits": { "type": "number" },
+            "maxWallClockMs": { "type": "number" },
+            "seedSelection": { "type": "string" },
+            "seedK": { "type": "number" }
+          }
+        },
+        "contextExpansion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "maxPerHit": { "type": "number" },
+            "maxTotal": { "type": "number" },
+            "includeCalls": { "type": "boolean" },
+            "includeImports": { "type": "boolean" },
+            "includeExports": { "type": "boolean" },
+            "includeUsages": { "type": "boolean" },
+            "respectFilters": { "type": "boolean" }
           }
         }
       }

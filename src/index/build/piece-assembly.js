@@ -240,7 +240,8 @@ export async function assembleIndexPieces({
     ? buildRelationGraphs({
       chunks: state.chunks,
       fileRelations: state.fileRelations,
-      callSites: resolvedCallSites.length ? resolvedCallSites : null
+      callSites: resolvedCallSites.length ? resolvedCallSites : null,
+      caps: userConfig?.indexing?.graph?.caps
     })
     : null;
   state.fileRelations = state.fileRelations || new Map();

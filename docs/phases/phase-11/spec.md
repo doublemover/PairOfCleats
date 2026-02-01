@@ -170,6 +170,25 @@ type WarningRecord = {
 **Requirements**
 - Warnings MUST NOT be unbounded; cap warning count (recommended default: 100).
 
+### 3.3 ProvenanceRecord
+All Phase 11 outputs MUST include provenance metadata.
+
+```ts
+type ProvenanceRecord = {
+  generatedAt: string; // ISO timestamp
+  indexCompatKey?: string;  // required if indexSignature missing
+  indexSignature?: string;  // required if indexCompatKey missing
+  capsUsed: object;         // effective caps (graph/impact/ranking/etc)
+  repo?: string | null;
+  indexDir?: string | null;
+};
+```
+
+**Requirements**
+- `generatedAt` MUST be present.
+- `capsUsed` MUST be present (empty object allowed).
+- At least one of `indexCompatKey` or `indexSignature` MUST be present.
+
 ---
 
 ## 4) Determinism and ordering contract
@@ -211,6 +230,8 @@ type WorkBudget = {
   - be treated as a safety fuse,
   - produce a truncation record when it fires,
   - and MUST NOT be relied upon for deterministic behavior across machines.
+- Implementations MUST check `maxWallClockMs` on a deterministic cadence (for example, once every N work units)
+  and only stop at step boundaries to avoid partial writes or unstable ordering.
 
 ---
 
@@ -255,6 +276,7 @@ type GraphContextPackV1 = {
   version: "1.0.0";
 
   seed: SeedRef;
+  provenance: ProvenanceRecord;
 
   // Deterministic, bounded
   nodes: GraphNodeV1[];
@@ -353,6 +375,7 @@ type GraphImpactAnalysisV1 = {
   seed: SeedRef;
   direction: "upstream" | "downstream";
   depth: number;
+  provenance: ProvenanceRecord;
 
   impacted: ImpactedNodeV1[];    // bounded, stable ordering
 
@@ -429,6 +452,7 @@ type CompositeContextPackV1 = {
   version: "1.0.0";
 
   seed: SeedRef;
+  provenance: ProvenanceRecord;
 
   primary: {
     ref: NodeRef;               // canonical seed node when resolved
@@ -579,7 +603,7 @@ explain reasons when `--explain`/`--context-expansion-explain` is enabled.
 ```ts
 type ApiContractsReportV1 = {
   version: "1.0.0";
-  generatedAt: string;
+  provenance: ProvenanceRecord;
 
   options: {
     onlyExports: boolean;
@@ -692,6 +716,7 @@ type PathSelectorV1 = {
 ```ts
 type ArchitectureReportV1 = {
   version: "1.0.0";
+  provenance: ProvenanceRecord;
   rules: {
     id: string;
     type: string;
@@ -738,6 +763,7 @@ type SuggestTestsRequest = {
 ```ts
 type SuggestTestsReportV1 = {
   version: "1.0.0";
+  provenance: ProvenanceRecord;
 
   changed: { path: string }[];
 

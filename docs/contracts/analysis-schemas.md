@@ -57,6 +57,7 @@ All Phase 11 outputs share:
   - which cap fired + measurable counts when available.
 - **Warning records** for partial/missing artifact behavior.
 - Versioned top-level payloads (SemVer string).
+- **Provenance metadata** (`generatedAt`, `indexCompatKey`/`indexSignature`, `capsUsed`).
 
 Authoritative Phase 11 spec:
 - `docs/phases/phase-11/spec.md`
@@ -71,6 +72,7 @@ Purpose:
 Minimum fields:
 - `version`
 - `seed`
+- `provenance`
 - `nodes[]`
 - `edges[]`
 - optional `paths[]`
@@ -87,6 +89,7 @@ Purpose:
 Minimum fields:
 - `version`
 - `seed`, `direction`, `depth`
+- `provenance`
 - `impacted[]` (distance, confidence, witnessPath)
 - optional `truncation[]`
 - optional `warnings[]`
@@ -102,6 +105,7 @@ Purpose:
 Minimum fields:
 - `version`
 - `seed`
+- `provenance`
 - `primary` (excerpt + provenance)
 - optional `graph`
 - optional `types`
@@ -119,6 +123,7 @@ Purpose:
 
 Minimum fields:
 - `version`
+- `provenance`
 - `symbols[]` (bounded)
 - optional `truncation[]`
 - optional `warnings[]`
@@ -132,6 +137,7 @@ Purpose:
 
 Minimum fields:
 - `version`
+- `provenance`
 - `rules[]` summary
 - `violations[]` (bounded)
 - optional `truncation[]`
@@ -146,6 +152,7 @@ Purpose:
 
 Minimum fields:
 - `version`
+- `provenance`
 - `changed[]`
 - `suggestions[]` (bounded)
 - optional `truncation[]`

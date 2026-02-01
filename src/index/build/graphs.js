@@ -7,6 +7,26 @@ const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
 
+const normalizeCap = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const resolveCaps = (caps) => ({
+  maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),
+  maxEdges: normalizeCap(caps?.maxEdges, GRAPH_MAX_EDGES)
+});
+
+const resolveGraphCaps = (caps, label) => {
+  if (!caps || typeof caps !== 'object') return resolveCaps(null);
+  const perGraph = caps[label];
+  if (perGraph && typeof perGraph === 'object') {
+    return resolveCaps(perGraph);
+  }
+  return resolveCaps(caps);
+};
+
 const buildLegacyChunkKey = (chunk) => {
   if (!chunk?.file || !chunk?.name) return null;
   return `${chunk.file}::${chunk.name}`;
@@ -23,21 +43,23 @@ const recordGraphSample = (guard, context) => {
   });
 };
 
-const createGraphGuard = (label) => ({
+const createGraphGuard = (label, caps) => ({
   label,
-  maxNodes: GRAPH_MAX_NODES,
-  maxEdges: GRAPH_MAX_EDGES,
+  maxNodes: caps?.maxNodes ?? GRAPH_MAX_NODES,
+  maxEdges: caps?.maxEdges ?? GRAPH_MAX_EDGES,
   disabled: false,
   reason: null,
+  cap: null,
   samples: []
 });
 
 const mergeNode = (graph, id, attrs, guard, context) => {
   if (!id || guard?.disabled) return;
   if (!graph.hasNode(id)) {
-    if (guard?.maxNodes && graph.order >= guard.maxNodes) {
+    if (guard?.maxNodes != null && graph.order >= guard.maxNodes) {
       guard.disabled = true;
-      guard.reason = 'max-nodes';
+      guard.reason = 'maxNodes';
+      guard.cap = 'maxNodes';
       recordGraphSample(guard, context);
       return;
     }
@@ -49,9 +71,10 @@ const mergeNode = (graph, id, attrs, guard, context) => {
 
 const addDirectedEdge = (graph, source, target, guard, context) => {
   if (!source || !target || guard?.disabled) return;
-  if (guard?.maxEdges && graph.size >= guard.maxEdges) {
+  if (guard?.maxEdges != null && graph.size >= guard.maxEdges) {
     guard.disabled = true;
-    guard.reason = 'max-edges';
+    guard.reason = 'maxEdges';
+    guard.cap = 'maxEdges';
     recordGraphSample(guard, context);
     return;
   }
@@ -81,13 +104,18 @@ const serializeGraph = (graph) => {
   };
 };
 
-export function buildRelationGraphs({ chunks = [], fileRelations = null, callSites = null } = {}) {
+export function buildRelationGraphs({
+  chunks = [],
+  fileRelations = null,
+  callSites = null,
+  caps = null
+} = {}) {
   const callGraph = new Graph({ type: 'directed' });
   const usageGraph = new Graph({ type: 'directed' });
   const importGraph = new Graph({ type: 'directed' });
-  const callGuard = createGraphGuard('callGraph');
-  const usageGuard = createGraphGuard('usageGraph');
-  const importGuard = createGraphGuard('importGraph');
+  const callGuard = createGraphGuard('callGraph', resolveGraphCaps(caps, 'callGraph'));
+  const usageGuard = createGraphGuard('usageGraph', resolveGraphCaps(caps, 'usageGraph'));
+  const importGuard = createGraphGuard('importGraph', resolveGraphCaps(caps, 'importGraph'));
   const chunkByUid = new Map();
   const fileSet = new Set();
 

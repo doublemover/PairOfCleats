@@ -87,36 +87,36 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
 
 ### 11.0 Shared foundations (contracts, determinism, config)
 
-- [ ] Define Phase 11 shared contract types (authoritative spec: `docs/phases/phase-11/spec.md`):
+- [x] Define Phase 11 shared contract types (authoritative spec: `docs/phases/phase-11/spec.md`):
   - `NodeRef` (chunk/symbol/file)
   - `ReferenceEnvelope` (resolved/ambiguous/unresolved + bounded candidates)
   - `WarningRecord`
   - `TruncationRecord`
   - stable ordering rules (nodeKey/edgeKey)
-- [ ] Add provenance metadata requirements for all Phase 11 JSON outputs:
+- [x] Add provenance metadata requirements for all Phase 11 JSON outputs:
   - `generatedAt`
   - `indexCompatKey` or `indexSignature`
   - `capsUsed`
   - optional `repo` / `indexDir`
-- [ ] Add schemas in `src/contracts/schemas/analysis.js`:
+- [x] Add schemas in `src/contracts/schemas/analysis.js`:
   - `GRAPH_CONTEXT_PACK_SCHEMA`
   - `GRAPH_IMPACT_SCHEMA`
   - `COMPOSITE_CONTEXT_PACK_SCHEMA`
   - `API_CONTRACTS_SCHEMA`
   - `ARCHITECTURE_REPORT_SCHEMA`
   - `SUGGEST_TESTS_SCHEMA`
-- [ ] Add validators in `src/contracts/validators/analysis.js`.
+- [x] Add validators in `src/contracts/validators/analysis.js`.
 
-- [ ] Determinism helpers + work-budget caps.
+- [x] Determinism helpers + work-budget caps.
   - Add stable comparator utilities for NodeRef/edges/paths.
   - Add deterministic `maxWorkUnits` tracking (recommended for all traversals).
   - Treat `maxWallClockMs` as optional fuse; always record truncation when it triggers.
-- [ ] Define deterministic `maxWallClockMs` semantics:
+- [x] Define deterministic `maxWallClockMs` semantics:
   - check cadence (e.g., every N work units)
   - stop only at step boundaries
   - emit truncation metadata with observed/omitted counts
 
-- [ ] Config surface.
+- [x] Config surface.
   - `indexing.graph.caps`
   - `retrieval.graph.caps`
   - `retrieval.graphRanking.*`
@@ -127,11 +127,11 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
     - `tools/validate-config.js`
     - `src/config/validate.js`
 
-- [ ] Standardize module home for new graph tooling commands.
+- [x] Standardize module home for new graph tooling commands.
   - Use `src/integrations/tooling/` for new command handlers and renderers.
   - Keep graph primitives under `src/graph/` and pack assembly under `src/context-pack/`.
 
-- [ ] Centralize artifact presence + loading for graph-powered features.
+- [x] Centralize artifact presence + loading for graph-powered features.
   - Add a single GraphStore + loader path used by all Phase 11 commands.
   - Touchpoints:
     - `src/shared/artifact-io/manifest.js`
@@ -139,7 +139,7 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
     - `src/graph/store.js`
     - `src/index/validate/presence.js` (optional artifacts)
 
-- [ ] Move graph build caps + identity-first node IDs earlier (dependency for all consumers).
+- [x] Move graph build caps + identity-first node IDs earlier (dependency for all consumers).
   - Update `src/index/build/graphs.js` to use config-driven caps and record which cap triggered.
   - Enforce identity-first graph node IDs for new writes (legacy read-compat only).
   - Touchpoints:
@@ -147,12 +147,12 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
     - `src/index/build/indexer/steps/relations.js`
     - `src/index/build/artifacts/graph-relations.js` (if present) or the current writer location
 
-- [ ] Define harness determinism controls:
+- [x] Define harness determinism controls:
   - `--outDir`, `--runId`
   - injectable date/time for CI to avoid `<date>` path drift
 
 #### Tests
-- [ ] `tests/contracts/analysis/phase11-schemas-validate.test.js`
+- [x] `tests/shared/contracts/phase11-schemas-validate.test.js`
   - Validate representative payload fixtures against each Phase 11 schema.
 
 ---
