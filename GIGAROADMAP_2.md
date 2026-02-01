@@ -566,7 +566,7 @@ Touchpoints (consolidated; anchors are approximate):
 
 ### 11.8 Test selection heuristics (suggest tests impacted by a change set)
 
-- [ ] Implement a bounded, deterministic test suggestion tool that uses graphs when available.
+- [x] Implement a bounded, deterministic test suggestion tool that uses graphs when available.
   - Identify tests using path conventions and language-aware patterns:
     - `*.test.*`, `*_test.*`, `/tests/`, `__tests__/`, etc.
   - Given a changed set (`--changed <file>` repeated or a file list):
@@ -582,17 +582,17 @@ Touchpoints (consolidated; anchors are approximate):
     - heuristic fallback (e.g., path-based test discovery)
     - required warning codes
 
-- [ ] CLI surface:
+- [x] CLI surface:
   - `pairofcleats suggest-tests --repo … --changed <...> --max 50 --format json|md`
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/tooling/test-selection/suggest-tests-basic.test.js`
+- [x] `tests/tooling/test-selection/suggest-tests-basic.test.js`
   - Fixture where a changed function is called by a test; assert the test is suggested.
-- [ ] `tests/tooling/test-selection/suggest-tests-bounded.test.js`
+- [x] `tests/tooling/test-selection/suggest-tests-bounded.test.js`
   - Trigger caps; assert truncation metadata is present and ordering is stable.
-- [ ] `tests/tooling/test-selection/suggest-tests-determinism.test.js`
+- [x] `tests/tooling/test-selection/suggest-tests-determinism.test.js`
   - Run the same input twice; assert stable ordering and identical output.
-- [ ] `tests/tooling/test-selection/suggest-tests-witness-path.test.js`
+- [x] `tests/tooling/test-selection/suggest-tests-witness-path.test.js`
   - Ensure witness path summary is present and bounded when available.
 
 Fixture sources:

@@ -387,7 +387,9 @@ const truncationRecordSchema = {
         'maxCallsPerSymbol',
         'maxWarnings',
         'maxViolations',
-        'maxEdgesExamined'
+        'maxEdgesExamined',
+        'maxSuggestions',
+        'maxSeeds'
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },

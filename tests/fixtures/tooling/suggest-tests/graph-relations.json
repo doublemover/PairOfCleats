@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "callGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "usageGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "importGraph": {
+    "nodeCount": 2,
+    "edgeCount": 1,
+    "nodes": [
+      {
+        "id": "tests/unit/lib.test.js",
+        "file": "tests/unit/lib.test.js",
+        "out": ["src/lib.js"],
+        "in": []
+      },
+      {
+        "id": "src/lib.js",
+        "file": "src/lib.js",
+        "out": [],
+        "in": ["tests/unit/lib.test.js"]
+      }
+    ]
+  }
+}

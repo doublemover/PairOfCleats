@@ -170,6 +170,47 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/architecture-check.js', extraArgs: [], args: rest };
   }
+  if (primary === 'suggest-tests') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'changed',
+        'changedFile',
+        'changed-file',
+        'max',
+        'format',
+        'json',
+        'testPattern',
+        'test-pattern',
+        'maxDepth',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'changed',
+        'changedFile',
+        'changed-file',
+        'max',
+        'format',
+        'testPattern',
+        'test-pattern',
+        'maxDepth',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/suggest-tests.js', extraArgs: [], args: rest };
+  }
   if (primary === 'context-pack') {
     validateArgs(
       rest,
@@ -492,6 +533,7 @@ Graph:
   context-pack           Build a composite context pack for a seed
   api-contracts          Report cross-file API contracts
   architecture-check     Evaluate architecture rules over graphs
+  suggest-tests          Suggest tests impacted by a change list
   impact                 Compute bounded graph impact for a seed or change set
 
 Risk:
