@@ -170,16 +170,25 @@ export function normalizeSearchOptions({
   const rrfEnabled = policyRrfEnabled ?? true;
   const rrfK = normalizeOptionalNumber(policy?.retrieval?.rrf?.k) ?? 60;
 
-  const contextExpansionEnabled = false;
+  const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
+  const contextExpansionEnabled = contextExpansionConfig.enabled === true;
   const contextExpansionOptions = {
-    maxPerHit: null,
-    maxTotal: null,
-    includeCalls: null,
-    includeImports: null,
-    includeExports: null,
-    includeUsages: null
+    maxPerHit: normalizeOptionalNumber(contextExpansionConfig.maxPerHit),
+    maxTotal: normalizeOptionalNumber(contextExpansionConfig.maxTotal),
+    includeCalls: contextExpansionConfig.includeCalls ?? null,
+    includeImports: contextExpansionConfig.includeImports ?? null,
+    includeExports: contextExpansionConfig.includeExports ?? null,
+    includeUsages: contextExpansionConfig.includeUsages ?? null,
+    maxWorkUnits: normalizeOptionalNumber(contextExpansionConfig.maxWorkUnits),
+    maxWallClockMs: normalizeOptionalNumber(contextExpansionConfig.maxWallClockMs),
+    maxCallEdges: normalizeOptionalNumber(contextExpansionConfig.maxCallEdges),
+    maxUsageEdges: normalizeOptionalNumber(contextExpansionConfig.maxUsageEdges),
+    maxImportEdges: normalizeOptionalNumber(contextExpansionConfig.maxImportEdges),
+    maxExportEdges: normalizeOptionalNumber(contextExpansionConfig.maxExportEdges),
+    maxNameCandidates: normalizeOptionalNumber(contextExpansionConfig.maxNameCandidates),
+    maxReasons: normalizeOptionalNumber(contextExpansionConfig.maxReasons)
   };
-  const contextExpansionRespectFilters = true;
+  const contextExpansionRespectFilters = contextExpansionConfig.respectFilters !== false;
 
   const sqliteFtsNormalize = false;
   const policyQuality = policy?.quality?.value;

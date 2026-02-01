@@ -1,0 +1,10 @@
+[
+  {
+    "file": "src/a.js",
+    "relations": {
+      "importLinks": ["src/b.js"],
+      "exports": ["alpha"],
+      "usages": ["beta"]
+    }
+  }
+]

@@ -336,6 +336,14 @@
             "includeImports": { "type": "boolean" },
             "includeExports": { "type": "boolean" },
             "includeUsages": { "type": "boolean" },
+            "maxWorkUnits": { "type": "number" },
+            "maxWallClockMs": { "type": "number" },
+            "maxCallEdges": { "type": "number" },
+            "maxUsageEdges": { "type": "number" },
+            "maxImportEdges": { "type": "number" },
+            "maxExportEdges": { "type": "number" },
+            "maxNameCandidates": { "type": "number" },
+            "maxReasons": { "type": "number" },
             "respectFilters": { "type": "boolean" }
           }
         }

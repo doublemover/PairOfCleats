@@ -426,10 +426,10 @@ export async function runSearchSession({
 
   const contextExpansionStats = {
     enabled: contextExpansionEnabled,
-    code: 0,
-    prose: 0,
-    'extracted-prose': 0,
-    records: 0
+    code: { added: 0, workUnitsUsed: 0, truncation: null },
+    prose: { added: 0, workUnitsUsed: 0, truncation: null },
+    'extracted-prose': { added: 0, workUnitsUsed: 0, truncation: null },
+    records: { added: 0, workUnitsUsed: 0, truncation: null }
   };
   const loadContextIndexCache = (idx) => {
     if (!idx?.indexDir) return null;
@@ -484,7 +484,7 @@ export async function runSearchSession({
   };
   const expandModeHits = (mode, idx, hits) => {
     if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
-      return { hits, contextHits: [] };
+      return { hits, contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
     }
     const allowedIds = contextExpansionRespectFilters && filtersActive
       ? new Set(
@@ -492,17 +492,25 @@ export async function runSearchSession({
           .map((chunk) => chunk.id)
       )
       : null;
-    const contextHits = expandContext({
+    const result = expandContext({
       hits,
       chunkMeta: idx.chunkMeta,
       fileRelations: idx.fileRelations,
       repoMap: idx.repoMap,
-      options: contextExpansionOptions,
+      graphRelations: idx.graphRelations || null,
+      options: {
+        ...contextExpansionOptions,
+        explain
+      },
       allowedIds,
       contextIndex: getContextIndex(idx)
     });
-    contextExpansionStats[mode] = contextHits.length;
-    return { hits: hits.concat(contextHits), contextHits };
+    contextExpansionStats[mode] = result.stats;
+    return {
+      hits: hits.concat(result.contextHits),
+      contextHits: result.contextHits,
+      stats: result.stats
+    };
   };
   const proseExpanded = runProse
     ? expandModeHits('prose', idxProse, proseHits)

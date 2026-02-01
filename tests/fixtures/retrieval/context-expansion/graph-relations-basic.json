@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "callGraph": {
+    "nodeCount": 2,
+    "edgeCount": 1,
+    "nodes": [
+      { "id": "u2", "file": "src/b.js", "name": "beta", "kind": "function", "chunkId": "b", "out": ["u1"], "in": [] },
+      { "id": "u1", "file": "src/a.js", "name": "alpha", "kind": "function", "chunkId": "a", "out": [], "in": ["u2"] }
+    ]
+  },
+  "usageGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  },
+  "importGraph": {
+    "nodeCount": 0,
+    "edgeCount": 0,
+    "nodes": []
+  }
+}

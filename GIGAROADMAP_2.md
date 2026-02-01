@@ -159,7 +159,7 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
 
 ### 11.1 Graph context packs (bounded neighborhood extraction) + retrieval context-expansion hardening
 
-- [ ] Define a graph context pack contract (JSON-first; Markdown render optional).
+- [x] Define a graph context pack contract (JSON-first; Markdown render optional).
   - Output shape (minimum):
     - `seed` (canonical id + type)
     - `nodes[]` (bounded; stable ordering)
@@ -177,10 +177,10 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
   - Cap surface (configurable):
     - `maxDepth`, `maxFanoutPerNode`, `maxNodes`, `maxEdges`, `maxPaths`, `maxCandidates`, `maxWorkUnits`, `maxWallClockMs`.
 
-- [ ] Add deterministic Markdown renderer for graph context packs.
+- [x] Add deterministic Markdown renderer for graph context packs.
   - `src/retrieval/output/graph-context-pack.js` (new; stable section ordering and formatting)
 
-- [ ] Implement deterministic neighborhood extraction for a seed id (k-hop).
+- [x] Implement deterministic neighborhood extraction for a seed id (k-hop).
   - Prefer graph source artifacts when present:
     - `graph_relations` for call/usage/import graphs (baseline).
     - `symbol_edges` / callsite artifacts (when available) for evidence and SymbolId identity.
@@ -191,38 +191,38 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
     - Enforce caps during traversal (no “collect everything then slice”).
     - Record truncation metadata with which cap triggered and how much was omitted.
 
-- [ ] Refactor `src/retrieval/context-expansion.js` to use the shared graph neighborhood utilities (do not make it the engine).
+- [x] Refactor `src/retrieval/context-expansion.js` to use the shared graph neighborhood utilities (do not make it the engine).
   - Touchpoints:
     - `src/retrieval/context-expansion.js`
     - `src/shared/artifact-io/manifest.js` (artifact presence checks via manifest)
-  - [ ] Eliminate eager `{id, reason}` candidate explosion.
+  - [x] Eliminate eager `{id, reason}` candidate explosion.
     - Convert candidate generation to a streaming/short-circuit loop that stops as soon as `maxPerHit` / `maxTotal` / `maxWorkUnits` is satisfied.
     - Add per-source caps (e.g., max call edges examined, max import links examined) so worst-case repos cannot allocate unbounded candidate sets.
-  - [ ] Remove duplicate scanning and make reason selection intentional.
+  - [x] Remove duplicate scanning and make reason selection intentional.
     - Track candidates in a `Map<id, { bestReason, bestPriority, reasons? }>` rather than pushing duplicates into arrays.
     - Define a fixed reason priority order (example: call > usage > export > import > nameFallback) and document it.
     - When `--explain` is enabled, optionally retain the top-N reasons per id (bounded).
-  - [ ] Stop assuming `chunkMeta[id]` is a valid dereference forever.
+  - [x] Stop assuming `chunkMeta[id]` is a valid dereference forever.
     - Build a `byDocId` (and/or `byChunkUid`) lookup once and use it for dereferencing.
     - If a dense array invariant is still desired for performance, validate it explicitly and fall back to map deref when violated.
-  - [ ] Prefer identity-first joins.
+  - [x] Prefer identity-first joins.
     - When graph artifacts exist, resolve neighbors via canonical ids rather than `byName` joins.
     - Keep name-based joins only as an explicit fallback mode with low-confidence markers.
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/retrieval/graph/context-pack-basic.test.js`
+- [x] `tests/retrieval/graph/context-pack-basic.test.js`
   - Build a small fixture graph; request a context pack for a known seed; assert expected caller/callee/import/usage neighbors are present.
-- [ ] `tests/retrieval/graph/context-pack-caps.test.js`
+- [x] `tests/retrieval/graph/context-pack-caps.test.js`
   - Use a large synthetic graph fixture; assert truncation metadata is present and stable when caps trigger.
-- [ ] `tests/retrieval/graph/context-pack-determinism.test.js`
+- [x] `tests/retrieval/graph/context-pack-determinism.test.js`
   - Run the same request twice; assert stable ordering and identical payloads.
-- [ ] `tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js`
+- [x] `tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js`
   - Stress fixture with many relations; assert expansion completes within a time/memory budget and does not allocate unbounded candidate arrays.
-- [ ] `tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js`
+- [x] `tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js`
   - A chunk reachable via multiple relation types records the highest-priority reason deterministically.
-- [ ] `tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js`
+- [x] `tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js`
   - Provide a shuffled `chunkMeta` where array index != docId; assert expansion still resolves correct chunks via a map-based dereference.
-- [ ] `tests/retrieval/context-expansion/context-expansion-determinism.test.js`
+- [x] `tests/retrieval/context-expansion/context-expansion-determinism.test.js`
   - Run expansion twice on the same fixture; assert stable ordering and identical results.
 
 Fixture sources:

@@ -89,7 +89,8 @@ export const edgeKey = (edge) => {
   const fromKey = edgeEndpointKey(edge.from);
   const toKey = edgeEndpointKey(edge.to);
   const edgeType = typeof edge.edgeType === 'string' ? edge.edgeType : '';
-  return `${fromKey}|${edgeType}|${toKey}`;
+  const graph = typeof edge.graph === 'string' ? edge.graph : '';
+  return `${graph}|${fromKey}|${edgeType}|${toKey}`;
 };
 
 export const compareGraphEdges = (left, right) => {
@@ -97,6 +98,8 @@ export const compareGraphEdges = (left, right) => {
   if (fromCompare !== 0) return fromCompare;
   const typeCompare = compareStrings(left?.edgeType, right?.edgeType);
   if (typeCompare !== 0) return typeCompare;
+  const graphCompare = compareStrings(left?.graph, right?.graph);
+  if (graphCompare !== 0) return graphCompare;
   const toCompare = compareStrings(edgeEndpointKey(left?.to), edgeEndpointKey(right?.to));
   if (toCompare !== 0) return toCompare;
   const confidenceCompare = compareNumbersDesc(left?.confidence, right?.confidence);
@@ -113,4 +116,3 @@ export const compareWitnessPaths = (left, right) => {
   const rightKey = Array.isArray(right?.nodes) ? right.nodes.map(nodeKey).join('>') : '';
   return compareStrings(leftKey, rightKey);
 };
-

@@ -93,6 +93,50 @@ function resolveCommand(primary, rest) {
     printHelp();
     process.exit(1);
   }
+  if (primary === 'graph-context') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'depth',
+        'direction',
+        'format',
+        'json',
+        'includePaths',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'depth',
+        'direction',
+        'format',
+        'graphs',
+        'edgeTypes',
+        'minConfidence',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
+  }
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
@@ -294,6 +338,9 @@ Tooling:
 
 LMDB:
   lmdb build              Build LMDB indexes
+
+Graph:
+  graph-context          Build a graph context pack for a seed
 
 Risk:
   risk explain            Explain interprocedural risk flows
