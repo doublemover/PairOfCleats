@@ -563,6 +563,11 @@ CLI mapping (normative):
 - `--graph-ranking-seed-k` -> `retrieval.graphRanking.seedK`
 ```
 
+**Implementation notes (v1)**
+- Ranking uses on-demand traversal over `graph_relations` (no precomputed analytics artifact).
+- Initial feature set is bounded degree + proximity-to-seed; other feature families (risk hotspots, clustering) are deferred.
+- Tie-breaker rule when graph deltas/features are equal: sort by final blended score, then by stable doc id (index-local).
+
 ### 8.2 Membership invariant
 When graph ranking is enabled:
 - The baseline pipeline MUST compute the result set (membership) first.

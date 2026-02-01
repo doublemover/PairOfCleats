@@ -54,6 +54,15 @@ export function formatScoreBreakdown(scoreBreakdown, color) {
     const piece = formatScorePiece('Symbol', entry, color);
     if (piece) parts.push(piece);
   }
+  const graph = scoreBreakdown.graph || null;
+  if (graph) {
+    const entry = [];
+    if (Number.isFinite(graph.score)) entry.push(graph.score.toFixed(3));
+    if (Number.isFinite(graph.degree)) entry.push(`deg=${graph.degree}`);
+    if (Number.isFinite(graph.proximity)) entry.push(`prox=${graph.proximity}`);
+    const piece = formatScorePiece('Graph', entry, color);
+    if (piece) parts.push(piece);
+  }
   if (!parts.length) return [];
   const prefix = '   Scores: ';
   if (color?.gray && typeof color.gray === 'function') {

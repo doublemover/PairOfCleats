@@ -44,6 +44,7 @@ export async function loadSearchIndexes({
   annActive,
   filtersActive,
   contextExpansionEnabled,
+  graphRankingEnabled,
   sqliteFtsRequested,
   backendLabel,
   backendForcedTantivy,
@@ -365,7 +366,7 @@ export async function loadSearchIndexes({
   };
 
   const attachGraphRelations = async (idx, dir) => {
-    if (!idx || !dir || !contextExpansionEnabled) return null;
+    if (!idx || !dir || (!contextExpansionEnabled && !graphRankingEnabled)) return null;
     let manifest = null;
     try {
       manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });

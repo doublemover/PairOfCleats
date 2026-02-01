@@ -66,6 +66,7 @@ export async function runSearchSession({
   explain,
   scoreBlend,
   rrf,
+  graphRankingConfig,
   minhashMaxDocs,
   sparseBackend,
   buildCandidateSetSqlite,
@@ -142,6 +143,7 @@ export async function runSearchSession({
     annBackend,
     scoreBlend,
     rrf,
+    graphRankingConfig,
     minhashMaxDocs,
     sparseBackend,
     vectorAnnState,
@@ -216,6 +218,7 @@ export async function runSearchSession({
         includeUsages: contextExpansionOptions.includeUsages === true,
         respectFilters: contextExpansionRespectFilters
       },
+      graphRanking: graphRankingConfig || null,
       filters: cacheFilters
     });
     cacheKey = cacheKeyInfo.key;

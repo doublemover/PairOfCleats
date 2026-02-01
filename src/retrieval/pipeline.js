@@ -14,6 +14,7 @@ import { createCandidateSetBuilder } from './pipeline/candidates.js';
 import { resolveAnnOrder } from './pipeline/ann-backends.js';
 import { fuseRankedHits } from './pipeline/fusion.js';
 import { createQueryAstHelpers } from './pipeline/query-ast.js';
+import { applyGraphRanking } from './pipeline/graph-ranking.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -60,7 +61,8 @@ export function createSearchPipeline(context) {
     rankVectorAnnSqlite,
     sqliteHasFts,
     signal,
-    rrf
+    rrf,
+    graphRankingConfig
   } = context;
   const blendEnabled = scoreBlend?.enabled === true;
   const blendSparseWeight = Number.isFinite(Number(scoreBlend?.sparseWeight))
@@ -339,7 +341,7 @@ export function createSearchPipeline(context) {
       throw error;
     }
 
-    const scored = fusedScores
+    let scored = fusedScores
       .filter((entry) => !allowedIdx || allowedIdx.has(entry.idx))
       .map((entry) => {
         abortIfNeeded();
@@ -444,6 +446,16 @@ export function createSearchPipeline(context) {
       .filter(Boolean)
       .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
       .slice(0, searchTopN);
+
+    if (graphRankingConfig?.enabled) {
+      const ranked = applyGraphRanking({
+        entries: scored,
+        graphRelations: idx.graphRelations || null,
+        config: graphRankingConfig,
+        explain
+      });
+      scored = ranked.entries;
+    }
 
     const ranked = scored
       .map((entry) => ({

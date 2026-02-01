@@ -170,6 +170,29 @@ export function normalizeSearchOptions({
   const rrfEnabled = policyRrfEnabled ?? true;
   const rrfK = normalizeOptionalNumber(policy?.retrieval?.rrf?.k) ?? 60;
 
+  const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
+  const graphRankingEnabled = graphRankingRaw.enabled === true;
+  const graphRankingWeights = graphRankingRaw.weights || {};
+  const graphRankingSeedSelectionRaw = argv['graph-ranking-seeds'] ?? graphRankingRaw.seedSelection;
+  const graphRankingSeedSelection = graphRankingSeedSelectionRaw
+    ? String(graphRankingSeedSelectionRaw).trim()
+    : null;
+  if (graphRankingSeedSelection && !['top1', 'topK', 'none'].includes(graphRankingSeedSelection)) {
+    throw new Error(`Invalid --graph-ranking-seeds "${graphRankingSeedSelection}". Use top1|topK|none.`);
+  }
+  const graphRankingConfig = {
+    enabled: graphRankingEnabled,
+    weights: graphRankingWeights,
+    maxGraphWorkUnits: normalizeOptionalNumber(
+      argv['graph-ranking-max-work'] ?? graphRankingRaw.maxGraphWorkUnits
+    ),
+    maxWallClockMs: normalizeOptionalNumber(
+      argv['graph-ranking-max-ms'] ?? graphRankingRaw.maxWallClockMs
+    ),
+    seedSelection: graphRankingSeedSelection ?? graphRankingRaw.seedSelection ?? 'top1',
+    seedK: normalizeOptionalNumber(argv['graph-ranking-seed-k'] ?? graphRankingRaw.seedK)
+  };
+
   const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
   const contextExpansionEnabled = contextExpansionConfig.enabled === true;
   const contextExpansionOptions = {
@@ -293,6 +316,7 @@ export function normalizeSearchOptions({
     queryCacheTtlMs,
     rrfEnabled,
     rrfK,
+    graphRankingConfig,
     contextExpansionEnabled,
     contextExpansionOptions,
     contextExpansionRespectFilters,

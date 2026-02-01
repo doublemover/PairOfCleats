@@ -186,6 +186,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheTtlMs,
       rrfEnabled,
       rrfK,
+      graphRankingConfig,
       contextExpansionEnabled,
       contextExpansionOptions,
       contextExpansionRespectFilters,
@@ -491,6 +492,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annActive,
       filtersActive: queryPlan.filtersActive,
       contextExpansionEnabled,
+      graphRankingEnabled: graphRankingConfig?.enabled === true,
       sqliteFtsRequested: sqliteFtsEnabled,
       backendLabel,
       backendForcedTantivy,
@@ -577,6 +579,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         enabled: rrfEnabled,
         k: rrfK
       },
+      graphRankingConfig,
       minhashMaxDocs,
       sparseBackend,
       buildCandidateSetSqlite,

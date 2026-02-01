@@ -387,7 +387,7 @@ Touchpoints (consolidated):
 
 ### 11.4 Graph-aware ranking hooks (opt-in) + explainability
 
-- [ ] Introduce optional graph-aware ranking features that can be enabled without changing result membership.
+- [x] Introduce optional graph-aware ranking features that can be enabled without changing result membership.
   - Candidate feature families (bounded, deterministic):
     - node degree / in-degree / out-degree (prefer precomputed analytics artifacts when available)
     - proximity to the query-hit seed within the graph neighborhood (bounded k-hop)
@@ -401,7 +401,7 @@ Touchpoints (consolidated):
     - schema and loader if artifact-based
   - Define tie-breaker rules for equal graph deltas/features.
 
-- [ ] Integrate into retrieval ranking with an explicit feature-hook layer.
+- [x] Integrate into retrieval ranking with an explicit feature-hook layer.
   - Touchpoints (expected; anchors are approximate):
     - `src/retrieval/pipeline.js` (~L25 `createSearchPipeline`; scoring assembly + explain output)
     - `src/retrieval/cli/run-search-session.js` (~L86 context options + ~L486 expansion block)
@@ -425,13 +425,13 @@ Touchpoints (consolidated):
       - feature contributions and the final blended delta.
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/retrieval/ranking/graph-ranking-toggle.test.js`
+- [x] `tests/retrieval/ranking/graph-ranking-toggle.test.js`
   - Run the same query with graph ranking off/on; assert result sets are identical but ordering may differ.
-- [ ] `tests/retrieval/ranking/graph-ranking-explain.test.js`
+- [x] `tests/retrieval/ranking/graph-ranking-explain.test.js`
   - With explain enabled, assert output includes named graph feature contributions.
-- [ ] `tests/retrieval/ranking/graph-ranking-determinism.test.js`
+- [x] `tests/retrieval/ranking/graph-ranking-determinism.test.js`
   - Re-run the same query twice with graph ranking enabled; assert ordering and explain payload are stable.
-- [ ] `tests/retrieval/ranking/graph-ranking-membership-invariant.test.js`
+- [x] `tests/retrieval/ranking/graph-ranking-membership-invariant.test.js`
   - Run the same query with graph ranking on/off; assert result membership is identical.
 
 ---
