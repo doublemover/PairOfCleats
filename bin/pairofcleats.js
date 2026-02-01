@@ -137,6 +137,54 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
   }
+  if (primary === 'context-pack') {
+    validateArgs(
+      rest,
+      [
+        'repo',
+        'seed',
+        'hops',
+        'maxTokens',
+        'maxBytes',
+        'includeGraph',
+        'includeTypes',
+        'includeRisk',
+        'includeImports',
+        'includeUsages',
+        'includeCallersCallees',
+        'includePaths',
+        'maxTypeEntries',
+        'format',
+        'json',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ],
+      [
+        'repo',
+        'seed',
+        'hops',
+        'maxTokens',
+        'maxBytes',
+        'maxTypeEntries',
+        'format',
+        'maxDepth',
+        'maxFanoutPerNode',
+        'maxNodes',
+        'maxEdges',
+        'maxPaths',
+        'maxCandidates',
+        'maxWorkUnits',
+        'maxWallClockMs'
+      ]
+    );
+    return { script: 'tools/context-pack.js', extraArgs: [], args: rest };
+  }
   if (primary === 'impact') {
     validateArgs(
       rest,
@@ -388,6 +436,7 @@ LMDB:
 
 Graph:
   graph-context          Build a graph context pack for a seed
+  context-pack           Build a composite context pack for a seed
   impact                 Compute bounded graph impact for a seed or change set
 
 Risk:

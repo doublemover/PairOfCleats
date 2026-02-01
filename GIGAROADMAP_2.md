@@ -309,7 +309,7 @@ Touchpoints (consolidated; anchors are approximate):
 
 ### 11.3 Context pack assembly for tooling/LLM (chunk text + graph + types + risk) + explainability rendering
 
-- [ ] Implement a “context pack assembler” that composes multiple bounded slices into a single package.
+- [x] Implement a “context pack assembler” that composes multiple bounded slices into a single package.
   - Inputs:
     - `seed` (chunkUid/SymbolId)
     - budgets (`maxTokens` and/or `maxBytes`, plus graph caps)
@@ -326,13 +326,13 @@ Touchpoints (consolidated; anchors are approximate):
     - Do not embed large raw code blobs; prefer bounded excerpts and (when needed) snippet hashes + location coordinates.
     - Use stable ordering inside each slice so context packs are deterministic across runs.
 
-- [ ] Add CLI surface:
+- [x] Add CLI surface:
   - `pairofcleats context-pack --repo … --seed <id> --hops 2 --maxTokens 4000 --format json|md`
   - Add toggles: `--includeGraph`, `--includeTypes`, `--includeRisk`, `--includeImports`, `--includeUsages`, `--includeCallersCallees`
   - Add per-slice caps: `--maxTypeEntries`, `--riskMaxFlows`, `--riskMaxEvidencePerFlow`
   - For Markdown output, use consistent sections and a deterministic ordering (primary first, then callers/callees, then imports/usages, then risk).
 
-- [ ] Add explain-risk rendering for flows when risk artifacts exist.
+- [x] Add explain-risk rendering for flows when risk artifacts exist.
   - Provide an output mode (flag or subcommand) that prints:
     - the path of symbols/chunks
     - file/line evidence (callsites) when present
@@ -340,31 +340,31 @@ Touchpoints (consolidated; anchors are approximate):
     - bounded snippets or snippet hashes (never unbounded)
   - Ensure output is stable, capped, and does not assume optional color helpers exist.
 
-- [ ] Define excerpt whitespace policy:
+- [x] Define excerpt whitespace policy:
   - clarify when indentation is preserved (code excerpts) vs normalized (summary/output cleaning)
   - document how `cleanContext()` interacts with excerpt rendering
 
-- [ ] Harden retrieval output helpers used by these features (integrate known bugs in touched files).
+- [x] Harden retrieval output helpers used by these features (integrate known bugs in touched files).
   - Touchpoints:
     - `src/retrieval/output/context.js`
     - `src/retrieval/output/explain.js`
-  - [ ] `cleanContext()` must remove fence lines that include language tags.
+  - [x] `cleanContext()` must remove fence lines that include language tags.
     - Treat any line whose trimmed form starts with ``` as a fence line.
-  - [ ] `cleanContext()` must not throw on non-string items.
+  - [x] `cleanContext()` must not throw on non-string items.
     - Guard/coerce before calling `.trim()`.
-  - [ ] Explain formatting must not assume `color.gray()` exists.
+  - [x] Explain formatting must not assume `color.gray()` exists.
     - Provide a no-color fallback when `color?.gray` is not a function.
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/retrieval/context-pack/context-pack-assembly.test.js`
+- [x] `tests/retrieval/context-pack/context-pack-assembly.test.js`
   - Build fixture; assemble a context pack; assert it contains primary + at least one neighbor + deterministic truncation structure.
-- [ ] `tests/retrieval/output/risk-explain-render.test.js`
+- [x] `tests/retrieval/output/risk-explain-render.test.js`
   - Use a risk-flow fixture; assert output includes a call path and evidence coordinates and remains bounded.
-- [ ] `tests/retrieval/output/clean-context-fences.test.js`
+- [x] `tests/retrieval/output/clean-context-fences.test.js`
   - Ensure ```ts / ```json fences are removed (not just bare ```).
-- [ ] `tests/retrieval/output/clean-context-nonstring-guard.test.js`
+- [x] `tests/retrieval/output/clean-context-nonstring-guard.test.js`
   - Feed non-string items; assert no crash and only string lines survive.
-- [ ] `tests/retrieval/output/explain-color-fallback.test.js`
+- [x] `tests/retrieval/output/explain-color-fallback.test.js`
   - Provide a partial color impl; assert explain rendering does not throw.
 
 Fixture sources:

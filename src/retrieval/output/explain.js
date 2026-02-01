@@ -1,7 +1,11 @@
 const formatExplainLine = (label, parts, color) => {
   const filtered = parts.filter(Boolean);
   if (!filtered.length) return null;
-  return color.gray(`   ${label}: `) + filtered.join(', ');
+  const prefix = `   ${label}: `;
+  if (color?.gray && typeof color.gray === 'function') {
+    return color.gray(prefix) + filtered.join(', ');
+  }
+  return prefix + filtered.join(', ');
 };
 
 const formatScorePiece = (label, parts, color) => {
@@ -51,5 +55,9 @@ export function formatScoreBreakdown(scoreBreakdown, color) {
     if (piece) parts.push(piece);
   }
   if (!parts.length) return [];
-  return [color.gray('   Scores: ') + parts.join(' | ')];
+  const prefix = '   Scores: ';
+  if (color?.gray && typeof color.gray === 'function') {
+    return [color.gray(prefix) + parts.join(' | ')];
+  }
+  return [prefix + parts.join(' | ')];
 }

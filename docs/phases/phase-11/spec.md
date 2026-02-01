@@ -533,6 +533,7 @@ type RiskFlowSummaryV1 = {
 **Requirements**
 - `maxBytes` is the hard limit; the assembler MUST trim deterministically to fit.
 - Raw code blobs MUST NOT be embedded unbounded; use bounded excerpt + coordinates + hashes.
+- Excerpts MUST preserve original indentation/whitespace from the source slice; summary/cleaning helpers (e.g., `cleanContext`) are only for display summaries and MUST NOT be applied to stored excerpts.
 - Ordering MUST be stable across runs.
 
 ---
