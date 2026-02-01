@@ -69,7 +69,7 @@
     "format": "eslint . --fix"
   },
   "dependencies": {
-    "@ast-grep/napi": "^0.40.4",
+    "@ast-grep/napi": "^0.40.5",
     "@astrojs/compiler": "^2.13.0",
     "@babel/parser": "^7.27.1",
     "@babel/traverse": "^7.28.5",
