@@ -438,7 +438,7 @@ Touchpoints (consolidated):
 
 ### 11.5 Graph expansion caps as a config surface + calibration harness (language × size tier)
 
-- [ ] Align cap vocabulary across indexing + retrieval (depends on 11.0 graph caps update).
+- [x] Align cap vocabulary across indexing + retrieval (depends on 11.0 graph caps update).
   - Ensure all expansions use the same cap names and truncation metadata semantics.
   - Touchpoints:
     - `src/retrieval/context-expansion.js` (cap naming + truncation records)
@@ -448,7 +448,7 @@ Touchpoints (consolidated):
     - Every expansion returns truncation metadata when it truncates.
     - Truncation metadata indicates which cap fired and provides counts (omitted nodes/edges/paths) when measurable.
 
-- [ ] Implement a metrics-harvesting harness to justify default caps.
+- [x] Implement a metrics-harvesting harness to justify default caps.
   - Inputs:
     - Use/extend `benchmarks/repos.json` to define repos.
     - Normalize into tiers: small / typical / large / huge / problematic(massive).
@@ -466,9 +466,9 @@ Touchpoints (consolidated):
     - explicit rule for converting harness measurements into `graph-caps-defaults.json`
 
 #### Tests (path-corrected for current test layout)
-- [ ] `tests/indexing/graphs/caps-enforced-and-reported.test.js`
+- [x] `tests/indexing/graphs/caps-enforced-and-reported.test.js`
   - Build a small fixture; request deep expansion; assert caps trigger deterministically and truncation metadata is present.
-- [ ] `tests/perf/bench/graph-caps-harness-smoke.test.js`
+- [x] `tests/perf/bench/graph-caps-harness-smoke.test.js`
   - Run the harness on a tiny in-tree fixture; assert it writes a results JSON file with required fields and deterministic ordering.
 
 ---

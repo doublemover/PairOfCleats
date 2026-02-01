@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "generatedAt": "2026-02-01T00:00:00.000Z",
+  "defaults": {
+    "global": {
+      "maxDepth": 2,
+      "maxFanoutPerNode": 50,
+      "maxNodes": 500,
+      "maxEdges": 1000,
+      "maxPaths": 50,
+      "maxCandidates": 25,
+      "maxWorkUnits": 1000,
+      "maxWallClockMs": 0
+    }
+  }
+}
