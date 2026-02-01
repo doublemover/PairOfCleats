@@ -110,7 +110,7 @@ Ensure the config file (`.pairofcleats.json`) is:
 2) actually applied by runtime.
 
 #### 2.1 Normalization drops supported keys (user config silently ignored)
-- [?] Fix `quality` and `threads` being validated/documented but then silently dropped.
+- [x] Fix `quality` and `threads` being validated/documented but then silently dropped.
   - Symptoms:
     - `docs/config/schema.json` defines top-level `quality` and `threads`.
     - default config template emits `quality: "auto"`.
@@ -121,7 +121,7 @@ Ensure the config file (`.pairofcleats.json`) is:
     - [ ] Add tests proving config changes behavior (not just schema validation).
 
 #### 2.2 Validator vs schema mismatch (schema features ignored / mis-evaluated)
-- [?] Align `docs/config/schema.json` with the actual validator (`src/config/validate.js`) *or* adopt a real JSON Schema validator.
+- [x] Align `docs/config/schema.json` with the actual validator (`src/config/validate.js`) *or* adopt a real JSON Schema validator.
   - Issues observed:
     - Schema uses `anyOf` and union types (e.g., `"type": ["number","null"]`) but validator ignores `anyOf` and mishandles array-`type`.
     - Root `additionalProperties:false` rejects many keys the code expects/normalizes (`sqlite`, `lmdb`, etc.) unless schema is expanded.
@@ -133,13 +133,13 @@ Ensure the config file (`.pairofcleats.json`) is:
     - [ ] Restrict schema to the validator’s supported subset and adjust doc tooling accordingly.
 
 #### 2.3 Additional normalization/validation defects
-- [?] Fix conditional drop: `search.sqliteAutoArtifactBytes` is ignored unless `sqliteAutoChunkThreshold` is set.
+- [x] Fix conditional drop: `search.sqliteAutoArtifactBytes` is ignored unless `sqliteAutoChunkThreshold` is set.
   - Touchpoint: `tools/dict-utils/config.js` (`sqliteAutoArtifactBytes` parsing is gated on threshold existence).
-- [?] Fix `validateConfig()` “required bypass” under `additionalProperties:false`.
+- [x] Fix `validateConfig()` “required bypass” under `additionalProperties:false`.
   - Touchpoint: `src/config/validate.js` (unknown property is skipped if the key is also in `required`).
 
 #### 2.4 Generated “inventory” docs drift / contract not enforced
-- [?] Keep generated docs in sync:
+- [x] Keep generated docs in sync:
   - `docs/config/inventory.json` vs `docs/config/inventory.md` public flags list mismatch.
   - `docs/guides/commands.md` appears out of sync with its generator.
   - Action:
