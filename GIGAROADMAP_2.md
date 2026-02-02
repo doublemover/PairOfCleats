@@ -154,54 +154,54 @@ Touchpoints (anchors; approximate):
 
 ### Phase 13.1 — Introduce `ScmProvider` interface + registry + config/state schema wiring
 
-- [ ] Create a new module boundary for SCM operations:
-  - [ ] `src/index/scm/types.js` (new) — shared types and normalized shapes
-  - [ ] `src/index/scm/provider.js` (new) — interface contract + docs-in-code
-  - [ ] `src/index/scm/registry.js` (new) — provider selection (`auto|git|jj|none`)
-  - [ ] `src/index/scm/providers/none.js` (new) — filesystem-only provider (no provenance; uses existing fdir fallback)
-  - [ ] `src/index/scm/providers/git.js` (new) — migrated in 13.2
-  - [ ] `src/index/scm/providers/jj.js` (new) — implemented in 13.3
+- [x] Create a new module boundary for SCM operations:
+  - [x] `src/index/scm/types.js` (new) — shared types and normalized shapes
+  - [x] `src/index/scm/provider.js` (new) — interface contract + docs-in-code
+  - [x] `src/index/scm/registry.js` (new) — provider selection (`auto|git|jj|none`)
+  - [x] `src/index/scm/providers/none.js` (new) — filesystem-only provider (no provenance; uses existing fdir fallback)
+  - [x] `src/index/scm/providers/git.js` (new) — migrated in 13.2
+  - [x] `src/index/scm/providers/jj.js` (new) — implemented in 13.3
 
-- [ ] Add a shared path normalization helper (single source of truth):
-  - [ ] `src/index/scm/paths.js` (new) — `toRepoPosixPath(filePath, repoRoot)`
-  - [ ] All providers + tests must use this helper.
+- [x] Add a shared path normalization helper (single source of truth):
+  - [x] `src/index/scm/paths.js` (new) — `toRepoPosixPath(filePath, repoRoot)`
+  - [x] All providers + tests must use this helper.
 
-- [ ] Define the **canonical provider contract** (minimal required surface):
-  - [ ] `detect({ startPath }) -> { ok:true, repoRoot, provider } | { ok:false }`
-  - [ ] `listTrackedFiles({ repoRoot, subdir? }) -> { filesPosix: string[] }`
-  - [ ] `getRepoProvenance({ repoRoot }) -> { provider, root, head, dirty, branch/bookmarks?, detectedBy? }`
-  - [ ] `getChangedFiles({ repoRoot, fromRef, toRef, subdir? }) -> { filesPosix: string[] }` (may be “not supported” for `none`)
-  - [ ] `getFileMeta({ repoRoot, filePosix }) -> { churn?, lastCommitId?, lastAuthor?, lastModifiedAt? }` (best-effort; may be disabled)
-  - [ ] Optional (capability-gated): `annotate({ repoRoot, filePosix, timeoutMs }) -> { lines:[{ line, author, commitId, ... }] }`
-  - [ ] Define conflict policy:
-    - [ ] If both `.git/` and `.jj/` exist and no explicit provider is set, **hard fail** with a clear message to choose `--scm-provider`.
+- [x] Define the **canonical provider contract** (minimal required surface):
+  - [x] `detect({ startPath }) -> { ok:true, repoRoot, provider } | { ok:false }`
+  - [x] `listTrackedFiles({ repoRoot, subdir? }) -> { filesPosix: string[] }`
+  - [x] `getRepoProvenance({ repoRoot }) -> { provider, root, head, dirty, branch/bookmarks?, detectedBy? }`
+  - [x] `getChangedFiles({ repoRoot, fromRef, toRef, subdir? }) -> { filesPosix: string[] }` (may be “not supported” for `none`)
+  - [x] `getFileMeta({ repoRoot, filePosix }) -> { churn?, lastCommitId?, lastAuthor?, lastModifiedAt? }` (best-effort; may be disabled)
+  - [x] Optional (capability-gated): `annotate({ repoRoot, filePosix, timeoutMs }) -> { lines:[{ line, author, commitId, ... }] }`
+  - [x] Define conflict policy:
+    - [x] If both `.git/` and `.jj/` exist and no explicit provider is set, **hard fail** with a clear message to choose `--scm-provider`.
 
-- [ ] Config keys (align to `docs/specs/scm-provider-config-and-state-schema.md`):
-  - [ ] `indexing.scm.provider: auto|git|jj|none`
-  - [ ] `indexing.scm.timeoutMs`, `indexing.scm.maxConcurrentProcesses`
-  - [ ] `indexing.scm.annotate.enabled`, `maxFileSizeBytes`, `timeoutMs`
-  - [ ] `indexing.scm.jj.snapshotWorkingCopy` safety default (read-only by default)
-  - [ ] Define compatibility mapping for legacy git flags:
-    - [ ] `indexing.gitBlame` / `analysisPolicy.git.blame` -> `indexing.scm.annotate.enabled`
-    - [ ] document deprecation/precedence and avoid divergent settings
-    - [ ] No legacy mode: treat the SCM provider contract as authoritative
+- [x] Config keys (align to `docs/specs/scm-provider-config-and-state-schema.md`):
+  - [x] `indexing.scm.provider: auto|git|jj|none`
+  - [x] `indexing.scm.timeoutMs`, `indexing.scm.maxConcurrentProcesses`
+  - [x] `indexing.scm.annotate.enabled`, `maxFileSizeBytes`, `timeoutMs`
+  - [x] `indexing.scm.jj.snapshotWorkingCopy` safety default (read-only by default)
+  - [x] Define compatibility mapping for legacy git flags:
+    - [x] `indexing.gitBlame` / `analysisPolicy.git.blame` -> `indexing.scm.annotate.enabled`
+    - [x] document deprecation/precedence and avoid divergent settings
+    - [x] No legacy mode: treat the SCM provider contract as authoritative
 
-- [ ] Add a mockable SCM command runner:
-  - [ ] `src/index/scm/runner.js` (new) — wraps spawn/exec with injectable fakes for tests
-  - [ ] Use it in Git/JJ providers to avoid shelling in unit tests.
+- [x] Add a mockable SCM command runner:
+  - [x] `src/index/scm/runner.js` (new) — wraps spawn/exec with injectable fakes for tests
+  - [x] Use it in Git/JJ providers to avoid shelling in unit tests.
 
-- [ ] Build-state schema updates:
-  - [ ] Extend `build_state.json` `repo` field to include:
-    - [ ] `repo.provider`
-    - [ ] normalized `repo.head` object (provider-specific fields nested, but stable keys)
-    - [ ] `repo.dirty` boolean (best-effort)
-- [ ] Keep Git back-compat fields where feasible (`repo.commit`, `repo.branch`) but treat `repo.provider` + `repo.head.*` as authoritative.
-  - [ ] Define deterministic buildId/signature rules:
-    - [ ] buildId uses `<timestamp>_<scmHeadShort>_<configHash8>`
-    - [ ] `scmHeadShort` comes from provider head primary id:
-      - [ ] git: commit SHA (short)
-      - [ ] jj: **changeId** when available, else commitId
-    - [ ] provider=none uses `noscm` marker (no git/jj fields leaked)
+- [x] Build-state schema updates:
+  - [x] Extend `build_state.json` `repo` field to include:
+    - [x] `repo.provider`
+    - [x] normalized `repo.head` object (provider-specific fields nested, but stable keys)
+    - [x] `repo.dirty` boolean (best-effort)
+- [x] Keep Git back-compat fields where feasible (`repo.commit`, `repo.branch`) but treat `repo.provider` + `repo.head.*` as authoritative.
+  - [x] Define deterministic buildId/signature rules:
+    - [x] buildId uses `<timestamp>_<scmHeadShort>_<configHash8>`
+    - [x] `scmHeadShort` comes from provider head primary id:
+      - [x] git: commit SHA (short)
+      - [x] jj: **changeId** when available, else commitId
+    - [x] provider=none uses `noscm` marker (no git/jj fields leaked)
 
 Touchpoints:
 - `docs/specs/scm-provider-config-and-state-schema.md` (align / correct examples if needed)
@@ -221,16 +221,16 @@ Touchpoints (anchors; approximate):
 - `src/index/build/runtime/runtime.js` (~L172 `buildId`, ~L209 `gitBlameEnabled`)
 
 #### Tests / verification (path-corrected for current test layout)
-- [ ] `tests/indexing/scm/scm-provider-selection.test.js` (new)
-  - [ ] `auto` selects `git` when `.git/` exists and git is runnable.
-  - [ ] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
-  - [ ] `auto` falls back to `none` when neither exists (or binaries missing).
-  - [ ] `auto` hard-fails when both `.git/` + `.jj/` exist and no provider is set.
-  - [ ] use fixture repo roots (`tests/fixtures/scm/git`, `tests/fixtures/scm/jj`, `tests/fixtures/scm/both`) rather than real repos.
-- [ ] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
-  - [ ] `build_state.json` includes `repo.provider` and normalized `repo.head`.
-- [ ] `tests/indexing/scm/signature-provenance-stability.test.js` (new)
-  - [ ] build signatures remain stable across locales and include provider head fields.
+- [x] `tests/indexing/scm/scm-provider-selection.test.js` (new)
+  - [x] `auto` selects `git` when `.git/` exists and git is runnable.
+  - [x] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
+  - [x] `auto` falls back to `none` when neither exists (or binaries missing).
+  - [x] `auto` hard-fails when both `.git/` + `.jj/` exist and no provider is set.
+  - [x] use fixture repo roots (`tests/fixtures/scm/git`, `tests/fixtures/scm/jj`, `tests/fixtures/scm/both`) rather than real repos.
+- [x] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
+  - [x] `build_state.json` includes `repo.provider` and normalized `repo.head`.
+- [x] `tests/indexing/scm/signature-provenance-stability.test.js` (new)
+  - [x] build signatures remain stable across locales and include provider head fields.
 
 ---
 

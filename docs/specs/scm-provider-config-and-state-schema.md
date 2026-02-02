@@ -61,6 +61,9 @@ Rules:
 }
 ```
 
+Legacy mapping:
+- `indexing.gitBlame` and `analysisPolicy.git.blame` map to `indexing.scm.annotate.enabled` (deprecated).
+
 ### Performance controls
 
 ```jsonc
