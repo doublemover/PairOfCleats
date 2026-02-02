@@ -104,6 +104,7 @@ export const writeIndexArtifactsForMode = async ({
         timingMs: {
           summaries: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0,
           propagation: 0,
+          io: 0,
           total: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0
         },
         artifacts: {}
