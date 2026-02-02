@@ -38,6 +38,7 @@ const run = async () => {
     const source = await fs.readFile(filePath, 'utf8');
     const matches = new Set();
     for (const regex of envRegexes) {
+      regex.lastIndex = 0;
       let match;
       while ((match = regex.exec(source)) !== null) {
         const names = match[0].match(envNameRegex) || [];
