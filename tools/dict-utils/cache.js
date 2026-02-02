@@ -1,12 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
-
-const resolveEnvCacheRoot = (env) => {
-  const cacheRoot = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
-  if (cacheRoot) return cacheRoot;
-  const homeRoot = typeof env.PAIROFCLEATS_HOME === 'string' ? env.PAIROFCLEATS_HOME.trim() : '';
-  return homeRoot || '';
-};
+import { getEnvConfig } from '../../src/shared/env.js';
 
 /**
  * Resolve the default cache root directory (ignores test overrides).
@@ -23,7 +17,8 @@ export function getDefaultCacheRoot() {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const envRoot = resolveEnvCacheRoot(process.env);
+  const envConfig = getEnvConfig();
+  const envRoot = envConfig.cacheRoot || envConfig.homeRoot || '';
   if (envRoot) return envRoot;
   return getDefaultCacheRoot();
 }

@@ -84,6 +84,7 @@ export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   const filterExpr = payload?.filter ? String(payload.filter) : null;
   const metaFilters = normalizeMetaFilters(payload?.meta);
   const metaJsonFilter = normalizeMetaJson(payload?.metaJson);
+  const contextLines = Number.isFinite(Number(payload?.context)) ? Math.max(0, Number(payload.context)) : null;
 
   const pushFlag = (flag, value) => {
     if (value == null || value === '') return;
@@ -94,6 +95,7 @@ export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   if (ann === true) searchArgs.push('--ann');
   if (ann === false) searchArgs.push('--no-ann');
   if (top != null) searchArgs.push('--top', String(top));
+  if (contextLines != null) searchArgs.push('--context', String(contextLines));
   pushFlag('--type', typeFilter);
   pushFlag('--author', authorFilter);
   pushFlag('--import', importFilter);

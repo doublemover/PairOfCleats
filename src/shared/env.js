@@ -36,6 +36,7 @@ export function getEnvConfig(env = process.env) {
   return {
     ...secrets,
     mcpMode,
+    homeRoot: normalizeString(env.PAIROFCLEATS_HOME),
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
@@ -58,6 +59,7 @@ export function getEnvConfig(env = process.env) {
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
     modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
     dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),
+    extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),
     mcpQueueMax: normalizeNumber(env.PAIROFCLEATS_MCP_QUEUE_MAX),
     mcpMaxBufferBytes: normalizeNumber(env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES),
     mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T20:15:30.577Z",
+  "generatedAt": "2026-02-02T20:30:46.358Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1344,9 +1344,7 @@
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js"
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1368,8 +1366,7 @@
       "files": [
         "src/shared/env.js",
         "tools/compare-models.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/config.js"
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1482,8 +1479,8 @@
     {
       "name": "PAIROFCLEATS_EXTENSIONS_DIR",
       "files": [
-        "tools/config-inventory.js",
-        "tools/dict-utils/paths/cache.js"
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1496,13 +1493,12 @@
     {
       "name": "PAIROFCLEATS_HOME",
       "files": [
+        "src/shared/env.js",
         "tests/helpers/mcp-client.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js"
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1596,8 +1592,7 @@
       "files": [
         "src/shared/env.js",
         "tools/compare-models.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/paths/cache.js"
+        "tools/config-inventory.js"
       ]
     },
     {

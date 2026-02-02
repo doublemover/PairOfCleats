@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../../src/shared/cache.js';
-import { isTestingEnv } from '../../../src/shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getDefaultCacheRoot } from '../cache.js';
 import { getRepoCacheRoot } from './repo.js';
@@ -43,9 +43,8 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
  */
 export function getModelsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envModelsDir = typeof process.env.PAIROFCLEATS_MODELS_DIR === 'string'
-    ? process.env.PAIROFCLEATS_MODELS_DIR.trim()
-    : '';
+  const envConfig = getEnvConfig();
+  const envModelsDir = envConfig.modelsDir || '';
   if (envModelsDir) return envModelsDir;
   const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const models = cfg.models || {};
@@ -164,9 +163,8 @@ export function getToolingConfig(repoRoot, userConfig = null) {
  */
 export function getExtensionsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envExtensionsDir = typeof process.env.PAIROFCLEATS_EXTENSIONS_DIR === 'string'
-    ? process.env.PAIROFCLEATS_EXTENSIONS_DIR.trim()
-    : '';
+  const envConfig = getEnvConfig();
+  const envExtensionsDir = envConfig.extensionsDir || '';
   if (envExtensionsDir) return envExtensionsDir;
   const extensions = cfg.extensions || {};
   const sqliteVector = cfg.sqlite?.vectorExtension || {};

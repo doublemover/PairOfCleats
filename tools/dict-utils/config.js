@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { buildAutoPolicy } from '../../src/shared/auto-policy.js';
-import { getTestEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig, getTestEnvConfig } from '../../src/shared/env.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { validateConfig } from '../../src/config/validate.js';
@@ -277,18 +277,12 @@ function normalizeUserConfig(baseConfig) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const envRoot = resolveEnvCacheRoot(process.env);
+  const envConfig = getEnvConfig();
+  const envRoot = envConfig.cacheRoot || envConfig.homeRoot || '';
   if (envRoot) return envRoot;
   if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
   if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
-}
-
-function resolveEnvCacheRoot(env) {
-  const cacheRoot = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
-  if (cacheRoot) return cacheRoot;
-  const homeRoot = typeof env.PAIROFCLEATS_HOME === 'string' ? env.PAIROFCLEATS_HOME.trim() : '';
-  return homeRoot || '';
 }
 
 /**
@@ -300,9 +294,8 @@ function resolveEnvCacheRoot(env) {
 export function getDictConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const dict = cfg.dictionary || {};
-  const envDictDir = typeof process.env.PAIROFCLEATS_DICT_DIR === 'string'
-    ? process.env.PAIROFCLEATS_DICT_DIR.trim()
-    : '';
+  const envConfig = getEnvConfig();
+  const envDictDir = envConfig.dictDir || '';
   const dpMaxTokenLengthByFileCount = normalizeDpMaxTokenLengthByFileCount(
     dict.dpMaxTokenLengthByFileCount
   );
