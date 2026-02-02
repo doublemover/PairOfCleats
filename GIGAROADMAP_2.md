@@ -98,9 +98,9 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
     - [x] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
   - [x] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
 
-- [@] Ensure MCP server mode selection is observable and capability-gated.
+- [x] Ensure MCP server mode selection is observable and capability-gated.
   - Touchpoints:
-    - [ ] `tools/mcp-server.js` — entrypoint dispatch
+    - [x] `tools/mcp-server.js` — entrypoint dispatch
     - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
     - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
   - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
@@ -116,8 +116,8 @@ Touchpoints (anchors; approximate):
 
 #### Tests / Verification
 
-- [ ] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
-- [ ] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
+- [x] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
+- [x] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
 
 ---
 
@@ -148,7 +148,7 @@ Touchpoints (anchors; approximate):
 
 #### Tests / Verification
 
-- [ ] Services: `tests/services/mcp/sdk-mode.test.js` (new)
+- [.] Services: `tests/services/mcp/sdk-mode.test.js` (new)
   - Skip if SDK is not installed.
   - Start `tools/mcp-server-sdk.js` and run at least:
     - `tools/list`
@@ -182,7 +182,7 @@ Touchpoints (anchors; approximate):
     - [x] be explicitly marked “reserved” and rejected if set.
   - [x] Avoid duplicative builders (do not maintain two separate lists of flags).
 
-- [ ] Fix known MCP tool wiring correctness hazards in modified files:
+- [x] Fix known MCP tool wiring correctness hazards in modified files:
   - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
 
 Touchpoints (anchors; approximate):
@@ -193,15 +193,15 @@ Touchpoints (anchors; approximate):
 
 #### Tests / Verification
 
-- [ ] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
+- [x] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
   - Assert `schemaVersion` exists.
   - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
 
-- [ ] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
+- [x] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
   - For each supported schema field, assert mapping produces the expected CLI flag(s).
   - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
 
-- [ ] Update existing: `tests/services/mcp/mcp-schema.test.js`
+- [x] Update existing: `tests/services/mcp/mcp-schema.test.js`
   - Keep snapshotting tool property sets.
   - Add schemaVersion presence check.
   - Add toolVersion presence check.
