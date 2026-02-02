@@ -39,6 +39,20 @@ Optional (feature/config driven):
 - `token_postings`: prefer `token_postings.meta.json` + `token_postings.shards/`, then `token_postings.json`.
 - If `*.json` is missing but `*.json.gz` exists, readers load the gzip sidecar; when `keepRaw` is enabled, both may exist and the raw `*.json` takes precedence.
 
+## Build state + provenance
+
+Each build writes a `build_state.json` at the build root. This file records build metadata,
+repo provenance, and progress snapshots. The schema is defined in:
+
+- `src/contracts/schemas/build-state.js`
+- `src/contracts/validators/build-state.js`
+
+Key requirements:
+- `schemaVersion` and `signatureVersion` are always present.
+- `repo.provider` records the SCM provider (`git|jj|none`).
+- `repo.head` contains provider-specific head fields (e.g., git commit or jj changeId).
+- When `provider=none`, provenance fields are `null` and no SCM fields are inferred.
+
 ## Invariants
 - Each mode writes to its own index directory under the cache root.
 - Artifact counts and dimensions must be internally consistent.
@@ -54,5 +68,6 @@ Optional (feature/config driven):
 ## References
 - `docs/contracts/artifact-contract.md`
 - `docs/specs/metadata-schema-v2.md`
+- `docs/specs/scm-provider-contract.md`
 - `docs/sqlite/index-schema.md`
 

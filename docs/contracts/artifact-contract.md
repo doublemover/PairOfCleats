@@ -21,7 +21,8 @@ Artifacts live under the per-repo cache and are promoted atomically via a curren
 <cache>/repos/<repoId>/builds/current.json
 ```
 
-`buildId` format: `YYYYMMDDTHHMMSSZ_<gitShortSha|nogit>_<configHash8>`.
+`buildId` format: `YYYYMMDDTHHMMSSZ_<scmHeadShort|noscm>_<configHash8>`.
+`scmHeadShort` is derived from the provider head (git commit short SHA, jj changeId when available).
 
 ## Core artifacts (per mode)
 

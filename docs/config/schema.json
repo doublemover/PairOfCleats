@@ -178,6 +178,32 @@
         "ioConcurrencyCap": { "type": "number" },
         "maxFileBytes": { "type": "number" },
         "maxFileLines": { "type": "number" },
+        "scm": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": { "type": "string", "enum": ["auto", "git", "jj", "none"] },
+            "timeoutMs": { "type": "number" },
+            "maxConcurrentProcesses": { "type": "number" },
+            "churnWindowCommits": { "type": "number" },
+            "annotate": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxFileSizeBytes": { "type": "number" },
+                "timeoutMs": { "type": "number" }
+              }
+            },
+            "jj": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "snapshotWorkingCopy": { "type": "boolean" }
+              }
+            }
+          }
+        },
         "fileCaps": {
           "type": "object",
           "additionalProperties": false,

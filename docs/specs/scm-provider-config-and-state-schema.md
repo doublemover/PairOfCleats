@@ -1,6 +1,7 @@
 # SCM Provider -- Configuration & Build-State Schema Spec (Phase 13)
 
-This spec defines the configuration keys and artifact schema changes needed for a JJ-capable SCM provider system.
+This spec defines configuration keys and build_state schema changes for the SCM provider system.
+The provider API contract is defined in `docs/specs/scm-provider-contract.md`.
 
 ## Configuration keys
 
@@ -19,8 +20,13 @@ All keys live under `indexing.scm` unless stated otherwise.
 ```
 
 Rules:
-- `auto`: prefer JJ when `.jj/` exists and `jj` is runnable; else Git when `.git/` exists and Git runnable; else none.
-- `git` or `jj`: strict; fail if tool is not available.
+- `auto`: detect SCM type by repo markers.
+  - If both `.git/` and `.jj/` exist and no explicit provider was set, **hard fail** and prompt.
+  - If only `.git/` exists and git is runnable, use git.
+  - If only `.jj/` exists and jj is runnable, use jj.
+  - If no SCM markers or tool is missing, fall back to `none`.
+- `git` or `jj`: strict; fail if tool is not available or repo root is unreadable.
+- `none`: explicit filesystem-only mode (no SCM provenance).
 
 ### JJ safety defaults
 
@@ -61,9 +67,9 @@ Rules:
 {
   "indexing": {
     "scm": {
-      - "maxConcurrentProcesses": 4,
-      - "timeoutMs": 4000,
-      - "churnWindowCommits": 10
+      "maxConcurrentProcesses": 4,
+      "timeoutMs": 4000,
+      "churnWindowCommits": 10
     }
   }
 }
@@ -71,7 +77,7 @@ Rules:
 
 Notes:
 - `timeoutMs` applies to non-annotate SCM calls unless overridden.
-- `churnWindowCommits` matches Git churn default.
+- `churnWindowCommits` matches the Git churn default.
 
 ## CLI flags (optional but recommended)
 
@@ -82,21 +88,29 @@ Add to `pairofcleats index build` and `pairofcleats index watch`:
 
 These flags override config-file values.
 
-## Build artifacts schema changes
+## Build-state schema changes
 
-### `index_state.json` (`src/index/build/build-state.js`)
+`build_state.json` is the canonical build provenance file. The schema is defined in:
 
-Current: `repo: <git provenance object>`
+- `src/contracts/schemas/build-state.js`
+- `src/contracts/validators/build-state.js`
 
-New: `repo: <scm provenance object>`
+### Required provenance fields
 
-Example:
+- `repo.provider` (`git|jj|none`)
+- `repo.root` (absolute repo root)
+- `repo.head` (provider-specific head fields)
+- `repo.dirty` (best-effort dirty status)
+
+When `provider=none`, `repo.head` and other SCM fields are `null`.
+
+### Example (JJ)
 
 ```json
 {
   "repo": {
     "provider": "jj",
-    "workspaceRoot": "/abs/path",
+    "root": "/abs/path",
     "head": {
       "commitId": "kqrx...",
       "changeId": "qpvu..."
@@ -108,7 +122,7 @@ Example:
 }
 ```
 
-For Git provider, populate:
+### Example (Git)
 
 ```json
 {
@@ -125,18 +139,23 @@ For Git provider, populate:
 ```
 
 Back-compat rule:
-- Keep existing `repo.commit` and `repo.branch` fields for Git where feasible, but add `provider` and normalize into `head.*`.
+- Keep existing `repo.commit` and `repo.branch` fields for Git where feasible, but treat `repo.provider` and `repo.head.*` as authoritative.
 
-### `current.json` (promotion output)
+### Migration checklist (legacy repo fields)
+- Keep writing `repo.commit` and `repo.branch` for Git during Phase 13 for back-compat.
+- Keep `repo.isRepo` until downstream consumers stop reading it.
+- Update all readers to prefer `repo.provider` + `repo.head.*`.
+- Remove legacy fields once all downstream consumers migrate (target: next major schema bump).
 
-Include `repo.provider` and `repo.head` similarly.
+## BuildId rules
 
-### Metrics artifact
+`buildId` is derived from SCM provenance and config:
 
-Update `src/index/build/artifacts/metrics.js` to record:
-- `repo.provider`
-- `repo.head.commitId` (or Git SHA)
-- `repo.dirty`
+- format: `YYYYMMDDTHHMMSSZ_<scmHeadShort>_<configHash8>`
+- `scmHeadShort` is derived from provider head:
+  - git: short commit SHA
+  - jj: changeId when available, else commitId
+  - none: `noscm`
 
 ## Testing requirements
 
@@ -144,10 +163,10 @@ Update `src/index/build/artifacts/metrics.js` to record:
 - Provider selection tests (auto chooses JJ when `.jj/` is present and `jj` runnable).
 - Snapshot safety tests:
   - assert JJ commands include `--ignore-working-copy` by default.
-  - when snapshotWorkingCopy enabled, assert exactly one snapshot command executes.
+  - when `snapshotWorkingCopy` enabled, assert exactly one snapshot command executes.
 
 ## Documentation requirements
 
-- Document provider selection and what "auto" does.
+- Document provider selection and what `auto` does.
 - Document JJ read-only behavior and why it's necessary.
 - Document annotate performance and defaults.

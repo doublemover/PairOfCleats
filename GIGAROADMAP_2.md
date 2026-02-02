@@ -102,38 +102,38 @@ Authoritative specs to align with (existing in repo):
 
 ### Phase 13.0 — Authoritative docs + provider contract + build state schema alignment
 
-- [ ] Update authoritative docs that must change with the SCM provider migration:
-  - [ ] `docs/contracts/indexing.md` (build_state shape + repo provenance + provider semantics)
-  - [ ] `docs/specs/identity-contract.md` (build signature inputs and stability; provider head must be included)
-  - [ ] `docs/specs/workspace-config.md` (if it enumerates indexing config keys, update to include `indexing.scm.*`)
-  - [ ] `docs/config/schema.json` and `docs/config/contract.md` (official config surface + precedence)
-  - [ ] `docs/guides/commands.md` (new CLI flags introduced in 13.4)
+- [x] Update authoritative docs that must change with the SCM provider migration:
+  - [x] `docs/contracts/indexing.md` (build_state shape + repo provenance + provider semantics)
+  - [x] `docs/specs/identity-contract.md` (build signature inputs and stability; provider head must be included)
+  - [x] `docs/specs/workspace-config.md` (if it enumerates indexing config keys, update to include `indexing.scm.*`)
+  - [x] `docs/config/schema.json` and `docs/config/contract.md` (official config surface + precedence)
+  - [x] `docs/guides/commands.md` (new CLI flags introduced in 13.4)
 
-- [ ] Add/extend a **provider contract spec**:
-  - [ ] New: `docs/specs/scm-provider-contract.md` (or extend `docs/specs/scm-provider-config-and-state-schema.md`)
+- [x] Add/extend a **provider contract spec**:
+  - [x] New: `docs/specs/scm-provider-contract.md` (or extend `docs/specs/scm-provider-config-and-state-schema.md`)
   - Must define:
-    - [ ] return shapes for all provider APIs
-    - [ ] required vs optional fields (esp. `head` shape and `dirty` semantics)
-    - [ ] path normalization rules (repo-relative POSIX paths)
-    - [ ] detection precedence and fallback behavior
-    - [ ] capability/skip semantics when binaries are missing
-    - [ ] decision table for provider selection (`auto|git|jj|none`), including:
-      - [ ] explicit provider set
-      - [ ] `.git/` + `.jj/` both present (hard fail)
-      - [ ] missing binaries / unreadable repo roots
-    - [ ] buildId/signature provenance rules (how head fields affect buildId)
+    - [x] return shapes for all provider APIs
+    - [x] required vs optional fields (esp. `head` shape and `dirty` semantics)
+    - [x] path normalization rules (repo-relative POSIX paths)
+    - [x] detection precedence and fallback behavior
+    - [x] capability/skip semantics when binaries are missing
+    - [x] decision table for provider selection (`auto|git|jj|none`), including:
+      - [x] explicit provider set
+      - [x] `.git/` + `.jj/` both present (hard fail)
+      - [x] missing binaries / unreadable repo roots
+    - [x] buildId/signature provenance rules (how head fields affect buildId)
 
-- [ ] Build-state schema contract must be referenced and updated:
-  - [ ] Add a formal build_state contract + validator (none exists today):
-    - [ ] `src/contracts/schemas/build-state.js` (new) — JSON schema for build_state.json
-    - [ ] `src/contracts/validators/build-state.js` (new) — validator + error formatting
-    - [ ] `src/contracts/registry.js` — register the build_state contract
-  - [ ] Schema must be **exhaustive**:
-    - [ ] `repo.provider`, `repo.head`, `repo.dirty`, `repo.root`
-    - [ ] buildId + signatureVersion + schemaVersion
-    - [ ] explicit nullability rules for provider=none
-  - [ ] Ensure `docs/contracts/indexing.md` references the new contract location and examples.
-  - [ ] Add a migration checklist section (legacy repo.* fields to deprecate/remove and timeline).
+- [x] Build-state schema contract must be referenced and updated:
+  - [x] Add a formal build_state contract + validator (none exists today):
+    - [x] `src/contracts/schemas/build-state.js` (new) — JSON schema for build_state.json
+    - [x] `src/contracts/validators/build-state.js` (new) — validator + error formatting
+    - [x] `src/contracts/registry.js` — register the build_state contract
+  - [x] Schema must be **exhaustive**:
+    - [x] `repo.provider`, `repo.head`, `repo.dirty`, `repo.root`
+    - [x] buildId + signatureVersion + schemaVersion
+    - [x] explicit nullability rules for provider=none
+  - [x] Ensure `docs/contracts/indexing.md` references the new contract location and examples.
+  - [x] Add a migration checklist section (legacy repo.* fields to deprecate/remove and timeline).
 
 Touchpoints:
 - `docs/contracts/indexing.md`

@@ -9,6 +9,14 @@ Only these keys are allowed in repo config files:
 
 - `cache.root`
 - `quality` (`auto|fast|balanced|max`)
+- `indexing.scm.provider` (`auto|git|jj|none`)
+- `indexing.scm.timeoutMs`
+- `indexing.scm.maxConcurrentProcesses`
+- `indexing.scm.churnWindowCommits`
+- `indexing.scm.annotate.enabled`
+- `indexing.scm.annotate.maxFileSizeBytes`
+- `indexing.scm.annotate.timeoutMs`
+- `indexing.scm.jj.snapshotWorkingCopy`
 
 ## Public CLI commands and flags
 
@@ -23,11 +31,15 @@ Only these keys are allowed in repo config files:
 - `--mode <code|prose|both>`
 - `--quality <auto|fast|balanced|max>`
 - `--watch`
+- `--scm-provider <auto|git|jj|none>`
+- `--scm-annotate` / `--no-scm-annotate`
 
 `pairofcleats index watch`
 - `--repo <path>`
 - `--mode <code|prose|both>`
 - `--quality <auto|fast|balanced|max>`
+- `--scm-provider <auto|git|jj|none>`
+- `--scm-annotate` / `--no-scm-annotate`
 
 `pairofcleats index validate`
 - `--repo <path>`
