@@ -147,7 +147,8 @@
     "web-tree-sitter": "0.20.8",
     "xxhash-wasm": "^1.1.0",
     "yaml": "^2.8.2",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "zod": "^3.25.0"
   },
   "optionalDependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

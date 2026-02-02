@@ -59,7 +59,11 @@ try {
     jsonrpc: '2.0',
     id: 1,
     method: 'initialize',
-    params: { protocolVersion: '2024-11-05', capabilities: {} }
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'pairofcleats-tests', version: '0.0.0' }
+    }
   });
   const init = await readMessage();
   if (!init.result?.schemaVersion) {

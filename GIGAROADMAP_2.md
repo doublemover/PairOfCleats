@@ -148,7 +148,7 @@ Touchpoints (anchors; approximate):
 
 #### Tests / Verification
 
-- [.] Services: `tests/services/mcp/sdk-mode.test.js` (new)
+- [x] Services: `tests/services/mcp/sdk-mode.test.js` (new)
   - Skip if SDK is not installed.
   - Start `tools/mcp-server-sdk.js` and run at least:
     - `tools/list`
