@@ -66,16 +66,21 @@ Parsing:
 
 **Purpose:** list tracked files in `@`.
 
-Invocation:
+Invocation (preferred):
+
+- `jj file list --tracked -0 -r @`
+
+Fallback (if `-0` is unavailable):
 
 - `jj file list -r @`
 
 Parsing:
 
-- Split by newline.
+- Prefer NUL splitting (`-0`) when available; otherwise split by newline.
 - Trim each line; drop empties.
 - Treat each line as repo-relative path (normalize `\` → `/` if seen).
 - Apply ignore matcher and any user filters.
+- Sort deterministically (byte-wise ASCII/path order).
 
 Notes:
 - `jj file list` outputs tracked files at the requested revision.
@@ -189,6 +194,8 @@ Parsing:
 
 - One repo-relative path per line.
 - Apply ignore matcher.
+- Sort deterministically and truncate to a fixed cap to avoid unbounded outputs.
+  - Default cap: 10,000 entries.
 
 ## Performance constraints
 

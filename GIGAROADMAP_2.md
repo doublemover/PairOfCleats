@@ -288,28 +288,28 @@ Touchpoints (anchors; approximate):
 
 ### Phase 13.3 — Implement JJ provider (read-only default, robust parsing)
 
-- [ ] Implement `JjProvider` using `jj` CLI (no library dependency):
-  - [ ] Detection:
-    - [ ] find `.jj/` root
-    - [ ] validate `jj --version` runnable (capability gating)
-  - [ ] Tracked files:
-    - [ ] `jj file list --tracked -0` (prefer NUL delim where available)
-  - [ ] Repo provenance:
-    - [ ] resolve a stable head reference (commitId + changeId where available)
+- [x] Implement `JjProvider` using `jj` CLI (no library dependency):
+  - [x] Detection:
+    - [x] find `.jj/` root
+    - [x] validate `jj --version` runnable (capability gating)
+  - [x] Tracked files:
+    - [x] `jj file list --tracked -0` (prefer NUL delim where available)
+  - [x] Repo provenance:
+    - [x] resolve a stable head reference (commitId + changeId where available)
     - [ ] record bookmarks (best-effort)
-    - [ ] `dirty` best-effort (explicitly document semantics)
+    - [x] `dirty` best-effort (explicitly document semantics)
 
-- [ ] Safety default: read-only by default
-  - [ ] When `indexing.scm.jj.snapshotWorkingCopy=false`:
-    - [ ] run JJ commands with `--ignore-working-copy` and `--at-op=@` (per spec)
-  - [ ] If enabled:
-    - [ ] allow exactly one controlled snapshot at start (and pin subsequent commands to that op)
-    - [ ] record the pinned op id in build state (so provenance is reproducible)
+- [x] Safety default: read-only by default
+  - [x] When `indexing.scm.jj.snapshotWorkingCopy=false`:
+    - [x] run JJ commands with `--ignore-working-copy` and `--at-op=@` (per spec)
+  - [x] If enabled:
+    - [x] allow exactly one controlled snapshot at start (and pin subsequent commands to that op)
+    - [x] record the pinned op id in build state (so provenance is reproducible)
 
-- [ ] Implement changed-files support (for incremental reuse):
-  - [ ] Provide `getChangedFiles()` based on the spec in `docs/specs/jj-provider-commands-and-parsing.md`.
-  - [ ] Normalize to **repo-root-relative POSIX paths**.
-  - [ ] Define deterministic ordering and truncation caps for changed-file outputs.
+- [x] Implement changed-files support (for incremental reuse):
+  - [x] Provide `getChangedFiles()` based on the spec in `docs/specs/jj-provider-commands-and-parsing.md`.
+  - [x] Normalize to **repo-root-relative POSIX paths**.
+  - [x] Define deterministic ordering and truncation caps for changed-file outputs.
 
 Touchpoints:
 - `docs/specs/jj-provider-commands-and-parsing.md` (align with implementation)
@@ -327,9 +327,9 @@ Touchpoints (anchors; approximate):
   - [ ] `tests/indexing/scm/jj-head-parse.test.js`
 - [ ] `tests/indexing/scm/jj-changed-files-normalization.test.js` (new)
   - [ ] ensure paths are POSIX, repo-root-relative, and sorted deterministically.
-- [ ] CI behavior:
-  - [ ] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
-  - [ ] add explicit lane/tag so JJ tests can be isolated if needed.
+- [x] CI behavior:
+  - [x] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
+  - [x] add explicit lane/tag so JJ tests can be isolated if needed.
 
 ---
 
@@ -386,5 +386,4 @@ Touchpoints (anchors; approximate):
     - [ ] buildId/signatures do not include git/jj fields and remain stable across runs.
 
 ---
-
 

@@ -29,6 +29,7 @@ import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
+import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
@@ -123,6 +124,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig,
     analysisPolicy: userConfig.analysisPolicy || null
   });
+  setScmRuntimeConfig(scmConfig);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
   const cacheRootSource = userConfig.cache?.root

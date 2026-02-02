@@ -7,6 +7,7 @@ import { createIndexState } from './state.js';
 import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
+import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { loadIndexArtifacts, readCompatibilityKeys } from './piece-assembly/load.js';
 import { mergeIndexInput } from './piece-assembly/merge.js';
 import {
@@ -42,6 +43,7 @@ export async function assembleIndexPieces({
       indexingConfig: userConfig?.indexing || {},
       analysisPolicy: userConfig?.analysisPolicy || null
     });
+    setScmRuntimeConfig(scmConfig);
     const scmProviderSetting = scmConfig?.provider || 'auto';
     const selection = getScmProviderAndRoot({ provider: scmProviderSetting, startPath: root, log });
     const provenance = await selection.providerImpl.getRepoProvenance({

@@ -52,7 +52,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       provider: runtime.repoProvenance.provider || null,
       head: {
         commitId: scmHead?.commitId || runtime.repoProvenance?.commit || null,
-        changeId: scmHead?.changeId || null
+        changeId: scmHead?.changeId || null,
+        operationId: scmHead?.operationId || null
       }
     }
     : null;

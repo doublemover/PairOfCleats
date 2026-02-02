@@ -6,6 +6,7 @@
  * @typedef {{
  *  commitId?: string|null,
  *  changeId?: string|null,
+ *  operationId?: string|null,
  *  branch?: string|null,
  *  bookmarks?: string[]|null,
  *  author?: string|null,
