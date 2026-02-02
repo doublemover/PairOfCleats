@@ -361,13 +361,13 @@ Touchpoints (anchors; approximate):
 
 ### Phase 13.5 — Non-repo environments (explicitly supported)
 
-- [ ] Make filesystem-only behavior first-class:
-  - [ ] If `provider=none` (or auto selects none):
-    - [ ] file discovery uses filesystem crawl (current fallback)
-    - [ ] build state records `repo.provider="none"` and `repo.head=null`
-    - [ ] incremental reuse features that require SCM provenance must be disabled with an explicit reason (no silent partial behavior)
-    - [ ] buildId/signatures use a deterministic "no-scm" marker (do not leak git-specific fields)
-- [ ] Document this mode as “try it anywhere” for non-code/non-repo folders.
+- [x] Make filesystem-only behavior first-class:
+  - [x] If `provider=none` (or auto selects none):
+    - [x] file discovery uses filesystem crawl (current fallback)
+    - [x] build state records `repo.provider="none"` and `repo.head=null`
+    - [x] incremental reuse features that require SCM provenance must be disabled with an explicit reason (no silent partial behavior)
+    - [x] buildId/signatures use a deterministic "no-scm" marker (do not leak git-specific fields)
+- [x] Document this mode as “try it anywhere” for non-code/non-repo folders.
 
 Touchpoints:
 - `src/index/scm/providers/none.js` (new)
@@ -380,9 +380,9 @@ Touchpoints (anchors; approximate):
 - `src/index/build/discover.js` (~L26 `discoverFiles`, ~L92 `discoverEntries`)
 
 #### Tests / verification
-  - [ ] `tests/indexing/scm/index-build-no-scm.test.js` (new)
-  - [ ] Build index in a temp folder without `.git/` and assert build succeeds and provenance is explicitly null.
-  - [ ] `tests/indexing/scm/no-scm-build-id.test.js` (new)
-    - [ ] buildId/signatures do not include git/jj fields and remain stable across runs.
+  - [x] `tests/indexing/scm/index-build-no-scm.test.js` (new)
+  - [x] Build index in a temp folder without `.git/` and assert build succeeds and provenance is explicitly null.
+  - [x] `tests/indexing/scm/no-scm-build-id.test.js` (new)
+    - [x] buildId/signatures do not include git/jj fields and remain stable across runs.
 
 ---

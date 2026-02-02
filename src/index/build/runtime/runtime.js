@@ -191,6 +191,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     startPath: root,
     log
   });
+  if (scmSelection.provider === 'none') {
+    log('[scm] provider=none; SCM provenance unavailable.');
+  }
   const repoProvenance = await timeInit('repo provenance', async () => {
     try {
       const provenance = await scmSelection.providerImpl.getRepoProvenance({
@@ -258,7 +261,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   );
   const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
   const scmAnnotateEnabled = scmConfig?.annotate?.enabled !== false;
-  const gitBlameEnabled = scmAnnotateEnabled;
+  const effectiveScmAnnotateEnabled = scmAnnotateEnabled && scmSelection.provider !== 'none';
+  if (scmAnnotateEnabled && scmSelection.provider === 'none') {
+    log('[scm] annotate disabled: provider=none.');
+  }
+  const gitBlameEnabled = effectiveScmAnnotateEnabled;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
   const analysisPolicy = buildAnalysisPolicy({

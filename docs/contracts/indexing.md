@@ -52,6 +52,8 @@ Key requirements:
 - `repo.provider` records the SCM provider (`git|jj|none`).
 - `repo.head` contains provider-specific head fields (e.g., git commit or jj changeId).
 - When `provider=none`, provenance fields are `null` and no SCM fields are inferred.
+- With `provider=none`, file discovery falls back to filesystem crawl and SCM-based metadata (annotate/churn) is disabled with an explicit log reason.
+- Build ids use a deterministic `noscm` marker when no SCM head is available.
 
 ## Invariants
 - Each mode writes to its own index directory under the cache root.
