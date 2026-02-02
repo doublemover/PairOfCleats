@@ -68,7 +68,8 @@ export function getTestEnvConfig(env = process.env) {
       testing: false,
       config: null,
       maxJsonBytes: null,
-      allowMissingCompatKey: false
+      allowMissingCompatKey: false,
+      mcpDelayMs: null
     };
   }
   const rawConfig = normalizeString(env.PAIROFCLEATS_TEST_CONFIG);
@@ -89,7 +90,8 @@ export function getTestEnvConfig(env = process.env) {
     testing: true,
     config,
     maxJsonBytes: normalizeNumber(env.PAIROFCLEATS_TEST_MAX_JSON_BYTES),
-    allowMissingCompatKey: normalizeOptionalBoolean(env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY)
+    allowMissingCompatKey: normalizeOptionalBoolean(env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY),
+    mcpDelayMs: normalizeNumber(env.PAIROFCLEATS_TEST_MCP_DELAY_MS)
   };
 }
 

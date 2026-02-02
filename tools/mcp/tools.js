@@ -6,14 +6,13 @@ import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handle
 import { runSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
+import { getTestEnvConfig } from '../../src/shared/env.js';
 import { normalizeMetaFilters } from './tools/helpers.js';
 
 const parseTestDelayMs = () => {
-  const testing = String(process.env.PAIROFCLEATS_TESTING || '').toLowerCase();
-  if (testing !== '1' && testing !== 'true') return null;
-  const raw = process.env.PAIROFCLEATS_TEST_MCP_DELAY_MS;
-  if (raw == null || raw === '') return null;
-  const parsed = Number(raw);
+  const testEnv = getTestEnvConfig();
+  if (!testEnv.testing) return null;
+  const parsed = Number(testEnv.mcpDelayMs);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 };
 
