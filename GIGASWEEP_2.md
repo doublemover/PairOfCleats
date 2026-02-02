@@ -28,7 +28,7 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - `tests/tooling/script-coverage/actions.js` — expects `tools/mergeAppendOnly.js`
     - `docs/tooling/repo-inventory.json` — still lists `merge-append`
   - Action:
-    - [ ] Add `tools/mergeAppendOnly.js` **or** remove/replace the script-coverage action + scrub inventory docs.
+    - [x] Add `tools/mergeAppendOnly.js` **or** remove/replace the script-coverage action + scrub inventory docs.
 
 - [x] Fix CI workflow referencing a non-existent npm script.
   - Symptom: `.github/workflows/ci-long.yml` runs `npm run test:ci-long`, but `package.json` has no `test:ci-long`.
@@ -36,7 +36,7 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - `.github/workflows/ci-long.yml`
     - `package.json`
   - Action:
-    - [ ] Add `test:ci-long` script **or** update workflow to use `node tools/ci/run-suite.js ...`.
+    - [x] Add `test:ci-long` script **or** update workflow to use `node tools/ci/run-suite.js ...`.
 
 - [x] Fix release-check script failing in clean checkout.
   - Symptom: `tools/release-check.js` requires `CHANGELOG.md` which is not present.
@@ -44,7 +44,7 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - `tools/release-check.js`
     - `docs/guides/release-discipline.md`
   - Action:
-    - [ ] Add `CHANGELOG.md` **or** relax/check conditionally.
+    - [x] Add `CHANGELOG.md` **or** relax/check conditionally.
 
 - [x] Fix critical-deps validator pointing at the wrong docs directory.
   - Symptom: `tools/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
@@ -52,7 +52,7 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - `tools/validate-critical-deps.js`
     - `docs/dependency_references/dependency-coverage.md`
   - Action:
-    - [ ] Update expected paths or move docs folder (prefer updating script).
+    - [x] Update expected paths or move docs folder (prefer updating script).
 
 ---
 
@@ -71,8 +71,8 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
     - `bin/pairofcleats.js` does **not** implement `report`.
     - Some underlying tools exist (e.g., `tools/report-code-map.js`) but are not routed.
   - Action:
-    - [ ] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
-    - [ ] Update docs to use `node tools/...` or `npm run ...`.
+    - [x] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
+    - [x] Update docs to use `node tools/...` or `npm run ...`.
 
 - [x] Implement or de-document `pairofcleats sqlite ...`.
   - Docs reference: `docs/sqlite/incremental-updates.md` (`pairofcleats sqlite build --incremental`)
@@ -117,8 +117,8 @@ Ensure the config file (`.pairofcleats.json`) is:
     - `tools/dict-utils/config.js` normalization does **not** carry `quality` or `threads` through.
     - Runtime reads `config.quality` (`src/shared/auto-policy.js`) and `userConfig.threads` (`src/shared/runtime-envelope.js`) → user settings never take effect.
   - Action:
-    - [ ] Pass-through `quality` and `threads` in normalization.
-    - [ ] Add tests proving config changes behavior (not just schema validation).
+    - [x] Pass-through `quality` and `threads` in normalization.
+    - [x] Add tests proving config changes behavior (not just schema validation).
 
 #### 2.2 Validator vs schema mismatch (schema features ignored / mis-evaluated)
 - [x] Align `docs/config/schema.json` with the actual validator (`src/config/validate.js`) *or* adopt a real JSON Schema validator.
@@ -127,10 +127,10 @@ Ensure the config file (`.pairofcleats.json`) is:
     - Root `additionalProperties:false` rejects many keys the code expects/normalizes (`sqlite`, `lmdb`, etc.) unless schema is expanded.
     - `tools/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
   - Action (recommended):
-    - [ ] Switch to Ajv (or equivalent) and treat `docs/config/schema.json` as authoritative.
-    - [ ] Add tests for `anyOf` + union types + unknown top-level keys.
-  - Alternative:
-    - [ ] Restrict schema to the validator’s supported subset and adjust doc tooling accordingly.
+    - [x] Switch to Ajv (or equivalent) and treat `docs/config/schema.json` as authoritative.
+    - [x] Add tests for `anyOf` + union types + unknown top-level keys.
+  - Alternative (not chosen; Ajv path implemented):
+    - Restrict schema to the validator’s supported subset and adjust doc tooling accordingly.
 
 #### 2.3 Additional normalization/validation defects
 - [x] Fix conditional drop: `search.sqliteAutoArtifactBytes` is ignored unless `sqliteAutoChunkThreshold` is set.
@@ -143,8 +143,8 @@ Ensure the config file (`.pairofcleats.json`) is:
   - `docs/config/inventory.json` vs `docs/config/inventory.md` public flags list mismatch.
   - `docs/guides/commands.md` appears out of sync with its generator.
   - Action:
-    - [ ] Add CI test: regenerate artifacts and assert no diff.
-    - [ ] Document the generator command(s) as the single source of truth.
+    - [x] Add CI test: regenerate artifacts and assert no diff.
+    - [x] Document the generator command(s) as the single source of truth.
 
 ---
 
@@ -160,8 +160,8 @@ Manifest-driven and output-driven filesystem reads must be safe **regardless of 
     - `tools/ci-restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
   - Risk: path traversal (`../`) can read outside indexDir if manifest is corrupted/untrusted.
   - Action:
-    - [ ] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
-    - [ ] In non-strict mode: downgrade to warnings + skip unsafe entries (but do not read them).
+    - [x] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
+    - [x] In non-strict mode: downgrade to warnings + skip unsafe entries (but do not read them).
 
 - [x] Fix path safety predicate false-positives.
   - Current logic uses substring `normalized.includes('..')`, which rejects benign strings like `foo..bar`.
