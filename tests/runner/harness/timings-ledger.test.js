@@ -13,6 +13,7 @@ const timingsPath = path.join(tmpDir, 'timings.json');
 
 const result = spawnSync(process.execPath, [
   runnerPath,
+  '--lane', 'all',
   '--match', 'harness/pass-target',
   '--json',
   '--timings-file', timingsPath

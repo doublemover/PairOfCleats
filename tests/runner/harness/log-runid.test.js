@@ -11,7 +11,13 @@ const runnerPath = path.join(ROOT, 'tests', 'run.js');
 const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-logs-'));
 
 const runOnce = () => {
-  const result = spawnSync(process.execPath, [runnerPath, '--match', 'harness/pass-target', '--json', '--log-dir', tmpDir], {
+  const result = spawnSync(process.execPath, [
+    runnerPath,
+    '--lane', 'all',
+    '--match', 'harness/pass-target',
+    '--json',
+    '--log-dir', tmpDir
+  ], {
     encoding: 'utf8'
   });
   if (result.status !== 0) {
