@@ -57,7 +57,7 @@ process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--scm-provider', 'none', '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
   { env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {

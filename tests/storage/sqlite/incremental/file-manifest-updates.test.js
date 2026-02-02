@@ -6,7 +6,7 @@ import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite
 const { root, repoRoot, env, userConfig, run } = await setupIncrementalRepo({ name: 'file-manifest-updates' });
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
@@ -41,7 +41,7 @@ const updated = `${original}\nexport function farewell(name) {\n  return \`bye \
 await fsPromises.writeFile(targetFile, updated);
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
   'build index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
