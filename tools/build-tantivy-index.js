@@ -40,6 +40,22 @@ const fail = (message, code = 1) => {
   display.close();
   process.exit(code);
 };
+const hasChunkMeta = (indexDir) => {
+  const jsonPath = path.join(indexDir, 'chunk_meta.json');
+  const jsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
+  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
+  const partsDir = path.join(indexDir, 'chunk_meta.parts');
+  return fsSync.existsSync(jsonPath)
+    || fsSync.existsSync(jsonlPath)
+    || (fsSync.existsSync(metaPath) && fsSync.existsSync(partsDir));
+};
+const hasTokenPostings = (indexDir) => {
+  const jsonPath = path.join(indexDir, 'token_postings.json');
+  const metaPath = path.join(indexDir, 'token_postings.meta.json');
+  const shardsDir = path.join(indexDir, 'token_postings.shards');
+  return fsSync.existsSync(jsonPath)
+    || (fsSync.existsSync(metaPath) && fsSync.existsSync(shardsDir));
+};
 
 const tantivyResult = tryRequire('tantivy', { verbose: argv.verbose, logger: warn });
 if (!tantivyResult.ok) {
@@ -75,6 +91,12 @@ for (const mode of modes) {
   const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
   if (!fsSync.existsSync(indexDir)) {
     fail(`Index directory missing for mode=${mode} (${indexDir}).`);
+  }
+  if (!hasChunkMeta(indexDir)) {
+    fail(`[tantivy] chunk_meta missing for mode=${mode} (${indexDir}). Run "pairofcleats index build --mode ${mode}" first.`);
+  }
+  if (!hasTokenPostings(indexDir)) {
+    fail(`[tantivy] token_postings missing for mode=${mode} (${indexDir}). Run "pairofcleats index build --mode ${mode}" first.`);
   }
   const { dir, metaPath } = resolveTantivyPaths(indexDir, mode, tantivyConfig);
   await fs.mkdir(dir, { recursive: true });

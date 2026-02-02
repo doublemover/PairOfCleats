@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
-const bundleDir = path.join(root, 'docs', 'references', 'dependency-bundle');
+const bundleDir = path.join(root, 'docs', 'dependency_references', 'dependency-bundle');
 const criticalPath = path.join(bundleDir, 'critical-deps.json');
 const manifestPath = path.join(bundleDir, 'manifest.json');
 

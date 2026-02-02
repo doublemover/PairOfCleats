@@ -14,7 +14,8 @@ export function createDenseAnnProvider() {
       && Array.isArray(idx?.denseVec?.vectors)
       && idx.denseVec.vectors.length > 0
     ),
-    query: ({ idx, embedding, topN, candidateSet }) => {
+    query: ({ idx, embedding, topN, candidateSet, signal }) => {
+      if (signal?.aborted) return [];
       if (!isEmbeddingReady(embedding)) return [];
       if (candidateSet && candidateSet.size === 0) return [];
       const hits = rankDenseVectors(idx, embedding, topN, candidateSet);

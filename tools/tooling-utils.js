@@ -427,7 +427,8 @@ export function detectTool(tool) {
   const binDirs = tool.detect?.binDirs || [];
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    return { found: true, path: binPath, source: 'cache' };
+    const ok = canRun(binPath, tool.detect.args || ['--version']);
+    if (ok) return { found: true, path: binPath, source: 'cache' };
   }
   const ok = canRun(tool.detect.cmd, tool.detect.args || ['--version']);
   if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { getToolingConfig } from '../../../tools/dict-utils.js';
+import { getToolingConfig } from '../../shared/dict-utils.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
@@ -11,6 +11,18 @@ import { buildSymbolIndex, resolveSymbolRef } from './resolver.js';
 
 const resolveLinkRef = (link) => link?.to || link?.calleeRef || link?.ref || link?.symbolRef || null;
 
+const linkKeys = new WeakMap();
+
+const getLinkKeys = (list) => {
+  if (!list) return null;
+  let keys = linkKeys.get(list);
+  if (!keys) {
+    keys = new Set();
+    linkKeys.set(list, keys);
+  }
+  return keys;
+};
+
 const addLink = (list, link) => {
   if (!link) return;
   const ref = resolveLinkRef(link);
@@ -19,9 +31,9 @@ const addLink = (list, link) => {
   const name = ref?.targetName || link?.name || '';
   const kind = link?.edgeKind || link?.role || '';
   const key = `${kind}:${name}:${resolved}:${status}`;
-  if (list._keys?.has(key)) return;
-  if (!list._keys) list._keys = new Set();
-  list._keys.add(key);
+  const keys = getLinkKeys(list);
+  if (!keys || keys.has(key)) return;
+  keys.add(key);
   list.push(link);
 };
 

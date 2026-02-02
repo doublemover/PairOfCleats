@@ -121,6 +121,8 @@ const formatBytesWithRaw = (value) => {
 };
 
 const repo = status.repo;
+const repoRoot = repo?.root || root;
+const repoCacheRoot = repo?.cacheRoot || repoRoot;
 const overall = status.overall;
 const code = repo.sqlite?.code;
 const prose = repo.sqlite?.prose;
@@ -130,13 +132,16 @@ const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
 console.error('Repo artifacts');
-console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
+console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repoCacheRoot})`);
+if (repoRoot) {
+  console.error(`- repo root: ${repoRoot}`);
+}
 console.error(`- index-code: ${formatBytesWithRaw(repo.artifacts.indexCode)}`);
 console.error(`- index-prose: ${formatBytesWithRaw(repo.artifacts.indexProse)}`);
 console.error(`- index-extracted-prose: ${formatBytesWithRaw(repo.artifacts.indexExtractedProse)}`);
 console.error(`- index-records: ${formatBytesWithRaw(repo.artifacts.indexRecords)}`);
-console.error(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
-console.error(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
+console.error(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repoCacheRoot, 'repometrics')})`);
+console.error(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repoCacheRoot, 'incremental')})`);
 console.error(`- sqlite code db: ${code ? formatBytesWithRaw(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
 console.error(`- sqlite prose db: ${prose ? formatBytesWithRaw(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
 console.error(`- sqlite extracted-prose db: ${extractedProse ? formatBytesWithRaw(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);

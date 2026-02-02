@@ -70,6 +70,13 @@ function normalizeUserConfig(baseConfig) {
     if (runtime) cache.runtime = runtime;
     if (Object.keys(cache).length) normalized.cache = cache;
   }
+  if (typeof baseConfig.quality === 'string' && baseConfig.quality.trim()) {
+    normalized.quality = baseConfig.quality.trim();
+  }
+  if (baseConfig.threads !== undefined) {
+    const threads = Number(baseConfig.threads);
+    if (Number.isFinite(threads)) normalized.threads = threads;
+  }
   if (isPlainObject(baseConfig.indexing)) {
     const indexing = baseConfig.indexing;
     const normalizedIndexing = {};
@@ -222,10 +229,12 @@ function normalizeUserConfig(baseConfig) {
     const search = {};
     if (baseConfig.search.sqliteAutoChunkThreshold !== undefined) {
       const chunkThreshold = Number(baseConfig.search.sqliteAutoChunkThreshold);
-      const artifactBytes = Number(baseConfig.search.sqliteAutoArtifactBytes);
       if (Number.isFinite(chunkThreshold)) {
         search.sqliteAutoChunkThreshold = Math.max(0, Math.floor(chunkThreshold));
       }
+    }
+    if (baseConfig.search.sqliteAutoArtifactBytes !== undefined) {
+      const artifactBytes = Number(baseConfig.search.sqliteAutoArtifactBytes);
       if (Number.isFinite(artifactBytes)) {
         search.sqliteAutoArtifactBytes = Math.max(0, Math.floor(artifactBytes));
       }

@@ -5,7 +5,7 @@ import {
   getBuildsRoot,
   getRepoCacheRoot,
   getToolVersion
-} from '../../../tools/dict-utils.js';
+} from '../../shared/dict-utils.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 

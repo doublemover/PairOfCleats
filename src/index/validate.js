@@ -5,7 +5,7 @@ import {
   getRepoRoot,
   loadUserConfig,
   resolveSqlitePaths
-} from '../../tools/dict-utils.js';
+} from '../shared/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import {
   loadChunkMeta,

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getBuildsRoot } from '../../../../tools/dict-utils.js';
+import { getBuildsRoot } from '../../../shared/dict-utils.js';
 
 const DEFAULT_KEEP_SUCCESS = 2;
 const DEFAULT_KEEP_FAILED = 1;

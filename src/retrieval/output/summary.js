@@ -4,7 +4,12 @@ import { getFileTextCache, getSummaryCache } from './cache.js';
 
 export function getBodySummary(rootDir, chunk, maxWords = 80) {
   try {
-    const absPath = path.join(rootDir, chunk.file);
+    const root = path.resolve(rootDir);
+    const absPath = path.resolve(rootDir, chunk.file);
+    const relative = path.relative(root, absPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      return '(Could not load summary)';
+    }
     const cacheKey = `${absPath}:${chunk.start}:${chunk.end}:${maxWords}`;
     const summaryCache = getSummaryCache();
     const fileTextCache = getFileTextCache();

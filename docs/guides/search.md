@@ -71,6 +71,8 @@ Configuration:
 - `search.contextExpansion` (limits and relation toggles)
 - `search.scoreBlend` can override RRF when enabled (normalized blend weights).
 - `search.denseVectorMode` or `--dense-vector-mode` (vector target selection; CLI overrides config).
+- `search.annDefault` (default: true; used when `--ann/--no-ann` is not provided).
+- `search.maxCandidates` (cap candidate-set size; disables candidate prefilter when exceeded).
 
 ### Explain output
 

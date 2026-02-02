@@ -17,7 +17,17 @@ function runFlag(flag) {
 const cases = [
   { flag: '--type', name: '--type' },
   { flag: '--author', name: '--author' },
-  { flag: '--import', name: '--import' }
+  { flag: '--import', name: '--import' },
+  { flag: '--repo', name: '--repo' },
+  { flag: '--modified-since', name: '--modified-since' },
+  { flag: '--bm25-k1', name: '--bm25-k1' },
+  { flag: '--path', name: '--path' },
+  { flag: '--lang', name: '--lang' },
+  { flag: '--ext', name: '--ext' },
+  { flag: '--ann-backend', name: '--ann-backend' },
+  { flag: '--graph-ranking-max-work', name: '--graph-ranking-max-work' },
+  { flag: '--fts-weights', name: '--fts-weights' },
+  { flag: '--risk', name: '--risk' }
 ];
 
 for (const entry of cases) {

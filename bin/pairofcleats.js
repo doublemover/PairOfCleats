@@ -77,16 +77,210 @@ function resolveCommand(primary, rest) {
     validateArgs(rest, [], []);
     return { script: 'tools/bootstrap.js', extraArgs: [], args: rest };
   }
+  if (primary === 'report') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('report requires a subcommand: map, eval, compare-models, repometrics');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'map') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'mode',
+          'index-root',
+          'scope',
+          'focus',
+          'include',
+          'only-exported',
+          'collapse',
+          'max-files',
+          'max-members-per-file',
+          'max-edges',
+          'top-k-by-degree',
+          'format',
+          'out',
+          'model-out',
+          'node-list-out',
+          'json',
+          'pretty',
+          'open-uri-template',
+          'three-url',
+          'wasd-sensitivity',
+          'wasd-acceleration',
+          'wasd-max-speed',
+          'wasd-drag',
+          'zoom-sensitivity',
+          'cache-dir',
+          'refresh'
+        ],
+        [
+          'repo',
+          'mode',
+          'index-root',
+          'scope',
+          'focus',
+          'include',
+          'collapse',
+          'max-files',
+          'max-members-per-file',
+          'max-edges',
+          'format',
+          'out',
+          'model-out',
+          'node-list-out',
+          'open-uri-template',
+          'three-url',
+          'wasd-sensitivity',
+          'wasd-acceleration',
+          'wasd-max-speed',
+          'wasd-drag',
+          'zoom-sensitivity',
+          'cache-dir'
+        ]
+      );
+      return { script: 'tools/report-code-map.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'eval') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'dataset',
+          'backend',
+          'top',
+          'ann',
+          'out',
+          'pretty',
+          'match-mode',
+          'progress',
+          'verbose',
+          'quiet'
+        ],
+        [
+          'repo',
+          'dataset',
+          'backend',
+          'top',
+          'out',
+          'match-mode',
+          'progress'
+        ]
+      );
+      return { script: 'tools/eval/run.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'compare-models') {
+      validateArgs(
+        rest,
+        [
+          'json',
+          'build',
+          'build-index',
+          'build-sqlite',
+          'incremental',
+          'stub-embeddings',
+          'ann',
+          'no-ann',
+          'models',
+          'baseline',
+          'queries',
+          'backend',
+          'out',
+          'mode',
+          'cache-root',
+          'repo',
+          'top',
+          'limit'
+        ],
+        [
+          'models',
+          'baseline',
+          'queries',
+          'backend',
+          'out',
+          'mode',
+          'cache-root',
+          'repo',
+          'top',
+          'limit'
+        ]
+      );
+      return { script: 'tools/compare-models.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'repometrics') {
+      validateArgs(rest, ['json', 'out', 'repo', 'top'], ['out', 'repo', 'top']);
+      return { script: 'tools/repometrics-dashboard.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown report subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'sqlite') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('sqlite requires a subcommand: build');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'build') {
+      validateArgs(
+        rest,
+        [
+          'code-dir',
+          'prose-dir',
+          'extracted-prose-dir',
+          'records-dir',
+          'out',
+          'mode',
+          'repo',
+          'incremental',
+          'compact',
+          'no-compact',
+          'validate',
+          'index-root',
+          'progress',
+          'verbose',
+          'quiet'
+        ],
+        [
+          'code-dir',
+          'prose-dir',
+          'extracted-prose-dir',
+          'records-dir',
+          'out',
+          'mode',
+          'repo',
+          'validate',
+          'index-root',
+          'progress'
+        ]
+      );
+      return { script: 'tools/build-sqlite-index.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown sqlite subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'service') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('service requires a subcommand: api');
+      console.error('service requires a subcommand: api, indexer');
       printHelp();
       process.exit(1);
     }
     if (sub === 'api') {
       validateArgs(rest, ['host', 'port', 'repo'], ['host', 'port', 'repo']);
       return { script: 'tools/api-server.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'indexer') {
+      validateArgs(
+        rest,
+        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'watch', 'interval', 'concurrency', 'queue'],
+        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'interval', 'concurrency', 'queue']
+      );
+      return { script: 'tools/indexer-service.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown service subcommand: ${sub}`);
     printHelp();
@@ -504,12 +698,22 @@ Search:
 
 Service:
   service api             Run local HTTP JSON API
+  service indexer         Run indexer service queue/worker
 
 Tooling:
   tooling doctor          Inspect tooling availability and config
 
 LMDB:
   lmdb build              Build LMDB indexes
+
+SQLite:
+  sqlite build            Build SQLite indexes
+
+Report:
+  report map              Generate code map artifacts
+  report eval             Run evaluation suites
+  report compare-models   Compare embedding models
+  report repometrics      Summarize repometrics dashboard
 
 Graph:
   graph-context          Build a graph context pack for a seed

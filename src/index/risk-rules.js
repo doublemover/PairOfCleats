@@ -231,7 +231,6 @@ const MAX_DIAGNOSTICS = 50;
 
 const createDiagnostics = (limit = MAX_DIAGNOSTICS) => ({
   warnings: [],
-  errors: [],
   limit
 });
 
@@ -352,8 +351,7 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
     sanitizers: sanitizers.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
     regexConfig: safeRegexConfig,
     diagnostics: {
-      warnings: diagnostics.warnings,
-      errors: diagnostics.errors
+      warnings: diagnostics.warnings
     },
     provenance: {
       defaults: includeDefaults,

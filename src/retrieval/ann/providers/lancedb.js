@@ -18,7 +18,8 @@ export function createLanceDbAnnProvider({
       && lancedbConfig?.enabled !== false
       && (idx?.lancedb?.available || lanceAnnState?.[mode]?.available)
     ),
-    query: async ({ idx, mode, embedding, topN, candidateSet }) => {
+    query: async ({ idx, mode, embedding, topN, candidateSet, signal }) => {
+      if (signal?.aborted) return [];
       if (!isEmbeddingReady(embedding)) return [];
       if (candidateSet && candidateSet.size === 0) return [];
       if (lancedbConfig?.enabled === false) return [];
@@ -30,6 +31,7 @@ export function createLanceDbAnnProvider({
         candidateSet,
         config: lancedbConfig
       });
+      if (signal?.aborted) return [];
       if (hits.length && lanceAnnUsed && mode in lanceAnnUsed) {
         lanceAnnUsed[mode] = true;
       }

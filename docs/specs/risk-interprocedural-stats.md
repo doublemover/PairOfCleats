@@ -116,6 +116,9 @@ For `ArtifactRef.entrypoint`:
 * If non-sharded: the filename (e.g., `risk_summaries.jsonl`)
 * If sharded: the meta filename (e.g., `risk_summaries.meta.json`)
 
+`ArtifactRef.format` remains `"jsonl"` even when `entrypoint` points to a `.meta.json` shard map; the
+meta file is just the entrypoint for the sharded JSONL parts.
+
 ## 6) Determinism
 The stats artifact MUST be deterministic except for:
 * `generatedAt`

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getIndexDir } from '../../../tools/dict-utils.js';
+import { getIndexDir } from '../../shared/dict-utils.js';
 
 export const resolveIndexDir = (root, mode, userConfig, indexRoot = null, strict = false) => {
   const cached = getIndexDir(root, mode, userConfig, { indexRoot });
@@ -28,6 +28,7 @@ export const isManifestPathSafe = (value) => {
   if (path.isAbsolute(value)) return false;
   if (value.startsWith('/')) return false;
   const normalized = normalizeManifestPath(value);
-  if (normalized.includes('..')) return false;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..')) return false;
   return true;
 };

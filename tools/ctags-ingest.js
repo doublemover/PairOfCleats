@@ -93,6 +93,11 @@ const ensureOutputDir = async () => {
 };
 
 let writeStream = null;
+const writeLine = async (line) => {
+  if (!writeStream.write(line)) {
+    await new Promise((resolve) => writeStream.once('drain', resolve));
+  }
+};
 
 const ingestStream = async (stream) => {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -114,7 +119,7 @@ const ingestStream = async (stream) => {
     stats.entries += 1;
     bump(stats.kinds, mapped.kind || mapped.kindName || 'unknown');
     bump(stats.languages, mapped.language || 'unknown');
-    writeStream.write(`${JSON.stringify(mapped)}\n`);
+    await writeLine(`${JSON.stringify(mapped)}\n`);
   }
 };
 

@@ -75,6 +75,29 @@ const parseChecksum = (value) => {
   return { algo: 'xxh64', value };
 };
 
+const isSafeManifestPath = (value) => {
+  if (typeof value !== 'string' || !value) return false;
+  if (path.isAbsolute(value)) return false;
+  const normalized = value.split('\\').join('/');
+  if (normalized.startsWith('/')) return false;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..')) return false;
+  return true;
+};
+
+const resolveManifestPath = (indexDir, relPath) => {
+  if (!isSafeManifestPath(relPath)) {
+    throw new Error(`Unsafe manifest path for ${relPath}`);
+  }
+  const resolved = path.resolve(indexDir, relPath.split('/').join(path.sep));
+  const root = path.resolve(indexDir);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Manifest path escapes index root: ${relPath}`);
+  }
+  return resolved;
+};
+
 async function validatePiecesManifest(indexDir, label) {
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
   if (!fs.existsSync(manifestPath)) return;
@@ -90,7 +113,7 @@ async function validatePiecesManifest(indexDir, label) {
     if (!piece?.path) continue;
     const parsed = parseChecksum(piece.checksum);
     if (!parsed?.value) continue;
-    const absPath = path.join(indexDir, piece.path.split('/').join(path.sep));
+    const absPath = resolveManifestPath(indexDir, piece.path);
     if (!fs.existsSync(absPath)) {
       throw new Error(`Missing artifact ${piece.path} for ${label}`);
     }

@@ -59,592 +59,411 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
 
 ## Roadmap Table of Contents
 ### Features
-- Phase 11 -- Graph-Powered Product Features (context packs, impact, explainability, ranking)
-    - 11.0 - Shared Foundations (contracts, determinism, config)
-    - 11.1 - Graph Context Packs (bounded neighborhood extraction) + retrieval context-expansion hardening
-    - 11.2 - Impact Analysis (callers/callees + k-hop impact radius) with witness paths
-    - 11.3 - Context Pack Assembly for Tooling/LLM (chunk text + graph + types + risk) + explainability rendering
-    - 11.4 - Graph-Aware Ranking Hooks (opt-in) + Explainability
-    - 11.5 - Graph Expansion Caps as a Config Surface + Calibration Harness (language × size tier)
-    - 11.6 - Cross-file API Contracts (report + optional artifact)
-    - 11.7 - Architecture Slicing & Boundary Enforcement 
-    - 11.8 - Test Selection Heuristics 
-    - 11.9 - Docs + CLI Wiring
+- Phase 12 -- MCP Migration + API/Tooling Contract Formalization
+    - 12.1 - Dependency strategy and Capability Pating for the Official MCP SDK
+    - 12.2 - SDK-backed MCP server (Parallel Mode with Explicit Cutover Flag)
+    - 12.3 - Tool Schema Versioning, Conformance, and Drift Guards
+    - 12.4 - Error codes, Protocol Negotiation, and Response-Shape Consistency
+    - 12.5 - Cancellation, Timeouts, and Process Hygiene
+    - 12.6 - Documentation and Migration Notes
+- Phase 13 -- JJ Support (via Provider API)
+    - 13.1 - Introduce `ScmProvider` Interface + Registry + Config/State Schema Wiring
+    - 13.2 - Migrate Git onto the Provider Interface
+    - 13.3 - Implement JJ Provider (read-only default, robust parsing)
+    - 13.4 - CLI + Tooling Visibility (make SCM selection obvious)
+    - 13.5 - Non-Repo Environments (explicitly supported)
 
 ---
 
-## Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking)
+
+## Phase 12 — MCP Migration + API/Tooling Contract Formalization
 
 ### Objective
-Turn graph and identity primitives into **safe, bounded, deterministic** product surfaces: graph context packs, impact analysis, explainable graph-aware ranking (opt-in), and structured outputs suitable for both CLI use and future API/MCP consumers.
+Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
 
-- Assumes canonical identities exist (e.g., chunkUid/SymbolId and a canonical reference envelope for unresolved/ambiguous links).
-- Any graph expansion MUST be bounded and MUST return truncation metadata when caps trigger (depth/fanout/paths/nodes/edges/candidates/work-units/wall-clock).
-- The default search contract must remain stable: graph features can change ordering when enabled, but must not change membership/correctness.
-- Outputs are JSON-first (schema-validated); Markdown render is optional and deterministic.
+- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
+- This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
 
 ---
 
-### 11.0 Shared foundations (contracts, determinism, config)
+### 12.1 Dependency strategy and capability gating for the official MCP SDK
 
-- [x] Define Phase 11 shared contract types (authoritative spec: `docs/phases/phase-11/spec.md`):
-  - `NodeRef` (chunk/symbol/file)
-  - `ReferenceEnvelope` (resolved/ambiguous/unresolved + bounded candidates)
-  - `WarningRecord`
-  - `TruncationRecord`
-  - stable ordering rules (nodeKey/edgeKey)
-- [x] Add provenance metadata requirements for all Phase 11 JSON outputs:
-  - `generatedAt`
-  - `indexCompatKey` or `indexSignature`
-  - `capsUsed`
-  - optional `repo` / `indexDir`
-- [x] Add schemas in `src/contracts/schemas/analysis.js`:
-  - `GRAPH_CONTEXT_PACK_SCHEMA`
-  - `GRAPH_IMPACT_SCHEMA`
-  - `COMPOSITE_CONTEXT_PACK_SCHEMA`
-  - `API_CONTRACTS_SCHEMA`
-  - `ARCHITECTURE_REPORT_SCHEMA`
-  - `SUGGEST_TESTS_SCHEMA`
-- [x] Add validators in `src/contracts/validators/analysis.js`.
+- [ ] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
+  - Options:
+    - [ ] Dependency (always installed)
+    - [ ] Optional dependency (install attempted; failures tolerated)
+    - [ ] External optional peer (default; capability-probed)
+  - [ ] Implement the chosen strategy consistently:
+    - [ ] `package.json` (if dependency/optionalDependency is chosen)
+    - [ ] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
+    - [ ] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
 
-- [x] Determinism helpers + work-budget caps.
-  - Add stable comparator utilities for NodeRef/edges/paths.
-  - Add deterministic `maxWorkUnits` tracking (recommended for all traversals).
-  - Treat `maxWallClockMs` as optional fuse; always record truncation when it triggers.
-- [x] Define deterministic `maxWallClockMs` semantics:
-  - check cadence (e.g., every N work units)
-  - stop only at step boundaries
-  - emit truncation metadata with observed/omitted counts
-
-- [x] Config surface.
-  - `indexing.graph.caps`
-  - `retrieval.graph.caps`
-  - `retrieval.graphRanking.*`
-  - `retrieval.contextExpansion.*`
+- [ ] Ensure MCP server mode selection is observable and capability-gated.
   - Touchpoints:
-    - `docs/config/schema.json`
-    - `tools/dict-utils/config.js`
-    - `tools/validate-config.js`
-    - `src/config/validate.js`
+    - [ ] `tools/mcp-server.js` — entrypoint dispatch
+    - [ ] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
 
-- [x] Standardize module home for new graph tooling commands.
-  - Use `src/integrations/tooling/` for new command handlers and renderers.
-  - Keep graph primitives under `src/graph/` and pack assembly under `src/context-pack/`.
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
+- `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
+- `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
+- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
 
-- [x] Centralize artifact presence + loading for graph-powered features.
-  - Add a single GraphStore + loader path used by all Phase 11 commands.
+#### Tests / Verification
+
+- [ ] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
+- [ ] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
+
+---
+
+### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
+
+- [ ] Implement an SDK-backed server alongside the legacy transport.
   - Touchpoints:
-    - `src/shared/artifact-io/manifest.js`
-    - `src/shared/artifact-io/loaders.js`
-    - `src/graph/store.js`
-    - `src/index/validate/presence.js` (optional artifacts)
+    - [ ] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
+    - [ ] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+  - [ ] Requirements for SDK server:
+    - [ ] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
+    - [ ] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
+    - [ ] Support stdio transport as the baseline.
+    - [ ] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
 
-- [x] Move graph build caps + identity-first node IDs earlier (dependency for all consumers).
-  - Update `src/index/build/graphs.js` to use config-driven caps and record which cap triggered.
-  - Enforce identity-first graph node IDs for new writes (legacy read-compat only).
+- [ ] Add a deprecation window for the legacy transport.
+  - [ ] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
+  - [ ] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/tools.js` (tool execution entrypoint)
+- `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
+
+#### Tests / Verification
+
+- [ ] Services: `tests/services/mcp/sdk-mode.test.js` (new)
+  - Skip if SDK is not installed.
+  - Start `tools/mcp-server-sdk.js` and run at least:
+    - `tools/list`
+    - one representative `tools/call` (e.g., `index_status`)
+  - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
+
+---
+
+### 12.3 Tool schema versioning, conformance, and drift guards
+
+- [ ] Make tool schemas explicitly versioned and enforce bump discipline.
   - Touchpoints:
-    - `src/index/build/graphs.js`
-    - `src/index/build/indexer/steps/relations.js`
-    - `src/index/build/artifacts/graph-relations.js` (if present) or the current writer location
+    - [ ] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolingVersion`
+    - [ ] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
 
-- [x] Define harness determinism controls:
-  - `--outDir`, `--runId`
-  - injectable date/time for CI to avoid `<date>` path drift
-
-#### Tests
-- [x] `tests/shared/contracts/phase11-schemas-validate.test.js`
-  - Validate representative payload fixtures against each Phase 11 schema.
-
----
-
-### 11.1 Graph context packs (bounded neighborhood extraction) + retrieval context-expansion hardening
-
-- [x] Define a graph context pack contract (JSON-first; Markdown render optional).
-  - Output shape (minimum):
-    - `seed` (canonical id + type)
-    - `nodes[]` (bounded; stable ordering)
-    - `edges[]` (bounded; stable ordering; include direction and edge type)
-    - `paths[]` (optional; bounded witness paths when requested)
-    - `truncation[]` (one or more truncation records; absent only when no caps trigger)
-    - `warnings[]` (e.g., missing artifacts, partial/unresolved edges)
-  - Link safety:
-    - Any edge endpoint that fails to resolve MUST use a reference envelope (resolved/ambiguous/unresolved + candidates + reason + confidence).
-  - Graph filters (optional):
-    - `graphs` (callGraph/importGraph/usageGraph/symbolEdges)
-    - `edgeTypes` (call/usage/import/export/dataflow; `symbol_edges.type` when graph = symbolEdges)
-    - `minConfidence` (0..1)
-    - `includePaths` (emit witness paths)
-  - Cap surface (configurable):
-    - `maxDepth`, `maxFanoutPerNode`, `maxNodes`, `maxEdges`, `maxPaths`, `maxCandidates`, `maxWorkUnits`, `maxWallClockMs`.
-
-- [x] Add deterministic Markdown renderer for graph context packs.
-  - `src/retrieval/output/graph-context-pack.js` (new; stable section ordering and formatting)
-
-- [x] Implement deterministic neighborhood extraction for a seed id (k-hop).
-  - Prefer graph source artifacts when present:
-    - `graph_relations` for call/usage/import graphs (baseline).
-    - `symbol_edges` / callsite artifacts (when available) for evidence and SymbolId identity.
-  - Deterministic traversal:
-    - Stable adjacency ordering (lexicographic by canonical id, then edge type).
-    - Deterministic tie-breaking when budgets are hit (e.g., keep lowest id first, or keep highest confidence first, but make it explicit and stable).
-  - Strict bounding:
-    - Enforce caps during traversal (no “collect everything then slice”).
-    - Record truncation metadata with which cap triggered and how much was omitted.
-
-- [x] Refactor `src/retrieval/context-expansion.js` to use the shared graph neighborhood utilities (do not make it the engine).
+- [ ] Consolidate MCP argument → execution mapping to one audited path.
   - Touchpoints:
-    - `src/retrieval/context-expansion.js`
-    - `src/shared/artifact-io/manifest.js` (artifact presence checks via manifest)
-  - [x] Eliminate eager `{id, reason}` candidate explosion.
-    - Convert candidate generation to a streaming/short-circuit loop that stops as soon as `maxPerHit` / `maxTotal` / `maxWorkUnits` is satisfied.
-    - Add per-source caps (e.g., max call edges examined, max import links examined) so worst-case repos cannot allocate unbounded candidate sets.
-  - [x] Remove duplicate scanning and make reason selection intentional.
-    - Track candidates in a `Map<id, { bestReason, bestPriority, reasons? }>` rather than pushing duplicates into arrays.
-    - Define a fixed reason priority order (example: call > usage > export > import > nameFallback) and document it.
-    - When `--explain` is enabled, optionally retain the top-N reasons per id (bounded).
-  - [x] Stop assuming `chunkMeta[id]` is a valid dereference forever.
-    - Build a `byDocId` (and/or `byChunkUid`) lookup once and use it for dereferencing.
-    - If a dense array invariant is still desired for performance, validate it explicitly and fall back to map deref when violated.
-  - [x] Prefer identity-first joins.
-    - When graph artifacts exist, resolve neighbors via canonical ids rather than `byName` joins.
-    - Keep name-based joins only as an explicit fallback mode with low-confidence markers.
+    - [ ] `tools/mcp/tools.js` (search/build tools)
+    - [ ] `src/integrations/core/index.js` (shared arg builder, if used)
+  - [ ] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
 
-#### Tests (path-corrected for current test layout)
-- [x] `tests/retrieval/graph/context-pack-basic.test.js`
-  - Build a small fixture graph; request a context pack for a known seed; assert expected caller/callee/import/usage neighbors are present.
-- [x] `tests/retrieval/graph/context-pack-caps.test.js`
-  - Use a large synthetic graph fixture; assert truncation metadata is present and stable when caps trigger.
-- [x] `tests/retrieval/graph/context-pack-determinism.test.js`
-  - Run the same request twice; assert stable ordering and identical payloads.
-- [x] `tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js`
-  - Stress fixture with many relations; assert expansion completes within a time/memory budget and does not allocate unbounded candidate arrays.
-- [x] `tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js`
-  - A chunk reachable via multiple relation types records the highest-priority reason deterministically.
-- [x] `tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js`
-  - Provide a shuffled `chunkMeta` where array index != docId; assert expansion still resolves correct chunks via a map-based dereference.
-- [x] `tests/retrieval/context-expansion/context-expansion-determinism.test.js`
-  - Run expansion twice on the same fixture; assert stable ordering and identical results.
+- [ ] Conformance requirement for the `search` tool:
+  - [ ] Every field in the MCP `search` schema must either:
+    - [ ] affect emitted CLI args / search execution, or
+    - [ ] be removed from schema, or
+    - [ ] be explicitly marked “reserved” and rejected if set.
+  - [ ] Avoid duplicative builders (do not maintain two separate lists of flags).
 
-Fixture sources:
-- `tests/fixtures/graph/context-pack/`
-- `tests/fixtures/retrieval/context-expansion/`
+- [ ] Fix known MCP tool wiring correctness hazards in modified files:
+  - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
 
-Touchpoints (consolidated; anchors are approximate):
-- `src/retrieval/context-expansion.js` (~L1 `pushIds`, ~L8 `buildContextIndex`, ~L77 `expandContext`)
-- `src/shared/artifact-io/manifest.js` (~L254 `resolveArtifactPresence`)
-- `src/shared/artifact-io/loaders.js` (~L312 `loadGraphRelations`)
-- `src/graph/store.js` (new; manifest-aware graph loader + adjacency access)
-- `src/graph/neighborhood.js` (new; deterministic bounded traversal)
-- `src/graph/context-pack.js` (new; pack construction + truncation metadata)
-- `src/retrieval/output/graph-context-pack.js` (new; deterministic Markdown renderer)
-- `src/integrations/tooling/graph-context.js` (new; CLI command implementation)
-- `src/retrieval/cli/index-loader.js` (~L73 `loadFileRelations`, ~L89 `loadRepoMap`; add `loadGraphRelations`)
-- `src/retrieval/cli/run-search-session.js` (~L86 `contextExpansionEnabled`, ~L486 expansion block)
-- `src/retrieval/cli/normalize-options.js` (~L173 `contextExpansionEnabled`)
-- `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` (CLI flags/help)
-- `src/retrieval/cli/render.js` (~L4 `renderSearchOutput`)
-- `src/retrieval/output/context.js` (~L1 `cleanContext` for context-pack rendering)
-- `bin/pairofcleats.js` (CLI wiring: `graph-context`)
-- `src/contracts/schemas/analysis.js` (add `GRAPH_CONTEXT_PACK_SCHEMA`)
-- `src/contracts/validators/analysis.js` (add `validateGraphContextPack`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/search-cli.md` (schema + CLI JSON)
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/defs.js` (~L1 exports; add `schemaVersion`)
+- `tools/mcp/tools.js` (~L? `runSearchTool` / arg mapping)
+- `src/integrations/mcp/protocol.js` (error + envelope helpers)
+- `docs/contracts/mcp-api.md` (schema versioning rules)
 
+#### Tests / Verification
 
+- [ ] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
+  - Assert `schemaVersion` exists.
+  - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
+
+- [ ] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
+  - For each supported schema field, assert mapping produces the expected CLI flag(s).
+  - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
+
+- [ ] Update existing: `tests/services/mcp/mcp-schema.test.js`
+  - Keep snapshotting tool property sets.
+  - Add schemaVersion presence check.
 
 ---
 
-### 11.2 Impact analysis (callers/callees + k-hop impact radius) with witness paths
+### 12.4 Error codes, protocol negotiation, and response-shape consistency
 
-- [x] Implement bounded impact analysis on top of the same neighborhood extraction primitives.
-  - Provide `impactAnalysis(seed, { direction, depth, caps, edgeFilters })` returning:
-    - impacted nodes (bounded; stable ordering)
-    - at least one witness path per impacted node when available (bounded; do not enumerate all paths)
-    - explicit unresolved/partial path markers when edges cannot be resolved.
-  - Deterministic ordering:
-    - stable sort by `(distance, confidence desc, name/id asc)` (or equivalent stable rule), and document it.
-
-- [x] CLI surface (API-ready internal design).
-  - Add `pairofcleats impact --repo … --seed <id> --direction upstream|downstream --depth 2 --format json|md`.
-  - Add graph filters: `--graphs`, `--edgeTypes`, `--minConfidence`.
-  - Ensure the implementation is factored so an API/MCP handler can call the same core function with the same caps and output schema.
-
-- [x] Optional “changed-set” impact mode (non-blocking in this phase).
-  - Accept `--changed <file>` repeated and `--changed-file <path>` (newline-separated paths) and compute:
-    - impacted symbols in and around changed files, then traverse upstream/downstream bounded.
-  - If `seed` is omitted, derive candidate seeds deterministically and emit a `ReferenceEnvelope` with bounded candidates.
-  - If SCM integration is unavailable, degrade gracefully (explicit warning; still supports explicit `--changed` lists).
-  - Specify deterministic changed-set → seed derivation:
-    - ordering of derived seeds
-    - max seeds cap + truncation behavior
-
-#### Tests (path-corrected for current test layout)
-- [x] `tests/retrieval/graph/impact-analysis-downstream.test.js`
-  - Seed a function; assert downstream impacted nodes include an expected callee and a witness path is returned.
-- [x] `tests/retrieval/graph/impact-analysis-upstream.test.js`
-  - Seed a function; assert upstream impacted nodes include an expected caller and a witness path is returned.
-- [x] `tests/retrieval/graph/impact-analysis-caps-and-truncation.test.js`
-  - Trigger caps deterministically; assert truncation metadata identifies which cap fired and results remain stable.
-- [x] `tests/retrieval/graph/impact-analysis-determinism.test.js`
-  - Run the same request twice; assert stable ordering and identical payloads.
-- [x] `tests/retrieval/graph/impact-analysis-changed-set.test.js`
-  - Provide `--changed` inputs; assert deterministic seed derivation and bounded output.
-
-Fixture sources:
-- `tests/fixtures/graph/impact/`
-
-Touchpoints (consolidated; anchors are approximate):
-- `src/graph/impact.js` (new; bounded impact analysis)
-- `src/graph/witness-paths.js` (new; witness path reconstruction)
-- `src/graph/neighborhood.js` (shared traversal primitives)
-- `src/integrations/tooling/impact.js` (new; CLI command implementation)
-- `src/integrations/tooling/render-impact.js` (new; stable human + JSON renderers)
-- `bin/pairofcleats.js` (CLI wiring: `impact`)
-- `src/contracts/schemas/analysis.js` (add `GRAPH_IMPACT_SCHEMA`)
-- `src/contracts/validators/analysis.js` (add `validateGraphImpact`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/graph-tools-cli.md` (schema + CLI JSON)
-
-
-
----
-
-### 11.3 Context pack assembly for tooling/LLM (chunk text + graph + types + risk) + explainability rendering
-
-- [x] Implement a “context pack assembler” that composes multiple bounded slices into a single package.
-  - Inputs:
-    - `seed` (chunkUid/SymbolId)
-    - budgets (`maxTokens` and/or `maxBytes`, plus graph caps)
-    - toggles (includeGraph, includeTypes, includeRisk, includeImports, includeUsages, includeCallersCallees)
-    - per-slice caps (`maxTypeEntries`, `maxRiskFlows`, `maxRiskEvidencePerFlow`)
-  - Output (recommended minimum):
-    - `primary` (chunk excerpt + stable identifiers + file/segment provenance)
-    - `graph` (from 11.1; bounded neighborhood)
-    - `types` (bounded: referenced/declared/inferred/tooling-backed summaries when available)
-    - `risk` (bounded: top-N flows/summaries crossing the seed, with callsite evidence when present)
-    - `truncation[]` (aggregate truncation across slices)
-    - `warnings[]` (missing artifacts, partial resolution, disabled features)
-  - Notes:
-    - Do not embed large raw code blobs; prefer bounded excerpts and (when needed) snippet hashes + location coordinates.
-    - Use stable ordering inside each slice so context packs are deterministic across runs.
-
-- [x] Add CLI surface:
-  - `pairofcleats context-pack --repo … --seed <id> --hops 2 --maxTokens 4000 --format json|md`
-  - Add toggles: `--includeGraph`, `--includeTypes`, `--includeRisk`, `--includeImports`, `--includeUsages`, `--includeCallersCallees`
-  - Add per-slice caps: `--maxTypeEntries`, `--riskMaxFlows`, `--riskMaxEvidencePerFlow`
-  - For Markdown output, use consistent sections and a deterministic ordering (primary first, then callers/callees, then imports/usages, then risk).
-
-- [x] Add explain-risk rendering for flows when risk artifacts exist.
-  - Provide an output mode (flag or subcommand) that prints:
-    - the path of symbols/chunks
-    - file/line evidence (callsites) when present
-    - rule ids/categories and confidence
-    - bounded snippets or snippet hashes (never unbounded)
-  - Ensure output is stable, capped, and does not assume optional color helpers exist.
-
-- [x] Define excerpt whitespace policy:
-  - clarify when indentation is preserved (code excerpts) vs normalized (summary/output cleaning)
-  - document how `cleanContext()` interacts with excerpt rendering
-
-- [x] Harden retrieval output helpers used by these features (integrate known bugs in touched files).
+- [ ] Standardize tool error payloads and map internal errors to stable MCP error codes.
   - Touchpoints:
-    - `src/retrieval/output/context.js`
-    - `src/retrieval/output/explain.js`
-  - [x] `cleanContext()` must remove fence lines that include language tags.
-    - Treat any line whose trimmed form starts with ``` as a fence line.
-  - [x] `cleanContext()` must not throw on non-string items.
-    - Guard/coerce before calling `.trim()`.
-  - [x] Explain formatting must not assume `color.gray()` exists.
-    - Provide a no-color fallback when `color?.gray` is not a function.
+    - [ ] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
+    - [ ] `tools/mcp/transport.js` — legacy transport handler
+    - [ ] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [ ] `src/shared/error-codes.js` — canonical internal codes
+  - [ ] Define stable, client-facing codes (examples):
+    - [ ] invalid args
+    - [ ] index missing
+    - [ ] tool timeout
+    - [ ] not supported / capability missing
+    - [ ] cancelled
+  - [ ] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
 
-#### Tests (path-corrected for current test layout)
-- [x] `tests/retrieval/context-pack/context-pack-assembly.test.js`
-  - Build fixture; assemble a context pack; assert it contains primary + at least one neighbor + deterministic truncation structure.
-- [x] `tests/retrieval/output/risk-explain-render.test.js`
-  - Use a risk-flow fixture; assert output includes a call path and evidence coordinates and remains bounded.
-- [x] `tests/retrieval/output/clean-context-fences.test.js`
-  - Ensure ```ts / ```json fences are removed (not just bare ```).
-- [x] `tests/retrieval/output/clean-context-nonstring-guard.test.js`
-  - Feed non-string items; assert no crash and only string lines survive.
-- [x] `tests/retrieval/output/explain-color-fallback.test.js`
-  - Provide a partial color impl; assert explain rendering does not throw.
+- [ ] Implement protocol/version negotiation and expose capabilities.
+  - [ ] On `initialize`, echo supported protocol versions, the tool schema version, and effective capabilities.
 
-Fixture sources:
-- `tests/fixtures/context-pack/`
-- `tests/fixtures/risk/`
+#### Tests / Verification
 
-Touchpoints (consolidated):
-- `src/context-pack/assemble.js` (new; bounded pack assembly)
-- `src/graph/context-pack.js` + `src/graph/neighborhood.js` (graph slice + traversal)
-- `src/retrieval/output/context.js` (~L1 `cleanContext`; hardening: fence stripping, type guards)
-- `src/retrieval/output/explain.js` (~L1 `formatExplainLine`; null-safe + color fallback)
-- `src/retrieval/output/graph-context-pack.js` (new; deterministic Markdown renderer)
-- `src/integrations/tooling/context-pack.js` (new; CLI command implementation)
-- `bin/pairofcleats.js` (CLI wiring: `context-pack`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/graph-tools-cli.md` (schema + CLI JSON)
+- [ ] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
+- [ ] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
 
-
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
+- `tools/mcp/transport.js` (legacy transport)
+- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `src/shared/error-codes.js` (canonical internal codes)
 
 ---
 
-### 11.4 Graph-aware ranking hooks (opt-in) + explainability
+### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
 
-- [x] Introduce optional graph-aware ranking features that can be enabled without changing result membership.
-  - Candidate feature families (bounded, deterministic):
-    - node degree / in-degree / out-degree (prefer precomputed analytics artifacts when available)
-    - proximity to the query-hit seed within the graph neighborhood (bounded k-hop)
-    - proximity to risk hotspots (if risk summaries/flows exist)
-    - same-cluster bonus (only if clustering artifacts exist; otherwise skip and emit a warning)
-  - Guardrails:
-    - Never compute expensive global graph metrics per query unless explicitly cached and bounded.
-    - Default behavior remains unchanged unless explicitly enabled.
-  - Define caching/analytics plan:
-    - precomputed artifact vs session cache decision
-    - schema and loader if artifact-based
-  - Define tie-breaker rules for equal graph deltas/features.
-
-- [x] Integrate into retrieval ranking with an explicit feature-hook layer.
-  - Touchpoints (expected; anchors are approximate):
-    - `src/retrieval/pipeline.js` (~L25 `createSearchPipeline`; scoring assembly + explain output)
-    - `src/retrieval/cli/run-search-session.js` (~L86 context options + ~L486 expansion block)
-    - `src/retrieval/cli/normalize-options.js` (~L173 context defaults; add graph ranking config)
-    - `src/retrieval/cli/options.js` + `src/retrieval/cli-args.js` (flag plumbing + help text)
-    - `src/retrieval/output/explain.js` (~L12 `formatScoreBreakdown` for graph section)
-  - Configuration:
-    - `retrieval.graphRanking.enabled` (default false)
-    - `retrieval.graphRanking.weights` (explicit; versioned defaults)
-    - `retrieval.graphRanking.maxGraphWorkUnits` (deterministic cap)
-    - optional `retrieval.graphRanking.maxWallClockMs` (fuse)
-    - optional `retrieval.graphRanking.seedSelection`
-    - optional `retrieval.graphRanking.seedK`
-    - CLI mapping (must remain in sync with docs):
-      - `--graph-ranking-max-work` -> `retrieval.graphRanking.maxGraphWorkUnits`
-      - `--graph-ranking-max-ms` -> `retrieval.graphRanking.maxWallClockMs`
-      - `--graph-ranking-seeds` -> `retrieval.graphRanking.seedSelection`
-      - `--graph-ranking-seed-k` -> `retrieval.graphRanking.seedK`
-  - Explainability:
-    - When `--explain` (or a dedicated `--explain-ranking`) is enabled, include a `graph` section in the score breakdown:
-      - feature contributions and the final blended delta.
-
-#### Tests (path-corrected for current test layout)
-- [x] `tests/retrieval/ranking/graph-ranking-toggle.test.js`
-  - Run the same query with graph ranking off/on; assert result sets are identical but ordering may differ.
-- [x] `tests/retrieval/ranking/graph-ranking-explain.test.js`
-  - With explain enabled, assert output includes named graph feature contributions.
-- [x] `tests/retrieval/ranking/graph-ranking-determinism.test.js`
-  - Re-run the same query twice with graph ranking enabled; assert ordering and explain payload are stable.
-- [x] `tests/retrieval/ranking/graph-ranking-membership-invariant.test.js`
-  - Run the same query with graph ranking on/off; assert result membership is identical.
-
----
-
-### 11.5 Graph expansion caps as a config surface + calibration harness (language × size tier)
-
-- [x] Align cap vocabulary across indexing + retrieval (depends on 11.0 graph caps update).
-  - Ensure all expansions use the same cap names and truncation metadata semantics.
+- [ ] Ensure cancellation/timeout terminates underlying work within a bounded time.
   - Touchpoints:
-    - `src/retrieval/context-expansion.js` (cap naming + truncation records)
-    - `src/graph/neighborhood.js`
-    - `docs/perf/graph-caps.md`
-  - Required behavior:
-    - Every expansion returns truncation metadata when it truncates.
-    - Truncation metadata indicates which cap fired and provides counts (omitted nodes/edges/paths) when measurable.
+    - [ ] `tools/mcp/transport.js`
+    - [ ] `tools/mcp/runner.js`
+    - [ ] `tools/mcp/tools.js`
+  - [ ] Cancellation correctness:
+    - [ ] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
+    - [ ] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
+  - [ ] Timeout correctness:
+    - [ ] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
+    - [ ] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
+    - [ ] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
+  - [ ] Progress notification hygiene:
+    - [x] Throttle/coalesce progress notifications (max ~1 per 250ms per tool call, coalesced) to avoid overwhelming clients.
 
-- [x] Implement a metrics-harvesting harness to justify default caps.
-  - Inputs:
-    - Use/extend `benchmarks/repos.json` to define repos.
-    - Normalize into tiers: small / typical / large / huge / problematic(massive).
-    - Define numeric tier thresholds for `small/typical/large/huge/problematic`.
-  - For each repo/tier (outside CI for huge/problematic):
-    - run indexing with graphs enabled
-    - compute graph distributions (node/edge counts, degree stats, SCC size)
-    - run bounded neighborhood expansions for representative seeds (random, top-degree, entrypoints)
-    - record timing and output sizes
-  - Outputs:
-    - versioned bundle under `benchmarks/results/<date>/graph-caps/`
-    - machine-readable defaults: `docs/perf/graph-caps-defaults.json` (new; keyed by language and optional tier)
-    - documentation: `docs/perf/graph-caps.md` (p95 behavior for typical tier + presets for huge/problematic)
-  - Define default-selection logic:
-    - explicit rule for converting harness measurements into `graph-caps-defaults.json`
+- [ ] Tighten MCP test process cleanup.
+  - [ ] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
 
-#### Tests (path-corrected for current test layout)
-- [x] `tests/indexing/graphs/caps-enforced-and-reported.test.js`
-  - Build a small fixture; request deep expansion; assert caps trigger deterministically and truncation metadata is present.
-- [x] `tests/perf/bench/graph-caps-harness-smoke.test.js`
-  - Run the harness on a tiny in-tree fixture; assert it writes a results JSON file with required fields and deterministic ordering.
+#### Tests / Verification
+
+- [ ] Update existing: `tests/services/mcp/mcp-robustness.test.js`
+  - Add “wait for exit” after `exit` (bounded).
+  - Add cancellation test:
+    - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
+  - Add progress-throttle assertion (if practical): bursty progress is coalesced.
+
+- [ ] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
+  - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
 
 ---
 
-### 11.6 Cross-file API contracts (report + optional artifact)
+### 12.6 Documentation and migration notes
 
-- [x] Provide an API-contract extraction/report surface based on existing artifacts (do not require new parsing).
-  - For each exported symbol (as available via symbol artifacts):
-    - canonical signature (declared + tooling-backed when available)
-    - observed call signatures (from bounded callsite evidence / callDetails summaries)
-    - compatibility warnings (arity mismatches, incompatible argument kinds, unresolved targets)
-  - Output formats:
-    - JSON (machine; versioned schema)
-    - Markdown (human; deterministic ordering)
-  - Strict caps:
-    - max symbols analyzed per run
-    - max calls sampled per symbol
-    - max warnings emitted (with truncation metadata)
-  - Define API contract source precedence + sampling rules:
-    - exported symbol identification precedence
-    - canonical signature source precedence
-    - deterministic call sampling rules
-    - warning/mismatch criteria (language-aware + confidence)
+- [ ] Add `docs/guides/mcp.md` (new) describing:
+  - [ ] how to run legacy vs SDK server modes
+  - [ ] how to install/enable the SDK (per the chosen dependency strategy)
+  - [ ] tool schemas and `schemaVersion` policy
+  - [ ] stable error codes and cancellation/timeout semantics
+  - [ ] capability reporting and expected client behaviors
 
-- [x] CLI surface:
-  - `pairofcleats api-contracts --repo … [--only-exports] [--fail-on-warn] --format json|md`
+**Mapping (source docs, minimal):** `GIGAMAP_FINAL_UPDATED.md` (M12), `GIGAMAP_ULTRA_2026-01-22_FULL_COVERAGE_v3.md` (M12 overlap notes), `CODEBASE_STATIC_REVIEW.md` (MCP schema mapping), `GIGASWEEP.md` (MCP timeout/cancellation/progress/test cleanup)
 
-- [x] Optional: enable an artifact emitter for downstream automation.
-  - `api_contracts.jsonl` (one record per symbol) with strict schema validation and caps.
-
-#### Tests (path-corrected for current test layout)
-- [x] `tests/tooling/api-contracts/api-contracts-basic.test.js`
-  - Fixture with an exported function called with multiple shapes; assert contract report includes observed calls and a mismatch warning.
-- [x] `tests/tooling/api-contracts/api-contracts-caps.test.js`
-  - Trigger caps; assert truncation metadata is present and stable.
-- [x] `tests/tooling/api-contracts/api-contracts-fail-on-warn.test.js`
-  - Ensure `--fail-on-warn` yields non-zero exit when warnings are present.
-- [x] `tests/tooling/api-contracts/api-contracts-schema-validate.test.js`
-  - Validate output against `API_CONTRACTS_SCHEMA` (including truncation + warnings).
-
-Fixture sources:
-- `tests/fixtures/tooling/api-contracts/`
-
-Touchpoints (consolidated; anchors are approximate):
-- `src/integrations/tooling/api-contracts.js` (new; report builder)
-- `src/shared/artifact-io/loaders.js` (~L312 `loadGraphRelations`; add loaders for call_sites/symbols as needed)
-- `src/contracts/schemas/analysis.js` (add `API_CONTRACTS_SCHEMA`)
-- `src/contracts/validators/analysis.js` (add `validateApiContracts`)
-- `src/contracts/schemas/artifacts.js` (add `api_contracts` artifact schema if emitted)
-- `src/index/validate.js` (strict validation for new artifact)
-- `bin/pairofcleats.js` (CLI wiring: `api-contracts`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/graph-tools-cli.md` (schema + CLI JSON)
 
 ---
 
-### 11.7 Architecture slicing and boundary enforcement (rules + CI-friendly output)
+## Phase 13 — SCM Provider Abstraction (Git Migration) + JJ Provider
 
-- [x] Add a rules format for architectural constraints over graphs.
-  - Rule types (minimum viable):
-    - forbidden edges by path glob/module group (importGraph)
-    - forbidden call edges by symbol tags or file globs (callGraph)
-    - layering rules (optional; best-effort) that detect edges going “up-layer”
-  - Outputs:
-    - bounded report with counts, top offending edges, and a deterministic ordering
-    - CI-friendly JSON (versioned schema)
-  - Add reusable module groups:
-    - named selector sets referenced by rules
+### Objective
 
-- [x] CLI surface:
-  - `pairofcleats architecture-check --repo … --rules <path> --format json|md [--fail-on-violation]`
+Make SCM integration **pluggable and explicit** so indexing and incremental workflows can run against:
 
-#### Tests (path-corrected for current test layout)
-- [x] `tests/tooling/architecture/forbidden-import-edge.test.js`
-  - Fixture with a forbidden import; assert violation is reported deterministically.
-- [x] `tests/tooling/architecture/forbidden-call-edge.test.js`
-  - Fixture with a forbidden call edge; assert violation is reported deterministically.
-- [x] `tests/tooling/architecture/report-is-bounded.test.js`
-  - Large fixture triggers caps; assert truncation metadata exists and report remains parseable.
-- [x] `tests/tooling/architecture/report-determinism.test.js`
-  - Run the same rules twice; assert ordering and output are identical.
+- Git repos (current default)
+- Jujutsu (`jj`) repos (Phase 13 deliverable)
+- Non-SCM directories (filesystem-only; reduced provenance but still indexable)
 
-Fixture sources:
-- `tests/fixtures/tooling/architecture/`
+This phase introduces an **SCM provider interface**, migrates all Git behavior onto that interface, then implements a JJ provider using the same contract. The result is a single, coherent place to reason about: tracked file discovery, repo provenance, per-file metadata (churn / blame), and “changed files” queries used by incremental reuse.
 
-Touchpoints (consolidated; anchors are approximate):
-- `src/graph/architecture.js` (new; rule evaluation)
-- `src/graph/neighborhood.js` (shared traversal primitives)
-- `src/integrations/tooling/architecture-check.js` (new; CLI command implementation)
-- `src/contracts/schemas/analysis.js` (add `ARCHITECTURE_REPORT_SCHEMA`)
-- `src/contracts/validators/analysis.js` (add `validateArchitectureReport`)
-- `bin/pairofcleats.js` (CLI wiring: `architecture-check`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/graph-tools-cli.md` (schema + CLI JSON)
+Authoritative specs to align with (existing in repo):
+- `docs/specs/scm-provider-config-and-state-schema.md`
+- `docs/specs/jj-provider-commands-and-parsing.md`
 
 ---
 
-### 11.8 Test selection heuristics (suggest tests impacted by a change set)
+### Exit criteria (must all be true)
 
-- [x] Implement a bounded, deterministic test suggestion tool that uses graphs when available.
-  - Identify tests using path conventions and language-aware patterns:
-    - `*.test.*`, `*_test.*`, `/tests/`, `__tests__/`, etc.
-  - Given a changed set (`--changed <file>` repeated or a file list):
-    - map changed files/symbols to seed nodes
-    - traverse upstream/downstream within caps
-    - rank candidate tests based on witness paths, proximity, and (optional) centrality
-  - Output:
-    - top-K suggested tests + brief rationale (witness path summary), bounded and deterministic
-  - Specify deterministic changed-set → seed derivation:
-    - ordering of derived seeds
-    - max seeds cap + truncation behavior
-  - Define fallback behavior when graph artifacts are missing:
-    - heuristic fallback (e.g., path-based test discovery)
-    - required warning codes
-
-- [x] CLI surface:
-  - `pairofcleats suggest-tests --repo … --changed <...> --max 50 --format json|md`
-
-#### Tests (path-corrected for current test layout)
-- [x] `tests/tooling/test-selection/suggest-tests-basic.test.js`
-  - Fixture where a changed function is called by a test; assert the test is suggested.
-- [x] `tests/tooling/test-selection/suggest-tests-bounded.test.js`
-  - Trigger caps; assert truncation metadata is present and ordering is stable.
-- [x] `tests/tooling/test-selection/suggest-tests-determinism.test.js`
-  - Run the same input twice; assert stable ordering and identical output.
-- [x] `tests/tooling/test-selection/suggest-tests-witness-path.test.js`
-  - Ensure witness path summary is present and bounded when available.
-
-Fixture sources:
-- `tests/fixtures/tooling/suggest-tests/`
-
-Touchpoints (test selection):
-- `src/integrations/tooling/suggest-tests.js` (new; core suggestion engine)
-- `src/graph/store.js` + `src/graph/neighborhood.js` (shared traversal + loading)
-- `bin/pairofcleats.js` (CLI wiring: `suggest-tests`)
-- `docs/contracts/analysis-schemas.md` + `docs/contracts/graph-tools-cli.md` (schema + CLI JSON)
+- [ ] There is a single SCM provider interface used everywhere (no direct `git`/`jj` shelling from random modules).
+- [ ] `indexing.scm.provider` is supported: `auto | git | jj | none` (default: `auto`).
+- [ ] Git provider is fully migrated onto the interface and remains the default when `.git/` exists.
+- [ ] JJ provider supports (at minimum): repo detection, tracked-file enumeration, and repo “head” provenance recorded in `build_state.json`.
+- [ ] When no SCM is present (or `provider=none`), indexing still works using filesystem discovery, but provenance fields are explicitly `null` / unavailable (no silent lies).
+- [ ] Build signatures and cache keys include SCM provenance in a **stable** and **portable** way (no locale-dependent sorting).
+- [ ] Tests cover provider selection + the most failure-prone parsing paths; CI can run without `jj` installed.
 
 ---
 
-### 11.9 Docs + CLI wiring
+### Phase 13.1 — Introduce `ScmProvider` interface + registry + config/state schema wiring
 
-#### 11.9.1 CLI wiring
-- [x] Update `bin/pairofcleats.js`:
-  - add new commands (graph-context, impact, context-pack, api-contracts, architecture-check, suggest-tests)
-  - remove/repair stale `search` flag allowlist validation so wrapper accepts all supported search flags
-- [x] Implement per-command handlers under `src/integrations/tooling/`:
-  - `graph-context.js`, `impact.js`, `context-pack.js`, `api-contracts.js`, `architecture-check.js`, `suggest-tests.js`
+- [ ] Create a new module boundary for SCM operations:
+  - [ ] `src/index/scm/types.js` (new) — shared types and normalized shapes
+  - [ ] `src/index/scm/provider.js` (new) — interface contract + docs-in-code
+  - [ ] `src/index/scm/registry.js` (new) — provider selection (`auto|git|jj|none`)
+  - [ ] `src/index/scm/providers/none.js` (new) — filesystem-only provider (no provenance; uses existing fdir fallback)
+  - [ ] `src/index/scm/providers/git.js` (new) — migrated in 13.2
+  - [ ] `src/index/scm/providers/jj.js` (new) — implemented in 13.3
 
-#### 11.9.2 Documentation updates
-- [x] Update:
-  - `docs/contracts/analysis-schemas.md`
-  - `docs/contracts/search-cli.md`
-  - `docs/contracts/mcp-api.md`
-- [x] Add:
-  - `docs/contracts/graph-tools-cli.md`
-  - `docs/perf/graph-caps.md`
-  - `docs/phases/phase-11/spec.md`
+- [ ] Define the **canonical provider contract** (minimal required surface):
+  - [ ] `detect({ startPath }) -> { ok:true, repoRoot, provider } | { ok:false }`
+  - [ ] `listTrackedFiles({ repoRoot, subdir? }) -> { filesPosix: string[] }`
+  - [ ] `getRepoProvenance({ repoRoot }) -> { provider, root, head, dirty, branch/bookmarks?, detectedBy? }`
+  - [ ] `getChangedFiles({ repoRoot, fromRef, toRef, subdir? }) -> { filesPosix: string[] }` (may be “not supported” for `none`)
+  - [ ] `getFileMeta({ repoRoot, filePosix }) -> { churn?, lastCommitId?, lastAuthor?, lastModifiedAt? }` (best-effort; may be disabled)
+  - [ ] Optional (capability-gated): `annotate({ repoRoot, filePosix, timeoutMs }) -> { lines:[{ line, author, commitId, ... }] }`
+
+- [ ] Config keys (align to `docs/specs/scm-provider-config-and-state-schema.md`):
+  - [ ] `indexing.scm.provider: auto|git|jj|none`
+  - [ ] `indexing.scm.timeoutMs`, `indexing.scm.maxConcurrentProcesses`
+  - [ ] `indexing.scm.annotate.enabled`, `maxFileSizeBytes`, `timeoutMs`
+  - [ ] `indexing.scm.jj.snapshotWorkingCopy` safety default (read-only by default)
+
+- [ ] Build-state schema updates:
+  - [ ] Extend `build_state.json` `repo` field to include:
+    - [ ] `repo.provider`
+    - [ ] normalized `repo.head` object (provider-specific fields nested, but stable keys)
+    - [ ] `repo.dirty` boolean (best-effort)
+  - [ ] Keep Git back-compat fields where feasible (`repo.commit`, `repo.branch`) but treat `repo.provider` + `repo.head.*` as authoritative.
+
+Touchpoints:
+- `docs/specs/scm-provider-config-and-state-schema.md` (align / correct examples if needed)
+- `src/index/build/build-state.js` (repo provenance shape)
+- `src/index/build/indexer/signatures.js` (include SCM provenance in build signatures)
+- `src/index/build/runtime/runtime.js` (thread config into runtime)
+- `docs/config/schema.json` (document `indexing.scm.*` keys)
+
+Touchpoints (anchors; approximate):
+- `src/index/git.js` (~L63 `getGitMetaForFile`, ~L157 `getGitBranch`)
+- `src/index/build/discover.js` (~L138 `discoverRepoRoots`, ~L176 `listGitFiles`)
+- `src/index/build/build-state.js` (~L1 `buildState`)
+- `src/index/build/indexer/signatures.js` (~L46 `gitBlameEnabled`)
+- `src/index/build/runtime/runtime.js` (~L172 `buildId`, ~L209 `gitBlameEnabled`)
+
+#### Tests / verification (path-corrected for current test layout)
+- [ ] `tests/indexing/scm/scm-provider-selection.test.js` (new)
+  - [ ] `auto` selects `git` when `.git/` exists and git is runnable.
+  - [ ] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
+  - [ ] `auto` falls back to `none` when neither exists (or binaries missing).
+- [ ] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
+  - [ ] `build_state.json` includes `repo.provider` and normalized `repo.head`.
 
 ---
 
-### Phase 11 schema summary (authoritative spec: `docs/phases/phase-11/spec.md`)
+### Phase 13.2 — Migrate Git onto the provider interface
 
-- Shared types:
-  - `NodeRef` (chunk/symbol/file)
-  - `ReferenceEnvelope` (resolved/ambiguous/unresolved + bounded candidates)
-  - `TruncationRecord` + `WarningRecord` (bounded)
-- Graph context pack:
-  - `{ version, seed, nodes[], edges[], paths?, truncation?, warnings?, stats? }`
-- Impact analysis:
-  - `{ version, seed, direction, depth, impacted[], truncation?, warnings? }`
-- Composite context pack:
-  - `{ version, seed, primary, graph?, types?, risk?, truncation?, warnings? }`
-- API contracts report:
-  - `{ version, generatedAt, options, symbols[], truncation?, warnings? }`
-- Architecture report:
-  - `{ version, rules[], violations[], truncation?, warnings? }`
-- Suggest-tests:
-  - `{ version, changed[], suggestions[], truncation?, warnings? }`
+- [ ] Implement `GitProvider` by **wrapping and consolidating** existing Git logic:
+  - [ ] Move/merge logic from:
+    - [ ] `src/index/git.js` (provenance + meta helpers)
+    - [ ] `src/index/build/discover.js` (`git ls-files` discovery)
+  - [ ] Ensure there is exactly one “source of truth” for:
+    - [ ] repo root resolution
+    - [ ] tracked file enumeration (`git ls-files -z`)
+    - [ ] dirty check
+    - [ ] head SHA + branch name
 
+- [ ] Remove direct Git shelling from non-provider modules:
+  - [ ] `src/index/build/discover.js` should call `ScmProvider.listTrackedFiles()` when an SCM provider is active, else use filesystem crawl (current behavior).
+  - [ ] Any provenance used for metrics/signatures must route through `ScmProvider.getRepoProvenance()`.
 
+Touchpoints:
+- `src/index/build/discover.js`
+- `src/index/git.js` (migrate or reduce to GitProvider internals)
+- `src/index/scm/providers/git.js` (new)
+- `src/index/scm/registry.js`
 
+#### Tests / verification (path-corrected for current test layout)
+- [ ] `tests/indexing/scm/index-build-git-provider.test.js` (new)
+  - [ ] Build index inside a git repo and assert:
+    - [ ] `build_state.json.repo.provider === "git"`
+    - [ ] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
+
+---
+
+### Phase 13.3 — Implement JJ provider (read-only default, robust parsing)
+
+- [ ] Implement `JjProvider` using `jj` CLI (no library dependency):
+  - [ ] Detection:
+    - [ ] find `.jj/` root
+    - [ ] validate `jj --version` runnable (capability gating)
+  - [ ] Tracked files:
+    - [ ] `jj file list --tracked -0` (prefer NUL delim where available)
+  - [ ] Repo provenance:
+    - [ ] resolve a stable head reference (commitId + changeId where available)
+    - [ ] record bookmarks (best-effort)
+    - [ ] `dirty` best-effort (explicitly document semantics)
+
+- [ ] Safety default: read-only by default
+  - [ ] When `indexing.scm.jj.snapshotWorkingCopy=false`:
+    - [ ] run JJ commands with `--ignore-working-copy` and `--at-op=@` (per spec)
+  - [ ] If enabled:
+    - [ ] allow exactly one controlled snapshot at start (and pin subsequent commands to that op)
+    - [ ] record the pinned op id in build state (so provenance is reproducible)
+
+- [ ] Implement changed-files support (for incremental reuse):
+  - [ ] Provide `getChangedFiles()` based on the spec in `docs/specs/jj-provider-commands-and-parsing.md`.
+  - [ ] Normalize to **repo-root-relative POSIX paths**.
+
+Touchpoints:
+- `docs/specs/jj-provider-commands-and-parsing.md` (align with implementation)
+- `src/index/scm/providers/jj.js` (new)
+- `src/index/scm/providers/jj-parse.js` (new: isolated parsing helpers)
+- `src/index/build/indexer/signatures.js` (include JJ head/changeId + op pin when used)
+
+#### Tests / verification (path-corrected for current test layout)
+- [ ] Unit: parsing helpers
+  - [ ] `tests/indexing/scm/jj-changed-files-parse.test.js`
+  - [ ] `tests/indexing/scm/jj-head-parse.test.js`
+- [ ] CI behavior:
+  - [ ] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
+
+---
+
+### Phase 13.4 — CLI + tooling visibility (make SCM selection obvious)
+
+- [ ] CLI flags (override config, optional but recommended):
+  - [ ] `pairofcleats index build --scm-provider <auto|git|jj|none>`
+  - [ ] `pairofcleats index build --scm-annotate / --no-scm-annotate`
+
+- [ ] Surface effective provider + provenance in diagnostics:
+  - [ ] `pairofcleats tooling doctor --json` should include:
+    - provider selected
+    - repo root
+    - head id(s)
+    - whether annotate is enabled
+
+Touchpoints:
+- `bin/pairofcleats.js` (flag plumbing)
+- `src/shared/cli-options.js` (new flags)
+- `tools/tooling-doctor.js` (report SCM provider)
+
+---
+
+### Phase 13.5 — Non-repo environments (explicitly supported)
+
+- [ ] Make filesystem-only behavior first-class:
+  - [ ] If `provider=none` (or auto selects none):
+    - [ ] file discovery uses filesystem crawl (current fallback)
+    - [ ] build state records `repo.provider="none"` and `repo.head=null`
+    - [ ] incremental reuse features that require SCM provenance must be disabled with an explicit reason (no silent partial behavior)
+- [ ] Document this mode as “try it anywhere” for non-code/non-repo folders.
+
+Touchpoints:
+- `src/index/scm/providers/none.js` (new)
+- `docs/contracts/indexing.md` (document provider="none" behavior)
+- `docs/guides/commands.md` (CLI flags and behavior notes)
+
+#### Tests / verification
+  - [ ] `tests/indexing/scm/index-build-no-scm.test.js` (new)
+  - [ ] Build index in a temp folder without `.git/` and assert build succeeds and provenance is explicitly null.
+
+---

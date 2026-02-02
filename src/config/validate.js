@@ -1,105 +1,80 @@
-const TYPE_NAMES = {
-  array: 'array',
-  boolean: 'boolean',
-  integer: 'integer',
-  null: 'null',
-  number: 'number',
-  object: 'object',
-  string: 'string'
+import Ajv from 'ajv/dist/2020.js';
+
+const ajv = new Ajv({
+  allErrors: true,
+  strict: false,
+  allowUnionTypes: true
+});
+
+const formatPath = (instancePath) => (instancePath ? `#${instancePath}` : '#');
+
+const ensureRequiredProperties = (schema) => {
+  if (!schema || typeof schema !== 'object') return;
+  if (Array.isArray(schema)) {
+    schema.forEach((entry) => ensureRequiredProperties(entry));
+    return;
+  }
+  const hasObjectType = schema.type === 'object'
+    || (Array.isArray(schema.type) && schema.type.includes('object'))
+    || schema.properties
+    || schema.required
+    || schema.additionalProperties !== undefined
+    || schema.patternProperties;
+  if (hasObjectType && schema.additionalProperties === false && Array.isArray(schema.required)) {
+    if (!schema.properties || typeof schema.properties !== 'object' || Array.isArray(schema.properties)) {
+      schema.properties = {};
+    }
+    for (const key of schema.required) {
+      if (typeof key !== 'string') continue;
+      if (!schema.properties[key]) schema.properties[key] = {};
+    }
+  }
+
+  const visitMap = (map) => {
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return;
+    for (const value of Object.values(map)) {
+      ensureRequiredProperties(value);
+    }
+  };
+
+  visitMap(schema.properties);
+  visitMap(schema.patternProperties);
+  visitMap(schema.$defs);
+  visitMap(schema.definitions);
+  visitMap(schema.dependencies);
+  visitMap(schema.dependentSchemas);
+
+  if (schema.items) ensureRequiredProperties(schema.items);
+  if (Array.isArray(schema.items)) schema.items.forEach((item) => ensureRequiredProperties(item));
+  if (schema.anyOf) ensureRequiredProperties(schema.anyOf);
+  if (schema.oneOf) ensureRequiredProperties(schema.oneOf);
+  if (schema.allOf) ensureRequiredProperties(schema.allOf);
+  if (schema.not) ensureRequiredProperties(schema.not);
+  if (schema.if) ensureRequiredProperties(schema.if);
+  if (schema.then) ensureRequiredProperties(schema.then);
+  if (schema.else) ensureRequiredProperties(schema.else);
 };
 
-function getType(value) {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  return typeof value;
-}
-
-function matchesType(value, expected) {
-  if (expected === 'integer') return Number.isInteger(value);
-  if (expected === 'array') return Array.isArray(value);
-  if (expected === 'null') return value === null;
-  if (expected === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
-  return typeof value === expected;
-}
-
-function normalizeTypes(type) {
-  if (!type) return [];
-  return Array.isArray(type) ? type : [type];
-}
-
-function escapePointerSegment(segment) {
-  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
-function formatPath(base, key) {
-  if (key === null || key === undefined) return base;
-  if (typeof key === 'number') return `${base}/${key}`;
-  const escaped = escapePointerSegment(key);
-  if (!base || base === '#') return `#/${escaped}`;
-  return `${base}/${escaped}`;
-}
-
-function validateValue(value, schema, path) {
-  const errors = [];
-  if (!schema || typeof schema !== 'object') return errors;
-
-  const types = normalizeTypes(schema.type);
-  if (types.length) {
-    const matched = types.some((type) => matchesType(value, type));
-    if (!matched) {
-      const expected = types.map((type) => TYPE_NAMES[type] || type).join(' or ');
-      errors.push(`${path} should be ${expected}`);
-      return errors;
-    }
+const formatError = (error) => {
+  const basePath = formatPath(error.instancePath);
+  if (error.keyword === 'required' && error.params?.missingProperty) {
+    return `${basePath}/${error.params.missingProperty} is required`;
   }
-
-  if (schema.enum && Array.isArray(schema.enum)) {
-    if (!schema.enum.includes(value)) {
-      errors.push(`${path} should be one of ${schema.enum.join(', ')}`);
-      return errors;
-    }
+  if (error.keyword === 'additionalProperties' && error.params?.additionalProperty) {
+    return `${basePath}/${error.params.additionalProperty} is not allowed`;
   }
-
-  if (Array.isArray(value) && schema.items) {
-    value.forEach((item, index) => {
-      errors.push(...validateValue(item, schema.items, formatPath(path, index)));
-    });
+  if (error.message) {
+    return `${basePath} ${error.message}`.trim();
   }
-
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const hasObjectRules = schema.properties
-      || Array.isArray(schema.required)
-      || schema.additionalProperties !== undefined;
-    if (hasObjectRules) {
-      const required = new Set(schema.required || []);
-      for (const key of required) {
-        if (!(key in value)) {
-          errors.push(`${formatPath(path, key)} is required`);
-        }
-      }
-
-      const known = schema.properties || {};
-      for (const [key, val] of Object.entries(value)) {
-        if (known[key]) {
-          errors.push(...validateValue(val, known[key], formatPath(path, key)));
-          continue;
-        }
-        if (schema.additionalProperties === false) {
-          if (required.has(key)) continue;
-          errors.push(`${formatPath(path, key)} is not allowed`);
-          continue;
-        }
-        if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-          errors.push(...validateValue(val, schema.additionalProperties, formatPath(path, key)));
-        }
-      }
-    }
-  }
-
-  return errors;
-}
+  return `${basePath} is invalid`;
+};
 
 export function validateConfig(schema, config) {
-  const errors = validateValue(config, schema, '#');
-  return { ok: errors.length === 0, errors };
+  const normalizedSchema = structuredClone(schema);
+  ensureRequiredProperties(normalizedSchema);
+  const validate = ajv.compile(normalizedSchema);
+  const ok = validate(config);
+  if (ok) return { ok: true, errors: [] };
+  const errors = (validate.errors || []).map(formatError);
+  return { ok: false, errors };
 }
