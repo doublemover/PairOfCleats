@@ -93,7 +93,20 @@ try {
     throw new Error('SDK tools/call missing content.');
   }
 
-  send({ jsonrpc: '2.0', id: 4, method: 'shutdown' });
+  const missingRepo = path.join(cacheRoot, 'missing');
+  send({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
+    params: { name: 'index_status', arguments: { repoPath: missingRepo } }
+  });
+  const missing = await readMessage();
+  const missingPayload = JSON.parse(missing.result?.content?.[0]?.text || '{}');
+  if (!missing.result?.isError || missingPayload.code !== 'INVALID_REQUEST') {
+    throw new Error('SDK error payload should include INVALID_REQUEST code.');
+  }
+
+  send({ jsonrpc: '2.0', id: 5, method: 'shutdown' });
   await readMessage();
   send({ jsonrpc: '2.0', method: 'exit' });
 } catch (err) {
