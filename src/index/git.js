@@ -6,6 +6,7 @@ import {
   DEFAULT_CACHE_TTL_MS,
   estimateJsonBytes
 } from '../shared/cache.js';
+import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
 let gitMetaCache = createLruCache({
   name: 'gitMeta',
@@ -112,25 +113,6 @@ export async function getGitMetaForFile(file, options = {}) {
     warnGitUnavailable(baseDir);
     return {};
   }
-}
-
-/**
- * Compute chunk authors from line-level blame data.
- * @param {string[]|null} lineAuthors
- * @param {number} startLine
- * @param {number} endLine
- * @returns {string[]}
- */
-export function getChunkAuthorsFromLines(lineAuthors, startLine, endLine) {
-  if (!Array.isArray(lineAuthors) || !lineAuthors.length) return [];
-  const start = Math.max(1, Number.parseInt(startLine, 10) || 1);
-  const end = Math.max(start, Number.parseInt(endLine, 10) || start);
-  const authors = new Set();
-  for (let i = start; i <= end && i <= lineAuthors.length; i += 1) {
-    const author = lineAuthors[i - 1];
-    if (author) authors.add(author);
-  }
-  return Array.from(authors);
 }
 
 /**

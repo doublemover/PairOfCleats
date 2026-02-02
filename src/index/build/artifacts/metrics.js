@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../shared/dict-utils.js';
-import { getRepoProvenance } from '../../git.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 
 export const writeIndexMetrics = async ({
@@ -31,7 +30,8 @@ export const writeIndexMetrics = async ({
   compressionEnabled,
   compressionMode,
   compressionKeepRaw,
-  documentExtractionEnabled
+  documentExtractionEnabled,
+  repoProvenance = null
 }) => {
   const cacheHits = state.scannedFilesTimes.filter((entry) => entry.cached).length;
   const cacheMisses = state.scannedFilesTimes.length - cacheHits;
@@ -44,7 +44,11 @@ export const writeIndexMetrics = async ({
   }, {});
   const toolVersion = getToolVersion();
   const effectiveConfigHash = getEffectiveConfigHash(root, userConfig);
-  const repoProvenance = await getRepoProvenance(root);
+  const resolvedProvenance = repoProvenance && typeof repoProvenance === 'object'
+    ? repoProvenance
+    : null;
+  const repoBranch = resolvedProvenance?.head?.branch ?? resolvedProvenance?.branch ?? null;
+  const repoIsRepo = resolvedProvenance?.isRepo ?? null;
   const metrics = {
     generatedAt: new Date().toISOString(),
     tool: {
@@ -58,13 +62,13 @@ export const writeIndexMetrics = async ({
       configHash: effectiveConfigHash
     },
     repo: {
-      provenance: repoProvenance
+      provenance: resolvedProvenance
     },
     repoRoot: path.resolve(root),
     mode,
     indexDir: path.resolve(outDir),
     incremental: incrementalEnabled,
-    git: { branch: repoProvenance.branch, isRepo: repoProvenance.isRepo },
+    git: { branch: repoBranch, isRepo: repoIsRepo },
     cache: {
       hits: cacheHits,
       misses: cacheMisses,

@@ -6,6 +6,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { createIndexState } from './state.js';
 import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
+import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { loadIndexArtifacts, readCompatibilityKeys } from './piece-assembly/load.js';
 import { mergeIndexInput } from './piece-assembly/merge.js';
 import {
@@ -35,6 +36,27 @@ export async function assembleIndexPieces({
   }
   const assembledStage = normalizeStage(stage);
   const state = createIndexState();
+  let repoProvenance = null;
+  try {
+    const scmConfig = resolveScmConfig({
+      indexingConfig: userConfig?.indexing || {},
+      analysisPolicy: userConfig?.analysisPolicy || null
+    });
+    const scmProviderSetting = scmConfig?.provider || 'auto';
+    const selection = getScmProviderAndRoot({ provider: scmProviderSetting, startPath: root, log });
+    const provenance = await selection.providerImpl.getRepoProvenance({
+      repoRoot: selection.repoRoot
+    });
+    repoProvenance = {
+      ...provenance,
+      provider: provenance?.provider || selection.provider,
+      root: provenance?.root || selection.repoRoot,
+      detectedBy: provenance?.detectedBy ?? selection.detectedBy
+    };
+  } catch (err) {
+    const message = err?.message || String(err);
+    log(`[scm] Failed to read repo provenance; continuing without repo metadata. (${message})`);
+  }
   const mergedTokenPostings = new Map();
   const mergedFieldPostings = new Map();
   const mergedFieldDocLengths = new Map();
@@ -299,7 +321,8 @@ export async function assembleIndexPieces({
     incrementalEnabled: false,
     fileCounts: { candidates: uniqueFiles.size },
     indexState: assembledIndexState,
-    graphRelations
+    graphRelations,
+    repoProvenance
   });
 
   log(`Assembled index from ${inputs.length} piece set(s) into ${outDir}.`);

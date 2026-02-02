@@ -1,7 +1,5 @@
-import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fdir } from 'fdir';
 import {
   EXTS_CODE,
@@ -28,6 +26,9 @@ export async function discoverFiles({
   mode,
   recordsDir = null,
   recordsConfig = null,
+  scmProvider = null,
+  scmProviderImpl = null,
+  scmRepoRoot = null,
   ignoreMatcher,
   skippedFiles,
   maxFileBytes = null,
@@ -40,6 +41,9 @@ export async function discoverFiles({
     root,
     recordsDir,
     recordsConfig,
+    scmProvider,
+    scmProviderImpl,
+    scmRepoRoot,
     ignoreMatcher,
     maxFileBytes,
     fileCaps,
@@ -61,6 +65,9 @@ export async function discoverFilesForModes({
   modes,
   recordsDir = null,
   recordsConfig = null,
+  scmProvider = null,
+  scmProviderImpl = null,
+  scmRepoRoot = null,
   ignoreMatcher,
   skippedByMode,
   maxFileBytes = null,
@@ -73,6 +80,9 @@ export async function discoverFilesForModes({
     root,
     recordsDir,
     recordsConfig,
+    scmProvider,
+    scmProviderImpl,
+    scmRepoRoot,
     ignoreMatcher,
     maxFileBytes,
     fileCaps,
@@ -93,6 +103,9 @@ export async function discoverEntries({
   root,
   recordsDir = null,
   recordsConfig = null,
+  scmProvider = null,
+  scmProviderImpl = null,
+  scmRepoRoot = null,
   ignoreMatcher,
   maxFileBytes = null,
   fileCaps = null,
@@ -132,37 +145,30 @@ export async function discoverEntries({
       || normalizedRecordsRoot.startsWith(`${normalizedRoot}${path.sep}`))
     ? normalizedRecordsRoot
     : null;
+  const normalizedRepoRoot = scmRepoRoot ? normalizeRoot(scmRepoRoot) : null;
+  const rootRel = normalizedRepoRoot
+    ? (normalizedRoot === normalizedRepoRoot
+      ? ''
+      : (normalizedRoot.startsWith(`${normalizedRepoRoot}${path.sep}`)
+        ? path.relative(scmRepoRoot, root)
+        : null))
+    : null;
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
-  const listGitFiles = () => {
+  const listScmFiles = async () => {
+    if (!scmProviderImpl || scmProvider === 'none') return null;
+    if (!scmRepoRoot || !normalizedRepoRoot) return null;
+    if (rootRel == null) return null;
+    if (typeof scmProviderImpl.listTrackedFiles !== 'function') return null;
     try {
-      const rootCheck = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-      if (rootCheck.status !== 0) return null;
-      const gitRoot = String(rootCheck.stdout || '').trim();
-      if (!gitRoot) return null;
-      const normalizedGitRoot = normalizeRoot(gitRoot);
-      const rootRel = normalizedRoot === normalizedGitRoot
-        ? ''
-        : (normalizedRoot.startsWith(`${normalizedGitRoot}${path.sep}`)
-          ? path.relative(gitRoot, root)
-          : null);
-      if (rootRel == null) return null;
-      const args = ['-C', gitRoot, 'ls-files', '-z'];
-      if (rootRel) args.push('--', rootRel);
-      const result = spawnSync('git', args, { encoding: 'utf8' });
-      if (result.status !== 0) return null;
-      const output = String(result.stdout || '');
-      if (!output) {
-        const rootIsGitRoot = normalizedRoot === normalizedGitRoot;
-        const hasGitDir = fsSync.existsSync(path.join(root, '.git'));
-        if (rootIsGitRoot || hasGitDir) {
-          return { gitRoot, files: [] };
-        }
-        return null;
-      }
-      return {
-        gitRoot,
-        files: output.split('\u0000').filter(Boolean)
-      };
+      const result = await scmProviderImpl.listTrackedFiles({
+        repoRoot: scmRepoRoot,
+        subdir: rootRel || null
+      });
+      const files = Array.isArray(result?.filesPosix)
+        ? result.filesPosix.filter(Boolean)
+        : null;
+      if (!files) return null;
+      return { repoRoot: scmRepoRoot, files };
     } catch {
       return null;
     }
@@ -173,9 +179,9 @@ export async function discoverEntries({
     return crawler.withPromise();
   };
 
-  const gitResult = listGitFiles();
-  const candidates = gitResult && Array.isArray(gitResult.files)
-    ? gitResult.files.map((rel) => path.join(gitResult.gitRoot || root, rel))
+  const scmResult = await listScmFiles();
+  const candidates = scmResult && Array.isArray(scmResult.files)
+    ? scmResult.files.map((rel) => path.join(scmResult.repoRoot || root, rel))
     : await listFdirFiles();
 
   const entries = [];

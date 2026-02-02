@@ -753,6 +753,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     scmConfig,
     scmProvider: scmSelection.provider,
     scmRepoRoot: scmSelection.repoRoot,
+    scmProviderImpl: scmSelection.providerImpl,
     toolInfo: {
       tool: 'pairofcleats',
       version: toolVersion,

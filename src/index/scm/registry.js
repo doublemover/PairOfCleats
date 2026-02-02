@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { assertScmProvider, normalizeProviderName } from './provider.js';
@@ -13,11 +12,6 @@ const PROVIDER_REGISTRY = Object.freeze({
   none: assertScmProvider(noneProvider)
 });
 
-const SCM_MARKERS = {
-  git: '.git',
-  jj: '.jj'
-};
-
 const canRun = (cmd, args = ['--version']) => {
   try {
     const result = spawnSync(cmd, args, { encoding: 'utf8' });
@@ -27,15 +21,12 @@ const canRun = (cmd, args = ['--version']) => {
   }
 };
 
-const findMarkerRoot = (startPath, marker) => {
-  let current = path.resolve(startPath);
-  while (true) {
-    const markerPath = path.join(current, marker);
-    if (fs.existsSync(markerPath)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
+const detectProviderRoot = (providerImpl, startPath) => {
+  if (!providerImpl?.detect) return null;
+  try {
+    const result = providerImpl.detect({ startPath });
+    if (result && result.ok && result.repoRoot) return result;
+  } catch {}
   return null;
 };
 
@@ -69,8 +60,10 @@ export const resolveScmProvider = ({ provider, startPath, log } = {}) => {
   const requested = normalized || 'auto';
   const repoRoot = path.resolve(startPath || process.cwd());
   const warn = typeof log === 'function' ? log : null;
-  const gitRoot = findMarkerRoot(repoRoot, SCM_MARKERS.git);
-  const jjRoot = findMarkerRoot(repoRoot, SCM_MARKERS.jj);
+  const gitDetected = detectProviderRoot(PROVIDER_REGISTRY.git, repoRoot);
+  const jjDetected = detectProviderRoot(PROVIDER_REGISTRY.jj, repoRoot);
+  const gitRoot = gitDetected?.repoRoot || null;
+  const jjRoot = jjDetected?.repoRoot || null;
 
   if (requested === 'none') {
     return { provider: 'none', repoRoot, detectedBy: 'none' };
@@ -79,13 +72,21 @@ export const resolveScmProvider = ({ provider, startPath, log } = {}) => {
   if (requested === 'git') {
     if (!gitRoot) throw new Error('SCM provider git requested but no .git directory was found.');
     if (!canRun('git')) throw new Error('SCM provider git requested but git is unavailable.');
-    return { provider: 'git', repoRoot: gitRoot, detectedBy: 'git-root' };
+    return {
+      provider: 'git',
+      repoRoot: gitRoot,
+      detectedBy: gitDetected?.detectedBy || 'git-root'
+    };
   }
 
   if (requested === 'jj') {
     if (!jjRoot) throw new Error('SCM provider jj requested but no .jj directory was found.');
     if (!canRun('jj')) throw new Error('SCM provider jj requested but jj is unavailable.');
-    return { provider: 'jj', repoRoot: jjRoot, detectedBy: 'jj-root' };
+    return {
+      provider: 'jj',
+      repoRoot: jjRoot,
+      detectedBy: jjDetected?.detectedBy || 'jj-root'
+    };
   }
 
   if (gitRoot && jjRoot) {
@@ -94,14 +95,22 @@ export const resolveScmProvider = ({ provider, startPath, log } = {}) => {
 
   if (gitRoot) {
     if (canRun('git')) {
-      return { provider: 'git', repoRoot: gitRoot, detectedBy: 'git-root' };
+      return {
+        provider: 'git',
+        repoRoot: gitRoot,
+        detectedBy: gitDetected?.detectedBy || 'git-root'
+      };
     }
     if (warn) warn('[scm] Git repo detected but git is unavailable; falling back to provider=none.');
   }
 
   if (jjRoot) {
     if (canRun('jj')) {
-      return { provider: 'jj', repoRoot: jjRoot, detectedBy: 'jj-root' };
+      return {
+        provider: 'jj',
+        repoRoot: jjRoot,
+        detectedBy: jjDetected?.detectedBy || 'jj-root'
+      };
     }
     if (warn) warn('[scm] JJ repo detected but jj is unavailable; falling back to provider=none.');
   }

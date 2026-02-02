@@ -58,7 +58,8 @@ export async function writeIndexArtifacts(input) {
     perfProfile,
     indexState,
     graphRelations,
-    riskInterproceduralEmitArtifacts = null
+    riskInterproceduralEmitArtifacts = null,
+    repoProvenance = null
   } = input;
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
@@ -598,6 +599,7 @@ export async function writeIndexArtifacts(input) {
     compressionEnabled,
     compressionMode,
     compressionKeepRaw,
-    documentExtractionEnabled
+    documentExtractionEnabled,
+    repoProvenance
   });
 }

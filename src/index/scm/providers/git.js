@@ -45,7 +45,8 @@ export const gitProvider = {
     }
     const entries = ensurePosixList(parseNullSeparated(result.stdout))
       .map((entry) => toRepoPosixPath(entry, repoRoot))
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return { filesPosix: entries };
   },
   async getRepoProvenance({ repoRoot }) {
@@ -88,7 +89,8 @@ export const gitProvider = {
     }
     const entries = ensurePosixList(parseLines(result.stdout))
       .map((entry) => toRepoPosixPath(entry, repoRoot))
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return { filesPosix: entries };
   },
   async getFileMeta({ repoRoot, filePosix }) {

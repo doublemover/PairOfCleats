@@ -236,21 +236,21 @@ Touchpoints (anchors; approximate):
 
 ### Phase 13.2 — Migrate Git onto the provider interface
 
-- [ ] Implement `GitProvider` by **wrapping and consolidating** existing Git logic:
-  - [ ] Move/merge logic from:
-    - [ ] `src/index/git.js` (provenance + meta helpers)
-    - [ ] `src/index/build/discover.js` (`git ls-files` discovery)
-  - [ ] Ensure there is exactly one “source of truth” for:
-    - [ ] repo root resolution
-    - [ ] tracked file enumeration (`git ls-files -z`)
-    - [ ] dirty check
-    - [ ] head SHA + branch name
+- [x] Implement `GitProvider` by **wrapping and consolidating** existing Git logic:
+  - [x] Move/merge logic from:
+    - [x] `src/index/git.js` (provenance + meta helpers)
+    - [x] `src/index/build/discover.js` (`git ls-files` discovery)
+  - [x] Ensure there is exactly one “source of truth” for:
+    - [x] repo root resolution
+    - [x] tracked file enumeration (`git ls-files -z`)
+    - [x] dirty check
+    - [x] head SHA + branch name
 
-- [ ] Remove direct Git shelling from non-provider modules:
-  - [ ] `src/index/build/discover.js` should call `ScmProvider.listTrackedFiles()` when an SCM provider is active, else use filesystem crawl (current behavior).
-  - [ ] Any provenance used for metrics/signatures must route through `ScmProvider.getRepoProvenance()`.
-  - [ ] Git metadata in file processing must use provider APIs (no direct `getGitMetaForFile` in CPU path).
-  - [ ] Chunk author attribution must use provider annotate (or explicit disable path when annotate is off).
+- [x] Remove direct Git shelling from non-provider modules:
+  - [x] `src/index/build/discover.js` should call `ScmProvider.listTrackedFiles()` when an SCM provider is active, else use filesystem crawl (current behavior).
+  - [x] Any provenance used for metrics/signatures must route through `ScmProvider.getRepoProvenance()`.
+  - [x] Git metadata in file processing must use provider APIs (no direct `getGitMetaForFile` in CPU path).
+  - [x] Chunk author attribution must use provider annotate (or explicit disable path when annotate is off).
 
 Touchpoints:
 - `src/index/build/discover.js`
@@ -279,8 +279,8 @@ Touchpoints (anchors; approximate):
 #### Tests / verification (path-corrected for current test layout)
 - [ ] `tests/indexing/scm/index-build-git-provider.test.js` (new)
   - [ ] Build index inside a git repo and assert:
-    - [ ] `build_state.json.repo.provider === "git"`
-    - [ ] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
+    - [x] `build_state.json.repo.provider === "git"`
+    - [x] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
   - [ ] annotate metadata is present only when enabled; otherwise explicitly absent with a reason
   - [ ] uses mockable SCM runner for unit coverage of git parsing without requiring git
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T04:38:50.895Z",
+  "generatedAt": "2026-02-02T06:26:35.138Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -120,6 +120,14 @@
       "indexing.riskInterprocedural.sanitizerPolicy",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
+      "indexing.scm.annotate.enabled",
+      "indexing.scm.annotate.maxFileSizeBytes",
+      "indexing.scm.annotate.timeoutMs",
+      "indexing.scm.churnWindowCommits",
+      "indexing.scm.jj.snapshotWorkingCopy",
+      "indexing.scm.maxConcurrentProcesses",
+      "indexing.scm.provider",
+      "indexing.scm.timeoutMs",
       "mcp.maxBufferBytes",
       "mcp.mode",
       "mcp.queueMax",
@@ -220,8 +228,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 169,
-    "leafKeys": 133,
+    "totalKeys": 180,
+    "leafKeys": 141,
     "topLevel": [
       {
         "key": "cache",
@@ -229,7 +237,7 @@
       },
       {
         "key": "indexing",
-        "count": 54
+        "count": 65
       },
       {
         "key": "mcp",
@@ -550,6 +558,66 @@
     {
       "path": "indexing.riskInterprocedural.summaryOnly",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.annotate",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.annotate.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.annotate.maxFileSizeBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.annotate.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.churnWindowCommits",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.jj",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.jj.snapshotWorkingCopy",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.maxConcurrentProcesses",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scm.provider",
+      "type": "string",
+      "enum": [
+        "auto",
+        "git",
+        "jj",
+        "none"
+      ]
+    },
+    {
+      "path": "indexing.scm.timeoutMs",
+      "type": "number",
       "enum": null
     },
     {

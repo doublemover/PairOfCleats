@@ -1,6 +1,7 @@
 import { assignSegmentUids, chunkSegments, discoverSegments } from '../../segments.js';
 import { getLanguageForFile } from '../../language-registry.js';
-import { getGitMetaForFile } from '../../git.js';
+import { toRepoPosixPath } from '../../scm/paths.js';
+import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
 import {
   resolveTreeSitterLanguagesForSegments
@@ -36,6 +37,10 @@ export const processFileCpu = async (context) => {
     fileHashAlgo,
     fileCaps,
     fileStructural,
+    scmProvider,
+    scmProviderImpl,
+    scmRepoRoot,
+    scmConfig,
     languageOptions,
     astDataflowEnabled,
     controlFlowEnabled,
@@ -275,19 +280,69 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
-  updateCrashStage('git-meta', { blame: resolvedGitBlameEnabled });
-  const gitStart = Date.now();
-  const resolvedGitMeta = await runIo(() => getGitMetaForFile(relKey, {
-    blame: resolvedGitBlameEnabled,
-    baseDir: root
-  }));
-  setGitDuration(Date.now() - gitStart);
-  const lineAuthors = Array.isArray(resolvedGitMeta?.lineAuthors)
-    ? resolvedGitMeta.lineAuthors
+  updateCrashStage('scm-meta', { blame: resolvedGitBlameEnabled });
+  const scmStart = Date.now();
+  let lineAuthors = null;
+  let fileGitMeta = {};
+  const scmActive = scmProviderImpl && scmProvider && scmProvider !== 'none';
+  const filePosix = scmActive && scmRepoRoot
+    ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
-  const fileGitMeta = resolvedGitMeta && typeof resolvedGitMeta === 'object'
-    ? Object.fromEntries(Object.entries(resolvedGitMeta).filter(([key]) => key !== 'lineAuthors'))
-    : {};
+  if (scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
+    const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
+      repoRoot: scmRepoRoot,
+      filePosix
+    }));
+    if (fileMeta && fileMeta.ok !== false) {
+      fileGitMeta = {
+        last_modified: fileMeta.lastModifiedAt ?? null,
+        last_author: fileMeta.lastAuthor ?? null,
+        churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
+        churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
+        churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
+        churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
+      };
+    }
+  }
+  if (scmActive && filePosix && resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
+    const annotateConfig = scmConfig?.annotate || {};
+    const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
+    const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
+      ? Math.max(0, maxAnnotateBytesRaw)
+      : null;
+    const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
+    const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
+    const annotateTimeoutMs = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0
+      ? annotateTimeoutRaw
+      : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
+    const withinAnnotateCap = maxAnnotateBytes == null
+      || (fileStat?.size ?? 0) <= maxAnnotateBytes;
+    if (withinAnnotateCap) {
+      const annotateWithTimeout = async () => {
+        const timeoutMs = Math.max(0, annotateTimeoutMs);
+        let timeoutId = null;
+        const timeoutPromise = new Promise((resolve) => {
+          timeoutId = setTimeout(() => resolve({ ok: false, reason: 'timeout' }), timeoutMs);
+        });
+        try {
+          const result = await Promise.race([
+            Promise.resolve(scmProviderImpl.annotate({
+              repoRoot: scmRepoRoot,
+              filePosix,
+              timeoutMs
+            })).catch(() => ({ ok: false, reason: 'unavailable' })),
+            timeoutPromise
+          ]);
+          return result;
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      };
+      const annotateResult = await runIo(() => annotateWithTimeout());
+      lineAuthors = buildLineAuthors(annotateResult);
+    }
+  }
+  setGitDuration(Date.now() - scmStart);
   const parseStart = Date.now();
   let commentEntries = [];
   let commentRanges = [];
