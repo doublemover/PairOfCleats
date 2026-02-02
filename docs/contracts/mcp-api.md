@@ -72,10 +72,17 @@ Response:
 ## MCP server
 
 ### Transport
-- JSON-RPC 2.0 with `Content-Length` framing over stdio.
+- JSON-RPC 2.0 over stdio.
+- **Modes**:
+  - `legacy`: Content-Length framing (current default).
+  - `sdk`: Official MCP SDK transport (newline-delimited JSON).
+  - `auto`: selects `sdk` when available, otherwise `legacy`.
+- Mode selection (precedence): `--mcp-mode` CLI → `MCP_MODE`/`PAIROFCLEATS_MCP_MODE` env (exception) → `mcp.mode` config.
 - `initialize` must return server info and capabilities.
 - `$/cancelRequest` aborts in-flight tool calls (including id `0`).
 - Tool errors return `isError: true` with a JSON payload in `content`.
+
+**Cutover policy:** legacy transport remains supported until SDK parity tests are green; there must be no silent fallback from `sdk` to `legacy` when SDK mode is explicitly requested.
 
 ### Existing tools
 - `tools/list` includes `index_status`, `config_status`, `search`, and maintenance tools.

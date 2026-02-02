@@ -123,21 +123,21 @@ Touchpoints (anchors; approximate):
 
 ### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
 
-- [ ] Implement an SDK-backed server alongside the legacy transport.
+- [@] Implement an SDK-backed server alongside the legacy transport.
   - Touchpoints:
-    - [ ] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
-    - [ ] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
-      - [ ] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
-  - [ ] Requirements for SDK server:
-    - [ ] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
-    - [ ] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
-    - [ ] Support stdio transport as the baseline.
+    - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
+    - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+      - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
+  - [@] Requirements for SDK server:
+    - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
+    - [x] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
+    - [x] Support stdio transport as the baseline.
     - [ ] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
       - [ ] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
 
-- [ ] Add a deprecation window for the legacy transport.
-  - [ ] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
-  - [ ] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
+- [x] Add a deprecation window for the legacy transport.
+  - [x] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
+  - [x] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
 
 Touchpoints (anchors; approximate):
 - `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)

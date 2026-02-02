@@ -1,61 +1,60 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
-import { getToolDefs } from '../src/integrations/mcp/defs.js';
-import { getEnvConfig } from '../src/shared/env.js';
-import { DEFAULT_MODEL_ID, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
-import { parseTimeoutMs, resolveToolTimeoutMs } from './mcp/repo.js';
+import { createCli } from '../src/shared/cli.js';
+import { getCapabilities } from '../src/shared/capabilities.js';
+import { getMcpServerConfig } from './mcp/server-config.js';
 import { handleToolCall } from './mcp/tools.js';
 import { createMcpTransport } from './mcp/transport.js';
 
-const toolRoot = resolveToolRoot();
-const PKG = JSON.parse(fs.readFileSync(path.join(toolRoot, 'package.json'), 'utf8'));
+const argv = createCli({
+  scriptName: 'mcp-server',
+  options: {
+    'mcp-mode': { type: 'string' },
+    repo: { type: 'string' }
+  },
+  aliases: {
+    'mcp-mode': ['mcpMode']
+  }
+}).parse();
 
-const TOOL_DEFS = getToolDefs(DEFAULT_MODEL_ID);
+const { toolDefs, serverInfo, queueMax, maxBufferBytes, resolveToolTimeoutMs, userConfig, envConfig } =
+  getMcpServerConfig(argv.repo ? path.resolve(argv.repo) : null);
+const capabilities = getCapabilities();
+const normalizeMode = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
+const cliMode = normalizeMode(argv['mcp-mode']);
+const envMode = normalizeMode(envConfig.mcpMode);
+const configMode = normalizeMode(userConfig?.mcp?.mode);
+const requestedMode = cliMode || envMode || configMode || 'legacy';
+if (!['legacy', 'sdk', 'auto'].includes(requestedMode)) {
+  console.error(`[mcp] Invalid MCP mode: ${requestedMode}`);
+  process.exit(1);
+}
+const resolvedMode = requestedMode === 'auto'
+  ? (capabilities.mcp.sdk ? 'sdk' : 'legacy')
+  : requestedMode;
 
-const DEFAULT_MCP_QUEUE_MAX = 64;
-const DEFAULT_MCP_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
-const DEFAULT_TOOL_TIMEOUT_MS = 120000;
-const DEFAULT_TOOL_TIMEOUTS = {
-  build_index: 10 * 60 * 1000,
-  build_sqlite_index: 10 * 60 * 1000,
-  download_models: 10 * 60 * 1000,
-  download_dictionaries: 10 * 60 * 1000,
-  download_extensions: 10 * 60 * 1000,
-  bootstrap: 10 * 60 * 1000,
-  triage_ingest: 5 * 60 * 1000
-};
+if (resolvedMode === 'sdk') {
+  if (!capabilities.mcp.sdk) {
+    console.error('[mcp] MCP SDK mode requested but @modelcontextprotocol/sdk is not available.');
+    process.exit(1);
+  }
+  const { startMcpSdkServer } = await import('./mcp-server-sdk.js');
+  await startMcpSdkServer({
+    toolDefs,
+    serverInfo,
+    resolveToolTimeoutMs,
+    queueMax,
+    maxBufferBytes
+  });
+} else {
+  const transport = createMcpTransport({
+    toolDefs,
+    serverInfo,
+    handleToolCall,
+    resolveToolTimeoutMs,
+    queueMax,
+    maxBufferBytes
+  });
 
-const baseConfigRoot = resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(baseConfigRoot);
-const mcpConfig = userConfig?.mcp && typeof userConfig.mcp === 'object' ? userConfig.mcp : {};
-const parseIntEnv = (value) => {
-  if (value == null || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
-};
-const envConfig = getEnvConfig();
-const envQueueMax = parseIntEnv(envConfig.mcpQueueMax);
-const envMaxBuffer = parseIntEnv(envConfig.mcpMaxBufferBytes);
-const envToolTimeoutMs = parseTimeoutMs(envConfig.mcpToolTimeoutMs);
-const configQueueMax = parseIntEnv(mcpConfig.queueMax);
-const configMaxBuffer = parseIntEnv(mcpConfig.maxBufferBytes);
-const queueMax = envQueueMax ?? configQueueMax ?? DEFAULT_MCP_QUEUE_MAX;
-const maxBufferBytes = envMaxBuffer ?? configMaxBuffer ?? DEFAULT_MCP_MAX_BUFFER_BYTES;
-
-const resolveTimeout = (name, args) => resolveToolTimeoutMs(name, args, {
-  envToolTimeoutMs,
-  defaultToolTimeoutMs: DEFAULT_TOOL_TIMEOUT_MS,
-  defaultToolTimeouts: DEFAULT_TOOL_TIMEOUTS
-});
-
-const transport = createMcpTransport({
-  toolDefs: TOOL_DEFS,
-  serverInfo: { name: 'PairOfCleats', version: PKG.version },
-  handleToolCall,
-  resolveToolTimeoutMs: resolveTimeout,
-  queueMax,
-  maxBufferBytes
-});
-
-transport.start();
+  transport.start();
+}
