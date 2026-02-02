@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
 const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-errors');
@@ -34,6 +35,9 @@ try {
     throw new Error('index_status missing repo should return isError');
   }
   const invalidPayload = JSON.parse(invalidRepo.result?.content?.[0]?.text || '{}');
+  if (invalidPayload.code !== ERROR_CODES.INVALID_REQUEST) {
+    throw new Error('index_status missing repo should return INVALID_REQUEST');
+  }
   if (!invalidPayload.message?.includes('Repo path not found')) {
     throw new Error('index_status missing repo error payload missing message');
   }
@@ -53,6 +57,10 @@ try {
     throw new Error('search without indexes should return isError');
   }
   const missingPayload = JSON.parse(missingIndex.result?.content?.[0]?.text || '{}');
+  if (missingPayload.code !== ERROR_CODES.NO_INDEX) {
+    console.error('missing index payload:', JSON.stringify(missingPayload, null, 2));
+    throw new Error('search missing index should return NO_INDEX');
+  }
   if (!missingPayload.message?.toLowerCase().includes('index')) {
     console.error('missing index payload:', JSON.stringify(missingPayload, null, 2));
     throw new Error('search missing index error payload missing message');

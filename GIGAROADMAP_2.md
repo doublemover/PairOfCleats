@@ -123,17 +123,17 @@ Touchpoints (anchors; approximate):
 
 ### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
 
-- [@] Implement an SDK-backed server alongside the legacy transport.
+- [x] Implement an SDK-backed server alongside the legacy transport.
   - Touchpoints:
     - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
     - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
       - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
-  - [@] Requirements for SDK server:
+  - [x] Requirements for SDK server:
     - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
     - [x] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
     - [x] Support stdio transport as the baseline.
-    - [ ] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
-      - [ ] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
+    - [x] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
+      - [x] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
 
 - [x] Add a deprecation window for the legacy transport.
   - [x] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
@@ -211,33 +211,33 @@ Touchpoints (anchors; approximate):
 
 ### 12.4 Error codes, protocol negotiation, and response-shape consistency
 
-- [ ] Standardize tool error payloads and map internal errors to stable MCP error codes.
+- [x] Standardize tool error payloads and map internal errors to stable MCP error codes.
   - Touchpoints:
-    - [ ] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
-    - [ ] `tools/mcp/transport.js` — legacy transport handler
-    - [ ] `tools/mcp-server-sdk.js` — SDK error mapping
-    - [ ] `src/shared/error-codes.js` — canonical internal codes
-  - [ ] Define stable, client-facing codes (examples):
-    - [ ] invalid args
-    - [ ] index missing
-    - [ ] tool timeout
-    - [ ] not supported / capability missing
-    - [ ] cancelled
-  - [ ] Add `docs/contracts/mcp-error-codes.md` (or a section in `docs/contracts/mcp-api.md`) defining the canonical MCP error registry.
-  - [ ] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
+    - [x] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
+    - [x] `tools/mcp/transport.js` — legacy transport handler
+    - [x] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [x] `src/shared/error-codes.js` — canonical internal codes
+  - [x] Define stable, client-facing codes (examples):
+    - [x] invalid args
+    - [x] index missing
+    - [x] tool timeout
+    - [x] not supported / capability missing
+    - [x] cancelled
+  - [x] Add `docs/contracts/mcp-error-codes.md` (or a section in `docs/contracts/mcp-api.md`) defining the canonical MCP error registry.
+  - [x] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
 
-- [ ] Implement protocol/version negotiation and expose capabilities.
-  - [ ] On `initialize`, echo supported protocol versions, the tool schema version, toolVersion, and effective capabilities.
-  - [ ] Define the authoritative initialize response builder in `src/integrations/mcp/protocol.js`.
-  - [ ] Define a capabilities schema (or a section in `docs/contracts/mcp-api.md`) with required keys and value semantics.
+- [x] Implement protocol/version negotiation and expose capabilities.
+  - [x] On `initialize`, echo supported protocol versions, the tool schema version, toolVersion, and effective capabilities.
+  - [x] Define the authoritative initialize response builder in `src/integrations/mcp/protocol.js`.
+  - [x] Define a capabilities schema (or a section in `docs/contracts/mcp-api.md`) with required keys and value semantics.
 
 #### Tests / Verification
 
-- [ ] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
-- [ ] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
-  - [ ] Add `mcp-mode` selection test (legacy vs sdk) based on CLI/config/env.
-  - [ ] Add capability payload test for both transports (initialize contains capabilities).
-  - [ ] Align test path references with `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` (services lane vs `tests/mcp/*`).
+- [x] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
+- [.] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
+  - [.] Add `mcp-mode` selection test (legacy vs sdk) based on CLI/config/env.
+  - [.] Add capability payload test for both transports (initialize contains capabilities).
+  - [x] Align test path references with `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` (services lane vs `tests/mcp/*`).
 
 Touchpoints (anchors; approximate):
 - `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)

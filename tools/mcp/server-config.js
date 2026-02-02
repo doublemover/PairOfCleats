@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getToolDefs } from '../../src/integrations/mcp/defs.js';
+import { getToolCatalog } from '../../src/integrations/mcp/defs.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import {
   DEFAULT_MODEL_ID,
@@ -52,8 +52,11 @@ export function getMcpServerConfig(repoPath = null) {
     defaultToolTimeouts: DEFAULT_TOOL_TIMEOUTS
   });
 
+  const toolCatalog = getToolCatalog(DEFAULT_MODEL_ID);
   return {
-    toolDefs: getToolDefs(DEFAULT_MODEL_ID),
+    toolDefs: toolCatalog.tools,
+    schemaVersion: toolCatalog.schemaVersion,
+    toolVersion: toolCatalog.toolVersion,
     serverInfo: { name: 'PairOfCleats', version: pkg.version },
     userConfig,
     envConfig,

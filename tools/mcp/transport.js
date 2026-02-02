@@ -1,65 +1,15 @@
 import { createFramedJsonRpcParser } from '../../src/shared/jsonrpc.js';
-import { closeOutput, sendError, sendNotification, sendResult } from '../../src/integrations/mcp/protocol.js';
+import {
+  buildInitializeResult,
+  closeOutput,
+  formatToolError,
+  sendError,
+  sendNotification,
+  sendResult
+} from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { logError } from '../../src/shared/progress.js';
 import { withTimeout } from './runner.js';
-
-/**
- * Format error payloads for tool responses.
- * @param {any} error
- * @returns {{message:string,code?:number,stderr?:string,stdout?:string}} 
- */
-function getRemediationHint(error) {
-  const parts = [error?.message, error?.stderr, error?.stdout]
-    .filter(Boolean)
-    .join('\n')
-    .toLowerCase();
-  if (!parts) return null;
-
-  if (parts.includes('sqlite backend requested but index not found')
-    || parts.includes('missing required tables')) {
-    return 'Run `node tools/build-sqlite-index.js` or set sqlite.use=false / --backend memory.';
-  }
-  if (parts.includes('better-sqlite3 is required')) {
-    return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
-  }
-  if (parts.includes('chunk_meta.json')
-    || parts.includes('minhash_signatures')
-    || parts.includes('index not found')
-    || parts.includes('build-index')
-    || parts.includes('build index')) {
-    return 'Run `pairofcleats index build` (build-index) or `pairofcleats setup`/`pairofcleats bootstrap` to generate indexes.';
-  }
-  if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
-    && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `node tools/download-models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
-  }
-  if (parts.includes('dictionary')
-    || parts.includes('wordlist')
-    || parts.includes('words_alpha')
-    || parts.includes('download-dicts')) {
-    return 'Run `node tools/download-dicts.js --lang en` (or configure dictionary.files/languages).';
-  }
-  return null;
-}
-
-/**
- * Format error payloads for tool responses.
- * @param {any} error
- * @returns {{message:string,code?:number,stderr?:string,stdout?:string,hint?:string}}
- */
-function formatToolError(error) {
-  const payload = {
-    message: error?.message || String(error)
-  };
-  if (error?.code !== undefined) payload.code = error.code;
-  if (error?.stderr) payload.stderr = String(error.stderr).trim();
-  if (error?.stdout) payload.stdout = String(error.stdout).trim();
-  if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
-  const hint = getRemediationHint(error);
-  if (hint) payload.hint = hint;
-  return payload;
-}
 
 /**
  * Emit a progress notification for long-running tools.
@@ -83,16 +33,27 @@ function sendProgress(id, tool, payload) {
 
 /**
  * Start the MCP stdio transport.
- * @param {{toolDefs:any,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number}} config
+ * @param {{toolDefs:any,schemaVersion?:string,toolVersion?:string,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number,capabilities?:object}} config
  */
-export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resolveToolTimeoutMs, queueMax, maxBufferBytes }) => {
+export const createMcpTransport = ({
+  toolDefs,
+  schemaVersion,
+  toolVersion,
+  serverInfo,
+  handleToolCall,
+  resolveToolTimeoutMs,
+  queueMax,
+  maxBufferBytes,
+  capabilities
+}) => {
   let processing = false;
   const queue = [];
   const inFlight = new Map();
 
   const sendCancelledResponse = (id) => {
+    const payload = formatToolError({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' });
     sendResult(id, {
-      content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' }, null, 2) }],
+      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       isError: true
     });
   };
@@ -119,14 +80,12 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
     const { id, method, params } = message;
 
     if (method === 'initialize') {
-      sendResult(id, {
-        protocolVersion: '2024-11-05',
+      sendResult(id, buildInitializeResult({
         serverInfo,
-        capabilities: {
-          tools: { listChanged: false },
-          resources: { listChanged: false }
-        }
-      });
+        schemaVersion,
+        toolVersion,
+        capabilities
+      }));
       return;
     }
 
@@ -208,7 +167,7 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
     }
 
     if (id !== null && id !== undefined) {
-      sendError(id, -32601, `Method not found: ${method}`);
+      sendError(id, -32601, `Method not found: ${method}`, undefined, { code: ERROR_CODES.NOT_FOUND });
     }
   }
 

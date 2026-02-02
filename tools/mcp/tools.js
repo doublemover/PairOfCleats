@@ -5,6 +5,7 @@ import { downloadDictionaries, downloadExtensions, downloadModels, verifyExtensi
 import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handlers/indexing.js';
 import { runSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
+import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { normalizeMetaFilters } from './tools/helpers.js';
 
 /**
@@ -61,7 +62,7 @@ export const TOOL_HANDLERS = new Map([
 export async function handleToolCall(name, args, context = {}) {
   const handler = TOOL_HANDLERS.get(name);
   if (!handler) {
-    throw new Error(`Unknown tool: ${name}`);
+    throw createError(ERROR_CODES.NOT_FOUND, `Unknown tool: ${name}`);
   }
   return await handler(args, context);
 }

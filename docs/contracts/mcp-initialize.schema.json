@@ -3,7 +3,7 @@
   "title": "MCP initialize response",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocolVersion", "serverInfo", "capabilities"],
+  "required": ["protocolVersion", "serverInfo", "capabilities", "schemaVersion", "toolVersion"],
   "properties": {
     "protocolVersion": { "type": "string" },
     "serverInfo": {

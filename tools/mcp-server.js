@@ -17,7 +17,7 @@ const argv = createCli({
   }
 }).parse();
 
-const { toolDefs, serverInfo, queueMax, maxBufferBytes, resolveToolTimeoutMs, userConfig, envConfig } =
+const { toolDefs, schemaVersion, toolVersion, serverInfo, queueMax, maxBufferBytes, resolveToolTimeoutMs, userConfig, envConfig } =
   getMcpServerConfig(argv.repo ? path.resolve(argv.repo) : null);
 const capabilities = getCapabilities();
 const normalizeMode = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
@@ -41,19 +41,25 @@ if (resolvedMode === 'sdk') {
   const { startMcpSdkServer } = await import('./mcp-server-sdk.js');
   await startMcpSdkServer({
     toolDefs,
+    schemaVersion,
+    toolVersion,
     serverInfo,
     resolveToolTimeoutMs,
     queueMax,
-    maxBufferBytes
+    maxBufferBytes,
+    capabilities
   });
 } else {
   const transport = createMcpTransport({
     toolDefs,
+    schemaVersion,
+    toolVersion,
     serverInfo,
     handleToolCall,
     resolveToolTimeoutMs,
     queueMax,
-    maxBufferBytes
+    maxBufferBytes,
+    capabilities
   });
 
   transport.start();

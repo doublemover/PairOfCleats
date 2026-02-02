@@ -78,7 +78,7 @@ Response:
   - `sdk`: Official MCP SDK transport (newline-delimited JSON).
   - `auto`: selects `sdk` when available, otherwise `legacy`.
 - Mode selection (precedence): `--mcp-mode` CLI → `MCP_MODE`/`PAIROFCLEATS_MCP_MODE` env (exception) → `mcp.mode` config.
-- `initialize` must return server info and capabilities.
+- `initialize` must return server info, capabilities, and tool schema versions.
 - `$/cancelRequest` aborts in-flight tool calls (including id `0`).
 - Tool errors return `isError: true` with a JSON payload in `content`.
 
@@ -95,8 +95,14 @@ Response:
 
 ### Initialize response shape
 - `initialize` returns an object that must validate against `docs/contracts/mcp-initialize.schema.json`.
-- Required keys: `protocolVersion`, `serverInfo`, `capabilities`.
-- Optional keys (to be required once implemented): `schemaVersion`, `toolVersion`.
+- Required keys: `protocolVersion`, `serverInfo`, `capabilities`, `schemaVersion`, `toolVersion`.
+- Capabilities are reported under `capabilities.experimental.pairofcleats`, with the effective
+  `schemaVersion`, `toolVersion`, and server capability flags.
+
+### Error codes
+- Tool error payloads MUST include a stable `code` and `message`.
+- Protocol-level JSON-RPC errors MUST include `error.data.code` with the same canonical codes.
+- Canonical registry: `docs/contracts/mcp-error-codes.md`.
 
 ### Phase 11 tools (recommended)
 If Phase 11 is exposed via MCP, `tools/list` SHOULD include tools matching HTTP endpoints:

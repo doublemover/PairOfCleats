@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
 import PQueue from 'p-queue';
-import { tryImport } from '../src/shared/optional-deps.js';
+import { buildInitializeResult, formatToolError } from '../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../src/shared/error-codes.js';
 import { getCapabilities } from '../src/shared/capabilities.js';
+import { tryImport } from '../src/shared/optional-deps.js';
 import { withTimeout } from './mcp/runner.js';
 import { handleToolCall } from './mcp/tools.js';
 import { getMcpServerConfig } from './mcp/server-config.js';
@@ -43,6 +44,7 @@ const resolveSdkModules = async () => {
   }
   const CallToolRequestSchema = typesMod?.CallToolRequestSchema;
   const ListToolsRequestSchema = typesMod?.ListToolsRequestSchema;
+  const InitializeRequestSchema = typesMod?.InitializeRequestSchema;
   if (!CallToolRequestSchema || !ListToolsRequestSchema) {
     throw new Error('MCP SDK request schema exports not found.');
   }
@@ -50,55 +52,9 @@ const resolveSdkModules = async () => {
     Server,
     StdioServerTransport,
     CallToolRequestSchema,
-    ListToolsRequestSchema
+    ListToolsRequestSchema,
+    InitializeRequestSchema
   };
-};
-
-const getRemediationHint = (error) => {
-  const parts = [error?.message, error?.stderr, error?.stdout]
-    .filter(Boolean)
-    .join('\n')
-    .toLowerCase();
-  if (!parts) return null;
-
-  if (parts.includes('sqlite backend requested but index not found')
-    || parts.includes('missing required tables')) {
-    return 'Run `node tools/build-sqlite-index.js` or set sqlite.use=false / --backend memory.';
-  }
-  if (parts.includes('better-sqlite3 is required')) {
-    return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
-  }
-  if (parts.includes('chunk_meta.json')
-    || parts.includes('minhash_signatures')
-    || parts.includes('index not found')
-    || parts.includes('build-index')
-    || parts.includes('build index')) {
-    return 'Run `pairofcleats index build` (build-index) or `pairofcleats setup`/`pairofcleats bootstrap` to generate indexes.';
-  }
-  if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
-    && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `node tools/download-models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
-  }
-  if (parts.includes('dictionary')
-    || parts.includes('wordlist')
-    || parts.includes('words_alpha')
-    || parts.includes('download-dicts')) {
-    return 'Run `node tools/download-dicts.js --lang en` (or configure dictionary.files/languages).';
-  }
-  return null;
-};
-
-const formatToolError = (error) => {
-  const payload = {
-    message: error?.message || String(error)
-  };
-  if (error?.code !== undefined) payload.code = error.code;
-  if (error?.stderr) payload.stderr = String(error.stderr).trim();
-  if (error?.stdout) payload.stdout = String(error.stdout).trim();
-  if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
-  const hint = getRemediationHint(error);
-  if (hint) payload.hint = hint;
-  return payload;
 };
 
 const buildProgressSender = (server, token, tool) => {
@@ -130,23 +86,46 @@ const buildProgressSender = (server, token, tool) => {
 
 export async function startMcpSdkServer({
   toolDefs,
+  schemaVersion,
+  toolVersion,
   serverInfo,
   resolveToolTimeoutMs,
-  queueMax
+  queueMax,
+  capabilities
 }) {
   const {
     Server,
     StdioServerTransport,
     CallToolRequestSchema,
-    ListToolsRequestSchema
+    ListToolsRequestSchema,
+    InitializeRequestSchema
   } = await resolveSdkModules();
   const queue = new PQueue({ concurrency: 1 });
+  const baseCapabilities = {
+    tools: { listChanged: false },
+    resources: { listChanged: false }
+  };
+  if (capabilities && typeof capabilities === 'object') {
+    baseCapabilities.experimental = {
+      pairofcleats: {
+        schemaVersion: schemaVersion || null,
+        toolVersion: toolVersion || null,
+        capabilities
+      }
+    };
+  }
   const server = new Server(serverInfo, {
-    capabilities: {
-      tools: { listChanged: false },
-      resources: { listChanged: false }
-    }
+    capabilities: baseCapabilities
   });
+
+  if (InitializeRequestSchema) {
+    server.setRequestHandler(InitializeRequestSchema, async () => buildInitializeResult({
+      serverInfo,
+      schemaVersion,
+      toolVersion,
+      capabilities
+    }));
+  }
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolDefs }));
 
@@ -156,14 +135,20 @@ export async function startMcpSdkServer({
     if (!name) {
       return {
         isError: true,
-        content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.INVALID_REQUEST, message: 'Missing tool name.' }, null, 2) }]
+        content: [{
+          type: 'text',
+          text: JSON.stringify(formatToolError({
+            code: ERROR_CODES.INVALID_REQUEST,
+            message: 'Missing tool name.'
+          }), null, 2)
+        }]
       };
     }
     const totalQueued = queue.size + queue.pending;
     if (Number.isFinite(queueMax) && queueMax > 0 && totalQueued >= queueMax) {
       return {
         isError: true,
-        content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.QUEUE_OVERLOADED, message: 'Server overloaded.' }, null, 2) }]
+        content: [{ type: 'text', text: JSON.stringify(formatToolError({ code: ERROR_CODES.QUEUE_OVERLOADED, message: 'Server overloaded.' }), null, 2) }]
       };
     }
     return await queue.add(async () => {
@@ -187,7 +172,7 @@ export async function startMcpSdkServer({
         if (timedOut) {
           return {
             isError: true,
-            content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.TOOL_TIMEOUT, message: 'Tool timeout.' }, null, 2) }]
+            content: [{ type: 'text', text: JSON.stringify(formatToolError({ code: ERROR_CODES.TOOL_TIMEOUT, message: 'Tool timeout.' }), null, 2) }]
           };
         }
         return {
@@ -215,5 +200,5 @@ if (entryUrl && import.meta.url === entryUrl) {
     process.exit(1);
   }
   const config = getMcpServerConfig();
-  await startMcpSdkServer(config);
+  await startMcpSdkServer({ ...config, capabilities });
 }

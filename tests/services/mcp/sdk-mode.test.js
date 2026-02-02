@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { skip } from '../../helpers/skip.js';
 
@@ -60,7 +61,19 @@ try {
     method: 'initialize',
     params: { protocolVersion: '2024-11-05', capabilities: {} }
   });
-  await readMessage();
+  const init = await readMessage();
+  if (!init.result?.schemaVersion) {
+    throw new Error('SDK initialize missing schemaVersion.');
+  }
+  if (init.result?.schemaVersion !== MCP_SCHEMA_VERSION) {
+    throw new Error('SDK initialize schemaVersion mismatch.');
+  }
+  if (!init.result?.toolVersion) {
+    throw new Error('SDK initialize missing toolVersion.');
+  }
+  if (!init.result?.capabilities?.experimental?.pairofcleats?.capabilities) {
+    throw new Error('SDK initialize missing capabilities payload.');
+  }
 
   send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
   const list = await readMessage();

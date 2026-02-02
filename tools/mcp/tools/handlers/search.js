@@ -1,4 +1,5 @@
 import { search as coreSearch } from '../../../../src/integrations/core/index.js';
+import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { getRepoCaches, refreshRepoCaches, resolveRepoPath } from '../../repo.js';
 import { buildMcpSearchArgs } from '../search-args.js';
 
@@ -10,10 +11,10 @@ import { buildMcpSearchArgs } from '../search-args.js';
 export async function runSearch(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   if (context.signal?.aborted) {
-    throw new Error('Request cancelled.');
+    throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
   const query = String(args.query || '').trim();
-  if (!query) throw new Error('Query is required.');
+  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
   const searchArgs = buildMcpSearchArgs({ ...args, repoPath });
 

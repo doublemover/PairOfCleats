@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { MCP_PROTOCOL_VERSION } from '../../../src/integrations/mcp/protocol.js';
+import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
 const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-protocol-init');
@@ -18,6 +20,21 @@ try {
   const init = await readMessage();
   if (!init.result?.serverInfo?.name) {
     throw new Error('initialize response missing serverInfo');
+  }
+  if (init.result?.protocolVersion !== MCP_PROTOCOL_VERSION) {
+    throw new Error('initialize response missing protocolVersion');
+  }
+  if (!init.result?.schemaVersion) {
+    throw new Error('initialize response missing schemaVersion');
+  }
+  if (init.result?.schemaVersion !== MCP_SCHEMA_VERSION) {
+    throw new Error('initialize schemaVersion mismatch');
+  }
+  if (!init.result?.toolVersion) {
+    throw new Error('initialize response missing toolVersion');
+  }
+  if (!init.result?.capabilities?.experimental?.pairofcleats?.capabilities) {
+    throw new Error('initialize response missing pairofcleats capabilities');
   }
 
   send({ jsonrpc: '2.0', id: 2, method: 'shutdown' });

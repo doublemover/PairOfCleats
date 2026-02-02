@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import simpleGit from 'simple-git';
+import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../src/retrieval/index-cache.js';
@@ -128,7 +129,7 @@ export const clearRepoCaches = (repoPath) => {
 export function resolveRepoPath(inputPath) {
   const base = inputPath ? path.resolve(inputPath) : process.cwd();
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
-    throw new Error(`Repo path not found: ${base}`);
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
   return inputPath ? base : resolveRepoRoot(base);
 }
