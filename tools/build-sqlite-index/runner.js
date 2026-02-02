@@ -277,14 +277,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       let resolvedInput = hasIncrementalBundles
         ? { source: 'incremental', bundleDir: incrementalBundleDir }
         : { source: 'artifacts', indexDir: modeIndexDir };
-      let sqliteDb = null;
       let tempOutputPath = null;
       let inputBytes = 0;
-      let hasVectorTableBefore = false;
       const workTask = taskFactory('Build', { stage: 'sqlite', mode });
       try {
         await fs.mkdir(outDir, { recursive: true });
-        hasVectorTableBefore = await hasVectorTable(Database, outputPath);
         const pieces = indexPieces?.[mode];
         if (!pieces) {
           throw new Error(`Missing index pieces for ${mode}.`);
@@ -374,7 +371,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           if (bundleFailureReason) {
             warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);
             resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
-            sqliteDb = await buildDatabaseFromArtifacts({
+            await buildDatabaseFromArtifacts({
               Database,
               index: pieces,
               indexDir: modeIndexDir,
@@ -386,7 +383,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               task: workTask
             });
           } else {
-            sqliteDb = bundleResult;
           }
         } else {
           const estimate = await estimateDirBytes(modeIndexDir);
@@ -396,7 +392,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
             label: `${mode} sqlite artifacts`
           });
-          sqliteDb = await buildDatabaseFromArtifacts({
+          await buildDatabaseFromArtifacts({
             Database,
             index: pieces,
             indexDir: modeIndexDir,
@@ -458,7 +454,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             path: outputPath,
             schemaVersion: SCHEMA_VERSION,
             threadLimits,
-            note: 'vector table missing before build'
+            note: 'vector table missing after build'
           });
         }
         done += 1;
@@ -490,11 +486,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         if (exitOnError) process.exit(1);
         throw err;
       } finally {
-        if (sqliteDb) {
-          try {
-            sqliteDb.close();
-          } catch {}
-        }
+        // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.
       }
     }
     if (hasBuildState) {

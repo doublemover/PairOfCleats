@@ -97,7 +97,7 @@ function runSearch(args, label) {
   return JSON.parse(result.stdout || '{}');
 }
 
-const defaultPayload = runSearch(['--churn'], 'search churn default');
+const defaultPayload = runSearch([], 'search churn default');
 if (!Array.isArray(defaultPayload.prose) || defaultPayload.prose.length === 0) {
   console.error('Expected results for --churn default.');
   process.exit(1);

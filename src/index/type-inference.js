@@ -358,8 +358,7 @@ const addListEntry = (list, entry) => {
 
 const inferAssignments = (chunkText, languageId, knownTypes) => {
   const locals = Object.create(null);
-  const aliases = new Set();
-  if (!chunkText) return { locals, aliases: [] };
+  if (!chunkText) return { locals };
   const lines = chunkText.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
@@ -406,7 +405,6 @@ const inferAssignments = (chunkText, languageId, knownTypes) => {
       if (!match) continue;
       const name = match[1];
       const value = match[2];
-      if (name && value) aliases.add(`${name}=${value}`);
       const types = knownTypes.get(value);
       if (!types || !types.length) continue;
       for (const type of types) {
@@ -418,7 +416,7 @@ const inferAssignments = (chunkText, languageId, knownTypes) => {
       }
     }
   }
-  return { locals, aliases: Array.from(aliases) };
+  return { locals };
 };
 
 const inferConditionalTypes = (chunkText, languageId) => {

@@ -45,6 +45,14 @@ const createReader = (stream) => {
     });
   };
 
+  const readAnyMessage = async () => {
+    const parsed = await readRaw();
+    if (parsed && parsed.method && parsed.id === undefined) {
+      notifications.push(parsed);
+    }
+    return parsed;
+  };
+
   const readMessage = async () => {
     while (true) {
       const parsed = await readRaw();
@@ -56,7 +64,7 @@ const createReader = (stream) => {
     }
   };
 
-  return { readMessage, notifications };
+  return { readMessage, readAnyMessage, notifications };
 };
 
 export const startMcpServer = async ({ cacheRoot }) => {
@@ -73,7 +81,7 @@ export const startMcpServer = async ({ cacheRoot }) => {
     }
   });
 
-  const { readMessage, notifications } = createReader(server.stdout);
+  const { readMessage, readAnyMessage, notifications } = createReader(server.stdout);
   const timeout = setTimeout(() => {
     console.error('MCP server test timed out.');
     server.kill('SIGKILL');
@@ -90,5 +98,5 @@ export const startMcpServer = async ({ cacheRoot }) => {
     server.kill('SIGTERM');
   };
 
-  return { server, send, readMessage, notifications, shutdown };
+  return { server, send, readMessage, readAnyMessage, notifications, shutdown };
 };

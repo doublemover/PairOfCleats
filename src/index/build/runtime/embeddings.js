@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { DEFAULT_MODEL_ID, getModelConfig } from '../../../../tools/dict-utils.js';
+import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';

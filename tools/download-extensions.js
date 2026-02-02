@@ -77,6 +77,7 @@ try {
 
 const FILE_MODE = 0o644;
 const DIR_MODE = 0o755;
+const OUTPUT_MODE = process.platform === 'win32' ? FILE_MODE : 0o755;
 const DEFAULT_ARCHIVE_LIMITS = {
   maxBytes: 200 * 1024 * 1024,
   maxEntryBytes: 50 * 1024 * 1024,
@@ -494,28 +495,58 @@ function resolveSourceFromConfig(cfg) {
  * @param {number} redirects
  * @returns {Promise<{statusCode:number,headers:object,body:Buffer}>}
  */
-function requestUrl(url, headers = {}, redirects = 0) {
+function requestUrl(url, headers = {}, redirects = 0, limits = null) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('Too many redirects'));
     const parsed = new URL(url);
     const handler = parsed.protocol === 'https:' ? https : http;
     const options = { method: 'GET', headers };
+    const maxBytes = limits && Number.isFinite(Number(limits.maxBytes))
+      ? Number(limits.maxBytes)
+      : null;
     const req = handler.request(parsed, options, (res) => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
         const location = res.headers.location;
         if (!location) return reject(new Error('Redirect without location'));
         res.resume();
-        return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1));
+        return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1, limits));
+      }
+      if (maxBytes) {
+        const declared = Number(res.headers['content-length']);
+        if (Number.isFinite(declared) && declared > maxBytes) {
+          res.resume();
+          return reject(new Error(`Download exceeds maxBytes (${declared} > ${maxBytes})`));
+        }
       }
       const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
+      let total = 0;
+      let done = false;
+      const finishError = (err) => {
+        if (done) return;
+        done = true;
+        reject(err);
+      };
+      res.on('data', (chunk) => {
+        if (done) return;
+        total += chunk.length;
+        if (maxBytes && total > maxBytes) {
+          done = true;
+          res.destroy();
+          reject(new Error(`Download exceeds maxBytes (${total} > ${maxBytes})`));
+          return;
+        }
+        chunks.push(chunk);
+      });
       res.on('end', () => {
+        if (done) return;
+        done = true;
         resolve({
           statusCode: res.statusCode,
           headers: res.headers,
           body: Buffer.concat(chunks)
         });
       });
+      res.on('error', finishError);
     });
     req.on('error', reject);
     req.end();
@@ -585,7 +616,7 @@ async function downloadSource(source, index) {
     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
   }
 
-  const response = await requestUrl(source.url, headers);
+  const response = await requestUrl(source.url, headers, 0, { maxBytes: archiveLimits.maxBytes });
   if (response.statusCode === 304) {
     return { name: source.name, skipped: true, outputPath };
   }
@@ -598,7 +629,8 @@ async function downloadSource(source, index) {
   if (archiveType) {
     await fs.mkdir(tempRoot, { recursive: true });
   }
-  await fs.writeFile(downloadPath, response.body, { mode: FILE_MODE });
+  const writeMode = archiveType ? FILE_MODE : OUTPUT_MODE;
+  await fs.writeFile(downloadPath, response.body, { mode: writeMode });
 
   let extractedFrom = null;
   if (archiveType) {
@@ -615,13 +647,18 @@ async function downloadSource(source, index) {
     await fs.copyFile(extractedPath, outputPath);
     if (process.platform !== 'win32') {
       try {
-        await fs.chmod(outputPath, 0o755);
+        await fs.chmod(outputPath, OUTPUT_MODE);
       } catch {}
     }
-    try { await fs.chmod(outputPath, FILE_MODE); } catch {}
     extractedFrom = path.relative(extensionDir, extractedPath);
     await fs.rm(extractDir, { recursive: true, force: true });
     await fs.rm(downloadPath, { force: true });
+  }
+
+  if (!archiveType && process.platform !== 'win32') {
+    try {
+      await fs.chmod(outputPath, OUTPUT_MODE);
+    } catch {}
   }
 
   manifest[key] = {

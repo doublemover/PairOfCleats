@@ -217,6 +217,8 @@ function indexExists(modelCacheRoot, mode) {
       }
     } catch {}
   }
+  const manifestPath = path.join(indexRoot, `index-${mode}`, 'pieces', 'manifest.json');
+  if (fs.existsSync(manifestPath)) return true;
   const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
 }

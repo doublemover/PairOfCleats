@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getCacheRoot } from '../../../../tools/dict-utils.js';
+import { getCacheRoot } from '../../../shared/dict-utils.js';
 import { log } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
+import { ensureQueueDir, enqueueJob } from '../../../shared/queue.js';
 
 export const enqueueEmbeddingJob = async ({
   runtime,

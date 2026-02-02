@@ -7,7 +7,7 @@ import { execaSync } from 'execa';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
-import { resolveToolRoot } from '../../../tools/dict-utils.js';
+import { resolveToolRoot } from '../../shared/dict-utils.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 

@@ -6,7 +6,12 @@ import { resolveToolRoot } from './dict-utils.js';
 
 const root = resolveToolRoot();
 const allowedFile = path.join(root, 'src', 'shared', 'env.js').replace(/\\/g, '/');
-const envRegex = /process\.env\s*\.\s*PAIROFCLEATS_[A-Z0-9_]+/g;
+const envNameRegex = /PAIROFCLEATS_[A-Z0-9_]+/g;
+const envRegexes = [
+  /process\.env\s*\??\.\s*PAIROFCLEATS_[A-Z0-9_]+/g,
+  /process\.env\s*\??\[\s*['"]PAIROFCLEATS_[A-Z0-9_]+['"]\s*\]/g,
+  /\{\s*[^}]*PAIROFCLEATS_[A-Z0-9_]+[^}]*}\s*=\s*process\.env/g
+];
 
 const listSourceFiles = async () => {
   const files = await new fdir().withFullPaths().crawl(root).withPromise();
@@ -31,11 +36,19 @@ const run = async () => {
     const normalized = filePath.replace(/\\/g, '/');
     if (normalized === allowedFile) continue;
     const source = await fs.readFile(filePath, 'utf8');
-    const matches = source.match(envRegex);
-    if (matches && matches.length) {
+    const matches = new Set();
+    for (const regex of envRegexes) {
+      regex.lastIndex = 0;
+      let match;
+      while ((match = regex.exec(source)) !== null) {
+        const names = match[0].match(envNameRegex) || [];
+        names.forEach((name) => matches.add(`process.env.${name}`));
+      }
+    }
+    if (matches.size) {
       violations.push({
         file: path.relative(root, filePath).replace(/\\/g, '/'),
-        vars: Array.from(new Set(matches)).sort()
+        vars: Array.from(matches).sort()
       });
     }
   }

@@ -43,6 +43,7 @@ export function createSearchPipeline(context) {
     filters,
     filtersActive,
     topN,
+    maxCandidates,
     annEnabled,
     annBackend,
     scoreBlend,
@@ -102,7 +103,8 @@ export function createSearchPipeline(context) {
     useSqlite,
     postingsConfig,
     buildCandidateSetSqlite,
-    chargramMaxTokenLength
+    chargramMaxTokenLength,
+    maxCandidates
   });
   const fieldWeightsEnabled = fieldWeights
     && Object.values(fieldWeights).some((value) => (
@@ -278,7 +280,8 @@ export function createSearchPipeline(context) {
           mode,
           embedding: queryEmbedding,
           topN: expandedTopN,
-          candidateSet
+          candidateSet,
+          signal
         });
         return normalizeAnnHits(hits);
       } catch {

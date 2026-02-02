@@ -13,6 +13,7 @@ const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
  * @param {(mode:'code'|'prose')=>import('better-sqlite3').Database|null} options.getDb
  * @param {object} options.postingsConfig
  * @param {number[]} options.sqliteFtsWeights
+ * @param {number|null|undefined} options.maxCandidates
  * @param {object} options.vectorExtension
  * @param {object} [options.vectorAnnConfigByMode]
  * @param {object} options.vectorAnnState
@@ -25,6 +26,7 @@ export function createSqliteHelpers(options) {
     getDb,
     postingsConfig,
     sqliteFtsWeights,
+    maxCandidates,
     vectorExtension,
     vectorAnnConfigByMode,
     vectorAnnState,
@@ -38,6 +40,9 @@ export function createSqliteHelpers(options) {
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+  const candidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
+    ? Math.floor(Number(maxCandidates))
+    : null;
 
   const sqliteCache = {
     tokenStats: new Map(),
@@ -436,6 +441,10 @@ export function createSqliteHelpers(options) {
     if (!db) return null;
     const candidates = new Set();
     let matched = false;
+    const addCandidate = (id) => {
+      candidates.add(id);
+      return candidateCap && candidates.size >= candidateCap;
+    };
 
     if (postingsConfig.enablePhraseNgrams !== false) {
       const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
@@ -444,7 +453,7 @@ export function createSqliteHelpers(options) {
         const phraseIds = phraseRows.map((row) => row.id);
         const postingRows = fetchPostingRows(mode, 'phrase_postings', 'phrase_id', phraseIds, false);
         for (const row of postingRows) {
-          candidates.add(row.doc_id);
+          if (addCandidate(row.doc_id)) return null;
           matched = true;
         }
       }
@@ -466,7 +475,7 @@ export function createSqliteHelpers(options) {
         const gramIds = gramRows.map((row) => row.id);
         const postingRows = fetchPostingRows(mode, 'chargram_postings', 'gram_id', gramIds, false);
         for (const row of postingRows) {
-          candidates.add(row.doc_id);
+          if (addCandidate(row.doc_id)) return null;
           matched = true;
         }
       }

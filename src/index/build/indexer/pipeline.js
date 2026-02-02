@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';

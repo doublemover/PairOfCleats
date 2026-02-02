@@ -3,7 +3,7 @@ import path from 'node:path';
 import { loadPiecesManifest } from '../../shared/artifact-io.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
-import { normalizeManifestPath } from './paths.js';
+import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
 
@@ -53,7 +53,33 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
       for (const piece of manifest.pieces) {
         const relPath = piece?.path;
         if (!relPath) continue;
-        const absPath = path.join(dir, normalizeManifestPath(relPath).split('/').join(path.sep));
+        if (!isManifestPathSafe(relPath)) {
+          const issue = `unsafe manifest path: ${relPath}`;
+          if (strict) {
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
+          } else {
+            modeReport.warnings.push(issue);
+            report.warnings.push(`[${mode}] ${issue}`);
+          }
+          continue;
+        }
+        const absPath = path.resolve(dir, normalizeManifestPath(relPath).split('/').join(path.sep));
+        const root = path.resolve(dir);
+        const relative = path.relative(root, absPath);
+        if (relative.startsWith('..') || path.isAbsolute(relative)) {
+          const issue = `manifest path escapes index root: ${relPath}`;
+          if (strict) {
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
+          } else {
+            modeReport.warnings.push(issue);
+            report.warnings.push(`[${mode}] ${issue}`);
+          }
+          continue;
+        }
         if (!fs.existsSync(absPath)) {
           const issue = `piece missing: ${relPath}`;
           modeReport.ok = false;

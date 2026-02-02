@@ -187,7 +187,7 @@ Deterministic ordering:
 * Sort local flows by `(sourceRuleId, sinkRuleId, minEvidenceLocation)`.
 
 ### 8.3 Optional taint hints (for `strictness="argAware"`)
-If the implementation supports `strictness="argAware"`, it SHOULD populate:
+If the implementation supports `strictness="argAware"`, it MAY populate:
 
 * `taintHints.taintedIdentifiers`
 
@@ -195,6 +195,9 @@ Constraints:
 * MUST be de-duplicated.
 * MUST be sorted lexicographically.
 * MUST be capped at 50 identifiers.
+
+Note: the default local risk detector does not emit taint hints today, so this field is optional and
+only present when upstream tooling provides `chunk.docmeta.risk.taintHints`.
 
 ## 9) Determinism and bounding rules
 

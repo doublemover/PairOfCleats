@@ -49,7 +49,7 @@ if (wantsOnnx) {
   const onnxTarget = onnxTargetRaw
     ? (path.isAbsolute(onnxTargetRaw) ? onnxTargetRaw : path.resolve(root, onnxTargetRaw))
     : null;
-  if (onnxResolvedPath && onnxTarget && !fsSync.existsSync(onnxTarget)) {
+  if (onnxResolvedPath && onnxTarget) {
     const targetStat = (() => {
       try {
         return fsSync.statSync(onnxTarget);
@@ -57,12 +57,20 @@ if (wantsOnnx) {
         return null;
       }
     })();
-    const finalTarget = targetStat?.isDirectory()
+    const looksLikeDir = onnxTargetRaw
+      ? (onnxTargetRaw.endsWith(path.sep) || !path.extname(onnxTargetRaw))
+      : false;
+    const targetIsDir = targetStat ? targetStat.isDirectory() : looksLikeDir;
+    const finalTarget = targetIsDir
       ? path.join(onnxTarget, path.basename(onnxResolvedPath))
       : onnxTarget;
-    await fs.mkdir(path.dirname(finalTarget), { recursive: true });
-    await fs.copyFile(onnxResolvedPath, finalTarget);
-    onnxResolvedPath = finalTarget;
+    const resolvedFinal = path.resolve(finalTarget);
+    const resolvedSource = path.resolve(onnxResolvedPath);
+    if (!fsSync.existsSync(resolvedFinal) && resolvedFinal !== resolvedSource) {
+      await fs.mkdir(path.dirname(finalTarget), { recursive: true });
+      await fs.copyFile(onnxResolvedPath, finalTarget);
+      onnxResolvedPath = finalTarget;
+    }
   }
 }
 

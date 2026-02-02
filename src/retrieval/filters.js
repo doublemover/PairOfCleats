@@ -87,6 +87,8 @@ const splitFilterValues = (value) => String(value || '')
   .map((part) => part.trim())
   .filter(Boolean);
 
+const isWindowsPathToken = (value) => /^[A-Za-z]:[\\/]/.test(value);
+
 export function parseFilterExpression(raw) {
   const errors = [];
   const file = [];
@@ -111,6 +113,10 @@ export function parseFilterExpression(raw) {
   for (const token of tokens) {
     const trimmed = String(token || '').trim();
     if (!trimmed) continue;
+    if (isWindowsPathToken(trimmed)) {
+      pushValues(file, trimmed);
+      continue;
+    }
     const separatorIndex = trimmed.search(/[:=]/);
     if (separatorIndex === -1) {
       pushValues(file, trimmed);

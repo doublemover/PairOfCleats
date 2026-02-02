@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { resolveSqlitePaths } from '../../shared/dict-utils.js';
 
 export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled }) => {
   const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
