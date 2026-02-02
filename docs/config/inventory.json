@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T03:22:39.099Z",
+  "generatedAt": "2026-02-02T04:38:50.895Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1716,9 +1716,9 @@
     {
       "name": "PAIROFCLEATS_TEST_MCP_DELAY_MS",
       "files": [
+        "src/shared/env.js",
         "tests/services/mcp/mcp-robustness.test.js",
-        "tools/config-inventory.js",
-        "tools/mcp/tools.js"
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1870,8 +1870,7 @@
         "tools/ci/run-suite.js",
         "tools/config-inventory.js",
         "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js",
-        "tools/mcp/tools.js"
+        "tools/dict-utils/config.js"
       ]
     },
     {

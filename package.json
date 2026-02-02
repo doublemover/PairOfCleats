@@ -156,5 +156,8 @@
     "@node-rs/xxhash": "^1.7.2",
     "@parcel/watcher": "^2.4.1",
     "re2": "^1.23.0"
+  },
+  "devDependencies": {
+    "c8": "^9.1.0"
   }
 }
