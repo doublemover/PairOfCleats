@@ -231,13 +231,15 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       dirty: null,
       detectedBy: scmSelection.detectedBy
     };
+  const annotateEnabled = scmConfig?.annotate?.enabled !== false
+    && resolvedProvenance.provider !== 'none';
   report.scm = {
     provider: resolvedProvenance.provider,
     repoRoot: resolvedProvenance.root,
     detectedBy: resolvedProvenance.detectedBy || null,
     head: resolvedProvenance.head || null,
     dirty: resolvedProvenance.dirty ?? null,
-    annotateEnabled: scmConfig?.annotate?.enabled !== false,
+    annotateEnabled,
     error: scmError
   };
   const getDisableReasons = (id) => {

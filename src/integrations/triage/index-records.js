@@ -241,7 +241,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     userConfig: runtime.userConfig,
     incrementalEnabled: false,
     fileCounts: { candidates: recordSources.length },
-    indexState
+    indexState,
+    repoProvenance: runtime.repoProvenance
   });
 }
 
