@@ -388,7 +388,7 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     return best;
   }, null);
   if (slowest) {
-    const slowestColor = resolveSlowestColor(slowest.durationMs);
+    const slowestColor = resolveSlowestColor(slowest.durationMs, context.timeoutMs);
     const slowestLabel = useColor
       ? `${slowestColor}${slowestLabelName.padEnd(labelWidth)}:${ANSI.reset}`
       : `${slowestLabelName.padEnd(labelWidth)}:`;

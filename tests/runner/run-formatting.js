@@ -85,7 +85,7 @@ export const formatDurationValue = (ms, { useColor = false } = {}) => {
   return `${ANSI.fgBrightWhite}${numberPart}${TIME_LABEL_COLOR}${unit}${ANSI.reset}`;
 };
 
-export const resolveSlowestColor = createThresholdScale(
+const resolveSlowestColorByDuration = createThresholdScale(
   [
     { max: 2000, color: ANSI.fgGreen },
     { max: 4000, color: ANSI.fgDarkGreen },
@@ -97,6 +97,22 @@ export const resolveSlowestColor = createThresholdScale(
   ],
   ANSI.fgRed
 );
+
+export const resolveSlowestColor = (durationMs, timeoutMs) => {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return resolveSlowestColorByDuration(durationMs);
+  }
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return ANSI.fgGreen;
+  const ratio = durationMs / timeoutMs;
+  if (ratio <= 0.25) return ANSI.fgGreen;
+  if (ratio <= 0.5) return ANSI.fgDarkGreen;
+  if (ratio <= 0.7) return ANSI.fgYellow;
+  if (ratio <= 0.85) return ANSI.fgOrange;
+  if (ratio <= 0.95) return ANSI.fgDarkOrange;
+  if (ratio <= 1) return ANSI.fgBrown;
+  if (ratio <= 1.1) return ANSI.fgBrownDark;
+  return ANSI.fgRed;
+};
 
 export const formatLogPath = (value, root) => {
   if (!value) return '';
