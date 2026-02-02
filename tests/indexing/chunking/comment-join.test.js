@@ -32,7 +32,7 @@ process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'all', '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--scm-provider', 'none', '--repo', repoRoot, '--mode', 'all', '--stub-embeddings'],
   { env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {

@@ -68,7 +68,7 @@ function run(args, label) {
   }
 }
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
 run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings (code)');
 run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot], 'build embeddings (prose)');
 

@@ -34,7 +34,7 @@ const runBuild = (cacheRoot, label, testConfig) => {
   };
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {

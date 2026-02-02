@@ -51,6 +51,8 @@ const runBuild = (label, envOverrides) => {
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
+      '--scm-provider',
+      'none',
       '--mode',
       'code',
       '--stage',

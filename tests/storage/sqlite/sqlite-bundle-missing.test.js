@@ -43,6 +43,8 @@ run([
   path.join(root, 'build_index.js'),
   '--incremental',
   '--stub-embeddings',
+  '--scm-provider',
+  'none',
   '--mode',
   'code',
   '--repo',
