@@ -29,7 +29,7 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off',
+    PAIROFCLEATS_WORKER_POOL: 'auto',
     ...overrides
   };
   const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
