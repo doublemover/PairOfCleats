@@ -1,0 +1,241 @@
+# LEXI
+
+This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defines a complete, repo-aligned implementation plan with granular tasks, tests, and touchpoints.
+
+---
+
+## Evaluation Notes (by document)
+
+### phase-11.9-lexicon-aware-relations-and-retrieval-enrichment.md
+- Well structured and matches repo architecture; touchpoints listed are mostly accurate.
+- Adjustments needed:
+  - `src/retrieval/pipeline.js` is the actual scoring entrypoint; any new boost/candidate policy work should be wired there and in `src/retrieval/pipeline/candidates.js` (for candidate set building).
+  - Retrieval options parsing for ANN candidate controls is not currently exposed in `src/retrieval/cli/normalize-options.js`; the phase should include parsing and config schema updates if these knobs are to be configurable.
+  - Relation filtering should explicitly preserve stable ordering and avoid filtering builtins/types by default (already stated); for JS-like languages where keywords can be property names, limit keyword lists to safe identifiers or add per-language allowlists.
+
+### spec-language-lexicon-wordlists.md
+- Solid and conservative; aligns with a fail-open loader.
+- Ambiguity: “ASCII only” is safe but may exclude keywords for some languages (e.g., localized keywords). This should be explicit as a v1 constraint with a future v2 note.
+- Add a clearer contract for `extractSymbolBaseName` and document separators ordering (consistent with relations spec).
+
+### spec-lexicon-relations-filtering.md
+- Correct placement and safety constraints.
+- Ambiguity: Should filtering also apply to `rawRelations.imports/exports`? The spec says no; keep it explicit and add a note that only usages/calls/callDetails are filtered in v1.
+- Recommend adding per-language overrides for stopword sets (e.g., JS keyword subset) to avoid over-filtering.
+
+### spec-lexicon-retrieval-boosts.md
+- Good; boost-only with clear explain payload.
+- Adjustment: query token source is `src/retrieval/cli/query-plan.js`, but the actual tokens are available in the pipeline context. Wire from existing query plan rather than recomputing.
+- Clarify whether `queryTokens` are case-folded using `caseTokens` (current pipeline has `caseTokens` and `caseFile` flags).
+
+### spec-chargram-enrichment-and-ann-fallback.md
+- Matches current architecture.
+- Adjustment: `annCandidateMinDocCount` and related knobs are not currently parsed or surfaced; add explicit config plumbing and schema updates in this phase.
+- Candidate policy should be shared between ANN and minhash fallbacks (currently the pipeline reuses `annCandidateBase` for minhash); the policy should be applied consistently.
+
+---
+
+# Phase 11.9 – Lexicon-Aware Relations and Retrieval Enrichment
+
+## 11.9.0 – Cross-cutting Setup and Contracts
+
+### Goals
+- Establish the lexicon contract, schema, and config surfaces.
+- Align config/CLI/doc surfaces with current codebase.
+
+### Touchpoints
+- `src/lang/` (new lexicon module)
+- `src/shared/postings-config.js` (new fields)
+- `src/retrieval/cli/normalize-options.js` (new ANN candidate config knobs)
+- `docs/config/schema.json`, `docs/config/contract.md`, `docs/config/inventory.*` (config surface)
+- `docs/specs/*` (lexicon + retrieval specs, if promoted to canonical docs)
+
+### Tasks
+- [ ] Decide canonical location for lexicon spec files (recommend `docs/specs/lexicon-*.md`).
+- [ ] Add/extend config schema entries for:
+  - `indexing.postings.chargramFields`
+  - `indexing.postings.chargramStopwords`
+  - `retrieval.annCandidateCap`
+  - `retrieval.annCandidateMinDocCount`
+  - `retrieval.annCandidateMaxDocCount`
+  - `retrieval.relationBoost` (if exposed in config; otherwise document as quality-gated internal).
+- [ ] Document defaults and quality gating in `docs/config/contract.md` or equivalent.
+
+### Tests
+- [ ] `tests/config/` schema drift tests updated if config schema changes.
+
+---
+
+## 11.9.1 – Language Lexicon Assets and Loader
+
+### Objective
+Provide a standardized lexicon for all language registry ids, with a cached loader and derived stopword sets.
+
+### Touchpoints
+- New:
+  - `src/lang/lexicon/index.js` (public surface)
+  - `src/lang/lexicon/load.js` (file loading + caching)
+  - `src/lang/lexicon/normalize.js` (lowercase/ASCII normalization)
+  - `src/lang/lexicon/wordlists/_generic.json`
+  - `src/lang/lexicon/wordlists/<languageId>.json`
+  - `docs/specs/language-lexicon-wordlists.md` (if promoted)
+  - `docs/schemas/language-lexicon-wordlist.schema.json` (or similar; keep consistent with other schemas)
+- Existing registry:
+  - `src/index/language-registry/registry-data.js` (language ids)
+
+### Tasks
+- [ ] Implement lexicon module:
+  - [ ] `getLanguageLexicon(languageId, { allowFallback })` -> returns normalized sets.
+  - [ ] `isLexiconStopword(languageId, token, domain)` for `relations|ranking|chargrams`.
+  - [ ] `extractSymbolBaseName(name)` shared helper.
+- [ ] Loader behavior:
+  - [ ] Use `import.meta.url` to resolve wordlist directory.
+  - [ ] Cache in `Map<languageId, LanguageLexicon>`.
+  - [ ] Fail-open: missing or invalid => `_generic`.
+- [ ] Add schema validation for each wordlist file.
+- [ ] Add lexicon files for each language id in the registry; keep v1 conservative (keywords + literals only).
+  - Note: For JS/TS, keep keywords list conservative to avoid filtering property names.
+
+### Tests
+- [ ] `tests/lexicon/lexicon-schema.test.js`
+- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [ ] `tests/lexicon/lexicon-stopwords.test.js` (verify derived stopword sets)
+
+---
+
+## 11.9.2 – Build-Time Lexicon-Aware Relation Filtering
+
+### Objective
+Filter `rawRelations` before building `file_relations` and `callIndex`, using lexicon stopwords for relations.
+
+### Touchpoints
+- `src/index/build/file-processor/cpu.js`
+  - Where `rawRelations` is produced and `buildFileRelations(...)` / `buildCallIndex(...)` are called.
+- `src/index/build/file-processor/relations.js`
+  - `buildFileRelations(rawRelations, relKey)`
+  - `buildCallIndex(rawRelations)`
+- New:
+  - `src/index/build/file-processor/lexicon-relations-filter.js`
+
+### Tasks
+- [ ] Implement `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [ ] Apply filtering immediately before relation building:
+  - In `cpu.js` inside the per-file processing flow, right after `lang.buildRelations(...)` and before `buildFileRelations` / `buildCallIndex`.
+- [ ] Filtering rules:
+  - `usages`: drop tokens whose normalized form is in `lexicon.stopwords.relations`.
+  - `calls` / `callDetails`: drop entries if `extractSymbolBaseName(callee)` is a stopword.
+  - Preserve stable ordering; dedupe only if required.
+- [ ] Fail-open if lexicon missing or disabled.
+- [ ] Add a per-language override mechanism (e.g., config to drop keywords/literals/builtins/types separately).
+
+### Tests
+- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
+- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+
+---
+
+## 11.9.3 – Retrieval-Time Lexicon-Aware Relation Boosts
+
+### Objective
+Add boost-only ranking based on calls/usages aligned with query tokens, excluding lexicon stopwords.
+
+### Touchpoints
+- `src/retrieval/pipeline.js` (scoring and explain output)
+- `src/retrieval/cli/query-plan.js` (query tokens source)
+- New:
+  - `src/retrieval/scoring/relation-boost.js`
+
+### Tasks
+- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [ ] Wire into scoring in `src/retrieval/pipeline.js`:
+  - Add `relationBoost` alongside existing boosts (symbol/phrase/etc).
+  - Ensure boost-only (no filtering).
+  - Provide explain payload when `--explain`.
+- [ ] Gate by quality or config (default off).
+
+### Tests
+- [ ] `tests/retrieval/relation-boost.test.js`
+- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+
+---
+
+## 11.9.4 – Chargram Enrichment and ANN Candidate Safety
+
+### Objective
+Allow optional chargram enrichment without recall loss, and enforce candidate set safety in ANN/minhash.
+
+### Touchpoints
+- `src/shared/postings-config.js` (new `chargramFields`, `chargramStopwords`)
+- `src/index/build/state.js` (chargram generation from fieldTokens)
+- `src/retrieval/pipeline/candidates.js` (candidate set building)
+- `src/retrieval/pipeline.js` (ANN/minhash usage)
+- New:
+  - `src/retrieval/scoring/ann-candidate-policy.js`
+
+### Tasks
+- [ ] Extend `normalizePostingsConfig` to support `chargramFields` + `chargramStopwords` with defaults.
+- [ ] Update chargram tokenization in `appendChunk(...)` (in `src/index/build/state.js`) to use `chargramFields` and optional lexicon stopword filtering.
+- [ ] Implement `resolveAnnCandidateSet(...)` and apply it to ANN and minhash candidate selection:
+  - Use `annCandidateCap`, `annCandidateMinDocCount`, `annCandidateMaxDocCount`.
+  - Ensure filtersActive + allowedIdx behavior is preserved.
+- [ ] Emit explain payload for candidate policy decisions.
+
+### Tests
+- [ ] `tests/postings/chargram-fields.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+
+---
+
+## 11.9.5 – Observability, Tuning, and Rollout
+
+### Objective
+Make filtering/boosting behavior transparent and safe to tune.
+
+### Touchpoints
+- `src/index/build/file-processor/cpu.js` (logging/counters)
+- `src/retrieval/pipeline.js` (explain payload)
+- `src/shared/auto-policy.js` (quality-based defaults)
+
+### Tasks
+- [ ] Emit structured per-file counts for relations filtering (calls/usages dropped).
+- [ ] Add `relationBoost` + `annCandidatePolicy` to explain output.
+- [ ] Gate new features behind `quality=max` by default (unless explicit config enables).
+
+### Tests
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
+
+---
+
+## Notes / Implementation Guidelines
+
+- Prefer fail-open behavior for all lexicon-based filtering.
+- Keep relation filtering conservative (keywords + literals only) unless explicitly configured per language.
+- Preserve ordering; dedupe only with stable, deterministic behavior.
+- Avoid new CLI flags unless required; prefer config + quality gating.
+- When adding config, update docs/config schema + contract and keep drift tests passing.
+
+---
+
+## Known Touchpoints (Function Names)
+
+Use these function names to anchor changes:
+
+- `processFiles(...)` in `src/index/build/indexer/steps/process-files.js` (tree-sitter deferral logic already uses ordering helpers).
+- `buildFileRelations(...)` and `buildCallIndex(...)` in `src/index/build/file-processor/relations.js`.
+- `createSearchPipeline(...)` in `src/retrieval/pipeline.js` (scoring + ANN candidate handling).
+- `buildQueryPlan(...)` in `src/retrieval/cli/query-plan.js` (token source).
+- `appendChunk(...)` in `src/index/build/state.js` (chargrams from fieldTokens).
+
+---
+
+## Proposed Phase Order
+
+1. 11.9.0 – Setup + contracts (config schema + docs + lexicon schema).
+2. 11.9.1 – Lexicon loader + wordlists.
+3. 11.9.2 – Build-time relations filtering.
+4. 11.9.4 – Chargram enrichment + ANN candidate safety (foundation for retrieval safety).
+5. 11.9.3 – Retrieval relation boosts (ranking-only).
+6. 11.9.5 – Observability + rollout gating.
