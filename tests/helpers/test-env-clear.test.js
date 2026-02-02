@@ -10,23 +10,23 @@ const restoreEnv = (key, value) => {
   }
 };
 
-const keys = ['PAIROFCLEATS_EMBEDDINGS', 'PAIROFCLEATS_TEST_CONFIG', 'PAIROFCLEATS_EXTRA_CLEAR'];
+const keys = ['PAIROFCLEATS_EMBEDDINGS', 'PAIROFCLEATS_TEST_CONFIG', 'PAIROFCLEATS_TEST_CACHE_SUFFIX'];
 const prev = Object.fromEntries(keys.map((key) => [key, snapshotEnv(key)]));
 
 try {
   process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   process.env.PAIROFCLEATS_TEST_CONFIG = '{"ok":true}';
-  process.env.PAIROFCLEATS_EXTRA_CLEAR = 'yes';
+  process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX = 'yes';
 
   applyTestEnv({
     embeddings: null,
     testConfig: null,
-    extraEnv: { PAIROFCLEATS_EXTRA_CLEAR: null }
+    extraEnv: { PAIROFCLEATS_TEST_CACHE_SUFFIX: null }
   });
 
   assert.equal(process.env.PAIROFCLEATS_EMBEDDINGS, undefined, 'embeddings should be cleared');
   assert.equal(process.env.PAIROFCLEATS_TEST_CONFIG, undefined, 'test config should be cleared');
-  assert.equal(process.env.PAIROFCLEATS_EXTRA_CLEAR, undefined, 'extra env key should be cleared');
+  assert.equal(process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX, undefined, 'extra env key should be cleared');
 
   console.log('test-env clear test passed');
 } finally {
