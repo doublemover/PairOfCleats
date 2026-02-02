@@ -605,6 +605,18 @@ export const writeTimings = async ({ timingsPath, results, totalMs, runId }) => 
   await fsPromises.writeFile(timingsPath, `${JSON.stringify(payload)}\n`, 'utf8');
 };
 
+export const writeTestRunTimes = async ({ logTimesPath, results }) => {
+  if (!logTimesPath) return;
+  await fsPromises.mkdir(path.dirname(logTimesPath), { recursive: true });
+  const lines = results
+    .filter((result) => result.status !== 'skipped')
+    .map((result) => {
+      const duration = Number.isFinite(result.durationMs) ? Math.round(result.durationMs) : 0;
+      return `${duration}ms\t${result.id}`;
+    });
+  await fsPromises.writeFile(logTimesPath, `${lines.join('\n')}\n`, 'utf8');
+};
+
 export const writeLatestLogPointer = async ({ root, runLogDir }) => {
   if (!runLogDir) return;
   const latestPath = path.join(root, '.testLogs', 'latest');

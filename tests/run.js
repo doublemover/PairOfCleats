@@ -34,6 +34,7 @@ import {
   reportTestResult,
   writeJUnit,
   writeLatestLogPointer,
+  writeTestRunTimes,
   writeTimings
 } from './runner/run-reporting.js';
 
@@ -49,6 +50,7 @@ const BORDER_PATTERN = '╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=
 
 const main = async () => {
   const argv = parseArgs();
+  const hasLogTimesFlag = process.argv.includes('--log-times');
   const selectors = argv._.map((value) => String(value));
   const includePatterns = [...selectors, ...argv.match];
   const excludePatterns = [...argv.exclude];
@@ -56,6 +58,33 @@ const main = async () => {
   const laneInfo = normalizeLaneArgs(argv.lane);
   const requestedLanes = laneInfo.requested;
   const runRules = loadRunRules({ root: ROOT });
+  const ciLiteOrderPath = path.join(TESTS_DIR, 'ci-lite', 'ci-lite.order.txt');
+  let ciLiteOrderSet = new Set();
+  try {
+    const ciLiteRaw = await fsPromises.readFile(ciLiteOrderPath, 'utf8');
+    ciLiteOrderSet = new Set(
+      ciLiteRaw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'))
+    );
+  } catch {}
+
+  const resolveLaneDefaultTimeout = (lanes) => {
+    const laneDefaults = new Map([
+      ['ci-lite', 15000],
+      ['ci', 90000],
+      ['ci-long', 240000]
+    ]);
+    const normalized = lanes.filter((lane) => lane && lane !== 'all');
+    if (normalized.length === 1 && laneDefaults.has(normalized[0])) {
+      return laneDefaults.get(normalized[0]);
+    }
+    if (normalized.includes('ci-long')) return laneDefaults.get('ci-long');
+    if (normalized.includes('ci')) return laneDefaults.get('ci');
+    if (normalized.includes('ci-lite')) return laneDefaults.get('ci-lite');
+    return DEFAULT_TIMEOUT_MS;
+  };
 
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
   if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
@@ -128,7 +157,8 @@ const main = async () => {
     excludedFiles: runRules.excludedFiles
   })).map((test) => {
     const lane = assignLane(test.id, runRules.laneRules);
-    return { ...test, lane, tags: buildTags(test.id, lane, runRules.tagRules) };
+    const adjustedLane = ciLiteOrderSet.has(test.id) ? 'ci-lite' : lane;
+    return { ...test, lane: adjustedLane, tags: buildTags(test.id, adjustedLane, runRules.tagRules) };
   });
 
   const includeMatchers = compileMatchers(includePatterns, 'match');
@@ -257,8 +287,29 @@ const main = async () => {
 
   const defaultRetries = process.env.CI ? 1 : 0;
   const retries = resolveRetries({ cli: argv.retries, env: envRetries, defaultRetries });
-  const timeoutMs = resolveTimeout({ cli: argv['timeout-ms'], env: envTimeout, defaultTimeout: DEFAULT_TIMEOUT_MS });
+  const timeoutMs = resolveTimeout({
+    cli: argv['timeout-ms'],
+    env: envTimeout,
+    defaultTimeout: resolveLaneDefaultTimeout(requestedLanes)
+  });
   const logDir = resolveLogDir({ cli: argv['log-dir'], env: envLogDir, defaultDir: DEFAULT_LOG_DIR, root: ROOT });
+  const resolveLaneLabel = (lanes) => {
+    const normalized = lanes.filter((lane) => lane && lane !== 'all');
+    if (normalized.length === 1) return normalized[0];
+    if (!normalized.length) return 'tests';
+    return 'multi';
+  };
+  const logTimesArg = argv['log-times'];
+  let logTimesPath = '';
+  if (hasLogTimesFlag || (logTimesArg !== null && logTimesArg !== undefined && logTimesArg !== false)) {
+    const raw = typeof logTimesArg === 'string' ? logTimesArg.trim() : '';
+    if (raw) {
+      logTimesPath = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+    } else {
+      const laneLabel = resolveLaneLabel(requestedLanes);
+      logTimesPath = path.join(ROOT, '.testLogs', `${laneLabel}-testRunTimes.txt`);
+    }
+  }
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
@@ -408,6 +459,9 @@ const main = async () => {
 
   if (timingsPath) {
     await writeTimings({ timingsPath, results: finalResults, totalMs, runId });
+  }
+  if (logTimesPath) {
+    await writeTestRunTimes({ logTimesPath, results: finalResults });
   }
 
   const timeoutCount = finalResults.filter((result) => result.timedOut).length;

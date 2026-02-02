@@ -201,8 +201,9 @@ export const buildInventory = async (options = {}) => {
     }))
     .sort((a, b) => b.count - a.count || a.flag.localeCompare(b.flag));
 
+  const nowIso = new Date().toISOString();
   const inventory = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: nowIso,
     budgets: { ...BUDGETS },
     allowlists: {
       configKeys: Array.from(PUBLIC_CONFIG_KEYS).sort(),
@@ -237,10 +238,52 @@ export const buildInventory = async (options = {}) => {
     }
   };
 
-  await fs.writeFile(outputJsonPath, JSON.stringify(inventory, null, 2));
+  let preservedGeneratedAt = nowIso;
+  let existingInventory = null;
+  try {
+    const existingRaw = await fs.readFile(outputJsonPath, 'utf8');
+    existingInventory = JSON.parse(existingRaw);
+  } catch {}
+  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
+    const candidate = { ...inventory, generatedAt: existingInventory.generatedAt };
+    if (JSON.stringify(candidate) === JSON.stringify(existingInventory)) {
+      preservedGeneratedAt = existingInventory.generatedAt;
+      inventory.generatedAt = preservedGeneratedAt;
+    }
+  }
 
+  const jsonOutput = JSON.stringify(inventory, null, 2);
   const mdOutput = buildInventoryReportMarkdown(inventory);
-  await fs.writeFile(outputMdPath, mdOutput);
+  const applyLineEndings = (text, eol) => (
+    typeof text === 'string' ? text.replace(/\r?\n/g, eol) : text
+  );
+  let writeJson = true;
+  let writeMd = true;
+  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
+    if (JSON.stringify(inventory) === JSON.stringify(existingInventory)) {
+      writeJson = false;
+    }
+  }
+  let mdOutputFinal = mdOutput;
+  if (!writeJson) {
+    // Keep md in sync when json hasn't changed.
+    try {
+      const existingMd = await fs.readFile(outputMdPath, 'utf8');
+      const hasBom = existingMd.charCodeAt(0) === 0xfeff;
+      const eol = existingMd.includes('\r\n') ? '\r\n' : '\n';
+      mdOutputFinal = applyLineEndings(mdOutput, eol);
+      if (hasBom && !mdOutputFinal.startsWith('\ufeff')) {
+        mdOutputFinal = `\ufeff${mdOutputFinal}`;
+      }
+      if (existingMd === mdOutputFinal) writeMd = false;
+    } catch {}
+  }
+  if (writeJson) {
+    await fs.writeFile(outputJsonPath, jsonOutput);
+  }
+  if (writeMd) {
+    await fs.writeFile(outputMdPath, mdOutputFinal);
+  }
 
   if (checkBudget) {
     const errors = [];

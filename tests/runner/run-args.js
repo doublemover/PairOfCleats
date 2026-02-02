@@ -29,6 +29,7 @@ export const parseArgs = () => {
     .option('json', { type: 'boolean', default: false })
     .option('junit', { type: 'string', default: '' })
     .option('log-dir', { type: 'string', default: '' })
+    .option('log-times', { type: 'string', default: null })
     .option('timings-file', { type: 'string', default: '' })
     .option('node-options', { type: 'string', default: '' })
     .option('max-old-space-mb', { type: 'number' })
