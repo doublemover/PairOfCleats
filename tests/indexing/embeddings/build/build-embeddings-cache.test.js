@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../../../../tools/dict-utils.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-identity.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'build-embeddings-cache');
@@ -20,15 +21,15 @@ await fsPromises.writeFile(
   'export const alpha = () => 1;\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });

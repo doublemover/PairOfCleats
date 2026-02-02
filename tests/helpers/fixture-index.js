@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
+import { syncProcessEnv } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -22,14 +23,19 @@ const resolveCacheName = (baseName) => {
   return `${baseName}-${suffixRaw}`;
 };
 
-const createFixtureEnv = (cacheRoot, overrides = {}) => ({
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  ...overrides
-});
+const createFixtureEnv = (cacheRoot, overrides = {}) => {
+  const env = {
+    ...process.env,
+    PAIROFCLEATS_TESTING: '1',
+    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    PAIROFCLEATS_EMBEDDINGS: 'stub',
+    PAIROFCLEATS_WORKER_POOL: 'off',
+    ...overrides
+  };
+  const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
+  syncProcessEnv(env, syncKeys);
+  return env;
+};
 
 const hasChunkMeta = (dir) => hasIndexMeta(dir);
 

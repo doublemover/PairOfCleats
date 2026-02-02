@@ -512,3 +512,176 @@
   LOGS: ./.testLogs/run-1769978945244-hirznc
          ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴
 ```
+---
+
+## Run 1770017343975-jd9808 (ci lane failures)
+
+Source logs: ./.testLogs/run-1770017343975-jd9808
+Retest logs: ./.testLogs/manual-20260202T025506
+
+cli/search/search-contract
+- log: ./.testLogs/run-1770017343975-jd9808/cli_search_search-contract.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; git ls-files returned 0 files so the index built 0 files and search produced no hits.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/cli_search_search-contract.test.attempt-1.log)
+
+cli/search/search-determinism
+- log: ./.testLogs/run-1770017343975-jd9808/cli_search_search-determinism.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so determinism assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/cli_search_search-determinism.test.attempt-1.log)
+
+cli/search/search-explain-symbol
+- log: ./.testLogs/run-1770017343975-jd9808/cli_search_search-explain-symbol.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so explain assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/cli_search_search-explain-symbol.test.attempt-1.log)
+
+cli/search/search-topn-filters
+- log: ./.testLogs/run-1770017343975-jd9808/cli_search_search-topn-filters.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so filter assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/cli_search_search-topn-filters.test.attempt-1.log)
+
+cli/search/search-windows-path-filter
+- log: ./.testLogs/run-1770017343975-jd9808/cli_search_search-windows-path-filter.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so path filter assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/cli_search_search-windows-path-filter.test.attempt-1.log)
+
+indexer/metav2/metav2-finalization-after-inference
+- log: ./.testLogs/run-1770017343975-jd9808/indexer_metav2_metav2-finalization-after-inference.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so metadata assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexer_metav2_metav2-finalization-after-inference.test.attempt-1.log)
+
+indexing/chunk-id/chunk-id-backend-parity
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_chunk-id_chunk-id-backend-parity.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so parity assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_chunk-id_chunk-id-backend-parity.test.attempt-1.log)
+
+indexing/discovery/discover
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_discovery_discover.attempt-1.log
+- suspected cause: auto SCM selection saw parent repo as git so untracked file was treated as tracked; test expects untracked to be excluded.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_discovery_discover.test.attempt-1.log)
+
+indexing/embeddings/build/build-embeddings-cache
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_embeddings_build_build-embeddings-cache.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so cache expectations failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_embeddings_build_build-embeddings-cache.test.attempt-1.log)
+
+indexing/file-caps/file-line-guard
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_file-caps_file-line-guard.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so guard assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_file-caps_file-line-guard.test.attempt-1.log)
+
+indexing/file-caps/file-size-guard
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_file-caps_file-size-guard.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so guard assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_file-caps_file-size-guard.test.attempt-1.log)
+
+indexing/file-processor/skip-minified-binary
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_file-processor_skip-minified-binary.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so skip expectations failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_file-processor_skip-minified-binary.test.attempt-1.log)
+
+indexing/imports/import-links
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_imports_import-links.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so import expectations failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_imports_import-links.test.attempt-1.log)
+
+indexing/incremental/incremental-manifest
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_incremental_incremental-manifest.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so manifest assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_incremental_incremental-manifest.test.attempt-1.log)
+
+indexing/lifecycle/index-lifecycle-contract
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_lifecycle_index-lifecycle-contract.attempt-1.log
+- suspected cause: builds_current schema rejected repo provenance (additional properties) so index-validate exited 1.
+- attempt 1: FAIL (./.testLogs/manual-20260202T025506/indexing_lifecycle_index-lifecycle-contract.test.attempt-1.log) -> "Failed: index validate for lifecycle contract"
+- attempt 2: PASS after expanding repo provenance schema (./.testLogs/manual-20260202T025506/indexing_lifecycle_index-lifecycle-contract.test.attempt-2.log)
+
+indexing/map/code-map-basic
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_map_code-map-basic.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so map expectations failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_map_code-map-basic.test.attempt-1.log)
+
+indexing/map/code-map-dot
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_map_code-map-dot.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so map expectations failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_map_code-map-dot.test.attempt-1.log)
+
+indexing/metadata/external-docs
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_metadata_external-docs.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so external docs checks failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_metadata_external-docs.test.attempt-1.log)
+
+indexing/records/records-exclusion
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_records_records-exclusion.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so exclusion assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_records_records-exclusion.test.attempt-1.log)
+
+indexing/scm/index-build-git-provider
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_scm_index-build-git-provider.attempt-1.log
+- suspected cause: test env was only passed to spawn, process.env not synced; build-state lookup failed in test.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_scm_index-build-git-provider.test.attempt-1.log)
+
+indexing/scm/scm-provider-selection
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_scm_scm-provider-selection.attempt-1.log
+- suspected cause: noneRoot was created under the repo, so auto-detection found git and returned provider=git.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_scm_scm-provider-selection.test.attempt-1.log)
+
+indexing/shards/shard-progress-determinism
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_shards_shard-progress-determinism.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so shard progress assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_shards_shard-progress-determinism.test.attempt-1.log)
+
+indexing/tree-sitter/js-tree-sitter-maxbytes
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_tree-sitter_js-tree-sitter-maxbytes.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so maxbytes assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_tree-sitter_js-tree-sitter-maxbytes.test.attempt-1.log)
+
+indexing/type-inference/crossfile/crossfile-output.integration
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_type-inference_crossfile_crossfile-output_integration.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so crossfile output assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_type-inference_crossfile_crossfile-output.integration.test.attempt-1.log)
+
+indexing/type-inference/crossfile/type-inference-crossfile-go
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_type-inference_crossfile_type-inference-crossfile-go.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so crossfile output assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_type-inference_crossfile_type-inference-crossfile-go.test.attempt-1.log)
+
+indexing/type-inference/providers/type-inference-lsp-enrichment
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_type-inference_providers_type-inference-lsp-enrichment.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so enrichment assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/indexing_type-inference_providers_type-inference-lsp-enrichment.test.attempt-1.log)
+
+indexing/validate/index-validate
+- log: ./.testLogs/run-1770017343975-jd9808/indexing_validate_index-validate.attempt-1.log
+- suspected cause: builds_current schema rejected repo provenance (additional properties) so index-validate exited 1.
+- attempt 1: FAIL (./.testLogs/manual-20260202T025506/indexing_validate_index-validate.test.attempt-1.log) -> "Expected index-validate to pass after building index."
+- attempt 2: PASS after expanding repo provenance schema (./.testLogs/manual-20260202T025506/indexing_validate_index-validate.test.attempt-2.log)
+
+lang/rust/prose-rust-exclusion
+- log: ./.testLogs/run-1770017343975-jd9808/lang_rust_prose-rust-exclusion.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so exclusion assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/lang_rust_prose-rust-exclusion.test.attempt-1.log)
+
+retrieval/cache/query-cache-extracted-prose
+- log: ./.testLogs/run-1770017343975-jd9808/retrieval_cache_query-cache-extracted-prose.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so cache assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/retrieval_cache_query-cache-extracted-prose.test.attempt-1.log)
+
+retrieval/filters/filter-index-artifact
+- log: ./.testLogs/run-1770017343975-jd9808/retrieval_filters_filter-index-artifact.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so filter index assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/retrieval_filters_filter-index-artifact.test.attempt-1.log)
+
+shared/encoding/unicode-offset
+- log: ./.testLogs/run-1770017343975-jd9808/shared_encoding_unicode-offset.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so unicode offset test had no chunks.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/shared_encoding_unicode-offset.test.attempt-1.log)
+
+tooling/install/tool-root
+- log: ./.testLogs/run-1770017343975-jd9808/tooling_install_tool-root.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so tool root assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/tooling_install_tool-root.test.attempt-1.log)
+
+tooling/structural/structural-filters
+- log: ./.testLogs/run-1770017343975-jd9808/tooling_structural_structural-filters.attempt-1.log
+- suspected cause: SCM auto-detected git under .testCache; index built 0 files so structural filter assertions failed.
+- attempt 1: PASS (./.testLogs/manual-20260202T025506/tooling_structural_structural-filters.test.attempt-1.log)

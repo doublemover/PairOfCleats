@@ -18,7 +18,13 @@ export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS) => {
   }
 };
 
-export const applyTestEnv = ({ cacheRoot, embeddings, testing = '1' } = {}) => {
+export const applyTestEnv = ({
+  cacheRoot,
+  embeddings,
+  testing = '1',
+  testConfig,
+  extraEnv
+} = {}) => {
   const env = { ...process.env };
   if (testing !== undefined && testing !== null) {
     env.PAIROFCLEATS_TESTING = String(testing);
@@ -33,7 +39,26 @@ export const applyTestEnv = ({ cacheRoot, embeddings, testing = '1' } = {}) => {
       env.PAIROFCLEATS_EMBEDDINGS = String(embeddings);
     }
   }
-  syncProcessEnv(env);
+  if (testConfig !== undefined) {
+    if (testConfig === null) {
+      delete env.PAIROFCLEATS_TEST_CONFIG;
+    } else if (typeof testConfig === 'string') {
+      env.PAIROFCLEATS_TEST_CONFIG = testConfig;
+    } else {
+      env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
+    }
+  }
+  if (extraEnv && typeof extraEnv === 'object') {
+    for (const [key, value] of Object.entries(extraEnv)) {
+      if (value === undefined || value === null) {
+        delete env[key];
+      } else {
+        env[key] = String(value);
+      }
+    }
+  }
+  const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
+  syncProcessEnv(env, syncKeys);
   return env;
 };
 

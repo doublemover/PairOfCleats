@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../../tools/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = repoRoot();
 const tempRoot = path.join(root, '.testCache', 'lsp-enrichment');
@@ -25,6 +26,7 @@ await fsPromises.writeFile(path.join(srcDir, 'sample.py'), pythonSource);
 
 const testConfig = {
   indexing: {
+    scm: { provider: 'none' },
     typeInference: true,
     typeInferenceCrossFile: true
   }
@@ -36,18 +38,14 @@ for (const binName of ['clangd', 'sourcekit-lsp', 'pyright-langserver']) {
   } catch {}
 }
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig),
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig,
+  extraEnv: {
+    PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,

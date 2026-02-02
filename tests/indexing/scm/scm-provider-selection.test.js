@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fsPromises from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveScmProvider } from '../../../src/index/scm/registry.js';
@@ -8,7 +10,7 @@ const fixturesRoot = path.resolve('tests/fixtures/scm');
 const gitRoot = path.join(fixturesRoot, 'git');
 const jjRoot = path.join(fixturesRoot, 'jj');
 const bothRoot = path.join(fixturesRoot, 'both');
-const noneRoot = path.join(fixturesRoot, 'none');
+const noneRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-scm-none-'));
 
 const canRun = (cmd) => {
   try {
@@ -46,3 +48,4 @@ assert.throws(
 );
 
 console.log('scm provider selection ok');
+await fsPromises.rm(noneRoot, { recursive: true, force: true });

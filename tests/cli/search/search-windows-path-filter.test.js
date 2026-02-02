@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'windows-path-filter');
@@ -17,12 +18,18 @@ await fsPromises.writeFile(
   'export function winPathFilter() { return "windows path filter"; }\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,

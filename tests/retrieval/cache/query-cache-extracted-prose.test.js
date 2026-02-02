@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoId } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache-extracted-prose');
@@ -24,13 +25,16 @@ const source = [
 ].join('\n');
 await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ quality: 'max' }),
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    quality: 'max',
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const repoId = getRepoId(repoRoot);
 const repoCacheBase = path.join(cacheRoot, 'repos', repoId);

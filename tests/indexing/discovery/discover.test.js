@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { discoverFiles, discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
+import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { repoRoot } from '../../helpers/root.js';
 import { skip } from '../../helpers/skip.js';
 
@@ -50,6 +51,9 @@ const skipped = [];
 const codeEntries = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: skipped,
   maxFileBytes: null
@@ -65,6 +69,9 @@ const depthSkipped = [];
 const depthLimited = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: depthSkipped,
   maxFileBytes: null,
@@ -77,6 +84,9 @@ const countSkipped = [];
 const countLimited = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: countSkipped,
   maxFileBytes: null,
@@ -89,6 +99,9 @@ const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] 
 const byMode = await discoverFilesForModes({
   root: tempRoot,
   modes: ['code', 'prose', 'extracted-prose', 'records'],
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedByMode,
   maxFileBytes: null

@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitCheck.status !== 0) {
@@ -41,11 +42,15 @@ try {
   runGit(['add', 'tracked.js'], 'git add tracked');
   runGit(['commit', '-m', 'init'], 'git commit');
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'git' }
+      }
+    }
+  });
   const buildResult = spawnSync(
     process.execPath,
     [

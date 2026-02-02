@@ -8,6 +8,7 @@ import { getEnvConfig } from '../../../src/shared/env.js';
 import { buildContentConfigHash } from '../../../src/index/build/runtime/hash.js';
 import { readJsonFile } from '../../../src/shared/artifact-io.js';
 import { loadIndex } from '../../../src/retrieval/cli-index.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'filter-index-artifact');
@@ -18,15 +19,15 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'const a = 1;\n', 'utf8');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+const env = applyTestEnv({
+  cacheRoot: path.join(tempRoot, 'cache'),
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const buildResult = spawnSync(process.execPath, [
   path.join(root, 'build_index.js'),

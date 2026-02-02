@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const repoRoot = path.join(root, '.testCache', 'incremental-manifest');
@@ -16,14 +17,15 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 const filePath = path.join(repoRoot, 'sample.js');
 await fsPromises.writeFile(filePath, 'export function hello() { return 1; }\n');
 
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });

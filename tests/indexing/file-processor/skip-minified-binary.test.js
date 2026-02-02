@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, getMetricsDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'skip-minified-binary');
@@ -24,24 +25,21 @@ await fsPromises.copyFile(
   binaryPath
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     indexing: {
+      scm: { provider: 'none' },
       maxFileBytes: 200000,
       fileListSampleSize: 20,
       treeSitter: { enabled: false }
     }
-  }),
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_WORKER_POOL = 'off';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,
@@ -53,7 +51,6 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const fileListsPath = path.join(codeDir, '.filelists.json');

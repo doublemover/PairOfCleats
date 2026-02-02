@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'shard-progress-determinism');
@@ -16,6 +17,16 @@ await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 
 await fs.writeFile(path.join(repoRoot, 'src', 'alpha.js'), 'const alpha = 1;\n');
 await fs.writeFile(path.join(repoRoot, 'src', 'beta.js'), 'const beta = 2;\n');
+
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const result = spawnSync(
   process.execPath,
@@ -33,14 +44,7 @@ const result = spawnSync(
     'jsonl',
     '--verbose'
   ],
-  {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_CACHE_ROOT: cacheRoot
-    }
-  }
+  { encoding: 'utf8', env }
 );
 
 if (result.status !== 0) {

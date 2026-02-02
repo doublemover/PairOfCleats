@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'search-contract');
@@ -17,11 +18,15 @@ await fsPromises.writeFile(
   '# Sample\n\nalpha bravo\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,

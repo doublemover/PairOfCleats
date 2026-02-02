@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { getIndexDir, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'chunk-id-backend-parity');
@@ -15,16 +16,19 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'export function beta() { return 2; }\n');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, getMetricsDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'file-size-guard');
@@ -21,15 +22,15 @@ const largeContent = Array.from({ length: 6000 }, () => largeChunk).join('\n');
 await fsPromises.writeFile(largePath, `// big file\n${largeContent}\n`);
 await fsPromises.writeFile(smallPath, 'function ok() { return 1; }\n');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,
@@ -41,7 +42,6 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const fileListsPath = path.join(codeDir, '.filelists.json');
