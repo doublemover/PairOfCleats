@@ -321,31 +321,31 @@ Turn current failures/drifts into permanent guardrails.
 ### Objective
 Reduce “mystery behavior” and make internal tooling more robust.
 
-- [?] Improve `tools/check-env-usage.js` detection patterns.
+- [x] Improve `tools/check-env-usage.js` detection patterns.
   - Currently misses bracket access, destructuring, and other env read patterns.
   - Consider AST-based linting.
 
-- [?] Fix `tools/download-extensions.js` chmod contradiction and improve download safety.
+- [x] Fix `tools/download-extensions.js` chmod contradiction and improve download safety.
   - `chmod 0755` is immediately overwritten by `chmod 0644`.
   - Archive downloads are buffered in memory without size caps.
   - Consider forcing HTTPS or requiring hashes for HTTP.
 
-- [?] Fix `tools/download-models.js` ONNX copy logic.
+- [x] Fix `tools/download-models.js` ONNX copy logic.
   - Current logic checks `!existsSync(onnxTarget)` then calls `statSync(onnxTarget)`, making directory handling dead.
   - Also doesn’t copy when target dir already exists.
 
-- [?] Fix `tools/compare-models.js` index existence probe.
+- [x] Fix `tools/compare-models.js` index existence probe.
   - Checks only for `chunk_meta.json` and may miss valid indexes in other shapes.
 
-- [?] Tool detection should verify executability, not just filename presence.
+- [x] Tool detection should verify executability, not just filename presence.
   - `tools/tooling-detect.js` should run `--version` before claiming “found”.
 
-- [?] Fix `src/integrations/core/status.js` payload naming ambiguity.
+- [x] Fix `src/integrations/core/status.js` payload naming ambiguity.
   - `repo.root` appears to report cache root, not repository root.
 
 - [?] Compact/shard tooling scalability:
   - `tools/compact-pieces.js` likely loads compressed shards fully into memory (gz/zst).
-  - `tools/ctags-ingest.js` ignores stream backpressure and can balloon memory.
+  - `tools/ctags-ingest.js` backpressure handled; compressed shard streaming remains unresolved.
 
 ---
 

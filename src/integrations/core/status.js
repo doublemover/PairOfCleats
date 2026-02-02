@@ -197,7 +197,8 @@ export async function getStatus(input = {}) {
 
   const payload = {
     repo: {
-      root: path.resolve(repoCacheRoot),
+      root: path.resolve(root),
+      cacheRoot: path.resolve(repoCacheRoot),
       totalBytes: repoCacheSize,
       artifacts: repoArtifactSizes,
       sqlite: {
