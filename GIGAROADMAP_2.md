@@ -335,12 +335,12 @@ Touchpoints (anchors; approximate):
 
 ### Phase 13.4 — CLI + tooling visibility (make SCM selection obvious)
 
-- [ ] CLI flags (override config, optional but recommended):
-  - [ ] `pairofcleats index build --scm-provider <auto|git|jj|none>`
-  - [ ] `pairofcleats index build --scm-annotate / --no-scm-annotate`
+- [x] CLI flags (override config, optional but recommended):
+  - [x] `pairofcleats index build --scm-provider <auto|git|jj|none>`
+  - [x] `pairofcleats index build --scm-annotate / --no-scm-annotate`
 
-- [ ] Surface effective provider + provenance in diagnostics:
-  - [ ] `pairofcleats tooling doctor --json` should include:
+- [x] Surface effective provider + provenance in diagnostics:
+  - [x] `pairofcleats tooling doctor --json` should include:
     - provider selected
     - repo root
     - head id(s)
@@ -386,4 +386,3 @@ Touchpoints (anchors; approximate):
     - [ ] buildId/signatures do not include git/jj fields and remain stable across runs.
 
 ---
-

@@ -120,6 +120,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
+  const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
+    ? true
+    : (rawArgs.includes('--no-scm-annotate') ? false : null);
+  if (scmAnnotateOverride != null) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      scm: { annotate: { enabled: scmAnnotateOverride } }
+    });
+  }
   const scmConfig = resolveScmConfig({
     indexingConfig,
     analysisPolicy: userConfig.analysisPolicy || null

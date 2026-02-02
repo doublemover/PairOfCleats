@@ -8,6 +8,8 @@ import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
+import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
+import { setScmRuntimeConfig } from '../scm/runtime.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 
@@ -142,6 +144,11 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   const toolingConfig = ctx?.toolingConfig || {};
   const strict = ctx?.strict !== false;
   const log = typeof options?.log === 'function' ? options.log : (() => {});
+  const scmConfig = ctx?.scmConfig || resolveScmConfig({
+    indexingConfig: ctx?.indexingConfig || {},
+    analysisPolicy: ctx?.analysisPolicy || null
+  });
+  setScmRuntimeConfig(scmConfig);
 
   const report = {
     generatedAt: new Date().toISOString(),
@@ -164,6 +171,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         notes: []
       }
     },
+    scm: null,
     providers: [],
     summary: {
       status: 'ok',
@@ -191,6 +199,47 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   const disabledTools = Array.isArray(toolingConfig.disabledTools) ? toolingConfig.disabledTools : [];
   report.config.enabledTools = enabledTools.slice();
   report.config.disabledTools = disabledTools.slice();
+  let scmSelection = null;
+  let scmProvenance = null;
+  let scmError = null;
+  try {
+    scmSelection = getScmProviderAndRoot({
+      provider: scmConfig?.provider || 'auto',
+      startPath: repoRoot,
+      log
+    });
+    scmProvenance = await scmSelection.providerImpl.getRepoProvenance({
+      repoRoot: scmSelection.repoRoot
+    });
+  } catch (err) {
+    scmError = err?.message || String(err);
+  }
+  if (!scmSelection) {
+    scmSelection = { provider: 'none', repoRoot, detectedBy: 'none' };
+  }
+  const resolvedProvenance = scmProvenance && typeof scmProvenance === 'object'
+    ? {
+      ...scmProvenance,
+      provider: scmProvenance.provider || scmSelection.provider,
+      root: scmProvenance.root || scmSelection.repoRoot,
+      detectedBy: scmProvenance.detectedBy ?? scmSelection.detectedBy
+    }
+    : {
+      provider: scmSelection.provider,
+      root: scmSelection.repoRoot,
+      head: null,
+      dirty: null,
+      detectedBy: scmSelection.detectedBy
+    };
+  report.scm = {
+    provider: resolvedProvenance.provider,
+    repoRoot: resolvedProvenance.root,
+    detectedBy: resolvedProvenance.detectedBy || null,
+    head: resolvedProvenance.head || null,
+    dirty: resolvedProvenance.dirty ?? null,
+    annotateEnabled: scmConfig?.annotate?.enabled !== false,
+    error: scmError
+  };
   const getDisableReasons = (id) => {
     const normalized = normalizeProviderId(id);
     if (!normalized) return ['unknown-provider'];
