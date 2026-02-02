@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T23:28:01.090Z",
+  "generatedAt": "2026-02-02T00:38:47.984Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1249,9 +1249,9 @@
         "tests/tooling/reports/repometrics-dashboard.test.js",
         "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
         "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/reports/summary/summary-report.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tests/tooling/structural/structural-filters.test.js",
         "tools/ci/run-suite.js",
@@ -1389,9 +1389,9 @@
         "tests/tooling/install/tool-root.test.js",
         "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
         "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/reports/summary/summary-report.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
@@ -1489,7 +1489,7 @@
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
-        "tests/tooling/reports/summary/summary-report.test.js",
+        "tests/tooling/reports/summary/summary-report-helpers.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1797,9 +1797,9 @@
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
         "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
+        "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/reports/summary/summary-report.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tests/tooling/structural/structural-filters.test.js",
         "tools/ci/run-suite.js",
