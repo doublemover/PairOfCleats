@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T02:56:10.195Z",
+  "generatedAt": "2026-02-02T03:22:39.099Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -44,6 +44,7 @@
       "PAIROFCLEATS_LOG_LEVEL",
       "PAIROFCLEATS_MAX_OLD_SPACE_MB",
       "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
+      "PAIROFCLEATS_MCP_MODE",
       "PAIROFCLEATS_MCP_QUEUE_MAX",
       "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
       "PAIROFCLEATS_MODEL",
@@ -1519,7 +1520,9 @@
     {
       "name": "PAIROFCLEATS_MCP_MODE",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tests/services/mcp/mcp-mode-selection.test.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1670,6 +1673,7 @@
         "tests/retrieval/cache/query-cache-extracted-prose.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
+        "tests/services/mcp/mcp-mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
@@ -1951,9 +1955,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_MCP_MODE"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 252,
     "publicFlags": [
