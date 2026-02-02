@@ -5,7 +5,31 @@ import { downloadDictionaries, downloadExtensions, downloadModels, verifyExtensi
 import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handlers/indexing.js';
 import { runSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
+import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
+import { getTestEnvConfig } from '../../src/shared/env.js';
 import { normalizeMetaFilters } from './tools/helpers.js';
+
+const parseTestDelayMs = () => {
+  const testEnv = getTestEnvConfig();
+  if (!testEnv.testing) return null;
+  const parsed = Number(testEnv.mcpDelayMs);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+};
+
+const delayWithAbort = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) {
+    reject(createError(ERROR_CODES.CANCELLED, 'Request cancelled.'));
+    return;
+  }
+  const timer = setTimeout(resolve, ms);
+  const onAbort = () => {
+    clearTimeout(timer);
+    reject(createError(ERROR_CODES.CANCELLED, 'Request cancelled.'));
+  };
+  if (signal) {
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+});
 
 /**
  * Normalize meta filters into CLI-friendly key/value strings.
@@ -61,7 +85,16 @@ export const TOOL_HANDLERS = new Map([
 export async function handleToolCall(name, args, context = {}) {
   const handler = TOOL_HANDLERS.get(name);
   if (!handler) {
-    throw new Error(`Unknown tool: ${name}`);
+    throw createError(ERROR_CODES.NOT_FOUND, `Unknown tool: ${name}`);
+  }
+  const delayMs = parseTestDelayMs();
+  if (delayMs) {
+    if (typeof context.progress === 'function') {
+      for (let i = 0; i < 5; i += 1) {
+        context.progress({ message: `test-progress-${i}`, phase: 'progress' });
+      }
+    }
+    await delayWithAbort(delayMs, context.signal);
   }
   return await handler(args, context);
 }

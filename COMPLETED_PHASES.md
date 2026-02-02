@@ -5489,4 +5489,629 @@ Touchpoints (test selection):
   - `{ version, changed[], suggestions[], truncation?, warnings? }`
 
 
+---
 
+
+## Phase 12 — MCP Migration + API/Tooling Contract Formalization
+
+### Objective
+Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
+
+- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
+- This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
+
+---
+
+### 12.1 Dependency strategy and capability gating for the official MCP SDK
+
+- [x] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
+  - Options:
+    - [ ] Dependency (always installed)
+    - [x] Optional dependency (install attempted; failures tolerated)
+    - [ ] External optional peer (default; capability-probed)
+  - [x] Implement the chosen strategy consistently:
+    - [x] `package.json` (if dependency/optionalDependency is chosen)
+    - [x] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
+    - [x] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
+  - [x] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
+
+- [x] Ensure MCP server mode selection is observable and capability-gated.
+  - Touchpoints:
+    - [x] `tools/mcp-server.js` — entrypoint dispatch
+    - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
+    - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
+  - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
+    - [x] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
+- `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
+- `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
+- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
+  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
+
+#### Tests / Verification
+
+- [x] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
+- [x] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
+
+---
+
+### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
+
+- [x] Implement an SDK-backed server alongside the legacy transport.
+  - Touchpoints:
+    - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
+    - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+      - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
+  - [x] Requirements for SDK server:
+    - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
+    - [x] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
+    - [x] Support stdio transport as the baseline.
+    - [x] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
+      - [x] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
+
+- [x] Add a deprecation window for the legacy transport.
+  - [x] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
+  - [x] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/tools.js` (tool execution entrypoint)
+- `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
+  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
+
+#### Tests / Verification
+
+- [x] Services: `tests/services/mcp/sdk-mode.test.js` (new)
+  - Skip if SDK is not installed.
+  - Start `tools/mcp-server-sdk.js` and run at least:
+    - `tools/list`
+    - one representative `tools/call` (e.g., `index_status`)
+  - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
+
+---
+
+### 12.3 Tool schema versioning, conformance, and drift guards
+
+- [x] Make tool schemas explicitly versioned and enforce bump discipline.
+  - Touchpoints:
+    - [x] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolVersion` (package.json)
+    - [x] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
+    - [x] `docs/contracts/mcp-tools.schema.json` (new) — canonical tool schema snapshot
+    - [x] `src/integrations/mcp/validate.js` (new) — validate tool schemas against snapshot
+  - [x] Define the canonical initialize response shape (schema + example).
+    - [x] `docs/contracts/mcp-api.md` — `initialize` response structure
+    - [x] `docs/contracts/mcp-initialize.schema.json` (new) — schema for response payload
+
+- [x] Consolidate MCP argument → execution mapping to one audited path.
+  - Touchpoints:
+    - [x] `tools/mcp/tools.js` (search/build tools)
+    - [x] `src/integrations/core/index.js` (shared arg builder, if used)
+  - [x] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
+
+- [x] Conformance requirement for the `search` tool:
+  - [x] Every field in the MCP `search` schema must either:
+    - [x] affect emitted CLI args / search execution, or
+    - [x] be removed from schema, or
+    - [x] be explicitly marked “reserved” and rejected if set.
+  - [x] Avoid duplicative builders (do not maintain two separate lists of flags).
+
+- [x] Fix known MCP tool wiring correctness hazards in modified files:
+  - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
+
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/defs.js` (~L1 exports; add `schemaVersion`)
+- `tools/mcp/tools.js` (~L? `runSearchTool` / arg mapping)
+- `src/integrations/mcp/protocol.js` (error + envelope helpers)
+- `docs/contracts/mcp-api.md` (schema versioning rules)
+
+#### Tests / Verification
+
+- [x] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
+  - Assert `schemaVersion` exists.
+  - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
+
+- [x] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
+  - For each supported schema field, assert mapping produces the expected CLI flag(s).
+  - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
+
+- [x] Update existing: `tests/services/mcp/mcp-schema.test.js`
+  - Keep snapshotting tool property sets.
+  - Add schemaVersion presence check.
+  - Add toolVersion presence check.
+  - Update `docs/contracts/coverage-ledger.md` to include new MCP schema tests.
+
+---
+
+### 12.4 Error codes, protocol negotiation, and response-shape consistency
+
+- [x] Standardize tool error payloads and map internal errors to stable MCP error codes.
+  - Touchpoints:
+    - [x] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
+    - [x] `tools/mcp/transport.js` — legacy transport handler
+    - [x] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [x] `src/shared/error-codes.js` — canonical internal codes
+  - [x] Define stable, client-facing codes (examples):
+    - [x] invalid args
+    - [x] index missing
+    - [x] tool timeout
+    - [x] not supported / capability missing
+    - [x] cancelled
+  - [x] Add `docs/contracts/mcp-error-codes.md` (or a section in `docs/contracts/mcp-api.md`) defining the canonical MCP error registry.
+  - [x] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
+
+- [x] Implement protocol/version negotiation and expose capabilities.
+  - [x] On `initialize`, echo supported protocol versions, the tool schema version, toolVersion, and effective capabilities.
+  - [x] Define the authoritative initialize response builder in `src/integrations/mcp/protocol.js`.
+  - [x] Define a capabilities schema (or a section in `docs/contracts/mcp-api.md`) with required keys and value semantics.
+
+#### Tests / Verification
+
+- [x] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
+- [x] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
+  - [x] Add `mcp-mode` selection test (legacy vs sdk) based on CLI/config/env.
+  - [x] Add capability payload test for both transports (initialize contains capabilities).
+  - [x] Align test path references with `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` (services lane vs `tests/mcp/*`).
+
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
+- `tools/mcp/transport.js` (legacy transport)
+- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `src/shared/error-codes.js` (canonical internal codes)
+
+---
+
+### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
+
+- [x] Ensure cancellation/timeout terminates underlying work within a bounded time.
+  - Touchpoints:
+    - [x] `tools/mcp/transport.js`
+    - [x] `tools/mcp/runner.js`
+    - [x] `tools/mcp/tools.js`
+  - [x] Cancellation correctness:
+    - [x] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
+    - [x] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
+  - [x] Timeout correctness:
+    - [x] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
+    - [x] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
+    - [x] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
+  - [x] Progress notification hygiene:
+    - [x] Throttle/coalesce progress notifications (max ~1 per 250ms per tool call, coalesced) to avoid overwhelming clients.
+
+- [x] Tighten MCP test process cleanup.
+  - [x] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
+
+#### Tests / Verification
+
+- [x] Update existing: `tests/services/mcp/mcp-robustness.test.js`
+  - Add “wait for exit” after `exit` (bounded).
+  - Add cancellation test:
+    - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
+  - [x] Add progress-throttle assertion (if practical): bursty progress is coalesced.
+
+- [x] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
+  - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
+  - [x] Update `docs/testing/truth-table.md` and `docs/testing/test-decomposition-regrouping.md` to reflect new MCP tests.
+
+---
+
+### 12.6 Documentation and migration notes
+
+- [x] Add `docs/guides/mcp.md` (new) describing:
+  - [x] how to run legacy vs SDK server modes
+  - [x] how to install/enable the SDK (per the chosen dependency strategy)
+  - [x] tool schemas and `schemaVersion` policy
+  - [x] stable error codes and cancellation/timeout semantics
+  - [x] capability reporting and expected client behaviors
+  - [x] Link from `docs/guides/commands.md` (or another index doc) so discoverability is maintained.
+  - [x] Update `docs/api/mcp-server.md` to describe legacy + SDK modes and capability reporting.
+  - [x] Update `docs/contracts/mcp-api.md` for schemaVersion/toolVersion + error code registry.
+  - [x] Ensure `docs/phases/phase-12/tooling-and-api-contract.md` and `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` remain in sync.
+
+**Mapping (source docs, minimal):** `GIGAMAP_FINAL_UPDATED.md` (M12), `GIGAMAP_ULTRA_2026-01-22_FULL_COVERAGE_v3.md` (M12 overlap notes), `CODEBASE_STATIC_REVIEW.md` (MCP schema mapping), `GIGASWEEP.md` (MCP timeout/cancellation/progress/test cleanup)
+
+
+---
+
+
+# GIGASWEEP 2
+
+## Phase 0 — Hard failures (repo/CI/scripts break *today*)
+
+### Objective
+Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actually exist and run.
+
+- [x] Fix missing tooling file referenced by script-coverage/tests.
+  - Symptom: script-coverage references `tools/mergeAppendOnly.js` which does not exist.
+  - Touchpoints:
+    - `tests/tooling/script-coverage/actions.js` — expects `tools/mergeAppendOnly.js`
+    - `docs/tooling/repo-inventory.json` — still lists `merge-append`
+  - Action:
+    - [x] Add `tools/mergeAppendOnly.js` **or** remove/replace the script-coverage action + scrub inventory docs.
+
+- [x] Fix CI workflow referencing a non-existent npm script.
+  - Symptom: `.github/workflows/ci-long.yml` runs `npm run test:ci-long`, but `package.json` has no `test:ci-long`.
+  - Touchpoints:
+    - `.github/workflows/ci-long.yml`
+    - `package.json`
+  - Action:
+    - [x] Add `test:ci-long` script **or** update workflow to use `node tools/ci/run-suite.js ...`.
+
+- [x] Fix release-check script failing in clean checkout.
+  - Symptom: `tools/release-check.js` requires `CHANGELOG.md` which is not present.
+  - Touchpoints:
+    - `tools/release-check.js`
+    - `docs/guides/release-discipline.md`
+  - Action:
+    - [x] Add `CHANGELOG.md` **or** relax/check conditionally.
+
+- [x] Fix critical-deps validator pointing at the wrong docs directory.
+  - Symptom: `tools/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
+  - Touchpoints:
+    - `tools/validate-critical-deps.js`
+    - `docs/dependency_references/dependency-coverage.md`
+  - Action:
+    - [x] Update expected paths or move docs folder (prefer updating script).
+
+---
+
+## Phase 1 — CLI surface vs docs (major drift)
+
+### Objective
+Stop shipping docs that describe commands, endpoints, and flags that don’t exist.
+
+- [x] Implement or de-document the `pairofcleats report ...` command family.
+  - Docs reference:
+    - `docs/guides/code-maps.md` (`pairofcleats report map`)
+    - `docs/benchmarks/evaluation.md` (`pairofcleats report eval`)
+    - `docs/benchmarks/model-comparison.md` (`pairofcleats report compare-models`)
+    - `docs/guides/repometrics-dashboard.md` (`pairofcleats report repometrics`)
+  - Reality:
+    - `bin/pairofcleats.js` does **not** implement `report`.
+    - Some underlying tools exist (e.g., `tools/report-code-map.js`) but are not routed.
+  - Action:
+    - [x] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
+    - [x] Update docs to use `node tools/...` or `npm run ...`.
+
+- [x] Implement or de-document `pairofcleats sqlite ...`.
+  - Docs reference: `docs/sqlite/incremental-updates.md` (`pairofcleats sqlite build --incremental`)
+  - Reality: `bin/pairofcleats.js` has no `sqlite` group.
+  - Action: wire a `sqlite` command group or change docs to `npm run build-sqlite-index ...`.
+
+- [x] Implement or de-document `pairofcleats service indexer ...`.
+  - Docs reference: `docs/guides/service-mode.md` (`service indexer start/status/stop`)
+  - Reality: CLI only supports `pairofcleats service api`. `tools/indexer-service.js` exists but is not routed.
+  - Action: route `service indexer` or change docs to `npm run indexer-service`.
+
+- [x] Fix broken doc links and API surface claims.
+  - `docs/guides/code-maps.md` links to `./api-server.md` which does not exist.
+  - Map endpoints described in docs don’t appear in the API router.
+  - Action: fix link + reconcile endpoints vs router.
+
+- [x] README drift and missing references.
+  - Missing/incorrect references:
+    - README references `GIGAROADMAP.md` but file is `GIGAROADMAP_2.md`.
+    - README implies a license file exists; none found at repo root.
+    - README references scripts not present (e.g., `test:pr`).
+  - CLI behavior drift:
+    - README lists `--mode code|prose|both`; code supports `code|prose|extracted-prose|records|all`.
+    - README references env var `PAIROFCLEATS_DOC_EXTRACT` not implemented (behavior appears config-driven).
+    - README mentions backends/flags not supported by `bin/pairofcleats.js` (e.g., `sqlite-fts`, `memory`, `--why` vs `--explain`).
+  - Action: reconcile README with current CLI and config reality.
+
+---
+
+## Phase 2 — Config correctness (schema, validation, normalization)
+
+### Objective
+Ensure the config file (`.pairofcleats.json`) is:
+1) validated correctly, and
+2) actually applied by runtime.
+
+#### 2.1 Normalization drops supported keys (user config silently ignored)
+- [x] Fix `quality` and `threads` being validated/documented but then silently dropped.
+  - Symptoms:
+    - `docs/config/schema.json` defines top-level `quality` and `threads`.
+    - default config template emits `quality: "auto"`.
+    - `tools/dict-utils/config.js` normalization does **not** carry `quality` or `threads` through.
+    - Runtime reads `config.quality` (`src/shared/auto-policy.js`) and `userConfig.threads` (`src/shared/runtime-envelope.js`) → user settings never take effect.
+  - Action:
+    - [x] Pass-through `quality` and `threads` in normalization.
+    - [x] Add tests proving config changes behavior (not just schema validation).
+
+#### 2.2 Validator vs schema mismatch (schema features ignored / mis-evaluated)
+- [x] Align `docs/config/schema.json` with the actual validator (`src/config/validate.js`) *or* adopt a real JSON Schema validator.
+  - Issues observed:
+    - Schema uses `anyOf` and union types (e.g., `"type": ["number","null"]`) but validator ignores `anyOf` and mishandles array-`type`.
+    - Root `additionalProperties:false` rejects many keys the code expects/normalizes (`sqlite`, `lmdb`, etc.) unless schema is expanded.
+    - `tools/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
+  - Action (recommended):
+    - [x] Switch to Ajv (or equivalent) and treat `docs/config/schema.json` as authoritative.
+    - [x] Add tests for `anyOf` + union types + unknown top-level keys.
+  - Alternative (not chosen; Ajv path implemented):
+    - Restrict schema to the validator’s supported subset and adjust doc tooling accordingly.
+
+#### 2.3 Additional normalization/validation defects
+- [x] Fix conditional drop: `search.sqliteAutoArtifactBytes` is ignored unless `sqliteAutoChunkThreshold` is set.
+  - Touchpoint: `tools/dict-utils/config.js` (`sqliteAutoArtifactBytes` parsing is gated on threshold existence).
+- [x] Fix `validateConfig()` “required bypass” under `additionalProperties:false`.
+  - Touchpoint: `src/config/validate.js` (unknown property is skipped if the key is also in `required`).
+
+#### 2.4 Generated “inventory” docs drift / contract not enforced
+- [x] Keep generated docs in sync:
+  - `docs/config/inventory.json` vs `docs/config/inventory.md` public flags list mismatch.
+  - `docs/guides/commands.md` appears out of sync with its generator.
+  - Action:
+    - [x] Add CI test: regenerate artifacts and assert no diff.
+    - [x] Document the generator command(s) as the single source of truth.
+
+---
+
+## Phase 3 — Path safety / filesystem hardening (high priority)
+
+### Objective
+Manifest-driven and output-driven filesystem reads must be safe **regardless of “strict” mode**.
+
+- [x] Always enforce manifest path containment, even in non-strict mode.
+  - Findings:
+    - `src/index/validate/manifest.js` only validates entry paths when `strict===true`, but still `existsSync()` / hashes resolved paths when non-strict.
+    - `src/shared/artifact-io/manifest.js` similarly only enforces safety when strict.
+    - `tools/ci-restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
+  - Risk: path traversal (`../`) can read outside indexDir if manifest is corrupted/untrusted.
+  - Action:
+    - [x] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
+    - [x] In non-strict mode: downgrade to warnings + skip unsafe entries (but do not read them).
+
+- [x] Fix path safety predicate false-positives.
+  - Current logic uses substring `normalized.includes('..')`, which rejects benign strings like `foo..bar`.
+  - Action: check path segments for equality to `'..'`.
+
+- [x] Fix output summarization path traversal.
+  - `src/retrieval/output/summary.js` uses `path.join(rootDir, chunk.file)` without containment validation.
+  - Action: resolve and ensure resulting path remains under `rootDir` before reading.
+
+---
+
+## Phase 4 — Retrieval/search: backend selection, ranking knobs, and flag surface
+
+### Objective
+Make search behavior deterministic, debuggable, and aligned with its public CLI surface.
+
+#### 4.1 SQLite FTS auto-enable inconsistency (backend initialization vs downstream usage)
+- [x] Fix divergent booleans for FTS enablement.
+  - In `src/retrieval/cli.js`, FTS is derived as:
+    - `sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection)`
+  - But `createBackendContext(...)` receives the **original** `sqliteFtsRequested`, while index-loading receives `sqliteFtsEnabled`.
+  - Consequences:
+    - backend label and required-table checks can behave as “non-FTS” even while pipeline behaves as “FTS enabled”.
+    - can cause unnecessary fallback away from SQLite.
+  - Action: compute one canonical “FTS enabled” boolean and pass it everywhere.
+
+#### 4.2 Flag surface is far larger than yargs declarations (types/missing-value hazards)
+- [x] Declare every consumed `argv.*` option in yargs (or intentionally mark them as “advanced” but still declare them).
+  - Current state:
+    - ~70+ `argv.*` keys are read in the search path; ~40+ are not declared in yargs.
+    - `.strict(false)` means unknown flags are accepted but are not typed/coerced and are absent from `--help`.
+  - High-risk cases (missing value → `true`):
+    - `--repo` can cause hard throw (`path.resolve(true)`).
+    - string filters can silently become `"true"`.
+    - numeric knobs can silently become `1` (`Number(true) === 1`) (e.g., `--bm25-k1`, `--modified-since`).
+  - Action:
+    - [x] Add yargs declarations for all read flags with correct types and `.requiresArg()` where applicable.
+    - [x] Expand `getMissingFlagMessages()` beyond `type/author/import` to include “must-have-value” flags.
+    - [x] Add tests for missing-value behavior (`--repo`, `--modified-since`, `--bm25-k1`, `--path`, etc.).
+
+- [x] Fix `--context` dead flag.
+  - `contextLines` is computed from `argv.context` but not used downstream.
+  - Action: wire it to output context, or remove the flag.
+
+- [x] Fix Windows drive-letter token parsing in `--filter`.
+  - `parseFilterExpression()` splits on `:`; `C:\...` becomes key `c`.
+  - Action: special-case `/^[A-Za-z]:[\\/]/` as a file path token.
+
+- [x] Fix LMDB chunk hydration overwriting valid zeros.
+  - `src/retrieval/lmdb-helpers.js` uses falsy checks (`if (!chunk.churn)`) causing `0` to be overwritten.
+  - Action: use nullish checks (`== null`).
+
+#### 4.3 Retrieval pipeline safety and determinism
+- [x] Propagate abort/cancellation signals into provider calls.
+  - Current pattern checks `signal` at boundaries but providers don’t accept/obey it.
+- [x] Validate unknown ANN backend strings rather than silently defaulting.
+- [x] Add candidate set caps to prevent “candidate explosion” on pathological tokens.
+- [x] Document and/or wire search config knobs.
+  - Current normalization hard-codes several behaviors (`contextExpansionEnabled=false`, `scoreBlendEnabled=false`, etc.) while docs imply configurability.
+  - Many backend config normalizers are called with `{}` (ignoring `userConfig`), limiting real-world configurability.
+
+---
+
+## Phase 5 — SQLite/Tantivy/index build tooling correctness
+
+### Objective
+Remove dead code paths, misleading cleanup, and brittle precondition assumptions.
+
+- [x] Clean up SQLite build runner resource handling.
+  - `tools/build-sqlite-index/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
+  - Unused variables like `hasVectorTableBefore` and wording mismatches in warnings.
+  - Action: make return types explicit, remove dead cleanup, fix warnings.
+
+- [x] Improve Tantivy build error messaging and prerequisite checks.
+  - `tools/build-tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
+  - Action: explicitly detect required artifacts and print remediation steps.
+
+- [x] Optional doc extraction deps are capability-probed but not declared.
+  - `src/shared/capabilities.js` checks `pdfjs-dist`/`mammoth`, but `package.json` doesn’t declare them.
+  - Action: either document “install to enable” or move them to `optionalDependencies`.
+
+- [x] Fix unused/leftover build-state variable.
+  - `build_index.js` defines `buildStatePath` but doesn’t use it.
+
+---
+
+## Phase 6 — MCP robustness
+
+### Objective
+No request should hang without a response; cancellation/timeout semantics should be deterministic.
+
+- [x] Fix tool-call cancellation: ensure a response is emitted even if handler resolves after cancellation.
+  - Current behavior: if cancelled flag is set, success path returns without sending a reply.
+  - Touchpoints:
+    - `tools/mcp/transport.js`
+    - tool handlers (e.g., `tools/mcp/tools/handlers/search.js`)
+  - Action:
+    - [x] On cancellation: send a deterministic “cancelled” response for the original request id.
+    - [x] Add a `$ /cancelRequest` test asserting a response always arrives.
+
+---
+
+## Phase 7 — Risk analysis & type inference correctness + tests
+
+### Objective
+Fix correctness bugs in local risk detection and close test gaps in type inference.
+
+#### 7.1 Local risk detector correctness gaps
+- [x] Fix “taint confidence” bug (reads the wrong field).
+  - `src/index/risk.js` uses `entry.confidence` where entries are `{ rule, evidence }`.
+  - Action: use `entry.rule.confidence` (or remove if unused).
+- [x] Fix rule-id aggregation mismatch in `combineSourceEvidence()`.
+- [x] Document/expand assignment heuristics:
+  - current parsing skips `=>` and misses destructuring/multi-line patterns.
+- [x] Sanitizer matching is overly broad (clears taint if variable name appears on any matching line).
+
+#### 7.2 Risk rules diagnostics shape
+- [x] `src/index/risk-rules.js` has an `errors` array that is never used.
+  - Action: either classify fatal issues into `errors` or remove it for clarity.
+
+#### 7.3 Interprocedural risk behavior clarity
+- [x] Document and surface “timeout ⇒ zero flows” behavior (it’s deterministic and tested but surprising).
+- [x] Clarify/verify `taintHints` production wiring (appears optional/dormant in some paths).
+- [x] Consider artifact metadata clarity for sharded JSONL (entrypoint is `.meta.json` but format labeled `jsonl`).
+
+#### 7.4 Type inference coverage and unused outputs
+- [x] Local type inference exports `aliases` but caller ignores it.
+  - Action: remove dead output or wire alias propagation.
+- [x] Add unit tests for `src/index/type-inference.js` (cross-file tests exist; local inference is largely untested).
+
+#### 7.5 Cross-file pipeline implementation smells
+- [x] Avoid attaching private `_keys` Sets to arrays for dedupe.
+  - Action: use local Sets/Maps or a `WeakMap`.
+- [x] Layering concern: `src/index/*` importing from `tools/*` may complicate packaging boundaries.
+  - Action: route shared helpers through `src/shared/*` wrappers to avoid direct `tools/*` imports.
+
+---
+
+## Phase 8 — Test & drift-guard improvements (prevent recurrence)
+
+### Objective
+Turn current failures/drifts into permanent guardrails.
+
+- [x] Add workflow contract coverage for **all** workflows.
+  - Current workflow-contract tests cover `ci.yml` but not `ci-long.yml` (which is broken).
+- [x] Add “npm scripts target exists” test in PR lane.
+  - Catch missing `tools/*.js` targets early (e.g., `mergeAppendOnly.js`).
+- [x] Add Markdown link checker test.
+  - Catch broken doc links (e.g., `docs/guides/code-maps.md -> api-server.md`).
+- [x] Add generator sync tests for doc inventories (`commands.md`, `inventory.md/json`).
+- [x] Remove brittle cross-test ordering via marker files in summary-report tests.
+  - Replace polling loop with a shared helper or a single orchestrated integration test.
+
+---
+
+## Phase 9 — Tooling and docs hygiene (quality-of-life)
+
+### Objective
+Reduce “mystery behavior” and make internal tooling more robust.
+
+- [x] Improve `tools/check-env-usage.js` detection patterns.
+  - Currently misses bracket access, destructuring, and other env read patterns.
+  - Consider AST-based linting.
+
+- [x] Fix `tools/download-extensions.js` chmod contradiction and improve download safety.
+  - `chmod 0755` is immediately overwritten by `chmod 0644`.
+  - Archive downloads are buffered in memory without size caps.
+  - Consider forcing HTTPS or requiring hashes for HTTP.
+
+- [x] Fix `tools/download-models.js` ONNX copy logic.
+  - Current logic checks `!existsSync(onnxTarget)` then calls `statSync(onnxTarget)`, making directory handling dead.
+  - Also doesn’t copy when target dir already exists.
+
+- [x] Fix `tools/compare-models.js` index existence probe.
+  - Checks only for `chunk_meta.json` and may miss valid indexes in other shapes.
+
+- [x] Tool detection should verify executability, not just filename presence.
+  - `tools/tooling-detect.js` should run `--version` before claiming “found”.
+
+- [x] Fix `src/integrations/core/status.js` payload naming ambiguity.
+  - `repo.root` appears to report cache root, not repository root.
+
+- [x] Compact/shard tooling scalability:
+  - `tools/compact-pieces.js` now streams gzip + zstd JSONL shards.
+  - `tools/ctags-ingest.js` backpressure handled.
+
+---
+
+# Appendix A — Sweep coverage (what was reviewed)
+
+This repo was reviewed in multiple sweeps. Below is a high-level list of the file clusters covered (full per-turn lists were provided in the chat):
+
+1) **Project wiring:** `package.json`, root scripts, bin entrypoints, GitHub workflows, core CLI plumbing.
+2) **Docs surface:** README, docs guides/contracts/specs, generated inventories, link integrity.
+3) **Config system:** schema docs, validator, normalization, demo/template generators.
+4) **Install/build tooling:** extensions/models/dicts downloads, indexing builders, CI artifact restore/build scripts.
+5) **MCP integration:** protocol/transport, tool handlers, robustness tests.
+6) **Index internals:** manifest/path validation, incremental state, locking, map building.
+7) **Risk analysis & type inference:** local detector, interprocedural engine, cross-file inference pipeline.
+8) **Retrieval/ranking:** sqlite/lmdb/tantivy providers, rankers/scoring knobs, filters, caching, flag surface.
+
+---
+
+# Appendix B — “Highest ROI” patch set (suggested ordering)
+
+If you want a focused sequence that quickly stabilizes the repo:
+
+1) Fix immediate hard failures: missing `tools/mergeAppendOnly.js`, missing `test:ci-long`, `validate-critical-deps` path, `CHANGELOG.md` gate.
+2) Fix config normalization dropping `quality` + `threads`.
+3) Fix manifest/output path traversal hazards (always enforce containment).
+4) Fix SQLite FTS enablement mismatch (auto path).
+5) Declare the full search flag surface in yargs and add missing-value tests.
+6) Add drift-guards: workflow/script/link/inventory sync tests.
+7) MCP cancellation always responds.
+8) Clean up SQLite build runner + downloads tooling (chmod + streaming + onnx copy).
+
+---
+
+# Appendix C — Incorrect Findings
+
+- Phase 0: The symptom “npm run merge-append targets a missing file” is stale. The `merge-append` script no longer exists in `package.json`; the missing file issue now stems from script-coverage/tests still referencing `tools/mergeAppendOnly.js` (and repo-inventory docs listing `merge-append`).
+
+---
+
+# AVISPROVOC
+
+## Action items
+[x] Inventory tests at tests/ root and all subfolders; build a mapping table (current path -> new path, rename, helper extraction notes).
+[x] Define the target taxonomy: subsystem-first folders with feature subfolders; keep unit/integration only as lanes (not as folders).
+[x] Create missing top-level folders (runner, smoke, shared) and subsystem feature subfolders (indexing/watch, indexing/imports, retrieval/ann, storage/lmdb, tooling/reports, etc.).
+[x] Move all root-level test files into subsystem/feature folders; leave only run.js, run.rules.jsonc, run.config.jsonc, and README.md at tests/ root.
+[x] Move runner-related files (all.js, test-runner.js, discovery/reporting helpers) into tests/runner and update their import paths.
+[x] Rehome CLI tests into tests/cli/build-index and tests/cli/search subfolders; update references in docs and runner config.
+[x] Rehome indexing tests into tests/indexing/<feature> (chunking, watch, ignore, imports, incremental, promotion, embeddings, relations, etc.).
+[x] Rehome indexer tests into tests/indexer/<feature> (metav2, sharded-meta, signatures, artifacts, pipeline, service, etc.).
+[x] Rehome retrieval tests into tests/retrieval/<feature> (ann, postings, query, ranking, filters, cache, output, explain, etc.).
+[x] Rehome storage tests into tests/storage/<backend> (sqlite, lmdb, vector-extension) and keep other storage-related tests adjacent.
+[x] Rehome tooling tests into tests/tooling/<feature> (reports, ingest, script-coverage, structural, vscode, doctor, etc.).
+[x] Rehome crossfile/type-inference/identity/map/relations/risk tests into the most natural subsystem folder with feature subfolders.
+[x] Rename all test files to \*.test.js and ensure helpers remain \*.js; update any references, lists, and docs that mention old names.
+[x] Centralize repeated test setup (fixtures, env sync, spawn wrappers, build_index helpers) into tests/helpers; remove duplicated logic in tests.
+[x] Create or update shared helpers for common build-index and fixture operations; refactor tests to consume them.
+[x] Update tests/run.rules.jsonc lane and tag rules to match new paths; keep unit/integration lanes as tags only.
+[x] Update tests/run.config.jsonc, tests/ci/ci.order.txt, tests/ci-lite/ci-lite.order.txt, and tools/test_times/* for the new paths.
+[x] Update any docs referencing test paths or layout (README.md, docs guides, AGENTS.md as needed).
+[x] Verify helpers/support folders remain excluded in test discovery (excludedDirs) and that tests/shared contains only src/shared tests.
+[x] Run test discovery (node tests/run.js --list) and a small smoke subset to validate moves; stop any test > 1 minute and ask you to run it.
+[x] Final sweep: confirm no test files remain at tests/ root and no stale paths remain in repo search.
+[x] Update AVISPROVOC.md progress log with each batch move, helper extraction, and any conflicts or ambiguities.
+
+---

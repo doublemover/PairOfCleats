@@ -36,7 +36,7 @@ export function getCapabilities(options = {}) {
       docx: check('mammoth', opts)
     },
     mcp: {
-      sdk: check('@modelcontextprotocol/sdk', opts),
+      sdk: check('@modelcontextprotocol/sdk', opts, { allowEsm: true }),
       legacy: true
     },
     externalBackends: {

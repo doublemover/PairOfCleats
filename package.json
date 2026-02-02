@@ -147,12 +147,17 @@
     "web-tree-sitter": "0.20.8",
     "xxhash-wasm": "^1.1.0",
     "yaml": "^2.8.2",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "zod": "^3.25.0"
   },
   "optionalDependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@mongodb-js/zstd": "^7.0.0",
     "@node-rs/xxhash": "^1.7.2",
     "@parcel/watcher": "^2.4.1",
     "re2": "^1.23.0"
+  },
+  "devDependencies": {
+    "c8": "^9.1.0"
   }
 }

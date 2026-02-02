@@ -35,7 +35,8 @@ export async function triageIngest(args = {}, context = {}) {
   const { stdout } = await runNodeAsync(repoPath, ingestArgs, {
     streamOutput: true,
     onLine: progressLine,
-    env: runtimeEnv
+    env: runtimeEnv,
+    signal: context.signal
   });
   let payload = {};
   try {
@@ -114,7 +115,8 @@ export async function triageContextPack(args = {}, context = {}) {
   const { stdout } = await runNodeAsync(repoPath, contextArgs, {
     streamOutput: true,
     onLine: progressLine,
-    env: runtimeEnv
+    env: runtimeEnv,
+    signal: context.signal
   });
   if (progress) {
     progress({ message: 'Context pack ready.', phase: 'done' });

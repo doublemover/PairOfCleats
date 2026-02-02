@@ -151,6 +151,24 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["legacy", "sdk", "auto"],
+          "description": "MCP server mode; sdk requires @modelcontextprotocol/sdk capability."
+        },
+        "queueMax": { "type": "number" },
+        "maxBufferBytes": { "type": "number" },
+        "toolTimeoutMs": { "type": "number" },
+        "toolTimeouts": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
     "indexing": {
       "type": "object",
       "additionalProperties": true,

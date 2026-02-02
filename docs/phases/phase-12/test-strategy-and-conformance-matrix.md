@@ -214,7 +214,7 @@ Legend:
 - Returned schemas must match snapshot `docs/contracts/mcp-tools.schema.json`.
 
 **Tests**
-- `tests/mcp/sdk-tools-list.contract.js`
+- `tests/services/mcp/sdk-tools-list.contract.js`
   - start MCP SDK server
   - call `tools/list`
   - assert tool names match expected set
@@ -231,7 +231,7 @@ Legend:
 - Server returns a tooling schema version somewhere discoverable (prefer `_meta.schemaVersion`).
 
 **Tests**
-- `tests/mcp/sdk-initialize.contract.js`
+- `tests/services/mcp/sdk-initialize.contract.js`
   - initialize + notifications/initialized
   - assert serverInfo/capabilities present
   - assert schemaVersion is present in the negotiated contract surface (initialize `_meta` OR follow-up tools/list `_meta`)
@@ -247,7 +247,7 @@ Legend:
   - no reserved keys leakage into `result`
 
 **Tests**
-- `tests/mcp/sdk-tool-envelope.contract.js`
+- `tests/services/mcp/sdk-tool-envelope.contract.js`
   - call representative tool (e.g., `index_status`)
   - parse result
   - assert envelope schema
@@ -277,7 +277,7 @@ Legend:
   - cancelled
 
 **Tests**
-- `tests/mcp/sdk-errors.contract.js`
+- `tests/services/mcp/sdk-errors.contract.js`
 - `tests/api/errors.contract.js`
 - `tests/parity/errors.parity.js`
 
@@ -288,7 +288,7 @@ Legend:
 - API request bodies MUST be validated consistently.
 
 **Tests**
-- `tests/mcp/sdk-arg-validation.contract.js`
+- `tests/services/mcp/sdk-arg-validation.contract.js`
   - send unknown arg
   - assert InvalidParams
 - `tests/api/arg-validation.contract.js`
@@ -302,7 +302,7 @@ Legend:
 - No further progress notifications after cancellation.
 
 **Tests**
-- `tests/mcp/sdk-cancellation.contract.js`
+- `tests/services/mcp/sdk-cancellation.contract.js`
 - `tests/api/cancellation.contract.js` (if API supports cancellation semantics; otherwise N/A)
 
 ### C-008 -- Timeouts (MUST)
@@ -312,7 +312,7 @@ Legend:
 - Underlying work is aborted (no leaked subprocesses).
 
 **Tests**
-- `tests/mcp/sdk-timeout.contract.js`
+- `tests/services/mcp/sdk-timeout.contract.js`
 - `tests/unit/abort-kills-child.unit.js` (if child processes are used)
 
 ### C-009 -- Queue overload / backpressure (MUST)
@@ -322,7 +322,7 @@ Legend:
 - This MUST be deterministic and testable.
 
 **Tests**
-- `tests/mcp/sdk-overload.contract.js`
+- `tests/services/mcp/sdk-overload.contract.js`
 
 ### C-010 -- API ↔ MCP parity on representative tool(s) (MUST)
 
@@ -371,4 +371,5 @@ Legend:
 - [ ] Migrate API responses to PocEnvelope.
 - [ ] Implement conformance tests for SDK + API + parity.
 - [ ] Gate legacy transport behind explicit flag; ensure SDK is default when installed.
+
 

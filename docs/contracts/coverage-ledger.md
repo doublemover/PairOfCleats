@@ -9,7 +9,7 @@
 | `search.js --backend sqlite` | `docs/contracts/sqlite.md` | `tests/storage/sqlite/sqlite-auto-backend.test.js`, `tests/storage/sqlite/sqlite-missing-dep.test.js` | - |
 | `bin/pairofcleats.js` | `docs/contracts/search-cli.md` | `tests/cli/general/cli.test.js` | - |
 | `tools/api-server.js` | `docs/contracts/mcp-api.md` | `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/services/api/api-server-stream.test.js` | - |
-| `tools/mcp-server.js` | `docs/contracts/mcp-api.md` | `tests/services/mcp/tools-list.test.js` | - |
+| `tools/mcp-server.js` | `docs/contracts/mcp-api.md` | `tests/services/mcp/tools-list.test.js`, `tests/services/mcp/protocol-initialize.test.js`, `tests/services/mcp/mcp-schema.test.js`, `tests/services/mcp/mcp-schema-version.test.js`, `tests/services/mcp/mcp-search-arg-mapping.test.js`, `tests/services/mcp/sdk-mode.test.js` | - |
 | `tools/indexer-service.js` | `docs/contracts/indexing.md` | `tests/services/indexer/indexer-service.test.js`, `tests/services/queue/service-queue.test.js`, `tests/indexing/runtime/two-stage-state.test.js` | - |
 | `tools/index-validate.js` | `docs/contracts/indexing.md` | `tests/indexing/validate/index-validate.test.js`, `tests/indexing/embeddings/embeddings-dims-mismatch.test.js` | - |
 | `tools/assemble-pieces.js` | `docs/contracts/indexing.md` | - | Gap: no fixture-based assembly test yet. |

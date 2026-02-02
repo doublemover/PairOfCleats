@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MCP initialize response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "serverInfo", "capabilities", "schemaVersion", "toolVersion"],
+  "properties": {
+    "protocolVersion": { "type": "string" },
+    "serverInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "schemaVersion": { "type": "string" },
+    "toolVersion": { "type": "string" }
+  }
+}

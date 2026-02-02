@@ -150,7 +150,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: MCP server enforces per-tool timeouts and queue limits.
   - Implementation: `tools/mcp-server.js` (queue/timeouts), `tools/mcp/transport.js` (`createMcpTransport`), `tools/mcp/repo.js` (`resolveToolTimeoutMs`).
   - Config: `mcp.queueMax`, `mcp.toolTimeoutMs`, `mcp.toolTimeouts`; environment `PAIROFCLEATS_MCP_QUEUE_MAX`, `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`.
-  - Tests: `tests/services/mcp/mcp-robustness.test.js`, `tests/services/mcp/mcp-schema.test.js`.
+  - Tests: `tests/services/mcp/mcp-robustness.test.js`, `tests/services/mcp/mcp-runner-abort-kills-child.test.js`, `tests/services/mcp/mcp-schema.test.js`.
   - Limitations: long-running tools require explicit overrides.
 
 - Claim: MCP server advertises core resources and tool actions using repo-scoped config.

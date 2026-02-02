@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T01:00:21.753Z",
+  "generatedAt": "2026-02-02T04:38:50.895Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -44,6 +44,7 @@
       "PAIROFCLEATS_LOG_LEVEL",
       "PAIROFCLEATS_MAX_OLD_SPACE_MB",
       "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
+      "PAIROFCLEATS_MCP_MODE",
       "PAIROFCLEATS_MCP_QUEUE_MAX",
       "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
       "PAIROFCLEATS_MODEL",
@@ -66,6 +67,7 @@
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
       "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
+      "PAIROFCLEATS_TEST_MCP_DELAY_MS",
       "PAIROFCLEATS_TEST_NODE_OPTIONS",
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
@@ -118,6 +120,11 @@
       "indexing.riskInterprocedural.sanitizerPolicy",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
+      "mcp.maxBufferBytes",
+      "mcp.mode",
+      "mcp.queueMax",
+      "mcp.toolTimeoutMs",
+      "mcp.toolTimeouts",
       "quality",
       "retrieval.contextExpansion.enabled",
       "retrieval.contextExpansion.includeCalls",
@@ -213,8 +220,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 163,
-    "leafKeys": 128,
+    "totalKeys": 169,
+    "leafKeys": 133,
     "topLevel": [
       {
         "key": "cache",
@@ -223,6 +230,10 @@
       {
         "key": "indexing",
         "count": 54
+      },
+      {
+        "key": "mcp",
+        "count": 6
       },
       {
         "key": "quality",
@@ -539,6 +550,40 @@
     {
       "path": "indexing.riskInterprocedural.summaryOnly",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "mcp",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "mcp.maxBufferBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp.mode",
+      "type": "string",
+      "enum": [
+        "legacy",
+        "sdk",
+        "auto"
+      ]
+    },
+    {
+      "path": "mcp.queueMax",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp.toolTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp.toolTimeouts",
+      "type": "object",
       "enum": null
     },
     {
@@ -1213,6 +1258,7 @@
         "tests/services/api/core-api.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
@@ -1285,6 +1331,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
+        "src/integrations/mcp/protocol.js",
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/repo-root.test.js",
@@ -1396,7 +1443,6 @@
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
-        "tools/mcp/transport.js",
         "tools/triage/context-pack.js",
         "tools/triage/ingest.js"
       ]
@@ -1420,6 +1466,7 @@
         "tests/helpers/mcp-client.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1467,6 +1514,14 @@
       "name": "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
       "files": [
         "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_MODE",
+      "files": [
+        "src/shared/env.js",
+        "tests/services/mcp/mcp-mode-selection.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1618,6 +1673,7 @@
         "tests/retrieval/cache/query-cache-extracted-prose.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
+        "tests/services/mcp/mcp-mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
@@ -1654,6 +1710,14 @@
       "name": "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
       "files": [
         "tests/run.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_MCP_DELAY_MS",
+      "files": [
+        "src/shared/env.js",
+        "tests/services/mcp/mcp-robustness.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1775,6 +1839,7 @@
         "tests/runner/all.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/logging/stdout-contract.test.js",
         "tests/shared/runtime/runtime-records-config.test.js",
@@ -1891,7 +1956,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 251,
+    "totalFlags": 252,
     "publicFlags": [
       "backend",
       "host",
@@ -2035,6 +2100,7 @@
       "maxWallClockMs",
       "maxWarnings",
       "maxWorkUnits",
+      "mcp-mode",
       "meta",
       "min-count",
       "min-overlap",
@@ -2875,6 +2941,13 @@
         ]
       },
       {
+        "file": "tools/mcp-server.js",
+        "flags": [
+          "mcp-mode",
+          "repo"
+        ]
+      },
+      {
         "file": "tools/parity-matrix.js",
         "flags": [
           "ann-modes",
@@ -3112,7 +3185,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 51,
+        "count": 52,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3148,6 +3221,7 @@
           "tools/indexer-service.js",
           "tools/lsif-ingest.js",
           "tools/map-iso-serve.js",
+          "tools/mcp-server.js",
           "tools/repometrics-dashboard.js",
           "tools/report-artifacts.js",
           "tools/report-code-map.js",

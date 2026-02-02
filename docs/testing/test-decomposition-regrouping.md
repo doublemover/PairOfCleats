@@ -252,6 +252,8 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 - `services/mcp/tool-build-index-progress.test.js`
 - `services/mcp/tool-search-defaults-and-filters.test.js`
 - `services/mcp/errors.test.js` (missing repo, missing index)
+- `services/mcp/mcp-robustness.test.js` (queue overload, cancellation, timeout)
+- `services/mcp/mcp-runner-abort-kills-child.test.js`
 
 **Regrouping:**
 - `services` lane; tag `mcp`.

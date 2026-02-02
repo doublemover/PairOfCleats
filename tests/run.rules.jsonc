@@ -11,11 +11,12 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "ci"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
     { "lane": "smoke", "match": ["^smoke/"] },
+    { "lane": "mcp", "match": ["^services/mcp/"] },
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },

@@ -58,244 +58,13 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
 ---
 
 ## Roadmap Table of Contents
-- Phase 12 -- MCP Migration + API/Tooling Contract Formalization
-    - 12.1 - Dependency strategy and Capability Gating for the Official MCP SDK
-    - 12.2 - SDK-backed MCP server (Parallel Mode with Explicit Cutover Flag)
-    - 12.3 - Tool Schema Versioning, Conformance, and Drift Guards
-    - 12.4 - Error codes, Protocol Negotiation, and Response-Shape Consistency
-    - 12.5 - Cancellation, Timeouts, and Process Hygiene
-    - 12.6 - Documentation and Migration Notes
 - Phase 13 -- JJ Support (via Provider API)
+    - 13.0 - Authoritative Docs + Provider Contract + Build State Schema
     - 13.1 - Introduce `ScmProvider` Interface + Registry + Config/State Schema Wiring
     - 13.2 - Migrate Git onto the Provider Interface
     - 13.3 - Implement JJ Provider (read-only default, robust parsing)
     - 13.4 - CLI + Tooling Visibility (make SCM selection obvious)
     - 13.5 - Non-Repo Environments (explicitly supported)
-
----
-
-
-## Phase 12 — MCP Migration + API/Tooling Contract Formalization
-
-### Objective
-Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
-
-- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
-- This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
-
----
-
-### 12.1 Dependency strategy and capability gating for the official MCP SDK
-
-- [ ] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
-  - Options:
-    - [ ] Dependency (always installed)
-    - [ ] Optional dependency (install attempted; failures tolerated)
-    - [ ] External optional peer (default; capability-probed)
-  - [ ] Implement the chosen strategy consistently:
-    - [ ] `package.json` (if dependency/optionalDependency is chosen)
-    - [ ] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
-    - [ ] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
-  - [ ] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
-
-- [ ] Ensure MCP server mode selection is observable and capability-gated.
-  - Touchpoints:
-    - [ ] `tools/mcp-server.js` — entrypoint dispatch
-    - [ ] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
-    - [ ] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
-  - [ ] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
-    - [ ] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
-
-Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
-- `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
-- `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
-- `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
-- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
-  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
-
-#### Tests / Verification
-
-- [ ] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
-- [ ] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
-
----
-
-### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
-
-- [ ] Implement an SDK-backed server alongside the legacy transport.
-  - Touchpoints:
-    - [ ] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
-    - [ ] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
-      - [ ] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
-  - [ ] Requirements for SDK server:
-    - [ ] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
-    - [ ] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
-    - [ ] Support stdio transport as the baseline.
-    - [ ] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
-      - [ ] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
-
-- [ ] Add a deprecation window for the legacy transport.
-  - [ ] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
-  - [ ] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
-
-Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
-- `tools/mcp-server-sdk.js` (new; SDK wiring)
-- `tools/mcp/tools.js` (tool execution entrypoint)
-- `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
-  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
-
-#### Tests / Verification
-
-- [ ] Services: `tests/services/mcp/sdk-mode.test.js` (new)
-  - Skip if SDK is not installed.
-  - Start `tools/mcp-server-sdk.js` and run at least:
-    - `tools/list`
-    - one representative `tools/call` (e.g., `index_status`)
-  - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
-
----
-
-### 12.3 Tool schema versioning, conformance, and drift guards
-
-- [ ] Make tool schemas explicitly versioned and enforce bump discipline.
-  - Touchpoints:
-    - [ ] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolVersion` (package.json)
-    - [ ] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
-    - [ ] `docs/contracts/mcp-tools.schema.json` (new) — canonical tool schema snapshot
-    - [ ] `src/integrations/mcp/validate.js` (new) — validate tool schemas against snapshot
-  - [ ] Define the canonical initialize response shape (schema + example).
-    - [ ] `docs/contracts/mcp-api.md` — `initialize` response structure
-    - [ ] `docs/contracts/mcp-initialize.schema.json` (new) — schema for response payload
-
-- [ ] Consolidate MCP argument → execution mapping to one audited path.
-  - Touchpoints:
-    - [ ] `tools/mcp/tools.js` (search/build tools)
-    - [ ] `src/integrations/core/index.js` (shared arg builder, if used)
-  - [ ] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
-
-- [ ] Conformance requirement for the `search` tool:
-  - [ ] Every field in the MCP `search` schema must either:
-    - [ ] affect emitted CLI args / search execution, or
-    - [ ] be removed from schema, or
-    - [ ] be explicitly marked “reserved” and rejected if set.
-  - [ ] Avoid duplicative builders (do not maintain two separate lists of flags).
-
-- [ ] Fix known MCP tool wiring correctness hazards in modified files:
-  - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
-
-Touchpoints (anchors; approximate):
-- `src/integrations/mcp/defs.js` (~L1 exports; add `schemaVersion`)
-- `tools/mcp/tools.js` (~L? `runSearchTool` / arg mapping)
-- `src/integrations/mcp/protocol.js` (error + envelope helpers)
-- `docs/contracts/mcp-api.md` (schema versioning rules)
-
-#### Tests / Verification
-
-- [ ] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
-  - Assert `schemaVersion` exists.
-  - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
-
-- [ ] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
-  - For each supported schema field, assert mapping produces the expected CLI flag(s).
-  - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
-
-- [ ] Update existing: `tests/services/mcp/mcp-schema.test.js`
-  - Keep snapshotting tool property sets.
-  - Add schemaVersion presence check.
-  - Add toolVersion presence check.
-  - Update `docs/contracts/coverage-ledger.md` to include new MCP schema tests.
-
----
-
-### 12.4 Error codes, protocol negotiation, and response-shape consistency
-
-- [ ] Standardize tool error payloads and map internal errors to stable MCP error codes.
-  - Touchpoints:
-    - [ ] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
-    - [ ] `tools/mcp/transport.js` — legacy transport handler
-    - [ ] `tools/mcp-server-sdk.js` — SDK error mapping
-    - [ ] `src/shared/error-codes.js` — canonical internal codes
-  - [ ] Define stable, client-facing codes (examples):
-    - [ ] invalid args
-    - [ ] index missing
-    - [ ] tool timeout
-    - [ ] not supported / capability missing
-    - [ ] cancelled
-  - [ ] Add `docs/contracts/mcp-error-codes.md` (or a section in `docs/contracts/mcp-api.md`) defining the canonical MCP error registry.
-  - [ ] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
-
-- [ ] Implement protocol/version negotiation and expose capabilities.
-  - [ ] On `initialize`, echo supported protocol versions, the tool schema version, toolVersion, and effective capabilities.
-  - [ ] Define the authoritative initialize response builder in `src/integrations/mcp/protocol.js`.
-  - [ ] Define a capabilities schema (or a section in `docs/contracts/mcp-api.md`) with required keys and value semantics.
-
-#### Tests / Verification
-
-- [ ] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
-- [ ] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
-  - [ ] Add `mcp-mode` selection test (legacy vs sdk) based on CLI/config/env.
-  - [ ] Add capability payload test for both transports (initialize contains capabilities).
-  - [ ] Align test path references with `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` (services lane vs `tests/mcp/*`).
-
-Touchpoints (anchors; approximate):
-- `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
-- `tools/mcp/transport.js` (legacy transport)
-- `tools/mcp-server-sdk.js` (SDK error mapping)
-- `src/shared/error-codes.js` (canonical internal codes)
-
----
-
-### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
-
-- [ ] Ensure cancellation/timeout terminates underlying work within a bounded time.
-  - Touchpoints:
-    - [ ] `tools/mcp/transport.js`
-    - [ ] `tools/mcp/runner.js`
-    - [ ] `tools/mcp/tools.js`
-  - [ ] Cancellation correctness:
-    - [ ] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
-    - [ ] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
-  - [ ] Timeout correctness:
-    - [ ] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
-    - [ ] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
-    - [ ] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
-  - [ ] Progress notification hygiene:
-    - [x] Throttle/coalesce progress notifications (max ~1 per 250ms per tool call, coalesced) to avoid overwhelming clients.
-
-- [ ] Tighten MCP test process cleanup.
-  - [ ] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
-
-#### Tests / Verification
-
-- [ ] Update existing: `tests/services/mcp/mcp-robustness.test.js`
-  - Add “wait for exit” after `exit` (bounded).
-  - Add cancellation test:
-    - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
-  - Add progress-throttle assertion (if practical): bursty progress is coalesced.
-
-- [ ] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
-  - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
-  - [ ] Update `docs/testing/truth-table.md` and `docs/testing/test-decomposition-regrouping.md` to reflect new MCP tests.
-
----
-
-### 12.6 Documentation and migration notes
-
-- [ ] Add `docs/guides/mcp.md` (new) describing:
-  - [ ] how to run legacy vs SDK server modes
-  - [ ] how to install/enable the SDK (per the chosen dependency strategy)
-  - [ ] tool schemas and `schemaVersion` policy
-  - [ ] stable error codes and cancellation/timeout semantics
-  - [ ] capability reporting and expected client behaviors
-  - [ ] Link from `docs/guides/commands.md` (or another index doc) so discoverability is maintained.
-  - [ ] Update `docs/api/mcp-server.md` to describe legacy + SDK modes and capability reporting.
-  - [ ] Update `docs/contracts/mcp-api.md` for schemaVersion/toolVersion + error code registry.
-  - [ ] Ensure `docs/phases/phase-12/tooling-and-api-contract.md` and `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` remain in sync.
-
-**Mapping (source docs, minimal):** `GIGAMAP_FINAL_UPDATED.md` (M12), `GIGAMAP_ULTRA_2026-01-22_FULL_COVERAGE_v3.md` (M12 overlap notes), `CODEBASE_STATIC_REVIEW.md` (MCP schema mapping), `GIGASWEEP.md` (MCP timeout/cancellation/progress/test cleanup)
-
 
 ---
 
@@ -314,6 +83,7 @@ This phase introduces an **SCM provider interface**, migrates all Git behavior o
 Authoritative specs to align with (existing in repo):
 - `docs/specs/scm-provider-config-and-state-schema.md`
 - `docs/specs/jj-provider-commands-and-parsing.md`
+- `docs/specs/scm-provider-contract.md` (to be added in 13.0, or extend the config/state spec)
 
 ---
 
@@ -326,6 +96,53 @@ Authoritative specs to align with (existing in repo):
 - [ ] When no SCM is present (or `provider=none`), indexing still works using filesystem discovery, but provenance fields are explicitly `null` / unavailable (no silent lies).
 - [ ] Build signatures and cache keys include SCM provenance in a **stable** and **portable** way (no locale-dependent sorting).
 - [ ] Tests cover provider selection + the most failure-prone parsing paths; CI can run without `jj` installed.
+- [ ] `build_state.json` contract/validator updated to include SCM provider fields and referenced from docs.
+
+---
+
+### Phase 13.0 — Authoritative docs + provider contract + build state schema alignment
+
+- [ ] Update authoritative docs that must change with the SCM provider migration:
+  - [ ] `docs/contracts/indexing.md` (build_state shape + repo provenance + provider semantics)
+  - [ ] `docs/specs/identity-contract.md` (build signature inputs and stability; provider head must be included)
+  - [ ] `docs/specs/workspace-config.md` (if it enumerates indexing config keys, update to include `indexing.scm.*`)
+  - [ ] `docs/config/schema.json` and `docs/config/contract.md` (official config surface + precedence)
+  - [ ] `docs/guides/commands.md` (new CLI flags introduced in 13.4)
+
+- [ ] Add/extend a **provider contract spec**:
+  - [ ] New: `docs/specs/scm-provider-contract.md` (or extend `docs/specs/scm-provider-config-and-state-schema.md`)
+  - Must define:
+    - [ ] return shapes for all provider APIs
+    - [ ] required vs optional fields (esp. `head` shape and `dirty` semantics)
+    - [ ] path normalization rules (repo-relative POSIX paths)
+    - [ ] detection precedence and fallback behavior
+    - [ ] capability/skip semantics when binaries are missing
+
+- [ ] Build-state schema contract must be referenced and updated:
+  - [ ] Add a formal build_state contract + validator (none exists today):
+    - [ ] `src/contracts/schemas/build-state.js` (new) — JSON schema for build_state.json
+    - [ ] `src/contracts/validators/build-state.js` (new) — validator + error formatting
+    - [ ] `src/contracts/registry.js` — register the build_state contract
+  - [ ] Schema must be **exhaustive**:
+    - [ ] `repo.provider`, `repo.head`, `repo.dirty`, `repo.root`
+    - [ ] buildId + signatureVersion + schemaVersion
+    - [ ] explicit nullability rules for provider=none
+  - [ ] Ensure `docs/contracts/indexing.md` references the new contract location and examples.
+
+Touchpoints:
+- `docs/contracts/indexing.md`
+- `docs/specs/identity-contract.md`
+- `docs/specs/workspace-config.md`
+- `docs/specs/scm-provider-config-and-state-schema.md` (or new `docs/specs/scm-provider-contract.md`)
+- `docs/config/schema.json`
+- `docs/config/contract.md`
+- `docs/guides/commands.md`
+- `src/contracts/**` (build_state schema + validators)
+
+Touchpoints (anchors; approximate):
+- `src/index/build/build-state.js` (~L5 `STATE_FILE`, ~L104 `repoRoot`, ~L133 `repo`)
+- `src/index/build/runtime/runtime.js` (~L170 `repoProvenance`, ~L174 `buildId`)
+- `src/contracts/registry.js` (~L1 `registry`)
 
 ---
 
@@ -346,19 +163,31 @@ Authoritative specs to align with (existing in repo):
   - [ ] `getChangedFiles({ repoRoot, fromRef, toRef, subdir? }) -> { filesPosix: string[] }` (may be “not supported” for `none`)
   - [ ] `getFileMeta({ repoRoot, filePosix }) -> { churn?, lastCommitId?, lastAuthor?, lastModifiedAt? }` (best-effort; may be disabled)
   - [ ] Optional (capability-gated): `annotate({ repoRoot, filePosix, timeoutMs }) -> { lines:[{ line, author, commitId, ... }] }`
+  - [ ] Define conflict policy:
+    - [ ] If both `.git/` and `.jj/` exist and no explicit provider is set, **hard fail** with a clear message to choose `--scm-provider`.
 
 - [ ] Config keys (align to `docs/specs/scm-provider-config-and-state-schema.md`):
   - [ ] `indexing.scm.provider: auto|git|jj|none`
   - [ ] `indexing.scm.timeoutMs`, `indexing.scm.maxConcurrentProcesses`
   - [ ] `indexing.scm.annotate.enabled`, `maxFileSizeBytes`, `timeoutMs`
   - [ ] `indexing.scm.jj.snapshotWorkingCopy` safety default (read-only by default)
+  - [ ] Define compatibility mapping for legacy git flags:
+    - [ ] `indexing.gitBlame` / `analysisPolicy.git.blame` -> `indexing.scm.annotate.enabled`
+    - [ ] document deprecation/precedence and avoid divergent settings
+    - [ ] No legacy mode: treat the SCM provider contract as authoritative
 
 - [ ] Build-state schema updates:
   - [ ] Extend `build_state.json` `repo` field to include:
     - [ ] `repo.provider`
     - [ ] normalized `repo.head` object (provider-specific fields nested, but stable keys)
     - [ ] `repo.dirty` boolean (best-effort)
-  - [ ] Keep Git back-compat fields where feasible (`repo.commit`, `repo.branch`) but treat `repo.provider` + `repo.head.*` as authoritative.
+- [ ] Keep Git back-compat fields where feasible (`repo.commit`, `repo.branch`) but treat `repo.provider` + `repo.head.*` as authoritative.
+  - [ ] Define deterministic buildId/signature rules:
+    - [ ] buildId uses `<timestamp>_<scmHeadShort>_<configHash8>`
+    - [ ] `scmHeadShort` comes from provider head primary id:
+      - [ ] git: commit SHA (short)
+      - [ ] jj: **changeId** when available, else commitId
+    - [ ] provider=none uses `noscm` marker (no git/jj fields leaked)
 
 Touchpoints:
 - `docs/specs/scm-provider-config-and-state-schema.md` (align / correct examples if needed)
@@ -366,9 +195,12 @@ Touchpoints:
 - `src/index/build/indexer/signatures.js` (include SCM provenance in build signatures)
 - `src/index/build/runtime/runtime.js` (thread config into runtime)
 - `docs/config/schema.json` (document `indexing.scm.*` keys)
+- `docs/config/contract.md` (document precedence + deprecations)
 
 Touchpoints (anchors; approximate):
 - `src/index/git.js` (~L63 `getGitMetaForFile`, ~L157 `getGitBranch`)
+- `src/index/build/preprocess.js` (~L10 `discoverEntries`)
+- `src/index/build/indexer/steps/discover.js` (~L34 `discoverFiles`)
 - `src/index/build/discover.js` (~L138 `discoverRepoRoots`, ~L176 `listGitFiles`)
 - `src/index/build/build-state.js` (~L1 `buildState`)
 - `src/index/build/indexer/signatures.js` (~L46 `gitBlameEnabled`)
@@ -379,8 +211,11 @@ Touchpoints (anchors; approximate):
   - [ ] `auto` selects `git` when `.git/` exists and git is runnable.
   - [ ] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
   - [ ] `auto` falls back to `none` when neither exists (or binaries missing).
+  - [ ] `auto` hard-fails when both `.git/` + `.jj/` exist and no provider is set.
 - [ ] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
   - [ ] `build_state.json` includes `repo.provider` and normalized `repo.head`.
+- [ ] `tests/indexing/scm/signature-provenance-stability.test.js` (new)
+  - [ ] build signatures remain stable across locales and include provider head fields.
 
 ---
 
@@ -399,18 +234,39 @@ Touchpoints (anchors; approximate):
 - [ ] Remove direct Git shelling from non-provider modules:
   - [ ] `src/index/build/discover.js` should call `ScmProvider.listTrackedFiles()` when an SCM provider is active, else use filesystem crawl (current behavior).
   - [ ] Any provenance used for metrics/signatures must route through `ScmProvider.getRepoProvenance()`.
+  - [ ] Git metadata in file processing must use provider APIs (no direct `getGitMetaForFile` in CPU path).
+  - [ ] Chunk author attribution must use provider annotate (or explicit disable path when annotate is off).
 
 Touchpoints:
 - `src/index/build/discover.js`
 - `src/index/git.js` (migrate or reduce to GitProvider internals)
 - `src/index/scm/providers/git.js` (new)
 - `src/index/scm/registry.js`
+- `src/index/build/file-processor/cpu.js` (git meta)
+- `src/index/build/file-processor/process-chunks/index.js` (chunk authors)
+- `src/index/build/artifacts/metrics.js` (repo provenance)
+- `src/index/build/runtime/runtime.js` (buildId uses provider head)
+- `src/index/build/indexer/steps/incremental.js` (git meta cache -> provider cache config)
+
+Touchpoints (anchors; approximate):
+- `src/index/git.js` (~L69 `getGitMetaForFile`, ~L177 `getRepoProvenance`, ~L216 `computeNumstatChurn`)
+- `src/index/build/discover.js` (~L136 `listGitFiles`, ~L176 `gitResult`)
+- `src/index/build/preprocess.js` (~L90 `discoverEntries`)
+- `src/index/build/indexer/steps/discover.js` (~L34 `discoverFiles`)
+- `src/index/build/file-processor/cpu.js` (~L280 `getGitMetaForFile`)
+- `src/index/build/file-processor/process-chunks/index.js` (~L411 `getChunkAuthorsFromLines`)
+- `src/index/build/artifacts/metrics.js` (~L47 `repoProvenance`)
+- `src/index/build/runtime/runtime.js` (~L170 `repoProvenance`, ~L174 `buildId`)
+- `src/index/build/indexer/steps/incremental.js` (~L25 `configureGitMetaCache`)
+- `src/index/build/runtime/policy.js` (~L18 `git` policy)
+- `src/index/build/file-processor.js` (~L440 `gitBlameEnabled` plumbing)
 
 #### Tests / verification (path-corrected for current test layout)
 - [ ] `tests/indexing/scm/index-build-git-provider.test.js` (new)
   - [ ] Build index inside a git repo and assert:
     - [ ] `build_state.json.repo.provider === "git"`
     - [ ] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
+  - [ ] annotate metadata is present only when enabled; otherwise explicitly absent with a reason
 
 ---
 
@@ -437,6 +293,7 @@ Touchpoints:
 - [ ] Implement changed-files support (for incremental reuse):
   - [ ] Provide `getChangedFiles()` based on the spec in `docs/specs/jj-provider-commands-and-parsing.md`.
   - [ ] Normalize to **repo-root-relative POSIX paths**.
+  - [ ] Define deterministic ordering and truncation caps for changed-file outputs.
 
 Touchpoints:
 - `docs/specs/jj-provider-commands-and-parsing.md` (align with implementation)
@@ -444,10 +301,16 @@ Touchpoints:
 - `src/index/scm/providers/jj-parse.js` (new: isolated parsing helpers)
 - `src/index/build/indexer/signatures.js` (include JJ head/changeId + op pin when used)
 
+Touchpoints (anchors; approximate):
+- `docs/specs/jj-provider-commands-and-parsing.md` (definitions for `jj file list`, `jj log`, `jj status`)
+- `src/index/build/indexer/signatures.js` (~L46 `gitBlameEnabled` placeholder to replace with provider head)
+
 #### Tests / verification (path-corrected for current test layout)
 - [ ] Unit: parsing helpers
   - [ ] `tests/indexing/scm/jj-changed-files-parse.test.js`
   - [ ] `tests/indexing/scm/jj-head-parse.test.js`
+- [ ] `tests/indexing/scm/jj-changed-files-normalization.test.js` (new)
+  - [ ] ensure paths are POSIX, repo-root-relative, and sorted deterministically.
 - [ ] CI behavior:
   - [ ] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
 
@@ -471,6 +334,12 @@ Touchpoints:
 - `src/shared/cli-options.js` (new flags)
 - `tools/tooling-doctor.js` (report SCM provider)
 
+Touchpoints (anchors; approximate):
+- `bin/pairofcleats.js` (~L509 `tooling doctor` dispatch, ~L692 `index build` help)
+- `src/shared/cli-options.js` (~L4 `INDEX_BUILD_OPTIONS`)
+- `tools/tooling-doctor.js` (~L33 `runToolingDoctor`)
+- `src/index/tooling/doctor.js` (~L139 `runToolingDoctor`)
+
 ---
 
 ### Phase 13.5 — Non-repo environments (explicitly supported)
@@ -480,6 +349,7 @@ Touchpoints:
     - [ ] file discovery uses filesystem crawl (current fallback)
     - [ ] build state records `repo.provider="none"` and `repo.head=null`
     - [ ] incremental reuse features that require SCM provenance must be disabled with an explicit reason (no silent partial behavior)
+    - [ ] buildId/signatures use a deterministic "no-scm" marker (do not leak git-specific fields)
 - [ ] Document this mode as “try it anywhere” for non-code/non-repo folders.
 
 Touchpoints:
@@ -487,8 +357,17 @@ Touchpoints:
 - `docs/contracts/indexing.md` (document provider="none" behavior)
 - `docs/guides/commands.md` (CLI flags and behavior notes)
 
+Touchpoints (anchors; approximate):
+- `src/index/build/build-state.js` (~L104 `repoRoot`, ~L133 `repo`)
+- `src/index/build/runtime/runtime.js` (~L170 `repoProvenance`, ~L174 `buildId`)
+- `src/index/build/discover.js` (~L26 `discoverFiles`, ~L92 `discoverEntries`)
+
 #### Tests / verification
   - [ ] `tests/indexing/scm/index-build-no-scm.test.js` (new)
   - [ ] Build index in a temp folder without `.git/` and assert build succeeds and provenance is explicitly null.
+  - [ ] `tests/indexing/scm/no-scm-build-id.test.js` (new)
+    - [ ] buildId/signatures do not include git/jj fields and remain stable across runs.
 
 ---
+
+

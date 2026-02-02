@@ -1,3 +1,7 @@
+import { getToolVersion } from '../../shared/dict-utils.js';
+
+export const MCP_SCHEMA_VERSION = '1.0.0';
+
 /**
  * Build MCP tool definitions for the server.
  * @param {string} defaultModelId
@@ -306,4 +310,12 @@ export function getToolDefs(defaultModelId) {
       }
     }
   ];
+}
+
+export function getToolCatalog(defaultModelId) {
+  return {
+    schemaVersion: MCP_SCHEMA_VERSION,
+    toolVersion: getToolVersion(),
+    tools: getToolDefs(defaultModelId)
+  };
 }

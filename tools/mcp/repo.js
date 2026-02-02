@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import simpleGit from 'simple-git';
+import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../src/retrieval/index-cache.js';
@@ -128,7 +129,7 @@ export const clearRepoCaches = (repoPath) => {
 export function resolveRepoPath(inputPath) {
   const base = inputPath ? path.resolve(inputPath) : process.cwd();
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
-    throw new Error(`Repo path not found: ${base}`);
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
   return inputPath ? base : resolveRepoRoot(base);
 }
@@ -443,13 +444,13 @@ export async function configStatus(args = {}) {
       message: 'Document extraction enabled but pdfjs-dist or mammoth is not available.'
     });
   }
-  const mcpTransportRequested = normalizeSelector(userConfig?.mcp?.transport)
-    || normalizeSelector(envConfig.mcpTransport)
+  const mcpModeRequested = normalizeSelector(userConfig?.mcp?.mode)
+    || normalizeSelector(envConfig.mcpMode)
     || 'auto';
-  if (mcpTransportRequested === 'sdk' && !capabilities.mcp.sdk) {
+  if (mcpModeRequested === 'sdk' && !capabilities.mcp.sdk) {
     warnings.push({
       code: 'mcp_transport_missing',
-      message: 'mcp.transport=sdk requested but @modelcontextprotocol/sdk is not available.'
+      message: 'mcp.mode=sdk requested but @modelcontextprotocol/sdk is not available.'
     });
   }
 
@@ -470,7 +471,8 @@ export async function configStatus(args = {}) {
       },
       search: userConfig.search || {},
       indexing: userConfig.indexing || {},
-      tooling: userConfig.tooling || {}
+      tooling: userConfig.tooling || {},
+      mcp: userConfig.mcp || {}
     },
     cache: {
       cacheRootExists: fs.existsSync(cacheRoot),

@@ -53,8 +53,9 @@ Only these keys are allowed in repo config files:
 ## Public env vars (secrets only)
 
 - `PAIROFCLEATS_API_TOKEN`
+- `PAIROFCLEATS_MCP_MODE` (or `MCP_MODE`) — MCP server mode override (`legacy|sdk|auto`, exception)
 
-Env vars do not participate in normal behavior precedence.
+Env vars do not participate in normal behavior precedence, except the MCP server mode override (documented above) which can override config for `mcp-server` mode selection.
 
 ## Precedence order
 
