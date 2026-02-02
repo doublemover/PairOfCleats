@@ -5,10 +5,13 @@ export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TEST_CONFIG'
 ];
 
-export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS) => {
+export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS, { clearMissing = false } = {}) => {
   if (!env || typeof env !== 'object') return;
   for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(env, key)) continue;
+    if (!Object.prototype.hasOwnProperty.call(env, key)) {
+      if (clearMissing) delete process.env[key];
+      continue;
+    }
     const value = env[key];
     if (value === undefined || value === null) {
       delete process.env[key];
@@ -26,6 +29,11 @@ export const applyTestEnv = ({
   extraEnv
 } = {}) => {
   const env = { ...process.env };
+  const deletedKeys = new Set();
+  const removeKey = (key) => {
+    delete env[key];
+    if (key && key.startsWith('PAIROFCLEATS_')) deletedKeys.add(key);
+  };
   if (testing !== undefined && testing !== null) {
     env.PAIROFCLEATS_TESTING = String(testing);
   }
@@ -34,14 +42,14 @@ export const applyTestEnv = ({
   }
   if (embeddings !== undefined) {
     if (embeddings === null) {
-      delete env.PAIROFCLEATS_EMBEDDINGS;
+      removeKey('PAIROFCLEATS_EMBEDDINGS');
     } else {
       env.PAIROFCLEATS_EMBEDDINGS = String(embeddings);
     }
   }
   if (testConfig !== undefined) {
     if (testConfig === null) {
-      delete env.PAIROFCLEATS_TEST_CONFIG;
+      removeKey('PAIROFCLEATS_TEST_CONFIG');
     } else if (typeof testConfig === 'string') {
       env.PAIROFCLEATS_TEST_CONFIG = testConfig;
     } else {
@@ -51,14 +59,18 @@ export const applyTestEnv = ({
   if (extraEnv && typeof extraEnv === 'object') {
     for (const [key, value] of Object.entries(extraEnv)) {
       if (value === undefined || value === null) {
-        delete env[key];
+        removeKey(key);
       } else {
         env[key] = String(value);
       }
     }
   }
-  const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
-  syncProcessEnv(env, syncKeys);
+  const syncKeys = new Set(DEFAULT_TEST_ENV_KEYS);
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('PAIROFCLEATS_')) syncKeys.add(key);
+  }
+  for (const key of deletedKeys) syncKeys.add(key);
+  syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
   return env;
 };
 
