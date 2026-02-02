@@ -1,4 +1,37 @@
 export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
+  const normalizeMetaFilters = (meta) => {
+    if (!meta) return null;
+    if (Array.isArray(meta)) {
+      const entries = meta.flatMap((entry) => {
+        if (entry == null) return [];
+        if (typeof entry === 'string') return [entry];
+        if (typeof entry === 'object') {
+          return Object.entries(entry).map(([key, value]) =>
+            value == null || value === '' ? String(key) : `${key}=${value}`
+          );
+        }
+        return [String(entry)];
+      });
+      return entries.length ? entries : null;
+    }
+    if (typeof meta === 'object') {
+      const entries = Object.entries(meta).map(([key, value]) =>
+        value == null || value === '' ? String(key) : `${key}=${value}`
+      );
+      return entries.length ? entries : null;
+    }
+    return [String(meta)];
+  };
+  const normalizeMetaJson = (value) => {
+    if (value == null || value === '') return null;
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
   const query = payload?.query ? String(payload.query) : '';
   if (!query) {
     return { ok: false, message: 'Missing query.' };
@@ -49,8 +82,8 @@ export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   const extFilter = payload?.ext ? String(payload.ext) : null;
   const langFilter = payload?.lang ? String(payload.lang) : null;
   const filterExpr = payload?.filter ? String(payload.filter) : null;
-  const metaFilter = payload?.meta ? String(payload.meta) : null;
-  const metaJsonFilter = payload?.metaJson ? String(payload.metaJson) : null;
+  const metaFilters = normalizeMetaFilters(payload?.meta);
+  const metaJsonFilter = normalizeMetaJson(payload?.metaJson);
 
   const pushFlag = (flag, value) => {
     if (value == null || value === '') return;
@@ -99,7 +132,9 @@ export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   pushFlag('--ext', extFilter);
   pushFlag('--lang', langFilter);
   pushFlag('--filter', filterExpr);
-  pushFlag('--meta', metaFilter);
+  if (Array.isArray(metaFilters)) {
+    metaFilters.forEach((entry) => pushFlag('--meta', entry));
+  }
   pushFlag('--meta-json', metaJsonFilter);
   return { ok: true, args: searchArgs, query };
 };

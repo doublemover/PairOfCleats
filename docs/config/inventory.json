@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T20:01:47.349Z",
+  "generatedAt": "2026-02-02T20:15:30.577Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -31,9 +31,11 @@
       "PAIROFCLEATS_BENCH_RUN",
       "PAIROFCLEATS_BUNDLE_THREADS",
       "PAIROFCLEATS_CACHE_ROOT",
+      "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "PAIROFCLEATS_DOC_EXTRACT",
       "PAIROFCLEATS_EMBEDDINGS",
       "PAIROFCLEATS_EXTENSIONS_DIR",
       "PAIROFCLEATS_FILE_CACHE_MAX",
@@ -47,10 +49,12 @@
       "PAIROFCLEATS_MCP_MODE",
       "PAIROFCLEATS_MCP_QUEUE_MAX",
       "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
+      "PAIROFCLEATS_MCP_TRANSPORT",
       "PAIROFCLEATS_MODEL",
       "PAIROFCLEATS_MODELS_DIR",
       "PAIROFCLEATS_NODE_OPTIONS",
       "PAIROFCLEATS_PROFILE",
+      "PAIROFCLEATS_REGEX_ENGINE",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -1348,7 +1352,8 @@
     {
       "name": "PAIROFCLEATS_COMPRESSION",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1377,7 +1382,8 @@
     {
       "name": "PAIROFCLEATS_DOC_EXTRACT",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1573,7 +1579,8 @@
     {
       "name": "PAIROFCLEATS_MCP_TRANSPORT",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1613,7 +1620,8 @@
     {
       "name": "PAIROFCLEATS_REGEX_ENGINE",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1968,12 +1976,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_COMPRESSION",
-    "PAIROFCLEATS_DOC_EXTRACT",
-    "PAIROFCLEATS_MCP_TRANSPORT",
-    "PAIROFCLEATS_REGEX_ENGINE"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 252,
     "publicFlags": [
