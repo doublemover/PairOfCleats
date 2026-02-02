@@ -41,7 +41,7 @@ export const gitProvider = {
       rejectOnNonZeroExit: false
     });
     if (result.exitCode !== 0) {
-      return { filesPosix: [] };
+      return { ok: false, reason: 'unavailable' };
     }
     const entries = ensurePosixList(parseNullSeparated(result.stdout))
       .map((entry) => toRepoPosixPath(entry, repoRoot))

@@ -217,7 +217,7 @@ export const jjProvider = {
         args: ['file', 'list', '-r', '@']
       });
       if (lineResult.exitCode !== 0) {
-        return { filesPosix: [] };
+        return { ok: false, reason: 'unavailable' };
       }
       output = lineResult.stdout;
       nullDelimited = false;

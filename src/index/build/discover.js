@@ -164,6 +164,7 @@ export async function discoverEntries({
         repoRoot: scmRepoRoot,
         subdir: rootRel || null
       });
+      if (result?.ok === false) return null;
       const files = Array.isArray(result?.filesPosix)
         ? result.filesPosix.filter(Boolean)
         : null;
