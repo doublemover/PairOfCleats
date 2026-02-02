@@ -21,6 +21,34 @@ const buildRootExists = async (buildRoot) => {
   }
 };
 
+const hydrateStateDefaults = async (state, buildRoot) => {
+  if (!buildRoot) return state;
+  const resolvedBuildRoot = path.resolve(buildRoot);
+  const buildId = state.buildId || path.basename(resolvedBuildRoot);
+  const buildRootValue = state.buildRoot || resolvedBuildRoot;
+  let repo = state.repo ?? null;
+  let repoRoot = state.repoRoot ?? null;
+  if (!repo || !repoRoot) {
+    try {
+      const currentPath = path.join(path.dirname(resolvedBuildRoot), 'current.json');
+      const current = JSON.parse(await fs.readFile(currentPath, 'utf8')) || {};
+      if (!repo && current.repo) {
+        repo = current.repo;
+      }
+      if (!repoRoot && current.repo?.root) {
+        repoRoot = path.resolve(current.repo.root);
+      }
+    } catch {}
+  }
+  return {
+    ...state,
+    buildId,
+    buildRoot: buildRootValue,
+    repoRoot,
+    repo
+  };
+};
+
 const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
   if (patch.phases) {
@@ -146,6 +174,7 @@ export async function updateBuildState(buildRoot, patch) {
     const statePath = resolveStatePath(buildRoot);
     const loadedState = await loadBuildState(buildRoot);
     let state = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
+    state = await hydrateStateDefaults(state, buildRoot);
     const now = new Date().toISOString();
     const merged = mergeState(state, { ...patch, updatedAt: now });
     if (!Number.isFinite(Number(merged.schemaVersion))) merged.schemaVersion = STATE_SCHEMA_VERSION;

@@ -38,6 +38,7 @@
     { "tag": "api", "match": ["^services/api/"] },
     { "tag": "storage", "match": ["^storage/"] },
     { "tag": "indexing", "match": ["^indexing/"] },
+    { "tag": "jj", "match": ["^indexing/scm/jj-"] },
     { "tag": "retrieval", "match": ["^retrieval/", "^retrieval-"] },
     { "tag": "lang", "match": ["^lang/"] },
     { "tag": "tooling", "match": ["^tooling/"] },

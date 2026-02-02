@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { discoverFiles, discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
+import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { repoRoot } from '../../helpers/root.js';
 import { skip } from '../../helpers/skip.js';
 
@@ -50,6 +51,9 @@ const skipped = [];
 const codeEntries = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: skipped,
   maxFileBytes: null
@@ -61,10 +65,31 @@ assert.ok(codeRel.includes('Makefile.in'), 'Makefile variant missing');
 assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
 assert.ok(codeEntries[0].stat && typeof codeEntries[0].stat.size === 'number', 'stat missing');
 
+const scmFailureProvider = {
+  async listTrackedFiles() {
+    return { ok: false, reason: 'unavailable' };
+  }
+};
+const fallbackEntries = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: scmFailureProvider,
+  scmRepoRoot: tempRoot,
+  ignoreMatcher,
+  skippedFiles: [],
+  maxFileBytes: null
+});
+const fallbackRel = fallbackEntries.map((entry) => entry.rel);
+assert.ok(fallbackRel.includes('src/untracked.js'), 'fallback discovery should include untracked files');
+
 const depthSkipped = [];
 const depthLimited = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: depthSkipped,
   maxFileBytes: null,
@@ -77,6 +102,9 @@ const countSkipped = [];
 const countLimited = await discoverFiles({
   root: tempRoot,
   mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedFiles: countSkipped,
   maxFileBytes: null,
@@ -89,6 +117,9 @@ const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] 
 const byMode = await discoverFilesForModes({
   root: tempRoot,
   modes: ['code', 'prose', 'extracted-prose', 'records'],
+  scmProvider: 'git',
+  scmProviderImpl: gitProvider,
+  scmRepoRoot: tempRoot,
   ignoreMatcher,
   skippedByMode,
   maxFileBytes: null

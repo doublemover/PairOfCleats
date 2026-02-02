@@ -1,7 +1,7 @@
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
-import { getChunkAuthorsFromLines } from '../../../git.js';
+import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
 import { createTokenizationBuffers, resolveTokenDictWords, tokenizeChunkText } from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';

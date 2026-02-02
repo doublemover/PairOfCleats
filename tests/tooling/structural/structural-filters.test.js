@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { filterChunks } from '../../../src/retrieval/output.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'structural-filters');
@@ -18,8 +19,15 @@ await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'eval("x");\n', 'utf8');
 
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
@@ -46,7 +54,7 @@ const buildResult = spawnSync(process.execPath, [
   '--stub-embeddings',
   '--repo',
   repoRoot
-], { encoding: 'utf8', env: { ...process.env, PAIROFCLEATS_TESTING: '1', PAIROFCLEATS_CACHE_ROOT: cacheRoot } });
+], { encoding: 'utf8', env });
 if (buildResult.status !== 0) {
   console.error(buildResult.stderr || buildResult.stdout || 'build_index failed');
   process.exit(buildResult.status ?? 1);

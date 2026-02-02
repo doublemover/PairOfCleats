@@ -28,7 +28,8 @@ import { createSharedDictionary, createSharedDictionaryView } from '../../../sha
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
-import { getRepoProvenance } from '../../git.js';
+import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
+import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
@@ -119,6 +120,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
+  const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
+    ? true
+    : (rawArgs.includes('--no-scm-annotate') ? false : null);
+  if (scmAnnotateOverride != null) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      scm: { annotate: { enabled: scmAnnotateOverride } }
+    });
+  }
+  const scmConfig = resolveScmConfig({
+    indexingConfig,
+    analysisPolicy: userConfig.analysisPolicy || null
+  });
+  setScmRuntimeConfig(scmConfig);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
   const cacheRootSource = userConfig.cache?.root
@@ -167,11 +182,61 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, policyConfig);
   const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
-  const repoProvenance = await timeInit('repo provenance', () => getRepoProvenance(root));
+  const scmProviderOverride = typeof argv['scm-provider'] === 'string'
+    ? argv['scm-provider']
+    : (typeof argv.scmProvider === 'string' ? argv.scmProvider : null);
+  const scmProviderSetting = scmProviderOverride || scmConfig?.provider || 'auto';
+  let scmSelection = getScmProviderAndRoot({
+    provider: scmProviderSetting,
+    startPath: root,
+    log
+  });
+  if (scmSelection.provider === 'none') {
+    log('[scm] provider=none; SCM provenance unavailable.');
+  }
+  let scmProvenanceFailed = false;
+  const repoProvenance = await timeInit('repo provenance', async () => {
+    try {
+      const provenance = await scmSelection.providerImpl.getRepoProvenance({
+        repoRoot: scmSelection.repoRoot
+      });
+      return {
+        ...provenance,
+        provider: provenance?.provider || scmSelection.provider,
+        root: provenance?.root || scmSelection.repoRoot,
+        detectedBy: provenance?.detectedBy ?? scmSelection.detectedBy
+      };
+    } catch (err) {
+      const message = err?.message || String(err);
+      log(`[scm] Failed to read repo provenance; falling back to provider=none. (${message})`);
+      scmProvenanceFailed = true;
+      return {
+        provider: 'none',
+        root: scmSelection.repoRoot,
+        head: null,
+        dirty: null,
+        detectedBy: scmSelection.detectedBy || 'none',
+        isRepo: false
+      };
+    }
+  });
+  if (scmProvenanceFailed && scmSelection.provider !== 'none') {
+    log('[scm] disabling provider after provenance failure; falling back to provider=none.');
+    scmSelection = {
+      ...scmSelection,
+      provider: 'none',
+      providerImpl: getScmProvider('none'),
+      detectedBy: scmSelection.detectedBy || 'none'
+    };
+  }
   const toolVersion = getToolVersion();
-  const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
+  const scmHeadId = repoProvenance?.head?.changeId
+    || repoProvenance?.head?.commitId
+    || repoProvenance?.commit
+    || null;
+  const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
+  const buildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
   const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
   const loggingConfig = userConfig.logging || {};
   configureRuntimeLogger({
@@ -206,7 +271,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     {}
   );
   const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
-  const gitBlameEnabled = indexingConfig.gitBlame !== false;
+  const scmAnnotateEnabled = scmConfig?.annotate?.enabled !== false;
+  const effectiveScmAnnotateEnabled = scmAnnotateEnabled && scmSelection.provider !== 'none';
+  if (scmAnnotateEnabled && scmSelection.provider === 'none') {
+    log('[scm] annotate disabled: provider=none.');
+  }
+  const gitBlameEnabled = effectiveScmAnnotateEnabled;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
   const analysisPolicy = buildAnalysisPolicy({
@@ -573,7 +643,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log('Cross-file type inference requested but indexing.typeInference is disabled.');
   }
   if (!gitBlameEnabled) {
-    log('Git blame metadata disabled via indexing.gitBlame.');
+    log('SCM annotate metadata disabled via indexing.scm.annotate.enabled.');
   }
   if (!lintEnabled) {
     log('Lint metadata disabled via indexing.lint.');
@@ -709,6 +779,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     currentIndexRoot,
     configHash,
     repoProvenance,
+    scmConfig,
+    scmProvider: scmSelection.provider,
+    scmRepoRoot: scmSelection.repoRoot,
+    scmProviderImpl: scmSelection.providerImpl,
     toolInfo: {
       tool: 'pairofcleats',
       version: toolVersion,

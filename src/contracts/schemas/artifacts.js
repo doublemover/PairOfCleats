@@ -242,13 +242,31 @@ const pieceEntry = {
   additionalProperties: false
 };
 
+const repoHeadSchema = {
+  type: ['object', 'null'],
+  properties: {
+    commitId: nullableString,
+    changeId: nullableString,
+    branch: nullableString,
+    bookmarks: { type: ['array', 'null'], items: { type: 'string' } },
+    author: nullableString,
+    timestamp: nullableString
+  },
+  additionalProperties: false
+};
+
 const repoProvenanceSchema = {
   type: 'object',
   properties: {
-    commit: nullableString,
+    provider: { type: ['string', 'null'], enum: ['git', 'jj', 'none', null] },
+    root: nullableString,
+    head: repoHeadSchema,
     dirty: nullableBool,
-    branch: nullableString,
-    isRepo: { type: 'boolean' }
+    bookmarks: { type: ['array', 'null'], items: { type: 'string' } },
+    detectedBy: nullableString,
+    isRepo: nullableBool,
+    commit: nullableString,
+    branch: nullableString
   },
   additionalProperties: false
 };

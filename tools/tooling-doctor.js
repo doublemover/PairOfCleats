@@ -5,6 +5,7 @@ import { createCli } from '../src/shared/cli.js';
 import { getToolingConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { registerDefaultToolingProviders } from '../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../src/index/tooling/doctor.js';
+import { resolveScmConfig } from '../src/index/scm/registry.js';
 
 const formatSummaryLine = (label, value) => `- ${label}: ${value}`;
 
@@ -28,12 +29,17 @@ async function runCli() {
   const userConfig = loadUserConfig(repoRoot);
   const toolingConfig = getToolingConfig(repoRoot, userConfig);
   const strict = argv['non-strict'] ? false : argv.strict !== false;
+  const scmConfig = resolveScmConfig({
+    indexingConfig: userConfig.indexing || {},
+    analysisPolicy: userConfig.analysisPolicy || null
+  });
 
   registerDefaultToolingProviders();
   const report = await runToolingDoctor({
     repoRoot,
     buildRoot: repoRoot,
     toolingConfig,
+    scmConfig,
     strict
   }, null, { log: (message) => console.error(message) });
 
@@ -44,6 +50,10 @@ async function runCli() {
 
   console.error('Tooling doctor');
   console.error(formatSummaryLine('repo', report.repoRoot));
+  if (report.scm) {
+    const annotateLabel = report.scm.annotateEnabled ? 'annotate:on' : 'annotate:off';
+    console.error(formatSummaryLine('scm', `${report.scm.provider} (${annotateLabel})`));
+  }
   console.error(formatSummaryLine('status', report.summary.status));
   console.error(formatSummaryLine('chunkUid', report.identity.chunkUid.available ? 'ok' : 'missing'));
   console.error(formatSummaryLine('xxhash', report.xxhash.backend));

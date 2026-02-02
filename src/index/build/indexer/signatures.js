@@ -46,6 +46,17 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   const gitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : runtime.gitBlameEnabled;
+  const scmHead = runtime.repoProvenance?.head || null;
+  const scmSignature = runtime.repoProvenance
+    ? {
+      provider: runtime.repoProvenance.provider || null,
+      head: {
+        commitId: scmHead?.commitId || runtime.repoProvenance?.commit || null,
+        changeId: scmHead?.changeId || null,
+        operationId: scmHead?.operationId || null
+      }
+    }
+    : null;
   return {
     signatureVersion: SIGNATURE_VERSION,
     mode,
@@ -89,6 +100,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,
     chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
+    scm: scmSignature,
     embeddings: {
       enabled: runtime.embeddingEnabled || runtime.embeddingService,
       mode: runtime.embeddingMode,

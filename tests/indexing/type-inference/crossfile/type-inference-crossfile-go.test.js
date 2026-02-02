@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, resolveToolRoot } from '../../../../tools/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = repoRoot();
 const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-go');
@@ -148,22 +149,17 @@ def build_py_widget() -> PyWidget:
 `
   );
 }
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot: path.join(tempRoot, 'cache'),
+  embeddings: 'stub',
+  testConfig: {
     indexing: {
+      scm: { provider: 'none' },
       typeInference: true,
       typeInferenceCrossFile: true
     }
-  }),
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
-process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+  }
+});
 
 const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoDir], {
   cwd: repoDir,

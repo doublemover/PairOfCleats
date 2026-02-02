@@ -29,6 +29,7 @@ This spec is written to be *implementation-ready* in the existing PairOfCleats N
 
 - Discovering repos via a global catalog/registry (workspace file enumerates explicit roots).
 - Per-repo **index build** overrides (e.g., modes list, ignore overrides, model overrides).
+- SCM provider configuration keys (defined in `docs/config/contract.md` and Phase 13 specs).
 - Automatically finding a workspace file by walking up directories (workspace path is supplied explicitly).
 - Cross-machine stable repo identity (e.g., Git remote-based identity). Identity is **path-based**.
 

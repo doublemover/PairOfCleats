@@ -110,6 +110,7 @@ export const writeIndexArtifactsForMode = async ({
     perfProfile: finalizedPerfProfile,
     graphRelations,
     riskInterproceduralEmitArtifacts,
+    repoProvenance: runtime.repoProvenance,
     indexState: {
       generatedAt: new Date().toISOString(),
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,

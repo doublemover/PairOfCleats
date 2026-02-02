@@ -26,6 +26,17 @@ It aims to make identity:
 - Replacing docId as the fast integer join key (docId remains build-local).
 - Full module-resolution correctness (defined in cross-file resolution spec, with bounded scope).
 
+### 0.3 Build signatures and SCM provenance (Phase 13)
+Build signatures and build_state metadata MUST include SCM provenance to keep identity
+deterministic across providers:
+
+- `repo.provider` is recorded for every build (git|jj|none).
+- `repo.head` includes the provider head id (git commit or jj changeId when available).
+- If no SCM is present, provenance fields are `null` and the build still proceeds.
+
+This contract does not define the exact buildId algorithm, but SCM head identity MUST
+participate in build signatures and buildId derivation (see Phase 13 SCM provider specs).
+
 ---
 
 ## 1. Canonical terms

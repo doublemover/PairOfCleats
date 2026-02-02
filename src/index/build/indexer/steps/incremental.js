@@ -1,5 +1,5 @@
 import { loadIncrementalState, pruneIncrementalManifest, shouldReuseIncrementalIndex, updateBundlesWithChunks } from '../../incremental.js';
-import { configureGitMetaCache } from '../../../git.js';
+import { configureScmMetaCache } from '../../../scm/cache.js';
 import { log } from '../../../../shared/progress.js';
 
 export const loadIncrementalPlan = async ({
@@ -22,7 +22,11 @@ export const loadIncrementalPlan = async ({
     bundleFormat: runtime.incrementalBundleFormat,
     log
   });
-  configureGitMetaCache(runtime.cacheConfig?.gitMeta, cacheReporter);
+  configureScmMetaCache({
+    provider: runtime.scmProvider,
+    cacheConfig: runtime.cacheConfig?.gitMeta,
+    reporter: cacheReporter
+  });
   let reused = false;
   if (incrementalState?.enabled) {
     const reuse = await shouldReuseIncrementalIndex({

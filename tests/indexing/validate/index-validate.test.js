@@ -6,21 +6,23 @@ import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
 import { repoRoot } from '../../helpers/root.js';
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = repoRoot();
 const fixtureRoot = await copyFixtureToTemp('sample');
 const fixtureTempRoot = path.dirname(fixtureRoot);
 const cacheRoot = await makeTempDir('pairofcleats-index-validate-');
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     sqlite: { use: false },
-    indexing: { embeddings: { enabled: false } }
-  })
-};
+    indexing: {
+      scm: { provider: 'none' },
+      embeddings: { enabled: false }
+    }
+  }
+});
 
 const validatorPath = path.join(root, 'tools', 'index-validate.js');
 const buildPath = path.join(root, 'build_index.js');
@@ -45,15 +47,8 @@ if (buildResult.status !== 0) {
   if (buildResult.stderr) console.error(buildResult.stderr.trim());
   process.exit(buildResult.status ?? 1);
 }
-const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-if (previousCacheRoot === undefined) {
-  delete process.env.PAIROFCLEATS_CACHE_ROOT;
-} else {
-  process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
-}
 const piecesPath = path.join(codeDir, 'pieces', 'manifest.json');
 try {
   await fsPromises.access(piecesPath);
