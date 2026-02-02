@@ -296,7 +296,7 @@ Touchpoints (anchors; approximate):
     - [x] `jj file list --tracked -0` (prefer NUL delim where available)
   - [x] Repo provenance:
     - [x] resolve a stable head reference (commitId + changeId where available)
-    - [ ] record bookmarks (best-effort)
+    - [x] record bookmarks (best-effort)
     - [x] `dirty` best-effort (explicitly document semantics)
 
 - [x] Safety default: read-only by default

@@ -249,6 +249,20 @@ export const jjProvider = {
     const changeId = headRow.change_id || null;
     const author = headRow.author || null;
     const timestamp = headRow.timestamp || null;
+    let bookmarks = null;
+    const bookmarksResult = await runJjCommand({
+      repoRoot,
+      args: ['log', '--no-graph', '-n', '1', '-r', '@', '-T', 'bookmarks']
+    });
+    if (bookmarksResult.exitCode === 0) {
+      const raw = String(bookmarksResult.stdout || '').trim();
+      if (raw) {
+        bookmarks = raw
+          .replace(/[\[\]]/g, ' ')
+          .split(/[\s,]+/)
+          .filter(Boolean);
+      }
+    }
     let dirty = null;
     const dirtyResult = await runJjCommand({
       repoRoot,
@@ -268,14 +282,14 @@ export const jjProvider = {
         author,
         timestamp,
         branch: null,
-        bookmarks: null
+        bookmarks
       },
       dirty,
       detectedBy: 'jj-root',
       commit: commitId,
       branch: null,
       isRepo: true,
-      bookmarks: null
+      bookmarks
     };
   },
   async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {

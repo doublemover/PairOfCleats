@@ -105,6 +105,9 @@ Parsing:
 
 - Parse JSON per line.
 - If parse fails, treat as unavailable and continue with reduced provenance fields.
+- Bookmarks are best-effort. When available, query separately:
+  - `jj log --no-graph -n 1 -r @ -T bookmarks`
+  - Split output on whitespace/commas; ignore empty entries.
 
 ### 4) Dirty status
 
