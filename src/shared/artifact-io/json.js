@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { createInterface } from 'node:readline';
-import { createGunzip } from 'node:zlib';
+import { createGunzip, createZstdDecompress } from 'node:zlib';
 import { MAX_JSON_BYTES } from './constants.js';
 import { cleanupBak, getBakPath, readCache, writeCache } from './cache.js';
 import {
@@ -134,11 +134,67 @@ export const readJsonLinesArray = async (
     return parsed;
   };
 
+  const readJsonlFromZstdStream = async (targetPath, cleanup = false) => {
+    const stat = fs.statSync(targetPath);
+    if (stat.size > maxBytes) {
+      throw toJsonTooLargeError(targetPath, stat.size);
+    }
+    const parsed = [];
+    const stream = fs.createReadStream(targetPath);
+    let zstd;
+    try {
+      zstd = createZstdDecompress();
+    } catch (err) {
+      stream.destroy();
+      throw err;
+    }
+    let inflatedBytes = 0;
+    zstd.on('data', (chunk) => {
+      inflatedBytes += chunk.length;
+      if (inflatedBytes > maxBytes) {
+        zstd.destroy(toJsonTooLargeError(targetPath, inflatedBytes));
+      }
+    });
+    stream.on('error', (err) => zstd.destroy(err));
+    stream.pipe(zstd);
+    const rl = createInterface({ input: zstd, crlfDelay: Infinity });
+    let lineNumber = 0;
+    try {
+      for await (const line of rl) {
+        lineNumber += 1;
+        const entry = parseJsonlLine(line, targetPath, lineNumber, maxBytes, requiredKeys);
+        if (entry !== null) parsed.push(entry);
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        throw err;
+      }
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, inflatedBytes || stat.size);
+      }
+      throw err;
+    } finally {
+      rl.close();
+      zstd.destroy();
+      stream.destroy();
+    }
+    if (cleanup) cleanupBak(targetPath);
+    return parsed;
+  };
+
   const tryRead = async (targetPath, cleanup = false) => {
     const compression = detectCompression(targetPath);
     if (compression) {
       if (compression === 'gzip') {
         return await readJsonlFromGzipStream(targetPath, cleanup);
+      }
+      if (compression === 'zstd') {
+        try {
+          return await readJsonlFromZstdStream(targetPath, cleanup);
+        } catch (err) {
+          const message = typeof err?.message === 'string' ? err.message : '';
+          if (!message.includes('zstd') && !message.includes('ZSTD')) throw err;
+        }
       }
       const buffer = readBuffer(targetPath, maxBytes);
       const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
