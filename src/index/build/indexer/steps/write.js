@@ -72,11 +72,17 @@ export const writeIndexArtifactsForMode = async ({
         }
       }
     } catch (err) {
+      const fallbackMaxCallSitesPerEdge = Number.isFinite(
+        Number(runtime.riskInterproceduralConfig?.caps?.maxCallSitesPerEdge)
+      )
+        ? Math.max(1, Math.floor(Number(runtime.riskInterproceduralConfig.caps.maxCallSitesPerEdge)))
+        : null;
       state.riskFlows = [];
       state.riskFlowCallSiteIds = null;
       state.riskInterproceduralStats = {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
+        mode,
         status: 'error',
         reason: err?.message || 'risk interprocedural error',
         effectiveConfig: runtime.riskInterproceduralConfig || null,
@@ -88,6 +94,11 @@ export const writeIndexArtifactsForMode = async ({
           flowsEmitted: 0,
           risksWithFlows: 0,
           uniqueCallSitesReferenced: 0
+        },
+        callSiteSampling: {
+          strategy: 'firstN',
+          maxCallSitesPerEdge: fallbackMaxCallSitesPerEdge,
+          order: 'file,startLine,startCol,endLine,endCol,calleeNormalized,calleeRaw,callSiteId'
         },
         capsHit: [],
         timingMs: {
