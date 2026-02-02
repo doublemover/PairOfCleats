@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T06:26:35.138Z",
+  "generatedAt": "2026-02-02T07:30:34.305Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1301,6 +1301,9 @@
         "tests/indexing/records/records-exclusion.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
+        "tests/indexing/scm/index-build-git-provider.test.js",
+        "tests/indexing/scm/index-build-no-scm.test.js",
+        "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/indexing/shards/shard-progress-determinism.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
@@ -1454,6 +1457,9 @@
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/records/records-exclusion.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
+        "tests/indexing/scm/index-build-git-provider.test.js",
+        "tests/indexing/scm/index-build-no-scm.test.js",
+        "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
