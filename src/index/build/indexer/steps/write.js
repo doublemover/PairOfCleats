@@ -41,13 +41,19 @@ export const writeIndexArtifactsForMode = async ({
   const riskInterproceduralSummaryOnly = typeof runtime.analysisPolicy?.risk?.interproceduralSummaryOnly === 'boolean'
     ? runtime.analysisPolicy.risk.interproceduralSummaryOnly
     : runtime.riskInterproceduralConfig?.summaryOnly === true;
-  const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
+  const modeRiskInterproceduralEnabled = mode === 'code' && riskInterproceduralEnabled === true;
+  const modeRiskInterproceduralSummaryOnly = modeRiskInterproceduralEnabled
+    && riskInterproceduralSummaryOnly === true;
+  const riskInterproceduralEmitArtifacts = mode === 'code'
+    ? (runtime.riskInterproceduralConfig?.emitArtifacts || null)
+    : null;
   if (mode === 'code') {
     try {
       const result = computeInterproceduralRisk({
         chunks: state.chunks,
         summaries: state.riskSummaries,
         runtime,
+        mode,
         log,
         summaryTimingMs: state.riskSummaryTimingMs
       });
@@ -160,8 +166,8 @@ export const writeIndexArtifactsForMode = async ({
         }
         : { enabled: false },
       riskInterprocedural: {
-        enabled: riskInterproceduralEnabled === true,
-        summaryOnly: riskInterproceduralSummaryOnly === true,
+        enabled: modeRiskInterproceduralEnabled === true,
+        summaryOnly: modeRiskInterproceduralSummaryOnly === true,
         emitArtifacts: riskInterproceduralEmitArtifacts
       },
       riskRules: riskRules || null

@@ -43,6 +43,10 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
  */
 export function getModelsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
+  const envModelsDir = typeof process.env.PAIROFCLEATS_MODELS_DIR === 'string'
+    ? process.env.PAIROFCLEATS_MODELS_DIR.trim()
+    : '';
+  if (envModelsDir) return envModelsDir;
   const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const models = cfg.models || {};
   return models.dir || path.join(cacheRoot, 'models');
@@ -160,6 +164,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
  */
 export function getExtensionsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
+  const envExtensionsDir = typeof process.env.PAIROFCLEATS_EXTENSIONS_DIR === 'string'
+    ? process.env.PAIROFCLEATS_EXTENSIONS_DIR.trim()
+    : '';
+  if (envExtensionsDir) return envExtensionsDir;
   const extensions = cfg.extensions || {};
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;

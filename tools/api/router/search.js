@@ -1,17 +1,16 @@
-export const buildSearchParams = (repoPath, payload, defaultOutput) => {
+export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   const query = payload?.query ? String(payload.query) : '';
   if (!query) {
     return { ok: false, message: 'Missing query.' };
   }
   const output = payload?.output || defaultOutput;
   const useCompact = output !== 'full' && output !== 'json';
-  const searchArgs = ['--json', '--repo', repoPath];
+  const searchArgs = ['--json'];
   if (useCompact) searchArgs.push('--compact');
   const mode = payload?.mode ? String(payload.mode) : null;
   const backend = payload?.backend ? String(payload.backend) : null;
   const ann = payload?.ann;
   const top = Number.isFinite(Number(payload?.top)) ? Number(payload.top) : null;
-  const context = Number.isFinite(Number(payload?.context)) ? Number(payload.context) : null;
   const typeFilter = payload?.type ? String(payload.type) : null;
   const authorFilter = payload?.author ? String(payload.author) : null;
   const importFilter = payload?.import ? String(payload.import) : null;
@@ -38,91 +37,70 @@ export const buildSearchParams = (repoPath, payload, defaultOutput) => {
   const loopsMin = Number.isFinite(Number(payload?.loopsMin)) ? Number(payload.loopsMin) : null;
   const breaksMin = Number.isFinite(Number(payload?.breaksMin)) ? Number(payload.breaksMin) : null;
   const continuesMin = Number.isFinite(Number(payload?.continuesMin)) ? Number(payload.continuesMin) : null;
-  const churnMin = Number.isFinite(Number(payload?.churnMin)) ? Number(payload.churnMin) : null;
+  const churnMin = payload?.churnMin;
   const chunkAuthorFilter = payload?.chunkAuthor ? String(payload.chunkAuthor) : null;
   const modifiedAfter = payload?.modifiedAfter ? String(payload.modifiedAfter) : null;
   const modifiedSince = Number.isFinite(Number(payload?.modifiedSince)) ? Number(payload.modifiedSince) : null;
   const visibilityFilter = payload?.visibility ? String(payload.visibility) : null;
   const extendsFilter = payload?.extends ? String(payload.extends) : null;
-  const extendsOnly = payload?.extendsOnly;
-  const riskOnly = payload?.riskOnly;
   const targetPaths = Array.isArray(payload?.paths)
     ? payload.paths.map((value) => String(value || '').trim()).filter(Boolean)
     : [];
   const extFilter = payload?.ext ? String(payload.ext) : null;
   const langFilter = payload?.lang ? String(payload.lang) : null;
   const filterExpr = payload?.filter ? String(payload.filter) : null;
-  const opts = {
-    mode,
-    backend,
-    ann,
-    top,
-    context,
-    typeFilter,
-    authorFilter,
-    importFilter,
-    callsFilter,
-    usesFilter,
-    signatureFilter,
-    paramFilter,
-    decoratorFilter,
-    inferredTypeFilter,
-    returnTypeFilter,
-    throwsFilter,
-    readsFilter,
-    writesFilter,
-    mutatesFilter,
-    aliasFilter,
-    awaitsFilter,
-    riskFilter,
-    riskTagFilter,
-    riskSourceFilter,
-    riskSinkFilter,
-    riskCategoryFilter,
-    riskFlowFilter,
-    branchesMin,
-    loopsMin,
-    breaksMin,
-    continuesMin,
-    churnMin,
-    chunkAuthorFilter,
-    modifiedAfter,
-    modifiedSince,
-    visibilityFilter,
-    extendsFilter,
-    extendsOnly,
-    riskOnly,
-    targetPaths,
-    extFilter,
-    langFilter,
-    filterExpr
+  const metaFilter = payload?.meta ? String(payload.meta) : null;
+  const metaJsonFilter = payload?.metaJson ? String(payload.metaJson) : null;
+
+  const pushFlag = (flag, value) => {
+    if (value == null || value === '') return;
+    searchArgs.push(flag, String(value));
   };
-  for (const [key, value] of Object.entries(opts)) {
-    if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) continue;
-    if (key === 'targetPaths') {
-      for (const entry of value) {
-        searchArgs.push('--path', entry);
-      }
-      continue;
-    }
-    if (key === 'extFilter') {
-      searchArgs.push('--ext', value);
-      continue;
-    }
-    if (key === 'langFilter') {
-      searchArgs.push('--lang', value);
-      continue;
-    }
-    if (key === 'filterExpr') {
-      searchArgs.push('--filter', value);
-      continue;
-    }
-    if (typeof value === 'boolean') {
-      if (value) searchArgs.push(`--${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`);
-      continue;
-    }
-    searchArgs.push(`--${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`, String(value));
+  if (mode) searchArgs.push('--mode', mode);
+  if (backend) searchArgs.push('--backend', backend);
+  if (ann === true) searchArgs.push('--ann');
+  if (ann === false) searchArgs.push('--no-ann');
+  if (top != null) searchArgs.push('--top', String(top));
+  pushFlag('--type', typeFilter);
+  pushFlag('--author', authorFilter);
+  pushFlag('--import', importFilter);
+  pushFlag('--calls', callsFilter);
+  pushFlag('--uses', usesFilter);
+  pushFlag('--signature', signatureFilter);
+  pushFlag('--param', paramFilter);
+  pushFlag('--decorator', decoratorFilter);
+  pushFlag('--inferred-type', inferredTypeFilter);
+  pushFlag('--return-type', returnTypeFilter);
+  pushFlag('--throws', throwsFilter);
+  pushFlag('--reads', readsFilter);
+  pushFlag('--writes', writesFilter);
+  pushFlag('--mutates', mutatesFilter);
+  pushFlag('--alias', aliasFilter);
+  pushFlag('--awaits', awaitsFilter);
+  pushFlag('--risk', riskFilter);
+  pushFlag('--risk-tag', riskTagFilter);
+  pushFlag('--risk-source', riskSourceFilter);
+  pushFlag('--risk-sink', riskSinkFilter);
+  pushFlag('--risk-category', riskCategoryFilter);
+  pushFlag('--risk-flow', riskFlowFilter);
+  if (branchesMin != null) searchArgs.push('--branches', String(branchesMin));
+  if (loopsMin != null) searchArgs.push('--loops', String(loopsMin));
+  if (breaksMin != null) searchArgs.push('--breaks', String(breaksMin));
+  if (continuesMin != null) searchArgs.push('--continues', String(continuesMin));
+  if (churnMin != null) searchArgs.push('--churn', String(churnMin));
+  pushFlag('--chunk-author', chunkAuthorFilter);
+  pushFlag('--modified-after', modifiedAfter);
+  if (modifiedSince != null) searchArgs.push('--modified-since', String(modifiedSince));
+  pushFlag('--visibility', visibilityFilter);
+  pushFlag('--extends', extendsFilter);
+  for (const entry of targetPaths) {
+    searchArgs.push('--path', entry);
   }
+  pushFlag('--ext', extFilter);
+  pushFlag('--lang', langFilter);
+  pushFlag('--filter', filterExpr);
+  pushFlag('--meta', metaFilter);
+  pushFlag('--meta-json', metaJsonFilter);
   return { ok: true, args: searchArgs, query };
 };
 

@@ -1,11 +1,11 @@
 import path from 'node:path';
 import os from 'node:os';
 
-const resolveTestCacheRoot = (env) => {
-  const testing = env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
-  if (!testing) return '';
-  const raw = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
-  return raw || '';
+const resolveEnvCacheRoot = (env) => {
+  const cacheRoot = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
+  if (cacheRoot) return cacheRoot;
+  const homeRoot = typeof env.PAIROFCLEATS_HOME === 'string' ? env.PAIROFCLEATS_HOME.trim() : '';
+  return homeRoot || '';
 };
 
 /**
@@ -23,7 +23,7 @@ export function getDefaultCacheRoot() {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const testRoot = resolveTestCacheRoot(process.env);
-  if (testRoot) return testRoot;
+  const envRoot = resolveEnvCacheRoot(process.env);
+  if (envRoot) return envRoot;
   return getDefaultCacheRoot();
 }

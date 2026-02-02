@@ -277,18 +277,18 @@ function normalizeUserConfig(baseConfig) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const testRoot = resolveTestCacheRoot(process.env);
-  if (testRoot) return testRoot;
+  const envRoot = resolveEnvCacheRoot(process.env);
+  if (envRoot) return envRoot;
   if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
   if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
 }
 
-function resolveTestCacheRoot(env) {
-  const testing = env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
-  if (!testing) return '';
-  const raw = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
-  return raw || '';
+function resolveEnvCacheRoot(env) {
+  const cacheRoot = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
+  if (cacheRoot) return cacheRoot;
+  const homeRoot = typeof env.PAIROFCLEATS_HOME === 'string' ? env.PAIROFCLEATS_HOME.trim() : '';
+  return homeRoot || '';
 }
 
 /**
@@ -300,11 +300,14 @@ function resolveTestCacheRoot(env) {
 export function getDictConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const dict = cfg.dictionary || {};
+  const envDictDir = typeof process.env.PAIROFCLEATS_DICT_DIR === 'string'
+    ? process.env.PAIROFCLEATS_DICT_DIR.trim()
+    : '';
   const dpMaxTokenLengthByFileCount = normalizeDpMaxTokenLengthByFileCount(
     dict.dpMaxTokenLengthByFileCount
   );
   return {
-    dir: dict.dir || path.join(getCacheRoot(), 'dictionaries'),
+    dir: envDictDir || dict.dir || path.join(getCacheRoot(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],
     includeSlang: dict.includeSlang !== false,

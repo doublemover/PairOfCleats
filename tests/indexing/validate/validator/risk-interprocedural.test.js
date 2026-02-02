@@ -194,6 +194,7 @@ const riskFlows = [
 const stats = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
+  mode: 'code',
   status: 'ok',
   reason: null,
   effectiveConfig: {
@@ -220,8 +221,13 @@ const stats = {
     risksWithFlows: 1,
     uniqueCallSitesReferenced: 1
   },
+  callSiteSampling: {
+    strategy: 'firstN',
+    maxCallSitesPerEdge: 2,
+    order: 'file,startLine,startCol,endLine,endCol,calleeNormalized,calleeRaw,callSiteId'
+  },
   capsHit: [],
-  timingMs: { summaries: 0, propagation: 0, total: 0 },
+  timingMs: { summaries: 0, propagation: 0, io: 0, total: 0 },
   artifacts: {}
 };
 

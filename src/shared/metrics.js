@@ -16,7 +16,7 @@ const normalizeLabel = (value, allowed, fallback = 'unknown') => {
 
 const STAGES = new Set(['stage1', 'stage2', 'stage3', 'stage4', 'unknown']);
 const MODES = new Set(['code', 'prose', 'all', 'records', 'extracted-prose', 'unknown']);
-const BACKENDS = new Set(['memory', 'sqlite', 'sqlite-fts', 'unknown']);
+const BACKENDS = new Set(['memory', 'sqlite', 'sqlite-fts', 'lmdb', 'unknown']);
 const STATUSES = new Set(['ok', 'error', 'unknown']);
 const ANN = new Set(['on', 'off', 'unknown']);
 const POOLS = new Set(['tokenize', 'quantize', 'watch', 'unknown']);

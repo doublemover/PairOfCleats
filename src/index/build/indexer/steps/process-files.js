@@ -18,6 +18,7 @@ import {
   applyTreeSitterBatching,
   buildTreeSitterEntryBatches,
   assignFileIndexes,
+  normalizeTreeSitterLanguages,
   preloadTreeSitterBatch,
   resolveNextOrderIndex,
   sortEntriesByTreeSitterBatchKey,

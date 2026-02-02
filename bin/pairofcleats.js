@@ -63,8 +63,8 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'search') {
     const backend = readFlagValue(rest, 'backend');
-    if (backend && !['auto', 'sqlite', 'lmdb'].includes(backend.toLowerCase())) {
-      console.error(`Unsupported --backend ${backend}. Use auto|sqlite|lmdb.`);
+    if (backend && !['auto', 'sqlite', 'sqlite-fts', 'lmdb'].includes(backend.toLowerCase())) {
+      console.error(`Unsupported --backend ${backend}. Use auto|sqlite|sqlite-fts|lmdb.`);
       process.exit(1);
     }
     return { script: 'search.js', extraArgs: [], args: rest };

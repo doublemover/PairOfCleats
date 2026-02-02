@@ -46,12 +46,13 @@ function buildArgs(query, repoRoot) {
   const extraArgs = config.get('extraSearchArgs') || [];
   const extra = Array.isArray(extraArgs) ? extraArgs.map(String) : [];
 
-  const args = ['search', query, '--json', '--top', String(maxResults)];
+  const args = ['search', '--json', '--top', String(maxResults)];
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (backend) args.push('--backend', backend);
   if (!annEnabled) args.push('--no-ann');
   if (repoRoot) args.push('--repo', repoRoot);
   args.push(...extra);
+  args.push('--', query);
   return args;
 }
 

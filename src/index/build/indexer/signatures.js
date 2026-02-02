@@ -37,6 +37,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   const riskInterproceduralSummaryOnly = typeof analysisPolicy?.risk?.interproceduralSummaryOnly === 'boolean'
     ? analysisPolicy.risk.interproceduralSummaryOnly
     : runtime.riskInterproceduralConfig?.summaryOnly === true;
+  const modeRiskInterproceduralEnabled = mode === 'code' && riskInterproceduralEnabled === true;
+  const modeRiskInterproceduralSummaryOnly = modeRiskInterproceduralEnabled && riskInterproceduralSummaryOnly === true;
   const typeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
     ? analysisPolicy.typeInference.local.enabled
     : runtime.typeInferenceEnabled;
@@ -70,13 +72,19 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       complexityEnabled: runtime.complexityEnabled,
       riskAnalysisEnabled,
       riskAnalysisCrossFileEnabled,
-      riskInterproceduralEnabled,
-      riskInterproceduralSummaryOnly,
+      riskInterproceduralEnabled: modeRiskInterproceduralEnabled,
+      riskInterproceduralSummaryOnly: modeRiskInterproceduralSummaryOnly,
       typeInferenceEnabled,
       typeInferenceCrossFileEnabled,
       gitBlameEnabled
     },
-    riskInterproceduralConfig: runtime.riskInterproceduralConfig || null,
+    riskInterproceduralConfig: runtime.riskInterproceduralConfig
+      ? {
+        ...runtime.riskInterproceduralConfig,
+        enabled: modeRiskInterproceduralEnabled,
+        summaryOnly: modeRiskInterproceduralSummaryOnly
+      }
+      : null,
     riskRules: runtime.indexingConfig?.riskRules || null,
     riskCaps: runtime.indexingConfig?.riskCaps || null,
     parsers: {

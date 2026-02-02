@@ -196,7 +196,7 @@ export const createApiRouter = ({
           sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
           return;
         }
-        const searchParams = buildSearchParams(repoPath, payload || {});
+        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
             res,
@@ -289,7 +289,7 @@ export const createApiRouter = ({
           sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
           return;
         }
-        const searchParams = buildSearchParams(repoPath, payload || {});
+        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
         if (!searchParams.ok) {
           sendError(
             res,

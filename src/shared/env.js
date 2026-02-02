@@ -33,13 +33,9 @@ export function getEnvConfig(env = process.env) {
   const secrets = getEnvSecrets(env);
   const mcpMode = normalizeString(env.PAIROFCLEATS_MCP_MODE)
     || normalizeString(env.MCP_MODE);
-  const base = {
-    ...secrets,
-    mcpMode
-  };
-  if (!isTesting(env)) return base;
   return {
-    ...base,
+    ...secrets,
+    mcpMode,
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
@@ -56,6 +52,12 @@ export function getEnvConfig(env = process.env) {
     summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
     importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH),
     discoveryStatConcurrency: normalizeNumber(env.PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY),
+    regexEngine: normalizeString(env.PAIROFCLEATS_REGEX_ENGINE),
+    compression: normalizeString(env.PAIROFCLEATS_COMPRESSION),
+    docExtract: normalizeString(env.PAIROFCLEATS_DOC_EXTRACT),
+    mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
+    modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
+    dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),
     mcpQueueMax: normalizeNumber(env.PAIROFCLEATS_MCP_QUEUE_MAX),
     mcpMaxBufferBytes: normalizeNumber(env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES),
     mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS)

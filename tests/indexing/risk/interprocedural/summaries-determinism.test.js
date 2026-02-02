@@ -37,7 +37,11 @@ const buildChunk = () => ({
 const runOnce = () => {
   const { rows } = buildRiskSummaries({
     chunks: [buildChunk()],
-    interprocedural: { enabled: true, summaryOnly: false }
+    runtime: {
+      riskInterproceduralEnabled: true,
+      riskInterproceduralConfig: { summaryOnly: false }
+    },
+    mode: 'code'
   });
   return JSON.stringify(rows);
 };

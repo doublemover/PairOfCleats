@@ -584,7 +584,7 @@ If any item above is missing, fix it as part of Phase 6 (details below).
   - **Pure & deterministic** (same inputs → same output across runs/OS).
   - **Path-safe for LSP/tooling** (no OS separators except `/`).
   - **Stable across host paths**: uses `normalizeRelPath()` and `encodeContainerPath()`:
-    - `encodeContainerPath()` base64url-encodes the normalized relative path.
+    - `encodeContainerPath()` percent-encodes reserved characters (`#`, `%`) in the normalized relative path.
     - `decodeContainerPath()` reverses it.
   - **Segment addressing is explicit**:
     - If `segmentUid` is present: suffix is `"#seg:<segmentUid>"`.

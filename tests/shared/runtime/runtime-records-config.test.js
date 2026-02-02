@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { createBuildRuntime } from '../../../src/index/build/runtime.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'runtime-records-config');
@@ -10,8 +11,20 @@ const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = tempRoot;
+applyTestEnv({
+  cacheRoot: tempRoot,
+  embeddings: 'off',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      embeddings: {
+        enabled: false,
+        hnsw: { enabled: false },
+        lancedb: { enabled: false }
+      }
+    }
+  }
+});
 
 const defaults = parseBuildArgs([]).argv;
 const runtime = await createBuildRuntime({ root: repoRoot, argv: defaults, rawArgv: [] });

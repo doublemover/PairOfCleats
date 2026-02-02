@@ -44,7 +44,7 @@ PairOfCleats combines the strengths:
 - Optional (recommended for best Python chunk metadata): **Python 3** (`indexing.pythonAst.*`)
 - Optional (recommended for large repos): **SQLite backend** (via `better-sqlite3`)
 - Optional (recommended for fastest semantic search): **sqlite-vec** extension for ANN
-- Optional (document extraction): **PDF/DOCX support** via `pdfjs-dist` + `mammoth` (`indexing.documentExtraction.enabled`)
+- Optional (document extraction): **PDF/DOCX support** (planned) via `pdfjs-dist` + `mammoth` (`indexing.documentExtraction.enabled`)
 - Optional performance backends (auto-selected when available): **LMDB**, **LanceDB**, SQLite ANN extension. Set explicit config to force a backend.
 
 ---

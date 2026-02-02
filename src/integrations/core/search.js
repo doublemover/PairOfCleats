@@ -14,7 +14,7 @@ export async function search(repoRoot, params = {}) {
     : (params.root ? path.resolve(params.root) : null);
   const rawArgs = Array.isArray(params.args) ? params.args.slice() : buildSearchArgs(params);
   const query = typeof params.query === 'string' ? params.query : '';
-  if (query) rawArgs.push(query);
+  if (query) rawArgs.push('--', query);
   return runSearchCli(rawArgs, {
     root: rootOverride || undefined,
     emitOutput: params.emitOutput === true,
