@@ -87,6 +87,17 @@ Response:
 ### Existing tools
 - `tools/list` includes `index_status`, `config_status`, `search`, and maintenance tools.
 
+### Tool schema versioning
+- MCP tool schemas are versioned via `schemaVersion` (SemVer) and `toolVersion` (package version).
+- Breaking changes to tool names or input schemas require a **major** schemaVersion bump.
+- Backwards-compatible additions require a **minor** bump; editorial clarifications are **patch** bumps.
+- Canonical snapshot: `docs/contracts/mcp-tools.schema.json` (validated by `src/integrations/mcp/validate.js`).
+
+### Initialize response shape
+- `initialize` returns an object that must validate against `docs/contracts/mcp-initialize.schema.json`.
+- Required keys: `protocolVersion`, `serverInfo`, `capabilities`.
+- Optional keys (to be required once implemented): `schemaVersion`, `toolVersion`.
+
 ### Phase 11 tools (recommended)
 If Phase 11 is exposed via MCP, `tools/list` SHOULD include tools matching HTTP endpoints:
 

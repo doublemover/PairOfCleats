@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
+import { getToolCatalog, getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/dict-utils.js';
 
@@ -156,6 +156,16 @@ const toolSchemaSnapshot = getToolDefs(DEFAULT_MODEL_ID).map((tool) => ({
     : [],
   properties: Object.keys(tool.inputSchema?.properties || {}).sort()
 }));
+const toolCatalog = getToolCatalog(DEFAULT_MODEL_ID);
+if (!toolCatalog.schemaVersion) {
+  throw new Error('MCP schemaVersion missing from tool catalog.');
+}
+if (toolCatalog.schemaVersion !== MCP_SCHEMA_VERSION) {
+  throw new Error(`MCP schemaVersion mismatch (expected ${MCP_SCHEMA_VERSION}).`);
+}
+if (!toolCatalog.toolVersion) {
+  throw new Error('MCP toolVersion missing from tool catalog.');
+}
 
 const findFirstDiff = (expected, actual, currentPath = '') => {
   if (expected === actual) return null;

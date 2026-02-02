@@ -159,28 +159,28 @@ Touchpoints (anchors; approximate):
 
 ### 12.3 Tool schema versioning, conformance, and drift guards
 
-- [ ] Make tool schemas explicitly versioned and enforce bump discipline.
+- [x] Make tool schemas explicitly versioned and enforce bump discipline.
   - Touchpoints:
-    - [ ] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolVersion` (package.json)
-    - [ ] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
-    - [ ] `docs/contracts/mcp-tools.schema.json` (new) — canonical tool schema snapshot
-    - [ ] `src/integrations/mcp/validate.js` (new) — validate tool schemas against snapshot
-  - [ ] Define the canonical initialize response shape (schema + example).
-    - [ ] `docs/contracts/mcp-api.md` — `initialize` response structure
-    - [ ] `docs/contracts/mcp-initialize.schema.json` (new) — schema for response payload
+    - [x] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolVersion` (package.json)
+    - [x] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
+    - [x] `docs/contracts/mcp-tools.schema.json` (new) — canonical tool schema snapshot
+    - [x] `src/integrations/mcp/validate.js` (new) — validate tool schemas against snapshot
+  - [x] Define the canonical initialize response shape (schema + example).
+    - [x] `docs/contracts/mcp-api.md` — `initialize` response structure
+    - [x] `docs/contracts/mcp-initialize.schema.json` (new) — schema for response payload
 
-- [ ] Consolidate MCP argument → execution mapping to one audited path.
+- [x] Consolidate MCP argument → execution mapping to one audited path.
   - Touchpoints:
-    - [ ] `tools/mcp/tools.js` (search/build tools)
-    - [ ] `src/integrations/core/index.js` (shared arg builder, if used)
-  - [ ] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
+    - [x] `tools/mcp/tools.js` (search/build tools)
+    - [x] `src/integrations/core/index.js` (shared arg builder, if used)
+  - [x] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
 
-- [ ] Conformance requirement for the `search` tool:
-  - [ ] Every field in the MCP `search` schema must either:
-    - [ ] affect emitted CLI args / search execution, or
-    - [ ] be removed from schema, or
-    - [ ] be explicitly marked “reserved” and rejected if set.
-  - [ ] Avoid duplicative builders (do not maintain two separate lists of flags).
+- [x] Conformance requirement for the `search` tool:
+  - [x] Every field in the MCP `search` schema must either:
+    - [x] affect emitted CLI args / search execution, or
+    - [x] be removed from schema, or
+    - [x] be explicitly marked “reserved” and rejected if set.
+  - [x] Avoid duplicative builders (do not maintain two separate lists of flags).
 
 - [ ] Fix known MCP tool wiring correctness hazards in modified files:
   - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
