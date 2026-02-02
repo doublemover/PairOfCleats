@@ -144,7 +144,7 @@
     "typescript": "^5.9.3",
     "vscode-jsonrpc": "8.2.1",
     "vscode-languageserver-protocol": "3.17.5",
-    "web-tree-sitter": "0.20.8",
+    "web-tree-sitter": "0.26.5",
     "xxhash-wasm": "^1.1.0",
     "yaml": "^2.8.2",
     "yargs": "^17.7.2",
