@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildInventory } from '../../../tools/config-inventory.js';
@@ -32,10 +31,17 @@ const normalizeMd = (text) => text
 
 const expectedJson = JSON.parse(await fs.readFile(path.join(root, 'docs', 'config', 'inventory.json'), 'utf8'));
 const actualJson = JSON.parse(await fs.readFile(outputJsonPath, 'utf8'));
-assert.deepStrictEqual(stripGeneratedAt(actualJson), stripGeneratedAt(expectedJson), 'config inventory json out of sync');
+const jsonMatch = JSON.stringify(stripGeneratedAt(actualJson)) === JSON.stringify(stripGeneratedAt(expectedJson));
+if (!jsonMatch) {
+  console.error('config inventory json out of sync; run node tools/config-inventory.js');
+  process.exit(1);
+}
 
 const expectedMd = normalizeMd(await fs.readFile(path.join(root, 'docs', 'config', 'inventory.md'), 'utf8'));
 const actualMd = normalizeMd(await fs.readFile(outputMdPath, 'utf8'));
-assert.strictEqual(actualMd, expectedMd, 'config inventory markdown out of sync');
+if (actualMd !== expectedMd) {
+  console.error('config inventory markdown out of sync; run node tools/config-inventory.js');
+  process.exit(1);
+}
 
 console.log('config inventory sync test passed');
