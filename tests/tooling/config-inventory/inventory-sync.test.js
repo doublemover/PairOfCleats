@@ -26,6 +26,7 @@ const stripGeneratedAt = (payload) => {
 };
 
 const normalizeMd = (text) => text
+  .replace(/\r\n/g, '\n')
   .replace(/^Generated: .*$/m, 'Generated: <timestamp>')
   .trim();
 
