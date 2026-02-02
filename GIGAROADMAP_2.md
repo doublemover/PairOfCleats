@@ -117,6 +117,11 @@ Authoritative specs to align with (existing in repo):
     - [ ] path normalization rules (repo-relative POSIX paths)
     - [ ] detection precedence and fallback behavior
     - [ ] capability/skip semantics when binaries are missing
+    - [ ] decision table for provider selection (`auto|git|jj|none`), including:
+      - [ ] explicit provider set
+      - [ ] `.git/` + `.jj/` both present (hard fail)
+      - [ ] missing binaries / unreadable repo roots
+    - [ ] buildId/signature provenance rules (how head fields affect buildId)
 
 - [ ] Build-state schema contract must be referenced and updated:
   - [ ] Add a formal build_state contract + validator (none exists today):
@@ -128,6 +133,7 @@ Authoritative specs to align with (existing in repo):
     - [ ] buildId + signatureVersion + schemaVersion
     - [ ] explicit nullability rules for provider=none
   - [ ] Ensure `docs/contracts/indexing.md` references the new contract location and examples.
+  - [ ] Add a migration checklist section (legacy repo.* fields to deprecate/remove and timeline).
 
 Touchpoints:
 - `docs/contracts/indexing.md`
@@ -156,6 +162,10 @@ Touchpoints (anchors; approximate):
   - [ ] `src/index/scm/providers/git.js` (new) — migrated in 13.2
   - [ ] `src/index/scm/providers/jj.js` (new) — implemented in 13.3
 
+- [ ] Add a shared path normalization helper (single source of truth):
+  - [ ] `src/index/scm/paths.js` (new) — `toRepoPosixPath(filePath, repoRoot)`
+  - [ ] All providers + tests must use this helper.
+
 - [ ] Define the **canonical provider contract** (minimal required surface):
   - [ ] `detect({ startPath }) -> { ok:true, repoRoot, provider } | { ok:false }`
   - [ ] `listTrackedFiles({ repoRoot, subdir? }) -> { filesPosix: string[] }`
@@ -175,6 +185,10 @@ Touchpoints (anchors; approximate):
     - [ ] `indexing.gitBlame` / `analysisPolicy.git.blame` -> `indexing.scm.annotate.enabled`
     - [ ] document deprecation/precedence and avoid divergent settings
     - [ ] No legacy mode: treat the SCM provider contract as authoritative
+
+- [ ] Add a mockable SCM command runner:
+  - [ ] `src/index/scm/runner.js` (new) — wraps spawn/exec with injectable fakes for tests
+  - [ ] Use it in Git/JJ providers to avoid shelling in unit tests.
 
 - [ ] Build-state schema updates:
   - [ ] Extend `build_state.json` `repo` field to include:
@@ -212,6 +226,7 @@ Touchpoints (anchors; approximate):
   - [ ] `auto` selects `jj` when `.jj/` exists and `jj` is runnable.
   - [ ] `auto` falls back to `none` when neither exists (or binaries missing).
   - [ ] `auto` hard-fails when both `.git/` + `.jj/` exist and no provider is set.
+  - [ ] use fixture repo roots (`tests/fixtures/scm/git`, `tests/fixtures/scm/jj`, `tests/fixtures/scm/both`) rather than real repos.
 - [ ] `tests/indexing/scm/build-state-repo-provenance.test.js` (new)
   - [ ] `build_state.json` includes `repo.provider` and normalized `repo.head`.
 - [ ] `tests/indexing/scm/signature-provenance-stability.test.js` (new)
@@ -267,6 +282,7 @@ Touchpoints (anchors; approximate):
     - [ ] `build_state.json.repo.provider === "git"`
     - [ ] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
   - [ ] annotate metadata is present only when enabled; otherwise explicitly absent with a reason
+  - [ ] uses mockable SCM runner for unit coverage of git parsing without requiring git
 
 ---
 
@@ -313,6 +329,7 @@ Touchpoints (anchors; approximate):
   - [ ] ensure paths are POSIX, repo-root-relative, and sorted deterministically.
 - [ ] CI behavior:
   - [ ] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
+  - [ ] add explicit lane/tag so JJ tests can be isolated if needed.
 
 ---
 
