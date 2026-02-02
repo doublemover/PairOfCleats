@@ -72,11 +72,6 @@ const sinkChunk = {
   }
 };
 
-const { rows } = buildRiskSummaries({
-  chunks: [sourceChunk, sinkChunk],
-  interprocedural: { enabled: true, summaryOnly: false }
-});
-
 const runtime = {
   riskInterproceduralConfig: {
     enabled: true,
@@ -97,6 +92,12 @@ const runtime = {
   riskConfig: { rules: { sources: [] } }
 };
 
+const { rows } = buildRiskSummaries({
+  chunks: [sourceChunk, sinkChunk],
+  runtime,
+  mode: 'code'
+});
+
 const result = computeInterproceduralRisk({
   chunks: [sourceChunk, sinkChunk],
   summaries: rows,
@@ -112,5 +113,10 @@ assert.equal(flow.path.chunkUids.length, 2);
 assert.equal(flow.path.callSiteIdsByStep.length, 1);
 assert.ok(Array.isArray(flow.path.callSiteIdsByStep[0]));
 assert.ok(flow.flowId.startsWith('sha1:'), 'flowId should be sha1');
+const expectedConfidence = Math.max(0.05, Math.min(1, Math.sqrt(0.6 * 0.8) * 0.85));
+assert.ok(
+  Math.abs(flow.confidence - expectedConfidence) < 1e-6,
+  `expected confidence ${expectedConfidence}, got ${flow.confidence}`
+);
 
 console.log('risk interprocedural conservative flow test passed');

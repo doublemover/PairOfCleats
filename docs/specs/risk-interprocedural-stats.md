@@ -30,6 +30,8 @@ type RiskInterproceduralStatsV1 = {
   schemaVersion: 1,
   generatedAt: string, // ISO timestamp
 
+  mode: "code" | "prose" | "records" | "extracted-prose" | "all",
+
   status: "ok" | "disabled" | "timed_out" | "error",
   reason: string | null,
 
@@ -61,8 +63,14 @@ Status guidelines:
     sourceRoots: number,
     resolvedEdges: number,
     flowsEmitted: number,
-    risksWithFlows: number,
+    risksWithFlows: number, // unique sink ruleIds with flows
     uniqueCallSitesReferenced: number
+  },
+
+  callSiteSampling: {
+    strategy: "firstN",
+    maxCallSitesPerEdge: number | null,
+    order: string
   },
 
   capsHit: string[],
@@ -70,6 +78,7 @@ Status guidelines:
   timingMs: {
     summaries: number,
     propagation: number,
+    io: number,
     total: number
   },
 

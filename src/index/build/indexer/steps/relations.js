@@ -136,9 +136,9 @@ export const runCrossFileInference = async ({
   const riskInterproceduralEnabled = typeof policy?.risk?.interprocedural === 'boolean'
     ? policy.risk.interprocedural
     : runtime.riskInterproceduralEnabled;
-  const riskInterproceduralSummaryOnly = typeof policy?.risk?.interproceduralSummaryOnly === 'boolean'
-    ? policy.risk.interproceduralSummaryOnly
-    : runtime.riskInterproceduralConfig?.summaryOnly === true;
+  const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
+  const shouldBuildRiskSummaries = mode === 'code'
+    && (riskInterproceduralEnabled || riskInterproceduralEmitArtifacts === 'jsonl');
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
@@ -211,15 +211,13 @@ export const runCrossFileInference = async ({
       log(`[relations] ${label} capped (${cap.reason}).${suffix}`);
     }
   }
-  if (mode === 'code' && riskInterproceduralEnabled) {
+  if (shouldBuildRiskSummaries) {
     crashLogger.updatePhase('risk-summaries');
     const summaryStart = Date.now();
     const { rows, stats } = buildRiskSummaries({
       chunks: state.chunks,
-      interprocedural: {
-        enabled: true,
-        summaryOnly: riskInterproceduralSummaryOnly
-      },
+      runtime,
+      mode,
       log
     });
     state.riskSummaryTimingMs = Date.now() - summaryStart;

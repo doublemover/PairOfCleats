@@ -72,11 +72,6 @@ const sinkChunk = {
   }
 };
 
-const { rows } = buildRiskSummaries({
-  chunks: [sourceChunk, sinkChunk],
-  interprocedural: { enabled: true, summaryOnly: false }
-});
-
 const runtime = {
   riskInterproceduralConfig: {
     enabled: true,
@@ -96,6 +91,12 @@ const runtime = {
   riskInterproceduralEnabled: true,
   riskConfig: { rules: { sources: [] } }
 };
+
+const { rows } = buildRiskSummaries({
+  chunks: [sourceChunk, sinkChunk],
+  runtime,
+  mode: 'code'
+});
 
 const result = computeInterproceduralRisk({
   chunks: [sourceChunk, sinkChunk],

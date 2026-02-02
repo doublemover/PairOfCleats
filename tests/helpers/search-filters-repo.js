@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/dict-utils.js';
-import { syncProcessEnv } from './test-env.js';
+import { applyTestEnv } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -48,7 +48,9 @@ const buildIndex = (repoRoot, env) => {
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {
-    console.error('Failed: build_index');
+    const exitLabel = result.status ?? 'unknown';
+    console.error(`Failed: build_index (exit ${exitLabel})`);
+    if (result.error) console.error(result.error.message || result.error);
     process.exit(result.status ?? 1);
   }
 };
@@ -140,13 +142,18 @@ export const ensureSearchFiltersRepo = async () => {
     });
   }
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
-  syncProcessEnv(env);
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        embeddings: {
+          hnsw: { enabled: false },
+          lancedb: { enabled: false }
+        }
+      }
+    }
+  });
 
   if (!hasChunkMeta(repoRoot)) {
     buildIndex(repoRoot, env);

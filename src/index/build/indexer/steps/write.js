@@ -41,13 +41,19 @@ export const writeIndexArtifactsForMode = async ({
   const riskInterproceduralSummaryOnly = typeof runtime.analysisPolicy?.risk?.interproceduralSummaryOnly === 'boolean'
     ? runtime.analysisPolicy.risk.interproceduralSummaryOnly
     : runtime.riskInterproceduralConfig?.summaryOnly === true;
-  const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
+  const modeRiskInterproceduralEnabled = mode === 'code' && riskInterproceduralEnabled === true;
+  const modeRiskInterproceduralSummaryOnly = modeRiskInterproceduralEnabled
+    && riskInterproceduralSummaryOnly === true;
+  const riskInterproceduralEmitArtifacts = mode === 'code'
+    ? (runtime.riskInterproceduralConfig?.emitArtifacts || null)
+    : null;
   if (mode === 'code') {
     try {
       const result = computeInterproceduralRisk({
         chunks: state.chunks,
         summaries: state.riskSummaries,
         runtime,
+        mode,
         log,
         summaryTimingMs: state.riskSummaryTimingMs
       });
@@ -66,11 +72,17 @@ export const writeIndexArtifactsForMode = async ({
         }
       }
     } catch (err) {
+      const fallbackMaxCallSitesPerEdge = Number.isFinite(
+        Number(runtime.riskInterproceduralConfig?.caps?.maxCallSitesPerEdge)
+      )
+        ? Math.max(1, Math.floor(Number(runtime.riskInterproceduralConfig.caps.maxCallSitesPerEdge)))
+        : null;
       state.riskFlows = [];
       state.riskFlowCallSiteIds = null;
       state.riskInterproceduralStats = {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
+        mode,
         status: 'error',
         reason: err?.message || 'risk interprocedural error',
         effectiveConfig: runtime.riskInterproceduralConfig || null,
@@ -83,10 +95,16 @@ export const writeIndexArtifactsForMode = async ({
           risksWithFlows: 0,
           uniqueCallSitesReferenced: 0
         },
+        callSiteSampling: {
+          strategy: 'firstN',
+          maxCallSitesPerEdge: fallbackMaxCallSitesPerEdge,
+          order: 'file,startLine,startCol,endLine,endCol,calleeNormalized,calleeRaw,callSiteId'
+        },
         capsHit: [],
         timingMs: {
           summaries: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0,
           propagation: 0,
+          io: 0,
           total: Number.isFinite(state.riskSummaryTimingMs) ? state.riskSummaryTimingMs : 0
         },
         artifacts: {}
@@ -160,8 +178,8 @@ export const writeIndexArtifactsForMode = async ({
         }
         : { enabled: false },
       riskInterprocedural: {
-        enabled: riskInterproceduralEnabled === true,
-        summaryOnly: riskInterproceduralSummaryOnly === true,
+        enabled: modeRiskInterproceduralEnabled === true,
+        summaryOnly: modeRiskInterproceduralSummaryOnly === true,
         emitArtifacts: riskInterproceduralEmitArtifacts
       },
       riskRules: riskRules || null

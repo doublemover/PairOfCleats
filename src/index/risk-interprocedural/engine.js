@@ -178,7 +178,8 @@ const buildTaintSetKey = (values) => {
 const flowConfidence = ({ source, sink, hopCount, sanitizerBarriersHit, sanitizerPolicy }) => {
   const sourceConf = Number.isFinite(source?.confidence) ? source.confidence : 0.5;
   const sinkConf = Number.isFinite(sink?.confidence) ? sink.confidence : 0.5;
-  let score = (sourceConf + sinkConf) / 2;
+  const base = Math.sqrt(Math.max(0, sourceConf) * Math.max(0, sinkConf));
+  let score = base;
   score *= 0.85 ** Math.max(0, hopCount);
   if (sanitizerPolicy === 'weaken' && sanitizerBarriersHit > 0) {
     score *= 0.9 ** sanitizerBarriersHit;
@@ -213,6 +214,7 @@ export const computeInterproceduralRisk = ({
   chunks,
   summaries,
   runtime,
+  mode = 'code',
   log = null,
   summaryTimingMs = 0
 } = {}) => {
@@ -231,9 +233,14 @@ export const computeInterproceduralRisk = ({
   const paramNamesByEdge = buildParamNamesMap(chunks || []);
   const { detailsByCaller, calleesByCaller, edgeKeys } = buildCallDetailsMap(chunks || []);
 
+  const resolvedMode = mode || 'code';
+  const maxCallSitesPerEdge = Number.isFinite(caps.maxCallSitesPerEdge)
+    ? Math.max(1, Math.floor(caps.maxCallSitesPerEdge))
+    : null;
   const stats = {
     schemaVersion: ROW_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
+    mode: resolvedMode,
     status: 'disabled',
     reason: null,
     effectiveConfig: {
@@ -260,10 +267,16 @@ export const computeInterproceduralRisk = ({
       risksWithFlows: 0,
       uniqueCallSitesReferenced: 0
     },
+    callSiteSampling: {
+      strategy: 'firstN',
+      maxCallSitesPerEdge,
+      order: 'file,startLine,startCol,endLine,endCol,calleeNormalized,calleeRaw,callSiteId'
+    },
     capsHit: [],
     timingMs: {
       summaries: Number.isFinite(summaryTimingMs) ? summaryTimingMs : 0,
       propagation: 0,
+      io: 0,
       total: 0
     },
     artifacts: {}
@@ -272,7 +285,7 @@ export const computeInterproceduralRisk = ({
   if (!enabled || summaryOnly) {
     stats.status = summaryOnly ? 'ok' : 'disabled';
     stats.reason = !enabled ? 'disabled' : null;
-    stats.timingMs.total = stats.timingMs.summaries;
+    stats.timingMs.total = stats.timingMs.summaries + stats.timingMs.io;
     return {
       status: stats.status,
       summaryRows,
@@ -321,7 +334,7 @@ export const computeInterproceduralRisk = ({
     stats.counts.uniqueCallSitesReferenced = 0;
     stats.capsHit = Array.from(capsHit);
     stats.timingMs.propagation = 0;
-    stats.timingMs.total = stats.timingMs.summaries;
+    stats.timingMs.total = stats.timingMs.summaries + stats.timingMs.io;
     return {
       status: stats.status,
       summaryRows,
@@ -553,7 +566,7 @@ export const computeInterproceduralRisk = ({
 
   const propagationMs = Date.now() - start;
   stats.timingMs.propagation = propagationMs;
-  stats.timingMs.total = stats.timingMs.summaries + propagationMs;
+  stats.timingMs.total = stats.timingMs.summaries + propagationMs + stats.timingMs.io;
 
   if (timedOut) {
     stats.status = 'timed_out';
@@ -585,14 +598,14 @@ export const computeInterproceduralRisk = ({
     return sortByKey(a.flowId, b.flowId);
   });
 
-  const sinkSet = new Set();
+  const riskIdSet = new Set();
   for (const flow of flowRows) {
-    if (flow?.sink?.chunkUid) sinkSet.add(flow.sink.chunkUid);
+    if (flow?.sink?.ruleId) riskIdSet.add(flow.sink.ruleId);
   }
 
   stats.status = 'ok';
   stats.counts.flowsEmitted = flowRows.length;
-  stats.counts.risksWithFlows = sinkSet.size;
+  stats.counts.risksWithFlows = riskIdSet.size;
   stats.counts.uniqueCallSitesReferenced = callSiteIdsReferenced.size;
   stats.capsHit = Array.from(capsHit);
 

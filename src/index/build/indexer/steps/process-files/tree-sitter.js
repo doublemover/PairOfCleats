@@ -112,7 +112,7 @@ export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, {
   }
 };
 
-const normalizeTreeSitterLanguages = (languages) => {
+export const normalizeTreeSitterLanguages = (languages) => {
   const output = new Set();
   for (const language of languages || []) {
     if (TREE_SITTER_LANG_IDS.has(language)) output.add(language);

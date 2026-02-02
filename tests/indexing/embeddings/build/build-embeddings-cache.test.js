@@ -26,7 +26,11 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      embeddings: {
+        hnsw: { enabled: false },
+        lancedb: { enabled: false }
+      }
     }
   }
 });
@@ -34,7 +38,11 @@ const env = applyTestEnv({
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
+    const exitLabel = result.status ?? 'unknown';
+    console.error(`Failed: ${label} (exit ${exitLabel})`);
+    if (result.error) {
+      console.error(result.error.message || result.error);
+    }
     process.exit(result.status ?? 1);
   }
 };

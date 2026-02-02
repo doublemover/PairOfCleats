@@ -96,9 +96,13 @@ const normalizeSignal = (entry, type, chunk) => {
 };
 
 const signalSortKey = (signal) => {
-  if (!signal) return 'zzzz';
-  const id = signal.ruleId || '';
-  return `${id}|${minEvidenceKey(signal.evidence)}`;
+  if (!signal) return { severityRank: -1, id: '', evidence: 'zzzz' };
+  const severityRank = SEVERITY_RANK[signal.severity] || 0;
+  return {
+    severityRank,
+    id: signal.ruleId || '',
+    evidence: minEvidenceKey(signal.evidence)
+  };
 };
 
 const normalizeSignals = (entries, type, chunk) => {
@@ -109,8 +113,11 @@ const normalizeSignals = (entries, type, chunk) => {
   normalized.sort((a, b) => {
     const keyA = signalSortKey(a);
     const keyB = signalSortKey(b);
-    if (keyA < keyB) return -1;
-    if (keyA > keyB) return 1;
+    if (keyA.severityRank !== keyB.severityRank) return keyB.severityRank - keyA.severityRank;
+    if (keyA.id < keyB.id) return -1;
+    if (keyA.id > keyB.id) return 1;
+    if (keyA.evidence < keyB.evidence) return -1;
+    if (keyA.evidence > keyB.evidence) return 1;
     return 0;
   });
   return normalized;
@@ -347,13 +354,29 @@ const enforceRowSize = (row, truncated) => {
   return null;
 };
 
-export const buildRiskSummaries = ({ chunks, interprocedural, log = null } = {}) => {
+const resolveInterproceduralSummaryState = ({ runtime, mode }) => {
+  const policy = runtime?.analysisPolicy || {};
+  const enabled = typeof policy?.risk?.interprocedural === 'boolean'
+    ? policy.risk.interprocedural
+    : runtime?.riskInterproceduralEnabled;
+  const summaryOnly = typeof policy?.risk?.interproceduralSummaryOnly === 'boolean'
+    ? policy.risk.interproceduralSummaryOnly
+    : runtime?.riskInterproceduralConfig?.summaryOnly === true;
+  const modeEnabled = mode === 'code' && enabled === true;
+  return {
+    enabled: modeEnabled,
+    summaryOnly: modeEnabled && summaryOnly === true
+  };
+};
+
+export const buildRiskSummaries = ({ chunks, runtime = null, mode = null, log = null } = {}) => {
   const rows = [];
   const stats = {
     candidates: 0,
     emitted: 0,
     summariesDroppedBySize: 0
   };
+  const interprocedural = resolveInterproceduralSummaryState({ runtime, mode });
   for (const chunk of chunks || []) {
     const built = buildRiskSummaryRow({ chunk, interprocedural });
     if (!built) continue;

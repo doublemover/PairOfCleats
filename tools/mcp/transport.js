@@ -230,8 +230,8 @@ export const createMcpTransport = ({
       applyCancellation(message.params);
       return;
     }
-    const inFlight = processing ? 1 : 0;
-    if (queue.length + inFlight >= queueMax) {
+    const inFlightCount = processing ? 1 : 0;
+    if (queue.length + inFlightCount >= queueMax) {
       if (message?.id !== undefined && message?.id !== null) {
         sendError(message.id, -32001, 'Server overloaded.', undefined, { code: ERROR_CODES.QUEUE_OVERLOADED });
       }

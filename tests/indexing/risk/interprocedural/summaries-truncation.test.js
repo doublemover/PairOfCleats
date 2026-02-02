@@ -39,7 +39,11 @@ const chunk = {
 
 const { rows } = buildRiskSummaries({
   chunks: [chunk],
-  interprocedural: { enabled: true, summaryOnly: false }
+  runtime: {
+    riskInterproceduralEnabled: true,
+    riskInterproceduralConfig: { summaryOnly: false }
+  },
+  mode: 'code'
 });
 
 assert.equal(rows.length, 1, 'expected one row');

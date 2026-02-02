@@ -56,9 +56,9 @@
 - Run `npm run format` before committing. 
 
 ## Testing Guidelines
-- Primary runner: `npm test` (alias for `node tests/run.js`).
-- Lanes: `npm run test:smoke`, `test:unit`, `test:integration`, `test:services`, `test:storage`, `test:perf`, `test:ci`.
-- List tests: `npm run test:list`.
+- Primary runner: `node tests/run.js`.
+- Lanes: `node tests/run.js --lane smoke`, `--lane unit`, `--lane integration`, `--lane services`, `--lane storage`, `--lane perf`, `--lane ci`.
+- List tests: `node tests/run.js --list`.
 - Tests are plain Node scripts; add new tests under `tests/` and follow existing naming patterns.
 - If a test runs longer than 30 seconds, cancel it and move on to the next test
 - Once all tests have been run, report back with which ones passed and which you skipped

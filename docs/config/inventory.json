@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T18:11:38.011Z",
+  "generatedAt": "2026-02-02T20:38:10.434Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -31,9 +31,11 @@
       "PAIROFCLEATS_BENCH_RUN",
       "PAIROFCLEATS_BUNDLE_THREADS",
       "PAIROFCLEATS_CACHE_ROOT",
+      "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "PAIROFCLEATS_DOC_EXTRACT",
       "PAIROFCLEATS_EMBEDDINGS",
       "PAIROFCLEATS_EXTENSIONS_DIR",
       "PAIROFCLEATS_FILE_CACHE_MAX",
@@ -47,10 +49,12 @@
       "PAIROFCLEATS_MCP_MODE",
       "PAIROFCLEATS_MCP_QUEUE_MAX",
       "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
+      "PAIROFCLEATS_MCP_TRANSPORT",
       "PAIROFCLEATS_MODEL",
       "PAIROFCLEATS_MODELS_DIR",
       "PAIROFCLEATS_NODE_OPTIONS",
       "PAIROFCLEATS_PROFILE",
+      "PAIROFCLEATS_REGEX_ENGINE",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -1249,7 +1253,6 @@
         "tests/cli/search/search-tie-order.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
-        "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
@@ -1305,7 +1308,6 @@
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
-        "tests/shared/runtime/runtime-records-config.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
         "tests/smoke/smoke-retrieval.test.js",
@@ -1342,9 +1344,14 @@
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js"
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_COMPRESSION",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
       ]
     },
     {
@@ -1357,12 +1364,20 @@
     {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
+        "src/shared/env.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DOC_EXTRACT",
       "files": [
         "src/shared/env.js",
         "tools/config-inventory.js"
@@ -1379,8 +1394,8 @@
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
         "tests/helpers/fixture-index.js",
-        "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
@@ -1464,6 +1479,7 @@
     {
       "name": "PAIROFCLEATS_EXTENSIONS_DIR",
       "files": [
+        "src/shared/env.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1477,6 +1493,7 @@
     {
       "name": "PAIROFCLEATS_HOME",
       "files": [
+        "src/shared/env.js",
         "tests/helpers/mcp-client.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
@@ -1556,6 +1573,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_MCP_TRANSPORT",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
         "tests/tooling/reports/summary/summary-report-helpers.js",
@@ -1566,6 +1590,7 @@
     {
       "name": "PAIROFCLEATS_MODELS_DIR",
       "files": [
+        "src/shared/env.js",
         "tools/compare-models.js",
         "tools/config-inventory.js"
       ]
@@ -1584,6 +1609,13 @@
       "files": [
         "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/structural/structural-search.test.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_REGEX_ENGINE",
+      "files": [
+        "src/shared/env.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1650,6 +1682,7 @@
       "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "files": [
         "tests/helpers/fixture-index.js",
+        "tests/helpers/test-env-clear.test.js",
         "tests/runner/run-execution.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tools/config-inventory.js"
@@ -1667,6 +1700,7 @@
       "files": [
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
+        "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
@@ -1783,7 +1817,6 @@
         "tests/cli/general/risk-explain.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
-        "tests/helpers/search-filters-repo.js",
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
@@ -1830,7 +1863,6 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/logging/stdout-contract.test.js",
-        "tests/shared/runtime/runtime-records-config.test.js",
         "tests/smoke/smoke-retrieval.test.js",
         "tests/smoke/tantivy-smoke.test.js",
         "tests/storage/lmdb/lmdb-backend.test.js",
@@ -1855,9 +1887,7 @@
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
-        "tools/config-inventory.js",
-        "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js"
+        "tools/config-inventory.js"
       ]
     },
     {

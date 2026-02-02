@@ -140,6 +140,8 @@ A row MUST include:
 * `chunkUid`
 * `file`
 * `signals` (sources/sinks/sanitizers/localFlows arrays MAY be empty)
+
+The following fields SHOULD be present when available:
 * `totals`
 * `truncated`
 

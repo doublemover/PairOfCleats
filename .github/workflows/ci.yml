@@ -57,7 +57,6 @@ jobs:
   windows:
     name: windows
     runs-on: windows-latest
-    continue-on-error: true
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats

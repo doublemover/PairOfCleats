@@ -718,14 +718,26 @@ const riskFlowRow = {
 
 const riskInterproceduralStats = {
   type: 'object',
-  required: ['schemaVersion', 'generatedAt', 'status', 'effectiveConfig', 'counts', 'capsHit', 'timingMs'],
+  required: [
+    'schemaVersion',
+    'generatedAt',
+    'mode',
+    'status',
+    'effectiveConfig',
+    'counts',
+    'callSiteSampling',
+    'capsHit',
+    'timingMs'
+  ],
   properties: {
     schemaVersion: posInt,
     generatedAt: { type: 'string' },
+    mode: { type: 'string' },
     status: { type: 'string' },
     reason: nullableString,
     effectiveConfig: { type: 'object', additionalProperties: true },
     counts: { type: 'object', additionalProperties: true },
+    callSiteSampling: { type: 'object', additionalProperties: true },
     capsHit: { type: 'array', items: { type: 'string' } },
     timingMs: { type: 'object', additionalProperties: true },
     artifacts: { type: 'object', additionalProperties: true },
