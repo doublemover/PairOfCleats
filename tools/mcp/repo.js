@@ -443,13 +443,13 @@ export async function configStatus(args = {}) {
       message: 'Document extraction enabled but pdfjs-dist or mammoth is not available.'
     });
   }
-  const mcpTransportRequested = normalizeSelector(userConfig?.mcp?.transport)
-    || normalizeSelector(envConfig.mcpTransport)
+  const mcpModeRequested = normalizeSelector(userConfig?.mcp?.mode)
+    || normalizeSelector(envConfig.mcpMode)
     || 'auto';
-  if (mcpTransportRequested === 'sdk' && !capabilities.mcp.sdk) {
+  if (mcpModeRequested === 'sdk' && !capabilities.mcp.sdk) {
     warnings.push({
       code: 'mcp_transport_missing',
-      message: 'mcp.transport=sdk requested but @modelcontextprotocol/sdk is not available.'
+      message: 'mcp.mode=sdk requested but @modelcontextprotocol/sdk is not available.'
     });
   }
 
@@ -470,7 +470,8 @@ export async function configStatus(args = {}) {
       },
       search: userConfig.search || {},
       indexing: userConfig.indexing || {},
-      tooling: userConfig.tooling || {}
+      tooling: userConfig.tooling || {},
+      mcp: userConfig.mcp || {}
     },
     cache: {
       cacheRootExists: fs.existsSync(cacheRoot),

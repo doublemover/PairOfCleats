@@ -31,9 +31,15 @@ export function getEnvSecrets(env = process.env) {
 
 export function getEnvConfig(env = process.env) {
   const secrets = getEnvSecrets(env);
-  if (!isTesting(env)) return secrets;
-  return {
+  const mcpMode = normalizeString(env.PAIROFCLEATS_MCP_MODE)
+    || normalizeString(env.MCP_MODE);
+  const base = {
     ...secrets,
+    mcpMode
+  };
+  if (!isTesting(env)) return base;
+  return {
+    ...base,
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),

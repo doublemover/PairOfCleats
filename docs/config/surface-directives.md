@@ -26,6 +26,8 @@ Per-invocation overrides, workflow ergonomics, and diagnostics.
 ### 1.5 Environment variables
 Secrets and deployment wiring only. Anything else is a second config system and is prohibited.
 
+**Exception:** `PAIROFCLEATS_MCP_MODE` / `MCP_MODE` is allowed for MCP server mode selection during the SDK migration window (documented in config contract).
+
 ---
 
 ## 2) Hard rules (non-negotiable)

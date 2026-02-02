@@ -150,6 +150,7 @@
     "yargs": "^17.7.2"
   },
   "optionalDependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@mongodb-js/zstd": "^7.0.0",
     "@node-rs/xxhash": "^1.7.2",
     "@parcel/watcher": "^2.4.1",

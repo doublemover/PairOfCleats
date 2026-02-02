@@ -87,24 +87,24 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 
 ### 12.1 Dependency strategy and capability gating for the official MCP SDK
 
-- [ ] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
+- [x] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
   - Options:
     - [ ] Dependency (always installed)
-    - [ ] Optional dependency (install attempted; failures tolerated)
+    - [x] Optional dependency (install attempted; failures tolerated)
     - [ ] External optional peer (default; capability-probed)
-  - [ ] Implement the chosen strategy consistently:
-    - [ ] `package.json` (if dependency/optionalDependency is chosen)
-    - [ ] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
-    - [ ] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
-  - [ ] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
+  - [x] Implement the chosen strategy consistently:
+    - [x] `package.json` (if dependency/optionalDependency is chosen)
+    - [x] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
+    - [x] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
+  - [x] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
 
-- [ ] Ensure MCP server mode selection is observable and capability-gated.
+- [@] Ensure MCP server mode selection is observable and capability-gated.
   - Touchpoints:
     - [ ] `tools/mcp-server.js` — entrypoint dispatch
-    - [ ] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
-    - [ ] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
-  - [ ] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
-    - [ ] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
+    - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
+    - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
+  - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
+    - [x] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
 
 Touchpoints (anchors; approximate):
 - `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)

@@ -190,6 +190,18 @@ function normalizeUserConfig(baseConfig) {
     if (isPlainObject(tooling.sourcekit)) normalizedTooling.sourcekit = tooling.sourcekit;
     if (Object.keys(normalizedTooling).length) normalized.tooling = normalizedTooling;
   }
+  if (isPlainObject(baseConfig.mcp)) {
+    const mcp = baseConfig.mcp;
+    const normalizedMcp = {};
+    if (typeof mcp.mode === 'string' && mcp.mode.trim()) {
+      normalizedMcp.mode = mcp.mode.trim();
+    }
+    if (mcp.queueMax !== undefined) normalizedMcp.queueMax = mcp.queueMax;
+    if (mcp.maxBufferBytes !== undefined) normalizedMcp.maxBufferBytes = mcp.maxBufferBytes;
+    if (mcp.toolTimeoutMs !== undefined) normalizedMcp.toolTimeoutMs = mcp.toolTimeoutMs;
+    if (isPlainObject(mcp.toolTimeouts)) normalizedMcp.toolTimeouts = mcp.toolTimeouts;
+    if (Object.keys(normalizedMcp).length) normalized.mcp = normalizedMcp;
+  }
   if (isPlainObject(baseConfig.triage)) {
     const triage = baseConfig.triage;
     const normalizedTriage = {};
