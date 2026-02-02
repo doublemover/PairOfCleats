@@ -48,7 +48,15 @@ try {
   };
   const buildResult = spawnSync(
     process.execPath,
-    [path.join(process.cwd(), 'build_index.js'), '--stub-embeddings', '--repo', repoRoot, '--mode', 'code'],
+    [
+      path.join(process.cwd(), 'build_index.js'),
+      '--stub-embeddings',
+      '--no-scm-annotate',
+      '--repo',
+      repoRoot,
+      '--mode',
+      'code'
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (buildResult.status !== 0) {
@@ -72,6 +80,13 @@ try {
   const files = new Set(fileMeta.map((entry) => entry?.file).filter(Boolean));
   assert(files.has('tracked.js'), 'expected tracked.js to be indexed');
   assert(!files.has('untracked.js'), 'expected untracked.js to be excluded from SCM discovery');
+
+  const chunkMetaResult = await loadJsonArrayArtifact(codeDir, 'chunk_meta');
+  const chunkMeta = Array.isArray(chunkMetaResult?.records)
+    ? chunkMetaResult.records
+    : (Array.isArray(chunkMetaResult) ? chunkMetaResult : []);
+  const hasChunkAuthors = chunkMeta.some((entry) => entry?.chunk_authors || entry?.chunkAuthors);
+  assert.equal(hasChunkAuthors, false, 'expected no chunk authors when SCM annotate is disabled');
 } finally {
   await rmDirRecursive(tempRoot);
 }

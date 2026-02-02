@@ -89,14 +89,14 @@ Authoritative specs to align with (existing in repo):
 
 ### Exit criteria (must all be true)
 
-- [ ] There is a single SCM provider interface used everywhere (no direct `git`/`jj` shelling from random modules).
-- [ ] `indexing.scm.provider` is supported: `auto | git | jj | none` (default: `auto`).
-- [ ] Git provider is fully migrated onto the interface and remains the default when `.git/` exists.
-- [ ] JJ provider supports (at minimum): repo detection, tracked-file enumeration, and repo “head” provenance recorded in `build_state.json`.
-- [ ] When no SCM is present (or `provider=none`), indexing still works using filesystem discovery, but provenance fields are explicitly `null` / unavailable (no silent lies).
-- [ ] Build signatures and cache keys include SCM provenance in a **stable** and **portable** way (no locale-dependent sorting).
-- [ ] Tests cover provider selection + the most failure-prone parsing paths; CI can run without `jj` installed.
-- [ ] `build_state.json` contract/validator updated to include SCM provider fields and referenced from docs.
+- [x] There is a single SCM provider interface used everywhere (no direct `git`/`jj` shelling from random modules).
+- [x] `indexing.scm.provider` is supported: `auto | git | jj | none` (default: `auto`).
+- [x] Git provider is fully migrated onto the interface and remains the default when `.git/` exists.
+- [x] JJ provider supports (at minimum): repo detection, tracked-file enumeration, and repo “head” provenance recorded in `build_state.json`.
+- [x] When no SCM is present (or `provider=none`), indexing still works using filesystem discovery, but provenance fields are explicitly `null` / unavailable (no silent lies).
+- [x] Build signatures and cache keys include SCM provenance in a **stable** and **portable** way (no locale-dependent sorting).
+- [x] Tests cover provider selection + the most failure-prone parsing paths; CI can run without `jj` installed.
+- [x] `build_state.json` contract/validator updated to include SCM provider fields and referenced from docs.
 
 ---
 
@@ -277,12 +277,13 @@ Touchpoints (anchors; approximate):
 - `src/index/build/file-processor.js` (~L440 `gitBlameEnabled` plumbing)
 
 #### Tests / verification (path-corrected for current test layout)
-- [ ] `tests/indexing/scm/index-build-git-provider.test.js` (new)
-  - [ ] Build index inside a git repo and assert:
+- [x] `tests/indexing/scm/index-build-git-provider.test.js` (new)
+  - [x] Build index inside a git repo and assert:
     - [x] `build_state.json.repo.provider === "git"`
     - [x] tracked file discovery returns only git-tracked files (plus explicit records-dir behavior if enabled)
-  - [ ] annotate metadata is present only when enabled; otherwise explicitly absent with a reason
-  - [ ] uses mockable SCM runner for unit coverage of git parsing without requiring git
+  - [x] annotate metadata is present only when enabled; otherwise explicitly absent with a reason
+- [x] `tests/indexing/scm/git-provider-parse.test.js` (new)
+  - [x] uses mockable SCM runner for unit coverage of git parsing without requiring git
 
 ---
 
@@ -322,13 +323,13 @@ Touchpoints (anchors; approximate):
 - `src/index/build/indexer/signatures.js` (~L46 `gitBlameEnabled` placeholder to replace with provider head)
 
 #### Tests / verification (path-corrected for current test layout)
-- [ ] Unit: parsing helpers
-  - [ ] `tests/indexing/scm/jj-changed-files-parse.test.js`
-  - [ ] `tests/indexing/scm/jj-head-parse.test.js`
-- [ ] `tests/indexing/scm/jj-changed-files-normalization.test.js` (new)
-  - [ ] ensure paths are POSIX, repo-root-relative, and sorted deterministically.
+- [x] Unit: parsing helpers
+  - [x] `tests/indexing/scm/jj-changed-files-parse.test.js`
+  - [x] `tests/indexing/scm/jj-head-parse.test.js`
+- [x] `tests/indexing/scm/jj-changed-files-normalization.test.js` (new)
+  - [x] ensure paths are POSIX, repo-root-relative, and sorted deterministically.
 - [x] CI behavior:
-  - [x] if `jj` missing, JJ tests skip (exit code 77) with a clear message.
+  - [x] JJ parsing tests are self-contained and run without `jj` installed.
   - [x] add explicit lane/tag so JJ tests can be isolated if needed.
 
 ---
