@@ -12,26 +12,6 @@ import { logError } from '../../src/shared/progress.js';
 import { withTimeout } from './runner.js';
 
 /**
- * Emit a progress notification for long-running tools.
- * @param {string|number|null} id
- * @param {string} tool
- * @param {{message:string,stream?:string,phase?:string}} payload
- */
-function sendProgress(id, tool, payload) {
-  if (id === null || id === undefined) return;
-  const message = payload?.message ? String(payload.message) : '';
-  if (!message) return;
-  sendNotification('notifications/progress', {
-    id,
-    tool,
-    message,
-    stream: payload?.stream || 'info',
-    phase: payload?.phase || 'progress',
-    ts: new Date().toISOString()
-  });
-}
-
-/**
  * Start the MCP stdio transport.
  * @param {{toolDefs:any,schemaVersion?:string,toolVersion?:string,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number,capabilities?:object}} config
  */
@@ -50,6 +30,54 @@ export const createMcpTransport = ({
   const queue = [];
   const inFlight = new Map();
   const normalizeId = (value) => (value === null || value === undefined ? null : String(value));
+  const progressState = new Map();
+  const PROGRESS_THROTTLE_MS = 250;
+
+  const sendProgress = (id, tool, payload) => {
+    if (id === null || id === undefined) return;
+    const message = payload?.message ? String(payload.message) : '';
+    if (!message) return;
+    const idKey = normalizeId(id);
+    const now = Date.now();
+    const state = progressState.get(idKey) || { lastSent: 0, timer: null, pending: null };
+    const emit = (nextPayload) => {
+      const nextMessage = nextPayload?.message ? String(nextPayload.message) : '';
+      if (!nextMessage) return;
+      sendNotification('notifications/progress', {
+        id,
+        tool,
+        message: nextMessage,
+        stream: nextPayload?.stream || 'info',
+        phase: nextPayload?.phase || 'progress',
+        ts: new Date().toISOString()
+      });
+      state.lastSent = Date.now();
+      state.pending = null;
+    };
+    if (!state.lastSent || (now - state.lastSent) >= PROGRESS_THROTTLE_MS) {
+      emit(payload);
+      progressState.set(idKey, state);
+      return;
+    }
+    state.pending = payload;
+    if (!state.timer) {
+      const delay = Math.max(0, PROGRESS_THROTTLE_MS - (now - state.lastSent));
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        if (state.pending) {
+          emit(state.pending);
+        }
+      }, delay);
+      state.timer.unref?.();
+    }
+    progressState.set(idKey, state);
+  };
+
+  const clearProgressState = (idKey) => {
+    const state = progressState.get(idKey);
+    if (state?.timer) clearTimeout(state.timer);
+    progressState.delete(idKey);
+  };
 
   const sendCancelledResponse = (id) => {
     const payload = formatToolError({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' });
@@ -164,6 +192,7 @@ export const createMcpTransport = ({
         });
       } finally {
         inFlight.delete(idKey);
+        clearProgressState(idKey);
       }
       return;
     }

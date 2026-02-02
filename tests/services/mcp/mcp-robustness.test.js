@@ -212,6 +212,60 @@ async function runCancelTest() {
   }
 }
 
+async function runProgressThrottleTest() {
+  const server = spawn(process.execPath, [serverPath], {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    env: {
+      ...process.env,
+      PAIROFCLEATS_TESTING: '1',
+      PAIROFCLEATS_HOME: cancelCache,
+      PAIROFCLEATS_CACHE_ROOT: cancelCache,
+      PAIROFCLEATS_TEST_MCP_DELAY_MS: '250'
+    }
+  });
+  const { readMessage, notifications } = createReader(server.stdout);
+  const timeout = setTimeout(() => {
+    console.error('MCP progress throttle test timed out.');
+    server.kill('SIGKILL');
+    process.exit(1);
+  }, 30000);
+  const send = (payload) => server.stdin.write(encodeMessage(payload));
+
+  try {
+    send({
+      jsonrpc: '2.0',
+      id: 30,
+      method: 'initialize',
+      params: { protocolVersion: '2024-11-05', capabilities: {} }
+    });
+    await readMessage();
+
+    send({
+      jsonrpc: '2.0',
+      id: 31,
+      method: 'tools/call',
+      params: { name: 'index_status', arguments: { repoPath: root } }
+    });
+    await readMessage();
+
+    const progressCount = notifications.filter((msg) => msg?.method === 'notifications/progress').length;
+    if (progressCount < 1 || progressCount > 2) {
+      throw new Error(`Expected throttled progress notifications (1-2), got ${progressCount}.`);
+    }
+
+    send({ jsonrpc: '2.0', id: 32, method: 'shutdown' });
+    await readMessage();
+    send({ jsonrpc: '2.0', method: 'exit' });
+    await waitForExit(server, 'progress test server');
+  } catch (err) {
+    server.kill('SIGKILL');
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+    server.stdin.end();
+  }
+}
+
 async function runTimeoutTest() {
   const server = spawn(process.execPath, [serverPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -268,6 +322,7 @@ async function runTimeoutTest() {
 
 runQueueTest()
   .then(runCancelTest)
+  .then(runProgressThrottleTest)
   .then(runTimeoutTest)
   .then(() => {
     console.log('MCP robustness tests passed');

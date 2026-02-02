@@ -273,7 +273,7 @@ Touchpoints (anchors; approximate):
   - Add “wait for exit” after `exit` (bounded).
   - Add cancellation test:
     - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
-  - [ ] Add progress-throttle assertion (if practical): bursty progress is coalesced.
+  - [x] Add progress-throttle assertion (if practical): bursty progress is coalesced.
 
 - [x] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
   - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.

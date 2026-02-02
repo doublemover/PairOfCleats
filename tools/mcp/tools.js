@@ -90,6 +90,11 @@ export async function handleToolCall(name, args, context = {}) {
   }
   const delayMs = parseTestDelayMs();
   if (delayMs) {
+    if (typeof context.progress === 'function') {
+      for (let i = 0; i < 5; i += 1) {
+        context.progress({ message: `test-progress-${i}`, phase: 'progress' });
+      }
+    }
     await delayWithAbort(delayMs, context.signal);
   }
   return await handler(args, context);
