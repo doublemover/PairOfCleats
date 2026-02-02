@@ -41,7 +41,7 @@ const run = (args, label) => {
   }
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
 
 const userConfig = loadUserConfig(repoRoot);
 const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});

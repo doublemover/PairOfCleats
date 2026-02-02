@@ -78,11 +78,11 @@ const run = (label, args, env) => {
   }
 };
 
-run('build_index (A)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', fixtureRoot], {
+run('build_index (A)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', fixtureRoot], {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheA
 });
-run('build_index (B)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', fixtureRoot], {
+run('build_index (B)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', fixtureRoot], {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheB
 });
@@ -290,15 +290,15 @@ await copyRepoFiles(repoAll, sampleFiles);
 await copyRepoFiles(repoA, filesA);
 await copyRepoFiles(repoB, filesB);
 
-run('build_index (monolithic)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoAll], {
+run('build_index (monolithic)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoAll], {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheAll
 });
-run('build_index (part A)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoA], {
+run('build_index (part A)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoA], {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheA2
 });
-run('build_index (part B)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoB], {
+run('build_index (part B)', [buildIndexPath, '--stub-embeddings', '--scm-provider', 'none', '--mode', 'code', '--repo', repoB], {
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheB2
 });

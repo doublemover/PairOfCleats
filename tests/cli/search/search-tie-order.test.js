@@ -27,7 +27,7 @@ const env = {
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--sqlite', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--sqlite', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {

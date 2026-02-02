@@ -32,7 +32,7 @@ const runBuild = (label, args) => {
   }
 };
 
-runBuild('stage1', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--repo', repoRoot]);
+runBuild('stage1', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage1', '--repo', repoRoot]);
 const userConfig = loadUserConfig(repoRoot);
 const resolveStagePaths = () => {
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -66,7 +66,7 @@ if (enrichmentStage1.status !== 'pending') {
   process.exit(1);
 }
 
-runBuild('stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--repo', repoRoot]);
+runBuild('stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage2', '--repo', repoRoot]);
 
 ({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
 const stateStage2 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
@@ -84,7 +84,7 @@ if (enrichmentStage2.status !== 'done') {
   process.exit(1);
 }
 
-runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage3', '--repo', repoRoot]);
+runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage3', '--repo', repoRoot]);
 
 ({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
 const stateStage3 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));

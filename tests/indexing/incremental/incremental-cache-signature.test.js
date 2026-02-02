@@ -30,7 +30,7 @@ process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 const runBuild = (label, testConfig) => {
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--incremental', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--incremental', '--repo', repoRoot],
     {
       cwd: repoRoot,
       env: testConfig
