@@ -28,7 +28,7 @@ import { createSharedDictionary, createSharedDictionaryView } from '../../../sha
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
-import { getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
+import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
@@ -186,7 +186,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ? argv['scm-provider']
     : (typeof argv.scmProvider === 'string' ? argv.scmProvider : null);
   const scmProviderSetting = scmProviderOverride || scmConfig?.provider || 'auto';
-  const scmSelection = getScmProviderAndRoot({
+  let scmSelection = getScmProviderAndRoot({
     provider: scmProviderSetting,
     startPath: root,
     log
@@ -194,6 +194,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   if (scmSelection.provider === 'none') {
     log('[scm] provider=none; SCM provenance unavailable.');
   }
+  let scmProvenanceFailed = false;
   const repoProvenance = await timeInit('repo provenance', async () => {
     try {
       const provenance = await scmSelection.providerImpl.getRepoProvenance({
@@ -208,6 +209,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     } catch (err) {
       const message = err?.message || String(err);
       log(`[scm] Failed to read repo provenance; falling back to provider=none. (${message})`);
+      scmProvenanceFailed = true;
       return {
         provider: 'none',
         root: scmSelection.repoRoot,
@@ -218,6 +220,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       };
     }
   });
+  if (scmProvenanceFailed && scmSelection.provider !== 'none') {
+    log('[scm] disabling provider after provenance failure; falling back to provider=none.');
+    scmSelection = {
+      ...scmSelection,
+      provider: 'none',
+      providerImpl: getScmProvider('none'),
+      detectedBy: scmSelection.detectedBy || 'none'
+    };
+  }
   const toolVersion = getToolVersion();
   const scmHeadId = repoProvenance?.head?.changeId
     || repoProvenance?.head?.commitId

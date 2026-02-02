@@ -65,6 +65,24 @@ assert.ok(codeRel.includes('Makefile.in'), 'Makefile variant missing');
 assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
 assert.ok(codeEntries[0].stat && typeof codeEntries[0].stat.size === 'number', 'stat missing');
 
+const scmFailureProvider = {
+  async listTrackedFiles() {
+    return { ok: false, reason: 'unavailable' };
+  }
+};
+const fallbackEntries = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  scmProvider: 'git',
+  scmProviderImpl: scmFailureProvider,
+  scmRepoRoot: tempRoot,
+  ignoreMatcher,
+  skippedFiles: [],
+  maxFileBytes: null
+});
+const fallbackRel = fallbackEntries.map((entry) => entry.rel);
+assert.ok(fallbackRel.includes('src/untracked.js'), 'fallback discovery should include untracked files');
+
 const depthSkipped = [];
 const depthLimited = await discoverFiles({
   root: tempRoot,
