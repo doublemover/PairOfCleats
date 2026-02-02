@@ -304,14 +304,14 @@ Fix correctness bugs in local risk detection and close test gaps in type inferen
 ### Objective
 Turn current failures/drifts into permanent guardrails.
 
-- [?] Add workflow contract coverage for **all** workflows.
+- [x] Add workflow contract coverage for **all** workflows.
   - Current workflow-contract tests cover `ci.yml` but not `ci-long.yml` (which is broken).
-- [?] Add “npm scripts target exists” test in PR lane.
+- [x] Add “npm scripts target exists” test in PR lane.
   - Catch missing `tools/*.js` targets early (e.g., `mergeAppendOnly.js`).
-- [?] Add Markdown link checker test.
+- [x] Add Markdown link checker test.
   - Catch broken doc links (e.g., `docs/guides/code-maps.md -> api-server.md`).
-- [?] Add generator sync tests for doc inventories (`commands.md`, `inventory.md/json`).
-- [?] Remove brittle cross-test ordering via marker files in summary-report tests.
+- [x] Add generator sync tests for doc inventories (`commands.md`, `inventory.md/json`).
+- [x] Remove brittle cross-test ordering via marker files in summary-report tests.
   - Replace polling loop with a shared helper or a single orchestrated integration test.
 
 ---

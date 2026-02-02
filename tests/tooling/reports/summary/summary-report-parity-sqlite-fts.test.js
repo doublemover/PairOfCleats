@@ -3,27 +3,12 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { ensureSummaryReportFixture } from './summary-report-helpers.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'summary-report');
-const cacheRoot = path.join(tempRoot, 'cache');
-const repoRoot = path.join(tempRoot, 'repo');
+const { tempRoot, cacheRoot, repoRoot } = await ensureSummaryReportFixture();
 const outPath = path.join(tempRoot, 'parity-sqlite-fts.json');
-const markerPath = path.join(tempRoot, 'build-complete.json');
 
-const waitForBuild = async () => {
-  if (fs.existsSync(markerPath)) return;
-  const timeoutMs = 180000;
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    if (fs.existsSync(markerPath)) return;
-  }
-  console.error('summary report parity (sqlite-fts) failed: build test did not finish in time.');
-  process.exit(1);
-};
-
-await waitForBuild();
 await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
 
 const env = {
