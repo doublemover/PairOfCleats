@@ -8,6 +8,30 @@ import { triageContextPack, triageDecision, triageIngest } from './tools/handler
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { normalizeMetaFilters } from './tools/helpers.js';
 
+const parseTestDelayMs = () => {
+  const testing = String(process.env.PAIROFCLEATS_TESTING || '').toLowerCase();
+  if (testing !== '1' && testing !== 'true') return null;
+  const raw = process.env.PAIROFCLEATS_TEST_MCP_DELAY_MS;
+  if (raw == null || raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+};
+
+const delayWithAbort = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) {
+    reject(createError(ERROR_CODES.CANCELLED, 'Request cancelled.'));
+    return;
+  }
+  const timer = setTimeout(resolve, ms);
+  const onAbort = () => {
+    clearTimeout(timer);
+    reject(createError(ERROR_CODES.CANCELLED, 'Request cancelled.'));
+  };
+  if (signal) {
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+});
+
 /**
  * Normalize meta filters into CLI-friendly key/value strings.
  * @param {any} meta
@@ -63,6 +87,10 @@ export async function handleToolCall(name, args, context = {}) {
   const handler = TOOL_HANDLERS.get(name);
   if (!handler) {
     throw createError(ERROR_CODES.NOT_FOUND, `Unknown tool: ${name}`);
+  }
+  const delayMs = parseTestDelayMs();
+  if (delayMs) {
+    await delayWithAbort(delayMs, context.signal);
   }
   return await handler(args, context);
 }

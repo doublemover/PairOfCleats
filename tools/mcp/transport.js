@@ -49,6 +49,7 @@ export const createMcpTransport = ({
   let processing = false;
   const queue = [];
   const inFlight = new Map();
+  const normalizeId = (value) => (value === null || value === undefined ? null : String(value));
 
   const sendCancelledResponse = (id) => {
     const payload = formatToolError({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' });
@@ -59,9 +60,9 @@ export const createMcpTransport = ({
   };
 
   const applyCancellation = (params) => {
-    const cancelId = params?.id;
-    if (cancelId === null || cancelId === undefined) return false;
-    const entry = inFlight.get(cancelId);
+    const cancelKey = normalizeId(params?.id);
+    if (cancelKey === null) return false;
+    const entry = inFlight.get(cancelKey);
     if (entry) {
       entry.cancelled = true;
       entry.controller.abort();
@@ -115,13 +116,14 @@ export const createMcpTransport = ({
 
     if (method === 'tools/call') {
       if (id === null || id === undefined) return;
+      const idKey = normalizeId(id);
       const name = params?.name;
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);
       try {
         const controller = new AbortController();
         const entry = { controller, cancelled: false };
-        inFlight.set(id, entry);
+        inFlight.set(idKey, entry);
         let timedOut = false;
         const progress = (payload) => {
           if (timedOut) return;
@@ -147,7 +149,7 @@ export const createMcpTransport = ({
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
         });
       } catch (error) {
-        const entry = inFlight.get(id);
+        const entry = inFlight.get(idKey);
         if (entry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
           sendCancelledResponse(id);
           return;
@@ -161,7 +163,7 @@ export const createMcpTransport = ({
           isError: true
         });
       } finally {
-        inFlight.delete(id);
+        inFlight.delete(idKey);
       }
       return;
     }

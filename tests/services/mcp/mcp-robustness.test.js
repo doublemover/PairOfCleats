@@ -8,10 +8,12 @@ const serverPath = path.join(root, 'tools', 'mcp-server.js');
 const tempRoot = path.join(root, '.testCache', 'mcp-robustness');
 const queueCache = path.join(tempRoot, 'queue-cache');
 const timeoutCache = path.join(tempRoot, 'timeout-cache');
+const cancelCache = path.join(tempRoot, 'cancel-cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(queueCache, { recursive: true });
 await fsPromises.mkdir(timeoutCache, { recursive: true });
+await fsPromises.mkdir(cancelCache, { recursive: true });
 
 function encodeMessage(payload) {
   const json = JSON.stringify(payload);
@@ -62,6 +64,19 @@ function createReader(stream) {
     }
   };
   return { readMessage, notifications };
+}
+
+function waitForExit(server, label, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      server.kill('SIGKILL');
+      reject(new Error(`MCP ${label} did not exit in time`));
+    }, timeoutMs);
+    server.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    });
+  });
 }
 
 async function runQueueTest() {
@@ -127,6 +142,67 @@ async function runQueueTest() {
     send({ jsonrpc: '2.0', id: 4, method: 'shutdown' });
     await readMessage();
     send({ jsonrpc: '2.0', method: 'exit' });
+    await waitForExit(server, 'queue test server');
+  } catch (err) {
+    server.kill('SIGKILL');
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+    server.stdin.end();
+  }
+}
+
+async function runCancelTest() {
+  const server = spawn(process.execPath, [serverPath], {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    env: {
+      ...process.env,
+      PAIROFCLEATS_TESTING: '1',
+      PAIROFCLEATS_HOME: cancelCache,
+      PAIROFCLEATS_CACHE_ROOT: cancelCache,
+      PAIROFCLEATS_TEST_MCP_DELAY_MS: '250'
+    }
+  });
+  const { readMessage } = createReader(server.stdout);
+  const timeout = setTimeout(() => {
+    console.error('MCP cancel test timed out.');
+    server.kill('SIGKILL');
+    process.exit(1);
+  }, 30000);
+  const send = (payload) => server.stdin.write(encodeMessage(payload));
+
+  try {
+    send({
+      jsonrpc: '2.0',
+      id: 20,
+      method: 'initialize',
+      params: { protocolVersion: '2024-11-05', capabilities: {} }
+    });
+    await readMessage();
+
+    send({
+      jsonrpc: '2.0',
+      id: 21,
+      method: 'tools/call',
+      params: { name: 'index_status', arguments: { repoPath: root } }
+    });
+    send({
+      jsonrpc: '2.0',
+      method: '$/cancelRequest',
+      params: { id: 21 }
+    });
+
+    const response = await readMessage();
+    const payloadText = response.result?.content?.[0]?.text || '';
+    const payload = JSON.parse(payloadText || '{}');
+    if (!response.result?.isError || payload.code !== 'CANCELLED') {
+      throw new Error('Expected cancelled tool response.');
+    }
+
+    send({ jsonrpc: '2.0', id: 22, method: 'shutdown' });
+    await readMessage();
+    send({ jsonrpc: '2.0', method: 'exit' });
+    await waitForExit(server, 'cancel test server');
   } catch (err) {
     server.kill('SIGKILL');
     throw err;
@@ -180,6 +256,7 @@ async function runTimeoutTest() {
     send({ jsonrpc: '2.0', id: 12, method: 'shutdown' });
     await readMessage();
     send({ jsonrpc: '2.0', method: 'exit' });
+    await waitForExit(server, 'timeout test server');
   } catch (err) {
     server.kill('SIGKILL');
     throw err;
@@ -190,6 +267,7 @@ async function runTimeoutTest() {
 }
 
 runQueueTest()
+  .then(runCancelTest)
   .then(runTimeoutTest)
   .then(() => {
     console.log('MCP robustness tests passed');

@@ -61,7 +61,7 @@ function createLineBuffer(onLine) {
  * Run a node command asynchronously with optional stderr streaming.
  * @param {string} cwd
  * @param {string[]} args
- * @param {{streamOutput?:boolean,onLine?:(payload:{stream:string,line:string})=>void,maxBufferBytes?:number,env?:Record<string,string|undefined>}} [options]
+ * @param {{streamOutput?:boolean,onLine?:(payload:{stream:string,line:string})=>void,maxBufferBytes?:number,env?:Record<string,string|undefined>,signal?:AbortSignal}} [options]
  * @returns {Promise<{stdout:string,stderr:string}>}
  */
 export function runNodeAsync(cwd, args, options = {}) {
@@ -89,6 +89,7 @@ export function runNodeAsync(cwd, args, options = {}) {
       maxOutputBytes: maxBufferBytes,
       outputMode: 'string',
       env,
+      signal: options.signal,
       onStdout: (chunk) => handleStreamChunk(chunk, stdoutBuffer),
       onStderr: (chunk) => handleStreamChunk(chunk, stderrBuffer)
     }).then((result) => {
@@ -109,7 +110,8 @@ export function runNodeAsync(cwd, args, options = {}) {
       const stdout = err?.result?.stdout || '';
       const stderr = err?.result?.stderr || '';
       const error = new Error(err?.message || 'Command failed');
-      error.code = err?.result?.exitCode;
+      if (err?.name) error.name = err.name;
+      error.code = err?.code ?? err?.result?.exitCode;
       error.stdout = stdout;
       error.stderr = stderr;
       reject(error);
@@ -140,7 +142,8 @@ export async function runToolWithProgress({
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
     onLine: progressLine,
-    env
+    env,
+    signal: context.signal
   });
   if (progress && doneMessage) {
     progress({ message: doneMessage, phase: 'done' });

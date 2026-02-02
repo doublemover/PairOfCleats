@@ -27,7 +27,8 @@ export async function downloadModels(args = {}, context = {}) {
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
     onLine: progressLine,
-    env: runtimeEnv
+    env: runtimeEnv,
+    signal: context.signal
   });
   if (progress) {
     progress({ message: `Model download complete (${model}).`, phase: 'done' });

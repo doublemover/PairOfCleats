@@ -249,35 +249,35 @@ Touchpoints (anchors; approximate):
 
 ### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
 
-- [ ] Ensure cancellation/timeout terminates underlying work within a bounded time.
+- [x] Ensure cancellation/timeout terminates underlying work within a bounded time.
   - Touchpoints:
-    - [ ] `tools/mcp/transport.js`
-    - [ ] `tools/mcp/runner.js`
-    - [ ] `tools/mcp/tools.js`
-  - [ ] Cancellation correctness:
-    - [ ] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
-    - [ ] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
-  - [ ] Timeout correctness:
-    - [ ] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
-    - [ ] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
-    - [ ] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
-  - [ ] Progress notification hygiene:
+    - [x] `tools/mcp/transport.js`
+    - [x] `tools/mcp/runner.js`
+    - [x] `tools/mcp/tools.js`
+  - [x] Cancellation correctness:
+    - [x] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
+    - [x] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
+  - [x] Timeout correctness:
+    - [x] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
+    - [x] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
+    - [x] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
+  - [x] Progress notification hygiene:
     - [x] Throttle/coalesce progress notifications (max ~1 per 250ms per tool call, coalesced) to avoid overwhelming clients.
 
-- [ ] Tighten MCP test process cleanup.
-  - [ ] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
+- [x] Tighten MCP test process cleanup.
+  - [x] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
 
 #### Tests / Verification
 
-- [ ] Update existing: `tests/services/mcp/mcp-robustness.test.js`
+- [x] Update existing: `tests/services/mcp/mcp-robustness.test.js`
   - Add “wait for exit” after `exit` (bounded).
   - Add cancellation test:
     - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
-  - Add progress-throttle assertion (if practical): bursty progress is coalesced.
+  - [ ] Add progress-throttle assertion (if practical): bursty progress is coalesced.
 
-- [ ] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
+- [x] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
   - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
-  - [ ] Update `docs/testing/truth-table.md` and `docs/testing/test-decomposition-regrouping.md` to reflect new MCP tests.
+  - [x] Update `docs/testing/truth-table.md` and `docs/testing/test-decomposition-regrouping.md` to reflect new MCP tests.
 
 ---
 

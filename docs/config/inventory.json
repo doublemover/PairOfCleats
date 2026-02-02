@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T01:34:39.985Z",
+  "generatedAt": "2026-02-02T02:21:41.042Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -66,6 +66,7 @@
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
       "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
+      "PAIROFCLEATS_TEST_MCP_DELAY_MS",
       "PAIROFCLEATS_TEST_NODE_OPTIONS",
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
@@ -1256,6 +1257,7 @@
         "tests/services/api/core-api.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
@@ -1328,6 +1330,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
+        "src/integrations/mcp/protocol.js",
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/repo-root.test.js",
@@ -1439,7 +1442,6 @@
         "tools/ci/run-suite.js",
         "tools/compare-models.js",
         "tools/config-inventory.js",
-        "tools/mcp/transport.js",
         "tools/triage/context-pack.js",
         "tools/triage/ingest.js"
       ]
@@ -1463,6 +1465,7 @@
         "tests/helpers/mcp-client.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1707,6 +1710,14 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_MCP_DELAY_MS",
+      "files": [
+        "tests/services/mcp/mcp-robustness.test.js",
+        "tools/config-inventory.js",
+        "tools/mcp/tools.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_NODE_OPTIONS",
       "files": [
         "tests/run.js",
@@ -1824,6 +1835,7 @@
         "tests/runner/all.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/logging/stdout-contract.test.js",
         "tests/shared/runtime/runtime-records-config.test.js",
@@ -1854,7 +1866,8 @@
         "tools/ci/run-suite.js",
         "tools/config-inventory.js",
         "tools/dict-utils/cache.js",
-        "tools/dict-utils/config.js"
+        "tools/dict-utils/config.js",
+        "tools/mcp/tools.js"
       ]
     },
     {
@@ -1942,7 +1955,7 @@
     "PAIROFCLEATS_MCP_MODE"
   ],
   "cliFlags": {
-    "totalFlags": 251,
+    "totalFlags": 252,
     "publicFlags": [
       "backend",
       "host",
@@ -2086,6 +2099,7 @@
       "maxWallClockMs",
       "maxWarnings",
       "maxWorkUnits",
+      "mcp-mode",
       "meta",
       "min-count",
       "min-overlap",
@@ -2926,6 +2940,13 @@
         ]
       },
       {
+        "file": "tools/mcp-server.js",
+        "flags": [
+          "mcp-mode",
+          "repo"
+        ]
+      },
+      {
         "file": "tools/parity-matrix.js",
         "flags": [
           "ann-modes",
@@ -3163,7 +3184,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 51,
+        "count": 52,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3199,6 +3220,7 @@
           "tools/indexer-service.js",
           "tools/lsif-ingest.js",
           "tools/map-iso-serve.js",
+          "tools/mcp-server.js",
           "tools/repometrics-dashboard.js",
           "tools/report-artifacts.js",
           "tools/report-code-map.js",
