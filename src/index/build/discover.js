@@ -181,7 +181,10 @@ export async function discoverEntries({
   };
 
   const scmResult = await listScmFiles();
-  const candidates = scmResult && Array.isArray(scmResult.files)
+  const useScm = scmResult
+    && Array.isArray(scmResult.files)
+    && scmResult.files.length > 0;
+  const candidates = useScm
     ? scmResult.files.map((rel) => path.join(scmResult.repoRoot || root, rel))
     : await listFdirFiles();
 
