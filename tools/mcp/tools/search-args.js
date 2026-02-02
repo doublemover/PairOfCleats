@@ -148,9 +148,8 @@ export function buildMcpSearchArgs(args = {}) {
   const caseAll = args.case === true;
   const caseFile = args.caseFile === true || caseAll;
   const caseTokens = args.caseTokens === true || caseAll;
-  const fileFilters = [];
-  fileFilters.push(...toList(args.path));
-  fileFilters.push(...toList(args.file));
+  const pathFilters = toList(args.path);
+  const fileFilters = toList(args.file);
   const extFilters = toList(args.ext);
   const metaFilters = normalizeMetaFilters(args.meta);
   const metaJson = args.metaJson || null;
@@ -202,9 +201,13 @@ export function buildMcpSearchArgs(args = {}) {
   if (caseAll) searchArgs.push('--case');
   if (!caseAll && caseFile) searchArgs.push('--case-file');
   if (!caseAll && caseTokens) searchArgs.push('--case-tokens');
-  for (const entry of fileFilters) {
+  for (const entry of pathFilters) {
     if (entry == null || entry === '') continue;
     searchArgs.push('--path', String(entry));
+  }
+  for (const entry of fileFilters) {
+    if (entry == null || entry === '') continue;
+    searchArgs.push('--file', String(entry));
   }
   for (const entry of extFilters) {
     if (entry == null || entry === '') continue;

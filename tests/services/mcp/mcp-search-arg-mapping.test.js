@@ -59,7 +59,7 @@ const cases = [
   { label: 'modifiedSince', args: { modifiedSince: 7 }, expect: ['--modified-since', '7'] },
   { label: 'lint', args: { lint: true }, expect: ['--lint'] },
   { label: 'path', args: { path: 'src/' }, expect: ['--path', 'src/'] },
-  { label: 'file', args: { file: 'index.js' }, expect: ['--path', 'index.js'] },
+  { label: 'file', args: { file: 'index.js' }, expect: ['--file', 'index.js'] },
   { label: 'ext', args: { ext: '.js' }, expect: ['--ext', '.js'] },
   { label: 'lang', args: { lang: 'javascript' }, expect: ['--lang', 'javascript'] },
   { label: 'branch', args: { branch: 'main' }, expect: ['--branch', 'main'] },
