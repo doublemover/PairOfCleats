@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getIndexDir } from '../../../tools/dict-utils.js';
+import { getIndexDir } from '../../shared/dict-utils.js';
 
 export const resolveIndexDir = (root, mode, userConfig, indexRoot = null, strict = false) => {
   const cached = getIndexDir(root, mode, userConfig, { indexRoot });

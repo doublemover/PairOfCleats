@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { getToolingConfig } from '../../../tools/dict-utils.js';
+import { getToolingConfig } from '../../shared/dict-utils.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';

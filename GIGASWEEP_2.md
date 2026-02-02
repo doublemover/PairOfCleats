@@ -295,7 +295,8 @@ Fix correctness bugs in local risk detection and close test gaps in type inferen
 #### 7.5 Cross-file pipeline implementation smells
 - [x] Avoid attaching private `_keys` Sets to arrays for dedupe.
   - Action: use local Sets/Maps or a `WeakMap`.
-- [?] Layering concern: `src/index/*` importing from `tools/*` may complicate packaging boundaries.
+- [x] Layering concern: `src/index/*` importing from `tools/*` may complicate packaging boundaries.
+  - Action: route shared helpers through `src/shared/*` wrappers to avoid direct `tools/*` imports.
 
 ---
 
@@ -343,7 +344,7 @@ Reduce “mystery behavior” and make internal tooling more robust.
 - [x] Fix `src/integrations/core/status.js` payload naming ambiguity.
   - `repo.root` appears to report cache root, not repository root.
 
-- [?] Compact/shard tooling scalability:
+- [x] Compact/shard tooling scalability:
   - `tools/compact-pieces.js` now streams gzip + zstd JSONL shards.
   - `tools/ctags-ingest.js` backpressure handled.
 

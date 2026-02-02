@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { isTestingEnv } from '../../shared/env.js';
-import { resolveToolRoot } from '../../../tools/dict-utils.js';
+import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { parsePythonSignature } from './signature-parse/python.js';

@@ -1,4 +1,4 @@
-import { resolveLmdbPaths } from '../../../tools/dict-utils.js';
+import { resolveLmdbPaths } from '../../shared/dict-utils.js';
 import {
   LMDB_META_KEYS,
   LMDB_REQUIRED_ARTIFACT_KEYS,

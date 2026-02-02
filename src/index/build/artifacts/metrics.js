@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../../tools/dict-utils.js';
+import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../shared/dict-utils.js';
 import { getRepoProvenance } from '../../git.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 

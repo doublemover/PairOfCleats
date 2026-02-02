@@ -15,7 +15,7 @@ import {
   getTriageConfig,
   loadUserConfig,
   resolveIndexRoot
-} from '../../../../tools/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
