@@ -5490,3 +5490,230 @@ Touchpoints (test selection):
 
 
 
+
+
+## Phase 12 — MCP Migration + API/Tooling Contract Formalization
+
+### Objective
+Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
+
+- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
+- This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
+
+---
+
+### 12.1 Dependency strategy and capability gating for the official MCP SDK
+
+- [x] Decide how the MCP SDK is provided and make the decision explicit in code + docs.
+  - Options:
+    - [ ] Dependency (always installed)
+    - [x] Optional dependency (install attempted; failures tolerated)
+    - [ ] External optional peer (default; capability-probed)
+  - [x] Implement the chosen strategy consistently:
+    - [x] `package.json` (if dependency/optionalDependency is chosen)
+    - [x] `src/shared/capabilities.js` (probe `@modelcontextprotocol/sdk` and report clearly)
+    - [x] `src/shared/optional-deps.js` (ensure `tryImport()` handles ESM correctly for the SDK)
+  - [x] Define the SDK import path and the capability surface it drives (e.g., `@modelcontextprotocol/sdk` + which subpath).
+
+- [x] Ensure MCP server mode selection is observable and capability-gated.
+  - Touchpoints:
+    - [x] `tools/mcp-server.js` — entrypoint dispatch
+    - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
+    - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
+  - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
+    - [x] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
+- `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
+- `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
+- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
+  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
+
+#### Tests / Verification
+
+- [x] Unit: capabilities probe reports `mcp.sdk=true/false` deterministically.
+- [x] CI verification: when SDK is absent, SDK-mode tests are skipped cleanly with a structured reason.
+
+---
+
+### 12.2 SDK-backed MCP server (parallel mode with explicit cutover flag)
+
+- [x] Implement an SDK-backed server alongside the legacy transport.
+  - Touchpoints:
+    - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
+    - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+      - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
+  - [x] Requirements for SDK server:
+    - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
+    - [x] Route tool calls to the existing implementations in `tools/mcp/tools.js` (no behavior fork).
+    - [x] Support stdio transport as the baseline.
+    - [x] Emit a capabilities payload that allows clients to adapt (e.g., doc extraction disabled, SDK missing, etc.).
+      - [x] Explicitly define whether this is returned via `initialize` or a separate tool response (see 12.4).
+
+- [x] Add a deprecation window for the legacy transport.
+  - [x] Document the cutover plan and timeline in `docs/contracts/mcp-api.md`.
+  - [x] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
+
+Touchpoints (anchors; approximate):
+- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/tools.js` (tool execution entrypoint)
+- `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
+  - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
+
+#### Tests / Verification
+
+- [x] Services: `tests/services/mcp/sdk-mode.test.js` (new)
+  - Skip if SDK is not installed.
+  - Start `tools/mcp-server-sdk.js` and run at least:
+    - `tools/list`
+    - one representative `tools/call` (e.g., `index_status`)
+  - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
+
+---
+
+### 12.3 Tool schema versioning, conformance, and drift guards
+
+- [x] Make tool schemas explicitly versioned and enforce bump discipline.
+  - Touchpoints:
+    - [x] `src/integrations/mcp/defs.js` — add `schemaVersion` (semver or monotonic integer) and `toolVersion` (package.json)
+    - [x] `docs/contracts/mcp-api.md` — document compatibility rules for schema changes
+    - [x] `docs/contracts/mcp-tools.schema.json` (new) — canonical tool schema snapshot
+    - [x] `src/integrations/mcp/validate.js` (new) — validate tool schemas against snapshot
+  - [x] Define the canonical initialize response shape (schema + example).
+    - [x] `docs/contracts/mcp-api.md` — `initialize` response structure
+    - [x] `docs/contracts/mcp-initialize.schema.json` (new) — schema for response payload
+
+- [x] Consolidate MCP argument → execution mapping to one audited path.
+  - Touchpoints:
+    - [x] `tools/mcp/tools.js` (search/build tools)
+    - [x] `src/integrations/core/index.js` (shared arg builder, if used)
+  - [x] Create a single mapping function per tool (or a shared builder) so schema additions cannot be “accepted but ignored”.
+
+- [x] Conformance requirement for the `search` tool:
+  - [x] Every field in the MCP `search` schema must either:
+    - [x] affect emitted CLI args / search execution, or
+    - [x] be removed from schema, or
+    - [x] be explicitly marked “reserved” and rejected if set.
+  - [x] Avoid duplicative builders (do not maintain two separate lists of flags).
+
+- [x] Fix known MCP tool wiring correctness hazards in modified files:
+  - [x] In `tools/mcp/tools.js`, remove variable shadowing that breaks cancellation/AbortSignal handling (numeric arg is now `contextLines`; `context` remains the `{ signal }` object).
+
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/defs.js` (~L1 exports; add `schemaVersion`)
+- `tools/mcp/tools.js` (~L? `runSearchTool` / arg mapping)
+- `src/integrations/mcp/protocol.js` (error + envelope helpers)
+- `docs/contracts/mcp-api.md` (schema versioning rules)
+
+#### Tests / Verification
+
+- [x] Unit: `tests/services/mcp/mcp-schema-version.test.js` (new; keep it in services lane for MCP)
+  - Assert `schemaVersion` exists.
+  - Assert changes to tool defs require bumping `schemaVersion` (enforced by snapshot contract or explicit check).
+
+- [x] Unit: `tests/services/mcp/mcp-search-arg-mapping.test.js` (new; keep it in services lane for MCP)
+  - For each supported schema field, assert mapping produces the expected CLI flag(s).
+  - Include a negative test: unknown fields are rejected (or ignored only if policy says so, with an explicit warning).
+
+- [x] Update existing: `tests/services/mcp/mcp-schema.test.js`
+  - Keep snapshotting tool property sets.
+  - Add schemaVersion presence check.
+  - Add toolVersion presence check.
+  - Update `docs/contracts/coverage-ledger.md` to include new MCP schema tests.
+
+---
+
+### 12.4 Error codes, protocol negotiation, and response-shape consistency
+
+- [x] Standardize tool error payloads and map internal errors to stable MCP error codes.
+  - Touchpoints:
+    - [x] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
+    - [x] `tools/mcp/transport.js` — legacy transport handler
+    - [x] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [x] `src/shared/error-codes.js` — canonical internal codes
+  - [x] Define stable, client-facing codes (examples):
+    - [x] invalid args
+    - [x] index missing
+    - [x] tool timeout
+    - [x] not supported / capability missing
+    - [x] cancelled
+  - [x] Add `docs/contracts/mcp-error-codes.md` (or a section in `docs/contracts/mcp-api.md`) defining the canonical MCP error registry.
+  - [x] Ensure both transports emit the same logical error payload shape (even if wrapper envelopes differ).
+
+- [x] Implement protocol/version negotiation and expose capabilities.
+  - [x] On `initialize`, echo supported protocol versions, the tool schema version, toolVersion, and effective capabilities.
+  - [x] Define the authoritative initialize response builder in `src/integrations/mcp/protocol.js`.
+  - [x] Define a capabilities schema (or a section in `docs/contracts/mcp-api.md`) with required keys and value semantics.
+
+#### Tests / Verification
+
+- [x] Unit: protocol negotiation returns consistent `protocolVersion` + `schemaVersion`.
+- [x] Regression: error payload includes stable `code` and `message` across both transports for representative failures.
+  - [x] Add `mcp-mode` selection test (legacy vs sdk) based on CLI/config/env.
+  - [x] Add capability payload test for both transports (initialize contains capabilities).
+  - [x] Align test path references with `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` (services lane vs `tests/mcp/*`).
+
+Touchpoints (anchors; approximate):
+- `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
+- `tools/mcp/transport.js` (legacy transport)
+- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `src/shared/error-codes.js` (canonical internal codes)
+
+---
+
+### 12.5 Cancellation, timeouts, and process hygiene (no leaked work)
+
+- [x] Ensure cancellation/timeout terminates underlying work within a bounded time.
+  - Touchpoints:
+    - [x] `tools/mcp/transport.js`
+    - [x] `tools/mcp/runner.js`
+    - [x] `tools/mcp/tools.js`
+  - [x] Cancellation correctness:
+    - [x] Canonicalize JSON-RPC IDs for in-flight tracking (`String(id)`), so numeric vs string IDs do not break cancellation.
+    - [x] Ensure `$/cancelRequest` cancels the correct in-flight request and that cancellation is observable (result marked cancelled, no “success” payload).
+  - [x] Timeout correctness:
+    - [x] Extend `runNodeAsync()` to accept an `AbortSignal` and kill the child process (and its process tree) on abort/timeout.
+    - [x] Thread AbortSignal through `runToolWithProgress()` and any spawned-node tool helpers.
+    - [x] Ensure `withTimeout()` triggers abort and does not merely reject while leaving work running.
+  - [x] Progress notification hygiene:
+    - [x] Throttle/coalesce progress notifications (max ~1 per 250ms per tool call, coalesced) to avoid overwhelming clients.
+
+- [x] Tighten MCP test process cleanup.
+  - [x] After sending `shutdown`/`exit`, explicitly await server process termination (bounded deadline, then kill) to prevent leaked subprocesses during tests.
+
+#### Tests / Verification
+
+- [x] Update existing: `tests/services/mcp/mcp-robustness.test.js`
+  - Add “wait for exit” after `exit` (bounded).
+  - Add cancellation test:
+    - Start a long-ish operation, send `$/cancelRequest`, assert the tool response is cancelled and that work stops (no continuing progress after cancellation).
+  - [x] Add progress-throttle assertion (if practical): bursty progress is coalesced.
+
+- [x] Unit: `tests/services/mcp/mcp-runner-abort-kills-child.test.js` (new)
+  - Spawn a child that would otherwise run long; abort; assert child exit occurs quickly and no orphan remains.
+  - [x] Update `docs/testing/truth-table.md` and `docs/testing/test-decomposition-regrouping.md` to reflect new MCP tests.
+
+---
+
+### 12.6 Documentation and migration notes
+
+- [x] Add `docs/guides/mcp.md` (new) describing:
+  - [x] how to run legacy vs SDK server modes
+  - [x] how to install/enable the SDK (per the chosen dependency strategy)
+  - [x] tool schemas and `schemaVersion` policy
+  - [x] stable error codes and cancellation/timeout semantics
+  - [x] capability reporting and expected client behaviors
+  - [x] Link from `docs/guides/commands.md` (or another index doc) so discoverability is maintained.
+  - [x] Update `docs/api/mcp-server.md` to describe legacy + SDK modes and capability reporting.
+  - [x] Update `docs/contracts/mcp-api.md` for schemaVersion/toolVersion + error code registry.
+  - [x] Ensure `docs/phases/phase-12/tooling-and-api-contract.md` and `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` remain in sync.
+
+**Mapping (source docs, minimal):** `GIGAMAP_FINAL_UPDATED.md` (M12), `GIGAMAP_ULTRA_2026-01-22_FULL_COVERAGE_v3.md` (M12 overlap notes), `CODEBASE_STATIC_REVIEW.md` (MCP schema mapping), `GIGASWEEP.md` (MCP timeout/cancellation/progress/test cleanup)
+
+
+---
+
+
