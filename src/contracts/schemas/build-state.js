@@ -75,6 +75,7 @@ const REPO_HEAD = {
   properties: {
     commitId: { type: ['string', 'null'] },
     changeId: { type: ['string', 'null'] },
+    operationId: { type: ['string', 'null'] },
     branch: { type: ['string', 'null'] },
     bookmarks: { type: ['array', 'null'], items: { type: 'string' } },
     author: { type: ['string', 'null'] },
