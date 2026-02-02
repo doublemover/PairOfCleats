@@ -7,14 +7,14 @@ import { toRepoPosixPath } from '../paths.js';
 const parseNullSeparated = (value) => (
   String(value || '')
     .split('\0')
-    .map((entry) => entry.trim())
+    .map((entry) => entry)
     .filter(Boolean)
 );
 
 const parseLines = (value) => (
   String(value || '')
     .split(/\r?\n/)
-    .map((entry) => entry.trim())
+    .map((entry) => entry)
     .filter(Boolean)
 );
 

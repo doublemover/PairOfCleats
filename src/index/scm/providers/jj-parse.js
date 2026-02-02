@@ -3,14 +3,14 @@ import { toRepoPosixPath } from '../paths.js';
 export const parseJjLines = (value) => (
   String(value || '')
     .split(/\r?\n/)
-    .map((entry) => entry.trim())
+    .map((entry) => entry)
     .filter(Boolean)
 );
 
 export const parseJjNullSeparated = (value) => (
   String(value || '')
     .split('\0')
-    .map((entry) => entry.trim())
+    .map((entry) => entry)
     .filter(Boolean)
 );
 
