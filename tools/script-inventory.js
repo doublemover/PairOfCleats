@@ -87,6 +87,7 @@ const main = async () => {
     '- `npm run env:check`',
     '',
     'Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats index watch` for user-facing workflows.',
+    'See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.',
     '',
     '| Script | Category | CI Allowed | Replacement |',
     '| --- | --- | --- | --- |',

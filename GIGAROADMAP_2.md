@@ -283,16 +283,16 @@ Touchpoints (anchors; approximate):
 
 ### 12.6 Documentation and migration notes
 
-- [ ] Add `docs/guides/mcp.md` (new) describing:
-  - [ ] how to run legacy vs SDK server modes
-  - [ ] how to install/enable the SDK (per the chosen dependency strategy)
-  - [ ] tool schemas and `schemaVersion` policy
-  - [ ] stable error codes and cancellation/timeout semantics
-  - [ ] capability reporting and expected client behaviors
-  - [ ] Link from `docs/guides/commands.md` (or another index doc) so discoverability is maintained.
-  - [ ] Update `docs/api/mcp-server.md` to describe legacy + SDK modes and capability reporting.
-  - [ ] Update `docs/contracts/mcp-api.md` for schemaVersion/toolVersion + error code registry.
-  - [ ] Ensure `docs/phases/phase-12/tooling-and-api-contract.md` and `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` remain in sync.
+- [x] Add `docs/guides/mcp.md` (new) describing:
+  - [x] how to run legacy vs SDK server modes
+  - [x] how to install/enable the SDK (per the chosen dependency strategy)
+  - [x] tool schemas and `schemaVersion` policy
+  - [x] stable error codes and cancellation/timeout semantics
+  - [x] capability reporting and expected client behaviors
+  - [x] Link from `docs/guides/commands.md` (or another index doc) so discoverability is maintained.
+  - [x] Update `docs/api/mcp-server.md` to describe legacy + SDK modes and capability reporting.
+  - [x] Update `docs/contracts/mcp-api.md` for schemaVersion/toolVersion + error code registry.
+  - [x] Ensure `docs/phases/phase-12/tooling-and-api-contract.md` and `docs/phases/phase-12/test-strategy-and-conformance-matrix.md` remain in sync.
 
 **Mapping (source docs, minimal):** `GIGAMAP_FINAL_UPDATED.md` (M12), `GIGAMAP_ULTRA_2026-01-22_FULL_COVERAGE_v3.md` (M12 overlap notes), `CODEBASE_STATIC_REVIEW.md` (MCP schema mapping), `GIGASWEEP.md` (MCP timeout/cancellation/progress/test cleanup)
 

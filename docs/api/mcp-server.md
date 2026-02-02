@@ -4,9 +4,14 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 
 ## Run
 - `pairofcleats service mcp`
+- `node tools/mcp-server.js --mcp-mode <legacy|sdk|auto>`
+
+Mode selection order: CLI `--mcp-mode` → env (`MCP_MODE`/`PAIROFCLEATS_MCP_MODE`) → config `mcp.mode`.
+`auto` selects SDK mode when `@modelcontextprotocol/sdk` is available, otherwise legacy.
 
 ## Transport
-- Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
+- **SDK mode**: official MCP SDK stdio transport.
+- **Legacy mode**: Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
 - Only stdio transport is supported; `mcp.transport` is currently ignored.
 - Buffer limit defaults to 8MB. Configure via `mcp.maxBufferBytes` or `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES`.
 - Requests are queued (default 64). Configure via `mcp.queueMax` or `PAIROFCLEATS_MCP_QUEUE_MAX`.
@@ -34,6 +39,7 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 ## Output
 - `search` defaults to compact JSON payloads. Use `output: "full"` in params to return full JSON.
 - Tool responses return `result.content[0].text` as a JSON string payload.
+- `initialize` responses include `schemaVersion`, `toolVersion`, and a capabilities payload under `capabilities.experimental.pairofcleats`.
 - Long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase, ts }`.
   `id=0` is valid; only `null`/`undefined` is treated as missing.
 - Errors return `isError=true` with `{ message, code, stdout, stderr, hint, timeoutMs }` when available.

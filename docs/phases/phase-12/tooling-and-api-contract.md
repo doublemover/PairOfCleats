@@ -49,12 +49,12 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, **MAY** are to
 
 ### 3.1 Definitions
 
-- **toolingVersion**: the installed PairOfCleats package version (from `package.json` via `getToolVersion()`).
-- **schemaVersion**: the version of the **Tooling/API contract** defined in this spec: schemas, envelopes, and MCP tool definitions.
+- **toolVersion**: the installed PairOfCleats package version (from `package.json`).
+- **schemaVersion**: the version of the MCP tool schemas defined in this spec and `src/integrations/mcp/defs.js`.
 
 ### 3.2 Formats
 
-- `toolingVersion` MUST be a SemVer string (e.g., `"0.9.0"`).
+- `toolVersion` MUST be a SemVer string (e.g., `"0.9.0"`).
 - `schemaVersion` MUST be a SemVer string (e.g., `"2.0.0"`).
 
 ### 3.3 Governance
@@ -73,78 +73,29 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, **MAY** are to
 
 A single exported constant MUST exist and be used everywhere:
 
-- `src/shared/schema-version.js` exporting `SCHEMA_VERSION` (string).
-- `src/shared/version.js` exporting `TOOLING_VERSION` (string) OR use `getToolVersion()` directly, but it MUST be consistent.
+- `src/integrations/mcp/defs.js` exporting `schemaVersion` (string).
+- `package.json` `version` used as `toolVersion` (string).
 
 ---
 
-## 4. Canonical envelope
+## 4. Response envelopes (current)
 
-### 4.1 Rationale
+Phase 12 keeps the **existing response shapes** while MCP tooling is stabilized. A future
+envelope unification (e.g., `_meta` fields) should be treated as a breaking change and
+requires an explicit schemaVersion bump.
 
-The current codebase already uses multiple shapes:
-- API success responses vary (`{ ok, repo, result }` vs `{ ok, repo, status }`).
-- API error construction can be accidentally overridden (`sendError(..., rest)` allows collisions).
-- MCP tool outputs are free-form (whatever the underlying tool returns).
+### 4.1 HTTP API responses
 
-Phase 12 introduces a single, collision-resistant envelope to remove ambiguity.
+- Success responses return `{ ok: true, repo, result }` (or endpoint-specific payloads such as `{ ok, repo, status }`).
+- Error responses return `{ ok: false, code, message, ...details }` as emitted by `tools/api/response.js`.
 
-### 4.2 Envelope: `PocEnvelope`
+### 4.2 MCP tool results
 
-All **tooling/API** success and error payloads MUST conform to:
+- Success: `CallToolResult.content[0].text` is a JSON string containing the tool payload.
+- Error: `CallToolResult.isError = true` and `content[0].text` is a JSON string with `{ code, message, ... }`.
 
-```jsonc
-{
-  "ok": true,
-  "result": { /* endpoint/tool-specific */ },
-  "_meta": {
-    "schemaVersion": "2.0.0",
-    "toolingVersion": "0.9.0",
-    "ts": "2026-01-24T12:34:56.789Z",
-    "requestId": "optional-correlation-id"
-  }
-}
-```
-
-Error form:
-
-```jsonc
-{
-  "ok": false,
-  "error": {
-    "code": "INVALID_REQUEST",
-    "message": "Human readable summary.",
-    "details": { /* optional structured data */ }
-  },
-  "_meta": {
-    "schemaVersion": "2.0.0",
-    "toolingVersion": "0.9.0",
-    "ts": "2026-01-24T12:34:56.789Z",
-    "requestId": "optional-correlation-id"
-  }
-}
-```
-
-### 4.3 Reserved keys
-
-- The top-level keys `ok`, `result`, `error`, `_meta` are reserved.
-- Implementations MUST NOT merge arbitrary payload objects into the top-level envelope.
-- Additional data MUST live inside `result` (success) or `error.details` (failure).
-
-### 4.4 `_meta` standard fields
-
-`_meta` MUST include:
-
-- `schemaVersion` (string)
-- `toolingVersion` (string)
-- `ts` (ISO-8601 timestamp in UTC)
-
-`_meta` SHOULD include (when available):
-
-- `requestId` (string): correlation ID for logging and tracing.
-- `repo` (string): resolved repo path (if relevant).
-- `durationMs` (number): for completed operations.
-- `warnings` (array): structured warnings, not strings.
+If an envelope format is introduced later, it MUST be documented here and reflected in
+`docs/contracts/mcp-tools.schema.json` plus any API contracts.
 
 ---
 
@@ -152,15 +103,10 @@ Error form:
 
 ### 5.1 Canonical source
 
-String error codes MUST come from `src/shared/error-codes.js`.
+String error codes MUST come from `src/shared/error-codes.js`, with the canonical
+registry documented in `docs/contracts/mcp-error-codes.md`.
 
-**Phase 12 requirement:** add missing MCP/runtime codes to the enum if they are used in contract outputs:
-
-- `TOOL_TIMEOUT`
-- `QUEUE_OVERLOADED`
-- `UNKNOWN_TOOL`
-
-(If a code remains protocol-only, it still MUST be listed to keep the contract enumerable.)
+Unknown tools MUST report `NOT_FOUND` (not `UNKNOWN_TOOL`).
 
 ### 5.2 Tool vs protocol errors
 
@@ -176,20 +122,16 @@ String error codes MUST come from `src/shared/error-codes.js`.
 ### 6.1 Protocol revision and compatibility
 
 - The server MUST speak MCP over JSON-RPC 2.0.
-- **Phase 12 target protocol revision:** the server MUST implement MCP protocol version **`2025-11-25`** in SDK mode.
-- If the client sends a different `initialize.params.protocolVersion`, the server MUST:
-  - respond with `InitializeResult.protocolVersion = "2025-11-25"` if it can proceed, OR
-  - fail the initialization with a JSON-RPC error if the SDK cannot safely interoperate with that client version.
-
-Rationale:
-- The official TypeScript SDK v1.24.0+ explicitly tracks MCP spec `2025-11-25`; pinning the protocol version removes ambiguity and eliminates "partial support" behaviors.
+- **Phase 12 target protocol revision:** the server MUST implement MCP protocol version **`2024-11-05`**.
+- If the client sends a different `initialize.params.protocolVersion`, the server SHOULD respond
+  with `InitializeResult.protocolVersion = "2024-11-05"` and continue when safe to do so.
 
 ## 6.2 Transport: stdio framing (SDK mode)
 
-### 6.2.1 SDK dependency pinning
+### 6.2.1 SDK dependency strategy
 
-- `@modelcontextprotocol/sdk` MUST be added to `dependencies` (not devDependencies) to ensure the MCP server is usable in production installs.
-- The dependency SHOULD be pinned to a **known-good v1.x release line** (e.g., `1.25.x`) rather than an unbounded caret range, to avoid silent protocol drift.
+- `@modelcontextprotocol/sdk` is an **optional dependency** (capability-gated).
+- MCP SDK mode MUST fail fast with a clear error if the dependency is missing.
 - The MCP server implementation MUST import from the SDK's `server` entrypoints (ESM), e.g.:
   - `@modelcontextprotocol/sdk/server/*`
   - `@modelcontextprotocol/sdk/server/stdio` (transport)
@@ -210,9 +152,9 @@ Note: the SDK package is published as `type: module` but provides both ESM and C
 The current repo contains a custom Content-Length transport (`tools/mcp/transport.js` + `src/shared/jsonrpc.js`).
 
 Phase 12 policy:
-- Legacy transport MAY remain temporarily behind an explicit opt-in flag (e.g., `PAIROFCLEATS_MCP_TRANSPORT=legacy`) **for one release window**.
-- There MUST NOT be an *automatic* fallback from SDK→legacy.
-- Legacy transport is **out of contract**: no new features, no conformance guarantees, and it is excluded from Phase 12 conformance gating.
+- Legacy transport remains available behind explicit selection (`--mcp-mode legacy` or `mcp.mode=legacy`).
+- There MUST NOT be an *automatic* fallback from SDK→legacy when SDK mode is explicitly requested.
+- Legacy transport is supported for the migration window but should not receive new features beyond parity.
 
 ### 6.4 Initialization: capabilities payload
 
@@ -222,18 +164,17 @@ Example (shape, not full content):
 
 ```jsonc
 {
-  "protocolVersion": "2025-11-25",
+  "protocolVersion": "2024-11-05",
   "capabilities": {
     "tools": { "listChanged": false },
     "experimental": {
       "pairofcleats": {
         "schemaVersion": "2.0.0",
-        "toolingVersion": "0.9.0",
-        "transport": "sdk",
+        "toolVersion": "0.9.0",
         "capabilities": {
           "docs": { "pdfjsDist": true, "mammoth": false },
           "vector": { "sqliteVec": true, "hnsw": false },
-          "mcp": { "sdk": true, "legacy": false }
+          "mcp": { "sdk": true }
         }
       }
     }
@@ -243,7 +184,7 @@ Example (shape, not full content):
 ```
 
 Rules:
-- `schemaVersion` and `toolingVersion` MUST be present.
+- `schemaVersion` and `toolVersion` MUST be present.
 - The `capabilities` object SHOULD be sourced from `src/shared/capabilities.js` (or a narrowed subset), so clients can adapt.
 
 ### 6.5 Tools: list and call
@@ -289,41 +230,32 @@ If any tool is removed or renamed, schemaVersion MAJOR MUST bump.
 For every successful tool execution, the server MUST return:
 
 - `CallToolResult.isError = false`
-- `CallToolResult.content` MUST include **one** `TextContent` item containing JSON serialized `PocEnvelope`.
-- `CallToolResult.structuredContent` SHOULD include the parsed `PocEnvelope` object.
+- `CallToolResult.content` MUST include **one** `TextContent` item containing JSON serialized tool payload.
 
 For tool execution failures:
 
 - `CallToolResult.isError = true`
-- `content[0].text` is still a serialized `PocEnvelope` with `ok:false`
-- `structuredContent` SHOULD include the same envelope.
+- `content[0].text` is a serialized JSON payload with `{ code, message, ... }` per `docs/contracts/mcp-error-codes.md`.
 
-**Important:** the envelope MUST be stable and parseable (no pretty printing).
+**Important:** the payload MUST be stable and parseable (no pretty printing).
 
 ### 6.8 Progress notifications (MCP)
 
-- The server MUST only emit progress notifications if the request includes `params._meta.progressToken`.
 - Notifications MUST use method: `notifications/progress`.
-- `params` MUST include:
-  - `progressToken` (the provided token)
-  - `progress` (monotonic number)
-  - `total` (optional number, MAY be omitted if unknown)
-  - `message` (optional string)
+- Legacy transport emits:
+  - `{ id, tool, message, stream, phase, ts }`
+- SDK transport emits (when `progressToken` is provided by the client):
+  - `{ progressToken, tool, message, stream, phase, ts }`
 
-**Mapping rule from existing code:**
-- Existing MCP tooling uses callback shapes like `{ phase, message, stream }`.
-- In SDK mode, these MUST be mapped to `message` strings, e.g.: `"[search][phase=search] Running search."`
-- Extra fields MUST NOT be added to notification params unless permitted by MCP schema.
+Extra fields MUST NOT be added unless permitted by MCP schema.
 
 ### 6.9 Cancellation (MCP)
 
-- The server MUST support `notifications/cancelled` with `params.requestId`.
+- The server MUST support `$/cancelRequest` for in-flight tool calls.
 - On cancellation:
   - The server MUST abort any associated `AbortController` used by the tool execution.
   - The server SHOULD stop emitting progress events for the cancelled request.
-  - The server SHOULD NOT send a response for the cancelled request (per MCP guidance); if a response races, clients may ignore it.
-
-**Legacy:** if legacy mode remains temporarily, it MAY also support `$/cancelRequest`.
+  - The server returns a cancelled tool response (`isError=true`, `code=CANCELLED`) when a response is still sent.
 
 ### 6.10 Queue overload and timeouts (MCP)
 
@@ -342,8 +274,8 @@ If a tool exceeds its configured timeout:
 - In-flight execution MUST be aborted.
 - The server MUST return **tool execution error** (not protocol error):
   - `CallToolResult.isError = true`
-  - Envelope `error.code = "TOOL_TIMEOUT"`
-  - `error.details.timeoutMs` MUST be included.
+  - Payload `code = "TOOL_TIMEOUT"`
+  - `timeoutMs` MUST be included.
 
 ---
 
@@ -502,4 +434,3 @@ Phase 12 implementation MUST include these artifacts in-repo:
 4. Conformance tests (see companion document):
    - `tests/mcp/sdk-*.test.js`
    - `tests/api/contract-*.test.js`
-
