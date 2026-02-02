@@ -344,8 +344,8 @@ Reduce “mystery behavior” and make internal tooling more robust.
   - `repo.root` appears to report cache root, not repository root.
 
 - [?] Compact/shard tooling scalability:
-  - `tools/compact-pieces.js` likely loads compressed shards fully into memory (gz/zst).
-  - `tools/ctags-ingest.js` backpressure handled; compressed shard streaming remains unresolved.
+  - `tools/compact-pieces.js` now streams gzip JSONL shards; zst remains fully buffered.
+  - `tools/ctags-ingest.js` backpressure handled; zst JSONL streaming remains unresolved.
 
 ---
 
