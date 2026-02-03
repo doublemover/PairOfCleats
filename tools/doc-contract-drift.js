@@ -175,10 +175,11 @@ const extractArtifactsFromDoc = (text) => {
 };
 
 const extractLaneMentions = (text, lanes) => {
-  const lower = text.toLowerCase();
   const found = new Set();
   for (const lane of lanes) {
-    if (lower.includes(lane.toLowerCase())) found.add(lane);
+    const escaped = lane.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tokenRegex = new RegExp(`(^|[^A-Za-z0-9_-])${escaped}([^A-Za-z0-9_-]|$)`, 'i');
+    if (tokenRegex.test(text)) found.add(lane);
   }
   return found;
 };
