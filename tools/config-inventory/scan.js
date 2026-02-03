@@ -1,12 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fdir } from 'fdir';
+import { toPosix } from '../../src/shared/files.js';
 
 export const listSourceFiles = async (scanRoot) => {
   const files = await new fdir().withFullPaths().crawl(scanRoot).withPromise();
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = toPosix(filePath);
     if (normalized.includes('/.testCache/')) return false;
     if (normalized.includes('/.testLogs/')) return false;
     if (normalized.includes('/tests/.cache/')) return false;
@@ -284,7 +285,7 @@ export const scanSourceFiles = async (root, sourceFiles) => {
   const dynamicOptionFiles = new Set();
 
   for (const filePath of sourceFiles) {
-    const relPath = path.relative(root, filePath).replace(/\\/g, '/');
+    const relPath = toPosix(path.relative(root, filePath));
     let source = '';
     try {
       source = await fs.readFile(filePath, 'utf8');

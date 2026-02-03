@@ -99,6 +99,7 @@ Many identity computations need a stable "file-like namespace" that distinguishe
 
 Notes:
 - `fileRelPath` MUST be POSIX-style, repo-relative (use `toPosix()`).
+- `fileRelPath` validation MUST use platform-native absolute checks (use `isAbsolutePathNative()`).
 - `segmentUid` is stable across line shifts; **do not** use legacy `segmentId`.
 
 ---

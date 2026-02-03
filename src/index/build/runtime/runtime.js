@@ -21,7 +21,7 @@ import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
-import { isAbsolutePath } from '../../../shared/files.js';
+import { isAbsolutePathNative } from '../../../shared/files.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -109,6 +109,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       }
     });
   }
+  const baseEmbeddingsConfig = indexingConfig.embeddings || {};
+  const baseEmbeddingModeRaw = typeof baseEmbeddingsConfig.mode === 'string'
+    ? baseEmbeddingsConfig.mode.trim().toLowerCase()
+    : 'auto';
+  const baseEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(baseEmbeddingModeRaw)
+    ? baseEmbeddingModeRaw
+    : 'auto';
+  const baseEmbeddingsPlanned = baseEmbeddingsConfig.enabled !== false && baseEmbeddingMode !== 'off';
   const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
     ? indexingConfig.hash.backend.trim().toLowerCase()
     : '';
@@ -165,7 +173,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
   const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
   const logDestination = logFileRaw
-    ? (isAbsolutePath(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
+    ? (isAbsolutePathNative(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
     : null;
   if (logDestination) {
     try {
@@ -599,7 +607,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   }
   if (!embeddingEnabled) {
     const label = embeddingService ? 'service queue' : 'disabled';
-    log(`Embeddings: ${label}.`);
+    const deferred = baseEmbeddingsPlanned && (stage === 'stage1' || stage === 'stage2');
+    if (deferred) {
+      const stageLabel = stage === 'stage1' ? 'stage1' : 'stage2';
+      log(`Embeddings: deferred to stage3 (${stageLabel}).`);
+    } else {
+      log(`Embeddings: ${label}.`);
+    }
   } else if (useStubEmbeddings) {
     log('Embeddings: stub mode enabled (no model downloads).');
   } else {

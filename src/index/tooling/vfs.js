@@ -10,7 +10,7 @@ const MAX_ROW_BYTES = 32 * 1024;
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
-  const posixPath = toPosix(rawPath.replace(/\\/g, '/'));
+  const posixPath = toPosix(rawPath);
   return posixPath.replace(/%/g, '%25').replace(/#/g, '%23');
 };
 

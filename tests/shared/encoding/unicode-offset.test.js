@@ -54,6 +54,15 @@ const buildResult = spawnSync(
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {
+  if (buildResult.error) {
+    console.error('build_index spawn error:', buildResult.error);
+  }
+  const crashLogPath = path.join(repoRoot, 'logs', 'index-crash.log');
+  if (fs.existsSync(crashLogPath)) {
+    const crashLog = await fsPromises.readFile(crashLogPath, 'utf8');
+    const tail = crashLog.length > 2000 ? crashLog.slice(-2000) : crashLog;
+    console.error('build_index crash log (tail):\n' + tail);
+  }
   console.error('Failed: build_index');
   process.exit(buildResult.status ?? 1);
 }

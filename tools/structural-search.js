@@ -6,7 +6,7 @@ import { createCli } from '../src/shared/cli.js';
 import { loadRegistry, resolvePacks } from '../src/experimental/structural/registry.js';
 import { runStructuralSearch } from '../src/experimental/structural/runner.js';
 import { writeJson, writeJsonl } from '../src/experimental/structural/io.js';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative } from '../src/shared/files.js';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -61,7 +61,7 @@ if (!selectedPacks.length && !engineOverride) {
 
 const resolveRulePath = (rulePath) => {
   if (!rulePath) return null;
-  const resolved = isAbsolutePath(rulePath)
+  const resolved = isAbsolutePathNative(rulePath)
     ? rulePath
     : path.resolve(scriptRoot, '..', rulePath);
   return fs.existsSync(resolved) ? resolved : null;

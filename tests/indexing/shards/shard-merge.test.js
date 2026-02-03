@@ -121,10 +121,19 @@ const graphRelationsEquivalent = (left, right) => (
 );
 
 const normalizeGeneratedAt = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeGeneratedAt(entry));
+  }
+  if (!value || typeof value !== 'object') return value;
   const copy = { ...value };
   if ('generatedAt' in copy) copy.generatedAt = '__normalized__';
   if ('updatedAt' in copy) copy.updatedAt = '__normalized__';
+  for (const [key, entry] of Object.entries(copy)) {
+    if (key === 'generatedAt' || key === 'updatedAt') continue;
+    if (entry && typeof entry === 'object') {
+      copy[key] = normalizeGeneratedAt(entry);
+    }
+  }
   return copy;
 };
 

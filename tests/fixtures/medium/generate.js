@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
+import { toPosix } from '../../../src/shared/files.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -157,7 +158,7 @@ for (let i = 0; i < fileCount; i += 1) {
   await fsPromises.writeFile(path.join(outRoot, relPath), content, 'utf8');
   manifest.filesByExt[template.ext] = (manifest.filesByExt[template.ext] || 0) + 1;
   manifest.totalBytes += Buffer.byteLength(content, 'utf8');
-  hash.update(relPath.replace(/\\/g, '/'));
+  hash.update(toPosix(relPath));
   hash.update('\n');
   hash.update(content);
   hash.update('\n');

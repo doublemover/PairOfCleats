@@ -124,6 +124,12 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/contracts/schemas/artifacts.js` ~L810
 [ ] [DOC] Document required `kind` field for `import_resolution_graph` edges.
 [ ] [DOC] Document `index_state.riskInterprocedural` object and required fields.
+[ ] [CODE] Export `docs/contracts/artifact-schema-index.json` (schema registry → required fields + version).
+    - Touchpoints:
+      - `tools/export-artifact-schema-index.js` (new)
+      - `src/contracts/schemas/artifacts.js`
+    - Tests:
+      - `tests/tooling/docs/artifact-schema-index.test.js` (new)
 
 ### 1.4 docs/contracts/compatibility-key.md
 - Issue: wrong callsite path.
@@ -225,6 +231,10 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - `node tools/triage/decision.js`
     - `node tools/triage/context-pack.js`
 
+### 2.8 docs/guides/search.md
+[ ] [DOC] Document new output modes (compact/symbol-first/context-only) when implemented.
+[ ] [DOC] Document JSON output exclusions by default vs `--explain` inclusion.
+
 ---
 
 ## 3) Testing subsystem (docs/testing)
@@ -253,6 +263,13 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `tests/run.js` (defaults)
       - `tests/run.rules.jsonc` (lane list)
+[ ] [DOC] Document timing ledger (`--log-times`) and watchdog behavior once added.
+    - Touchpoints:
+      - `tests/run.js`
+[ ] [DOC] Document coverage merge / changed-files coverage flags once added.
+    - Touchpoints:
+      - `tests/run.js`
+      - `docs/testing/ci-capability-policy.md`
 
 ---
 
@@ -275,6 +292,7 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `tools/mcp-server-sdk.js` (shebang)
       - `tools/repo-inventory.js` (generator)
+[ ] [DOC] If CLI ingest wrappers are added, update docs/tooling/*.md + `docs/guides/commands.md` to show `pairofcleats ingest <ctags|gtags|lsif|scip>`.
 
 ---
 
@@ -291,6 +309,11 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 ### 5.3 docs/api/server.md
 [ ] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
     - If correct, leave unchanged; if not, update.
+[ ] [DOC] Document error codes + troubleshooting hints shared across API/MCP/CLI.
+    - Touchpoints:
+      - `docs/contracts/mcp-error-codes.md`
+      - `docs/api/server.md`
+      - `docs/api/mcp-server.md`
 
 ---
 
@@ -299,6 +322,12 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 ### 6.1 docs/config/contract.md
 [ ] [DOC] Sync public config key list with `docs/config/schema.json`.
 [ ] [DOC] Update CLI flags list to current CLI options.
+[ ] [CODE] Generate `docs/config/contract.md` from `docs/config/schema.json` + `src/shared/env.js` (deterministic output).
+    - Touchpoints:
+      - `tools/config-contract-doc.js` (new)
+      - `docs/config/contract.md`
+    - Tests:
+      - `tests/tooling/docs/config-contract-doc.test.js` (new)
 
 ### 6.2 docs/config/deprecations.md
 [ ] [DOC] Align deprecations with `docs/config/schema.json`.
@@ -321,6 +350,10 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 
 ### 7.1 docs/perf/indexing-performance.md
 [ ] [DOC] Update thread defaults to current values (16/16/32/16 on 8c/16t).
+[ ] [DOC] Document profiling hooks (`--profile`) and emitted profile artifacts once added.
+    - Touchpoints:
+      - `docs/perf/indexing-performance.md`
+      - `docs/guides/architecture.md`
 
 ### 7.2 docs/perf/indexing-thread-limits.md
 [ ] [DOC] Verify no drift; update only if thread precedence changed.
@@ -489,6 +522,10 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `tools/` (new script)
       - `docs/testing/` for policy
+[ ] [CODE] Wire doc drift checker into CI (fail on drift, print diff summary).
+    - Touchpoints:
+      - `tools/ci/run-suite.js`
+      - `.github/workflows/*`
 
 ---
 

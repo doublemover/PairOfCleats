@@ -30,11 +30,34 @@ export function fromPosix(filePath) {
 }
 
 /**
- * Detect absolute paths for both POSIX and Windows-style inputs.
+ * Detect absolute paths using the current platform's semantics.
  * @param {string} value
  * @returns {boolean}
  */
 export function isAbsolutePath(value) {
+  return isAbsolutePathNative(value);
+}
+
+/**
+ * Detect absolute paths using an explicit platform's semantics.
+ * @param {string} value
+ * @param {'win32'|'posix'} platform
+ * @returns {boolean}
+ */
+export function isAbsolutePathNative(value, platform = process.platform) {
   if (typeof value !== 'string') return false;
-  return path.isAbsolute(value) || path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
+  return platform === 'win32'
+    ? path.win32.isAbsolute(value)
+    : path.posix.isAbsolute(value);
+}
+
+/**
+ * Detect absolute paths across POSIX and Windows semantics.
+ * Only use when you intentionally want cross-platform interpretation.
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isAbsolutePathAny(value) {
+  if (typeof value !== 'string') return false;
+  return path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
 }

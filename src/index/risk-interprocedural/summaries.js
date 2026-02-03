@@ -1,4 +1,5 @@
 import { sha1 } from '../../shared/hash.js';
+import { toPosix } from '../../shared/files.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_ROW_BYTES = 32 * 1024;
@@ -11,7 +12,7 @@ const CAPS = {
 };
 const SEVERITY_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 
-const toPosixPath = (value) => (value ? String(value).replace(/\\/g, '/') : null);
+const toPosixPath = (value) => (value ? toPosix(String(value)) : null);
 
 const normalizeSnippetHash = (raw) => {
   const normalized = String(raw || '').replace(/\s+/g, ' ').trim();

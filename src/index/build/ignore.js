@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import ignore from 'ignore';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
-import { isAbsolutePath, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 
 /**
  * Build ignore matcher for indexing.
@@ -44,7 +44,7 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
   const resolveIgnorePath = (value) => {
     const raw = typeof value === 'string' ? value.trim() : '';
     if (!raw) return null;
-    const resolved = isAbsolutePath(raw)
+    const resolved = isAbsolutePathNative(raw)
       ? path.resolve(raw)
       : path.resolve(root, raw);
     if (resolved !== rootResolved && !resolved.startsWith(`${rootResolved}${path.sep}`)) {

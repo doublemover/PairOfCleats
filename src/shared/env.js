@@ -99,6 +99,14 @@ export function getTestEnvConfig(env = process.env) {
   };
 }
 
+export function getLanceDbEnv(env = process.env) {
+  return {
+    child: normalizeBoolean(env.PAIROFCLEATS_LANCEDB_CHILD),
+    isolate: normalizeBoolean(env.PAIROFCLEATS_LANCEDB_ISOLATE),
+    payload: normalizeString(env.PAIROFCLEATS_LANCEDB_PAYLOAD)
+  };
+}
+
 export function setVerboseEnv(enabled, env = process.env) {
   if (enabled) {
     env.PAIROFCLEATS_VERBOSE = '1';

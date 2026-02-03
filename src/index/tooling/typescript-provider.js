@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
-import { isAbsolutePath } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/files.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
@@ -69,7 +69,7 @@ async function loadTypeScript(toolingConfig, repoRoot) {
 const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
   const override = toolingConfig?.typescript?.tsconfigPath;
   if (!override) return null;
-  const resolved = isAbsolutePath(override) ? override : path.join(rootDir, override);
+  const resolved = isAbsolutePathNative(override) ? override : path.join(rootDir, override);
   if (fsSync.existsSync(resolved)) return resolved;
   log(`[index] TypeScript tsconfig not found at ${resolved}; falling back.`);
   return null;

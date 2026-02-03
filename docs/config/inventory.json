@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T00:18:39.756Z",
+  "generatedAt": "2026-02-03T03:12:05.994Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -42,6 +42,9 @@
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
+      "PAIROFCLEATS_LANCEDB_CHILD",
+      "PAIROFCLEATS_LANCEDB_ISOLATE",
+      "PAIROFCLEATS_LANCEDB_PAYLOAD",
       "PAIROFCLEATS_LOG_FORMAT",
       "PAIROFCLEATS_LOG_LEVEL",
       "PAIROFCLEATS_MAX_OLD_SPACE_MB",
@@ -1265,7 +1268,6 @@
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",
@@ -1405,7 +1407,6 @@
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
         "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
@@ -1512,6 +1513,29 @@
       "name": "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_CHILD",
+      "files": [
+        "src/shared/env.js",
+        "tools/build-embeddings/lancedb.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_ISOLATE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_PAYLOAD",
+      "files": [
+        "src/shared/env.js",
+        "tools/build-embeddings/lancedb.js",
         "tools/config-inventory.js"
       ]
     },
@@ -1700,6 +1724,7 @@
       "files": [
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
+        "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
@@ -1707,7 +1732,6 @@
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
@@ -1829,7 +1853,6 @@
         "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
         "tests/indexing/contracts/loader-matrix-parity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",

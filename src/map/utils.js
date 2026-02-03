@@ -1,7 +1,8 @@
 import path from 'node:path';
+import { toPosix } from '../shared/files.js';
 import { FILE_CATEGORY_RULES } from './constants.js';
 
-export const normalizePath = (value) => String(value || '').replace(/\\/g, '/');
+export const normalizePath = (value) => toPosix(String(value || ''));
 
 export const basename = (value) => {
   if (!value) return '';

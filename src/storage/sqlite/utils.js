@@ -7,6 +7,7 @@ import {
   loadTokenPostings,
   readJsonFile
 } from '../../shared/artifact-io.js';
+import { toPosix } from '../../shared/files.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -50,7 +51,7 @@ export function hasRequiredTables(db, requiredTables) {
  */
 export function normalizeFilePath(value) {
   if (typeof value !== 'string') return null;
-  return value.replace(/\\/g, '/');
+  return toPosix(value);
 }
 
 /**

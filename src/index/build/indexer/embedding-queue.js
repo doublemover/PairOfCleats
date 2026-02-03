@@ -5,7 +5,7 @@ import { getCacheRoot } from '../../../shared/dict-utils.js';
 import { log } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../shared/queue.js';
-import { isAbsolutePath } from '../../../shared/files.js';
+import { isAbsolutePathNative } from '../../../shared/files.js';
 
 export const enqueueEmbeddingJob = async ({
   runtime,
@@ -40,7 +40,7 @@ export const enqueueEmbeddingJob = async ({
       throw new Error(`Embedding job indexDir missing: ${resolvedIndexDir}`);
     }
     const rel = path.relative(buildRoot, resolvedIndexDir);
-    if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) {
+    if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
       throw new Error(`Embedding job indexDir must live under buildRoot (${resolvedIndexDir}).`);
     }
     await ensureQueueDir(queueDir);

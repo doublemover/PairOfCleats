@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { compileSafeRegex, normalizeSafeRegexConfig } from '../shared/safe-regex.js';
-import { isAbsolutePath } from '../shared/files.js';
+import { isAbsolutePathNative } from '../shared/files.js';
 
 const DEFAULT_RULES = {
   version: '1.0.0',
@@ -307,7 +307,7 @@ const mergeRules = (baseList, overrideList) => {
 
 const resolveRulesFromPath = (rootDir, rulesPath) => {
   if (!rulesPath || typeof rulesPath !== 'string') return null;
-  const absPath = isAbsolutePath(rulesPath) ? rulesPath : path.join(rootDir, rulesPath);
+  const absPath = isAbsolutePathNative(rulesPath) ? rulesPath : path.join(rootDir, rulesPath);
   if (!fs.existsSync(absPath)) return null;
   try {
     const raw = fs.readFileSync(absPath, 'utf8');

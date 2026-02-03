@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { isAbsolutePath, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import { renderGraphContextPack } from '../../retrieval/output/graph-context-pack.js';
 import { validateGraphContextPack } from '../../contracts/validators/analysis.js';
@@ -53,9 +53,9 @@ const parseSeedRef = (raw, repoRoot) => {
   if (type === 'chunk') return { type: 'chunk', chunkUid: suffix };
   if (type === 'symbol') return { type: 'symbol', symbolId: suffix };
   if (type === 'file') {
-    const abs = isAbsolutePath(suffix) ? suffix : path.resolve(repoRoot, suffix);
+    const abs = isAbsolutePathNative(suffix) ? suffix : path.resolve(repoRoot, suffix);
     const rel = path.relative(repoRoot, abs);
-    if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) {
+    if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
       throw new Error('file: seeds must resolve to a repo-relative path.');
     }
     return { type: 'file', path: toPosix(rel) };

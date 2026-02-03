@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { toPosix } from '../../src/shared/files.js';
 import { getCombinedOutput } from '../helpers/stdio.js';
 import { cleanup, root } from './smoke-utils.js';
 
@@ -114,7 +115,7 @@ try {
   if (!filterHits.length) {
     fail('search filter test failed: no results returned');
   }
-  const badFilterHit = filterHits.find((hit) => !(hit.file || '').replace(/\\/g, '/').endsWith('src/index.js'));
+  const badFilterHit = filterHits.find((hit) => !toPosix(hit.file || '').endsWith('src/index.js'));
   if (badFilterHit) {
     fail('search filter test failed: file filter mismatch');
   }

@@ -18,7 +18,7 @@ import {
   normalizeEmbeddingVectorInPlace
 } from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
-import { fromPosix } from '../../src/shared/files.js';
+import { fromPosix, toPosix } from '../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../src/shared/env.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig, resolveSqlitePaths } from '../dict-utils.js';
 import {
@@ -554,7 +554,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           pendingChunks = 0;
         };
         for (const [relPath, items] of fileEntries) {
-          const normalizedRel = relPath.replace(/\\/g, '/');
+          const normalizedRel = toPosix(relPath);
           const chunkSignature = buildChunkSignature(items);
           const manifestEntry = manifestFiles[normalizedRel] || null;
           const manifestHash = typeof manifestEntry?.hash === 'string' ? manifestEntry.hash : null;
@@ -718,7 +718,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
         clampQuantizedVectorsInPlace(docVectors);
         clampQuantizedVectorsInPlace(mergedVectors);
 
-        await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_uint8.json'), {
+        const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
+        const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
+        const codeVectorsPath = path.join(indexDir, 'dense_vectors_code_uint8.json');
+        await writeJsonObjectFile(mergedVectorsPath, {
           fields: {
             model: modelId,
             dims: finalDims,
@@ -730,7 +733,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           arrays: { vectors: mergedVectors },
           atomic: true
         });
-        await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_doc_uint8.json'), {
+        await writeJsonObjectFile(docVectorsPath, {
           fields: {
             model: modelId,
             dims: finalDims,
@@ -742,7 +745,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           arrays: { vectors: docVectors },
           atomic: true
         });
-        await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_code_uint8.json'), {
+        await writeJsonObjectFile(codeVectorsPath, {
           fields: {
             model: modelId,
             dims: finalDims,
@@ -787,6 +790,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             indexDir,
             variant: 'merged',
             vectors: mergedVectors,
+            vectorsPath: mergedVectorsPath,
             dims: finalDims,
             modelId,
             quantization,
@@ -801,6 +805,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             indexDir,
             variant: 'doc',
             vectors: docVectors,
+            vectorsPath: docVectorsPath,
             dims: finalDims,
             modelId,
             quantization,
@@ -815,6 +820,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             indexDir,
             variant: 'code',
             vectors: codeVectors,
+            vectorsPath: codeVectorsPath,
             dims: finalDims,
             modelId,
             quantization,

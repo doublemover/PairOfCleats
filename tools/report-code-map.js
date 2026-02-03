@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
+import { toPosix } from '../src/shared/files.js';
 import { buildCodeMap, buildNodeList, buildMapCacheKey } from '../src/map/build-map.js';
 import { renderDot } from '../src/map/dot-writer.js';
 import { renderSvgHtml } from '../src/map/html-writer.js';
@@ -173,7 +174,7 @@ const resolveThreeUrl = (targetPath) => {
   const modulePath = path.join(repoRoot, 'node_modules', 'three', 'build', 'three.module.js');
   if (!fs.existsSync(modulePath)) return '';
   if (targetPath) {
-    const rel = path.relative(path.dirname(targetPath), modulePath).replace(/\\/g, '/');
+    const rel = toPosix(path.relative(path.dirname(targetPath), modulePath));
     return rel.startsWith('.') ? rel : `./${rel}`;
   }
   return pathToFileURL(modulePath).href;
