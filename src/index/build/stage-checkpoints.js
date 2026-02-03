@@ -122,16 +122,24 @@ export const createStageCheckpointRecorder = ({
   const flush = async () => {
     const summary = buildSummary();
     if (buildRoot) {
-      await updateBuildState(buildRoot, {
-        stageCheckpoints: {
-          [mode || 'unknown']: summary
-        }
-      });
+      try {
+        await updateBuildState(buildRoot, {
+          stageCheckpoints: {
+            [mode || 'unknown']: summary
+          }
+        });
+      } catch (err) {
+        console.warn(`[metrics] Failed to update build state checkpoints: ${err?.message || err}`);
+      }
     }
     if (metricsDir) {
       const fileName = mode ? `stage-audit-${mode}.json` : 'stage-audit.json';
-      await fs.mkdir(metricsDir, { recursive: true });
-      await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
+      try {
+        await fs.mkdir(metricsDir, { recursive: true });
+        await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
+      } catch (err) {
+        console.warn(`[metrics] Failed to write stage checkpoints: ${err?.message || err}`);
+      }
     }
     return summary;
   };

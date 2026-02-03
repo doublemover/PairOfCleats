@@ -1,6 +1,11 @@
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { readJsonFile } from '../../src/shared/artifact-io.js';
+import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
+import { normalizeHnswConfig } from '../../src/shared/hnsw.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { runIsolatedNodeScriptSync } from '../../src/shared/subprocess.js';
+import { dequantizeUint8ToFloat32 } from '../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
 const require = createRequire(import.meta.url);
@@ -16,6 +21,16 @@ const loadHnswLib = () => {
     hnswLoadError = err;
   }
   return { lib: hnswLib, error: hnswLoadError };
+};
+
+const resolveVectorsFromFile = (vectorsPath) => {
+  if (!vectorsPath) return null;
+  try {
+    const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
+    if (Array.isArray(data?.arrays?.vectors)) return data.arrays.vectors;
+    if (Array.isArray(data?.vectors)) return data.vectors;
+  } catch {}
+  return null;
 };
 
 export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }) => {
@@ -141,3 +156,138 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     getStats
   };
 };
+
+const writeHnswIndexInProcess = async ({
+  indexPath,
+  metaPath,
+  modelId,
+  dims,
+  quantization,
+  scale,
+  vectors,
+  vectorsPath,
+  normalize,
+  config,
+  logger
+}) => {
+  const resolvedVectors = Array.isArray(vectors) && vectors.length
+    ? vectors
+    : resolveVectorsFromFile(vectorsPath);
+  if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
+    return { skipped: true, reason: 'empty' };
+  }
+  const resolvedConfig = normalizeHnswConfig(config);
+  if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
+  const builder = createHnswBuilder({
+    enabled: resolvedConfig.enabled,
+    config: resolvedConfig,
+    totalChunks: resolvedVectors.length,
+    mode: 'embeddings',
+    logger
+  });
+  for (let i = 0; i < resolvedVectors.length; i += 1) {
+    const vec = resolvedVectors[i];
+    if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
+    const floatVec = dequantizeUint8ToFloat32(
+      vec,
+      quantization?.minVal,
+      quantization?.maxVal,
+      quantization?.levels
+    );
+    if (!floatVec) continue;
+    if (normalize !== false) {
+      normalizeEmbeddingVectorInPlace(floatVec);
+    }
+    builder.addVector(i, floatVec);
+  }
+  return builder.writeIndex({
+    indexPath,
+    metaPath,
+    modelId,
+    dims,
+    quantization,
+    scale
+  });
+};
+
+export async function writeHnswIndex({
+  indexPath,
+  metaPath,
+  modelId,
+  dims,
+  quantization,
+  scale,
+  vectors,
+  vectorsPath,
+  normalize = true,
+  config,
+  isolate = false,
+  skipIsolate = false,
+  logger
+}) {
+  const resolvedConfig = normalizeHnswConfig(config);
+  if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
+  if (isolate && !skipIsolate) {
+    if (!vectorsPath) {
+      return { skipped: true, reason: 'missing vectors path for isolate' };
+    }
+    const moduleUrl = new URL('./hnsw.js', import.meta.url).href;
+    const payload = {
+      indexPath,
+      metaPath,
+      modelId,
+      dims,
+      quantization,
+      scale,
+      vectorsPath,
+      normalize,
+      config: resolvedConfig,
+      isolate: false,
+      skipIsolate: true
+    };
+    const script = `
+      const payload = ${JSON.stringify(payload)};
+      const run = async () => {
+        const mod = await import(${JSON.stringify(moduleUrl)});
+        const result = await mod.writeHnswIndex(payload);
+        process.stdout.write(JSON.stringify(result || {}));
+      };
+      run().catch((err) => {
+        console.error(err && err.message ? err.message : String(err));
+        process.exit(2);
+      });
+    `;
+    const result = runIsolatedNodeScriptSync({
+      script,
+      env: process.env,
+      maxOutputBytes: 1024 * 1024,
+      outputMode: 'string',
+      captureStdout: true,
+      captureStderr: true,
+      rejectOnNonZeroExit: false,
+      name: 'hnsw'
+    });
+    if (result.exitCode !== 0) {
+      const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+      throw new Error(`HNSW isolate failed${detail ? `: ${detail}` : ''}`);
+    }
+    let parsed = {};
+    try {
+      parsed = typeof result.stdout === 'string' ? JSON.parse(result.stdout) : {};
+    } catch {}
+    return parsed || { skipped: false };
+  }
+  return writeHnswIndexInProcess({
+    indexPath,
+    metaPath,
+    modelId,
+    dims,
+    quantization,
+    scale,
+    vectors,
+    vectorsPath,
+    normalize,
+    config: resolvedConfig,
+    logger
+  });
+}

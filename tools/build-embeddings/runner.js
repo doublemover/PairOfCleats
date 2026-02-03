@@ -48,7 +48,7 @@ import {
   runBatched,
   validateCachedDims
 } from './embed.js';
-import { createHnswBuilder } from './hnsw.js';
+import { createHnswBuilder, writeHnswIndex } from './hnsw.js';
 import { writeLanceDbIndex } from './lancedb.js';
 import { updatePieceManifest } from './manifest.js';
 import { updateSqliteDense } from './sqlite-dense.js';
@@ -364,7 +364,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
           doc: resolveHnswPaths(indexDir, 'doc'),
           code: resolveHnswPaths(indexDir, 'code')
         };
-        const hnswBuilders = {
+        const hnswIsolate = hnswConfig.enabled
+          ? (isTestingEnv() || process.platform === 'win32')
+          : false;
+        const hnswEnabled = hnswConfig.enabled && !hnswIsolate;
+        const hnswBuilders = hnswEnabled ? {
           merged: createHnswBuilder({
             enabled: hnswConfig.enabled,
             config: hnswConfig,
@@ -386,15 +390,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
             mode,
             logger
           })
-        };
+        } : null;
         const addHnswFloatVector = (target, chunkIndex, floatVec) => {
-          if (!hnswConfig.enabled || !floatVec || !floatVec.length) return;
-          const builder = hnswBuilders[target];
+          if (!hnswEnabled || !floatVec || !floatVec.length) return;
+          const builder = hnswBuilders?.[target];
           if (!builder) return;
           builder.addVector(chunkIndex, floatVec);
         };
         const addHnswFromQuantized = (target, chunkIndex, quantizedVec) => {
-          if (!hnswConfig.enabled || !quantizedVec || !quantizedVec.length) return;
+          if (!hnswEnabled || !quantizedVec || !quantizedVec.length) return;
           const floatVec = dequantizeUint8ToFloat32(
             quantizedVec,
             quantization.minVal,
@@ -501,7 +505,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               codeVector: embedCode,
               docVector: embedDoc,
               zeroVector: zeroVec,
-              addHnswVectors: hnswConfig.enabled ? {
+              addHnswVectors: hnswEnabled ? {
                 merged: (id, vec) => addHnswFloatVector('merged', id, vec),
                 doc: (id, vec) => addHnswFloatVector('doc', id, vec),
                 code: (id, vec) => addHnswFloatVector('code', id, vec)
@@ -635,7 +639,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   codeVectors[chunkIndex] = codeVec;
                   docVectors[chunkIndex] = docVec;
                   mergedVectors[chunkIndex] = mergedVec;
-                  if (hnswConfig.enabled) {
+                  if (hnswEnabled) {
                     addHnswFromQuantized('merged', chunkIndex, mergedVec);
                     addHnswFromQuantized('doc', chunkIndex, docVec);
                     addHnswFromQuantized('code', chunkIndex, codeVec);
@@ -703,7 +707,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     codeVectors[chunkIndex] = codeVec;
                     docVectors[chunkIndex] = docVec;
                     mergedVectors[chunkIndex] = mergedVec;
-                    if (hnswConfig.enabled) {
+                    if (hnswEnabled) {
                       addHnswFromQuantized('merged', chunkIndex, mergedVec);
                       addHnswFromQuantized('doc', chunkIndex, docVec);
                       addHnswFromQuantized('code', chunkIndex, codeVec);
@@ -815,22 +819,57 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         if (hnswConfig.enabled) {
           const hnswEntries = [
-            { target: 'merged', label: `${mode}/merged`, paths: hnswPaths.merged },
-            { target: 'doc', label: `${mode}/doc`, paths: hnswPaths.doc },
-            { target: 'code', label: `${mode}/code`, paths: hnswPaths.code }
+            {
+              target: 'merged',
+              label: `${mode}/merged`,
+              paths: hnswPaths.merged,
+              vectors: mergedVectors,
+              vectorsPath: mergedVectorsPath
+            },
+            {
+              target: 'doc',
+              label: `${mode}/doc`,
+              paths: hnswPaths.doc,
+              vectors: docVectors,
+              vectorsPath: docVectorsPath
+            },
+            {
+              target: 'code',
+              label: `${mode}/code`,
+              paths: hnswPaths.code,
+              vectors: codeVectors,
+              vectorsPath: codeVectorsPath
+            }
           ];
           for (const entry of hnswEntries) {
-            const builder = hnswBuilders[entry.target];
-            if (!builder) continue;
             try {
-              hnswResults[entry.target] = await builder.writeIndex({
-                indexPath: entry.paths.indexPath,
-                metaPath: entry.paths.metaPath,
-                modelId,
-                dims: finalDims,
-                quantization,
-                scale: denseScale
-              });
+              if (hnswIsolate) {
+                hnswResults[entry.target] = await writeHnswIndex({
+                  indexPath: entry.paths.indexPath,
+                  metaPath: entry.paths.metaPath,
+                  modelId,
+                  dims: finalDims,
+                  quantization,
+                  scale: denseScale,
+                  vectors: entry.vectors,
+                  vectorsPath: entry.vectorsPath,
+                  normalize: embeddingNormalize,
+                  config: hnswConfig,
+                  isolate: true,
+                  logger
+                });
+              } else {
+                const builder = hnswBuilders?.[entry.target];
+                if (!builder) continue;
+                hnswResults[entry.target] = await builder.writeIndex({
+                  indexPath: entry.paths.indexPath,
+                  metaPath: entry.paths.metaPath,
+                  modelId,
+                  dims: finalDims,
+                  quantization,
+                  scale: denseScale
+                });
+              }
               if (hnswResults[entry.target] && !hnswResults[entry.target].skipped) {
                 log(`[embeddings] ${entry.label}: wrote HNSW index (${hnswResults[entry.target].count} vectors).`);
               }
