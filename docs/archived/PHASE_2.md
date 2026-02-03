@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 2 Plan (Artifact Contracts + Validation Gates)
 
 Intent: implement Phase 2 with hard breaks and a strict contract layer so artifact discovery, schemas, validation, promotion, and compatibility are manifest-driven and fail-closed.
@@ -38,3 +43,9 @@ Intent: implement Phase 2 with hard breaks and a strict contract layer so artifa
 - `src/shared/artifact-io.js` does not reference `pieces/manifest.json` at all; it uses filename heuristics + precedence.
 - `src/index/validate.js` resolves artifacts by direct file presence (no manifest), so strict validation will need a new manifest-driven path.
 - Current artifact schemas allow `additionalProperties: true` broadly; Phase 2 will need tightened policies + extension namespaces.
+
+
+
+
+
+

@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 ## Phase 6 -- Universal Relations v2 (Callsites, Args, and Evidence)
 
 ### Objective
@@ -538,5 +543,11 @@ This phase explicitly targets:
   - required keys: schemaVersion, artifact="call_sites", format="jsonl-sharded", generatedAt, compression,
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
   - parts[] required keys: path, records, bytes (checksum optional)
+
+
+
+
+
+
 
 

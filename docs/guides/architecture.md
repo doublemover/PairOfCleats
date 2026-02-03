@@ -19,7 +19,7 @@ graph TD
 References:
 - docs/config/contract.md
 - docs/config/hard-cut.md
-- docs/phases/phase-4/runtime-envelope.md
+- docs/specs/runtime-envelope.md
 
 ### 1) Discovery and sharding
 
@@ -94,8 +94,8 @@ graph TD
 ```
 
 References:
-- docs/phases/phase-3/watch-atomicity.md
-- docs/phases/phase-3/build-state-integrity.md
+- docs/specs/watch-atomicity.md
+- docs/specs/build-state-integrity.md
 
 ## Search (query)
 
@@ -200,3 +200,4 @@ References:
 - docs/contracts/search-cli.md
 - docs/sqlite/ann-extension.md
 - docs/guides/external-backends.md
+

@@ -9,7 +9,7 @@
 
 This spec assumes the following contract exists and is implemented (or implemented in the same change set):
 
-- **Identity + Symbol contracts**: `docs/phases/phase-8/identity-and-symbol-contracts.md`  
+- **Identity + Symbol contracts**: `docs/specs/identity-and-symbol-contracts.md`  
   - `docId` (int), `chunkId` (range hash), `chunkUid` (stable-ish)
   - `ChunkRef`, `SymbolRef`, join precedence rules
 
@@ -306,5 +306,6 @@ These are the most relevant existing modules to modify:
 
 3. `tests/tooling/providers/provider-registry-strict-missing-chunkuid.test.js`
    - Provide a target missing chunkUid; assert strict mode fails fast with actionable error.
+
 
 

@@ -16,7 +16,7 @@
 - Phase 15 -- Federation & Multi-Repo (Workspaces, Catalog, Federated Search)
 - Phase 16 -- Prose Ingestion + Retrieval Routing Correctness (PDF/DOCX + FTS policy)
 - Phase 17 -- Vector-Only Profile (Embeddings-First, Build + Search w/o Sparse Postings)
-- Phase 20 -- Distribution & Platform Hardening (Release Matrix, Packaging, & Optional Python)
+- Phase 18 -- Distribution & Platform Hardening (Release Matrix, Packaging, & Optional Python)
 
 ---
 
@@ -25,6 +25,17 @@
 ### Objective
 
 Enable first-class *workspace* workflows: index and query across **multiple repositories** in a single operation (CLI/API/MCP), with correct cache keying, compatibility gating, deterministic result merging, and shared cache reuse. The system must be explicit about repo identity and index compatibility so multi-repo results are reproducible, debuggable, and safe by default.
+
+Additional docs that MUST be updated if Phase 15 adds new behavior or config:
+- `docs/specs/workspace-config.md`
+- `docs/specs/workspace-manifest.md`
+- `docs/specs/federated-search.md`
+- `docs/specs/federation-cohorts.md`
+- `docs/specs/federated-query-cache.md`
+- `docs/specs/cache-cas-gc.md`
+- `docs/contracts/compatibility-key.md`
+- `docs/config/schema.json` + `docs/config/contract.md`
+- `docs/guides/commands.md` (workspace/federation CLI flags)
 
 ### 15.1 Workspace configuration, repo identity, and repo-set IDs
 
@@ -74,6 +85,7 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 - `tools/dict-utils.js` (repo root resolution, `getRepoId`, cacheRoot overrides)
 - `src/shared/stable-json.js` (stable serialization for hashing)
 - New: `src/retrieval/federation/workspace.js` — loader + validator + `repoSetId`
+- `docs/specs/workspace-config.md` (schema/normalization rules)
 
 #### Tests
 
@@ -102,6 +114,7 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
   - [ ] Write under `<cacheRoot>/federation/<repoSetId>/workspace_manifest.json` (or equivalent) so all federation artifacts are colocated.
   - [ ] Include:
     - [ ] `schemaVersion`, `generatedAt`, `repoSetId`
+    - [ ] `manifestHash` over search-relevant state (stable serialization; exclude display-only fields)
     - [ ] `repos[]` with `repoId`, `repoRoot`, `alias?`, `tags?`
     - [ ] For each repo: `buildId`, per-mode `indexDir`, per-mode `indexSignature` (or a compact signature hash), `sqlitePaths`, and `compatibilityKey`
     - [ ] Diagnostics: missing indexes, excluded modes, policy overrides applied
@@ -123,6 +136,7 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 - `build_index.js` (add `--workspace` or create `workspace_build.js`)
 - New: `src/retrieval/federation/catalog.js` (cacheRoot scanning)
 - New: `src/retrieval/federation/manifest.js` (manifest writer/reader)
+- `docs/specs/workspace-manifest.md` (manifest schema + manifestHash rules)
 
 #### Tests
 
@@ -133,6 +147,8 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
   - [ ] Records compatibilityKey for each indexed mode (when present).
 - [ ] `tests/retrieval/federation/workspace-manifest-determinism.test.js`
   - [ ] Stable/deterministic for the same underlying catalog state.
+- [ ] `tests/retrieval/federation/workspace-manifest-hash-invalidation.test.js`
+  - [ ] `manifestHash` changes when a repo indexSignature changes; remains stable otherwise.
 - [ ] `tests/retrieval/federation/build-pointer-invalid-clears.test.js`
   - [ ] Invalid `builds/current.json` does not preserve stale build IDs (treated as “pointer invalid”).
 
@@ -186,6 +202,7 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 - `tools/mcp/repo.js` / `tools/mcp-server.js` (workspace-aware tool inputs)
 - New: `src/retrieval/federation/coordinator.js`
 - New: `src/retrieval/federation/merge.js` (RRF + deterministic tie-breakers)
+- `docs/specs/federated-search.md` (request/response contract + merge policy)
 
 #### Tests
 
@@ -228,6 +245,7 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 - `src/retrieval/cli-index.js` (read compatibilityKey from index_state / manifest)
 - `src/retrieval/federation/manifest.js` (persist compatibilityKey per repo/mode)
 - `src/retrieval/federation/coordinator.js` (cohort partitioning)
+- `docs/contracts/compatibility-key.md` (compatibility key definition)
 
 #### Tests
 
@@ -341,6 +359,215 @@ Enable first-class *workspace* workflows: index and query across **multiple repo
 
 ---
 
+## Phase 15 Augmentations (authoritative alignment + implementation breakdown)
+
+This section augments the copied roadmap above using the Phase 15 rewrite pack in `future/15/`. Where conflicts exist, this section takes precedence.
+
+### Canonical specs and required patches
+
+Phase 15 MUST align with these authoritative docs:
+
+- `docs/specs/workspace-config.md` (workspace config schema, v1 rules)
+- `docs/specs/workspace-manifest.md` (workspace manifest schema + manifestHash)
+- `docs/specs/federated-search.md` (federated request/response contract)
+- `docs/contracts/compatibility-key.md` + `src/contracts/compatibility.js` (compatibility key)
+
+Required spec patches/drafts (from `future/15/`):
+
+- Apply `future/15/SPEC_FEDERATED_SEARCH_PATCH.md` to `docs/specs/federated-search.md`
+  - workspacePath allowlist and path redaction defaults
+- Add `docs/specs/federation-cohorts.md` (from `future/15/SPEC_FEDERATION_COHORTS.md`)
+- Draft missing specs referenced by the rewrite:
+  - `docs/specs/federated-query-cache.md` (keying, atomicity, eviction, concurrency)
+  - `docs/specs/cache-cas-gc.md` (cache taxonomy, CAS layout, GC policy)
+
+### Corrections to the copied roadmap
+
+- **Workspace manifest source**: must be driven by the workspace repo list; cache-root scans are debug-only (do not rely on `<cacheRoot>/repos/*` for federation correctness).
+- **workspacePath security**: API/MCP must require allowlisted workspacePath or workspaceId mapping; default to path redaction in responses.
+- **Cohort gating**: use `cohortKey` (fallback `compatibilityKey`) per mode; do not silently mix cohorts by default.
+- **No legacy path resolution**: schemaVersion 1 forbids registry/catalog ids and per-repo build overrides.
+- **Canonical identity**: every cache key must use `repoRootCanonical` and `repoId` derived from realpath + casing normalization.
+
+---
+
+## 15.1 Workspace configuration + repo identity (canonicalization + repoSetId)
+
+- [ ] Implement strict workspace loader (JSONC-first, schemaVersion=1):
+  - [ ] `root` accepts absolute or workspaceDir-relative paths only.
+  - [ ] Unknown keys hard-fail at all object levels.
+  - [ ] Resolve repo root via `resolveRepoRoot` even if user points to subdir/file.
+  - [ ] Canonicalize to `repoRootCanonical` (realpath + win32 casing normalization).
+  - [ ] Compute `repoId = getRepoId(repoRootCanonical)`.
+  - [ ] Normalize metadata deterministically (alias/tags/enabled/priority).
+  - [ ] Enforce uniqueness (repoRootCanonical, repoId, alias case-insensitive).
+- [ ] Compute `repoSetId` (order-independent) from sorted `{ repoId, repoRootCanonical }`:
+  - [ ] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
+- [ ] Centralize identity helpers across CLI/API/MCP to ensure path-equivalent inputs share cache keys.
+
+Touchpoints:
+- `tools/dict-utils.js` (resolveRepoRoot, getRepoId, cache roots)
+- `src/shared/jsonc.js`, `src/shared/stable-json.js`, `src/shared/hash.js`
+- New: `src/workspace/config.js`
+
+Tests:
+- [ ] `tests/workspace/config-parsing.test.js`
+- [ ] `tests/workspace/repo-set-id-determinism.test.js`
+- [ ] `tests/workspace/repo-canonicalization-dedup.test.js`
+- [ ] `tests/workspace/alias-uniqueness-and-tags-normalization.test.js`
+
+---
+
+## 15.2 Workspace manifest + workspace build orchestration
+
+- [ ] Generate `workspace_manifest.json` from the workspace repo list (not cache scanning):
+  - [ ] Location: `<federationCacheRoot>/federation/<repoSetId>/workspace_manifest.json`
+  - [ ] `federationCacheRoot` from workspace `cacheRoot` (workspaceDir-relative allowed) or `getCacheRoot()`
+  - [ ] Stable serialization (`stableStringify`) and deterministic ordering (sorted by repoId)
+  - [ ] For each repo/mode:
+    - [ ] `buildId`, `indexDir`, `indexSignatureHash = "is1-" + sha1(buildIndexSignature(indexDir))`
+    - [ ] `cohortKey` (preferred) and `compatibilityKey` (fallback) from `index_state.json`
+    - [ ] sqlite signature (`size:mtimeMs`) if present
+  - [ ] `manifestHash = "wm1-" + sha1(stableStringify(search-relevant state))`
+  - [ ] Invalid/unreadable `builds/current.json` is treated as missing pointer
+- [ ] CLI ergonomics:
+  - [ ] `pairofcleats workspace manifest --workspace <path>` (generate/refresh; print path + hashes)
+  - [ ] `pairofcleats workspace status --workspace <path>` (human readable)
+- [ ] Add workspace-aware build orchestration:
+  - [ ] `pairofcleats index build --workspace <path>` or `pairofcleats workspace build`
+  - [ ] Each repo uses its own `.pairofcleats.json` (no per-repo overrides in v1)
+  - [ ] Concurrency-limited repo builds
+  - [ ] Regenerate manifest after builds
+
+Touchpoints:
+- `tools/dict-utils.js` (cache roots, build pointer resolution)
+- `src/retrieval/index-cache.js#buildIndexSignature`
+- New: `src/workspace/manifest.js`
+- `build_index.js` or new `tools/workspace-build.js`
+
+Tests:
+- [ ] `tests/workspace/manifest-determinism.test.js`
+- [ ] `tests/workspace/manifest-hash-invalidation.test.js`
+- [ ] `tests/workspace/build-pointer-invalid-treated-missing.test.js`
+- [ ] `tests/workspace/index-signature-sharded-variants.test.js`
+
+---
+
+## 15.3 Federated search orchestration (CLI/API/MCP)
+
+- [ ] Implement federated search entrypoint:
+  - [ ] CLI: `pairofcleats search --workspace <path> "<query>" [workspace flags]`
+  - [ ] Disallow `--repo` when `--workspace` is present
+  - [ ] Workspace flags: `--select`, `--tag`, `--repo-filter`, `--include-disabled`, `--merge`, `--top-per-repo`, `--concurrency`
+- [ ] Single federation coordinator shared by CLI/API/MCP:
+  - [ ] Load workspace config + manifest
+  - [ ] Apply deterministic selection
+  - [ ] Apply cohort gating (15.4)
+  - [ ] Fanout per-repo searches with bounded concurrency
+  - [ ] Merge results with RRF and deterministic tie breakers
+  - [ ] Emit stable JSON with required meta fields
+- [ ] Output invariants:
+  - [ ] Each hit includes `repoId`, `repoAlias`, `globalId = "${repoId}:${hit.id}"`
+  - [ ] No per-hit absolute paths unless debug.includePaths=true
+- [ ] API: add `POST /search/federated` or extend `/search` with a `workspace` object
+  - [ ] Enforce allowed workspace paths and repo-root allowlist
+  - [ ] Default to path redaction (see spec patch)
+- [ ] MCP: add `search_workspace` tool with stable output
+
+Touchpoints:
+- `bin/pairofcleats.js`
+- `src/retrieval/cli.js`, `src/retrieval/cli-args.js`
+- `src/integrations/core/index.js`
+- `tools/api/router.js`
+- `tools/mcp/repo.js`, `tools/mcp-server.js`
+- New: `src/retrieval/federation/{coordinator,select,merge,args}.js`
+
+Tests:
+- [ ] `tests/retrieval/federation/search-multi-repo-basic.test.js`
+- [ ] `tests/retrieval/federation/search-determinism.test.js`
+- [ ] `tests/retrieval/federation/repo-selection.test.js`
+- [ ] `tests/api/federated-search-workspace-allowlist.test.js` (from spec patch)
+- [ ] `tests/api/federated-search-redacts-paths.test.js` (from spec patch)
+
+---
+
+## 15.4 Cohort gating (compatibility safety)
+
+- [ ] Compute `cohortKey` per mode at index time (persist to `index_state.json`):
+  - [ ] Use mode-scoped inputs (tokenizationKey, embeddingsKey, languagePolicyKey, schema hash, etc.)
+  - [ ] Back-compat: if missing, fall back to `compatibilityKey`
+- [ ] Update workspace manifest to include `cohortKey` and include it in `manifestHash`
+- [ ] Partition repos by cohort per mode in federation coordinator:
+  - [ ] Default policy chooses the highest-ranked cohort and excludes others with warnings
+  - [ ] Strict policy errors on multi-cohort
+  - [ ] Explicit cohort selection supported
+  - [ ] Optional unsafeMix flag (loud warning)
+
+Touchpoints:
+- `src/contracts/compatibility.js` (add `buildCohortKey`)
+- `src/index/build/indexer/signatures.js` or index writer step
+- `src/workspace/manifest.js`
+- `src/retrieval/federation/cohort.js` (new)
+
+Tests:
+- [ ] `tests/retrieval/federation/compat-cohort-defaults.test.js`
+- [ ] `tests/retrieval/federation/compat-cohort-determinism.test.js`
+- [ ] `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
+
+---
+
+## 15.5 Federated query cache (keying + invalidation + canonicalization)
+
+- [ ] Introduce federated query cache store:
+  - [ ] `<federationCacheRoot>/federation/<repoSetId>/queryCache.json`
+  - [ ] Atomic writes; deterministic eviction (stable sort)
+- [ ] Cache key must include:
+  - [ ] `repoSetId`, `manifestHash` (primary invalidator)
+  - [ ] normalized selection inputs
+  - [ ] cohort policy + chosen keys
+  - [ ] query and ranking knobs (`top`, `perRepoTop`, `rrfK`, backend, filters, etc.)
+  - [ ] stable serialization (`stableStringify`)
+- [ ] Canonicalize repo-path caches everywhere federation touches:
+  - [ ] API and MCP cache keys use `repoRootCanonical`
+  - [ ] Invalid `builds/current.json` clears build id and caches
+
+Touchpoints:
+- `src/retrieval/query-cache.js`
+- `src/retrieval/index-cache.js`
+- `src/shared/stable-json.js`
+- `tools/api/router.js`, `tools/mcp/repo.js`
+
+Tests:
+- [ ] `tests/retrieval/federation/query-cache-key-stability.test.js`
+- [ ] `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
+- [ ] `tests/retrieval/federation/mcp-repo-canonicalization.test.js`
+- [ ] `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
+
+---
+
+## 15.6 Cache taxonomy, CAS, GC, and scale-out ergonomics
+
+- [ ] Document cache layers (global, repo-scoped, workspace-scoped)
+- [ ] Add CAS spec + helpers and a GC command:
+  - [ ] `pairofcleats cache gc --dry-run`
+  - [ ] Preserve objects referenced by manifests/snapshots; delete unreferenced objects deterministically
+  - [ ] Safe under concurrency
+- [ ] Concurrency limits for workspace indexing and federated fanout
+
+Touchpoints:
+- `tools/dict-utils.js` (global cache dirs)
+- `src/shared/cache.js`
+- `src/index/build/file-processor/cached-bundle.js`
+- New: `src/shared/cas.js`, `tools/cache-gc.js`
+
+Tests:
+- [ ] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
+- [ ] `tests/indexing/cache/cas-reuse-across-repos.test.js`
+- [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
+- [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
+
+---
+
 ## Phase 16 — Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
 
 ### Objective
@@ -353,6 +580,14 @@ Deliver first-class document ingestion (PDF + DOCX) and prose retrieval correctn
 - Retrieval helpers are hardened so constraints (`allowedIds`), weighting, and table availability cannot silently produce wrong or under-filled results.
 
 Note: vector-only indexing profile work is handled in **Phase 17 — Vector-Only Index Profile (Embeddings-First)**.
+
+Additional docs that MUST be updated if Phase 16 adds new behavior or config:
+- `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` (metaV2 + chunk_meta contract surface)
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md` + `docs/config/inventory-notes.md`
+- `docs/guides/commands.md` (new flags for extraction/routing)
+- `docs/testing/truth-table.md` (optional-deps + skip policy)
+- `docs/specs/document-extraction.md` (new; extraction contract + failure semantics)
+- `docs/specs/prose-routing.md` (new; routing defaults + FTS explain contract)
 
 ### 16.1 Optional-dependency document extractors (PDF/DOCX) with deterministic structured output
 
@@ -382,7 +617,11 @@ Touchpoints:
 - `src/index/extractors/pdf.js` (new)
 - `src/index/extractors/docx.js` (new)
 - `src/shared/capabilities.js`
+- `src/shared/optional-deps.js` (tryImport/tryRequire behavior for optional deps)
 - Refactor/reuse logic from `tools/bench/micro/extractors.js` into the runtime extractors (bench remains a consumer).
+- `docs/specs/document-extraction.md` (new; extractor contract + failure semantics)
+ - `src/index/build/build-state.js` (record extractor versions + capability flags)
+ - `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
 
 #### Tests
 - [ ] `tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js`
@@ -393,6 +632,8 @@ Touchpoints:
   - [ ] Extract a fixture PDF and assert known phrase is present.
 - [ ] `tests/indexing/extracted-prose/docx-smoke.test.js` (conditional; only when deps available)
   - [ ] Extract a fixture DOCX and assert known phrase is present.
+ - [ ] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
+   - [ ] Build-state records extractor version/capability info when extraction is enabled.
 
 ### 16.2 Deterministic doc chunking (page/paragraph aware) + doc-mode limits that scale to large files
 
@@ -417,6 +658,7 @@ Touchpoints:
 - `src/index/chunking/formats/pdf.js` (new)
 - `src/index/chunking/formats/docx.js` (new)
 - `src/index/chunking/limits.js`
+- `docs/specs/document-extraction.md` (chunking contract + anchors)
 
 #### Tests
 - [ ] `tests/indexing/chunking/pdf-chunking-deterministic.test.js`
@@ -447,6 +689,8 @@ Touchpoints:
 - [ ] Record per-file extraction outcomes:
   - [ ] Success: record page/paragraph counts and warnings.
   - [ ] Failure/skip: record reason (`missing_dependency`, `extract_failed`, `oversize`, etc.) and include actionable guidance.
+- [ ] Emit a lightweight `extraction_report.json` per build (counts + per-file status + extractor versions) for audit/regression.
+  - [ ] Include `extractionIdentityHash` (bytes hash + extractor version + normalization policy) in the report.
 
 - [ ] Chunking dispatch registration:
   - [ ] Update `src/index/chunking/dispatch.js` to route `.pdf`/`.docx` through the document chunkers under the same gating.
@@ -457,14 +701,27 @@ Touchpoints:
 - `src/index/build/file-processor.js`
 - `src/index/build/file-processor/assemble.js`
 - `src/index/chunking/dispatch.js`
+- `docs/specs/document-extraction.md` (gating + skip reasons)
+- `src/index/build/build-state.js` (record extraction outcomes)
+- `src/contracts/schemas/build-state.js`
+- `src/contracts/validators/build-state.js`
+ - `src/index/build/artifacts.js` (emit extraction_report)
+ - `src/contracts/schemas/artifacts.js` + `src/contracts/validators/artifacts.js`
 
 #### Tests
 - [ ] `tests/indexing/extracted-prose/documents-included-when-available.test.js` (conditional; when deps available)
   - [ ] Build fixture containing a sample PDF and DOCX; assert chunks exist with `segment.type:'pdf'|'docx'` and searchable text is present.
 - [ ] `tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js`
   - [ ] Force capabilities off; build succeeds; skipped docs are reported deterministically with reasons.
+- [ ] `tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
+  - [ ] Fail/skip reasons are recorded in build_state and are stable across runs.
+- [ ] `tests/indexing/extracted-prose/extraction-report.test.js`
+  - [ ] Report is emitted, schema-valid, and deterministic for the same inputs.
+  - [ ] `extractionIdentityHash` changes when extractor version or normalization policy changes.
 - [ ] `tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
   - [ ] Ensure caching identity remains tied to bytes + extractor version/config.
+- [ ] `tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js`
+  - [ ] Document chunks must not collide with code chunk identities for identical text.
 
 ### 16.4 metaV2 and chunk_meta contract extensions for extracted documents
 
@@ -481,6 +738,9 @@ Touchpoints:
 - `src/index/metadata-v2.js`
 - `src/index/build/file-processor/assemble.js`
 - Retrieval loaders that depend on metaV2 (for parity checks)
+- `src/contracts/schemas/artifacts.js` (metaV2 + chunk_meta contract updates)
+- `src/contracts/validators/artifacts.js`
+- `docs/contracts/artifact-contract.md`
 
 #### Tests
 - [ ] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
@@ -494,6 +754,7 @@ Touchpoints:
   - [ ] `prose` / `extracted-prose` → SQLite FTS by default.
   - [ ] `code` → sparse/postings by default.
   - [ ] Overrides select requested providers and are reflected in `--explain` output.
+  - [ ] Separate routing policy (desired provider) from availability (actual provider); define deterministic fallback order.
 
 - [ ] Make FTS query compilation AST-driven for prose routes:
   - [ ] Generate the FTS5 `MATCH` string from the raw query (or parsed boolean AST).
@@ -515,6 +776,8 @@ Touchpoints:
 - `src/retrieval/query.js` / `src/retrieval/query-parse.js`
 - `src/retrieval/sqlite-helpers.js`
 - `src/retrieval/sqlite-cache.js`
+- `docs/specs/prose-routing.md` (routing defaults + FTS explain contract)
+ - `src/retrieval/output/explain.js` (routing + MATCH string output)
 
 #### Tests
 - [ ] `tests/retrieval/backend/search-routing-policy.test.js`
@@ -523,6 +786,8 @@ Touchpoints:
   - [ ] Punctuation cannot inject operators; the compiled `MATCH` string is stable and safe.
 - [ ] `tests/retrieval/backend/fts-tokenizer-config.test.js`
   - [ ] Assert baseline tokenizer uses diacritic-insensitive configuration; include a diacritic recall fixture.
+ - [ ] `tests/retrieval/backend/fts-missing-table-fallback.test.js`
+   - [ ] Missing FTS tables returns a controlled “unavailable” result with a warning (no throw).
 
 ### 16.6 Sweep-driven correctness fixes in retrieval helpers touched by prose FTS routing
 
@@ -545,10 +810,12 @@ Touchpoints:
 
 Touchpoints:
 - `src/retrieval/sqlite-helpers.js`
+ - `src/retrieval/output/explain.js` (surface fallback/overfetch decisions)
 
 #### Tests
 - [ ] `tests/retrieval/backend/rankSqliteFts-allowedIds-correctness.test.js`
 - [ ] `tests/retrieval/backend/rankSqliteFts-weight-before-limit.test.js`
+ - [ ] `tests/retrieval/backend/rankSqliteFts-missing-table-is-controlled-error.test.js`
 - [ ] `tests/retrieval/backend/unpackUint32-buffer-alignment.test.js`
 
 ### 16.7 Query intent classification + boolean parsing semantics (route-aware, non-regressing)
@@ -595,11 +862,13 @@ Touchpoints:
 - `src/retrieval/output/*`
 - `tests/tooling/script-coverage/*`
 - `package.json`
+- `docs/testing/truth-table.md` (optional-deps + skip policy alignment)
 
 #### Tests
 - [ ] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
 - [ ] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
 - [ ] `tests/tooling/script-coverage/harness-parity.test.js`
+ - [ ] `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`
 
 
 
@@ -623,6 +892,12 @@ This is especially valuable for:
 - huge corpora where sparse artifacts dominate disk/time,
 - doc-heavy or mixed corpora where ANN is the primary workflow,
 - environments where you want fast/cheap rebuilds and can accept ANN-only recall.
+
+Additional docs that MUST be updated if Phase 17 adds new behavior or config:
+- `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` + `docs/contracts/artifact-schemas.md`
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md`
+- `docs/guides/commands.md` (new flags / routing semantics)
+- `docs/specs/vector-only-profile.md` (new; profile contract + search behavior)
 
 ---
 
@@ -653,7 +928,7 @@ This is especially valuable for:
   - [ ] Add a `profile` block (versioned):
     - [ ] `profile.id: "default" | "vector_only"`
     - [ ] `profile.schemaVersion: 1`
-  - [ ] Add an `artifacts` presence block (versioned) so loaders can reason about what exists:
+- [ ] Add an `artifacts` presence block (versioned) so loaders can reason about what exists:
     - [ ] `artifacts.schemaVersion: 1`
     - [ ] `artifacts.present: { [artifactName]: true }` (only list artifacts that exist)
     - [ ] `artifacts.omitted: string[]` (explicit omissions for the selected profile)
@@ -661,9 +936,11 @@ This is especially valuable for:
 
   - [ ] Add a build-time invariant:
     - [ ] If `profile.id === "vector_only"`, then `token_postings*`, `token_vocab`, `token_stats`, `minhash*`, and any sparse-only artifacts MUST NOT be present.
+  - [ ] Define a strict vector_only artifact contract and validation rules (explicit allowlist/denylist).
 
 - [ ] Ensure build signatures include profile:
   - [ ] signature/caching keys must incorporate `profile.id` so switching profiles forces a rebuild.
+  - [ ] compatibilityKey (and/or cohortKey) must include `profile.id` to prevent mixing vector_only and default indexes.
 
 Touchpoints:
 - `docs/config/schema.json`
@@ -671,10 +948,19 @@ Touchpoints:
 - `src/index/build/indexer/signatures.js` (include profile in signature)
 - `src/index/build/artifacts.js` (index_state emission + artifacts presence block)
 - `src/retrieval/cli/index-state.js` (surface profile + artifacts in `index_status`)
+- `src/contracts/schemas/artifacts.js` (index_state contract updates)
+- `src/contracts/validators/artifacts.js`
+ - `src/index/validate/index-validate.js` (enforce vector_only artifact allowlist/denylist)
 
 #### Tests
 - [ ] `tests/indexing/contracts/profile-index-state-contract.test.js`
   - [ ] Build tiny index with each profile and assert `index_state.json.profile` + `index_state.json.artifacts` satisfy schema invariants.
+- [ ] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
+  - [ ] `artifacts.present` and `artifacts.omitted` are disjoint and consistent with profile.
+- [ ] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
+  - [ ] `artifacts.requiredForSearch` is populated and profile-consistent.
+ - [ ] `tests/indexing/validate/vector-only-artifact-contract.test.js`
+   - [ ] Validation fails if any sparse artifacts are present in vector_only builds.
 
 ---
 
@@ -701,12 +987,15 @@ Touchpoints:
 - `src/index/build/indexer/steps/postings.js` (skip when tokenize=false)
 - `src/index/build/indexer/steps/write.js` + `src/index/build/artifacts.js` (omit sparse artifacts)
 - `src/index/build/file-processor/embeddings.js` (missing-doc marker regression)
+- `src/contracts/validators/artifacts.js` (validate artifacts.present/omitted consistency)
 
 #### Tests
 - [ ] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
   - [ ] Assert absence of `token_postings*`, `token_vocab*`, `token_stats*`, `minhash*`.
 - [ ] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
   - [ ] Build default, then vector_only into same outDir; assert sparse artifacts removed.
+ - [ ] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
+   - [ ] Building vector_only without embeddings enabled fails with a clear error.
 
 ---
 
@@ -722,6 +1011,7 @@ Touchpoints:
 - [ ] Token-dependent query features must be explicit:
   - [ ] If a query requests phrase/boolean constraints that require token inventory:
     - [ ] either (a) reject with error, or (b) degrade with a warning and set `explain.warnings[]` (pick one policy and make it part of the contract)
+  - [ ] Choose and document the policy (reject vs warn) and make it consistent across CLI/API/MCP.
 
 - [ ] SQLite helper hardening for profile-aware operation:
   - [ ] Add a lightweight `requireTables(db, names[])` helper used at provider boundaries.
@@ -733,11 +1023,16 @@ Touchpoints:
 - `src/retrieval/sqlite-helpers.js` (table guards)
 - `src/retrieval/providers/*` (respect profile + missing-table outcomes)
 - `src/retrieval/output/explain.js` (surface profile + warnings)
+- `docs/specs/vector-only-profile.md` (routing + mismatch policy)
+ - `src/retrieval/output/format.js` (error/warning rendering)
 
 #### Tests
 - [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
 - [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
 - [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+- [ ] `tests/retrieval/output/explain-vector-only-warnings.test.js`
+ - [ ] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
+   - [ ] Mixed profile indexes are rejected unless explicitly allowed (federation/cohort gating).
 
 ---
 
@@ -756,12 +1051,19 @@ Touchpoints:
 - `src/index/build/indexer/pipeline.js` (feature flags)
 - `docs/config/` (document defaults and overrides)
 
-## Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+## Phase 18 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
 
 ### Objective
 Make PairOfCleats releasable and operable across supported platforms by defining a **release target matrix**, adding a **deterministic release smoke-check**, hardening **cross-platform path handling**, and producing **reproducible editor/plugin packages** (Sublime + VS Code) with CI gates.
 
 This phase also standardizes how Python-dependent tests and tooling behave when Python is missing: they must **skip cleanly** (without producing “false red” CI failures), while still failing when Python is present but the test is genuinely broken.
+
+Additional docs that MUST be updated if Phase 18 adds new behavior or config:
+- `docs/guides/release-discipline.md`
+- `docs/guides/commands.md` (release-check + packaging commands)
+- `docs/guides/editor-integration.md`
+- `docs/guides/service-mode.md`
+- `docs/config/schema.json` + `docs/config/contract.md` (if new config flags are added)
 
 ### Exit Criteria
 - A documented release target matrix exists (platform × Node version × optional dependencies policy).
@@ -777,7 +1079,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 
 ---
 
-### Phase 20.1 — Release target matrix + deterministic release smoke-check
+### Phase 18.1 — Release target matrix + deterministic release smoke-check
 - [ ] Define and publish the **release target matrix** and optional-dependency policy.
   - Primary output:
     - `docs/guides/release-matrix.md` (new)
@@ -793,6 +1095,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - Touchpoints:
     - `tools/release-check.js` (extend; keep it dependency-light)
     - `bin/pairofcleats.js` (invoked by the smoke check; no behavioral changes expected here)
+    - `src/shared/subprocess.js` (shared spawn/timeout helpers)
   - Requirements:
     - Must not depend on shell string concatenation; use spawn with args arrays.
     - Must set explicit `cwd` and avoid fragile `process.cwd()` assumptions (derive repo root from `import.meta.url` or accept `--repo-root`).
@@ -811,6 +1114,8 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - Touchpoints:
     - `.github/workflows/ci.yml`
     - `package.json` scripts (optional, if CI should call a stable npm script)
+    - `docs/guides/release-matrix.md` (source of truth for versions and policies)
+    - `docs/guides/release-discipline.md` (release checks + required gates)
   - Requirements:
     - Add a release-gate lane that runs `npm run release-check` plus the new smoke steps.
     - Add OS coverage beyond Linux (at minimum: Windows already exists; add macOS for the smoke check).
@@ -821,12 +1126,14 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - Runs `node tools/release-check.js` in a temp environment and asserts it succeeds on a healthy checkout.
 - [ ] `tests/tooling/release/release-check-json.test.js`
   - Runs `release-check --json` and asserts stable JSON envelope fields (schemaVersion, steps[], status).
+- [ ] `tests/tooling/release/release-check-exit-codes.test.js`
+  - Failing step returns non-zero and includes the failing step name in stderr.
 - [ ] CI verification:
   - [ ] Add a job that runs the smoke check on at least Linux/macOS/Windows with pinned Node versions per the matrix.
 
 ---
 
-### Phase 20.2 — Cross-platform path safety audit + regression tests (including spaces)
+### Phase 18.2 — Cross-platform path safety audit + regression tests (including spaces)
 - [ ] Audit filesystem path construction and CLI spawning for correctness on:
   - paths with spaces
   - Windows separators and drive roots
@@ -834,7 +1141,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 - [ ] Fix issues discovered during the audit in the “release-critical surface”.
   - Minimum scope for this phase:
     - `tools/release-check.js` (must behave correctly on all supported OSes)
-    - packaging scripts added in Phase 20.3/20.5
+    - packaging scripts added in Phase 18.3/18.5
     - tests added by this phase (must be runnable on CI runners and locally)
   - Broader issues discovered outside this scope should either:
     - be fixed here if the touched files are already being modified, or
@@ -843,6 +1150,8 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
   - Touchpoints:
     - `tests/tooling/platform/paths-with-spaces.test.js` (new)
     - `tests/tooling/platform/windows-paths-smoke.test.js` (new; conditional when not on Windows)
+    - `src/shared/files.js` (path normalization helpers)
+    - `src/shared/subprocess.js` (argument quoting + spawn safety)
   - Requirements:
     - Create a temp repo directory whose absolute path includes spaces.
     - Run build + validate + search using explicit `cwd` and temp cacheRoot.
@@ -857,7 +1166,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 
 ---
 
-### Phase 20.3 — Sublime plugin packaging pipeline (bundled, reproducible)
+### Phase 18.3 — Sublime plugin packaging pipeline (bundled, reproducible)
 - [ ] Implement a reproducible packaging step for the Sublime plugin.
   - Touchpoints:
     - `sublime/PairOfCleats/**` (source)
@@ -886,11 +1195,13 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 
 ---
 
-### Phase 20.4 — Make Python tests and tooling optional (skip cleanly when Python is missing)
+### Phase 18.4 — Make Python tests and tooling optional (skip cleanly when Python is missing)
 - [ ] Update Python-related tests to detect absence of Python and **skip with a clear message** (not fail).
   - Touchpoints:
     - `tests/tooling/sublime/sublime-pycompile.test.js` (must be guarded)
     - `tests/tooling/sublime/test_*.py` (only if these are invoked by CI or tooling; otherwise keep as optional)
+    - `tests/helpers/skip.js` (skip exit code + messaging helper)
+    - `tests/helpers/test-env.js` (consistent skip env setup)
   - Requirements:
     - Prefer `spawnSync(python, ['--version'])` and treat ENOENT as “Python unavailable”.
     - When Python is unavailable:
@@ -918,14 +1229,17 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
     - With Python: compiles all `.py` files under `sublime/PairOfCleats/**` and fails on syntax errors.
 - [ ] `tests/tooling/python/python-availability-skip.test.js`
   - Asserts skip-path correctness and ensures we do not “skip on real failures”.
+ - [ ] `tests/tooling/python/python-skip-message.test.js`
+   - Ensures skip message is a single line and includes the missing executable name.
 
 ---
 
-### Phase 20.5 — VS Code extension packaging + compatibility (extension exists)
+### Phase 18.5 — VS Code extension packaging + compatibility (extension exists)
 - [ ] Add a reproducible VS Code extension packaging pipeline (VSIX).
   - Touchpoints:
     - `extensions/vscode/**` (source)
     - `package.json` scripts (new: `package:vscode`), and/or `tools/package-vscode.js` (new)
+    - `.vscodeignore` / `extensions/vscode/.vscodeignore` (packaging include/exclude list)
   - Requirements:
     - Use a pinned packaging toolchain (recommended: `@vscode/vsce` as a devDependency).
     - Output path must be deterministic and placed under a temp/artifacts directory suitable for CI.
@@ -949,7 +1263,7 @@ This phase also standardizes how Python-dependent tests and tooling behave when 
 
 ---
 
-### Phase 20.6 — Service-mode bundle + distribution documentation (API server + embedding worker)
+### Phase 18.6 — Service-mode bundle + distribution documentation (API server + embedding worker)
 - [ ] Ship a service-mode “bundle” (one-command entrypoint) and documentation.
   - Touchpoints:
     - `tools/api-server.js`

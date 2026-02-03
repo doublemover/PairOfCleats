@@ -1,4 +1,4 @@
-DEPRECATED: Replaced by docs/specs/risk-interprocedural-config.md; docs/specs/risk-summaries.md; docs/specs/risk-flows-and-call-sites.md; docs/specs/risk-interprocedural-stats.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: 5965fcc # Risk Interprocedural State and Pipeline
+DEPRECATED: Replaced by docs/specs/risk-interprocedural-config.md; docs/specs/risk-summaries.md; docs/specs/risk-flows-and-call-sites.md; docs/specs/risk-interprocedural-stats.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: (this move)
 
 **Status:** Draft (needs another pass after first implementation).
 
@@ -154,4 +154,8 @@ Validation should be split:
 
 3. Should compact summaries be attached to *all* chunks or only those with local risk?
    - Recommended: only chunks with local risk get `docmeta.risk.summary` (keeps metadata minimal).
+
+
+
+
 

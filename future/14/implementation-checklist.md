@@ -138,7 +138,7 @@ Do not load all chunk meta for large repos; filter by fileId sets.
 ## 6. Config schema updates (optional but recommended)
 
 If you add snapshot/diff retention configuration defaults:
-- Implement according to `docs/phases/phase-14/config-defaults.md`
+- Implement according to `docs/specs/config-defaults.md`
 - Update `docs/config/schema.json`
 - Update `tools/dict-utils/config.js#normalizeUserConfig` to pass through the new keys
 
