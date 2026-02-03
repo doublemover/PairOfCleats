@@ -430,7 +430,7 @@ Touchpoints:
 
 ## Phase 14 Augmentations (authoritative alignment + implementation breakdown)
 
-This section augments the copied roadmap above to align it with the Phase 14 rewrite pack in `future/14/` and the authoritative specs that will live under `docs/specs/`. Where items conflict, the guidance here takes precedence.
+This section augments the copied roadmap above to align it with the authoritative Phase 14 specs under `docs/specs/`. Where items conflict, the guidance here takes precedence.
 
 ### Canonical specs and no-drift rule
 
@@ -535,7 +535,7 @@ Tests:
 
 ### 14.1.5 Retention defaults (optional)
 
-- [ ] If implementing config defaults, follow `future/14/config-defaults.md`:
+- [ ] If implementing config defaults, create and follow `docs/specs/config-defaults.md`:
   - [ ] `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours`
   - [ ] `indexing.diffs.keep`, `maxAgeDays`
   - [ ] `indexing.diffs.compute.*` (modes, bounds, persist)
@@ -617,10 +617,14 @@ Tests:
 ## 14.5 Retrieval integration (as-of)
 
 - [ ] Add `--as-of <IndexRef>` to search CLI args.
+- [ ] Default behavior unchanged when omitted; `--as-of latest` is equivalent to no flag.
 - [ ] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
 - [ ] Include `asOf.identityHash` in query cache keys.
 - [ ] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
 - [ ] Enforce single-root policy for sqlite/lmdb as-of selection.
+- [ ] JSON output includes an `asOf` block (ref, identityHash, resolved summary).
+- [ ] Human output prints a single `[search] as-of: ...` line when `--as-of` is provided.
+- [ ] Telemetry includes `asOf.type` and short `identityHash`; never log raw paths.
 
 Touchpoints:
 - `src/retrieval/cli-args.js`
@@ -639,6 +643,8 @@ Tests:
 
 - [ ] Extend `/search` to accept `asOf` and thread to `--as-of`.
 - [ ] Add snapshot and diff endpoints if UI parity is required.
+- [ ] Enforce allowed repo roots and never return absolute paths in responses.
+- [ ] Create `docs/specs/http-api.md` if HTTP endpoints are implemented.
 
 Touchpoints:
 - `tools/api/router/search.js`
