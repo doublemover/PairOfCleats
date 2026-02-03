@@ -176,8 +176,21 @@ export async function discoverEntries({
   };
 
   const listFdirFiles = async () => {
-    const crawler = new fdir().withFullPaths().crawl(root);
-    return crawler.withPromise();
+    let crawler = new fdir().withFullPaths();
+    if (maxDepthValue != null) {
+      crawler = crawler.withMaxDepth(maxDepthValue);
+    }
+    if (abortSignal) {
+      crawler = crawler.withAbortSignal(abortSignal);
+    }
+    if (ignoreMatcher) {
+      crawler = crawler.exclude((entryPath) => {
+        const relPosix = toPosix(path.relative(root, entryPath));
+        if (!relPosix || relPosix === '.') return false;
+        return ignoreMatcher.ignores(relPosix);
+      });
+    }
+    return crawler.crawl(root).withPromise();
   };
 
   const scmResult = await listScmFiles();
