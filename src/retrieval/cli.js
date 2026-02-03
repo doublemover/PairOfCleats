@@ -19,7 +19,7 @@ import { queryVectorAnn } from '../../tools/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
-import { resolveIndexDir } from './cli-index.js';
+import { getIndexSignature, resolveIndexDir } from './cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from './cli/index-state.js';
 import { configureOutputCaches } from './output.js';
 import { createSearchTelemetry } from './cli/telemetry.js';
@@ -39,6 +39,15 @@ import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
+import {
+  buildQueryPlanCacheKey,
+  buildQueryPlanConfigSignature,
+  buildQueryPlanIndexSignature,
+  createQueryPlanCache,
+  createQueryPlanEntry
+} from './query-plan-cache.js';
+
+const defaultQueryPlanCache = createQueryPlanCache();
 
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
@@ -48,6 +57,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
+  const queryPlanCache = options.queryPlanCache ?? defaultQueryPlanCache;
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
@@ -422,7 +432,69 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     });
     throwIfAborted();
 
-    const queryPlan = buildQueryPlan({
+    const joinComments = commentsEnabled && runCode;
+    const planConfigSignature = queryPlanCache?.enabled !== false
+      ? buildQueryPlanConfigSignature({
+        dictConfig,
+        dictSize: dict?.size ?? null,
+        postingsConfig,
+        caseTokens,
+        fileFilter,
+        caseFile,
+        searchRegexConfig,
+        filePrefilterEnabled,
+        fileChargramN,
+        searchType,
+        searchAuthor,
+        searchImport,
+        chunkAuthorFilter,
+        branchesMin,
+        loopsMin,
+        breaksMin,
+        continuesMin,
+        churnMin,
+        extFilter,
+        langFilter,
+        extImpossible,
+        langImpossible,
+        metaFilters,
+        modifiedAfter,
+        modifiedSinceDays,
+        fieldWeightsConfig,
+        denseVectorMode,
+        branchFilter
+      })
+      : null;
+    if (planConfigSignature) {
+      queryPlanCache.resetIfConfigChanged(planConfigSignature);
+    }
+    const planIndexSignature = planConfigSignature
+      ? buildQueryPlanIndexSignature(getIndexSignature({
+        useSqlite,
+        backendLabel,
+        sqliteCodePath,
+        sqliteProsePath,
+        runRecords,
+        runExtractedProse: runExtractedProseRaw,
+        includeExtractedProse: runExtractedProseRaw || joinComments,
+        root: rootDir,
+        userConfig
+      }))
+      : null;
+    const planCacheKeyInfo = planConfigSignature
+      ? buildQueryPlanCacheKey({
+        query,
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const cachedPlanEntry = planCacheKeyInfo
+      ? queryPlanCache.get(planCacheKeyInfo.key, {
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const queryPlan = cachedPlanEntry?.plan || buildQueryPlan({
       query,
       argv,
       dict,
@@ -454,6 +526,17 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       branchFilter
     });
+    if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
+      queryPlanCache.set(
+        planCacheKeyInfo.key,
+        createQueryPlanEntry({
+          plan: queryPlan,
+          configSignature: planConfigSignature,
+          indexSignature: planIndexSignature,
+          keyPayload: planCacheKeyInfo.payload
+        })
+      );
+    }
 
     const annActive = annEnabled && queryPlan.queryTokens.length > 0;
 
@@ -465,8 +548,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       rankVectorAnnSqlite
     } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
-
-    const joinComments = commentsEnabled && runCode;
 
     const {
       idxProse,

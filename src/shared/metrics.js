@@ -23,7 +23,8 @@ const POOLS = new Set(['tokenize', 'quantize', 'watch', 'unknown']);
 const TASKS = new Set(['tokenize', 'quantize', 'unknown']);
 const WATCH_EVENTS = new Set(['add', 'change', 'unlink', 'error', 'unknown']);
 const DEBOUNCE = new Set(['scheduled', 'fired', 'canceled', 'unknown']);
-const CACHES = new Set(['query', 'embedding', 'output', 'repo', 'index', 'sqlite', 'unknown']);
+const CACHES = new Set(['query', 'embedding', 'output', 'repo', 'index', 'sqlite', 'query-plan', 'unknown']);
+
 const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
