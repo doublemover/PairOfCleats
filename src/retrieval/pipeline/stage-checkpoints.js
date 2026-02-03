@@ -14,6 +14,14 @@ const diffMemory = (end, start) => ({
   arrayBuffers: end.arrayBuffers - start.arrayBuffers
 });
 
+/**
+ * Create a retrieval stage tracker for timing/memory deltas.
+ *
+ * Determinism: ordering follows the call order of record/span.
+ *
+ * @param {{ enabled?: boolean }} [options]
+ * @returns {{ enabled: boolean, mark: Function, record: Function, span: Function, spanSync: Function, stages: object[] }}
+ */
 export function createRetrievalStageTracker({ enabled = true } = {}) {
   const stages = [];
   const mark = () => {

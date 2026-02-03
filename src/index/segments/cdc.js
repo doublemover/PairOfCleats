@@ -1,5 +1,6 @@
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 
+/** Schema version for CDC segmentation. */
 export const CDC_SEGMENTATION_VERSION = '1.0.0';
 
 const DEFAULT_CDC_OPTIONS = {
@@ -27,6 +28,11 @@ const normalizeInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER 
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
+/**
+ * Normalize CDC segmentation options.
+ * @param {object} [options]
+ * @returns {object}
+ */
 export const normalizeCdcOptions = (options = {}) => {
   const cfg = options && typeof options === 'object' ? options : {};
   const avgBytes = normalizeInt(cfg.avgBytes, DEFAULT_CDC_OPTIONS.avgBytes, { min: 1 });
@@ -53,6 +59,11 @@ export const normalizeCdcOptions = (options = {}) => {
   };
 };
 
+/**
+ * Build CDC segments for a text buffer.
+ * @param {{ text: string, languageId?: string|null, options?: object }} input
+ * @returns {Array<object>}
+ */
 export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
   const input = typeof text === 'string' ? text : '';
   if (!input) return [];
@@ -116,6 +127,11 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
   return segments;
 };
 
+/**
+ * Build CDC segments and attach segmentUid values.
+ * @param {{ text: string, languageId?: string|null, options?: object }} input
+ * @returns {Promise<Array<object>>}
+ */
 export const segmentWithCdc = async ({ text, languageId = null, options = {} }) => {
   const segments = buildCdcSegments({ text, languageId, options });
   if (!segments.length) return segments;

@@ -1,5 +1,6 @@
 import { checksumString } from '../../shared/hash.js';
 
+/** Schema version for VFS hash routing. */
 export const VFS_HASH_ROUTING_SCHEMA_VERSION = '1.0.0';
 
 const normalizeMode = (value) => {
@@ -8,6 +9,11 @@ const normalizeMode = (value) => {
   return raw;
 };
 
+/**
+ * Build a deterministic routing token for VFS hash paths.
+ * @param {{ virtualPath: string, docHash: string, mode?: string }} input
+ * @returns {Promise<string|null>}
+ */
 export const buildVfsRoutingToken = async ({
   virtualPath,
   docHash,
@@ -22,4 +28,5 @@ export const buildVfsRoutingToken = async ({
   return result?.value || null;
 };
 
+/** Alias for buildVfsRoutingToken. */
 export const resolveVfsRoutingToken = buildVfsRoutingToken;

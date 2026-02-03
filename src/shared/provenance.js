@@ -1,7 +1,29 @@
+/**
+ * Resolve a timestamp for provenance payloads.
+ * @param {(() => string)|undefined} now
+ * @returns {string}
+ */
 const buildTimestamp = (now) => (
   typeof now === 'function' ? now() : new Date().toISOString()
 );
 
+/**
+ * Normalize provenance metadata for artifacts and stats.
+ *
+ * Deterministic: only fields provided or derived from inputs are included.
+ * Error behavior: throws when neither indexSignature nor indexCompatKey is provided.
+ *
+ * @param {object} [options]
+ * @param {object} [options.provenance]
+ * @param {string} [options.indexSignature]
+ * @param {string} [options.indexCompatKey]
+ * @param {object} [options.capsUsed]
+ * @param {string} [options.repo]
+ * @param {string} [options.indexDir]
+ * @param {() => string} [options.now]
+ * @param {string} [options.label]
+ * @returns {object}
+ */
 export const resolveProvenance = ({
   provenance,
   indexSignature,

@@ -1028,7 +1028,7 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/specs/lsp-provider-hardening.md`
 - `docs/specs/tooling-provider-registry.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
-- `tests/docs/embeddings-cache-docs-sync.test.js` (new)
+- `tests/tooling/docs/embeddings-cache-docs-sync.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/indexing-stage-audit.md`
@@ -1052,12 +1052,12 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
   - concurrency assumptions and thread-pool interactions
 
 ### Tests
-- [ ] `tests/docs/embeddings-cache-docs-sync.test.js`
-- [ ] `tests/docs/perfplan-docs-sync.test.js` (new)
-- [ ] `tests/docs/jsdoc-standards-sync.test.js` (new)
-- [ ] `tests/docs/config-inventory-sync.test.js` (new; verifies doc updates when CLI flags change)
-- [ ] `tests/docs/spec-links-valid.test.js` (new; ensures spec references resolve)
-- [ ] `tests/docs/roadmap-checklist-consistency.test.js` (new)
+- [ ] `tests/tooling/docs/embeddings-cache-docs-sync.test.js`
+- [ ] `tests/tooling/docs/perfplan-docs-sync.test.js` (new)
+- [ ] `tests/tooling/docs/jsdoc-standards-sync.test.js` (new)
+- [ ] `tests/tooling/docs/config-inventory-sync.test.js` (new; verifies doc updates when CLI flags change)
+- [ ] `tests/tooling/docs/spec-links-valid.test.js` (new; ensures spec references resolve)
+- [ ] `tests/tooling/docs/roadmap-checklist-consistency.test.js` (new)
 
 ### Acceptance
 - [ ] Docs updated and referenced in commands/config inventories.
@@ -1099,9 +1099,89 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [ ] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
 
 - [ ] **13.G Docs validation tests**
-- [ ] Task 13.G.1: Implement `tests/docs/embeddings-cache-docs-sync.test.js`.
+- [ ] Task 13.G.1: Implement `tests/tooling/docs/embeddings-cache-docs-sync.test.js`.
 - [ ] Task 13.G.2: Add tests for spec link validation and checklist consistency.
 - [ ] Task 13.G.3: Add docs/config inventory sync test.
+
+### Task details (decision-complete)
+#### 13.A Inventory + gap analysis
+- [ ] Build a doc inventory table in Phase 13 with columns: doc path, purpose, required sections, code touchpoints, tests, gaps.
+- [ ] List docs touched by Phases 0-12 (use git history and PERFPLAN checklists as source of truth).
+- [ ] Enumerate missing sections for each doc: schema, invariants, examples, determinism, error behavior, compatibility.
+- [ ] Capture renamed files/flags/artifacts and link to the code that superseded them.
+- [ ] Output a checklist of required doc edits with explicit owners and completion criteria.
+
+#### 13.B Embeddings cache spec hardening
+- [ ] Add a cache layout section with full directory tree, shard naming rules, and sidecars.
+- [ ] Document cache keys and invalidation rules (provider/model/dims/quantization/index signature/schema version).
+- [ ] Specify compression format(s), headers, and forward/backward compatibility rules.
+- [ ] Add examples for: cache hit, partial reuse, invalidation after config change.
+- [ ] Touchpoints to review:
+  - `src/shared/embeddings-cache/*`
+  - `tools/build/embeddings/*`
+  - `src/index/build/*` (cache reuse/write paths)
+
+#### 13.C VFS + tooling spec alignment
+- [ ] Align VFS manifest trimming and sorting order with actual implementation (row trim, spill/merge order).
+- [ ] Document virtualPath encoding and disk-path safety constraints (including Windows specifics).
+- [ ] Align token URI and hash routing docs with current code.
+- [ ] Document cold-start cache and segment hash cache invariants (inputs, invalidation, fallbacks).
+- [ ] Touchpoints to review:
+  - `src/index/build/vfs-*`
+  - `src/index/tooling/vfs*`
+  - `src/index/segments/*` (CDC segmentation)
+
+#### 13.D CLI + contracts + inventories
+- [ ] Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts and sidecars.
+- [ ] Update `docs/guides/commands.md` for new flags or behavior.
+- [ ] Regenerate config inventories and add explanations for new fields in `docs/config/contract.md`.
+- [ ] Touchpoints to review:
+  - `src/retrieval/cli*`
+  - `src/index/build/*`
+  - `tools/*` CLI entrypoints
+
+#### 13.E JSDoc standards + enforcement
+- [ ] Write `docs/guides/jsdoc-standards.md` with required tags and examples.
+- [ ] Require sections for streaming behavior, caching/invalidation, determinism, path normalization, concurrency.
+- [ ] JSDoc targets (Phase 13 + Quantum spindle work):
+  - `src/shared/limits.js`
+  - `src/shared/provenance.js`
+  - `src/shared/truncation.js`
+  - `src/shared/path-normalize.js`
+  - `src/shared/time-format.js`
+  - `src/shared/seed-ref.js`
+  - `src/shared/bloom.js`
+  - `src/shared/cache-roots.js`
+  - `src/shared/metrics.js`
+  - `src/shared/embeddings-cache/layout.js`
+  - `src/shared/embeddings-cache/lru.js`
+  - `src/shared/embedding-utils.js`
+  - `src/shared/embedding-identity.js`
+  - `tools/build/embeddings/cache.js`
+  - `tools/build/embeddings/manifest.js`
+  - `src/index/build/stage-checkpoints.js`
+  - `src/retrieval/pipeline/stage-checkpoints.js`
+  - `src/retrieval/query-plan-cache.js`
+  - `src/retrieval/query-plan-schema.js`
+  - `src/index/build/vfs-manifest-collector.js`
+  - `src/index/build/vfs-segment-hash-cache.js`
+  - `src/index/tooling/vfs-hash-routing.js`
+  - `src/index/tooling/vfs-index.js`
+  - `src/index/tooling/vfs.js`
+  - `src/index/segments/cdc.js`
+
+#### 13.F Execution guides
+- [ ] `docs/guides/perfplan-execution.md`: how to run phases, gating criteria, expected artifacts, failure triage.
+- [ ] `docs/guides/roadmap-checklists.md`: checkbox rules, test logging, ISO-8601 timestamp policy.
+
+#### 13.G Docs validation tests
+- [ ] Add tests under `tests/tooling/docs/`:
+  - `embeddings-cache-docs-sync`: ensure required sections and examples exist.
+  - `perfplan-docs-sync`: ensure Phase 13 doc inventory table exists and references required docs.
+  - `jsdoc-standards-sync`: ensure standards doc exists and includes required tags.
+  - `spec-links-valid`: ensure spec references resolve.
+  - `roadmap-checklist-consistency`: ensure checklist formatting/requirements.
+  - `config-inventory-sync`: ensure config docs match schema.
 
 ### Sub-agent work packets
 - [ ] Sub-agent Packet A — Embeddings cache spec + contract updates (Tasks 13.B + 13.D.1).

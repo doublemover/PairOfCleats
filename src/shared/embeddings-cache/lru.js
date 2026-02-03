@@ -1,9 +1,19 @@
+/**
+ * Convert ISO timestamp to millis.
+ * @param {string|number|null} value
+ * @returns {number}
+ */
 const toMillis = (value) => {
   if (!value) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Normalize byte values.
+ * @param {number|string|null} value
+ * @returns {number}
+ */
 const toBytes = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;

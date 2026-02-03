@@ -4,6 +4,10 @@ import { getEnvConfig } from './env.js';
 
 /**
  * Resolve the default cache root directory (ignores test overrides).
+ *
+ * Deterministic: derived from OS/env only.
+ * Path handling: returns absolute OS path.
+ *
  * @returns {string}
  */
 export function getDefaultCacheRoot() {
@@ -14,6 +18,10 @@ export function getDefaultCacheRoot() {
 
 /**
  * Resolve the cache root directory.
+ *
+ * Cache rules: respects config overrides (`cache.root`) when provided.
+ * Path handling: returns absolute OS path.
+ *
  * @returns {string}
  */
 export function getCacheRoot() {

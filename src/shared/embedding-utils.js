@@ -1,5 +1,8 @@
+/** Default pooling strategy for embeddings. */
 export const DEFAULT_EMBEDDING_POOLING = 'mean';
+/** Default L2 normalization toggle for embeddings. */
 export const DEFAULT_EMBEDDING_NORMALIZE = true;
+/** Default truncation toggle for embeddings. */
 export const DEFAULT_EMBEDDING_TRUNCATION = true;
 
 let warnedQuantizationClamp = false;
@@ -22,11 +25,26 @@ const resolveQuantizationLevels = (value) => {
   return floored;
 };
 
+/**
+ * Check whether a value is vector-like (Array or TypedArray view).
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 export const isVectorLike = (value) => (
   Array.isArray(value)
   || (ArrayBuffer.isView(value) && !(value instanceof DataView))
 );
 
+/**
+ * Merge code + doc vectors by averaging corresponding dimensions.
+ * Throws when lengths differ.
+ *
+ * Deterministic: input order is preserved.
+ *
+ * @param {{ codeVector?: ArrayLike<number>, docVector?: ArrayLike<number> }} options
+ * @returns {Float32Array}
+ * @throws {Error} when vector lengths differ
+ */
 export const mergeEmbeddingVectors = ({ codeVector, docVector }) => {
   const code = isVectorLike(codeVector) ? codeVector : [];
   const doc = isVectorLike(docVector) ? docVector : [];
@@ -53,6 +71,11 @@ export const mergeEmbeddingVectors = ({ codeVector, docVector }) => {
   return merged;
 };
 
+/**
+ * Normalize a vector in place using L2 norm.
+ * @param {Float32Array} vec
+ * @returns {Float32Array}
+ */
 export const normalizeEmbeddingVectorInPlace = (vec) => {
   let norm = 0;
   for (let i = 0; i < vec.length; i += 1) {
@@ -66,6 +89,11 @@ export const normalizeEmbeddingVectorInPlace = (vec) => {
   return vec;
 };
 
+/**
+ * Normalize a vector into a new Float32Array.
+ * @param {ArrayLike<number>} vec
+ * @returns {Float32Array}
+ */
 export const normalizeEmbeddingVector = (vec) => {
   const length = vec && typeof vec.length === 'number' ? vec.length : 0;
   if (!length) return new Float32Array(0);
@@ -73,6 +101,14 @@ export const normalizeEmbeddingVector = (vec) => {
   return normalizeEmbeddingVectorInPlace(out);
 };
 
+/**
+ * Quantize a vector into an array of integers.
+ * @param {ArrayLike<number>} vec
+ * @param {number} [minVal=-1]
+ * @param {number} [maxVal=1]
+ * @param {number} [levels=256]
+ * @returns {number[]}
+ */
 export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 256) => {
   if (!vec || typeof vec.length !== 'number') return [];
   const length = Math.max(0, Math.floor(vec.length));
@@ -105,6 +141,14 @@ export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 2
   return out;
 };
 
+/**
+ * Quantize a vector into a Uint8Array.
+ * @param {ArrayLike<number>} vec
+ * @param {number} [minVal=-1]
+ * @param {number} [maxVal=1]
+ * @param {number} [levels=256]
+ * @returns {Uint8Array}
+ */
 export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, levels = 256) => {
   if (!vec || typeof vec !== 'object') return new Uint8Array(0);
   const length = Number.isFinite(vec.length) ? Math.max(0, Math.floor(vec.length)) : 0;
@@ -140,6 +184,12 @@ export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, level
   return out;
 };
 
+/**
+ * Clamp a quantized vector in place.
+ * @param {ArrayLike<number>} vec
+ * @param {number} [maxValue=255]
+ * @returns {number} number of clamped values
+ */
 export const clampQuantizedVectorInPlace = (vec, maxValue = 255) => {
   if (!vec || typeof vec.length !== 'number') return 0;
   const max = Number.isFinite(maxValue) ? Math.floor(maxValue) : 255;
@@ -160,6 +210,12 @@ export const clampQuantizedVectorInPlace = (vec, maxValue = 255) => {
   return clamped;
 };
 
+/**
+ * Clamp a list of quantized vectors in place.
+ * @param {Array<ArrayLike<number>>} vectors
+ * @param {number} [maxValue=255]
+ * @returns {number} number of clamped values
+ */
 export const clampQuantizedVectorsInPlace = (vectors, maxValue = 255) => {
   if (!Array.isArray(vectors)) return 0;
   let clamped = 0;
@@ -170,6 +226,14 @@ export const clampQuantizedVectorsInPlace = (vectors, maxValue = 255) => {
   return clamped;
 };
 
+/**
+ * Normalize embedding model output to a list of vectors.
+ * Supports array outputs and tensor-like { data, dims } payloads.
+ *
+ * @param {unknown} output
+ * @param {number} count
+ * @returns {Float32Array[]}
+ */
 export const normalizeEmbeddingBatchOutput = (output, count) => {
   const target = Math.max(0, Number(count) || 0);
   const emptyList = () => Array.from({ length: target }, () => new Float32Array(0));
