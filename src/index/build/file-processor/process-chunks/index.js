@@ -110,6 +110,8 @@ export const processChunks = async (context) => {
       containerExt,
       containerLanguageId,
       lineIndex,
+      fileHash,
+      fileHashAlgo,
       strict: strictIdentity,
       log
     });

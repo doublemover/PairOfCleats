@@ -46,6 +46,8 @@ export const prepareChunkIds = async ({
   containerExt,
   containerLanguageId,
   lineIndex,
+  fileHash,
+  fileHashAlgo,
   strict,
   log
 }) => {
@@ -66,6 +68,8 @@ export const prepareChunkIds = async ({
     containerExt,
     containerLanguageId,
     lineIndex,
+    fileHash,
+    fileHashAlgo,
     strict,
     log
   });

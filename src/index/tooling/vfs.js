@@ -9,6 +9,8 @@ import { LANGUAGE_ID_EXT } from '../segments/config.js';
 const VFS_PREFIX = '.poc-vfs/';
 export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
+const VFS_DOC_HASH_CACHE = new Map();
+const VFS_DOC_HASH_CACHE_MAX = 50000;
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
@@ -46,9 +48,37 @@ const resolveTextSource = (fileTextByPath, containerPath) => {
   return null;
 };
 
-const computeDocHash = async (text) => {
+const buildDocHashCacheKey = ({ fileHash, fileHashAlgo, containerPath, segmentUid, segmentStart, segmentEnd }) => {
+  if (!fileHash) return null;
+  const algo = fileHashAlgo || 'sha1';
+  return `${algo}:${fileHash}::${containerPath}::${segmentUid || ''}::${segmentStart}-${segmentEnd}`;
+};
+
+const getCachedDocHash = (cacheKey) => {
+  if (!cacheKey) return null;
+  const cached = VFS_DOC_HASH_CACHE.get(cacheKey) || null;
+  if (!cached) return null;
+  VFS_DOC_HASH_CACHE.delete(cacheKey);
+  VFS_DOC_HASH_CACHE.set(cacheKey, cached);
+  return cached;
+};
+
+const setCachedDocHash = (cacheKey, docHash) => {
+  if (!cacheKey) return;
+  VFS_DOC_HASH_CACHE.set(cacheKey, docHash);
+  if (VFS_DOC_HASH_CACHE.size > VFS_DOC_HASH_CACHE_MAX) {
+    const oldestKey = VFS_DOC_HASH_CACHE.keys().next().value;
+    if (oldestKey !== undefined) VFS_DOC_HASH_CACHE.delete(oldestKey);
+  }
+};
+
+const computeDocHash = async (text, cacheKey = null) => {
+  const cached = getCachedDocHash(cacheKey);
+  if (cached) return cached;
   const hash = await checksumString(text || '');
-  return hash?.value ? `xxh64:${hash.value}` : 'xxh64:';
+  const docHash = hash?.value ? `xxh64:${hash.value}` : 'xxh64:';
+  setCachedDocHash(cacheKey, docHash);
+  return docHash;
 };
 
 const normalizeLanguageId = (value, fallback = null) => {
@@ -175,6 +205,8 @@ export const buildToolingVirtualDocuments = async ({
       const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
       const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
       const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
+      const fileHash = chunk.fileHash || chunk.metaV2?.fileHash || null;
+      const fileHashAlgo = chunk.fileHashAlgo || chunk.metaV2?.fileHashAlgo || null;
       if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
         const textBytes = Buffer.byteLength(text, 'utf8');
         if (textBytes > maxVirtualFileBytes) {
@@ -185,7 +217,15 @@ export const buildToolingVirtualDocuments = async ({
           continue;
         }
       }
-      const docHash = await computeDocHash(text);
+      const docHashCacheKey = buildDocHashCacheKey({
+        fileHash,
+        fileHashAlgo,
+        containerPath,
+        segmentUid,
+        segmentStart,
+        segmentEnd
+      });
+      const docHash = await computeDocHash(text, docHashCacheKey);
       const virtualPath = buildVfsVirtualPath({
         containerPath,
         segmentUid,
@@ -260,6 +300,8 @@ export const buildVfsManifestRowsForFile = async ({
   containerExt = null,
   containerLanguageId = null,
   lineIndex = null,
+  fileHash = null,
+  fileHashAlgo = null,
   strict = true,
   log = null
 }) => {
@@ -269,6 +311,7 @@ export const buildVfsManifestRowsForFile = async ({
     return [];
   }
   const resolvedLineIndex = lineIndex || buildLineIndex(fileText);
+  const safeContainerPath = toPosix(containerPath);
   const groupMap = new Map();
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
@@ -281,9 +324,17 @@ export const buildVfsManifestRowsForFile = async ({
     const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
     const segmentText = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
-    const docHash = await computeDocHash(segmentText);
+    const docHashCacheKey = buildDocHashCacheKey({
+      fileHash,
+      fileHashAlgo,
+      containerPath: safeContainerPath,
+      segmentUid,
+      segmentStart,
+      segmentEnd
+    });
+    const docHash = await computeDocHash(segmentText, docHashCacheKey);
     const virtualPath = buildVfsVirtualPath({
-      containerPath: toPosix(containerPath),
+      containerPath: safeContainerPath,
       segmentUid,
       effectiveExt
     });
@@ -294,7 +345,7 @@ export const buildVfsManifestRowsForFile = async ({
       schemaVersion: '1.0.0',
       virtualPath,
       docHash,
-      containerPath: toPosix(containerPath),
+      containerPath: safeContainerPath,
       containerExt: containerExt || null,
       containerLanguageId: containerLanguageId || null,
       languageId,

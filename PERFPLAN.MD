@@ -493,7 +493,8 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - [x] Use VFS segment language routing to minimize unnecessary tree-sitter loads.
 - [x] Provide stable mapping from virtualPath → disk path (for LSP file scheme fallback).
 - [x] Skip rewriting VFS disk files when `docHash` is unchanged to reduce IO churn.
-- [ ] Avoid re-hashing full text when a segment hash can be derived from file hash + range metadata.
+- [x] Avoid re-hashing full text when a segment hash can be reused via file hash + range metadata cache.
+Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optimization must reuse cached segment hashes rather than derive from file hash alone.
 - [x] Emit VFS metrics (rows, trimmed rows, runs spilled, max line bytes) into stage checkpoints.
 
 ### Tests
@@ -506,31 +507,41 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - [x] `tests/tooling/vfs/vfs-disk-path-safety.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-doc-hash-skip-rewrite.test.js` (new)
+- [x] `tests/indexing/runtime/vfs-checkpoint-stats.test.js` (new)
 
 ### Sub-agent Work (Parallelizable)
 
 #### Sub-agent 7A — VFS Routing + Language Audit
-- [ ] Audit all tooling entrypoints to ensure `.poc-vfs/` routing for segmented docs only.
-- [ ] Inspect `src/index/tooling/vfs.js`, `src/index/type-inference-crossfile/tooling.js`, `src/index/tooling/provider-registry.js`, `src/integrations/tooling/providers/lsp.js`.
-- [ ] Confirm `languageId` is normalized to lowercase end-to-end for routing.
-- [ ] Add/update tests to assert `.poc-vfs/` prefix for segmented docs and correct routing on uppercase language IDs.
-- [ ] Run: `tests/tooling/vfs/vfs-routing-by-effective-language.test.js` and `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`.
-- [ ] Update PERFPLAN checkboxes for tasks/tests completed.
+- [x] Audit all tooling entrypoints to ensure `.poc-vfs/` routing for segmented docs only.
+- [x] Inspect `src/index/tooling/vfs.js`, `src/index/type-inference-crossfile/tooling.js`, `src/index/tooling/provider-registry.js`, `src/integrations/tooling/providers/lsp.js`.
+- [x] Confirm `languageId` is normalized to lowercase end-to-end for routing.
+- [x] Add/update tests to assert `.poc-vfs/` prefix for segmented docs and correct routing on uppercase language IDs.
+- [x] Run: `tests/tooling/vfs/vfs-routing-by-effective-language.test.js` and `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`.
+- [x] Update PERFPLAN checkboxes for tasks/tests completed.
 
 #### Sub-agent 7B — VFS Manifest Streaming + Metrics Audit
-- [ ] Verify `createVfsManifestCollector` is used for all non-empty VFS rows and spills to runs deterministically.
-- [ ] Inspect `src/index/build/vfs-manifest-collector.js`, `src/index/build/artifacts/writers/vfs-manifest.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/indexer/pipeline.js`, `src/index/build/state.js`.
-- [ ] Add a test to assert VFS stats are emitted into stage checkpoints (rows, bytes, trimmed, dropped, runsSpilled).
-- [ ] Ensure `mergeSortedRuns` heap ordering is deterministic for equal rows.
-- [ ] Run: `tests/indexing/vfs/vfs-manifest-streaming.test.js` and the new stats test.
-- [ ] Update PERFPLAN checkboxes for tasks/tests completed.
+- [x] Verify `createVfsManifestCollector` is used for all non-empty VFS rows and spills to runs deterministically.
+- [x] Inspect `src/index/build/vfs-manifest-collector.js`, `src/index/build/artifacts/writers/vfs-manifest.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/indexer/pipeline.js`, `src/index/build/state.js`.
+- [x] Add a test to assert VFS stats are emitted into stage checkpoints (rows, bytes, trimmed, dropped, runsSpilled).
+- [x] Ensure `mergeSortedRuns` heap ordering is deterministic for equal rows.
+- [x] Run: `tests/indexing/vfs/vfs-manifest-streaming.test.js` and the new stats test.
+- [x] Update PERFPLAN checkboxes for tasks/tests completed.
+
+#### Sub-agent 7C — VFS docHash Cache (avoid re-hashing)
+- [x] Locate all docHash computation call sites (`buildToolingVirtualDocuments`, `buildVfsManifestRowsForFile`) and keep the spec invariant (`xxh64` of segment text).
+- [x] Add a bounded in-memory cache keyed by `fileHash + fileHashAlgo + containerPath + segmentUid + segmentRange`.
+- [x] Only enable caching when `fileHash` is present; bypass cache if missing to avoid stale hashes.
+- [x] Ensure cache key uses normalized POSIX container paths and exact segment ranges.
+- [x] Plumb `fileHash` + `fileHashAlgo` into `prepareChunkIds` and `buildVfsManifestRowsForFile`.
+- [x] Confirm repeated docHash lookups reuse cached values without changing outputs.
+- [x] Update PERFPLAN checkboxes once code + tests are complete.
 
 ### Acceptance
-- [ ] VFS manifest rows are deterministic and schema-valid.
-- [ ] VFS manifest generation remains bounded in memory.
-- [ ] Tooling providers work with `.poc-vfs` paths and fall back safely when needed.
-- [ ] VFS disk fallback mapping is stable and safe for weird path names.
-- [ ] VFS IO avoids unnecessary rewrites and records useful metrics.
+- [x] VFS manifest rows are deterministic and schema-valid.
+- [x] VFS manifest generation remains bounded in memory.
+- [x] Tooling providers work with `.poc-vfs` paths and fall back safely when needed.
+- [x] VFS disk fallback mapping is stable and safe for weird path names.
+- [x] VFS IO avoids unnecessary rewrites and records useful metrics.
 
 ### Optional: VFS Expert Enhancements (Stretch)
 
