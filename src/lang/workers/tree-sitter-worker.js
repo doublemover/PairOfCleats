@@ -1,4 +1,8 @@
-import { buildTreeSitterChunks, preloadTreeSitterLanguages } from '../tree-sitter.js';
+import {
+  buildTreeSitterChunks,
+  preloadTreeSitterLanguages,
+  pruneTreeSitterLanguages
+} from '../tree-sitter.js';
 
 function normalizeEnabled(value) {
   if (value === false) return false;
@@ -92,12 +96,20 @@ export async function parseTreeSitter(payload = {}) {
   }
 
   try {
-    return buildTreeSitterChunks({
+    const result = buildTreeSitterChunks({
       text,
       languageId,
       ext,
       options: { treeSitter }
     });
+    const resolvedId = resolveLanguageForExt(languageId, ext);
+    if (resolvedId) {
+      pruneTreeSitterLanguages([resolvedId], {
+        maxLoadedLanguages: treeSitter?.maxLoadedLanguages,
+        onlyIfExceeds: true
+      });
+    }
+    return result;
   } catch {
     return null;
   }
