@@ -81,7 +81,11 @@ Define:
 
 * `uv = effectiveUvThreadpoolSize` (from RuntimeEnvelope effective value)
 * `ioPlatformCap = 64` (existing platform cap; keep)
-* `ioDefaultCap = min(ioPlatformCap, max(1, uv * 4))`
+* `ioMemoryCap` (based on total system memory):
+  * `<16 GiB` → `16`
+  * `16–32 GiB` → `32`
+  * `>=32 GiB` → `64`
+* `ioDefaultCap = min(ioPlatformCap, max(1, uv * 4), ioMemoryCap)`
 
 Rationale:
 * `uv * 4` keeps the threadpool busy even if some tasks are momentarily blocked.

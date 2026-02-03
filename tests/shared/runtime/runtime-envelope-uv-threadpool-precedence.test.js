@@ -16,6 +16,10 @@ const baseline = resolveRuntimeEnvelope({
 });
 
 assert.strictEqual(baseline.runtime.uvThreadpoolSize.effective.value, 4, 'default uv threadpool size should be 4');
+assert.ok(
+  Number.isFinite(baseline.concurrency.totalMemBytes),
+  'expected totalMemBytes to be present'
+);
 assert.strictEqual(
   baseline.envPatch.set.UV_THREADPOOL_SIZE,
   '4',

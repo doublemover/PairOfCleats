@@ -68,6 +68,8 @@ interface RuntimeEnvelopeV1 {
 
   concurrency: {
     cpuCount: number;
+    totalMemBytes: number;
+    totalMemGiB: number | null;
     maxConcurrencyCap: number;
     threads: SourcedValue<number>;
     fileConcurrency: SourcedValue<number>;
@@ -156,7 +158,8 @@ interface RuntimeEnvelopeV1 {
 ## 4) Concurrency and queues
 
 - Concurrency values are derived by `resolveThreadLimits` using the requested threads,
-  config concurrency, import concurrency, IO cap, cpu count, and ioOversubscribe.
+  config concurrency, import concurrency, IO cap, cpu count, total system memory,
+  and ioOversubscribe.
 - `embeddingConcurrency` is derived from `indexing.embeddings.concurrency` or defaults
   (platform-aware) and capped by CPU concurrency.
 - Queue `maxPending` defaults are:

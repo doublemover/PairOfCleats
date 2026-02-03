@@ -106,6 +106,11 @@ const main = async () => {
     { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
     { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
     {
+      label: 'Capability gate',
+      command: process.execPath,
+      args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
+    },
+    {
       label: 'Doc contract drift',
       command: process.execPath,
       args: ['tools/docs/contract-drift.js', '--fail']
@@ -135,12 +140,7 @@ const main = async () => {
         command: process.execPath,
         args: ['tests/tooling/script-coverage/script-coverage.test.js', '--log-dir', logDir]
       }]
-      : []),
-    {
-      label: 'Capability gate',
-      command: process.execPath,
-      args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
-    }
+      : [])
   ];
 
   console.error(`Suite mode: ${mode}`);

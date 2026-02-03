@@ -388,6 +388,8 @@ export function resolveRuntimeEnvelope(input = {}) {
     },
     concurrency: {
       cpuCount: resolvedCpuCount,
+      totalMemBytes: threadLimits.totalMemBytes,
+      totalMemGiB: threadLimits.totalMemGiB,
       maxConcurrencyCap: threadLimits.maxConcurrencyCap,
       threads: makeSourcedValue(threadLimits.threads, threadLimits.source, threadLimits.sourceDetail),
       fileConcurrency: makeSourcedValue(threadLimits.fileConcurrency, threadLimits.source, threadLimits.sourceDetail),

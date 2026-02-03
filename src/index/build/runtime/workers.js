@@ -42,7 +42,10 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
   }
 
   if (envConfig.verbose) {
-    log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
+    const memLabel = Number.isFinite(threadLimits.totalMemGiB)
+      ? `, mem=${threadLimits.totalMemGiB.toFixed(1)}GiB`
+      : '';
+    log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}${memLabel}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
   }
   return {
     threadLimits,

@@ -17,10 +17,17 @@ export function resolveThreadLimits(input = {}) {
     ioConcurrencyCapConfig = null,
     defaultMultiplier = 4,
     cpuCount: cpuCountInput,
+    totalMemBytes: totalMemBytesInput,
     uvThreadpoolSize = null,
     ioOversubscribe = false
   } = input;
   const cpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0 ? Math.floor(cpuCountInput) : os.cpus().length;
+  const totalMemBytes = Number.isFinite(totalMemBytesInput) && totalMemBytesInput > 0
+    ? totalMemBytesInput
+    : os.totalmem();
+  const totalMemGiB = Number.isFinite(totalMemBytes) && totalMemBytes > 0
+    ? totalMemBytes / (1024 ** 3)
+    : null;
   const defaultFileConcurrency = Math.max(1, Math.min(cpuCount, 64));
   const defaultThreads = Math.max(1, defaultFileConcurrency * defaultMultiplier);
   const rawCliThreads = Number(argv.threads);
@@ -52,10 +59,21 @@ export function resolveThreadLimits(input = {}) {
     )
   );
   const ioPlatformCap = 64;
+  const ioMemoryCap = Number.isFinite(totalMemGiB)
+    ? totalMemGiB >= 32
+      ? 64
+      : totalMemGiB >= 16
+        ? 32
+        : 16
+    : ioPlatformCap;
   const effectiveUv = Number.isFinite(Number(uvThreadpoolSize)) && uvThreadpoolSize > 0
     ? Math.floor(uvThreadpoolSize)
     : 4;
-  const ioDefaultCap = Math.min(ioPlatformCap, Math.max(1, effectiveUv * 4));
+  const ioDefaultCap = Math.min(
+    ioPlatformCap,
+    Math.max(1, effectiveUv * 4),
+    ioOversubscribe ? ioPlatformCap : ioMemoryCap
+  );
   if (!ioOversubscribe) {
     fileConcurrency = Math.min(fileConcurrency, ioDefaultCap);
     importConcurrency = Math.min(importConcurrency, ioDefaultCap);
@@ -88,6 +106,8 @@ export function resolveThreadLimits(input = {}) {
         : 'default';
   return {
     cpuCount,
+    totalMemBytes,
+    totalMemGiB,
     defaultThreads,
     maxConcurrencyCap,
     threads: cappedThreads,
