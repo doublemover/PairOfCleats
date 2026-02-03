@@ -82,5 +82,6 @@ that fail SafeRegex compilation (code, message, ruleId, ruleName, field, pattern
 - Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).
 - SafeRegex evaluation is guarded; regex errors are treated as no-match.
 - A lightweight prefilter is applied before regex evaluation to reduce scan overhead.
-- See `docs/phases/phase-3/analysis-policy.md` for analysis policy defaults.
+- See `docs/specs/analysis-policy.md` for analysis policy defaults.
+
 

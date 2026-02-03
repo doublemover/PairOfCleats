@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 1 Plan (P0 Correctness Hotfixes)
 
 Intent: review Phase 1 in `GIGAROADMAP.md` for improvements, then implement all items with hard-stop queue semantics, doc-missing as a hard error, and safe log ring buffering.
@@ -27,3 +32,9 @@ Intent: review Phase 1 in `GIGAROADMAP.md` for improvements, then implement all 
 - CI lane still has failures tracked in `failing_tests_list.md`.
 - `retrieval/filters/types.test` passes in isolation but still fails in `node tests/run.js --lane ci --log-dir tests/.logs`.
 - `services/mcp/tool-search-defaults-and-filters.test` is recorded as broken/hanging in `broken_tests.md`.
+
+
+
+
+
+

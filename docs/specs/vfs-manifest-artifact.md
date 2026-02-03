@@ -5,7 +5,7 @@ Status: **Normative** for Phase 8+ tooling. This is the canonical contract for `
 Goal: provide a compact, deterministic mapping from container files to per-segment virtual documents, so tooling and analysis can operate on embedded languages without re-parsing container files repeatedly.
 
 This spec aligns with:
-- `docs/phases/phase-8/tooling-vfs-and-segment-routing.md`
+- `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/identity-contract.md` (segmentUid source)
 
 ---
@@ -174,4 +174,5 @@ Producers:
 
 Consumers:
 - Tooling VFS (Phase 8) and any segment-aware analyzers that need stable virtual paths.
+
 

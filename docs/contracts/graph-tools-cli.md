@@ -16,7 +16,7 @@ All commands MUST be:
 - and optionally render deterministic Markdown (`--format md`).
 
 Authoritative output schemas:
-- `docs/phases/phase-11/spec.md`
+- `docs/specs/graph-product-surfaces.md`
 
 ---
 
@@ -263,3 +263,5 @@ pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 
 - JSON: `SuggestTestsReport` (validated)
 - MD: deterministic:
   - list of suggested tests with rationale + witness path summaries
+
+

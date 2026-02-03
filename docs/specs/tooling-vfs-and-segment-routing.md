@@ -12,7 +12,7 @@ This document refines the previous draft by:
 
 ## 0. Dependencies
 
-- `docs/phases/phase-8/identity-and-symbol-contracts.md` (ChunkRef + chunkUid)
+- `docs/specs/identity-and-symbol-contracts.md` (ChunkRef + chunkUid)
 - Effective language contract (container vs effective fields) is aligned with P0-04:
   - `effectiveLanguageId`, `effectiveExt`
   - `containerLanguageId`, `containerExt`
@@ -283,4 +283,5 @@ This ensures:
 3. `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
    - `.vue` with `<script lang="ts">` and `<template>`.
    - Ensure TS tooling runs only on TS virtual doc, not on template.
+
 

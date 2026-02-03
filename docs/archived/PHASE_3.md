@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 3 Plan -- Correctness Endgame (imports • signatures • watch • build state)
 
 Intent: complete Phase 3 with correctness-first sequencing. Parts 1-3 are core correctness work; Part 4 consolidates E/F and all P2 follow-ons. Any new behavior must ship with an initial doc/spec.
@@ -91,7 +96,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - [x] Ensure cached-bundle reuse preserves `imports` and `importLinks` exactly as persisted (no reconstruction from `allImports`).
   - [x] (Optional but recommended) Add a debug artifact behind a flag:
     - `artifacts/import_resolution_graph.json` (or `.jsonl`), capped/sampled to avoid huge outputs.
-  - [x] Docs: add `docs/phases/phase-3/import-resolution.md` (IRG model, resolution rules, debug artifact default-on + disable control) and update `docs/language/import-links.md`.
+  - [x] Docs: add `docs/specs/import-resolution.md` (IRG model, resolution rules, debug artifact default-on + disable control) and update `docs/language/import-links.md`.
 - [x] Remove redundant cached-import reads and ensure cached import lookup is performed at most once per file per scan (avoid "read twice on miss" behavior).
   - Primary touchpoints:
     - `src/index/build/imports.js` (`scanImports`)
@@ -165,7 +170,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - record in `build_state.json` diagnostics
   - [x] Reuse explainability:
     - Implement a bounded "top-level delta" diff helper that reports the top N differing keys without dumping entire configs.
-- [x] Docs: add `docs/phases/phase-3/signature.md` (canonicalization rules, signatureVersion, reuse gating, diagnostics) and update `docs/sqlite/incremental-updates.md` as needed.
+- [x] Docs: add `docs/specs/signature.md` (canonicalization rules, signatureVersion, reuse gating, diagnostics) and update `docs/sqlite/incremental-updates.md` as needed.
 - [x] Include regex flags (not just `.source`) for signature-bearing regex configuration (e.g., `licensePattern`, `generatedPattern`, `linterPattern`).
   - Primary touchpoints:
     - `src/index/build/indexer/signatures.js`
@@ -239,7 +244,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
   - [x] Lock backoff policy:
     - Exponential backoff with jitter (e.g., 50ms → 2s) and a hard max delay.
     - Log at bounded frequency (first retry, then every ~5s) to avoid spam.
-  - [x] Docs: add `docs/phases/phase-3/watch-atomicity.md` (attempt roots, promotion barrier, retention defaults, backoff).
+  - [x] Docs: add `docs/specs/watch-atomicity.md` (attempt roots, promotion barrier, retention defaults, backoff).
 - [x] Implement delta-aware discovery in watch: maintain `trackedEntriesByMode` from an initial full scan, update on FS events, and pass the tracked entries into the pipeline--avoiding repeated whole-repo discovery each rebuild.
   - Primary touchpoints:
     - `src/index/build/watch.js`
@@ -304,7 +309,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/build/build-state.js`
   - Notes:
     - "Last write wins" must not erase phase/progress updates; merging must be correct under concurrent callers.
-  - Docs: add `docs/phases/phase-3/build-state-integrity.md` (schema + writer queue + promotion validation expectations).
+  - Docs: add `docs/specs/build-state-integrity.md` (schema + writer queue + promotion validation expectations).
 - [x] Implementation detail (recommended; keeps callers simple and safe):
   - [x] Implement `createBuildStateWriter(buildRoot)` that serializes updates through a single note-taking queue:
     - `enqueue(patch)` performs: read → deep-merge → validate → atomic write
@@ -382,7 +387,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phas
     - Preserve frontmatter detection and inline code span behavior.
     - Ensure fenced blocks and inline spans are captured in one pass.
   - Docs:
-    - Add `docs/phases/phase-3/segmentation-perf.md` (single-pass markdown segmentation contract).
+    - Add `docs/specs/segmentation-perf.md` (single-pass markdown segmentation contract).
   - Tests:
     - Add a regression fixture for frontmatter + fenced code + inline spans.
     - Verify `segment-pipeline` outputs are unchanged for Markdown.
@@ -399,7 +404,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phas
     - Extend provider request shape to accept `text` where available.
     - Fall back to disk reads only when `text` is absent.
   - Docs:
-    - Add `docs/phases/phase-3/tooling-io.md` (provider text reuse contract and fallback behavior).
+    - Add `docs/specs/tooling-io.md` (provider text reuse contract and fallback behavior).
   - Tests:
     - Add a provider unit/integration test that asserts no extra reads when `text` is supplied (stub `fs.readFile`).
 
@@ -416,7 +421,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phas
   - one metadata v2 schema
   - one risk rule bundle schema
   - one place that validates both as part of artifact validation
-- [x] Docs: add `docs/phases/phase-3/analysis-policy.md` (analysisPolicy shape, defaults, propagation, and gating).
+- [x] Docs: add `docs/specs/analysis-policy.md` (analysisPolicy shape, defaults, propagation, and gating).
   - Primary touchpoints:
     - `src/index/build/runtime/runtime.js`
     - `src/index/metadata-v2.js`
@@ -456,4 +461,11 @@ Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phas
     - Add risk rules edge-case tests (invalid patterns, caps, requires/excludes).
 
 ---
+
+
+
+
+
+
+
 
