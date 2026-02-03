@@ -131,6 +131,7 @@ Add consistent timing/memory checkpoints across the 4 indexing stages to identif
 - [x] Emit a concise audit summary per mode and per stage.
 - [x] Capture high-watermarks for postings maps, chunk arrays, relations, and embeddings buffers.
 - [x] Document the audit output format and interpretation guide.
+- [x] Guard checkpoint writes so metrics I/O failures don’t abort builds.
 
 ### Tests
 - [x] `tests/indexing/runtime/stage-memory-checkpoints.test.js`
@@ -188,8 +189,9 @@ Optimize shared JSON streaming, artifact IO, and compression paths used across i
 ---
 
 ## Cross-cutting Tests to Run
-- [ ] `node tests/run.js --lane ci-lite`
-- [ ] `node tests/run.js --lane ci`
+- [x] `node tests/run.js --lane ci-lite`
+- [x] `node tests/run.js --lane ci`
+- [x] `node tests/run.js --lane ci-long`
 
 ---
 
@@ -335,6 +337,7 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - [ ] Cache keys include file hash, chunkSignature, identityKey.
 - [ ] Add pruning by size and age with a stable policy.
 - [ ] Ensure cache identity mismatch invalidates entries deterministically.
+- [x] Isolate HNSW writes in tests/Windows to avoid native heap crashes.
 
 ### Tests
 - [ ] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
@@ -625,28 +628,28 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `tests/retrieval/pipeline/query-plan-schema-version.test.js` (new)
 
 #### Tasks
-- [ ] Add an in-memory query plan cache keyed by query + normalized config + index signature.
-- [ ] Persist parse + plan shape (AST, tokens, phrase ngrams, filter hints) inside the plan.
-- [ ] Define plan cache key material explicitly (normalized query, tokenizer version, parser version, retrieval config hash, index signature hash).
-- [ ] Add a plan schema with versioning and validation.
-- [ ] Implement cache eviction (size cap + TTL) and explicit invalidation hooks for config reload.
-- [ ] Ensure plan cache invalidates on config changes (tokenization, filters, ANN backend, scoring).
-- [ ] Ensure plan cache invalidates on index signature changes.
-- [ ] Record cache hits/misses in metrics.
+- [x] Add an in-memory query plan cache keyed by query + normalized config + index signature.
+- [x] Persist parse + plan shape (AST, tokens, phrase ngrams, filter hints) inside the plan.
+- [x] Define plan cache key material explicitly (normalized query, tokenizer version, parser version, retrieval config hash, index signature hash).
+- [x] Add a plan schema with versioning and validation.
+- [x] Implement cache eviction (size cap + TTL) and explicit invalidation hooks for config reload.
+- [x] Ensure plan cache invalidates on config changes (tokenization, filters, ANN backend, scoring).
+- [x] Ensure plan cache invalidates on index signature changes.
+- [x] Record cache hits/misses in metrics.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/query-cache-hit.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-invalidates-config.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-invalidates-index.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-requirements.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-cache-key.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-eviction.test.js`
-- [ ] `tests/retrieval/pipeline/query-plan-schema-version.test.js`
+- [x] `tests/retrieval/pipeline/query-cache-hit.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-invalidates-config.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-invalidates-index.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-requirements.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-cache-key.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-eviction.test.js`
+- [x] `tests/retrieval/pipeline/query-plan-schema-version.test.js`
 
 #### Acceptance
-- [ ] Query parse and plan reuse across modes.
-- [ ] Plan cache invalidates deterministically on config/index changes.
-- [ ] Plan cache stays within size/TTL bounds and reports hit/miss metrics.
+- [x] Query parse and plan reuse across modes.
+- [x] Plan cache invalidates deterministically on config/index changes.
+- [x] Plan cache stays within size/TTL bounds and reports hit/miss metrics.
 
 ---
 
@@ -670,22 +673,22 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `tests/retrieval/output/output-cache-hit.test.js` (new)
 
 #### Tasks
-- [ ] Add retrieval stage checkpoints (parse, filter, candidates, ANN, fusion, rank, output).
-- [ ] Emit optional timing/memory summary in verbose mode.
-- [ ] Delay file reads for summaries/context until needed.
-- [ ] Expand output caches to reuse formatting work.
-- [ ] Stream large JSON outputs to avoid building full arrays in memory.
-- [ ] Add a “no-context” output path that skips file reads entirely when context is not requested.
+- [x] Add retrieval stage checkpoints (parse, filter, candidates, ANN, fusion, rank, output).
+- [x] Emit optional timing/memory summary in verbose mode.
+- [x] Delay file reads for summaries/context until needed.
+- [x] Expand output caches to reuse formatting work.
+- [x] Stream large JSON outputs to avoid building full arrays in memory.
+- [x] Add a “no-context” output path that skips file reads entirely when context is not requested.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js`
-- [ ] `tests/retrieval/output/output-cache-hit.test.js`
-- [ ] `tests/retrieval/output/json-streaming.test.js` (new)
-- [ ] `tests/retrieval/output/context-skips.test.js` (new)
+- [x] `tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js`
+- [x] `tests/retrieval/output/output-cache-hit.test.js`
+- [x] `tests/retrieval/output/json-streaming.test.js` (new)
+- [x] `tests/retrieval/output/context-skips.test.js` (new)
 
 #### Acceptance
-- [ ] Retrieval stage telemetry is recorded.
-- [ ] Output path avoids unnecessary IO.
+- [x] Retrieval stage telemetry is recorded.
+- [x] Output path avoids unnecessary IO.
 
 ---
 
@@ -901,8 +904,8 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `docs/perf/retrieval-pipeline.md` (new; includes startup checkpoints and artifact gating rules)
 
 ### Acceptance (Phase 9 overall)
-- [ ] Query latency reduced on cold and warm runs.
-- [ ] Retrieval memory spikes reduced for large result sets.
+- [x] Query latency reduced on cold and warm runs.
+- [x] Retrieval memory spikes reduced for large result sets.
 
 ---
 
