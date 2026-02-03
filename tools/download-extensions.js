@@ -240,6 +240,15 @@ function isZipSymlink(entry) {
   return (mode & 0o170000) === 0o120000;
 }
 
+function isZipDirectory(entry) {
+  const name = String(entry?.fileName || '');
+  if (name.endsWith('/')) return true;
+  const attr = Number(entry?.header?.attr ?? entry?.externalFileAttributes);
+  if (!Number.isFinite(attr)) return false;
+  const mode = attr >>> 16;
+  return (mode & 0o170000) === 0o040000;
+}
+
 function createArchiveLimiter(limits) {
   const maxEntries = Number.isFinite(limits?.maxEntries) ? limits.maxEntries : null;
   const maxEntryBytes = Number.isFinite(limits?.maxEntryBytes) ? limits.maxEntryBytes : null;
@@ -301,7 +310,7 @@ async function extractZipNode(archivePath, destDir, limits) {
           entry.fileName,
           Number.isFinite(declaredSize) ? declaredSize : 0
         );
-        if (/\/$/.test(entry.fileName)) {
+        if (isZipDirectory(entry)) {
           fs.mkdir(targetPath, { recursive: true })
             .then(async () => {
               try { await fs.chmod(targetPath, DIR_MODE); } catch {}
