@@ -6,7 +6,13 @@ import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';
 import { buildVfsUri, resolveVfsTokenUri } from '../lsp/uris.js';
 import { createToolingGuard } from './shared.js';
-import { ensureVfsDiskDocument, resolveVfsDiskPath } from '../../../index/tooling/vfs.js';
+import { buildIndexSignature } from '../../../retrieval/index-cache.js';
+import {
+  computeVfsManifestHash,
+  createVfsColdStartCache,
+  ensureVfsDiskDocument,
+  resolveVfsDiskPath
+} from '../../../index/tooling/vfs.js';
 
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
@@ -80,12 +86,13 @@ const findTargetForOffsets = (targets, offsets, nameHint = null) => {
  * Ensure a VFS document exists on disk for file-based LSP servers.
  * Uses docHash to avoid unnecessary rewrites.
  */
-const ensureVirtualFile = async (rootDir, doc) => {
+const ensureVirtualFile = async (rootDir, doc, coldStartCache = null) => {
   const result = await ensureVfsDiskDocument({
     baseDir: rootDir,
     virtualPath: doc.virtualPath,
     text: doc.text || '',
-    docHash: doc.docHash || null
+    docHash: doc.docHash || null,
+    coldStartCache
   });
   return result.path;
 };
@@ -100,7 +107,7 @@ const resolveVfsIoBatching = (value) => {
   return { maxInflight, maxQueueEntries };
 };
 
-const ensureVirtualFilesBatch = async ({ rootDir, docs, batching }) => {
+const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldStartCache }) => {
   const results = new Map();
   if (!Array.isArray(docs) || docs.length === 0) return results;
   const maxInflight = batching?.maxInflight ? Math.max(1, batching.maxInflight) : 1;
@@ -120,7 +127,8 @@ const ensureVirtualFilesBatch = async ({ rootDir, docs, batching }) => {
           baseDir: rootDir,
           virtualPath: doc.virtualPath,
           text: doc.text || '',
-          docHash: doc.docHash || null
+          docHash: doc.docHash || null,
+          coldStartCache
         });
         results.set(doc.virtualPath, result.path);
       }
@@ -132,7 +140,14 @@ const ensureVirtualFilesBatch = async ({ rootDir, docs, batching }) => {
 
 const normalizeUriScheme = (value) => (value === 'poc-vfs' ? 'poc-vfs' : 'file');
 
-const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode, diskPathMap }) => {
+const resolveDocumentUri = async ({
+  rootDir,
+  doc,
+  uriScheme,
+  tokenMode,
+  diskPathMap,
+  coldStartCache
+}) => {
   if (uriScheme === 'poc-vfs') {
     const resolved = await resolveVfsTokenUri({
       virtualPath: doc.virtualPath,
@@ -142,7 +157,7 @@ const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode, diskPath
     return resolved.uri;
   }
   const cachedPath = diskPathMap?.get(doc.virtualPath) || null;
-  const absPath = cachedPath || await ensureVirtualFile(rootDir, doc);
+  const absPath = cachedPath || await ensureVirtualFile(rootDir, doc, coldStartCache);
   return pathToFileUri(absPath);
 };
 
@@ -163,7 +178,10 @@ export async function collectLspTypes({
   captureDiagnostics = false,
   vfsTokenMode = 'docHash+virtualPath',
   vfsIoBatching = null,
-  lineIndexFactory = buildLineIndex
+  lineIndexFactory = buildLineIndex,
+  indexDir = null,
+  vfsColdStartCache = null,
+  cacheRoot = null
 }) {
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
@@ -185,6 +203,19 @@ export async function collectLspTypes({
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
     return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+  }
+
+  let coldStartCache = null;
+  if (vfsColdStartCache !== false) {
+    const resolvedIndexDir = indexDir || resolvedRoot || rootDir;
+    const indexSignature = resolvedIndexDir ? buildIndexSignature(resolvedIndexDir) : null;
+    const manifestHash = resolvedIndexDir ? await computeVfsManifestHash({ indexDir: resolvedIndexDir }) : null;
+    coldStartCache = await createVfsColdStartCache({
+      cacheRoot,
+      indexSignature,
+      manifestHash,
+      config: vfsColdStartCache
+    });
   }
 
   const diagnosticsByUri = new Map();
@@ -227,7 +258,12 @@ export async function collectLspTypes({
   let enriched = 0;
   const openDocs = new Map();
   const diskPathMap = resolvedScheme === 'file'
-    ? await ensureVirtualFilesBatch({ rootDir: resolvedRoot, docs: docsToOpen, batching: resolvedBatching })
+    ? await ensureVirtualFilesBatch({
+      rootDir: resolvedRoot,
+      docs: docsToOpen,
+      batching: resolvedBatching,
+      coldStartCache
+    })
     : null;
   for (const doc of docsToOpen) {
     const docTargets = targetsByPath.get(doc.virtualPath) || [];
@@ -236,7 +272,8 @@ export async function collectLspTypes({
       doc,
       uriScheme: resolvedScheme,
       tokenMode: vfsTokenMode,
-      diskPathMap
+      diskPathMap,
+      coldStartCache
     });
     const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
     if (!openDocs.has(doc.virtualPath)) {
@@ -358,6 +395,14 @@ export async function collectLspTypes({
         diagnosticsByChunkUid[chunkUid] = existing;
         diagnosticsCount += 1;
       }
+    }
+  }
+
+  if (coldStartCache?.flush) {
+    try {
+      await coldStartCache.flush();
+    } catch (err) {
+      log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
     }
   }
 

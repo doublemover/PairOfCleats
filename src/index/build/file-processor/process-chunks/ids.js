@@ -48,6 +48,7 @@ export const prepareChunkIds = async ({
   lineIndex,
   fileHash,
   fileHashAlgo,
+  vfsManifestConcurrency,
   strict,
   log
 }) => {
@@ -70,6 +71,7 @@ export const prepareChunkIds = async ({
     lineIndex,
     fileHash,
     fileHashAlgo,
+    concurrency: vfsManifestConcurrency,
     strict,
     log
   });

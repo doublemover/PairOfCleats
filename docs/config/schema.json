@@ -80,6 +80,16 @@
                 "flushIntervalMs": { "type": "number" },
                 "writeMode": { "type": "string", "enum": ["atomic", "direct"] }
               }
+            },
+            "coldStartCache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxBytes": { "type": "number" },
+                "maxAgeDays": { "type": "number" },
+                "cacheRoot": { "type": "string" }
+              }
             }
           }
         },

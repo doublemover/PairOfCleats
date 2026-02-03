@@ -4,8 +4,14 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
-import { toPosix } from '../../shared/files.js';
+import { fromPosix, toPosix } from '../../shared/files.js';
 import { buildChunkRef } from '../../shared/identity.js';
+import { decodeBloomFilter } from '../../shared/bloom.js';
+import { getCacheRoot } from '../../shared/cache-roots.js';
+import { isTestingEnv } from '../../shared/env.js';
+import { readJsonFile } from '../../shared/artifact-io.js';
+import { writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import { runWithConcurrency } from '../../shared/concurrency.js';
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
 
@@ -15,6 +21,13 @@ export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
 const VFS_DOC_HASH_CACHE = new Map();
 const VFS_DOC_HASH_CACHE_MAX = 50000;
+const VFS_COLD_START_SCHEMA_VERSION = '1.0.0';
+const VFS_COLD_START_DIR = 'vfs-cold-start';
+const VFS_COLD_START_META = 'vfs_cold_start.meta.json';
+const VFS_COLD_START_DATA = 'vfs_cold_start.jsonl';
+const VFS_COLD_START_MAX_BYTES = 64 * 1024 * 1024;
+const VFS_COLD_START_MAX_AGE_DAYS = 7;
+const VFS_MANIFEST_HASH_MAX_BYTES = 64 * 1024 * 1024;
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
@@ -573,7 +586,8 @@ export const buildVfsManifestRowsForFile = async ({
   fileHash = null,
   fileHashAlgo = null,
   strict = true,
-  log = null
+  log = null,
+  concurrency = null
 }) => {
   if (!Array.isArray(chunks) || !chunks.length) return [];
   if (typeof fileText !== 'string') {
@@ -582,53 +596,80 @@ export const buildVfsManifestRowsForFile = async ({
   }
   const resolvedLineIndex = lineIndex || buildLineIndex(fileText);
   const safeContainerPath = toPosix(containerPath);
-  const groupMap = new Map();
+  const seen = new Set();
+  const groups = [];
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
     const segment = chunk.segment || null;
     const segmentUid = segment?.segmentUid || null;
     const key = `${segmentUid || ''}`;
-    if (groupMap.has(key)) continue;
+    if (seen.has(key)) continue;
     const segmentStart = segment ? segment.start : 0;
     const segmentEnd = segment ? segment.end : fileText.length;
     const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
-    const segmentText = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
+    const entry = {
+      key,
+      segment,
+      segmentUid,
+      segmentStart,
+      segmentEnd,
+      languageId,
+      effectiveExt
+    };
+    seen.add(key);
+    groups.push(entry);
+  }
+  const buildRow = async (entry) => {
+    const segmentText = entry.segment
+      ? fileText.slice(entry.segmentStart, entry.segmentEnd)
+      : fileText;
     const docHashCacheKey = buildDocHashCacheKey({
       fileHash,
       fileHashAlgo,
-      languageId,
-      effectiveExt,
-      segmentStart,
-      segmentEnd
+      languageId: entry.languageId,
+      effectiveExt: entry.effectiveExt,
+      segmentStart: entry.segmentStart,
+      segmentEnd: entry.segmentEnd
     });
     const docHash = await computeDocHash(segmentText, docHashCacheKey);
     const virtualPath = buildVfsVirtualPath({
       containerPath: safeContainerPath,
-      segmentUid,
-      effectiveExt
+      segmentUid: entry.segmentUid,
+      effectiveExt: entry.effectiveExt
     });
-    const lineStart = offsetToLine(resolvedLineIndex, segmentStart);
-    const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
+    const lineStart = offsetToLine(resolvedLineIndex, entry.segmentStart);
+    const endOffset = entry.segmentEnd > entry.segmentStart ? entry.segmentEnd - 1 : entry.segmentStart;
     const lineEnd = offsetToLine(resolvedLineIndex, endOffset);
-    groupMap.set(key, {
+    return {
       schemaVersion: '1.0.0',
       virtualPath,
       docHash,
       containerPath: safeContainerPath,
       containerExt: containerExt || null,
       containerLanguageId: containerLanguageId || null,
-      languageId,
-      effectiveExt,
-      segmentUid,
-      segmentId: segment?.segmentId || null,
-      segmentStart,
-      segmentEnd,
+      languageId: entry.languageId,
+      effectiveExt: entry.effectiveExt,
+      segmentUid: entry.segmentUid,
+      segmentId: entry.segment?.segmentId || null,
+      segmentStart: entry.segmentStart,
+      segmentEnd: entry.segmentEnd,
       lineStart,
       lineEnd
-    });
+    };
+  };
+  const resolvedConcurrency = Number.isFinite(Number(concurrency))
+    ? Math.max(1, Math.floor(Number(concurrency)))
+    : 1;
+  let rows = [];
+  if (resolvedConcurrency > 1 && groups.length > 1) {
+    rows = await runWithConcurrency(groups, resolvedConcurrency, buildRow);
+  } else {
+    for (const entry of groups) {
+      rows.push(await buildRow(entry));
+    }
   }
-  const rows = Array.from(groupMap.values());
+  rows = rows.filter(Boolean);
   rows.sort(compareVfsManifestRows);
   const filtered = [];
   for (const row of rows) {
@@ -643,19 +684,59 @@ export const buildVfsManifestRowsForFile = async ({
  * @param {{baseDir:string,virtualPath:string,text?:string,docHash?:string|null}} input
  * @returns {Promise<{path:string,cacheHit:boolean}>}
  */
-export const ensureVfsDiskDocument = async ({ baseDir, virtualPath, text = '', docHash = null }) => {
-  const absPath = resolveVfsDiskPath({ baseDir, virtualPath });
+export const ensureVfsDiskDocument = async ({
+  baseDir,
+  virtualPath,
+  text = '',
+  docHash = null,
+  coldStartCache = null
+}) => {
   const cacheKey = `${baseDir}::${virtualPath}`;
+  const cachedPath = coldStartCache?.get
+    ? coldStartCache.get({ virtualPath, docHash })
+    : null;
+  if (cachedPath) {
+    VFS_DISK_CACHE.set(cacheKey, { path: cachedPath, docHash });
+    if (coldStartCache?.set) {
+      const sizeBytes = Buffer.byteLength(text || '', 'utf8');
+      coldStartCache.set({
+        virtualPath,
+        docHash,
+        diskPath: cachedPath,
+        sizeBytes
+      });
+    }
+    return { path: cachedPath, cacheHit: true, source: 'cold-start' };
+  }
+  const absPath = resolveVfsDiskPath({ baseDir, virtualPath });
   const cached = VFS_DISK_CACHE.get(cacheKey);
   if (cached && cached.docHash === docHash) {
     try {
       await fsPromises.access(absPath);
+      if (coldStartCache?.set) {
+        const sizeBytes = Buffer.byteLength(text || '', 'utf8');
+        coldStartCache.set({
+          virtualPath,
+          docHash,
+          diskPath: absPath,
+          sizeBytes
+        });
+      }
       return { path: absPath, cacheHit: true };
     } catch {}
   }
   await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
   await fsPromises.writeFile(absPath, text || '', 'utf8');
   VFS_DISK_CACHE.set(cacheKey, { path: absPath, docHash });
+  if (coldStartCache?.set) {
+    const sizeBytes = Buffer.byteLength(text || '', 'utf8');
+    coldStartCache.set({
+      virtualPath,
+      docHash,
+      diskPath: absPath,
+      sizeBytes
+    });
+  }
   return { path: absPath, cacheHit: false };
 };
 
@@ -678,6 +759,292 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
   });
   const relative = safeParts.join(path.sep);
   return path.join(baseDir, relative);
+};
+
+const readJsonlRows = async function* (filePath) {
+  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  let lineNumber = 0;
+  try {
+    for await (const line of rl) {
+      lineNumber += 1;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const row = JSON.parse(trimmed);
+        yield row;
+      } catch (err) {
+        const message = err?.message || 'JSON parse error';
+        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+      }
+    }
+  } finally {
+    rl.close();
+    stream.destroy();
+  }
+};
+
+/**
+ * Load a VFS manifest bloom filter from disk.
+ * @param {{bloomPath:string}} input
+ * @returns {Promise<object|null>}
+ */
+export const loadVfsManifestBloomFilter = async ({ bloomPath }) => {
+  if (!bloomPath || !fs.existsSync(bloomPath)) return null;
+  const raw = readJsonFile(bloomPath);
+  return decodeBloomFilter(raw);
+};
+
+const scanVfsManifestRowByPath = async ({ manifestPath, virtualPath }) => {
+  if (!manifestPath || !fs.existsSync(manifestPath)) return null;
+  for await (const row of readJsonlRows(manifestPath)) {
+    if (row?.virtualPath === virtualPath) return row;
+  }
+  return null;
+};
+
+const resolveVfsManifestSource = (indexDir) => {
+  if (!indexDir) return null;
+  const candidates = [
+    path.join(indexDir, 'vfs_manifest.jsonl'),
+    path.join(indexDir, 'vfs_manifest.jsonl.gz'),
+    path.join(indexDir, 'vfs_manifest.jsonl.zst')
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return { type: 'single', path: candidate };
+    }
+  }
+  const metaPath = path.join(indexDir, 'vfs_manifest.meta.json');
+  if (!fs.existsSync(metaPath)) return null;
+  let meta = null;
+  try {
+    meta = readJsonFile(metaPath);
+  } catch {
+    return null;
+  }
+  const parts = Array.isArray(meta?.parts) ? meta.parts : [];
+  if (!parts.length) return null;
+  const partNames = parts
+    .map((part) => part?.path)
+    .filter((value) => typeof value === 'string' && value.trim());
+  if (!partNames.length) return null;
+  const partPaths = partNames.map((partName) => path.join(indexDir, fromPosix(partName)));
+  return { type: 'sharded', partNames, partPaths };
+};
+
+const hashManifestFile = async (filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  let stat = null;
+  try {
+    stat = await fsPromises.stat(filePath);
+  } catch {
+    return null;
+  }
+  if (stat.size > VFS_MANIFEST_HASH_MAX_BYTES) return null;
+  const buffer = await fsPromises.readFile(filePath);
+  const hash = await checksumString(buffer);
+  return hash?.value ? `xxh64:${hash.value}` : null;
+};
+
+/**
+ * Compute a deterministic hash for the VFS manifest contents.
+ * @param {{indexDir:string}} input
+ * @returns {Promise<string|null>}
+ */
+export const computeVfsManifestHash = async ({ indexDir }) => {
+  const source = resolveVfsManifestSource(indexDir);
+  if (!source) return null;
+  if (source.type === 'single') {
+    return hashManifestFile(source.path);
+  }
+  if (source.type === 'sharded') {
+    const parts = [];
+    for (let i = 0; i < source.partPaths.length; i += 1) {
+      const partPath = source.partPaths[i];
+      const hashValue = await hashManifestFile(partPath);
+      if (!hashValue) return null;
+      const name = source.partNames[i] || path.basename(partPath);
+      parts.push(`${name}:${hashValue.replace(/^xxh64:/, '')}`);
+    }
+    const combined = await checksumString(parts.join('|'));
+    return combined?.value ? `xxh64:${combined.value}` : null;
+  }
+  return null;
+};
+
+const resolveColdStartConfig = (value) => {
+  if (value === false || value?.enabled === false) {
+    return { enabled: false };
+  }
+  const enabled = typeof value?.enabled === 'boolean' ? value.enabled : true;
+  if (!enabled) return { enabled: false };
+  if (isTestingEnv() && value?.enabled !== true) {
+    return { enabled: false };
+  }
+  const maxBytes = Number.isFinite(Number(value?.maxBytes))
+    ? Math.max(0, Math.floor(Number(value.maxBytes)))
+    : VFS_COLD_START_MAX_BYTES;
+  const maxAgeDays = Number.isFinite(Number(value?.maxAgeDays))
+    ? Math.max(0, Number(value.maxAgeDays))
+    : VFS_COLD_START_MAX_AGE_DAYS;
+  const cacheRoot = typeof value?.cacheRoot === 'string' && value.cacheRoot.trim()
+    ? path.resolve(value.cacheRoot)
+    : getCacheRoot();
+  return {
+    enabled: true,
+    maxBytes,
+    maxAgeDays,
+    cacheRoot
+  };
+};
+
+const resolveVfsColdStartPaths = (cacheRoot) => {
+  const baseDir = path.join(cacheRoot, VFS_COLD_START_DIR);
+  return {
+    baseDir,
+    metaPath: path.join(baseDir, VFS_COLD_START_META),
+    dataPath: path.join(baseDir, VFS_COLD_START_DATA)
+  };
+};
+
+const normalizeColdStartEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const virtualPath = typeof entry.virtualPath === 'string' ? entry.virtualPath.trim() : '';
+  const docHash = typeof entry.docHash === 'string' ? entry.docHash.trim() : '';
+  const diskPath = typeof entry.diskPath === 'string' ? entry.diskPath.trim() : '';
+  if (!virtualPath || !docHash || !diskPath) return null;
+  const sizeBytes = Number.isFinite(Number(entry.sizeBytes))
+    ? Math.max(0, Math.floor(Number(entry.sizeBytes)))
+    : 0;
+  const updatedAt = typeof entry.updatedAt === 'string' && entry.updatedAt.trim()
+    ? entry.updatedAt
+    : new Date().toISOString();
+  return {
+    schemaVersion: VFS_COLD_START_SCHEMA_VERSION,
+    virtualPath,
+    docHash,
+    diskPath,
+    sizeBytes,
+    updatedAt
+  };
+};
+
+const compactColdStartEntries = (entries, { maxBytes, maxAgeMs }) => {
+  const cutoff = Number.isFinite(maxAgeMs) && maxAgeMs > 0 ? Date.now() - maxAgeMs : null;
+  const filtered = entries.filter((entry) => {
+    if (!entry) return false;
+    if (cutoff == null) return true;
+    const ts = Date.parse(entry.updatedAt || '');
+    if (!Number.isFinite(ts)) return true;
+    return ts >= cutoff;
+  });
+  filtered.sort((a, b) => {
+    const aTime = Date.parse(a.updatedAt || '') || 0;
+    const bTime = Date.parse(b.updatedAt || '') || 0;
+    return bTime - aTime;
+  });
+  const kept = [];
+  let totalBytes = 0;
+  for (const entry of filtered) {
+    const nextBytes = entry.sizeBytes || 0;
+    if (Number.isFinite(maxBytes) && maxBytes > 0 && (totalBytes + nextBytes) > maxBytes) {
+      continue;
+    }
+    totalBytes += nextBytes;
+    kept.push(entry);
+  }
+  return { entries: kept, totalBytes };
+};
+
+/**
+ * Create (or load) a VFS cold-start cache for disk-backed virtual documents.
+ * @param {{cacheRoot?:string|null,indexSignature?:string|null,manifestHash?:string|null,config?:object|null}} input
+ * @returns {Promise<{get:(input:{virtualPath:string,docHash:string})=>string|null,set:(input:{virtualPath:string,docHash:string,diskPath:string,sizeBytes:number})=>void,flush:()=>Promise<void>,size:()=>number}|null>}
+ */
+export const createVfsColdStartCache = async ({
+  cacheRoot = null,
+  indexSignature = null,
+  manifestHash = null,
+  config = null
+} = {}) => {
+  const resolved = resolveColdStartConfig(config);
+  if (!resolved.enabled) return null;
+  const resolvedCacheRoot = cacheRoot ? path.resolve(cacheRoot) : resolved.cacheRoot;
+  if (!resolvedCacheRoot || !indexSignature || !manifestHash) return null;
+
+  const { baseDir, metaPath, dataPath } = resolveVfsColdStartPaths(resolvedCacheRoot);
+  let entries = [];
+  if (fs.existsSync(metaPath) && fs.existsSync(dataPath)) {
+    const meta = readJsonFile(metaPath);
+    if (meta?.indexSignature === indexSignature && meta?.manifestHash === manifestHash) {
+      for await (const row of readJsonlRows(dataPath)) {
+        const normalized = normalizeColdStartEntry(row);
+        if (normalized) entries.push(normalized);
+      }
+    }
+  }
+
+  const maxAgeMs = resolved.maxAgeDays > 0 ? resolved.maxAgeDays * 86400000 : null;
+  const compacted = compactColdStartEntries(entries, {
+    maxBytes: resolved.maxBytes,
+    maxAgeMs
+  });
+  const map = new Map(compacted.entries.map((entry) => [entry.virtualPath, entry]));
+  let dirty = false;
+
+  const get = ({ virtualPath, docHash }) => {
+    if (!virtualPath || !docHash) return null;
+    const entry = map.get(virtualPath);
+    if (!entry || entry.docHash !== docHash) return null;
+    if (!path.isAbsolute(entry.diskPath)) return null;
+    if (!fs.existsSync(entry.diskPath)) return null;
+    return entry.diskPath;
+  };
+
+  const set = ({ virtualPath, docHash, diskPath, sizeBytes }) => {
+    if (!virtualPath || !docHash || !diskPath) return;
+    if (!path.isAbsolute(diskPath)) return;
+    const normalized = normalizeColdStartEntry({
+      virtualPath,
+      docHash,
+      diskPath,
+      sizeBytes,
+      updatedAt: new Date().toISOString()
+    });
+    if (!normalized) return;
+    map.set(virtualPath, normalized);
+    dirty = true;
+  };
+
+  const flush = async () => {
+    if (!dirty) return;
+    const payload = compactColdStartEntries(Array.from(map.values()), {
+      maxBytes: resolved.maxBytes,
+      maxAgeMs
+    });
+    await fsPromises.mkdir(baseDir, { recursive: true });
+    await writeJsonLinesFile(dataPath, payload.entries, { atomic: true, compression: null });
+    await writeJsonObjectFile(metaPath, {
+      fields: {
+        schemaVersion: VFS_COLD_START_SCHEMA_VERSION,
+        indexSignature,
+        manifestHash,
+        createdAt: new Date().toISOString(),
+        entries: payload.entries.length,
+        bytes: payload.totalBytes
+      },
+      atomic: true
+    });
+    dirty = false;
+  };
+
+  return {
+    get,
+    set,
+    flush,
+    size: () => map.size
+  };
 };
 
 /**
@@ -734,23 +1101,31 @@ export const readVfsManifestRowAtOffset = async ({ manifestPath, offset, bytes }
 
 /**
  * Load a VFS manifest row by virtualPath using a vfsidx file.
- * @param {{manifestPath:string,indexPath?:string,index?:Map<string,object>,virtualPath:string}} input
+ * @param {{manifestPath:string,indexPath?:string,index?:Map<string,object>,virtualPath:string,bloomPath?:string,bloom?:object,allowScan?:boolean}} input
  * @returns {Promise<object|null>}
  */
 export const loadVfsManifestRowByPath = async ({
   manifestPath,
   indexPath = null,
   index = null,
-  virtualPath
+  virtualPath,
+  bloomPath = null,
+  bloom = null,
+  allowScan = false
 }) => {
   if (!virtualPath) return null;
+  const resolvedBloom = bloom || (bloomPath ? await loadVfsManifestBloomFilter({ bloomPath }) : null);
+  if (resolvedBloom && !resolvedBloom.has(virtualPath)) return null;
   const resolvedIndex = index || (indexPath ? await loadVfsManifestIndex({ indexPath }) : null);
-  if (!resolvedIndex) return null;
-  const entry = resolvedIndex.get(virtualPath);
-  if (!entry) return null;
-  return readVfsManifestRowAtOffset({
-    manifestPath,
-    offset: entry.offset,
-    bytes: entry.bytes
-  });
+  if (resolvedIndex) {
+    const entry = resolvedIndex.get(virtualPath);
+    if (!entry) return null;
+    return readVfsManifestRowAtOffset({
+      manifestPath,
+      offset: entry.offset,
+      bytes: entry.bytes
+    });
+  }
+  if (!allowScan) return null;
+  return scanVfsManifestRowByPath({ manifestPath, virtualPath });
 };

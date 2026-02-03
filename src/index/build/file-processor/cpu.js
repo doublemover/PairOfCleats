@@ -78,6 +78,7 @@ export const processFileCpu = async (context) => {
     timing,
     languageHint,
     crashLogger,
+    vfsManifestConcurrency,
     complexityCache,
     lintCache,
     buildStage
@@ -544,6 +545,7 @@ export const processFileCpu = async (context) => {
     lineIndex,
     lineAuthors,
     fileGitMeta,
+    vfsManifestConcurrency,
     addLineSpan,
     addSettingMetric,
     addEnrichDuration,

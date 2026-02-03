@@ -2,6 +2,7 @@
 // Usage: node tools/bench/vfs/bloom-negative-lookup.js --keys 50000 --lookups 100000 --json
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
+import { BloomFilter } from '../../../src/shared/bloom.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
 
 function clampInt(value, min, fallback) {
@@ -18,45 +19,6 @@ function createRng(seedValue) {
   };
 }
 
-class BloomFilter {
-  constructor(bits, hashes) {
-    this.bits = bits;
-    this.hashes = hashes;
-    this.bytes = new Uint8Array(Math.ceil(bits / 8));
-  }
-
-  add(value) {
-    const { h1, h2 } = hashPair(value);
-    for (let i = 0; i < this.hashes; i += 1) {
-      const idx = (h1 + i * h2) % this.bits;
-      this.bytes[idx >>> 3] |= 1 << (idx & 7);
-    }
-  }
-
-  has(value) {
-    const { h1, h2 } = hashPair(value);
-    for (let i = 0; i < this.hashes; i += 1) {
-      const idx = (h1 + i * h2) % this.bits;
-      if ((this.bytes[idx >>> 3] & (1 << (idx & 7))) === 0) return false;
-    }
-    return true;
-  }
-}
-
-function hashPair(value) {
-  const h1 = hashString(value, 2166136261);
-  const h2 = hashString(value, 16777619);
-  return { h1, h2: h2 || 1 };
-}
-
-function hashString(value, seed) {
-  let hash = seed >>> 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
 
 function runSampled({ iterations, samples, fn }) {
   const timings = [];
@@ -125,7 +87,7 @@ function main() {
     negatives[i] = `miss-${i}-${Math.floor(rng() * 1e9)}`;
   }
 
-  const bloom = new BloomFilter(bits, hashCount);
+  const bloom = new BloomFilter({ bits, hashes: hashCount });
   for (const key of keys) bloom.add(key);
 
   const bloomBench = runSampled({

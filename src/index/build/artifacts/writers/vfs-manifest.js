@@ -14,6 +14,7 @@ import { stringifyJsonValue } from '../../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../../shared/json-stream/streams.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
 import {
   compareVfsManifestRows,
   trimVfsManifestRow,
@@ -23,6 +24,8 @@ import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
+const VFS_BLOOM_FALSE_POSITIVE = 0.01;
+const VFS_BLOOM_MIN_BITS = 1024;
 
 const resolveJsonlExtension = (value) => {
   if (value === 'gzip') return 'jsonl.gz';
@@ -101,10 +104,22 @@ const createPathMapIterator = (items) => (async function* () {
   }
 })();
 
-const writeVfsIndexForJsonl = async ({ jsonlPath, indexPath }) => {
+const writeVfsIndexForJsonl = async ({
+  jsonlPath,
+  indexPath,
+  bloomPath = null,
+  expectedEntries = null
+}) => {
   const stream = fs.createReadStream(jsonlPath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   const { stream: out, done } = createJsonWriteStream(indexPath, { atomic: true });
+  const bloom = bloomPath
+    ? createBloomFilter({
+      expectedEntries: Number.isFinite(Number(expectedEntries)) ? Math.max(1, Math.floor(Number(expectedEntries))) : 1,
+      falsePositiveRate: VFS_BLOOM_FALSE_POSITIVE,
+      minBits: VFS_BLOOM_MIN_BITS
+    })
+    : null;
   let lineNumber = 0;
   let offset = 0;
   let count = 0;
@@ -134,11 +149,18 @@ const writeVfsIndexForJsonl = async ({ jsonlPath, indexPath }) => {
         await writeChunk(out, stringifyJsonValue(entry));
         await writeChunk(out, '\n');
         count += 1;
+        if (bloom) bloom.add(row.virtualPath);
       }
       offset += lineBytes;
     }
     out.end();
     await done;
+    if (bloom && bloomPath) {
+      await writeJsonObjectFile(bloomPath, {
+        fields: encodeBloomFilter(bloom),
+        atomic: true
+      });
+    }
   } catch (err) {
     try { out.destroy(err); } catch {}
     try { await done; } catch {}
@@ -448,6 +470,7 @@ export const enqueueVfsManifestArtifacts = async ({
     await fsPromises.rm(path.join(outDir, 'vfs_manifest.meta.json'), { recursive: true, force: true }).catch(() => {});
     await fsPromises.rm(path.join(outDir, 'vfs_manifest.parts'), { recursive: true, force: true }).catch(() => {});
     await fsPromises.rm(path.join(outDir, 'vfs_manifest.vfsidx'), { recursive: true, force: true }).catch(() => {});
+    await fsPromises.rm(path.join(outDir, 'vfs_manifest.vfsbloom.json'), { recursive: true, force: true }).catch(() => {});
     await fsPromises.rm(path.join(outDir, 'vfs_path_map.jsonl'), { recursive: true, force: true }).catch(() => {});
     await fsPromises.rm(path.join(outDir, 'vfs_path_map.meta.json'), { recursive: true, force: true }).catch(() => {});
     await fsPromises.rm(path.join(outDir, 'vfs_path_map.parts'), { recursive: true, force: true }).catch(() => {});
@@ -475,6 +498,7 @@ export const enqueueVfsManifestArtifacts = async ({
     await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.gz'));
     await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.zst'));
     await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
+    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
     if (writePathMap) {
       await removeArtifact(path.join(outDir, 'vfs_path_map.jsonl'));
     }
@@ -488,6 +512,7 @@ export const enqueueVfsManifestArtifacts = async ({
   }
   if (!writeIndex) {
     await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
+    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
   }
   await ensureDiskSpace({
     targetPath: outDir,
@@ -620,13 +645,25 @@ export const enqueueVfsManifestArtifacts = async ({
               const absPath = path.join(outDir, fromPosix(relPath));
               if (!absPath.endsWith('.jsonl')) continue;
               const indexPath = absPath.replace(/\\.jsonl$/, '.vfsidx');
-              const count = await writeVfsIndexForJsonl({ jsonlPath: absPath, indexPath });
+              const bloomPath = absPath.replace(/\\.jsonl$/, '.vfsbloom.json');
+              const count = await writeVfsIndexForJsonl({
+                jsonlPath: absPath,
+                indexPath,
+                bloomPath,
+                expectedEntries: result.counts[i] || 0
+              });
               addPieceFile({
                 type: 'tooling',
                 name: 'vfs_manifest_index',
                 format: 'jsonl',
                 count
               }, indexPath);
+              addPieceFile({
+                type: 'tooling',
+                name: 'vfs_manifest_bloom',
+                format: 'json',
+                count: result.counts[i] || 0
+              }, bloomPath);
             }
           }
         } finally {
@@ -676,13 +713,25 @@ export const enqueueVfsManifestArtifacts = async ({
         }
         if (writeIndex && jsonlPath.endsWith('.jsonl')) {
           const indexPath = path.join(outDir, 'vfs_manifest.vfsidx');
-          const count = await writeVfsIndexForJsonl({ jsonlPath, indexPath });
+          const bloomPath = path.join(outDir, 'vfs_manifest.vfsbloom.json');
+          const count = await writeVfsIndexForJsonl({
+            jsonlPath,
+            indexPath,
+            bloomPath,
+            expectedEntries: totalRecords
+          });
           addPieceFile({
             type: 'tooling',
             name: 'vfs_manifest_index',
             format: 'jsonl',
             count
           }, indexPath);
+          addPieceFile({
+            type: 'tooling',
+            name: 'vfs_manifest_bloom',
+            format: 'json',
+            count: totalRecords
+          }, bloomPath);
         }
       } finally {
         await resolved.cleanup();

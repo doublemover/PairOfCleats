@@ -43,70 +43,70 @@ function buildRuns({ runCount, runSize, seed }) {
   return runs;
 }
 
-class MinHeap {
-  constructor() {
-    this.data = [];
-  }
-
-  size() {
-    return this.data.length;
-  }
-
-  push(entry) {
-    this.data.push(entry);
-    this.bubbleUp(this.data.length - 1);
-  }
-
-  pop() {
-    if (!this.data.length) return null;
-    const top = this.data[0];
-    const last = this.data.pop();
-    if (this.data.length && last) {
-      this.data[0] = last;
-      this.sinkDown(0);
-    }
-    return top;
-  }
-
-  bubbleUp(index) {
-    const entry = this.data[index];
-    while (index > 0) {
-      const parentIndex = Math.floor((index - 1) / 2);
-      const parent = this.data[parentIndex];
-      if (entry.value >= parent.value) break;
-      this.data[parentIndex] = entry;
-      this.data[index] = parent;
-      index = parentIndex;
-    }
-  }
-
-  sinkDown(index) {
-    const length = this.data.length;
-    const entry = this.data[index];
-    while (true) {
-      const leftIndex = index * 2 + 1;
-      const rightIndex = leftIndex + 1;
-      let swapIndex = -1;
-      if (leftIndex < length) {
-        if (this.data[leftIndex].value < entry.value) {
-          swapIndex = leftIndex;
-        }
-      }
-      if (rightIndex < length) {
-        const rightValue = this.data[rightIndex].value;
-        if (swapIndex === -1) {
-          if (rightValue < entry.value) swapIndex = rightIndex;
-        } else if (rightValue < this.data[swapIndex].value) {
-          swapIndex = rightIndex;
-        }
-      }
-      if (swapIndex === -1) break;
-      this.data[index] = this.data[swapIndex];
-      this.data[swapIndex] = entry;
-      index = swapIndex;
-    }
-  }
+function MinHeap() {
+  this.data = [];
 }
+
+MinHeap.prototype.size = function size() {
+  return this.data.length;
+};
+
+MinHeap.prototype.push = function push(entry) {
+  this.data.push(entry);
+  this.bubbleUp(this.data.length - 1);
+};
+
+MinHeap.prototype.pop = function pop() {
+  if (!this.data.length) return null;
+  const top = this.data[0];
+  const last = this.data.pop();
+  if (this.data.length && last) {
+    this.data[0] = last;
+    this.sinkDown(0);
+  }
+  return top;
+};
+
+MinHeap.prototype.bubbleUp = function bubbleUp(index) {
+  const entry = this.data[index];
+  let idx = index;
+  while (idx > 0) {
+    const parentIndex = Math.floor((idx - 1) / 2);
+    const parent = this.data[parentIndex];
+    if (entry.value >= parent.value) break;
+    this.data[parentIndex] = entry;
+    this.data[idx] = parent;
+    idx = parentIndex;
+  }
+};
+
+MinHeap.prototype.sinkDown = function sinkDown(index) {
+  const length = this.data.length;
+  const entry = this.data[index];
+  let idx = index;
+  while (true) {
+    const leftIndex = idx * 2 + 1;
+    const rightIndex = leftIndex + 1;
+    let swapIndex = -1;
+    if (leftIndex < length) {
+      if (this.data[leftIndex].value < entry.value) {
+        swapIndex = leftIndex;
+      }
+    }
+    if (rightIndex < length) {
+      const rightValue = this.data[rightIndex].value;
+      if (swapIndex === -1) {
+        if (rightValue < entry.value) swapIndex = rightIndex;
+      } else if (rightValue < this.data[swapIndex].value) {
+        swapIndex = rightIndex;
+      }
+    }
+    if (swapIndex === -1) break;
+    this.data[idx] = this.data[swapIndex];
+    this.data[swapIndex] = entry;
+    idx = swapIndex;
+  }
+};
 
 function mergeLinear(runs) {
   const pointers = new Array(runs.length).fill(0);

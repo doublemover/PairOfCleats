@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T17:10:17.193Z",
+  "generatedAt": "2026-02-03T17:51:08.779Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -234,6 +234,10 @@
       "tooling.typescript.tsconfigPath",
       "tooling.typescript.useTsconfig",
       "tooling.vfs.coalesceSegments",
+      "tooling.vfs.coldStartCache.cacheRoot",
+      "tooling.vfs.coldStartCache.enabled",
+      "tooling.vfs.coldStartCache.maxAgeDays",
+      "tooling.vfs.coldStartCache.maxBytes",
       "tooling.vfs.hashRouting",
       "tooling.vfs.ioBatching.enabled",
       "tooling.vfs.ioBatching.flushIntervalMs",
@@ -248,8 +252,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 195,
-    "leafKeys": 154,
+    "totalKeys": 200,
+    "leafKeys": 158,
     "topLevel": [
       {
         "key": "cache",
@@ -285,7 +289,7 @@
       },
       {
         "key": "tooling",
-        "count": 60
+        "count": 65
       }
     ]
   },
@@ -1244,6 +1248,31 @@
     {
       "path": "tooling.vfs.coalesceSegments",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.cacheRoot",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.maxBytes",
+      "type": "number",
       "enum": null
     },
     {

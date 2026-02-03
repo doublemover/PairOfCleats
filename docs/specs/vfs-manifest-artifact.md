@@ -38,9 +38,10 @@ When `tooling.vfs.hashRouting` is enabled, producers SHOULD emit:
 
 When emitting uncompressed JSONL (`.jsonl`), producers MAY emit:
 - `vfs_manifest.vfsidx` (or `vfs_manifest.part-00000.vfsidx` for sharded parts), a sparse index for fast lookups.
+- `vfs_manifest.vfsbloom.json` (or `vfs_manifest.part-00000.vfsbloom.json` for sharded parts), a Bloom filter keyed by `virtualPath` to skip negative lookups.
 
 All derived artifacts MUST be listed in `pieces/manifest.json` with the appropriate logical names
-(`vfs_path_map`, `vfs_path_map_meta`, `vfs_manifest_index`).
+(`vfs_path_map`, `vfs_path_map_meta`, `vfs_manifest_index`, `vfs_manifest_bloom`).
 
 ---
 

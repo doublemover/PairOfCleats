@@ -71,6 +71,7 @@ export const processChunks = async (context) => {
     lineIndex,
     lineAuthors,
     fileGitMeta,
+    vfsManifestConcurrency,
     addLineSpan,
     addSettingMetric,
     addEnrichDuration,
@@ -112,6 +113,7 @@ export const processChunks = async (context) => {
       lineIndex,
       fileHash,
       fileHashAlgo,
+      vfsManifestConcurrency,
       strict: strictIdentity,
       log
     });

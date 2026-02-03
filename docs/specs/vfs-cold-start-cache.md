@@ -70,6 +70,15 @@ Evict by:
 - `maxBytes` (oldest `updatedAt` first), and
 - `maxAgeDays`.
 
+## 5.1 Configuration
+
+The cache MAY be controlled via `tooling.vfs.coldStartCache`:
+
+- `enabled` (boolean)
+- `maxBytes` (number)
+- `maxAgeDays` (number)
+- `cacheRoot` (string, optional override)
+
 ---
 
 ## 6) Related specs

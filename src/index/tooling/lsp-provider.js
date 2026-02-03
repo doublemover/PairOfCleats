@@ -114,6 +114,8 @@ const createConfiguredLspProvider = (server) => {
         uriScheme: server.uriScheme || 'file',
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        indexDir: ctx?.buildRoot || null,
         captureDiagnostics: true
       });
       return {

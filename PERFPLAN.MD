@@ -631,29 +631,29 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
   - [x] Touchpoints: `src/index/build/file-processor/cpu/chunking.js`, `src/index/chunking/*`, `src/index/build/file-processor/process-chunks/index.js:24`.
   - [x] Use rolling hash boundaries to stabilize segment IDs across edits.
   - [x] Benchmark: `tools/bench/vfs/cdc-segmentation.js` (segment churn before/after).
-- [ ] Bloom filter for shard existence checks:
-  - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/index/validate/manifest.js`.
-  - [ ] Emit a per-shard bloom filter keyed by `virtualPath` or `docHash`.
-  - [ ] Use filter to skip negative lookups without disk IO.
+- [x] Bloom filter for shard existence checks:
+  - [x] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/index/tooling/vfs.js`, `src/shared/bloom.js`, `docs/specs/vfs-manifest-artifact.md`.
+  - [x] Emit a per-shard bloom filter keyed by `virtualPath` or `docHash`.
+  - [x] Use filter to skip negative lookups without disk IO.
   - [x] Benchmark: `tools/bench/vfs/bloom-negative-lookup.js` (negative lookup rate).
-- [ ] Parallel VFS manifest generation:
-  - [ ] Touchpoints: `src/index/build/file-processor/process-chunks/ids.js:3`, `src/index/build/state.js`, `src/index/build/indexer/steps/process-files.js`.
-  - [ ] Generate VFS rows in parallel with bounded worker pool.
-  - [ ] Merge/sort deterministically post-parallelization.
+- [x] Parallel VFS manifest generation:
+  - [x] Touchpoints: `src/index/build/file-processor/process-chunks/ids.js`, `src/index/build/file-processor/process-chunks/index.js`, `src/index/build/file-processor.js`, `src/index/build/file-processor/cpu.js`, `src/index/tooling/vfs.js`.
+  - [x] Generate VFS rows in parallel with bounded worker pool.
+  - [x] Merge/sort deterministically post-parallelization.
   - [ ] Benchmark: `tools/bench/vfs/parallel-manifest-build.js` (1/2/4/8 workers).
 - [x] IO batching for VFS writes:
-  - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:78`, `src/shared/artifact-io/fs.js`.
-  - [ ] Batch virtual doc writes (queue + flush) to reduce tiny writes.
+  - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:78`, `src/shared/artifact-io/fs.js`.
+  - [x] Batch virtual doc writes (queue + flush) to reduce tiny writes.
   - [x] Benchmark: `tools/bench/vfs/io-batching.js` (write latency on Windows/Linux).
 - [x] Partial LSP doc open:
   - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:174`, `src/shared/lines.js`.
   - [x] Avoid building line indexes for docs that never need symbol queries.
   - [x] Lazy load `buildLineIndex` based on target usage.
 - [x] Benchmark: `tools/bench/vfs/partial-lsp-open.js` (doc open latency).
-- [ ] VFS cold-start cache:
-  - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/shared/artifact-io/cache.js`.
-  - [ ] Persist a compact cache of hot virtual docs / tool outputs.
-  - [ ] Add TTL + size cap and use on next run.
+- [x] VFS cold-start cache:
+  - [x] Touchpoints: `src/index/tooling/vfs.js`, `src/integrations/tooling/providers/lsp.js`, `docs/specs/vfs-cold-start-cache.md`, `docs/config/schema.json`.
+  - [x] Persist a compact cache of hot virtual docs / tool outputs.
+  - [x] Add TTL + size cap and use on next run.
   - [ ] Benchmark: `tools/bench/vfs/cold-start-cache.js` (cold vs warm).
 
 #### Tests
@@ -667,11 +667,11 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [x] `tests/tooling/vfs/vfs-segment-coalesce.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-cdc-segmentation-stability.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (new)
 
 #### Acceptance
 - [ ] Hash/token routing improves URI stability without breaking existing paths.
