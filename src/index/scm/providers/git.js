@@ -109,9 +109,14 @@ export const gitProvider = {
       churnCommits: Number.isFinite(meta.churn_commits) ? meta.churn_commits : null
     };
   },
-  async annotate({ repoRoot, filePosix, timeoutMs }) {
+  async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const absPath = path.join(repoRoot, filePosix);
-    const meta = await getGitMetaForFile(absPath, { blame: true, baseDir: repoRoot });
+    const meta = await getGitMetaForFile(absPath, {
+      blame: true,
+      baseDir: repoRoot,
+      timeoutMs,
+      signal
+    });
     if (!meta || !Array.isArray(meta.lineAuthors)) {
       return { ok: false, reason: 'unavailable' };
     }
