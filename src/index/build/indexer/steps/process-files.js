@@ -19,14 +19,17 @@ import {
   applyTreeSitterBatching,
   buildTreeSitterEntryBatches,
   assignFileIndexes,
-  collectTreeSitterBatchLanguages,
   normalizeTreeSitterLanguages,
   preloadTreeSitterBatch,
+  resolveTreeSitterPreloadPlan,
   resolveNextOrderIndex,
   sortEntriesByTreeSitterBatchKey,
   updateEntryTreeSitterBatch
 } from './process-files/tree-sitter.js';
-import { preflightTreeSitterWasmLanguages } from '../../../../lang/tree-sitter.js';
+import {
+  preloadTreeSitterLanguages,
+  preflightTreeSitterWasmLanguages
+} from '../../../../lang/tree-sitter.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 
 const FILE_WATCHDOG_MS = 10000;
@@ -112,9 +115,14 @@ export const processFiles = async ({
     allowReorder: runtime.shards?.enabled !== true
   });
   if (runtime.languageOptions?.treeSitter?.enabled !== false) {
-    const preflightLanguages = collectTreeSitterBatchLanguages(entries);
-    if (preflightLanguages.length) {
-      await preflightTreeSitterWasmLanguages(preflightLanguages, { log });
+    const preloadPlan = resolveTreeSitterPreloadPlan(entries, runtime.languageOptions?.treeSitter);
+    if (preloadPlan.languages.length) {
+      await preflightTreeSitterWasmLanguages(preloadPlan.languages, { log });
+      await preloadTreeSitterLanguages(preloadPlan.languages, {
+        log,
+        parallel: false,
+        maxLoadedLanguages: runtime.languageOptions?.treeSitter?.maxLoadedLanguages
+      });
     }
   }
   assignFileIndexes(entries);
