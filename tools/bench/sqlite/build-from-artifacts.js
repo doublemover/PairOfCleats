@@ -34,7 +34,7 @@ const parseArgs = () => {
 };
 
 const args = parseArgs();
-const chunkCount = Number(args.chunks) || 10000;
+const chunkCount = Number(args.chunks) || 100000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';

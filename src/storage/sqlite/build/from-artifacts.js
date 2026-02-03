@@ -36,6 +36,8 @@ import {
   resolveJsonlRequiredKeys
 } from '../../../shared/artifact-io.js';
 
+const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
+
 const listShardFiles = (dir, prefix, extensions) => {
   if (!dir || typeof dir !== 'string' || !fsSync.existsSync(dir)) return [];
   const allowed = Array.isArray(extensions) && extensions.length
@@ -74,14 +76,18 @@ const resolveChunkMetaSources = (dir) => {
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         const entries = normalizeMetaParts(meta?.parts);
         if (entries.length) {
-          parts = entries.map((name) => path.join(dir, name));
+          parts = entries
+            .map((name) => path.join(dir, name))
+            .filter((candidate) => fsSync.existsSync(candidate));
         }
       } catch {}
     }
     if (!parts.length) {
       parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl', '.jsonl.gz', '.jsonl.zst']);
     }
-    return parts.length ? { format: 'jsonl', paths: parts } : null;
+    if (parts.length) {
+      return { format: 'jsonl', paths: parts };
+    }
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const jsonlCandidates = [jsonlPath, `${jsonlPath}.gz`, `${jsonlPath}.zst`];
@@ -268,8 +274,12 @@ export async function buildDatabaseFromArtifacts({
   let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
-  const useBuildPragmas = buildPragmas !== false;
-  const useOptimize = optimize !== false;
+  const resolvedInputBytes = Number(inputBytes);
+  const defaultOptimize = Number.isFinite(resolvedInputBytes)
+    ? resolvedInputBytes >= ARTIFACT_BUILD_PRAGMA_MIN_BYTES
+    : true;
+  const useBuildPragmas = typeof buildPragmas === 'boolean' ? buildPragmas : defaultOptimize;
+  const useOptimize = typeof optimize === 'boolean' ? optimize : defaultOptimize;
   const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
 
   let count = 0;
