@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { tryImport } from '../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
@@ -131,7 +130,7 @@ export async function writeLanceDbIndex({
     if (!vectorsPath) {
       return { skipped: true, reason: 'missing vectors path for isolate' };
     }
-    const moduleUrl = pathToFileURL(new URL('./lancedb.js', import.meta.url)).href;
+    const moduleUrl = new URL('./lancedb.js', import.meta.url).href;
     const payload = {
       indexDir,
       variant,
