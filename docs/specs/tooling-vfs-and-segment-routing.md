@@ -104,6 +104,16 @@ To keep the system uniform and reduce provider branching, prefer always using `.
 - `containerPath` MUST be derived from `relKey` (repo-relative POSIX).
 - Only `#` and `%` are encoded in `containerPath` before embedding in `.poc-vfs/...`.
 
+### 2.5 Disk path safety
+
+When materializing VFS docs on disk, the resolved path MUST be safe for the host OS:
+- Path segments MUST NOT contain `..` or `.` segments.
+- Reserved characters (`: * ? " < > |`) MUST be escaped.
+- Encoding is applied per path segment, not the full path string.
+
+Implementations SHOULD use the shared disk-path resolver in tooling VFS to ensure
+Windows-safe paths and prevent traversal.
+
 ### 2.5 Optional routing enhancements (draft)
 
 - Hash routing MAY prepend a hash-derived prefix for disk paths and token URIs; see `docs/specs/vfs-hash-routing.md`.
@@ -166,15 +176,15 @@ Prefer `metaV2.effective.ext` (or `chunk.segment.ext` where present). If missing
 Use the existing mapping in `src/index/segments.js` (`LANGUAGE_ID_EXT`) as the canonical source.
 
 Rules:
-- `typescript` → `.ts`
-- `tsx` → `.tsx`
-- `javascript` → `.js`
-- `jsx` → `.jsx`
+- `typescript` -> `.ts`
+- `tsx` -> `.tsx`
+- `javascript` -> `.js`
+- `jsx` -> `.jsx`
 - others as available
 
 ### 4.2 MUST preserve TSX/JSX
 
-If upstream code collapses `tsx → typescript` or `jsx → javascript`, that must be corrected (see P0-05) before this routing is considered complete.
+If upstream code collapses `tsx -> typescript` or `jsx -> javascript`, that must be corrected (see P0-05) before this routing is considered complete.
 
 ---
 

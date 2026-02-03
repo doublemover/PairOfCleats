@@ -184,10 +184,12 @@ For sharded output:
 ## 6) Size limits
 
 - No row may exceed 32KB UTF-8 (`VFS_MANIFEST_MAX_ROW_BYTES`).
+- Row size is measured as the UTF-8 byte length of the JSON string for the row.
 - If a row would exceed the limit, the producer trims optional fields in this order:
   1. drop `extensions`
   2. null out `segmentId`
 - If the row still exceeds the limit after trimming, the producer drops the row and logs a warning.
+- Producers SHOULD track `trimmedRows` and `droppedRows` counters when emitting stats.
 
 ---
 

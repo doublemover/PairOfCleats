@@ -1041,6 +1041,22 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/guides/perfplan-execution.md` (new)
 - `docs/guides/roadmap-checklists.md` (new)
 
+### Doc inventory (Phase 13)
+| Doc path | Purpose | Required sections | Code touchpoints | Tests | Gaps |
+| --- | --- | --- | --- | --- | --- |
+| `docs/perf/indexing-stage-audit.md` | Describe stage audit output + interpretation | Output locations, schema, stage list, counters, interpretation | `src/index/build/stage-checkpoints.js`, `src/index/build/perf-profile.js` | `tests/indexing/runtime/stage-memory-checkpoints.test.js`, `tests/indexing/runtime/stage-timing-checkpoints.test.js` | None |
+| `docs/specs/embeddings-cache.md` | Global embeddings cache contract | Layout, keys, invalidation, compression, pruning, examples | `tools/build/embeddings/cache.js`, `src/shared/embeddings-cache/*`, `src/shared/embedding-identity.js` | `tests/indexing/embeddings/cache-*.test.js` | None |
+| `docs/perf/map-pipeline.md` | Map build pipeline + perf guardrails | Inputs, pipeline steps, cache, outputs, determinism | `src/map/build-map.js`, `tools/reports/report-code-map.js` | `tests/indexing/map/*` | None |
+| `docs/specs/map-artifact.md` | Map model schema + ordering | Schema, node/edge shapes, summary, truncation, determinism | `src/map/build-map.js`, `src/map/constants.js` | `tests/indexing/map/*` | None |
+| `docs/specs/tooling-vfs-and-segment-routing.md` | VFS routing + path rules | Path format, offset mapping, disk-path safety, routing | `src/index/tooling/vfs*.js`, `src/index/build/artifacts/writers/vfs-manifest.js` | `tests/tooling/vfs/*` | None |
+| `docs/specs/vfs-manifest-artifact.md` | VFS manifest artifact schema | Row schema, trim rules, sort order, meta fields | `src/index/build/artifacts/writers/vfs-manifest.js` | `tests/tooling/vfs/vfs-manifest*.test.js` | None |
+| `docs/specs/tooling-provider-registry.md` | Provider registry keys + selection | Provider IDs, selection order, gating | `src/tooling/providers/*` | `tests/tooling/providers/*` | None |
+| `docs/contracts/indexing.md` | Indexing contracts + artifacts | Build state, provenance, artifact list | `src/contracts/schemas/*` | `tests/indexing/contracts/*` | None |
+| `docs/config/contract.md` + `docs/config/inventory.*` | Config surface + invariants | Keys, defaults, env/cli precedence | `src/shared/config.js`, `src/shared/env.js` | `tests/tooling/docs/config-inventory-sync.test.js` | None |
+| `docs/guides/jsdoc-standards.md` | JSDoc requirements | Required tags, examples, determinism rules | `tests/tooling/docs/jsdoc-standards-sync.test.js` | `tests/tooling/docs/jsdoc-standards-sync.test.js` | None |
+| `docs/guides/perfplan-execution.md` | How to execute PERFPLAN | Phase order, gating, test steps | `tests/tooling/docs/perfplan-docs-sync.test.js` | `tests/tooling/docs/perfplan-docs-sync.test.js` | None |
+| `docs/guides/roadmap-checklists.md` | Checklist policy | Checkbox rules, timestamps, test logging | `tests/tooling/docs/roadmap-checklist-consistency.test.js` | `tests/tooling/docs/roadmap-checklist-consistency.test.js` | None |
+
 ### JSDoc requirements
 - New/shared modules must document:
   - purpose + performance characteristics
