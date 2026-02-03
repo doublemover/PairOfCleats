@@ -294,8 +294,9 @@ export const scanSourceFiles = async (root, sourceFiles) => {
       throw err;
     }
 
-    const envMatches = source.match(/PAIROFCLEATS_[A-Z0-9_]*[A-Z0-9]/g) || [];
+    const envMatches = source.match(/PAIROFCLEATS_[A-Z0-9_]+/g) || [];
     for (const match of envMatches) {
+      if (match.endsWith('_')) continue;
       if (!envVarMap.has(match)) envVarMap.set(match, new Set());
       envVarMap.get(match).add(relPath);
     }
