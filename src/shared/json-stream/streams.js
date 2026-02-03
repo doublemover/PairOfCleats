@@ -17,6 +17,14 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('finish', resolve);
 });
 
+const waitForClose = (stream) => {
+  if (!stream) return Promise.resolve();
+  if (stream.closed || stream.destroyed) return Promise.resolve();
+  return once(stream, 'close').then(() => {}).catch(() => {});
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const createByteCounter = (highWaterMark) => {
   let bytes = 0;
   const counter = new Transform({
@@ -58,11 +66,39 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return () => signal.removeEventListener('abort', handler);
   };
   const detachAbort = attachAbortHandler();
+  const removeTempFile = async () => {
+    if (!atomic) return;
+    await waitForClose(fileStream);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await fsPromises.rm(targetPath, { force: true });
+        return;
+      } catch (err) {
+        if (!['EBUSY', 'EPERM', 'EACCES'].includes(err?.code)) {
+          return;
+        }
+        await delay(25 * (attempt + 1));
+      }
+    }
+  };
+  const attachPipelineErrorHandlers = () => {
+    const forwardToFile = (err) => {
+      if (!fileStream.destroyed) fileStream.destroy(err);
+    };
+    const forwardToWriter = (err) => {
+      if (writer && !writer.destroyed) writer.destroy(err);
+      if (counter && counter !== writer && !counter.destroyed) counter.destroy(err);
+    };
+    if (writer) writer.on('error', forwardToFile);
+    if (counter && counter !== writer) counter.on('error', forwardToFile);
+    fileStream.on('error', forwardToWriter);
+  };
   if (compression === 'gzip') {
     const gzip = createFflateGzipStream(options);
     writer = gzip;
     gzip.pipe(counter).pipe(fileStream);
     streams.push(gzip, counter, fileStream);
+    attachPipelineErrorHandlers();
     return {
       stream: gzip,
       getBytesWritten: getBytes,
@@ -73,9 +109,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
           }
         })
         .catch(async (err) => {
-          if (atomic) {
-            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
-          }
+          await removeTempFile();
           throw err;
         })
         .finally(detachAbort)
@@ -86,6 +120,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     writer = zstd;
     zstd.pipe(counter).pipe(fileStream);
     streams.push(zstd, counter, fileStream);
+    attachPipelineErrorHandlers();
     return {
       stream: zstd,
       getBytesWritten: getBytes,
@@ -96,9 +131,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
           }
         })
         .catch(async (err) => {
-          if (atomic) {
-            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
-          }
+          await removeTempFile();
           throw err;
         })
         .finally(detachAbort)
@@ -107,6 +140,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   writer = counter;
   counter.pipe(fileStream);
   streams.push(counter, fileStream);
+  attachPipelineErrorHandlers();
   return {
     stream: counter,
     getBytesWritten: getBytes,
@@ -117,9 +151,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         }
       })
       .catch(async (err) => {
-        if (atomic) {
-          try { await fsPromises.rm(targetPath, { force: true }); } catch {}
-        }
+        await removeTempFile();
         throw err;
       })
       .finally(detachAbort)

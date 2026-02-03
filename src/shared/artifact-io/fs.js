@@ -9,6 +9,11 @@ export const readShardFiles = (dir, prefix) => {
     const names = fs.readdirSync(dir);
     return names
       .filter((name) => name.startsWith(prefix))
+      .filter((name) => (
+        name.endsWith('.jsonl')
+        || name.endsWith('.jsonl.gz')
+        || name.endsWith('.jsonl.zst')
+      ))
       .sort()
       .map((name) => path.join(dir, name));
   } catch {

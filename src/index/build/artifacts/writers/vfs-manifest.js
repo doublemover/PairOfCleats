@@ -644,8 +644,8 @@ export const enqueueVfsManifestArtifacts = async ({
               const relPath = result.parts[i];
               const absPath = path.join(outDir, fromPosix(relPath));
               if (!absPath.endsWith('.jsonl')) continue;
-              const indexPath = absPath.replace(/\\.jsonl$/, '.vfsidx');
-              const bloomPath = absPath.replace(/\\.jsonl$/, '.vfsbloom.json');
+              const indexPath = absPath.replace(/\.jsonl$/, '.vfsidx');
+              const bloomPath = absPath.replace(/\.jsonl$/, '.vfsbloom.json');
               const count = await writeVfsIndexForJsonl({
                 jsonlPath: absPath,
                 indexPath,

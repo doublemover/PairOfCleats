@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T17:51:08.779Z",
+  "generatedAt": "2026-02-03T19:13:45.220Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2156,7 +2156,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 278,
+    "totalFlags": 280,
     "publicFlags": [
       "backend",
       "host",
@@ -2219,6 +2219,7 @@
       "dims",
       "dir",
       "direction",
+      "docBytes",
       "docs",
       "dp-max",
       "dry-run",
@@ -2383,6 +2384,7 @@
       "scope",
       "search",
       "seed",
+      "segmentBytes",
       "segments",
       "sha256",
       "sink-rule",
@@ -2899,6 +2901,18 @@
         ]
       },
       {
+        "file": "tools/bench/vfs/cold-start-cache.js",
+        "flags": [
+          "docBytes",
+          "docs",
+          "json",
+          "mode",
+          "out",
+          "root",
+          "samples"
+        ]
+      },
+      {
         "file": "tools/bench/vfs/hash-routing-lookup.js",
         "flags": [
           "docs",
@@ -2932,6 +2946,17 @@
           "runSize",
           "samples",
           "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/parallel-manifest-build.js",
+        "flags": [
+          "concurrency",
+          "json",
+          "out",
+          "samples",
+          "segmentBytes",
+          "segments"
         ]
       },
       {
@@ -3626,7 +3651,7 @@
       },
       {
         "flag": "json",
-        "count": 41,
+        "count": 43,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3641,9 +3666,11 @@
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
@@ -3673,7 +3700,7 @@
       },
       {
         "flag": "out",
-        "count": 33,
+        "count": 35,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -3684,9 +3711,11 @@
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
@@ -3712,10 +3741,11 @@
       },
       {
         "flag": "mode",
-        "count": 15,
+        "count": 16,
         "files": [
           "tools/assemble-pieces.js",
           "tools/bench-query-generator.js",
+          "tools/bench/vfs/cold-start-cache.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/build-embeddings/cli.js",
@@ -3745,6 +3775,22 @@
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
+        ]
+      },
+      {
+        "flag": "samples",
+        "count": 10,
+        "files": [
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
@@ -3791,20 +3837,6 @@
           "tools/compact-sqlite-index.js",
           "tools/download-extensions.js",
           "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "samples",
-        "count": 8,
-        "files": [
-          "tools/bench/vfs/bloom-negative-lookup.js",
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/bench/vfs/hash-routing-lookup.js",
-          "tools/bench/vfs/merge-runs-heap.js",
-          "tools/bench/vfs/partial-lsp-open.js",
-          "tools/bench/vfs/segment-hash-cache.js",
-          "tools/bench/vfs/token-uri-encode.js",
-          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3997,6 +4029,16 @@
         ]
       },
       {
+        "flag": "docs",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/token-uri-encode.js"
+        ]
+      },
+      {
         "flag": "include",
         "count": 4,
         "files": [
@@ -4097,6 +4139,16 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/setup.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
         "flag": "strict",
         "count": 4,
         "files": [
@@ -4153,15 +4205,6 @@
         ]
       },
       {
-        "flag": "docs",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/hash-routing-lookup.js",
-          "tools/bench/vfs/partial-lsp-open.js",
-          "tools/bench/vfs/token-uri-encode.js"
-        ]
-      },
-      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
@@ -4207,21 +4250,21 @@
         ]
       },
       {
-        "flag": "root",
-        "count": 3,
-        "files": [
-          "tools/setup.js",
-          "tools/tooling-detect.js",
-          "tools/tooling-install.js"
-        ]
-      },
-      {
         "flag": "run",
         "count": 3,
         "files": [
           "tools/ctags-ingest.js",
           "tools/gtags-ingest.js",
           "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "segments",
+        "count": 3,
+        "files": [
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
       {
@@ -4319,6 +4362,14 @@
         "files": [
           "src/map/build-map.js",
           "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "concurrency",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/indexer-service.js"
         ]
       },
       {
@@ -4551,14 +4602,6 @@
         "files": [
           "tests/retrieval/parity/parity.test.js",
           "tools/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "segments",
-        "count": 2,
-        "files": [
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
       {
