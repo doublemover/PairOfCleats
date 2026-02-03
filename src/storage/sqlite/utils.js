@@ -7,7 +7,7 @@ import {
   loadTokenPostings,
   readJsonFile
 } from '../../shared/artifact-io.js';
-import { toPosix } from '../../shared/files.js';
+import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -47,11 +47,11 @@ export function hasRequiredTables(db, requiredTables) {
 /**
  * Normalize a file path to POSIX separators.
  * @param {string} value
- * @returns {string}
+ * @returns {string|null}
  */
 export function normalizeFilePath(value) {
   if (typeof value !== 'string') return null;
-  return toPosix(value);
+  return normalizeFilePathShared(value);
 }
 
 /**
