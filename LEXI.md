@@ -37,6 +37,28 @@ This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defin
 
 # Phase 11.9 – Lexicon-Aware Relations and Retrieval Enrichment
 
+## Feature Flags + Defaults (v1)
+- Lexicon loader: enabled by default; fail-open on missing/invalid files.
+- Relation filtering: enabled only at `quality=max` unless explicitly enabled in config.
+- Relation boosts: disabled by default; must be explicitly enabled.
+- Chargram enrichment: disabled by default; must be explicitly enabled.
+- ANN/minhash candidate safety policy: always on (safety), but explain output is opt-in.
+- Global off-switch: `indexing.lexicon.enabled=false` disables lexicon filtering and related boosts.
+
+## Contract Surface (versioned)
+- Lexicon wordlists: schema-versioned JSON, validated on load.
+- Explain output: `relationBoost` and `annCandidatePolicy` fields added with a versioned explain schema.
+- Config schema: new lexicon + ANN candidate keys explicitly versioned in docs/config schema and inventory.
+
+## Performance Guardrails
+- All lexicon filtering must be O(n) over relations; no per-token regex or substring scans.
+- Avoid new allocations in inner loops; reuse buffers/arrays where possible.
+- Relation boost matching must be bounded by query token count (no unbounded scans).
+
+## Compatibility: cache/signature impact
+- Build signature inputs must include lexicon configs (stopwords, chargramFields/stopwords) and ANN candidate knobs.
+- If signature shape changes, bump `SIGNATURE_VERSION` and update incremental tests accordingly.
+
 ## 11.9.0 – Cross-cutting Setup and Contracts
 
 ### Goals
@@ -76,11 +98,14 @@ This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defin
 - [ ] Update build signature inputs to include lexicon + postings config so incremental caches reset:
   - `buildIncrementalSignaturePayload(...)` should include lexicon config (stopword policies) and new postings fields.
   - Consider bumping `SIGNATURE_VERSION` if signature shape changes.
+ - [ ] Add an explicit config flag to disable lexicon features globally (`indexing.lexicon.enabled=false`).
+ - [ ] Define and document versioning rules for lexicon wordlists and explain schema changes.
 
 ### Tests
 - [ ] `tests/config/` schema drift tests updated if config schema changes.
 - [ ] `tests/indexer/incremental/signature-lexicon-config.test.js` (signature changes when lexicon/postings config changes).
  - [ ] `tests/config/config-inventory-lexicon-keys.test.js` (inventory includes lexicon keys).
+ - [ ] `tests/config/config-defaults-lexicon-flags.test.js` (defaults match documented behavior).
 
 ---
 
@@ -106,10 +131,12 @@ Provide a standardized lexicon for all language registry ids, with a cached load
   - [ ] `getLanguageLexicon(languageId, { allowFallback })` -> returns normalized sets.
   - [ ] `isLexiconStopword(languageId, token, domain)` for `relations|ranking|chargrams`.
   - [ ] `extractSymbolBaseName(name)` shared helper.
+  - [ ] Expose per-language overrides in the lexicon JSON (e.g., allowlists/exclusions for relations stopwords).
 - [ ] Loader behavior:
   - [ ] Use `import.meta.url` to resolve wordlist directory.
   - [ ] Cache in `Map<languageId, LanguageLexicon>`.
   - [ ] Fail-open: missing or invalid => `_generic`.
+  - [ ] Emit a single structured warning on invalid lexicon files (no per-token spam).
 - [ ] Loader must be deterministic: stable ordering, no locale-sensitive transforms.
 - [ ] Add schema validation for each wordlist file.
   - [ ] Register schema in `src/contracts/registry.js` and validate on load.
@@ -123,6 +150,7 @@ Provide a standardized lexicon for all language registry ids, with a cached load
 - [ ] `tests/lexicon/lexicon-fallback.test.js` (missing/invalid file -> _generic)
 - [ ] `tests/lexicon/extract-symbol-base-name.test.js` (separator ordering, edge cases)
 - [ ] `tests/lexicon/lexicon-ascii-only.test.js` (explicit v1 constraint)
+ - [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ---
 
@@ -152,6 +180,7 @@ Filter `rawRelations` before building `file_relations` and `callIndex`, using le
 - [ ] Add a per-language override mechanism (e.g., config to drop keywords/literals/builtins/types separately).
 - [ ] Ensure cached bundles are compatible:
   - If cached bundles can bypass filtering, ensure incremental signature invalidation covers lexicon changes.
+ - [ ] Make stable ordering a formal contract requirement (document + test).
 
 ### Tests
 - [ ] `tests/file-processor/lexicon-relations-filter.test.js`
@@ -159,6 +188,7 @@ Filter `rawRelations` before building `file_relations` and `callIndex`, using le
 - [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js` (stable ordering)
 - [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js` (JS/TS property-name edge case)
 - [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js` (imports/exports unchanged)
+ - [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
 
 ---
 
@@ -182,6 +212,7 @@ Add boost-only ranking based on calls/usages aligned with query tokens, excludin
 - [ ] Gate by quality or config (default off).
 - [ ] Ensure query token source uses `buildQueryPlan(...)` output (do not recompute).
 - [ ] Define case-folding behavior in relation to `caseTokens` and `caseFile`.
+ - [ ] Add a small explain schema snippet documenting `relationBoost` fields and units.
 
 ### Tests
 - [ ] `tests/retrieval/relation-boost.test.js`
@@ -213,6 +244,7 @@ Allow optional chargram enrichment without recall loss, and enforce candidate se
   - Ensure filtersActive + allowedIdx behavior is preserved.
 - [ ] Emit explain payload for candidate policy decisions.
 - [ ] Ensure ANN/minhash use the same candidate policy (no divergence).
+ - [ ] Add a shared policy contract for `resolveAnnCandidateSet` and reuse in both paths.
 
 ### Tests
 - [ ] `tests/postings/chargram-fields.test.js`
@@ -221,6 +253,7 @@ Allow optional chargram enrichment without recall loss, and enforce candidate se
 - [ ] `tests/postings/chargram-stopwords.test.js` (lexicon stopword interaction)
 - [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
 - [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+ - [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
 
 ---
 
@@ -239,6 +272,7 @@ Make filtering/boosting behavior transparent and safe to tune.
 - [ ] Add `relationBoost` + `annCandidatePolicy` to explain output.
 - [ ] Gate new features behind `quality=max` by default (unless explicit config enables).
 - [ ] Add a compact summary line to build logs when lexicon filtering is active (opt-in via verbose).
+ - [ ] Add a “lexicon status” section to explain output when enabled (source file + version).
 
 ### Tests
 - [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
@@ -255,6 +289,7 @@ Make filtering/boosting behavior transparent and safe to tune.
 - Avoid new CLI flags unless required; prefer config + quality gating.
 - When adding config, update docs/config schema + contract and keep drift tests passing.
 - Make sure any new config keys are included in config inventory + env/config precedence docs if referenced.
+ - All new lexicon behavior must be disabled by `indexing.lexicon.enabled=false`.
 
 ---
 

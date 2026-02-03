@@ -88,3 +88,45 @@ export function packUint8(values) {
   const arr = list instanceof Uint8Array ? list : Uint8Array.from(list);
   return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
 }
+
+/**
+ * Resolve the expected byte length for an encoded vector.
+ * @param {number} dims
+ * @param {string} [encoding]
+ * @returns {number|null}
+ */
+export function resolveVectorEncodingBytes(dims, encoding = 'float32') {
+  const resolvedDims = Number.isFinite(dims) ? Math.floor(dims) : 0;
+  if (!resolvedDims || resolvedDims <= 0) return null;
+  const normalized = String(encoding || 'float32').toLowerCase();
+  if (normalized === 'json') return null;
+  return resolvedDims * 4;
+}
+
+/**
+ * Resolve the byte length of an encoded vector payload.
+ * @param {Buffer|ArrayBuffer|ArrayBufferView|string|ArrayLike<number>|null} encoded
+ * @returns {number|null}
+ */
+export function resolveEncodedVectorBytes(encoded) {
+  if (encoded == null) return null;
+  if (typeof encoded === 'string') return null;
+  if (Buffer.isBuffer(encoded)) return encoded.length;
+  if (ArrayBuffer.isView(encoded)) return encoded.byteLength;
+  if (encoded instanceof ArrayBuffer) return encoded.byteLength;
+  if (typeof encoded.length === 'number') return encoded.length;
+  return null;
+}
+
+/**
+ * Check if encoded vector payload matches the expected size.
+ * @param {{encoded:any,dims:number,encoding?:string}} params
+ * @returns {boolean}
+ */
+export function isVectorEncodingCompatible({ encoded, dims, encoding }) {
+  const expected = resolveVectorEncodingBytes(dims, encoding);
+  if (expected == null) return true;
+  const actual = resolveEncodedVectorBytes(encoded);
+  if (!Number.isFinite(actual)) return true;
+  return actual === expected;
+}

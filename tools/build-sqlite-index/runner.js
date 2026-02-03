@@ -41,6 +41,14 @@ try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
 
+/**
+ * Build sqlite indexes from artifacts or incremental bundles.
+ * @param {object} parsed
+ * @param {object} [options]
+ * @param {object} [options.logger]
+ * @param {string} [options.root]
+ * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
+ */
 export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
   const {
     argv,
@@ -102,6 +110,70 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     finalize();
     if (exitOnError) process.exit(code);
     throw new Error(message || 'SQLite index build failed.');
+  };
+  /**
+   * Format embedding stats for logging.
+   * @param {object|null} stats
+   * @returns {string|null}
+   */
+  const formatEmbedStats = (stats) => {
+    if (!stats || typeof stats !== 'object') return null;
+    const parts = [];
+    if (Number.isFinite(stats.denseChunks) || Number.isFinite(stats.totalChunks)) {
+      const dense = Number.isFinite(stats.denseChunks) ? stats.denseChunks : 0;
+      const total = Number.isFinite(stats.totalChunks) ? stats.totalChunks : 0;
+      parts.push(`chunks ${dense}/${total}`);
+    }
+    if (Number.isFinite(stats.denseFloatChunks) || Number.isFinite(stats.denseU8Chunks)) {
+      const floatChunks = Number.isFinite(stats.denseFloatChunks) ? stats.denseFloatChunks : 0;
+      const u8Chunks = Number.isFinite(stats.denseU8Chunks) ? stats.denseU8Chunks : 0;
+      parts.push(`float=${floatChunks} u8=${u8Chunks}`);
+    }
+    if (Number.isFinite(stats.filesTotal)) {
+      const withEmbeddings = Number.isFinite(stats.filesWithEmbeddings) ? stats.filesWithEmbeddings : 0;
+      const totalFiles = Number.isFinite(stats.filesTotal) ? stats.filesTotal : 0;
+      const missing = Number.isFinite(stats.filesMissingEmbeddings) ? stats.filesMissingEmbeddings : 0;
+      parts.push(`files ${withEmbeddings}/${totalFiles} (missing ${missing})`);
+    }
+    if (Array.isArray(stats.sampleMissingFiles) && stats.sampleMissingFiles.length) {
+      parts.push(`sample missing: ${stats.sampleMissingFiles.join(', ')}`);
+    }
+    return parts.length ? parts.join(', ') : null;
+  };
+  /**
+   * Format vector extension state for logging.
+   * @param {object|null} state
+   * @returns {string|null}
+   */
+  const formatVectorAnnState = (state) => {
+    if (!state || typeof state !== 'object') return null;
+    const parts = [
+      `enabled=${state.enabled === true}`,
+      `loaded=${state.loaded === true}`,
+      `ready=${state.ready === true}`
+    ];
+    if (state.table) parts.push(`table=${state.table}`);
+    if (state.column) parts.push(`column=${state.column}`);
+    if (state.reason) parts.push(`reason=${state.reason}`);
+    return parts.join(', ');
+  };
+  /**
+   * Format incremental bundle manifest metadata for logging.
+   * @param {object|null} manifest
+   * @returns {string|null}
+   */
+  const formatBundleManifest = (manifest) => {
+    if (!manifest || typeof manifest !== 'object') return null;
+    const parts = [];
+    if (manifest.bundleEmbeddings !== undefined) {
+      parts.push(`bundleEmbeddings=${manifest.bundleEmbeddings}`);
+    }
+    if (manifest.bundleEmbeddingStage) parts.push(`bundleEmbeddingStage=${manifest.bundleEmbeddingStage}`);
+    if (manifest.bundleEmbeddingMode) parts.push(`bundleEmbeddingMode=${manifest.bundleEmbeddingMode}`);
+    if (manifest.bundleEmbeddingIdentityKey) {
+      parts.push(`bundleEmbeddingIdentityKey=${manifest.bundleEmbeddingIdentityKey}`);
+    }
+    return parts.length ? parts.join(', ') : null;
   };
   const readSqliteCounts = (dbPath) => {
     const counts = {};
@@ -263,20 +335,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const incrementalBundleCount = incrementalBundleDir && fsSync.existsSync(incrementalBundleDir)
         ? fsSync.readdirSync(incrementalBundleDir).filter((name) => !name.startsWith('.')).length
         : 0;
-      const hasIncrementalBundles = Boolean(
+      let hasIncrementalBundles = Boolean(
         incrementalData?.manifest
         && incrementalFileCount > 0
         && incrementalBundleCount > 0
         && incrementalBundleDir
       );
-
-      if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
-        log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
-      }
-
-      let resolvedInput = hasIncrementalBundles
-        ? { source: 'incremental', bundleDir: incrementalBundleDir }
-        : { source: 'artifacts', indexDir: modeIndexDir };
+      let resolvedInput = null;
       let tempOutputPath = null;
       let inputBytes = 0;
       const workTask = taskFactory('Build', { stage: 'sqlite', mode });
@@ -286,6 +351,26 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         if (!pieces) {
           throw new Error(`Missing index pieces for ${mode}.`);
         }
+        const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
+          ? pieces.denseVec.vectors.length
+          : 0;
+        const bundleManifest = incrementalData?.manifest || null;
+        let bundleSkipReason = null;
+        if (hasIncrementalBundles && expectedDenseCount > 0 && bundleManifest?.bundleEmbeddings === false) {
+          const stageNote = bundleManifest.bundleEmbeddingStage
+            ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
+            : '';
+          bundleSkipReason = `bundles omit embeddings${stageNote}`;
+          hasIncrementalBundles = false;
+        }
+        if (incrementalRequested && emitOutput && bundleSkipReason) {
+          log(`[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`);
+        } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
+          log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
+        }
+        resolvedInput = hasIncrementalBundles
+          ? { source: 'incremental', bundleDir: incrementalBundleDir }
+          : { source: 'artifacts', indexDir: modeIndexDir };
         const resolvedVectorConfig = {
           ...vectorConfig,
           enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
@@ -363,13 +448,16 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             modelConfig,
             logger: externalLogger || { log, warn, error }
           });
-          const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
-            ? pieces.denseVec.vectors.length
-            : 0;
           const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
           if (bundleFailureReason) {
             warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);
+            const embedLine = formatEmbedStats(bundleResult?.embedStats);
+            if (embedLine) log(`[sqlite] Bundle embeddings for ${mode}: ${embedLine}.`);
+            const annLine = formatVectorAnnState(bundleResult?.vectorAnn);
+            if (annLine) log(`[sqlite] Vector extension state for ${mode}: ${annLine}.`);
+            const manifestLine = formatBundleManifest(bundleManifest);
+            if (manifestLine) log(`[sqlite] Bundle manifest for ${mode}: ${manifestLine}.`);
             resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
             await buildDatabaseFromArtifacts({
               Database,

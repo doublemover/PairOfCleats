@@ -6,7 +6,7 @@ import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { checksumFile, sha1File } from '../src/shared/hash.js';
-import { fromPosix, isAbsolutePath, toPosix } from '../src/shared/files.js';
+import { fromPosix, isAbsolutePathNative, toPosix } from '../src/shared/files.js';
 
 const argv = createCli({
   scriptName: 'ci-restore',
@@ -78,7 +78,7 @@ const parseChecksum = (value) => {
 
 const isSafeManifestPath = (value) => {
   if (typeof value !== 'string' || !value) return false;
-  if (isAbsolutePath(value)) return false;
+  if (isAbsolutePathNative(value)) return false;
   const normalized = toPosix(value);
   if (normalized.startsWith('/')) return false;
   const segments = normalized.split('/');
@@ -93,7 +93,7 @@ const resolveManifestPath = (indexDir, relPath) => {
   const resolved = path.resolve(indexDir, fromPosix(relPath));
   const root = path.resolve(indexDir);
   const relative = path.relative(root, resolved);
-  if (relative.startsWith('..') || isAbsolutePath(relative)) {
+  if (relative.startsWith('..') || isAbsolutePathNative(relative)) {
     throw new Error(`Manifest path escapes index root: ${relPath}`);
   }
   return resolved;

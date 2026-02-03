@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../src/index/constants.js';
+import { toPosix } from '../src/shared/files.js';
 import { getToolingConfig } from './dict-utils.js';
 
 const LANGUAGE_EXTENSIONS = {
@@ -119,7 +120,7 @@ async function scanRepo(root) {
       const ext = path.extname(entry.name).toLowerCase();
       if (ext) extCounts.set(ext, (extCounts.get(ext) || 0) + 1);
       lowerNames.add(entry.name.toLowerCase());
-      const normalized = abs.replace(/\\/g, '/').toLowerCase();
+      const normalized = toPosix(abs).toLowerCase();
       if (normalized.includes('/.github/workflows/')
         && (normalized.endsWith('.yml') || normalized.endsWith('.yaml'))) {
         workflowCount += 1;

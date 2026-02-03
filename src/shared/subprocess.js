@@ -357,3 +357,69 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const name = options.name ? `${options.name} ` : '';
   throw new SubprocessError(`${name}exited with code ${normalized.exitCode ?? 'unknown'}`, normalized);
 }
+
+/**
+ * Run a Node.js script in an isolated process (sync).
+ * @param {object} params
+ * @param {string} params.script
+ * @param {string[]} [params.args]
+ * @param {string[]} [params.nodeArgs]
+ * @param {Buffer|string|null} [params.input]
+ * @param {object} [params.env]
+ * @param {string} [params.cwd]
+ * @param {number} [params.maxOutputBytes]
+ * @param {'string'|'lines'} [params.outputMode]
+ * @param {boolean} [params.captureStdout]
+ * @param {boolean} [params.captureStderr]
+ * @param {boolean} [params.rejectOnNonZeroExit]
+ * @param {string} [params.name]
+ * @returns {{pid:number|null,exitCode:number|null,signal:string|null,durationMs:number,stdout?:string|string[],stderr?:string|string[]}}
+ */
+/**
+ * Run a Node.js inline script in an isolated process.
+ * @param {object} params
+ * @param {string} params.script
+ * @param {string[]} [params.args]
+ * @param {string[]} [params.nodeArgs]
+ * @param {Buffer|string|null} [params.input]
+ * @param {object} [params.env]
+ * @param {string} [params.cwd]
+ * @param {number} [params.maxOutputBytes]
+ * @param {'string'|'lines'} [params.outputMode]
+ * @param {boolean} [params.captureStdout]
+ * @param {boolean} [params.captureStderr]
+ * @param {boolean} [params.rejectOnNonZeroExit]
+ * @param {string} [params.name]
+ * @returns {{pid:number|null,exitCode:number|null,signal:string|null,durationMs:number,stdout?:string|string[],stderr?:string|string[]}}
+ */
+export function runIsolatedNodeScriptSync({
+  script,
+  args = [],
+  nodeArgs = [],
+  input = null,
+  env,
+  cwd,
+  maxOutputBytes,
+  outputMode = 'string',
+  captureStdout = true,
+  captureStderr = true,
+  rejectOnNonZeroExit = false,
+  name = 'node script'
+} = {}) {
+  if (!script || typeof script !== 'string') {
+    throw new Error('runIsolatedNodeScriptSync requires a script string.');
+  }
+  const resolvedArgs = [...nodeArgs, '-e', script, ...args];
+  return spawnSubprocessSync(process.execPath, resolvedArgs, {
+    cwd,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    input,
+    maxOutputBytes,
+    captureStdout,
+    captureStderr,
+    outputMode,
+    rejectOnNonZeroExit,
+    name
+  });
+}

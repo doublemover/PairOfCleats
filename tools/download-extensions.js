@@ -11,6 +11,7 @@ import { createGunzip } from 'node:zlib';
 import { createCli } from '../src/shared/cli.js';
 import { createDisplay } from '../src/shared/cli/display.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
+import { isAbsolutePathAny, toPosix } from '../src/shared/files.js';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
@@ -199,7 +200,7 @@ function getArchiveTypeForSource(source) {
 }
 
 function normalizeArchiveEntry(entryName) {
-  const name = String(entryName || '').replace(/\\/g, '/').trim();
+  const name = toPosix(String(entryName || '')).trim();
   let cleaned = name.replace(/^(\.\/)+/, '');
   cleaned = cleaned.replace(/^\/+/, '');
   // Handle Windows extended-length paths that can appear as //?/C:/...
@@ -216,7 +217,7 @@ function isArchivePathSafe(rootDir, entryName) {
   if (normalized === '.' || normalized === '..') return false;
   if (normalized.startsWith('../') || normalized.includes('/../')) return false;
   if (/^[A-Za-z]:/.test(normalized)) return false;
-  if (path.posix.isAbsolute(normalized) || path.win32.isAbsolute(normalized)) return false;
+  if (isAbsolutePathAny(normalized)) return false;
   const root = path.resolve(rootDir);
   const resolved = path.resolve(root, normalized);
   const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;

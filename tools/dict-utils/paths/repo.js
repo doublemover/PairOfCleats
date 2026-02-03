@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePath } from '../../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
@@ -110,7 +110,7 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     const repoCacheResolved = path.resolve(repoCacheRoot);
     const resolveRoot = (value) => {
       if (!value) return null;
-      const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
+      const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
       const normalized = path.resolve(resolved);
       if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
       return normalized;
@@ -165,7 +165,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
       const repoCacheResolved = path.resolve(repoCacheRoot);
       const resolveRoot = (value) => {
         if (!value) return null;
-        const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
+        const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
         const normalized = path.resolve(resolved);
         if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
         return normalized;
@@ -216,7 +216,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
  */
 export function resolvePath(repoRoot, filePath) {
   if (!filePath) return null;
-  if (isAbsolutePath(filePath)) return filePath;
+  if (isAbsolutePathNative(filePath)) return filePath;
   return path.join(repoRoot, filePath);
 }
 

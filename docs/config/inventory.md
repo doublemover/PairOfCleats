@@ -9,7 +9,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - Config keys: 180
 - Config leaf keys: 141
 - Public config keys: 2
-- Env vars: 58
+- Env vars: 61
 - Public env vars: 1
 - CLI flags: 252
 - Public CLI flags: 8
@@ -49,6 +49,9 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_HOME (6 files)
 - PAIROFCLEATS_IMPORT_GRAPH (2 files)
 - PAIROFCLEATS_IO_OVERSUBSCRIBE (2 files)
+- PAIROFCLEATS_LANCEDB_CHILD (3 files)
+- PAIROFCLEATS_LANCEDB_ISOLATE (2 files)
+- PAIROFCLEATS_LANCEDB_PAYLOAD (3 files)
 - PAIROFCLEATS_LOG_FORMAT (2 files)
 - PAIROFCLEATS_LOG_LEVEL (2 files)
 - PAIROFCLEATS_MAX_OLD_SPACE_MB (7 files)

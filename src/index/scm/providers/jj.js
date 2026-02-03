@@ -3,6 +3,7 @@ import path from 'node:path';
 import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
 import { getScmRuntimeConfig } from '../runtime.js';
+import { toPosix } from '../../../shared/files.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
@@ -188,7 +189,7 @@ const runJjCommand = async ({ repoRoot, args, timeoutMs }) => {
 };
 
 const toJjFileset = (relPath) => {
-  const raw = String(relPath || '').replace(/\\/g, '/');
+  const raw = toPosix(String(relPath || ''));
   if (!raw) return null;
   if (raw.includes('\0')) {
     throw new Error('JJ fileset paths may not contain NUL.');

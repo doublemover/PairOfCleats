@@ -17,7 +17,7 @@ import {
   resolveDirArtifactPath
 } from '../shared/artifact-io.js';
 import { resolveLanceDbPaths } from '../shared/lancedb.js';
-import { isAbsolutePath } from '../shared/files.js';
+import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
@@ -736,7 +736,7 @@ export async function validateIndexArtifacts(input = {}) {
           const repoCacheRoot = path.resolve(path.dirname(buildsRoot));
           const ensureSafeRoot = (value, label) => {
             if (!value) return;
-            const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
+            const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
             const normalized = path.resolve(resolved);
             if (!normalized.startsWith(repoCacheRoot + path.sep) && normalized !== repoCacheRoot) {
               addIssue(report, null, `current.json ${label} escapes repo cache root`);

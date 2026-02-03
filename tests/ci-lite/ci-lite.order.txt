@@ -110,6 +110,7 @@ retrieval/context/context-expansion
 indexing/determinism/symbol-artifact-order
 shared/jsonrpc/jsonrpc-parser
 shared/runtime/thread-limits-precedence-cli-over-env
+shared/path-handling
 tooling/architecture/forbidden-call-edge
 indexing/runtime/stage-overrides
 indexing/vfs/virtual-path-stability
@@ -338,6 +339,7 @@ indexing/tokenization/token-classification-tree-sitter
 tooling/ingest/lsif/lsif-ingest
 indexing/validate/index-validate-unknown-artifact-fails-strict
 indexing/validate/index-validate-manifest-safety
+indexing/validate/manifest-path-native
 indexing/artifacts/symbols/symbol-edges-ambiguous
 indexing/git/git-meta
 tooling/ingest/gtags/gtags-ingest

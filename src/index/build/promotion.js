@@ -6,7 +6,7 @@ import {
   getRepoCacheRoot,
   getToolVersion
 } from '../../shared/dict-utils.js';
-import { isAbsolutePath, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
@@ -33,7 +33,7 @@ export async function promoteBuild({
   const relativeRoot = toPosix(path.relative(repoCacheRoot, buildRoot));
   const normalizeRelativeRoot = (value) => {
     if (typeof value !== 'string' || !value.trim()) return null;
-    const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
+    const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
     const normalized = path.resolve(resolved);
     if (!normalized.startsWith(resolvedCacheRoot + path.sep) && normalized !== resolvedCacheRoot) return null;
     return toPosix(path.relative(repoCacheRoot, normalized));

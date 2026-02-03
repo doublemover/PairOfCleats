@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readTextFileSync } from '../../shared/encoding.js';
-import { isAbsolutePath } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/files.js';
 import { getFileTextCache, getSummaryCache } from './cache.js';
 
 export function getBodySummary(rootDir, chunk, maxWords = 80) {
@@ -8,7 +8,7 @@ export function getBodySummary(rootDir, chunk, maxWords = 80) {
     const root = path.resolve(rootDir);
     const absPath = path.resolve(rootDir, chunk.file);
     const relative = path.relative(root, absPath);
-    if (relative.startsWith('..') || isAbsolutePath(relative)) {
+    if (relative.startsWith('..') || isAbsolutePathNative(relative)) {
       return '(Could not load summary)';
     }
     const cacheKey = `${absPath}:${chunk.start}:${chunk.end}:${maxWords}`;

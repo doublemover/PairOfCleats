@@ -54,7 +54,8 @@ export async function buildPostings(input) {
     log,
     workerPool,
     quantizePool,
-    embeddingsEnabled = true
+    embeddingsEnabled = true,
+    buildStage = null
   } = input;
 
   const normalizedDocLengths = Array.isArray(docLengths)
@@ -356,7 +357,8 @@ export async function buildPostings(input) {
       quantizedCodeVectors = await quantizeVectors(selectCodeEmbedding);
     }
   } else {
-    log('Embeddings disabled; skipping dense vector build.');
+    const stageLabel = buildStage ? ` (${buildStage})` : '';
+    log(`Embeddings disabled${stageLabel}; skipping dense vector build.`);
   }
 
   // Convert phrase/chargram postings into dense arrays while aggressively

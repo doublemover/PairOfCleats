@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
-import { isAbsolutePath, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -31,13 +31,13 @@ const stripSpecifier = (spec) => {
 
 const normalizeRelPath = (value) => {
   if (!value) return '';
-  const normalized = path.posix.normalize(String(value).replace(/\\/g, '/'));
+  const normalized = path.posix.normalize(toPosix(String(value)));
   return normalized.replace(/^\.\/?/, '');
 };
 
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
-  if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) return null;
+  if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
   return normalizeRelPath(toPosix(rel));
 };
 
@@ -114,8 +114,8 @@ const resolveTsConfigExtends = (baseDir, extendsValue) => {
   if (!extendsValue || typeof extendsValue !== 'string') return null;
   const raw = extendsValue.trim();
   if (!raw) return null;
-  if (isAbsolutePath(raw) || raw.startsWith('.')) {
-    const resolved = isAbsolutePath(raw) ? raw : path.resolve(baseDir, raw);
+  if (isAbsolutePathNative(raw) || raw.startsWith('.')) {
+    const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(baseDir, raw);
     return resolved.endsWith('.json') ? resolved : `${resolved}.json`;
   }
   const requireFrom = createRequire(import.meta.url);
