@@ -103,6 +103,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
   };
+  const isNonEmptyVector = (value) => isVectorLike(value) && value.length > 0;
   const countNonEmptyVectors = (vectors) => {
     if (!Array.isArray(vectors)) return 0;
     let count = 0;
@@ -500,10 +501,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const reusedCode = reuse?.code?.[i];
             const reusedDoc = reuse?.doc?.[i];
             const reusedMerged = reuse?.merged?.[i];
-            if (reusedCode && reusedDoc && reusedMerged) {
-              if (reusedCode.length) assertDims(reusedCode.length);
-              if (reusedDoc.length) assertDims(reusedDoc.length);
-              if (reusedMerged.length) assertDims(reusedMerged.length);
+            if (isNonEmptyVector(reusedCode) && isNonEmptyVector(reusedDoc) && isNonEmptyVector(reusedMerged)) {
+              assertDims(reusedCode.length);
+              assertDims(reusedDoc.length);
+              assertDims(reusedMerged.length);
               codeVectors[chunkIndex] = reusedCode;
               docVectors[chunkIndex] = reusedDoc;
               mergedVectors[chunkIndex] = reusedMerged;
@@ -628,14 +629,19 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 const cachedCode = ensureVectorArrays(cached.codeVectors, items.length);
                 const cachedDoc = ensureVectorArrays(cached.docVectors, items.length);
                 const cachedMerged = ensureVectorArrays(cached.mergedVectors, items.length);
+                let hasEmptyCached = false;
                 for (let i = 0; i < items.length; i += 1) {
                   const chunkIndex = items[i].index;
                   const codeVec = cachedCode[i] || [];
                   const docVec = cachedDoc[i] || [];
                   const mergedVec = cachedMerged[i] || [];
-                  if (codeVec.length) assertDims(codeVec.length);
-                  if (docVec.length) assertDims(docVec.length);
-                  if (mergedVec.length) assertDims(mergedVec.length);
+                  if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                    hasEmptyCached = true;
+                    break;
+                  }
+                  assertDims(codeVec.length);
+                  assertDims(docVec.length);
+                  assertDims(mergedVec.length);
                   codeVectors[chunkIndex] = codeVec;
                   docVectors[chunkIndex] = docVec;
                   mergedVectors[chunkIndex] = mergedVec;
@@ -644,6 +650,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     addHnswFromQuantized('doc', chunkIndex, docVec);
                     addHnswFromQuantized('code', chunkIndex, codeVec);
                   }
+                }
+                if (hasEmptyCached) {
+                  throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
                 }
                 if (cacheIndex && cacheKey) {
                   updateCacheIndexAccess(cacheIndex, cacheKey);
@@ -710,14 +719,19 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const cachedCode = ensureVectorArrays(cached.codeVectors, items.length);
                   const cachedDoc = ensureVectorArrays(cached.docVectors, items.length);
                   const cachedMerged = ensureVectorArrays(cached.mergedVectors, items.length);
+                  let hasEmptyCached = false;
                   for (let i = 0; i < items.length; i += 1) {
                     const chunkIndex = items[i].index;
                     const codeVec = cachedCode[i] || [];
                     const docVec = cachedDoc[i] || [];
                     const mergedVec = cachedMerged[i] || [];
-                    if (codeVec.length) assertDims(codeVec.length);
-                    if (docVec.length) assertDims(docVec.length);
-                    if (mergedVec.length) assertDims(mergedVec.length);
+                    if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                      hasEmptyCached = true;
+                      break;
+                    }
+                    assertDims(codeVec.length);
+                    assertDims(docVec.length);
+                    assertDims(mergedVec.length);
                     codeVectors[chunkIndex] = codeVec;
                     docVectors[chunkIndex] = docVec;
                     mergedVectors[chunkIndex] = mergedVec;
@@ -726,6 +740,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
                       addHnswFromQuantized('doc', chunkIndex, docVec);
                       addHnswFromQuantized('code', chunkIndex, codeVec);
                     }
+                  }
+                  if (hasEmptyCached) {
+                    throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
                   }
                   if (cacheIndex && cacheKey) {
                     updateCacheIndexAccess(cacheIndex, cacheKey);
@@ -792,7 +809,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const codeVec = priorCode[priorIndex] || null;
                   const docVec = priorDoc[priorIndex] || null;
                   const mergedVec = priorMerged[priorIndex] || null;
-                  if (codeVec && docVec && mergedVec) {
+                  if (isNonEmptyVector(codeVec) && isNonEmptyVector(docVec) && isNonEmptyVector(mergedVec)) {
                     reuse.code[i] = codeVec;
                     reuse.doc[i] = docVec;
                     reuse.merged[i] = mergedVec;
