@@ -16,7 +16,7 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'ctags-ingest.js'), '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
+  [path.join(root, 'tools', 'ingest', 'ctags.js'), '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
   { encoding: 'utf8' }
 );
 if (result.status !== 0) {

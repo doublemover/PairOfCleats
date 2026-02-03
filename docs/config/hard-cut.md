@@ -270,7 +270,7 @@ Enforcement:
 - `bin/pairofcleats.js` (tight command surface; remove flag sprawl)
 - `src/index/build/runtime/*` and `src/index/build/indexer/*` (consume AutoPolicy, not config key soup)
 - `src/retrieval/cli-args.js` + `src/retrieval/cli.js` (flag reduction; consume AutoPolicy)
-- `tools/build-sqlite-index/*` (remove backend choice; simplify)
+- `tools/build/sqlite/*` (remove backend choice; simplify)
 
 ---
 

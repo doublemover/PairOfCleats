@@ -40,7 +40,7 @@ try {
   if (cached) {
     cached.exports = { HierarchicalNSW: FakeHNSW, default: FakeHNSW };
   }
-  const { createHnswBuilder } = await import('../../../tools/build-embeddings/hnsw.js');
+  const { createHnswBuilder } = await import('../../../tools/build/embeddings/hnsw.js');
   const builder = createHnswBuilder({
     enabled: true,
     config: normalizeHnswConfig({}),

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { updateSqliteDense } from '../../../tools/build-embeddings/sqlite-dense.js';
+import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 import { skip } from '../../helpers/skip.js';
 
 let Database;

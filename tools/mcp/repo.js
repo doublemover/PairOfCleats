@@ -22,7 +22,7 @@ import {
   resolveRepoRoot,
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
-import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../vector-extension.js';
+import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
 
 const repoCacheConfig = { maxEntries: 5, ttlMs: 15 * 60 * 1000 };

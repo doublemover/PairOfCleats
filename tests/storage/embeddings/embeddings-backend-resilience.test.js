@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
-import { updateSqliteDense } from '../../../tools/build-embeddings/sqlite-dense.js';
+import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 
 requireOrSkip({ capability: 'sqlite', reason: 'Skipping embeddings backend resilience test; sqlite unavailable.' });
 

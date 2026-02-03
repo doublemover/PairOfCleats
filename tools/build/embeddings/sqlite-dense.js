@@ -7,7 +7,7 @@ import {
   hasVectorTable,
   loadVectorExtension,
   resolveVectorExtensionConfigForMode
-} from '../vector-extension.js';
+} from '../../sqlite/vector-extension.js';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
 import {
   dequantizeUint8ToFloat32,

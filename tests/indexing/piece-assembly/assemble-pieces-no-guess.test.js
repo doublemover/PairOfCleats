@@ -28,7 +28,7 @@ await fs.writeFile(
 );
 
 const outDir = path.join(cacheRoot, 'out', 'index-code');
-const assemblePath = path.join(root, 'tools', 'assemble-pieces.js');
+const assemblePath = path.join(root, 'tools', 'index', 'assemble-pieces.js');
 const result = spawnSync(
   process.execPath,
   [

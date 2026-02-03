@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { runCommand, runCommandOrExit } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
-import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
+import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 const argv = createCli({
   scriptName: 'bootstrap',
@@ -29,7 +29,7 @@ const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
   const result = runCommand(
     process.execPath,
-    [path.join(toolRoot, 'tools', 'validate-config.js'), '--config', configPath],
+    [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
     { cwd: root, stdio: 'inherit' }
   );
   if (!result.ok) {
@@ -71,7 +71,7 @@ if (!argv['skip-dicts']) {
   const dictConfig = getDictConfig(root, userConfig);
   const englishPath = path.join(dictConfig.dir, 'en.txt');
   if (!fs.existsSync(englishPath)) {
-    run(process.execPath, [path.join(toolRoot, 'tools', 'download-dicts.js'), '--lang', 'en'], 'download English dictionary');
+    run(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en'], 'download English dictionary');
   }
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   if (dictionaryPaths.length) {

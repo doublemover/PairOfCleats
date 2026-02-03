@@ -29,7 +29,7 @@ function runSetup(label) {
   const result = spawnSync(
     process.execPath,
     [
-      path.join(root, 'tools', 'setup.js'),
+      path.join(root, 'tools', 'setup', 'setup.js'),
       '--repo',
       repoRoot,
       '--non-interactive',

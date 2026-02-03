@@ -26,7 +26,7 @@ import {
   getVectorExtensionConfig,
   hasVectorTable,
   loadVectorExtension
-} from '../vector-extension.js';
+} from '../../sqlite/vector-extension.js';
 import { compactDatabase } from '../compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { removeSqliteSidecars, replaceSqliteDatabase } from '../../../src/storage/sqlite/utils.js';

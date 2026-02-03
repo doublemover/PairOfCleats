@@ -13,7 +13,7 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
 export function cacheGc(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'cache-gc.js'), '--json', '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'cache-gc.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
   if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
@@ -34,7 +34,7 @@ export function cacheGc(args = {}) {
 export async function cleanArtifacts(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'clean-artifacts.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   const stdout = await runToolWithProgress({

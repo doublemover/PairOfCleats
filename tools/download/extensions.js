@@ -13,7 +13,7 @@ import { createDisplay } from '../../src/shared/cli/display.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../src/shared/files.js';
 import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
-import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
+import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 let logger = console;
 

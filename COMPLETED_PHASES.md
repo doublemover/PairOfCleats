@@ -468,10 +468,10 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] `tools/api/router.js` already delegates to `tools/api/router/*`
 
 #### R.6.3 build-embeddings split
-- [x] `tools/build-embeddings/run.js` delegates to `tools/build-embeddings/*`
+- [x] `tools/build/embeddings/run.js` delegates to `tools/build/embeddings/*`
 
 #### R.6.4 build-sqlite-index split
-- [x] `tools/build-sqlite-index/run.js` delegates to `tools/build-sqlite-index/*`
+- [x] `tools/build/sqlite/run.js` delegates to `tools/build/sqlite/*`
 
 #### R.6.5 config-inventory split
 - [x] `tools/config/inventory.js` delegates to `tools/config/inventory/*`
@@ -1179,7 +1179,7 @@ Phase 7 touches multiple “spec surfaces”. Use this hierarchy when conflicts 
 **Explicit Phase 7 conflicts discovered and resolution choices:**
 - **Conflict A:** Embedding queue `indexRoot` meaning is inconsistent (pipeline passes per-mode index dir; build-embeddings `--index-root` expects base build root).  
   ✅ Resolution: **Rename/clarify fields** in the job payload (`buildRoot` as base; `indexDir` as per-mode). Update tests + worker accordingly. This removes ambiguity and matches build-embeddings behavior.
-- **Conflict B:** `tools/build-embeddings/manifest.js` currently filters entries by `ARTIFACT_SCHEMA_DEFS`, which omits non-JSON artifacts like HNSW `.bin` and LanceDB directories.  
+- **Conflict B:** `tools/build/embeddings/manifest.js` currently filters entries by `ARTIFACT_SCHEMA_DEFS`, which omits non-JSON artifacts like HNSW `.bin` and LanceDB directories.  
   ✅ Resolution: **Manifest must include these artifacts**. Update manifest writer to include them via an allowlist even if they are not JSON-schema-validated, and update docs/contracts to explicitly list them as part of the public surface.
 - **Conflict C:** Retrieval loaders read many JSON artifacts via direct filesystem reads (bypassing manifest), contradicting “manifest-first”.  
   ✅ Resolution: In strict mode, retrieval must use `src/shared/artifact-io.js` manifest-based resolvers for all artifacts it loads (JSON and non-JSON).
@@ -1317,8 +1317,8 @@ Current embedding service flow is not fully build-scoped:
 
 **Touchpoints**
 - `tools/service/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
-- `tools/build-embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
-- `tools/build-embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
+- `tools/build/embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
+- `tools/build/embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
 
 **Required changes**
 - Update `runBuildEmbeddings({ job })` to include:
@@ -1337,7 +1337,7 @@ Current embedding service flow is not fully build-scoped:
 
 **Touchpoints**
 - `src/index/build/indexer/steps/write.js` (~L1–L101) (writes initial index_state during stage2)
-- `tools/build-embeddings/runner.js` (~L1–L763) (updates index_state during stage3)
+- `tools/build/embeddings/runner.js` (~L1–L763) (updates index_state during stage3)
 
 **Required state machine**
 - Stage2 build when embeddings are configured to run later via service:
@@ -1391,7 +1391,7 @@ Current embedding service flow is not fully build-scoped:
 ### Why this exists
 
 Contracts require manifest-first discovery. Today:
-- `tools/build-embeddings/manifest.js` tries to add embedding pieces but filters them by `ARTIFACT_SCHEMA_DEFS`, excluding important non-JSON artifacts.
+- `tools/build/embeddings/manifest.js` tries to add embedding pieces but filters them by `ARTIFACT_SCHEMA_DEFS`, excluding important non-JSON artifacts.
 - Retrieval/validation still open some artifacts by guessed filenames.
 
 Phase 7 makes embeddings and ANN artifacts fully discoverable via the manifest.
@@ -1404,7 +1404,7 @@ Phase 7 makes embeddings and ANN artifacts fully discoverable via the manifest.
 
 **Code to update**
 - `src/contracts/registry.js` and/or `src/contracts/schemas/artifacts.js` (if adding names)
-- `tools/build-embeddings/manifest.js`
+- `tools/build/embeddings/manifest.js`
 - `src/shared/artifact-io/manifest.js` (if adding helpers for binary/dir artifacts)
 - `src/retrieval/cli-index.js`, `src/retrieval/cli/load-indexes.js`, `src/index/validate.js`
 
@@ -1442,7 +1442,7 @@ SQLite vector extension ANN presence:
 ### 7.2.2 Update the embeddings manifest writer to include non-JSON artifacts
 
 **Touchpoints**
-- `tools/build-embeddings/manifest.js` (~L1–L111)
+- `tools/build/embeddings/manifest.js` (~L1–L111)
 
 **Current behavior**
 - Builds `embeddingPieces`, then filters by `ARTIFACT_SCHEMA_DEFS` names, which excludes:
@@ -1499,7 +1499,7 @@ SQLite vector extension ANN presence:
 
 **Touchpoints**
 - `src/index/build/indexer/steps/write.js` (~L1–L101) (stage2)
-- `tools/build-embeddings/runner.js` (~L1–L763) (stage3)
+- `tools/build/embeddings/runner.js` (~L1–L763) (stage3)
 - Tests: `tests/indexing/embeddings/embeddings-validate.test.js` (~L1–L82), `tools/index/validate.js` (~L1–L130) output
 
 **Required new fields**
@@ -1560,7 +1560,7 @@ This phase enforces correct quantization everywhere.
 - `src/storage/sqlite/vector.js` (~L1–L71) (function `resolveQuantizationParams`)
 - `src/shared/embedding-utils.js` (~L1–L176) (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`, `dequantizeUint8ToFloat32`)
 - `src/index/embedding.js` (~L1–L56) (`quantizeVec`, `quantizeVecUint8`)
-- `tools/build-embeddings/embed.js` (~L1–L119)
+- `tools/build/embeddings/embed.js` (~L1–L119)
 - `src/storage/sqlite/build/incremental-update.js` (~L1–L567)
 - `src/index/build/file-processor/embeddings.js` (~L1–L260)
 
@@ -1583,11 +1583,11 @@ This phase enforces correct quantization everywhere.
 - `dense_vectors_uint8.json` (`dense_vectors`)
 - `dense_vectors_doc_uint8.json` (`dense_vectors_doc`)
 - `dense_vectors_code_uint8.json` (`dense_vectors_code`)
-- SQLite dense tables written by `tools/build-embeddings/sqlite-dense.js`
+- SQLite dense tables written by `tools/build/embeddings/sqlite-dense.js`
 - HNSW/LanceDB build paths that dequantize from uint8
 
 **Required changes**
-- Update `tools/build-embeddings/embed.js` to quantize using the clamped path.
+- Update `tools/build/embeddings/embed.js` to quantize using the clamped path.
   - Prefer storing vectors as plain arrays of integers 0..255 in JSON.
 - Update `src/storage/sqlite/build/incremental-update.js` to use a clamped quantizer before packing into Uint8Array.
 
@@ -1606,18 +1606,18 @@ Current code often assumes `minVal=-1` and `levels=256`, which breaks if config 
 
 **Touchpoints**
 - Writers:
-  - `tools/build-embeddings/runner.js` (~L1–L763) (when writing dense_vectors*.json and meta)
-  - `tools/build-embeddings/hnsw.js` (~L1–L115) (meta output)
-  - `tools/build-embeddings/lancedb.js` (~L1–L143) (meta output)
+  - `tools/build/embeddings/runner.js` (~L1–L763) (when writing dense_vectors*.json and meta)
+  - `tools/build/embeddings/hnsw.js` (~L1–L115) (meta output)
+  - `tools/build/embeddings/lancedb.js` (~L1–L143) (meta output)
 - Readers:
   - `src/retrieval/rankers.js` (~L1–L292) (rankDenseVectors: stop hardcoding `minVal=-1`)
   - `src/retrieval/sqlite-helpers.js` (~L1–L544) (dense meta: stop hardcoding minVal)
-  - `tools/build-embeddings/lancedb.js` (~L1–L143) (dequantizeUint8ToFloat32 must use correct quantization)
+  - `tools/build/embeddings/lancedb.js` (~L1–L143) (dequantizeUint8ToFloat32 must use correct quantization)
 
 ### 7.3.4 Update LanceDB build to dequantize correctly
 
 **Touchpoints**
-- `tools/build-embeddings/lancedb.js` (~L1–L143)
+- `tools/build/embeddings/lancedb.js` (~L1–L143)
 
 **Required changes**
 - `buildBatch()` currently calls `dequantizeUint8ToFloat32(row.vec)` without passing params (defaults to -1..1, 256).
@@ -1672,9 +1672,9 @@ Normalization affects:
 
 **Touchpoints**
 - `src/shared/embedding-adapter.js` (~L1–L158) (ensures embedding providers normalize)
-- `tools/build-embeddings/embed.js` (~L1–L119) (mergeEmbeddingVectors + normalizeEmbeddingVector)
+- `tools/build/embeddings/embed.js` (~L1–L119) (mergeEmbeddingVectors + normalizeEmbeddingVector)
 - `src/index/build/file-processor/embeddings.js` (~L1–L260) (inline embeddings path)
-- `tools/build-embeddings/runner.js` (~L1–L763) (cache load path where HNSW vectors are dequantized)
+- `tools/build/embeddings/runner.js` (~L1–L763) (cache load path where HNSW vectors are dequantized)
 
 **Required changes**
 - Ensure build-embeddings cache load path normalizes HNSW float vectors whenever identity.normalize is true, not only when `hnswConfig.space === 'cosine'`.
@@ -1818,8 +1818,8 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 
 **Touchpoints**
 - Writer:
-  - `tools/build-embeddings/runner.js` (~L1–L763)
-  - `tools/build-embeddings/hnsw.js` (~L1–L115)
+  - `tools/build/embeddings/runner.js` (~L1–L763)
+  - `tools/build/embeddings/hnsw.js` (~L1–L115)
 - Reader:
   - `src/retrieval/cli-index.js` (~L1–L416) (HNSW load)
   - `src/retrieval/ann/providers/hnsw.js` (~L1–L27) (already uses idx.hnsw)
@@ -1844,7 +1844,7 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 ### 7.6.3 Improve insert failure observability
 
 **Touchpoints**
-- `tools/build-embeddings/hnsw.js` (~L1–L115)
+- `tools/build/embeddings/hnsw.js` (~L1–L115)
 
 **Required changes**
 - Preserve and rely on the existing atomic write pattern:
@@ -1941,7 +1941,7 @@ We need a single coherent way to:
 - HNSW:
   - `src/shared/hnsw.js` (~L1–L160) path resolver must support variants.
 - SQLite-vec:
-  - `tools/build-embeddings/sqlite-dense.js` (~L1–L209) and `tools/sqlite/vector-extension.js` (~L1–L393)
+  - `tools/build/embeddings/sqlite-dense.js` (~L1–L209) and `tools/sqlite/vector-extension.js` (~L1–L393)
   - If SQLite-vec is kept as merged-only, it must be documented and enforced.
 
 **Required behavior**
@@ -2020,7 +2020,7 @@ Add/Update tests:
 ### 7.8.2 SQLite dense writer safety for shared DB paths
 
 **Touchpoints**
-- `tools/build-embeddings/sqlite-dense.js` (~L1–L209)
+- `tools/build/embeddings/sqlite-dense.js` (~L1–L209)
 - `tools/dict-utils/paths/db.js` (~L1–L62) (resolveSqlitePaths)
 
 **Current risk**
@@ -2038,8 +2038,8 @@ Update all query code accordingly:
 ### 7.8.3 Embedding cache preflight metadata
 
 **Touchpoints**
-- `tools/build-embeddings/cache.js` (~L1–L26)
-- `tools/build-embeddings/runner.js` (~L1–L763)
+- `tools/build/embeddings/cache.js` (~L1–L26)
+- `tools/build/embeddings/runner.js` (~L1–L763)
 
 **Goal**
 - Avoid scanning full cache to validate dims/identity each run on huge repos.
@@ -2118,13 +2118,13 @@ Add/Update tests:
 
 ### ANN backends
 - LanceDB:
-  - Build: `tools/build-embeddings/lancedb.js`
+  - Build: `tools/build/embeddings/lancedb.js`
   - Runtime: `src/retrieval/lancedb.js`, `src/retrieval/ann/providers/lancedb.js`, `src/shared/lancedb.js`
 - HNSW:
-  - Build: `tools/build-embeddings/hnsw.js`
+  - Build: `tools/build/embeddings/hnsw.js`
   - Runtime: `src/shared/hnsw.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/cli-index.js`
 - SQLite vector extension:
-  - Build: `tools/build-embeddings/sqlite-dense.js`
+  - Build: `tools/build/embeddings/sqlite-dense.js`
   - Runtime: `tools/sqlite/vector-extension.js`, `src/retrieval/sqlite-helpers.js`
 
 ### Artifact contract / manifest
@@ -2135,7 +2135,7 @@ Add/Update tests:
   - `src/contracts/registry.js`
   - `src/contracts/schemas/artifacts.js`
 - Manifest tooling:
-  - `tools/build-embeddings/manifest.js`
+  - `tools/build/embeddings/manifest.js`
   - `src/shared/artifact-io/manifest.js`
 
 ---
@@ -4650,14 +4650,14 @@ These appendices are generated to remove scavenger-hunts:
 
 ### Existing tools/ files referenced (edit candidates)
 - `tools/build/embeddings.js` (~L1-L12)
-- `tools/build-embeddings/cache.js` (~L1-L26)  -  exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
-- `tools/build-embeddings/cli.js` (~L1-L95)  -  exports/anchors: `parseBuildEmbeddingsArgs`
-- `tools/build-embeddings/embed.js` (~L1-L119)  -  exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
-- `tools/build-embeddings/hnsw.js` (~L1-L115)  -  exports/anchors: `createHnswBuilder`
-- `tools/build-embeddings/lancedb.js` (~L1-L143)
-- `tools/build-embeddings/manifest.js` (~L1-L111)  -  exports/anchors: `updatePieceManifest`
-- `tools/build-embeddings/runner.js` (~L1-L763)
-- `tools/build-embeddings/sqlite-dense.js` (~L1-L209)  -  exports/anchors: `updateSqliteDense`
+- `tools/build/embeddings/cache.js` (~L1-L26)  -  exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
+- `tools/build/embeddings/cli.js` (~L1-L95)  -  exports/anchors: `parseBuildEmbeddingsArgs`
+- `tools/build/embeddings/embed.js` (~L1-L119)  -  exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
+- `tools/build/embeddings/hnsw.js` (~L1-L115)  -  exports/anchors: `createHnswBuilder`
+- `tools/build/embeddings/lancedb.js` (~L1-L143)
+- `tools/build/embeddings/manifest.js` (~L1-L111)  -  exports/anchors: `updatePieceManifest`
+- `tools/build/embeddings/runner.js` (~L1-L763)
+- `tools/build/embeddings/sqlite-dense.js` (~L1-L209)  -  exports/anchors: `updateSqliteDense`
 - `tools/build/lmdb-index.js` (~L1-L311)
 - `tools/dict-utils/paths/db.js` (~L1-L62)  -  exports/anchors: `resolveLmdbPaths`, `resolveSqlitePaths`
 - `tools/index/validate.js` (~L1-L130)
@@ -5933,7 +5933,7 @@ Make search behavior deterministic, debuggable, and aligned with its public CLI 
 Remove dead code paths, misleading cleanup, and brittle precondition assumptions.
 
 - [x] Clean up SQLite build runner resource handling.
-  - `tools/build-sqlite-index/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
+  - `tools/build/sqlite/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
   - Unused variables like `hasVectorTableBefore` and wording mismatches in warnings.
   - Action: make return types explicit, remove dead cleanup, fix warnings.
 

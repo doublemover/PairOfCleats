@@ -68,7 +68,7 @@ for (const entry of cases) {
   const url = `http://127.0.0.1:${port}/${entry.archive}`;
   const archiveHash = await hashFile(path.join(fixturesRoot, entry.archive));
   const status = await runDownload([
-    path.join(root, 'tools', 'download-extensions.js'),
+    path.join(root, 'tools', 'download', 'extensions.js'),
     '--url',
     `vec0=${url}`,
     '--sha256',
@@ -124,7 +124,7 @@ for (const entry of cases) {
   const verify = spawnSync(
     process.execPath,
     [
-      path.join(root, 'tools', 'verify-extensions.js'),
+      path.join(root, 'tools', 'sqlite', 'verify-extensions.js'),
       '--dir',
       extensionDir,
       '--provider',
@@ -155,7 +155,7 @@ for (const entry of maliciousCases) {
   const escapePath = path.join(tempRoot, entry.escapeName);
   await fsPromises.rm(escapePath, { force: true });
   await runDownload([
-    path.join(root, 'tools', 'download-extensions.js'),
+    path.join(root, 'tools', 'download', 'extensions.js'),
     '--url',
     `vec0=${url}`,
     '--sha256',

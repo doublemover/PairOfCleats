@@ -24,7 +24,7 @@ const env = applyTestEnv({
   }
 });
 
-const validatorPath = path.join(root, 'tools', 'index-validate.js');
+const validatorPath = path.join(root, 'tools', 'index', 'validate.js');
 const buildPath = path.join(root, 'build_index.js');
 
 const missingResult = spawnSync(

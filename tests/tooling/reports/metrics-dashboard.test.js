@@ -49,7 +49,7 @@ const outPath = path.join(tempRoot, 'dashboard.json');
 const env = { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot };
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'metrics-dashboard.js'), '--json', '--out', outPath],
+  [path.join(root, 'tools', 'reports', 'metrics-dashboard.js'), '--json', '--out', outPath],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (result.status !== 0) {

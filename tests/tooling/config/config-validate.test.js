@@ -32,7 +32,7 @@ await fsPromises.writeFile(
   JSON.stringify({ unknownKey: true }, null, 2)
 );
 
-const validatorPath = path.join(root, 'tools', 'validate-config.js');
+const validatorPath = path.join(root, 'tools', 'config/validate.js');
 if (!fs.existsSync(validatorPath)) {
   console.error(`Missing validator script: ${validatorPath}`);
   process.exit(1);

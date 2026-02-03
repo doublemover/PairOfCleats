@@ -8,7 +8,7 @@ const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'cache-gc');
 const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(cacheRoot, 'repos');
-const toolPath = path.join(root, 'tools', 'cache-gc.js');
+const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
 
 const env = {
   ...process.env,

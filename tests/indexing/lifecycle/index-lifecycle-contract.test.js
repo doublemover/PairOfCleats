@@ -42,7 +42,7 @@ if (buildResult.status !== 0) {
 
 const validateResult = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'index-validate.js'), '--json', '--mode', 'code', '--repo', repoDir],
+  [path.join(root, 'tools', 'index', 'validate.js'), '--json', '--mode', 'code', '--repo', repoDir],
   { cwd: repoDir, env, encoding: 'utf8' }
 );
 

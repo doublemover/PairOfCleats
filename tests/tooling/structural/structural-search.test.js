@@ -34,7 +34,7 @@ const env = {
 const result = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'structural-search.js'),
+    path.join(root, 'tools', 'analysis', 'structural-search.js'),
     '--repo', repoRoot,
     '--pack', 'semgrep-security',
     '--pack', 'astgrep-js-safety',

@@ -50,7 +50,7 @@ const searchPath = path.join(root, 'search.js');
 const reportPath = path.join(root, 'tools', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
-const indexerServicePath = path.join(root, 'tools', 'indexer-service.js');
+const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;

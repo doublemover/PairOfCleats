@@ -56,7 +56,7 @@ const ensureCert = (targetDir) => {
 const runReport = () => {
   ensureDir(path.dirname(outPath));
   const args = [
-    path.join(toolRoot, 'tools', 'report-code-map.js'),
+    path.join(toolRoot, 'tools', 'reports/report-code-map.js'),
     '--repo', repoRoot,
     '--format', 'html-iso',
     '--out', outPath,

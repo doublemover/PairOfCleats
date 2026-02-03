@@ -404,7 +404,7 @@ Touchpoints:
 - `src/retrieval/cli-index.js` (resolve index dir via snapshot; update query cache signature)
 - `src/shared/artifact-io.js` (add signature helpers for sharded artifacts)
 - `bin/pairofcleats.js` (CLI wiring)
-- `tools/build-sqlite-index/cli.js` + `tools/build-sqlite-index/run.js` (add `--snapshot/--as-of`)
+- `tools/build/sqlite/cli.js` + `tools/build/sqlite/run.js` (add `--snapshot/--as-of`)
 - `tools/api/**` (if API endpoints added)
 - `src/retrieval/query-cache.js` + `src/retrieval/cli/run-search-session.js` (cache key composition + persistence)
 - `src/retrieval/index-cache.js` (index signature + snapshot awareness)

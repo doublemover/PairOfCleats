@@ -44,7 +44,7 @@ export async function downloadModels(args = {}, context = {}) {
 export async function downloadDictionaries(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'download-dicts.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
   urls.forEach((value) => scriptArgs.push('--url', String(value)));
@@ -75,7 +75,7 @@ export async function downloadDictionaries(args = {}, context = {}) {
 export async function downloadExtensions(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'download-extensions.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.out) scriptArgs.push('--out', String(args.out));
@@ -111,7 +111,7 @@ export async function downloadExtensions(args = {}, context = {}) {
 export function verifyExtensions(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'verify-extensions.js'), '--json', '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'sqlite', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.path) scriptArgs.push('--path', String(args.path));

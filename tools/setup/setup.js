@@ -19,7 +19,7 @@ import {
   resolveToolRoot
 } from '../shared/dict-utils.js';
 import { runCommand as runCommandBase } from '../shared/cli-utils.js';
-import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
+import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 const argv = createCli({
   scriptName: 'setup',
@@ -149,7 +149,7 @@ if (!argv['skip-validate'] && configExists && !shouldValidateConfig && !nonInter
 if (argv['skip-validate']) shouldValidateConfig = false;
 
 if (shouldValidateConfig && configExists) {
-  const args = [path.join(toolRoot, 'tools', 'validate-config.js'), '--config', configPath];
+  const args = [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath];
   if (jsonOutput) args.push('--json');
   const result = runCommand(process.execPath, args);
   recordStep('config', { skipped: false, ok: result.ok, configPath });
@@ -204,7 +204,7 @@ if (argv['skip-dicts']) {
   if (!hasDicts || needsEnglish) {
     const shouldDownload = await promptYesNo('Download English dictionary wordlist?', true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download-dicts.js'), '--lang', 'en']);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en']);
       if (!result.ok) {
         warn('Dictionary download failed.');
         recordError('dictionaries', result, 'download failed');
@@ -267,7 +267,7 @@ if (argv['skip-extensions']) {
     if (!hasExtension) {
       const shouldDownload = await promptYesNo('Download SQLite ANN extension?', true);
       if (shouldDownload) {
-        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download-extensions.js')]);
+        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js')]);
         if (!result.ok) {
           warn('Extension download failed.');
           recordError('extensions', result, 'download failed');

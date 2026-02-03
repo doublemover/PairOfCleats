@@ -27,9 +27,16 @@ const argv = createCli({
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 loadUserConfig(repoRoot);
-const registryPath = argv.registry
-  ? path.resolve(argv.registry)
-  : path.resolve(scriptRoot, '..', 'rules', 'registry.json');
+const registryPath = (() => {
+  if (argv.registry) return path.resolve(argv.registry);
+  const candidates = [
+    path.resolve(repoRoot, 'rules', 'registry.json'),
+    path.resolve(scriptRoot, '..', '..', 'rules', 'registry.json'),
+    path.resolve(scriptRoot, '..', 'rules', 'registry.json')
+  ];
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return existing || candidates[0];
+})();
 const outputPath = argv.out ? path.resolve(argv.out) : null;
 const format = argv.json ? 'json' : (argv.format || 'jsonl');
 
@@ -59,11 +66,15 @@ if (!selectedPacks.length && !engineOverride) {
   process.exit(1);
 }
 
+const registryDir = path.dirname(registryPath);
+const registryRepoRoot = path.resolve(registryDir, '..');
 const resolveRulePath = (rulePath) => {
   if (!rulePath) return null;
-  const resolved = isAbsolutePathNative(rulePath)
-    ? rulePath
-    : path.resolve(scriptRoot, '..', rulePath);
+  if (isAbsolutePathNative(rulePath)) return fs.existsSync(rulePath) ? rulePath : null;
+  const normalized = rulePath.replace(/\\/g, '/');
+  const resolved = normalized.startsWith('rules/')
+    ? path.resolve(registryRepoRoot, rulePath)
+    : path.resolve(registryDir, rulePath);
   return fs.existsSync(resolved) ? resolved : null;
 };
 

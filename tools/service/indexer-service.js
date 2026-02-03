@@ -6,9 +6,9 @@ import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
-import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
-import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './service/queue.js';
-import { ensureRepo, resolveRepoPath } from './service/repos.js';
+import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
+import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './queue.js';
+import { ensureRepo, resolveRepoPath } from './repos.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from './indexer-service-helpers.js';
 
 const argv = createCli({

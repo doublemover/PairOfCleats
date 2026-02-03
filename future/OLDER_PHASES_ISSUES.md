@@ -36,7 +36,7 @@ This note lists **additional** issues found when re-checking older phases (relat
 - **Exit criteria: quantization invariants**
   - Quantization clamps levels to `[2,256]`; uint8 quantization clamps to `<=255`.
 - **Manifest completeness for ANN backends**
-  - `tools/build-embeddings/manifest.js` includes bin + dir artifacts (HNSW + LanceDB) via an allowlist.
+  - `tools/build/embeddings/manifest.js` includes bin + dir artifacts (HNSW + LanceDB) via an allowlist.
 
 ### Issues found
 - ✅ **No additional issues found** in the above Phase 7 deliverables.

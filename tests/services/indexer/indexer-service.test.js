@@ -24,7 +24,7 @@ await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
 const enqueue = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'indexer-service.js'), 'enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
+  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'enqueue', '--config', configPath, '--repo', repoRoot, '--mode', 'code'],
   { encoding: 'utf8' }
 );
 if (enqueue.status !== 0) {
@@ -34,7 +34,7 @@ if (enqueue.status !== 0) {
 
 const status = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'indexer-service.js'), 'status', '--config', configPath],
+  [path.join(root, 'tools', 'service', 'indexer-service.js'), 'status', '--config', configPath],
   { encoding: 'utf8' }
 );
 if (status.status !== 0) {

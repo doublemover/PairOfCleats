@@ -35,7 +35,7 @@ The following call sites currently derive thread limits and/or queues:
 * `src/shared/threads.js: resolveThreadLimits()`
 * `src/index/build/runtime/workers.js: resolveThreadLimitsConfig()`
 * `src/index/build/indexer/steps/process-files/runtime.js: createShardRuntime()`
-* `tools/build-sqlite-index/run.js`
+* `tools/build/sqlite/run.js`
 
 **Requirement:** after Phase 4.2, all of these must:
 * share the same resolution rules

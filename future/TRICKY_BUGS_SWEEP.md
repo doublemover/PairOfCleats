@@ -105,7 +105,7 @@ Even if yargs doesn’t exit in a particular environment, queries beginning with
   - `src/index/build/discover.js` (stat concurrency)
   - `src/index/build/runtime/runtime.js` (stage override, cacheRoot labeling)
   - `src/index/build/watch/resolve-backend.js` (watch backend selection)
-  - `tools/index/cache-gc.js`, `tools/index/validate.js`, `tools/build-embeddings/*`, `tools/build-sqlite-index/*` (mostly test toggles like crash logging)
+  - `tools/index/cache-gc.js`, `tools/index/validate.js`, `tools/build/embeddings/*`, `tools/build/sqlite/*` (mostly test toggles like crash logging)
 
 ---
 

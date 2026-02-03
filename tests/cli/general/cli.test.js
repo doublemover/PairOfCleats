@@ -46,7 +46,7 @@ if (!helpOutput.includes('Usage: pairofcleats')) {
 
 const configResult = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'validate-config.js'), '--config', configPath, '--json'],
+  [path.join(root, 'tools', 'config/validate.js'), '--config', configPath, '--json'],
   { encoding: 'utf8' }
 );
 if (configResult.status !== 0) {

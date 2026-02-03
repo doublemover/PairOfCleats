@@ -5,7 +5,7 @@ import path from 'node:path';
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
 const result = spawnSync(process.execPath, [
-  path.join(root, 'tools', 'tooling-install.js'),
+  path.join(root, 'tools', 'tooling', 'install.js'),
   '--root', fixtureRoot,
   '--tools', 'clangd',
   '--dry-run',

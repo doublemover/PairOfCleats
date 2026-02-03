@@ -329,7 +329,7 @@ Make the pipeline deterministic and fixed.
 - `src/retrieval/cli.js`
 - `src/retrieval/pipeline.js`
 - `src/retrieval/sqlite-helpers.js`
-- `tools/build-sqlite-index/*`
+- `tools/build/sqlite/*`
 
 ### 6.2 Remove scoring knobs
 Delete:

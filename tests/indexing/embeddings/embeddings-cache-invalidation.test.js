@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { buildCacheIdentity, buildCacheKey, isCacheValid } from '../../../tools/build-embeddings/cache.js';
+import { buildCacheIdentity, buildCacheKey, isCacheValid } from '../../../tools/build/embeddings/cache.js';
 
 const base = buildCacheIdentity({
   modelId: 'model-a',

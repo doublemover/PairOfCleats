@@ -7,7 +7,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../shared/dict-utils.js';
-import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
+import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
 import {
