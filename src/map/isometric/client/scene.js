@@ -188,6 +188,8 @@ export const applyRendererSettings = () => {
     }
   };
   for (const mesh of state.fileMeshes || []) toggleShadow(mesh);
+  for (const mesh of state.fileInstancedMeshes || []) toggleShadow(mesh);
+  for (const mesh of state.fileInstancedInnerMeshes || []) toggleShadow(mesh);
   for (const mesh of state.memberMeshes || []) toggleShadow(mesh);
   for (const mesh of state.memberInstancedMeshes || []) toggleShadow(mesh);
   for (const mesh of state.chunkMeshes || []) toggleShadow(mesh);

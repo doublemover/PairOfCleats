@@ -1,4 +1,5 @@
 import fsSync from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 import { readBundleFile } from '../../../shared/bundle-io.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
@@ -22,6 +23,7 @@ import {
   toSqliteRowId
 } from '../vector.js';
 import { deleteDocIds, updateTokenStats } from './delete.js';
+import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import {
   diffFileManifests,
   getFileManifest,
@@ -94,6 +96,22 @@ export async function incrementalUpdateDatabase({
   const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  if (batchStats) {
+    batchStats.batchSize = resolvedBatchSize;
+  }
+  const tableStats = batchStats
+    ? (batchStats.tables || (batchStats.tables = {}))
+    : null;
+  const recordTable = (name, rows, durationMs) => {
+    if (!tableStats || !name) return;
+    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
+    entry.rows += rows;
+    entry.durationMs += durationMs;
+    entry.rowsPerSec = entry.durationMs > 0
+      ? Math.round((entry.rows / entry.durationMs) * 1000)
+      : null;
+    tableStats[name] = entry;
+  };
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -105,6 +123,7 @@ export async function incrementalUpdateDatabase({
   const expectedDims = Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
   const db = new Database(outPath);
+  const pragmaState = applyBuildPragmas(db, { inputBytes, stats: batchStats });
   let dbClosed = false;
   const finalize = async () => {
     if (dbClosed) return;
@@ -113,17 +132,15 @@ export async function incrementalUpdateDatabase({
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch {}
     try {
+      restoreBuildPragmas(db, pragmaState);
+    } catch {}
+    try {
       db.close();
     } catch {}
     try {
       await removeSqliteSidecars(outPath);
     } catch {}
   };
-  try {
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-  } catch {}
-
   const schemaVersion = getSchemaVersion(db);
   if (schemaVersion !== SCHEMA_VERSION) {
     await finalize();
@@ -409,7 +426,60 @@ export async function incrementalUpdateDatabase({
     throw new Error('[sqlite] Vector delete targets must use rowid');
   }
 
-  const applyChanges = db.transaction(() => {
+  let chunkRows = 0;
+  let ftsRows = 0;
+  let docLengthRows = 0;
+  let tokenVocabRows = 0;
+  let tokenPostingRows = 0;
+  let phraseVocabRows = 0;
+  let phrasePostingRows = 0;
+  let chargramVocabRows = 0;
+  let chargramPostingRows = 0;
+  let minhashRows = 0;
+  let denseRows = 0;
+  let denseMetaRows = 0;
+  let fileManifestRows = 0;
+  let tokenStatsRows = 0;
+  let validationMs = 0;
+  let deleteApplied = false;
+  let insertApplied = false;
+
+  const applyDeletes = db.transaction(() => {
+    for (const file of deleted) {
+      const normalizedFile = normalizeFilePath(file);
+      if (!normalizedFile) continue;
+      const entry = existingIdsByFile.get(normalizedFile);
+      const docIds = entry?.ids || [];
+      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
+      if (docIds.length) {
+        freeDocIds.push(...docIds);
+      }
+      db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?')
+        .run(mode, normalizedFile);
+    }
+
+    for (const record of changed) {
+      const normalizedFile = record?.normalized;
+      if (!normalizedFile) continue;
+      const entry = existingIdsByFile.get(normalizedFile);
+      const docIds = entry?.ids || [];
+      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
+    }
+
+    for (const record of manifestUpdates) {
+      const normalizedFile = record.normalized;
+      const entry = record.entry || {};
+      updateFileManifest.run(
+        entry?.hash || null,
+        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
+        Number.isFinite(entry?.size) ? entry.size : null,
+        mode,
+        normalizedFile
+      );
+    }
+  });
+
+  const applyInserts = db.transaction(() => {
     const tokenVocab = ensureVocabIds(
       db,
       mode,
@@ -423,6 +493,7 @@ export async function incrementalUpdateDatabase({
     if (tokenVocab.skip) {
       throw new IncrementalSkipError(tokenVocab.reason || 'token vocab growth too large');
     }
+    tokenVocabRows += tokenVocab.inserted || 0;
 
     const phraseVocab = ensureVocabIds(
       db,
@@ -437,6 +508,7 @@ export async function incrementalUpdateDatabase({
     if (phraseVocab.skip) {
       throw new IncrementalSkipError(phraseVocab.reason || 'phrase vocab growth too large');
     }
+    phraseVocabRows += phraseVocab.inserted || 0;
 
     const chargramVocab = ensureVocabIds(
       db,
@@ -451,42 +523,17 @@ export async function incrementalUpdateDatabase({
     if (chargramVocab.skip) {
       throw new IncrementalSkipError(chargramVocab.reason || 'chargram vocab growth too large');
     }
+    chargramVocabRows += chargramVocab.inserted || 0;
 
     const tokenIdMap = tokenVocab.map;
     const phraseIdMap = phraseVocab.map;
     const chargramIdMap = chargramVocab.map;
 
-    for (const file of deleted) {
-      const normalizedFile = normalizeFilePath(file);
-      const entry = existingIdsByFile.get(normalizedFile);
-      const docIds = entry?.ids || [];
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
-      if (docIds.length) {
-        freeDocIds.push(...docIds);
-      }
-      db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?')
-        .run(mode, normalizedFile);
-    }
-
-    for (const record of manifestUpdates) {
-      const normalizedFile = record.normalized;
-      const entry = record.entry || {};
-      updateFileManifest.run(
-        entry?.hash || null,
-        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
-        Number.isFinite(entry?.size) ? entry.size : null,
-        mode,
-        normalizedFile
-      );
-    }
-
     for (const record of changed) {
       const normalizedFile = record.normalized;
       const entry = existingIdsByFile.get(normalizedFile);
       const reuseIds = entry?.ids || [];
-      const docIds = reuseIds;
       let reuseIndex = 0;
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
 
       const bundleEntry = bundles.get(normalizedFile);
       const bundle = bundleEntry?.bundle;
@@ -509,14 +556,18 @@ export async function incrementalUpdateDatabase({
         );
         insertChunk.run(row);
         insertFts.run(row);
+        chunkRows += 1;
+        ftsRows += 1;
 
         const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
         insertDocLength.run(mode, docId, tokensArray.length);
+        docLengthRows += 1;
         const freq = buildTokenFrequency(tokensArray);
         for (const [token, tf] of freq.entries()) {
           const tokenId = tokenIdMap.get(token);
           if (tokenId === undefined) continue;
           insertTokenPosting.run(mode, tokenId, docId, tf);
+          tokenPostingRows += 1;
         }
 
         if (Array.isArray(chunk.ngrams)) {
@@ -525,6 +576,7 @@ export async function incrementalUpdateDatabase({
             const phraseId = phraseIdMap.get(ng);
             if (phraseId === undefined) continue;
             insertPhrasePosting.run(mode, phraseId, docId);
+            phrasePostingRows += 1;
           }
         }
 
@@ -534,11 +586,13 @@ export async function incrementalUpdateDatabase({
             const gramId = chargramIdMap.get(gram);
             if (gramId === undefined) continue;
             insertChargramPosting.run(mode, gramId, docId);
+            chargramPostingRows += 1;
           }
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
+          minhashRows += 1;
         }
 
         if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
@@ -555,6 +609,7 @@ export async function incrementalUpdateDatabase({
             );
             denseMetaSet = true;
             denseDims = dims;
+            denseMetaRows += 1;
           } else if (denseDims !== null && dims !== denseDims) {
             throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
           }
@@ -563,6 +618,7 @@ export async function incrementalUpdateDatabase({
             docId,
             packUint8(quantizeVec(chunk.embedding, quantization.minVal, quantization.maxVal, quantization.levels))
           );
+          denseRows += 1;
           if (vectorAnn?.loaded) {
             if (!vectorAnn.ready) {
               const created = prepareVectorAnnInsert({ db, mode, vectorConfig, dims });
@@ -616,14 +672,44 @@ export async function incrementalUpdateDatabase({
         Number.isFinite(manifestEntry?.size) ? manifestEntry.size : null,
         chunkCount
       );
+      fileManifestRows += 1;
     }
 
     updateTokenStats(db, mode, insertTokenStats);
+    tokenStatsRows += 1;
+    const validationStart = performance.now();
     validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger, dbPath: outPath });
+    validationMs = performance.now() - validationStart;
   });
 
   try {
-    applyChanges();
+    applyDeletes();
+    deleteApplied = true;
+    const applyStart = performance.now();
+    applyInserts();
+    insertApplied = true;
+    const applyDurationMs = performance.now() - applyStart;
+    recordTable('chunks', chunkRows, applyDurationMs);
+    recordTable('chunks_fts', ftsRows, applyDurationMs);
+    recordTable('doc_lengths', docLengthRows, applyDurationMs);
+    recordTable('token_vocab', tokenVocabRows, applyDurationMs);
+    recordTable('token_postings', tokenPostingRows, applyDurationMs);
+    recordTable('phrase_vocab', phraseVocabRows, applyDurationMs);
+    recordTable('phrase_postings', phrasePostingRows, applyDurationMs);
+    recordTable('chargram_vocab', chargramVocabRows, applyDurationMs);
+    recordTable('chargram_postings', chargramPostingRows, applyDurationMs);
+    recordTable('minhash_signatures', minhashRows, applyDurationMs);
+    recordTable('dense_vectors', denseRows, applyDurationMs);
+    recordTable('dense_meta', denseMetaRows, 0);
+    recordTable('file_manifest', fileManifestRows, applyDurationMs);
+    recordTable('token_stats', tokenStatsRows, 0);
+    if (batchStats) {
+      batchStats.validationMs = validationMs;
+      batchStats.transactionPhases = {
+        deletes: deleteApplied,
+        inserts: insertApplied
+      };
+    }
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch (err) {

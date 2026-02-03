@@ -1,6 +1,9 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { applyHighlights, setSelection, openSelection } from './selection.js';
+import { applyBucketCulling, applyEdgeCulling, forceBucketVisible } from './culling.js';
+import { resolveLodTier, applyLodTier } from './lod.js';
+import { updatePerfStats } from './telemetry.js';
 
 export const initControls = () => {
   const {
@@ -32,6 +35,7 @@ export const initControls = () => {
     const memberVisible = state.memberGroup?.visible !== false;
 
     if (fileVisible) {
+      targets.push(...(state.fileInstancedMeshes || []));
       targets.push(...(state.fileMeshes || []));
     }
 
@@ -50,8 +54,11 @@ export const initControls = () => {
   // Cluster / frustum culling for member instances (updates group.visible in batches).
   const cullFrustum = new THREE.Frustum();
   const cullMatrix = new THREE.Matrix4();
+  const hiddenMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
   let cullTimer = 0;
-  const cullInterval = 0.08;
+  const cullInterval = Number.isFinite(state.performance?.cullInterval)
+    ? state.performance.cullInterval
+    : 0.08;
 
   const updateMemberCulling = () => {
     if (!state.memberClusters || !state.memberClusters.length) return;
@@ -63,6 +70,36 @@ export const initControls = () => {
       if (!cluster?.group || !cluster?.sphere) continue;
       cluster.group.visible = cullFrustum.intersectsSphere(cluster.sphere);
     }
+
+    const selected = state.selectedInfo;
+    const selectedId = selected?.type === 'member' && selected.id ? String(selected.id) : null;
+    if (selectedId && state.memberClusterByMemberId?.has(selectedId)) {
+      const target = state.memberClusterByMemberId.get(selectedId);
+      if (target?.group) target.group.visible = true;
+    }
+  };
+
+  const updateFileCulling = () => {
+    if (!state.fileBuckets || !state.fileBuckets.length) return;
+    if (state.fileGroup?.visible === false) return;
+    cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    cullFrustum.setFromProjectionMatrix(cullMatrix);
+    applyBucketCulling({ frustum: cullFrustum, buckets: state.fileBuckets, hiddenMatrix });
+
+    const selected = state.selectedInfo;
+    const fileKey = selected?.type === 'file' ? (selected.file || selected.name) : null;
+    if (fileKey && state.fileBucketByKey?.has(fileKey)) {
+      const bucket = state.fileBucketByKey.get(fileKey);
+      forceBucketVisible(bucket);
+    }
+  };
+
+  const updateEdgeCulling = () => {
+    const targets = state.edgeCullingTargets || [];
+    if (!targets.length) return;
+    cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    cullFrustum.setFromProjectionMatrix(cullMatrix);
+    applyEdgeCulling({ frustum: cullFrustum, targets });
   };
 
 
@@ -239,10 +276,12 @@ export const initControls = () => {
   renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
   let lastTime = performance.now();
+  let fpsState = { start: lastTime, frames: 0 };
   const animate = () => {
     requestAnimationFrame(animate);
     const now = performance.now();
-    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    const frameMs = now - lastTime;
+    const dt = Math.min(0.05, frameMs / 1000);
     lastTime = now;
     updateCamera(dt);
     if (Math.abs(zoomVelocity) > 0.0001) {
@@ -343,10 +382,52 @@ export const initControls = () => {
       }
     }
 
+    const perfStats = state.perfStats || (state.perfStats = {});
+    const budgetMs = Number.isFinite(state.performance?.frameBudgetMs)
+      ? state.performance.frameBudgetMs
+      : 18;
+    const mem = performance?.memory?.usedJSHeapSize;
+    const perfUpdate = updatePerfStats({
+      perfStats,
+      now,
+      frameMs,
+      budgetMs,
+      fpsState,
+      heapUsed: Number.isFinite(mem) ? mem : null
+    });
+    state.perfStats = perfUpdate.stats;
+    fpsState = perfUpdate.fpsState;
+
+    const edgeCount = state.drawCounts?.edges || 0;
+    const lodTier = resolveLodTier({
+      zoom: camera.zoom,
+      edgeCount,
+      frameMs,
+      performance: state.performance
+    });
+    applyLodTier(state, lodTier);
+
+    if (state.dom?.perfHud && state.performance?.hud?.enabled) {
+      const heapMb = perfStats.heapUsed ? Math.round(perfStats.heapUsed / (1024 * 1024)) : null;
+      const parts = [
+        `fps: ${perfStats.fps || 0}`,
+        `frame: ${perfStats.frameMs || 0}ms`,
+        `dropped: ${perfStats.droppedFrames || 0}`,
+        `edges: ${edgeCount}`
+      ];
+      if (heapMb !== null) parts.push(`heap: ${heapMb}MB`);
+      state.dom.perfHud.textContent = parts.join(' | ');
+      state.dom.perfHud.style.display = 'block';
+    } else if (state.dom?.perfHud) {
+      state.dom.perfHud.style.display = 'none';
+    }
+
     cullTimer += dt;
     if (cullTimer >= cullInterval) {
       cullTimer = 0;
       updateMemberCulling();
+      updateFileCulling();
+      updateEdgeCulling();
     }
 
     renderer.render(state.scene, camera);

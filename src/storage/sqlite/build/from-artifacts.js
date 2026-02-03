@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import path from 'node:path';
-import readline from 'node:readline';
 import {
   buildChunkRow,
   buildTokenFrequency,
@@ -26,14 +26,13 @@ import {
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
-import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
+import { applyBuildPragmas, optimizeBuildDatabase, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import {
   MAX_JSON_BYTES,
-  parseJsonlLine,
-  readJsonLinesArray,
+  readJsonLinesEach,
   resolveJsonlRequiredKeys
 } from '../../../shared/artifact-io.js';
 
@@ -128,27 +127,7 @@ const readJsonLinesFile = async (
   filePath,
   onEntry,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
-) => {
-  if (filePath.endsWith('.gz') || filePath.endsWith('.zst')) {
-    const entries = await readJsonLinesArray(filePath, { maxBytes, requiredKeys });
-    for (const entry of entries) onEntry(entry);
-    return;
-  }
-  const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  let lineNumber = 0;
-  try {
-    for await (const line of rl) {
-      lineNumber += 1;
-      const entry = parseJsonlLine(line, filePath, lineNumber, maxBytes, requiredKeys);
-      if (!entry) continue;
-      onEntry(entry);
-    }
-  } finally {
-    rl.close();
-    stream.destroy();
-  }
-};
+) => readJsonLinesEach(filePath, onEntry, { maxBytes, requiredKeys });
 
 export const loadIndexPieces = (dirOrOptions, modelId) => {
   if (dirOrOptions && typeof dirOrOptions === 'object' && !Array.isArray(dirOrOptions)) {
@@ -256,6 +235,22 @@ export async function buildDatabaseFromArtifacts({
   const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  if (batchStats) {
+    batchStats.batchSize = resolvedBatchSize;
+  }
+  const tableStats = batchStats
+    ? (batchStats.tables || (batchStats.tables = {}))
+    : null;
+  const recordTable = (name, rows, durationMs) => {
+    if (!tableStats || !name) return;
+    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
+    entry.rows += rows;
+    entry.durationMs += durationMs;
+    entry.rowsPerSec = entry.durationMs > 0
+      ? Math.round((entry.rows / entry.durationMs) * 1000)
+      : null;
+    tableStats[name] = entry;
+  };
   if (!index && !indexDir) return 0;
   const manifestLookup = normalizeManifestFiles(manifestFiles || {});
   if (emitOutput && manifestLookup.conflicts.length) {
@@ -269,7 +264,7 @@ export async function buildDatabaseFromArtifacts({
   let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
-  applyBuildPragmas(db);
+  const pragmaState = applyBuildPragmas(db, { inputBytes, stats: batchStats });
 
   let count = 0;
   let succeeded = false;
@@ -304,6 +299,7 @@ export async function buildDatabaseFromArtifacts({
       const avgDocLen = typeof tokenIndex.avgDocLen === 'number' ? tokenIndex.avgDocLen : null;
       const totalDocs = typeof tokenIndex.totalDocs === 'number' ? tokenIndex.totalDocs : docLengths.length;
 
+      const vocabStart = performance.now();
       const insertVocabTx = db.transaction((start, end) => {
         for (let i = start; i < end; i += 1) {
           insertTokenVocab.run(targetMode, i, vocab[i]);
@@ -313,7 +309,10 @@ export async function buildDatabaseFromArtifacts({
         insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
         recordBatch('tokenVocabBatches');
       }
+      recordTable('token_vocab', vocab.length, performance.now() - vocabStart);
 
+      const postingStart = performance.now();
+      let postingRows = 0;
       const insertPostingsTx = db.transaction((start, end) => {
         for (let tokenId = start; tokenId < end; tokenId += 1) {
           const posting = postings[tokenId] || [];
@@ -322,6 +321,7 @@ export async function buildDatabaseFromArtifacts({
             const docId = entry[0];
             const tf = entry[1];
             insertTokenPosting.run(targetMode, tokenId, docId, tf);
+            postingRows += 1;
           }
         }
       });
@@ -329,7 +329,9 @@ export async function buildDatabaseFromArtifacts({
         insertPostingsTx(start, Math.min(start + resolvedBatchSize, postings.length));
         recordBatch('tokenPostingBatches');
       }
+      recordTable('token_postings', postingRows, performance.now() - postingStart);
 
+      const lengthsStart = performance.now();
       const insertLengthsTx = db.transaction((start, end) => {
         for (let docId = start; docId < end; docId += 1) {
           insertDocLength.run(targetMode, docId, docLengths[docId]);
@@ -339,8 +341,10 @@ export async function buildDatabaseFromArtifacts({
         insertLengthsTx(start, Math.min(start + resolvedBatchSize, docLengths.length));
         recordBatch('docLengthBatches');
       }
+      recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
 
       insertTokenStats.run(targetMode, avgDocLen, totalDocs);
+      recordTable('token_stats', 1, 0);
     }
 
     function ingestTokenIndexFromPieces(targetMode, indexDir) {
@@ -369,6 +373,7 @@ export async function buildDatabaseFromArtifacts({
             ? docLengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / docLengths.length
             : 0
         ));
+      const lengthsStart = performance.now();
       const insertLengthsTx = db.transaction((start, end) => {
         for (let docId = start; docId < end; docId += 1) {
           insertDocLength.run(targetMode, docId, docLengths[docId]);
@@ -378,8 +383,14 @@ export async function buildDatabaseFromArtifacts({
         insertLengthsTx(start, Math.min(start + resolvedBatchSize, docLengths.length));
         recordBatch('docLengthBatches');
       }
+      recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
       insertTokenStats.run(targetMode, avgDocLen, totalDocs);
+      recordTable('token_stats', 1, 0);
       let tokenId = 0;
+      let vocabRows = 0;
+      let postingRows = 0;
+      const vocabStart = performance.now();
+      const postingStart = performance.now();
       for (const shardPath of sources.parts) {
         const shard = readJson(shardPath);
         const vocab = Array.isArray(shard?.vocab)
@@ -397,6 +408,7 @@ export async function buildDatabaseFromArtifacts({
           insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
           recordBatch('tokenVocabBatches');
         }
+        vocabRows += vocab.length;
         const insertPostingsTx = db.transaction((start, end) => {
           for (let i = start; i < end; i += 1) {
             const posting = postings[i] || [];
@@ -404,6 +416,7 @@ export async function buildDatabaseFromArtifacts({
             for (const entry of posting) {
               if (!entry) continue;
               insertTokenPosting.run(targetMode, postingTokenId, entry[0], entry[1]);
+              postingRows += 1;
             }
           }
         });
@@ -413,6 +426,8 @@ export async function buildDatabaseFromArtifacts({
         }
         tokenId += vocab.length;
       }
+      recordTable('token_vocab', vocabRows, performance.now() - vocabStart);
+      recordTable('token_postings', postingRows, performance.now() - postingStart);
       return true;
     }
 
@@ -422,6 +437,12 @@ export async function buildDatabaseFromArtifacts({
       let nextTokenId = 0;
       let totalDocs = 0;
       let totalLen = 0;
+      let docLengthRows = 0;
+      let tokenVocabRows = 0;
+      let tokenPostingRows = 0;
+      const lengthsStart = performance.now();
+      const vocabStart = performance.now();
+      const postingStart = performance.now();
       const insertTx = db.transaction((batch) => {
         for (const entry of batch) {
           if (!entry) continue;
@@ -433,6 +454,7 @@ export async function buildDatabaseFromArtifacts({
           totalDocs += 1;
           totalLen += docLen;
           insertDocLength.run(targetMode, docId, docLen);
+          docLengthRows += 1;
           if (!docLen) continue;
           const freq = buildTokenFrequency(tokensArray);
           for (const [token, tf] of freq.entries()) {
@@ -442,8 +464,10 @@ export async function buildDatabaseFromArtifacts({
               nextTokenId += 1;
               tokenIdMap.set(token, tokenId);
               insertTokenVocab.run(targetMode, tokenId, token);
+              tokenVocabRows += 1;
             }
             insertTokenPosting.run(targetMode, tokenId, docId, tf);
+            tokenPostingRows += 1;
           }
         }
       });
@@ -467,13 +491,24 @@ export async function buildDatabaseFromArtifacts({
         recordBatch('docLengthBatches');
       }
       insertTokenStats.run(targetMode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
+      recordTable('doc_lengths', docLengthRows, performance.now() - lengthsStart);
+      recordTable('token_vocab', tokenVocabRows, performance.now() - vocabStart);
+      recordTable('token_postings', tokenPostingRows, performance.now() - postingStart);
+      recordTable('token_stats', 1, 0);
     }
 
-    function ingestPostingIndex(indexData, targetMode, insertVocabStmt, insertPostingStmt) {
+    function ingestPostingIndex(
+      indexData,
+      targetMode,
+      insertVocabStmt,
+      insertPostingStmt,
+      { vocabTable, postingTable } = {}
+    ) {
       if (!indexData?.vocab || !indexData?.postings) return;
       const vocab = indexData.vocab;
       const postings = indexData.postings;
 
+      const vocabStart = performance.now();
       const insertVocabTx = db.transaction((start, end) => {
         for (let i = start; i < end; i += 1) {
           insertVocabStmt.run(targetMode, i, vocab[i]);
@@ -483,12 +518,16 @@ export async function buildDatabaseFromArtifacts({
         insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
         recordBatch('postingVocabBatches');
       }
+      recordTable(vocabTable || 'posting_vocab', vocab.length, performance.now() - vocabStart);
 
+      const postingStart = performance.now();
+      let postingRows = 0;
       const insertPostingsTx = db.transaction((start, end) => {
         for (let tokenId = start; tokenId < end; tokenId += 1) {
           const posting = postings[tokenId] || [];
           for (const docId of posting) {
             insertPostingStmt.run(targetMode, tokenId, docId);
+            postingRows += 1;
           }
         }
       });
@@ -496,22 +535,27 @@ export async function buildDatabaseFromArtifacts({
         insertPostingsTx(start, Math.min(start + resolvedBatchSize, postings.length));
         recordBatch('postingBatches');
       }
+      recordTable(postingTable || 'posting_rows', postingRows, performance.now() - postingStart);
     }
 
     function ingestMinhash(minhash, targetMode) {
       if (!minhash?.signatures || !minhash.signatures.length) return;
+      const start = performance.now();
+      let minhashRows = 0;
       const insertTx = db.transaction((start, end) => {
         for (let docId = start; docId < end; docId += 1) {
           const sig = minhash.signatures[docId];
           if (!sig) continue;
           insertMinhash.run(targetMode, docId, packUint32(sig));
           validationStats.minhash += 1;
+          minhashRows += 1;
         }
       });
       for (let start = 0; start < minhash.signatures.length; start += resolvedBatchSize) {
         insertTx(start, Math.min(start + resolvedBatchSize, minhash.signatures.length));
         recordBatch('minhashBatches');
       }
+      recordTable('minhash_signatures', minhashRows, performance.now() - start);
     }
 
     function ingestDense(dense, targetMode) {
@@ -528,12 +572,16 @@ export async function buildDatabaseFromArtifacts({
         quantization.maxVal,
         quantization.levels
       );
+      recordTable('dense_meta', 1, 0);
+      const start = performance.now();
+      let denseRows = 0;
       const insertTx = db.transaction((start, end) => {
         for (let docId = start; docId < end; docId += 1) {
           const vec = dense.vectors[docId];
           if (!vec) continue;
           insertDense.run(targetMode, docId, packUint8(vec));
           validationStats.dense += 1;
+          denseRows += 1;
           if (vectorAnn?.insert && encodeVector) {
             const floatVec = dequantizeUint8ToFloat32(
               vec,
@@ -570,6 +618,7 @@ export async function buildDatabaseFromArtifacts({
         insertTx(start, Math.min(start + resolvedBatchSize, dense.vectors.length));
         recordBatch('denseBatches');
       }
+      recordTable('dense_vectors', denseRows, performance.now() - start);
       dense.vectors = null;
     }
 
@@ -649,6 +698,7 @@ export async function buildDatabaseFromArtifacts({
       if (!sources) return { count: 0, fileCounts: new Map() };
       const fileCounts = new Map();
       const rows = [];
+      const start = performance.now();
       const insert = db.transaction((batch) => {
         for (const row of batch) {
           insertChunk.run(row);
@@ -686,6 +736,9 @@ export async function buildDatabaseFromArtifacts({
         }
       }
       flush();
+      const durationMs = performance.now() - start;
+      recordTable('chunks', chunkCount, durationMs);
+      recordTable('chunks_fts', chunkCount, durationMs);
       return { count: chunkCount, fileCounts };
     };
 
@@ -711,6 +764,7 @@ export async function buildDatabaseFromArtifacts({
         chunkMetaLoaded = result.count > 0;
       }
       if (!chunkMetaLoaded && Array.isArray(indexData?.chunkMeta)) {
+        const start = performance.now();
         const insert = db.transaction((rows) => {
           for (const row of rows) {
             insertChunk.run(row);
@@ -739,6 +793,9 @@ export async function buildDatabaseFromArtifacts({
           if (rows.length >= resolvedBatchSize) flush();
         }
         flush();
+        const durationMs = performance.now() - start;
+        recordTable('chunks', chunkCount, durationMs);
+        recordTable('chunks_fts', chunkCount, durationMs);
       }
 
       let tokenIngested = false;
@@ -758,8 +815,20 @@ export async function buildDatabaseFromArtifacts({
         }
       }
 
-      ingestPostingIndex(indexData?.phraseNgrams, targetMode, insertPhraseVocab, insertPhrasePosting);
-      ingestPostingIndex(indexData?.chargrams, targetMode, insertChargramVocab, insertChargramPosting);
+      ingestPostingIndex(
+        indexData?.phraseNgrams,
+        targetMode,
+        insertPhraseVocab,
+        insertPhrasePosting,
+        { vocabTable: 'phrase_vocab', postingTable: 'phrase_postings' }
+      );
+      ingestPostingIndex(
+        indexData?.chargrams,
+        targetMode,
+        insertChargramVocab,
+        insertChargramPosting,
+        { vocabTable: 'chargram_vocab', postingTable: 'chargram_postings' }
+      );
       ingestMinhash(indexData?.minhash, targetMode);
       ingestDense(indexData?.denseVec, targetMode);
       ingestFileManifest(fileCounts, targetMode);
@@ -779,6 +848,7 @@ export async function buildDatabaseFromArtifacts({
 
     function ingestFileManifest(fileCounts, targetMode) {
       if (!fileCounts || !fileCounts.size) return;
+      const start = performance.now();
       const insertTx = db.transaction((batch) => {
         for (const [file, count] of batch) {
           const normalizedFile = normalizeFilePath(file);
@@ -806,11 +876,14 @@ export async function buildDatabaseFromArtifacts({
         insertTx(batch);
         recordBatch('fileManifestBatches');
       }
+      recordTable('file_manifest', fileCounts.size, performance.now() - start);
     }
 
     count = await ingestIndex(index, mode, indexDir);
     validationStats.chunks = count;
     db.exec(CREATE_INDEXES_SQL);
+    optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    const validationStart = performance.now();
     validateSqliteDatabase(db, mode, {
       validateMode,
       expected: validationStats,
@@ -818,6 +891,9 @@ export async function buildDatabaseFromArtifacts({
       logger,
       dbPath: resolvedOutPath
     });
+    if (batchStats) {
+      batchStats.validationMs = performance.now() - validationStart;
+    }
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch {}
@@ -830,7 +906,7 @@ export async function buildDatabaseFromArtifacts({
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-    restoreBuildPragmas(db);
+    restoreBuildPragmas(db, pragmaState);
     db.close();
     if (!succeeded) {
       try {

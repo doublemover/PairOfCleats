@@ -324,7 +324,7 @@ export const applyGlassSettings = () => {
 };
 
 export const updateFileOpacity = () => {
-  const { visuals, visualDefaults, fileMeshes } = state;
+  const { visuals, visualDefaults, fileMeshes, fileInstancedMeshes, fileInstancedInnerMeshes } = state;
   const opacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
   for (const mesh of fileMeshes) {
     if (mesh.material) {
@@ -336,6 +336,19 @@ export const updateFileOpacity = () => {
       const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
       inner.material.opacity = innerOpacity;
       if (inner.material.userData) inner.material.userData.baseOpacity = innerOpacity;
+    }
+  }
+  for (const mesh of fileInstancedMeshes || []) {
+    if (mesh?.material) {
+      mesh.material.opacity = opacity;
+      if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
+    }
+  }
+  for (const mesh of fileInstancedInnerMeshes || []) {
+    if (mesh?.material) {
+      const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
+      mesh.material.opacity = innerOpacity;
+      if (mesh.material.userData) mesh.material.userData.baseOpacity = innerOpacity;
     }
   }
 };

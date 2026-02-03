@@ -22,7 +22,8 @@ export const buildEdges = () => {
     memberColorById,
     fileColorByPath,
     visuals,
-    layoutStyle
+    layoutStyle,
+    performance
   } = state;
 
   const edgePlane = layoutMetrics.edgePlane;
@@ -189,6 +190,11 @@ export const buildEdges = () => {
   }
 
   const localEdgeTypeGroups = new Map();
+  const drawCaps = performance?.drawCaps || {};
+  let remainingEdges = Number.isFinite(drawCaps.edges) ? drawCaps.edges : Infinity;
+  let edgeDrawCount = 0;
+  state.edgeCullingTargets = [];
+
   for (const [type, segments] of flowSegmentsByType.entries()) {
     if (!segments.size) continue;
     const group = new THREE.Group();
@@ -200,7 +206,16 @@ export const buildEdges = () => {
     const style = resolveEdgeStyle(type);
     const typeProfile = flowTypeProfiles[type] || flowTypeProfiles.other;
     const fallbackColor = new THREE.Color(style.color || '#9aa0a6');
-    const entries = Array.from(segments.values());
+    let entries = Array.from(segments.values());
+    if (remainingEdges <= 0) {
+      group.visible = false;
+      continue;
+    }
+    if (Number.isFinite(remainingEdges) && entries.length > remainingEdges) {
+      entries = entries.slice(0, remainingEdges);
+    }
+    remainingEdges -= entries.length;
+    edgeDrawCount += entries.length;
     if (!entries.length) continue;
     const geometry = state.edgeUnitBoxGeometry || (state.edgeUnitBoxGeometry = (() => {
       const unit = new THREE.BoxGeometry(1, 1, 1);
@@ -211,6 +226,12 @@ export const buildEdges = () => {
     state.flowMaterials.push(material);
 
     const mesh = new THREE.InstancedMesh(geometry, material, entries.length);
+    if (mesh.instanceMatrix?.setUsage) {
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    }
+    if (mesh.instanceColor?.setUsage) {
+      mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    }
     mesh.renderOrder = 7;
     const dummy = new THREE.Object3D();
     const axis = new THREE.Vector3(1, 0, 0);
@@ -270,6 +291,9 @@ export const buildEdges = () => {
     };
     group.add(mesh);
     state.edgeMeshes.push(mesh);
+    if (mesh.boundingSphere) {
+      state.edgeCullingTargets.push({ mesh, sphere: mesh.boundingSphere.clone() });
+    }
   }
 
   if (allowFlowLights && flowLightCandidates && flowLightCandidates.length) {
@@ -296,5 +320,6 @@ export const buildEdges = () => {
 
   state.edgeTypeGroups = localEdgeTypeGroups;
   state.edgeTypes = Array.from(flowSegmentsByType.keys()).sort((a, b) => a.localeCompare(b));
+  state.drawCounts = { ...(state.drawCounts || {}), edges: edgeDrawCount };
 };
 

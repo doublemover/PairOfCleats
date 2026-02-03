@@ -61,6 +61,7 @@ const strip = (payload) => {
   const clone = JSON.parse(JSON.stringify(payload));
   clone.generatedAt = null;
   if (clone.summary) clone.summary.generatedAt = null;
+  if (clone.buildMetrics) clone.buildMetrics = null;
   return clone;
 };
 

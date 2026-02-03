@@ -10,6 +10,7 @@ import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/di
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
+import { applyBuildPragmas, restoreBuildPragmas } from '../../src/storage/sqlite/build/pragmas.js';
 import {
   dequantizeUint8ToFloat32,
   resolveQuantizationParams,
@@ -116,10 +117,7 @@ export async function compactDatabase(input) {
   if (fs.existsSync(tempPath)) await fsPromises.rm(tempPath, { force: true });
 
   const outDb = new Database(tempPath);
-  try {
-    outDb.pragma('journal_mode = WAL');
-    outDb.pragma('synchronous = NORMAL');
-  } catch {}
+  const pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
   outDb.exec(CREATE_TABLES_SQL);
   outDb.pragma(`user_version = ${SCHEMA_VERSION}`);
 
@@ -447,6 +445,7 @@ export async function compactDatabase(input) {
     chunks: countRows(outDb, 'chunks'),
     dense: countRows(outDb, 'dense_vectors')
   };
+  restoreBuildPragmas(outDb, pragmaState);
   outDb.close();
   sourceDb.close();
 

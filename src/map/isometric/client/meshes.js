@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { clamp } from './utils.js';
-import { createGlassMaterial, createGlassShell, createTextPlane, createWireframe } from './materials.js';
+import { applyHeightFog, createGlassMaterial, createTextPlane, createWireframe } from './materials.js';
 import { createShapeGeometry } from './layout.js';
 
 const colorPalette = {
@@ -37,6 +37,7 @@ export const buildMeshes = () => {
   const {
     THREE,
     visuals,
+    performance,
     allFiles,
     layoutMetrics,
     fileGroup,
@@ -48,6 +49,13 @@ export const buildMeshes = () => {
   const { labelOffset, memberCell, memberGap } = layoutMetrics;
   const labelsEnabled = Boolean(labelGroup?.visible);
   const enableShadows = visuals.enableShadows === true;
+  const drawCaps = performance?.drawCaps || {};
+  const maxFileDraw = Number.isFinite(drawCaps.files) ? drawCaps.files : Infinity;
+  const maxMemberDraw = Number.isFinite(drawCaps.members) ? drawCaps.members : Infinity;
+  const maxLabelDraw = Number.isFinite(drawCaps.labels) ? drawCaps.labels : Infinity;
+  let remainingMembers = maxMemberDraw;
+  let labelCount = 0;
+  let memberDrawCount = 0;
 
   const fileOpacity = clamp(Number(visuals.fileOpacity ?? 1), 0.1, 1);
   const memberOpacity = clamp(Number(visuals.memberOpacity ?? 1), 0.1, 1);
@@ -70,80 +78,178 @@ export const buildMeshes = () => {
   state.instancedChunkMaterial = chunkInstancedMaterial;
 
   const dummy = new THREE.Object3D();
+  const innerDummy = new THREE.Object3D();
   const identityRotation = new THREE.Euler(0, 0, 0);
 
-  for (const fileLayout of allFiles) {
+  const fileLayouts = Array.isArray(allFiles) ? allFiles.slice(0, maxFileDraw) : [];
+  const bucketSize = performance?.bucketSize || Math.max(20, layoutMetrics.baseSize * 8);
+  const fileBucketsByKey = new Map();
+  const fileLayoutByShape = new Map();
+  for (const fileLayout of fileLayouts) {
+    const shape = fileLayout.shape || 'square';
+    const bucket = fileLayoutByShape.get(shape) || [];
+    bucket.push(fileLayout);
+    fileLayoutByShape.set(shape, bucket);
+  }
+
+  for (const [shape, layouts] of fileLayoutByShape.entries()) {
+    if (!layouts.length) continue;
+    const fileGeom = createShapeGeometry(shape);
+    const white = new THREE.Color(0xffffff);
+    const outerMat = createGlassMaterial(white, fileOpacity);
+    outerMat.vertexColors = true;
+    outerMat.side = THREE.DoubleSide;
+    outerMat.userData = { ...(outerMat.userData || {}), role: 'file-instanced-outer' };
+    const innerOpacity = clamp(fileOpacity * 0.9, 0.05, 1);
+    const innerMat = createGlassMaterial(white, innerOpacity);
+    innerMat.vertexColors = true;
+    innerMat.side = THREE.BackSide;
+    innerMat.userData = {
+      ...(innerMat.userData || {}),
+      role: 'file-instanced-inner',
+      baseOpacity: innerOpacity
+    };
+    applyHeightFog(innerMat);
+
+    const outerMesh = new THREE.InstancedMesh(fileGeom, outerMat, layouts.length);
+    const innerMesh = new THREE.InstancedMesh(fileGeom, innerMat, layouts.length);
+    outerMesh.castShadow = enableShadows;
+    outerMesh.receiveShadow = enableShadows;
+    innerMesh.castShadow = enableShadows;
+    innerMesh.receiveShadow = enableShadows;
+    outerMesh.renderOrder = 3;
+    innerMesh.renderOrder = 2;
+    outerMesh.userData = { type: 'fileInstances', shape, instanceInfo: new Array(layouts.length) };
+    innerMesh.userData = { type: 'fileInstancesInner', shape, skipPick: true };
+    fileGroup.add(innerMesh);
+    fileGroup.add(outerMesh);
+    state.fileInstancedMeshes.push(outerMesh);
+    state.fileInstancedInnerMeshes.push(innerMesh);
+
+    const thicknessScale = clamp(1 - visuals.glass.thickness * 0.03, 0.75, 0.98);
+
+    for (let i = 0; i < layouts.length; i += 1) {
+      const fileLayout = layouts[i];
+      const node = fileLayout.node;
+      const fileKey = node.path || node.name;
+
+      const fileColorHex = colorPalette[node.category] || colorPalette.other;
+      const fileColor = new THREE.Color(fileColorHex);
+
+      dummy.position.set(fileLayout.x, fileLayout.height / 2, fileLayout.z);
+      dummy.rotation.copy(identityRotation);
+      dummy.scale.set(fileLayout.width, fileLayout.height, fileLayout.depth);
+      dummy.updateMatrix();
+
+      innerDummy.position.copy(dummy.position);
+      innerDummy.rotation.copy(identityRotation);
+      innerDummy.scale.set(
+        fileLayout.width * thicknessScale,
+        fileLayout.height * thicknessScale,
+        fileLayout.depth * thicknessScale
+      );
+      innerDummy.updateMatrix();
+
+      outerMesh.setMatrixAt(i, dummy.matrix);
+      innerMesh.setMatrixAt(i, innerDummy.matrix);
+      outerMesh.setColorAt(i, fileColor);
+      innerMesh.setColorAt(i, fileColor);
+
+      const fileTopY = Number.isFinite(fileLayout.topY) ? fileLayout.topY : fileLayout.height;
+      outerMesh.userData.instanceInfo[i] = {
+        type: 'file',
+        file: fileKey,
+        name: node.name,
+        id: node.id || null,
+        range: null,
+        baseColor: fileColor.clone()
+      };
+
+      if (fileKey) {
+        state.fileAnchors.set(fileKey, { x: fileLayout.x, y: fileTopY, z: fileLayout.z });
+        state.fileColorByPath.set(fileKey, fileColor.clone());
+        state.fileInstanceByKey.set(fileKey, { mesh: outerMesh, instanceId: i });
+      }
+
+      const fileWire = createWireframe(fileGeom, fileColor.clone(), fileLayout.x + fileLayout.z);
+      fileWire.position.copy(dummy.position);
+      fileWire.rotation.copy(dummy.rotation);
+      fileWire.scale.copy(dummy.scale);
+      fileWire.renderOrder = 6;
+      wireGroup.add(fileWire);
+      if (fileKey) state.fileWireByKey.set(fileKey, fileWire);
+
+      const fileLabelText = String(node.name || node.path || '').split('/').filter(Boolean).pop();
+      if (labelsEnabled && fileLabelText && labelCount < maxLabelDraw) {
+        const fileLabelSize = Math.min(fileLayout.width, fileLayout.depth);
+        const fileLabel = createTextPlane(fileLabelText, { size: fileLabelSize });
+        if (fileLabel.material) fileLabel.material.depthTest = true;
+        fileLabel.position.set(
+          fileLayout.x + fileLayout.width * 0.5 + labelOffset,
+          fileTopY,
+          fileLayout.z + fileLayout.depth * 0.5 + labelOffset
+        );
+        fileLabel.rotation.y = -Math.PI / 4;
+        fileLabel.renderOrder = 7;
+        labelGroup.add(fileLabel);
+        labelCount += 1;
+      }
+
+      const bucketX = Math.floor(fileLayout.x / bucketSize);
+      const bucketZ = Math.floor(fileLayout.z / bucketSize);
+      const bucketKey = `${shape}:${bucketX}:${bucketZ}`;
+      const bucket = fileBucketsByKey.get(bucketKey) || {
+        mesh: outerMesh,
+        instances: [],
+        minX: Infinity,
+        maxX: -Infinity,
+        minZ: Infinity,
+        maxZ: -Infinity,
+        centerY: fileLayout.height / 2
+      };
+      bucket.instances.push({ index: i, baseMatrix: dummy.matrix.clone() });
+      bucket.minX = Math.min(bucket.minX, fileLayout.x);
+      bucket.maxX = Math.max(bucket.maxX, fileLayout.x);
+      bucket.minZ = Math.min(bucket.minZ, fileLayout.z);
+      bucket.maxZ = Math.max(bucket.maxZ, fileLayout.z);
+      fileBucketsByKey.set(bucketKey, bucket);
+      if (fileKey) state.fileBucketByKey.set(fileKey, bucket);
+    }
+
+    outerMesh.instanceMatrix.needsUpdate = true;
+    if (outerMesh.instanceColor) outerMesh.instanceColor.needsUpdate = true;
+    innerMesh.instanceMatrix.needsUpdate = true;
+    if (innerMesh.instanceColor) innerMesh.instanceColor.needsUpdate = true;
+  }
+
+  state.fileBuckets = Array.from(fileBucketsByKey.values()).map((bucket) => {
+    const centerX = (bucket.minX + bucket.maxX) * 0.5;
+    const centerZ = (bucket.minZ + bucket.maxZ) * 0.5;
+    const spanX = Math.max(1, bucket.maxX - bucket.minX);
+    const spanZ = Math.max(1, bucket.maxZ - bucket.minZ);
+    const radius = Math.sqrt((spanX * 0.5) ** 2 + (spanZ * 0.5) ** 2 + (bucket.centerY || 0) ** 2);
+    return {
+      mesh: bucket.mesh,
+      instances: bucket.instances,
+      sphere: new THREE.Sphere(new THREE.Vector3(centerX, bucket.centerY || 0, centerZ), radius),
+      visible: true
+    };
+  });
+
+  for (const fileLayout of fileLayouts) {
     const node = fileLayout.node;
     const fileKey = node.path || node.name;
-
-    const fileGeom = createShapeGeometry(fileLayout.shape);
-    const fileColorHex = colorPalette[node.category] || colorPalette.other;
-    const fileColor = new THREE.Color(fileColorHex);
-
-    const fileMat = createGlassMaterial(fileColor, fileOpacity);
-    const fileShell = createGlassShell(fileGeom, fileMat);
-
-    fileShell.group.position.set(fileLayout.x, fileLayout.height / 2, fileLayout.z);
-    fileShell.group.scale.set(fileLayout.width, fileLayout.height, fileLayout.depth);
-
+    const baseFileColor = (fileKey && state.fileColorByPath.get(fileKey))
+      || new THREE.Color(colorPalette[node.category] || colorPalette.other);
     const fileTopY = Number.isFinite(fileLayout.topY) ? fileLayout.topY : fileLayout.height;
-
-    // Render order: keep the file glass below members and wireframes.
-    if (fileShell.inner) fileShell.inner.renderOrder = 2;
-    fileShell.outer.renderOrder = 3;
-
-    fileShell.outer.castShadow = enableShadows;
-    fileShell.outer.receiveShadow = enableShadows;
-    if (fileShell.inner) {
-      fileShell.inner.castShadow = enableShadows;
-      fileShell.inner.receiveShadow = enableShadows;
-    }
-
-    fileShell.outer.userData = {
-      type: 'file',
-      file: fileKey,
-      name: node.name,
-      id: node.id || null,
-      range: null,
-      baseColor: fileColor.clone(),
-      shellInner: fileShell.inner,
-      shellGroup: fileShell.group
-    };
-
-    fileGroup.add(fileShell.group);
-    state.fileMeshes.push(fileShell.outer);
-
-    const fileWire = createWireframe(fileGeom, fileColor.clone(), fileShell.group.position.x + fileShell.group.position.z);
-    fileWire.position.copy(fileShell.group.position);
-    fileWire.rotation.copy(fileShell.group.rotation);
-    fileWire.scale.copy(fileShell.group.scale);
-    fileWire.renderOrder = 6;
-    wireGroup.add(fileWire);
-    state.wireByMesh.set(fileShell.outer, fileWire);
-
-    if (fileKey) {
-      state.fileAnchors.set(fileKey, { x: fileShell.group.position.x, y: fileTopY, z: fileShell.group.position.z });
-      state.fileColorByPath.set(fileKey, fileColor.clone());
-      state.fileMeshByKey.set(fileKey, fileShell.outer);
-    }
-
-    const fileLabelText = String(node.name || node.path || '').split('/').filter(Boolean).pop();
-    if (labelsEnabled && fileLabelText) {
-      const fileLabelSize = Math.min(fileLayout.width, fileLayout.depth);
-      const fileLabel = createTextPlane(fileLabelText, { size: fileLabelSize });
-      if (fileLabel.material) fileLabel.material.depthTest = true;
-      fileLabel.position.set(
-        fileShell.group.position.x + fileLayout.width * 0.5 + labelOffset,
-        fileTopY,
-        fileShell.group.position.z + fileLayout.depth * 0.5 + labelOffset
-      );
-      fileLabel.rotation.y = -Math.PI / 4;
-      fileLabel.renderOrder = 7;
-      labelGroup.add(fileLabel);
-    }
 
     const slots = fileLayout.memberSlots || [];
     const members = (fileLayout.members || []).slice().sort((a, b) => b.height - a.height);
+    if (remainingMembers <= 0) continue;
+    const cappedMembers = members.length > remainingMembers
+      ? members.slice(0, remainingMembers)
+      : members;
+    remainingMembers -= cappedMembers.length;
 
     const maxFootprint = Math.min(
       (fileLayout.surfaceWidth || fileLayout.width) / Math.max(1, fileLayout.columns || 1),
@@ -151,12 +257,12 @@ export const buildMeshes = () => {
     ) - memberGap;
 
     // --- Members rendered via GPU instancing (clustered per file and per shape) ---
-    if (members.length && slots.length) {
+    if (cappedMembers.length && slots.length) {
       const anchorY = fileTopY;
 
       const placed = [];
-      for (let index = 0; index < members.length; index += 1) {
-        const entry = members[index];
+      for (let index = 0; index < cappedMembers.length; index += 1) {
+        const entry = cappedMembers[index];
         const slot = slots[index];
         if (!slot) continue;
 
@@ -179,7 +285,7 @@ export const buildMeshes = () => {
         cluster.userData = { type: 'memberCluster', file: fileKey };
         memberGroup.add(cluster);
 
-        const maxMemberHeight = members[0]?.height || 0;
+        const maxMemberHeight = cappedMembers[0]?.height || 0;
         const maxY = anchorY + maxMemberHeight + 0.05;
         const centerY = maxY * 0.5;
         const halfX = fileLayout.width * 0.5;
@@ -254,6 +360,7 @@ export const buildMeshes = () => {
 
             if (memberId) {
               state.memberInstanceById.set(memberId, { mesh: instanced, instanceId: i });
+              state.memberClusterByMemberId.set(memberId, cluster);
               state.memberAnchors.set(memberId, {
                 x: worldX,
                 y: anchorY + height + 0.05,
@@ -261,7 +368,7 @@ export const buildMeshes = () => {
               });
             }
 
-            if (labelsEnabled && entry.member.name) {
+            if (labelsEnabled && entry.member.name && labelCount < maxLabelDraw) {
               const memberLabelSize = Math.min(footprint, height);
               const memberLabel = createTextPlane(entry.member.name, { size: memberLabelSize });
               if (memberLabel.material) memberLabel.material.depthTest = true;
@@ -273,6 +380,7 @@ export const buildMeshes = () => {
               memberLabel.rotation.y = -Math.PI / 4;
               memberLabel.renderOrder = 7;
               labelGroup.add(memberLabel);
+              labelCount += 1;
             }
           }
 
@@ -280,6 +388,7 @@ export const buildMeshes = () => {
           if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
           if (typeof instanced.computeBoundingSphere === 'function') instanced.computeBoundingSphere();
           if (typeof instanced.computeBoundingBox === 'function') instanced.computeBoundingBox();
+          memberDrawCount += count;
         }
       }
     }
@@ -334,7 +443,7 @@ export const buildMeshes = () => {
         dummy.scale.set(cubeSize, cubeH, cubeSize);
         dummy.updateMatrix();
 
-        const chunkColor = fileColor.clone().lerp(white, 0.12).offsetHSL(0.015 * i, 0.05, 0.04);
+        const chunkColor = baseFileColor.clone().lerp(white, 0.12).offsetHSL(0.015 * i, 0.05, 0.04);
 
         chunkMesh.setMatrixAt(i, dummy.matrix);
         chunkMesh.setColorAt(i, chunkColor);
@@ -349,4 +458,10 @@ export const buildMeshes = () => {
       state.chunkMeshes.push(chunkMesh);
     }
   }
+  state.drawCounts = {
+    ...(state.drawCounts || {}),
+    files: fileLayouts.length,
+    members: memberDrawCount,
+    labels: labelCount
+  };
 };
