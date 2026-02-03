@@ -331,13 +331,28 @@ export async function collectLspTypes({
     const lineIndex = openEntry?.lineIndex || lineIndexFactory(openEntry?.text || doc.text || '');
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
 
+    const mergeSignatureInfo = (base, next) => {
+      if (!next) return base;
+      if (!base) return next;
+      const merged = { ...base };
+      if (!merged.returnType && next.returnType) merged.returnType = next.returnType;
+      if (!merged.signature && next.signature) merged.signature = next.signature;
+      const baseParams = Object.keys(merged.paramTypes || {});
+      const nextParams = Object.keys(next.paramTypes || {});
+      if (!baseParams.length && nextParams.length) merged.paramTypes = next.paramTypes;
+      if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
+        merged.paramNames = next.paramNames;
+      }
+      return merged;
+    };
+
     for (const symbol of flattened) {
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
       let info = parseSignature ? parseSignature(symbol.detail || symbol.name, doc.languageId, symbol.name) : null;
       const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
-      if (!info || (!info.returnType && !hasParamTypes)) {
+      if (!info || !info.returnType || !hasParamTypes) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
@@ -348,7 +363,7 @@ export async function collectLspTypes({
           );
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = parseSignature ? parseSignature(hoverText, doc.languageId, symbol.name) : null;
-          if (hoverInfo) info = hoverInfo;
+          if (hoverInfo) info = mergeSignatureInfo(info, hoverInfo);
         } catch {}
       }
       if (!info) continue;
