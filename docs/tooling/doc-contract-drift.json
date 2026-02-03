@@ -1,19 +1,21 @@
 {
-  "generatedAt": "2026-02-03T07:18:45.437Z",
-  "ok": true,
+  "generatedAt": "2026-02-03T07:27:17.523Z",
+  "ok": false,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 76,
+      "sourceCount": 77,
       "docCount": 76,
-      "missingInDocs": [],
+      "missingInDocs": [
+        "--n"
+      ],
       "extraInDocs": []
     },
     "searchContractFlags": {
       "doc": "docs/contracts/search-contract.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 76,
+      "sourceCount": 77,
       "docCount": 19,
       "nonBlocking": true,
       "missingInDocs": [
@@ -60,6 +62,7 @@
         "--modified-after",
         "--modified-since",
         "--mutates",
+        "--n",
         "--non-strict",
         "--reads",
         "--repo",

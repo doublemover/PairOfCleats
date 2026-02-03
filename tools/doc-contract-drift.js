@@ -199,12 +199,15 @@ const main = async () => {
   const pipelineText = readText(path.join(root, 'src', 'retrieval', 'pipeline.js'));
 
   const searchOptionKeys = extractOptionsKeys(searchArgsText);
+  const optionKeySet = new Set(searchOptionKeys);
   const searchFlags = new Set(searchOptionKeys.map((key) => `--${key}`));
   const aliasFlags = extractAliases(searchArgsText);
   for (const alias of aliasFlags) searchFlags.add(alias);
   for (const alias of aliasFlags) {
     const longForm = `--${alias.replace(/^-/, '')}`;
-    searchFlags.delete(longForm);
+    if (!optionKeySet.has(alias.replace(/^-/, ''))) {
+      searchFlags.delete(longForm);
+    }
   }
 
   const docFlagsRaw = extractFlagsFromDoc(searchCliText);

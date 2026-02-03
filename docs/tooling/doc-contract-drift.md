@@ -1,18 +1,18 @@
 # Doc Contract Drift
 
-Status: OK
+Status: DRIFT
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
 - source: src/retrieval/cli-args.js
-- missing in docs: none
+- missing in docs (1): --n
 - extra in docs: none
 
 ## searchContractFlags
 - doc: docs/contracts/search-contract.md
 - source: src/retrieval/cli-args.js
 - note: non-blocking drift (informational)
-- missing in docs (57): --alias, --ann, --ann-backend, --async, --author, --awaits, --backend, --bm25-b, --bm25-k1, --branch
+- missing in docs (58): --alias, --ann, --ann-backend, --async, --author, --awaits, --backend, --bm25-b, --bm25-k1, --branch
 - extra in docs: none
 
 ## artifactSchemas
