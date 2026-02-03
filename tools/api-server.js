@@ -46,6 +46,14 @@ const isLocalHost = (value) => {
   const normalized = String(value).trim().toLowerCase();
   return normalized === '127.0.0.1' || normalized === 'localhost' || normalized === '::1';
 };
+const formatHostForUrl = (value) => {
+  if (!value) return 'localhost';
+  const normalized = String(value).trim();
+  if (normalized.includes(':') && !normalized.startsWith('[')) {
+    return `[${normalized}]`;
+  }
+  return normalized;
+};
 const allowUnauthenticated = argv['allow-unauthenticated'] === true;
 const authToken = String(argv['auth-token'] || envSecrets.apiToken || '').trim();
 const hostIsLocal = isLocalHost(host);
@@ -91,7 +99,7 @@ const server = http.createServer(router.handleRequest);
 server.listen({ port, host }, () => {
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
-  const baseUrl = `http://${host}:${actualPort}`;
+  const baseUrl = `http://${formatHostForUrl(host)}:${actualPort}`;
   if (jsonOutput) {
     console.log(JSON.stringify({ ok: true, host, port: actualPort, repo: defaultRepo, baseUrl }));
   } else {

@@ -60,7 +60,7 @@ export const createApiRouter = ({
   const handleRequest = async (req, res) => {
     let corsHeaders = null;
     try {
-      const requestUrl = new URL(req.url || '/', `http://${host}`);
+      const requestUrl = new URL(req.url || '/', 'http://localhost');
       corsHeaders = resolveCorsHeaders(req);
       const origin = req?.headers?.origin ? String(req.headers.origin) : '';
       if (origin && !corsHeaders) {
