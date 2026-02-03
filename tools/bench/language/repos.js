@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execaSync } from 'execa';
+import { runCommand } from '../../shared/cli-utils.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
 
 const canRun = (cmd, args) => {
   try {
-    const result = execaSync(cmd, args, { encoding: 'utf8', reject: false });
-    return result.exitCode === 0;
+    const result = runCommand(cmd, args, { encoding: 'utf8' });
+    return result.ok;
   } catch {
     return false;
   }
@@ -60,20 +60,20 @@ export const ensureLongPathsSupport = () => {
   if (process.platform !== 'win32') return;
   if (canRun('git', ['--version'])) {
     try {
-      execaSync('git', ['config', '--global', 'core.longpaths', 'true'], { stdio: 'ignore', reject: false });
+      runCommand('git', ['config', '--global', 'core.longpaths', 'true'], { stdio: 'ignore' });
     } catch {}
   }
   let regResult;
   try {
-    regResult = execaSync(
+    regResult = runCommand(
       'reg',
       ['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem', '/v', 'LongPathsEnabled'],
-      { encoding: 'utf8', reject: false }
+      { encoding: 'utf8' }
     );
   } catch {
     regResult = null;
   }
-  if (!regResult || regResult.exitCode !== 0) {
+  if (!regResult || !regResult.ok) {
     console.warn('Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.');
     return;
   }
