@@ -6,8 +6,9 @@ import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { ARTIFACT_SCHEMA_DEFS } from '../../src/contracts/registry.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
+import { resolveToolRoot } from '../shared/dict-utils.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = resolveToolRoot();
 
 const parseArgs = () => yargs(hideBin(process.argv))
   .scriptName('pairofcleats doc-contract-drift')
