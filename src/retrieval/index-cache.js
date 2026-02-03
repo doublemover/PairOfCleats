@@ -29,6 +29,25 @@ const INDEX_FILES = [
   'index_state.json'
 ];
 
+const indexStateSignature = (dir) => {
+  if (!dir) return null;
+  const statePath = path.join(dir, 'index_state.json');
+  try {
+    const raw = fsSync.readFileSync(statePath, 'utf8');
+    const state = JSON.parse(raw);
+    if (state && typeof state === 'object') {
+      const buildId = typeof state.buildId === 'string' ? state.buildId : '';
+      const mode = typeof state.mode === 'string' ? state.mode : '';
+      const surface = typeof state.artifactSurfaceVersion === 'string' ? state.artifactSurfaceVersion : '';
+      if (buildId || mode || surface) {
+        return `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${surface || 'missing'}`;
+      }
+    }
+  } catch {}
+  const statSig = fileSignature(statePath);
+  return statSig ? `stat:${statSig}` : null;
+};
+
 const fileSignature = (filePath) => {
   try {
     let statPath = filePath;
@@ -127,6 +146,8 @@ const jsonlArtifactSignature = (dir, baseName) => {
 
 export function buildIndexSignature(dir) {
   if (!dir) return null;
+  const stateSig = indexStateSignature(dir);
+  if (stateSig) return `index_state:${stateSig}`;
   const parts = [
     chunkMetaSignature(dir),
     tokenPostingsSignature(dir),
