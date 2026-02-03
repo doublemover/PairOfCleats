@@ -15,6 +15,11 @@ const normalizeLabel = (value, fallback = null) => {
   return trimmed ? trimmed : fallback;
 };
 
+const normalizeFileLabel = (value, fallback = 'unknown') => {
+  const raw = normalizeLabel(value, fallback);
+  return String(raw).replace(/[^a-zA-Z0-9._-]+/g, '_');
+};
+
 const captureMemorySnapshot = () => {
   const usage = process.memoryUsage();
   return {
@@ -121,11 +126,15 @@ export const createStageCheckpointRecorder = ({
 
   const flush = async () => {
     const summary = buildSummary();
+    const stageKeys = Object.keys(summary.stages || {});
+    const stageKey = stageKeys.length === 1 ? stageKeys[0] : 'multi';
     if (buildRoot) {
       try {
         await updateBuildState(buildRoot, {
           stageCheckpoints: {
-            [mode || 'unknown']: summary
+            [mode || 'unknown']: {
+              [stageKey]: summary
+            }
           }
         });
       } catch (err) {
@@ -133,7 +142,11 @@ export const createStageCheckpointRecorder = ({
       }
     }
     if (metricsDir) {
-      const fileName = mode ? `stage-audit-${mode}.json` : 'stage-audit.json';
+      const safeStage = normalizeFileLabel(stageKey);
+      const safeMode = normalizeFileLabel(mode || 'unknown');
+      const fileName = mode
+        ? `stage-audit-${safeMode}-${safeStage}.json`
+        : `stage-audit-${safeStage}.json`;
       try {
         await fs.mkdir(metricsDir, { recursive: true });
         await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });

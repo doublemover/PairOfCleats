@@ -51,6 +51,9 @@ const hydrateStateDefaults = async (state, buildRoot) => {
 
 const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
+  const isObject = (value) => (
+    value && typeof value === 'object' && !Array.isArray(value)
+  );
   if (patch.phases) {
     merged.phases = { ...(base?.phases || {}), ...patch.phases };
   }
@@ -67,7 +70,15 @@ const mergeState = (base, patch) => {
     merged.signatures = { ...(base?.signatures || {}), ...patch.signatures };
   }
   if (patch.stageCheckpoints) {
-    merged.stageCheckpoints = { ...(base?.stageCheckpoints || {}), ...patch.stageCheckpoints };
+    const next = { ...(base?.stageCheckpoints || {}) };
+    for (const [mode, value] of Object.entries(patch.stageCheckpoints)) {
+      if (isObject(value) && isObject(next[mode])) {
+        next[mode] = { ...next[mode], ...value };
+      } else {
+        next[mode] = value;
+      }
+    }
+    merged.stageCheckpoints = next;
   }
   if (patch.ignore) {
     merged.ignore = { ...(base?.ignore || {}), ...patch.ignore };
