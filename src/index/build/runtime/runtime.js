@@ -641,15 +641,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
   } else {
     const preloadStart = Date.now();
-    await preloadTreeSitterRuntimeLanguages({
+    const preloadCount = await preloadTreeSitterRuntimeLanguages({
       treeSitterEnabled,
       treeSitterLanguages,
       treeSitterPreload,
       treeSitterPreloadConcurrency,
       treeSitterMaxLoadedLanguages,
+      observedLanguages: null,
       log
     });
-    logInit('tree-sitter preload', preloadStart);
+    if (preloadCount > 0) {
+      logInit('tree-sitter preload', preloadStart);
+    } else if (treeSitterPreload !== 'none') {
+      log('Tree-sitter preload deferred until discovery.');
+    }
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');

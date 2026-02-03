@@ -93,6 +93,10 @@ export const getTreeSitterStats = () => {
       wasmLanguages: treeSitterState.wasmLanguageCache?.size || 0,
       languageEntries: treeSitterState.languageCache?.size || 0,
       activeLanguageId: treeSitterState.sharedParserLanguageId || null
+    },
+    paths: {
+      wasmRoot: treeSitterState.wasmRoot || null,
+      wasmRuntimePath: treeSitterState.wasmRuntimePath || null
     }
   };
 };

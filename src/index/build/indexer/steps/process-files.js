@@ -114,14 +114,16 @@ export const processFiles = async ({
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
     allowReorder: runtime.shards?.enabled !== true
   });
-  if (runtime.languageOptions?.treeSitter?.enabled !== false) {
-    const preloadPlan = resolveTreeSitterPreloadPlan(entries, runtime.languageOptions?.treeSitter);
+  const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
+  if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
+    const preloadPlan = resolveTreeSitterPreloadPlan(entries, treeSitterOptions);
     if (preloadPlan.languages.length) {
       await preflightTreeSitterWasmLanguages(preloadPlan.languages, { log });
       await preloadTreeSitterLanguages(preloadPlan.languages, {
         log,
-        parallel: false,
-        maxLoadedLanguages: runtime.languageOptions?.treeSitter?.maxLoadedLanguages
+        parallel: treeSitterOptions.preload === 'parallel',
+        concurrency: treeSitterOptions.preloadConcurrency,
+        maxLoadedLanguages: treeSitterOptions.maxLoadedLanguages
       });
     }
   }
