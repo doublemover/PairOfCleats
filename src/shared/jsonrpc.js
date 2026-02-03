@@ -99,13 +99,88 @@ export function createFramedJsonRpcParser({
   const maxHeader = Number.isFinite(Number(maxHeaderBytes)) && Number(maxHeaderBytes) > 0
     ? Math.floor(Number(maxHeaderBytes))
     : null;
-  let buffer = Buffer.alloc(0);
+  const buffers = [];
+  let bufferLength = 0;
   let closed = false;
   const fail = (message) => {
     if (closed) return;
     closed = true;
-    buffer = Buffer.alloc(0);
+    buffers.length = 0;
+    bufferLength = 0;
     handleError(new Error(message));
+  };
+  const appendBuffer = (chunk) => {
+    buffers.push(chunk);
+    bufferLength += chunk.length;
+  };
+  const takeBytes = (length) => {
+    const size = Math.max(0, Math.floor(length));
+    if (!size) return Buffer.alloc(0);
+    const out = Buffer.allocUnsafe(size);
+    let offset = 0;
+    while (offset < size && buffers.length) {
+      const head = buffers[0];
+      const take = Math.min(head.length, size - offset);
+      head.copy(out, offset, 0, take);
+      offset += take;
+      if (take === head.length) {
+        buffers.shift();
+      } else {
+        buffers[0] = head.subarray(take);
+      }
+    }
+    bufferLength = Math.max(0, bufferLength - size);
+    return out;
+  };
+  const peekBytes = (length) => {
+    const size = Math.max(0, Math.floor(length));
+    if (!size) return Buffer.alloc(0);
+    const out = Buffer.allocUnsafe(size);
+    let offset = 0;
+    for (const head of buffers) {
+      if (offset >= size) break;
+      const take = Math.min(head.length, size - offset);
+      head.copy(out, offset, 0, take);
+      offset += take;
+    }
+    return out;
+  };
+  const discardBytes = (length) => {
+    const size = Math.max(0, Math.floor(length));
+    if (!size) return;
+    let remaining = size;
+    while (remaining > 0 && buffers.length) {
+      const head = buffers[0];
+      if (head.length <= remaining) {
+        buffers.shift();
+        remaining -= head.length;
+      } else {
+        buffers[0] = head.subarray(remaining);
+        remaining = 0;
+      }
+    }
+    bufferLength = Math.max(0, bufferLength - size);
+  };
+  const findHeaderEnd = () => {
+    if (!buffers.length) return -1;
+    const delim = Buffer.from('\r\n\r\n');
+    let offset = 0;
+    let carry = null;
+    for (const buf of buffers) {
+      if (!buf.length) {
+        offset += buf.length;
+        continue;
+      }
+      const combined = carry ? Buffer.concat([carry, buf]) : buf;
+      const idx = combined.indexOf(delim);
+      if (idx !== -1) {
+        return offset - (carry ? carry.length : 0) + idx;
+      }
+      const carryStart = Math.max(0, combined.length - (delim.length - 1));
+      carry = combined.subarray(carryStart);
+      offset += buf.length;
+    }
+    return -1;
   };
   const parseHeaders = (raw) => {
     const lines = raw.split(/\r?\n/);
@@ -123,9 +198,9 @@ export function createFramedJsonRpcParser({
   };
   const parseBuffer = () => {
     while (!closed) {
-      const headerEnd = buffer.indexOf('\r\n\r\n');
+      const headerEnd = findHeaderEnd();
       if (headerEnd === -1) {
-        if (maxHeader && buffer.length > maxHeader) {
+        if (maxHeader && bufferLength > maxHeader) {
           fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
         }
         return;
@@ -134,7 +209,7 @@ export function createFramedJsonRpcParser({
         fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
         return;
       }
-      const headerRaw = buffer.slice(0, headerEnd).toString('utf8');
+      const headerRaw = peekBytes(headerEnd).toString('utf8');
       const contentLength = parseHeaders(headerRaw);
       if (!Number.isFinite(contentLength) || contentLength < 0) {
         fail('JSON-RPC Content-Length header missing or invalid.');
@@ -145,9 +220,9 @@ export function createFramedJsonRpcParser({
         return;
       }
       const frameEnd = headerEnd + 4 + contentLength;
-      if (buffer.length < frameEnd) return;
-      const payloadBuffer = buffer.slice(headerEnd + 4, frameEnd);
-      buffer = buffer.slice(frameEnd);
+      if (bufferLength < frameEnd) return;
+      discardBytes(headerEnd + 4);
+      const payloadBuffer = takeBytes(contentLength);
       try {
         const message = JSON.parse(payloadBuffer.toString('utf8'));
         handleMessage(message);
@@ -163,16 +238,17 @@ export function createFramedJsonRpcParser({
       if (closed || !chunk || chunk.length === 0) return;
       const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       if (!incoming.length) return;
-      if (maxBuffer && buffer.length + incoming.length > maxBuffer) {
+      if (maxBuffer && bufferLength + incoming.length > maxBuffer) {
         fail(`JSON-RPC buffer exceeded ${maxBuffer} bytes.`);
         return;
       }
-      buffer = buffer.length ? Buffer.concat([buffer, incoming]) : incoming;
+      appendBuffer(incoming);
       parseBuffer();
     },
     dispose() {
       closed = true;
-      buffer = Buffer.alloc(0);
+      buffers.length = 0;
+      bufferLength = 0;
     }
   };
 }
