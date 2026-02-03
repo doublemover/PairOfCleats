@@ -326,6 +326,26 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         && incrementalBundleCount > 0
         && incrementalBundleDir
       );
+      let missingBundles = null;
+      if (hasIncrementalBundles && incrementalBundleDir && incrementalFiles && typeof incrementalFiles === 'object') {
+        const requiredBundles = new Set();
+        for (const entry of Object.values(incrementalFiles)) {
+          const bundleName = entry?.bundle;
+          if (bundleName) requiredBundles.add(bundleName);
+        }
+        if (requiredBundles.size) {
+          missingBundles = [];
+          for (const bundleName of requiredBundles) {
+            const bundlePath = path.join(incrementalBundleDir, bundleName);
+            if (!fsSync.existsSync(bundlePath)) missingBundles.push(bundleName);
+          }
+          if (missingBundles.length) {
+            hasIncrementalBundles = false;
+          } else {
+            missingBundles = null;
+          }
+        }
+      }
       let resolvedInput = null;
       let tempOutputPath = null;
       let inputBytes = 0;
@@ -348,7 +368,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           bundleSkipReason = `bundles omit embeddings${stageNote}`;
           hasIncrementalBundles = false;
         }
-        if (incrementalRequested && emitOutput && bundleSkipReason) {
+        if (incrementalRequested && emitOutput && missingBundles?.length) {
+          log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
+        } else if (incrementalRequested && emitOutput && bundleSkipReason) {
           log(`[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`);
         } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
           log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');

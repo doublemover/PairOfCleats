@@ -52,8 +52,8 @@ const backendA = JSON.parse(run(
   'search auto sqlite threshold',
   { search: { sqliteAutoChunkThreshold: 1 } }
 )).backend;
-if (backendA !== 'sqlite') {
-  console.error(`Expected sqlite backend for threshold=1, got ${backendA}`);
+if (backendA !== 'sqlite-fts') {
+  console.error(`Expected sqlite-fts backend for threshold=1, got ${backendA}`);
   process.exit(1);
 }
 
@@ -77,8 +77,8 @@ const backendC = JSON.parse(run(
   'search auto sqlite threshold disabled',
   { search: { sqliteAutoChunkThreshold: 0, sqliteAutoArtifactBytes: 0 } }
 )).backend;
-if (backendC !== 'sqlite') {
-  console.error(`Expected sqlite backend for threshold=0, got ${backendC}`);
+if (backendC !== 'sqlite-fts') {
+  console.error(`Expected sqlite-fts backend for threshold=0, got ${backendC}`);
   process.exit(1);
 }
 
