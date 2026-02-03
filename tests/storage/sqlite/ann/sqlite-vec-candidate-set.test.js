@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert';
-import { queryVectorAnn } from '../../../../tools/vector-extension.js';
+import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
 
 const config = {
   enabled: true,

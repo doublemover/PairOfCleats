@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { getVectorExtensionConfig, resolveVectorExtensionConfigForMode } from '../../../../tools/vector-extension.js';
+import { getVectorExtensionConfig, resolveVectorExtensionConfigForMode } from '../../../../tools/sqlite/vector-extension.js';
 
 const baseConfig = getVectorExtensionConfig(process.cwd(), null, { table: 'dense_vectors_ann' });
 

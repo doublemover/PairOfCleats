@@ -69,7 +69,7 @@ if (!codeHits.length) {
 }
 
 const mapJson = runNode('map json', [
-  path.join(root, 'tools', 'report-code-map.js'),
+  path.join(root, 'tools', 'reports/report-code-map.js'),
   '--format',
   'json',
   '--repo',
@@ -88,7 +88,7 @@ if (!Array.isArray(mapPayload.nodes) || mapPayload.nodes.length === 0) {
 }
 
 const mapDot = runNode('map dot', [
-  path.join(root, 'tools', 'report-code-map.js'),
+  path.join(root, 'tools', 'reports/report-code-map.js'),
   '--format',
   'dot',
   '--repo',
@@ -103,7 +103,7 @@ if (!mapDotOutput.includes('digraph')) {
 const dotCheck = spawnSync('dot', ['-V'], { encoding: 'utf8' });
 if (dotCheck.status === 0) {
   const mapSvg = runNode('map svg', [
-    path.join(root, 'tools', 'report-code-map.js'),
+    path.join(root, 'tools', 'reports/report-code-map.js'),
     '--format',
     'svg',
     '--repo',

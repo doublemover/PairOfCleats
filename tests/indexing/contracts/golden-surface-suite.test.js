@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
-import { getIndexDir } from '../../../tools/dict-utils.js';
+import { getIndexDir } from '../../../tools/shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
 import { loadChunkMeta, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';

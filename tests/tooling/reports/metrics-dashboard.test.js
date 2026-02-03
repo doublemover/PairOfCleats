@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getMetricsDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'metrics-dashboard');
@@ -49,7 +49,7 @@ const outPath = path.join(tempRoot, 'dashboard.json');
 const env = { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot };
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'metrics-dashboard.js'), '--json', '--out', outPath],
+  [path.join(root, 'tools', 'reports', 'metrics-dashboard.js'), '--json', '--out', outPath],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (result.status !== 0) {

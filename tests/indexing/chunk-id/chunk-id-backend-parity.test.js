@@ -5,7 +5,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
-import { getIndexDir, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { fromPosix } from '../../../src/shared/files.js';
 

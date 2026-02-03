@@ -19,6 +19,6 @@ Optionally store large key-value artifacts (postings, per-file bundles) with fas
 ## Suggested extraction checklist
 - [x] Define artifact formats and version them (Planned: mirror `docs/contracts/artifact-contract.md` in LMDB keyspace; store schema under a `meta:schemaVersion` key).
 - [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs. (Planned: order keys by normalized path + chunk ID; reuse `normalizeFilePath` in `src/storage/sqlite/utils.js`.)
-- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: add LMDB throughput notes to `tools/report-artifacts.js` and bench runs.)
+- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: add LMDB throughput notes to `tools/index/report-artifacts.js` and bench runs.)
 - [x] Plan for corruption detection (hashes) and safe partial rebuilds. (Planned: store per-bucket checksums + reuse build_state; full rebuild via `pairofcleats index build`.)
 

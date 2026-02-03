@@ -20,4 +20,4 @@ Efficiently match many keywords at once (e.g., dictionary terms, slang lists, ri
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: build an automaton from dictionary terms and use search() to emit match spans; persist the term list + automaton snapshot in cache.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: case sensitivity, overlapping matches, word-boundary filtering, max dictionary size.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/dict-scan/ (terms + sample text). Planned benchmark: tools/bench-dict-seg.js (extend with multi-pattern scan).)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/dict-scan/ (terms + sample text). Planned benchmark: tools/bench/dict-seg.js (extend with multi-pattern scan).)

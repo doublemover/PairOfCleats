@@ -508,7 +508,7 @@ Create:
 
 ### 11.4 MCP integration points (concrete)
 
-- `tools/mcp-server.js`
+- `tools/mcp/server.js`
   - add tool `search_workspace` with inputs matching API request.
   - ensure output includes repo attribution.
 

@@ -1,6 +1,6 @@
 import { buildCompatibilityKey } from '../../../contracts/compatibility.js';
 import { buildTokenizationKey } from '../../../index/build/indexer/signatures.js';
-import { applyAdaptiveDictConfig } from '../../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig } from '../../../../tools/shared/dict-utils.js';
 
 export const computeCompatibilityKey = ({ runtime, modes, sharedDiscovery }) => {
   const tokenizationKeys = {};

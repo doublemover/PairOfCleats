@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyAdaptiveDictConfig } from '../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig } from '../../../tools/shared/dict-utils.js';
 
 const base = {
   segmentation: 'auto',

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getStatus } from '../../../../src/integrations/core/status.js';
-import { getIndexDir, loadUserConfig } from '../../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 
 const root = process.cwd();

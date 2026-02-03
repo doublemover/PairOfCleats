@@ -93,7 +93,7 @@ for (const fixtureName of fixtures) {
   console.log(`\nFixture eval: ${fixtureName}`);
   run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env, true);
   if (needsSqlite) {
-    run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', fixtureRoot], `build sqlite (${fixtureName})`, fixtureRoot, env, true);
+    run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot], `build sqlite (${fixtureName})`, fixtureRoot, env, true);
   }
 
   const cases = loadCases(evalPath);

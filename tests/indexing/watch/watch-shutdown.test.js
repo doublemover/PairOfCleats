@@ -7,7 +7,7 @@ import os from 'node:os';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { watchIndex } from '../../../src/index/build/watch.js';
-import { getRepoCacheRoot } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const waitFor = async (predicate, timeoutMs = 5000) => {
   const started = Date.now();

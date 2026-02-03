@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -36,7 +36,7 @@ if (buildIndex.status !== 0) {
 const runEmbeddings = () => spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'build-embeddings.js'),
+    path.join(root, 'tools', 'build/embeddings.js'),
     '--stub-embeddings',
     '--mode',
     'code',

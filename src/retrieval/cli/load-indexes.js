@@ -24,7 +24,7 @@ import {
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
-import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/dict-utils.js';
+import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/shared/dict-utils.js';
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 
@@ -107,7 +107,7 @@ export async function loadSearchIndexes({
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
-    const scriptPath = path.join(toolRoot, 'tools', 'build-tantivy-index.js');
+    const scriptPath = path.join(toolRoot, 'tools', 'build/tantivy-index.js');
     const result = spawnSubprocessSync(
       process.execPath,
       [scriptPath, '--mode', mode, '--repo', rootDir],

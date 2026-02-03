@@ -6,7 +6,7 @@
 - **Audience:** PairOfCleats contributors implementing workspace catalog/manifest generation used by federated search and federated caching.
 - **Implementation status:** planned (no generator in repo yet).
 
-This spec is intended to be *implementation-ready* and consistent with existing build pointer and cache conventions in `tools/dict-utils.js`.
+This spec is intended to be *implementation-ready* and consistent with existing build pointer and cache conventions in `tools/shared/dict-utils.js`.
 
 ---
 
@@ -301,7 +301,7 @@ Steps:
       - `currentJsonPath = <repoCacheRoot>/builds/current.json`
       - if missing → build state = missing pointer (see §4.4).
       - if present → parse with JSON.parse; on error → parseOk=false.
-      - resolve `buildRoot` and `buildRoots` exactly as `getCurrentBuildInfo` does (see `tools/dict-utils.js`).
+      - resolve `buildRoot` and `buildRoots` exactly as `getCurrentBuildInfo` does (see `tools/shared/dict-utils.js`).
    4. For each mode in `{code, prose, extracted-prose, records}`:
       1. Determine `indexRoot = buildRoots[mode] || null`.
       2. Determine `indexDir = indexRoot ? path.join(indexRoot, `index-${mode}`) : null`.
@@ -310,7 +310,7 @@ Steps:
       5. Compute `compatibilityKey`:
          - read `<indexDir>/index_state.json` if present and parse `compatibilityKey`,
          - else `compatibilityKey=null` and emit a warning.
-   5. Resolve sqlite db paths using `resolveSqlitePaths(repoRootCanonical, userConfig)` from `tools/dict-utils.js`.
+   5. Resolve sqlite db paths using `resolveSqlitePaths(repoRootCanonical, userConfig)` from `tools/shared/dict-utils.js`.
       - Compute db signatures.
 
 3. Assemble `repos[]` sorted by `repoId`.
@@ -417,7 +417,7 @@ Examples:
 
 ### 10.2 Preferred existing helpers
 
-- `getRepoCacheRoot`, `resolveSqlitePaths` -- `tools/dict-utils.js`
+- `getRepoCacheRoot`, `resolveSqlitePaths` -- `tools/shared/dict-utils.js`
 - `buildIndexSignature` -- `src/retrieval/index-cache.js`
 - `stableStringify` -- `src/shared/stable-json.js`
 - `sha1` -- `src/shared/hash.js`

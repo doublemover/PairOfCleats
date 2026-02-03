@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolveRuntimeEnv } from '../../../tools/dict-utils.js';
+import { resolveRuntimeEnv } from '../../../tools/shared/dict-utils.js';
 
 const env = {
   ...process.env,

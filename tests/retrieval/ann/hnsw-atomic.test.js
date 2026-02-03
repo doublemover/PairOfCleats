@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
@@ -47,7 +47,7 @@ await fsPromises.writeFile(hnswMetaPath, JSON.stringify({ version: 1, dims: 1, c
 
 const buildEmbeddings = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildEmbeddings.status !== 0) {

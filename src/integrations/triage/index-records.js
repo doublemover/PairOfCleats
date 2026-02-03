@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getTriageConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, getTriageConfig } from '../../../tools/shared/dict-utils.js';
 import { SimpleMinHash } from '../../index/minhash.js';
 import { getHeadline } from '../../index/headline.js';
 import { STOP, SYN } from '../../index/constants.js';

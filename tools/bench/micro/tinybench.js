@@ -8,7 +8,7 @@ import { Bench } from 'tinybench';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
+import { getIndexDir, resolveRepoRootArg, resolveToolRoot } from '../../shared/dict-utils.js';
 import { writeJsonWithDir } from './utils.js';
 
 const toolRoot = resolveToolRoot();
@@ -96,7 +96,7 @@ const argv = yargs(hideBin(process.argv))
   .help()
   .argv;
 
-const repoRoot = path.resolve(argv.repo || resolveRepoRoot(process.cwd()));
+const repoRoot = resolveRepoRootArg(argv.repo);
 const mode = argv.mode === 'prose' ? 'prose' : 'code';
 const backend = String(argv.backend || 'memory').toLowerCase();
 const components = parseComponents(argv.components);

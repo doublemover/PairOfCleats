@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { rmDirRecursive } from '../../helpers/temp.js';

@@ -1,6 +1,6 @@
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
-import { DEFAULT_MODEL_ID } from '../../dict-utils.js';
+import { DEFAULT_MODEL_ID } from '../../shared/dict-utils.js';
 import { normalizeMetaFilters } from './helpers.js';
 
 const SEARCH_DEF = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'search');

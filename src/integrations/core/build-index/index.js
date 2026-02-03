@@ -20,7 +20,7 @@ import {
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
-} from '../../../../tools/dict-utils.js';
+} from '../../../../tools/shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';
@@ -28,7 +28,7 @@ import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 
 const toolRoot = resolveToolRoot();
-const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
+const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
 
 /**
  * Build file-backed indexes for a repo.

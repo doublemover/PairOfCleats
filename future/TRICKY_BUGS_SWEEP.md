@@ -81,7 +81,7 @@ Even if yargs doesn’t exit in a particular environment, queries beginning with
 
 ### 4) API `defaultOutput` is configured but never applied
 
-- [ ] `tools/api-server.js` passes `defaultOutput: argv.output` into `createApiRouter({ … })`.
+- [ ] `tools/api/server.js` passes `defaultOutput: argv.output` into `createApiRouter({ … })`.
 - [ ] `createApiRouter()` calls `buildSearchParams(repoPath, payload || {})` **without passing `defaultOutput`**.
 
 **Impact:** The API server’s configured default output mode doesn’t influence requests that omit `output`.
@@ -105,7 +105,7 @@ Even if yargs doesn’t exit in a particular environment, queries beginning with
   - `src/index/build/discover.js` (stat concurrency)
   - `src/index/build/runtime/runtime.js` (stage override, cacheRoot labeling)
   - `src/index/build/watch/resolve-backend.js` (watch backend selection)
-  - `tools/cache-gc.js`, `tools/index-validate.js`, `tools/build-embeddings/*`, `tools/build-sqlite-index/*` (mostly test toggles like crash logging)
+  - `tools/index/cache-gc.js`, `tools/index/validate.js`, `tools/build/embeddings/*`, `tools/build/sqlite/*` (mostly test toggles like crash logging)
 
 ---
 

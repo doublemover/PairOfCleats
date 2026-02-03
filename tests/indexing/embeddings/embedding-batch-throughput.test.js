@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runBatched } from '../../../tools/build-embeddings/embed.js';
+import { runBatched } from '../../../tools/build/embeddings/embed.js';
 
 const texts = Array.from({ length: 100 }, (_, i) => `t${i}`);
 let calls = 0;

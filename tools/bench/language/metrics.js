@@ -5,7 +5,7 @@ import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { readTextFile } from '../../../src/shared/encoding.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
-import { getTriageConfig } from '../../dict-utils.js';
+import { getTriageConfig } from '../../shared/dict-utils.js';
 
 export const formatDuration = (ms) => {
   const total = Math.max(0, Math.floor(ms / 1000));

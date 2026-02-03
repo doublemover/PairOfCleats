@@ -11,6 +11,21 @@ export function resolveRepoPath(entry, baseDir) {
   return isAbsolutePathNative(entry.path) ? entry.path : path.join(baseDir, entry.path);
 }
 
+/**
+ * Resolve a repo registry entry from a repo argument.
+ * @param {string|null|undefined} repoArg
+ * @param {Array<{id?:string,path?:string,syncPolicy?:string,branch?:string,cloneDepth?:number,url?:string}>} repoEntries
+ * @param {string} baseDir
+ * @returns {{id:string,path:string,syncPolicy?:string,branch?:string,cloneDepth?:number,url?:string}|null}
+ */
+export function resolveRepoEntry(repoArg, repoEntries, baseDir) {
+  if (!repoArg) return null;
+  const resolved = path.resolve(repoArg);
+  return repoEntries.find((entry) => resolveRepoPath(entry, baseDir) === resolved)
+    || repoEntries.find((entry) => entry.id === repoArg)
+    || { id: repoArg, path: resolved, syncPolicy: 'none' };
+}
+
 export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
   const repoPath = resolveRepoPath(entry, baseDir);
   if (!repoPath) return { ok: false, message: 'Missing repo path.' };

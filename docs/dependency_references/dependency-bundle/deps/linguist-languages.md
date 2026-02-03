@@ -22,4 +22,4 @@ Use Linguists language metadata and heuristics to classify files for parser sel
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: load linguist-languages.json to map extensions/filenames to languageId.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: overrides and priority rules (repo config).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/lang/contracts/*.test.js. Planned benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/lang/contracts/*.test.js. Planned benchmark: tools/bench/language-repos.js.)

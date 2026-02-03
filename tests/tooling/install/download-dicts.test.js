@@ -63,7 +63,7 @@ function run(cmd, args, options = {}) {
 const result = await run(
   process.execPath,
   [
-    path.join(root, 'tools', 'download-dicts.js'),
+    path.join(root, 'tools', 'download', 'dicts.js'),
     '--url',
     `test=${url}`,
     '--sha256',

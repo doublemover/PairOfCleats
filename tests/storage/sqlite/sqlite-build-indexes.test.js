@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 
 let Database = null;
 try {
@@ -44,7 +44,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_sqlite', [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot]);
+runNode('build_sqlite', [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot]);
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;

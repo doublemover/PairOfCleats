@@ -240,7 +240,7 @@ Touchpoints:
 - `src/index/build/build-state.js` (read validation flags + build metadata)
 - `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
 - `src/index/validate.js` + `src/index/validate/*` (on-demand validation)
-- `tools/index-validate.js` (if snapshot create invokes CLI validation)
+- `tools/index/validate.js` (if snapshot create invokes CLI validation)
 - `docs/guides/commands.md` (CLI surface)
 - `tools/api/**` (if API endpoints added)
 
@@ -404,7 +404,7 @@ Touchpoints:
 - `src/retrieval/cli-index.js` (resolve index dir via snapshot; update query cache signature)
 - `src/shared/artifact-io.js` (add signature helpers for sharded artifacts)
 - `bin/pairofcleats.js` (CLI wiring)
-- `tools/build-sqlite-index/cli.js` + `tools/build-sqlite-index/run.js` (add `--snapshot/--as-of`)
+- `tools/build/sqlite/cli.js` + `tools/build/sqlite/run.js` (add `--snapshot/--as-of`)
 - `tools/api/**` (if API endpoints added)
 - `src/retrieval/query-cache.js` + `src/retrieval/cli/run-search-session.js` (cache key composition + persistence)
 - `src/retrieval/index-cache.js` (index signature + snapshot awareness)

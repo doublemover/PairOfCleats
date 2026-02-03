@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../../src/shared/cli-options.js';
-import { resolveToolRoot } from '../../dict-utils.js';
+import { resolveToolRoot } from '../../shared/dict-utils.js';
 
 const parseMs = (value, fallback) => {
   const parsed = Number(value);
@@ -73,7 +73,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   const argv = createCli({
     scriptName: 'bench-language',
     options: benchOptions,
-    argv: ['node', 'bench-language-repos.js', ...(rawArgs || [])]
+    argv: ['node', 'tools/bench/language-repos.js', ...(rawArgs || [])]
   }).parse();
   validateBenchArgs(argv, { allowedOptions: benchOptions });
 

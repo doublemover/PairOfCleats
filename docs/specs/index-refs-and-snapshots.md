@@ -36,7 +36,7 @@
 ## 1. Definitions
 
 ### 1.1 Repo cache root
-`repoCacheRoot` is the repo-specific cache directory returned by existing tooling (see `tools/dict-utils.js#getRepoCacheRoot(repoRoot, userConfig)`).
+`repoCacheRoot` is the repo-specific cache directory returned by existing tooling (see `tools/shared/dict-utils.js#getRepoCacheRoot(repoRoot, userConfig)`).
 
 ### 1.2 Index base root
 An **index base root** is a directory that contains one or more *mode index directories*, typically:

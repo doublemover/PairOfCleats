@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { tryImport, tryRequire } from '../../src/shared/optional-deps.js';
-import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
+import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../tools/sqlite/vector-extension.js';
 import { skip } from './skip.js';
 
 const hasModule = (result) => Boolean(result && result.ok);

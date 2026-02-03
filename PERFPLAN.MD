@@ -93,8 +93,8 @@ Add consistent timing/memory checkpoints across the 4 indexing stages to identif
 - `src/index/build/indexer/steps/relations.js`
 - `src/index/build/indexer/steps/postings.js`
 - `src/index/build/indexer/steps/write.js`
-- `tools/build-embeddings/runner.js`
-- `tools/build-sqlite-index/runner.js`
+- `tools/build/embeddings/runner.js`
+- `tools/build/sqlite/runner.js`
 - `docs/perf/indexing-stage-audit.md` (new)
 - `tests/indexing/runtime/stage-memory-checkpoints.test.js` (new)
 - `tests/indexing/runtime/stage-timing-checkpoints.test.js` (new)
@@ -299,9 +299,9 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - Changing artifacts formats beyond cache sidecars.
 
 ### Files to modify (exhaustive for this phase)
-- `tools/build-embeddings/runner.js`
-- `tools/build-embeddings/cache.js`
-- `tools/build-embeddings/manifest.js`
+- `tools/build/embeddings/runner.js`
+- `tools/build/embeddings/cache.js`
+- `tools/build/embeddings/manifest.js`
 - `src/shared/embedding-identity.js`
 - `src/shared/embedding-utils.js`
 - `src/shared/env.js`
@@ -363,7 +363,7 @@ Reduce memory and time during SQLite builds and incremental updates.
 - Changing query semantics.
 
 ### Files to modify (exhaustive for this phase)
-- `tools/build-sqlite-index/runner.js`
+- `tools/build/sqlite/runner.js`
 - `src/storage/sqlite/build/from-artifacts.js`
 - `src/storage/sqlite/build/from-bundles.js`
 - `src/storage/sqlite/build/incremental-update.js`
@@ -738,7 +738,7 @@ Reduce search CLI startup time by eliminating unnecessary work on cold start and
 - `src/shared/cli/display/text.js`
 - `src/shared/runtime-envelope.js`
 - `src/shared/env.js`
-- `tools/dict-utils.js`
+- `tools/shared/dict-utils.js`
 - `docs/contracts/search-cli.md`
 - `docs/guides/commands.md`
 - `tests/cli/search/search-help-fastpath.test.js` (new)

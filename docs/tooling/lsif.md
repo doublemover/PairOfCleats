@@ -5,13 +5,13 @@ Use the LSIF ingest tool to import LSIF JSONL graphs into normalized symbol occu
 ## CLI
 
 ```bash
-node tools/lsif-ingest.js --repo . --input dump.lsif
+node tools/ingest/lsif.js --repo . --input dump.lsif
 
 # Or via npm
 npm run lsif-ingest -- --repo . --input dump.lsif
 
 # Read from stdin
-cat dump.lsif | node tools/lsif-ingest.js --repo . --input -
+cat dump.lsif | node tools/ingest/lsif.js --repo . --input -
 ```
 
 ## Options

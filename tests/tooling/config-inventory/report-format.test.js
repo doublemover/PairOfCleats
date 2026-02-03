@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildInventory } from '../../../tools/config-inventory.js';
+import { buildInventory } from '../../../tools/config/inventory.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'config-inventory');

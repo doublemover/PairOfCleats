@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { filterChunks } from '../../../src/retrieval/output.js';
 import { applyTestEnv } from '../../helpers/test-env.js';

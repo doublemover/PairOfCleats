@@ -19,4 +19,4 @@ Decode non-UTF8 files safely and efficiently, especially for large ingestion str
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: iconv.decode(buffer, encoding) for non-UTF8 text.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: encoding label, stripBOM.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/encoding/. Planned benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/encoding/. Planned benchmark: tools/bench/language-repos.js.)

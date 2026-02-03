@@ -14,7 +14,7 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const result = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'setup.js'),
+    path.join(root, 'tools', 'setup', 'setup.js'),
     '--non-interactive',
     '--skip-install',
     '--skip-dicts',
@@ -47,7 +47,7 @@ if (!output.includes('Setup complete.')) {
 const jsonResult = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'setup.js'),
+    path.join(root, 'tools', 'setup', 'setup.js'),
     '--non-interactive',
     '--skip-install',
     '--skip-dicts',

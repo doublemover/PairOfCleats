@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { Unpackr } from 'msgpackr';
 import { LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
-import { resolveLmdbPaths } from '../../../tools/dict-utils.js';
+import { resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 
 requireOrSkip({ capability: 'lmdb', reason: 'Skipping lmdb mapsize test; lmdb not available.' });
@@ -41,7 +41,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_lmdb_index', [path.join(root, 'tools', 'build-lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
+runNode('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
 
 const lmdbPaths = resolveLmdbPaths(repoRoot, {});
 const dbPath = lmdbPaths.codePath;

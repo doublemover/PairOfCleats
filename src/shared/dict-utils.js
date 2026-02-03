@@ -1,1 +1,1 @@
-export * from '../../tools/dict-utils.js';
+export * from '../../tools/shared/dict-utils.js';

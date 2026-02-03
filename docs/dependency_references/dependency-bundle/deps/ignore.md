@@ -20,4 +20,4 @@ Apply `.gitignore`-style patterns in Node so indexing respects repo conventions 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use `ignore()` matcher with add() and ignores() for gitignore-style filtering (src/index/build/ignore.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (Config: useGitignore, usePairofcleatsIgnore, ignoreFiles, extraIgnore (src/index/build/ignore.js).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/ignore/ignore-overrides.test.js and tests/indexing/watch/watch-filter.test.js. Benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/ignore/ignore-overrides.test.js and tests/indexing/watch/watch-filter.test.js. Benchmark: tools/bench/language-repos.js.)

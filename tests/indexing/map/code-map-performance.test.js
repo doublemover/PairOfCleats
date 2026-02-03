@@ -44,7 +44,7 @@ const maxMs = Number.isFinite(budgetMs) ? budgetMs : 8000;
 const mapStart = performance.now();
 const mapResult = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'report-code-map.js'), '--format', 'json', '--repo', repoRoot],
+  [path.join(root, 'tools', 'reports/report-code-map.js'), '--format', 'json', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 const mapElapsed = performance.now() - mapStart;

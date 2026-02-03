@@ -50,7 +50,7 @@ function run(args, label, options = {}) {
 }
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const searchPath = path.join(root, 'search.js');
 

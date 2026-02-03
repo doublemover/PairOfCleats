@@ -36,13 +36,13 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 - New file: `docs/config/budgets.md` (numeric budgets + rationale)
 
 ### 0.2 Make the inventory actionable in CI
-- [ ] Extend `tools/config-inventory.js` to output:
+- [ ] Extend `tools/config/inventory.js` to output:
   - totals (already)
   - "public" vs "internal/dev-only" flags (new)
 - [ ] Add a CI check script (or npm script) that fails when budgets are exceeded.
 
 **Where**
-- `tools/config-inventory.js` (classification hooks)
+- `tools/config/inventory.js` (classification hooks)
 - `package.json` (add `npm run config:budget`)
 
 **Exit criteria**
@@ -66,19 +66,19 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 
 **Where**
 - `docs/config/schema.json`
-- `tools/validate-config.js` (validate only minimal shape)
+- `tools/config/validate.js` (validate only minimal shape)
 - `tools/config-reset.js` (emit minimal config only; remove anything else)
-- `tools/config-dump.js` (dump minimal config + derived policy; optional but recommended)
+- `tools/config/dump.js` (dump minimal config + derived policy; optional but recommended)
 
 ### 1.2 Minimal config load path
-- [ ] Update `tools/dict-utils.js:loadUserConfig()`:
+- [ ] Update `tools/shared/dict-utils.js:loadUserConfig()`:
   - load `.pairofcleats.json`
   - validate against minimal schema
   - return minimal config only
   - remove fallback-to-tool-root config unless you explicitly want it
 
 **Where**
-- `tools/dict-utils.js`
+- `tools/shared/dict-utils.js`
 - `src/shared/jsonc.js` (no change expected)
 
 ### 1.3 AutoPolicy (resource-derived decisions)
@@ -90,7 +90,7 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 
 **Where**
 - `src/shared/auto-policy.js` (new)
-- `tools/dict-utils.js` (export `getAutoPolicy(repoRoot, config)` or similar)
+- `tools/shared/dict-utils.js` (export `getAutoPolicy(repoRoot, config)` or similar)
 - `bin/pairofcleats.js` (optional: pass policy into child scripts via args rather than env)
 
 ### 1.4 Contract tests
@@ -125,7 +125,7 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 - [ ] Remove profile references in docs (`docs/guides/commands.md` currently states "Experimental commands require profile=full").
 
 ### 2.2 Remove profile logic from code
-- [ ] In `tools/dict-utils.js`:
+- [ ] In `tools/shared/dict-utils.js`:
   - delete `PROFILES_DIR`, `loadProfileConfig`, `applyProfileConfig`
   - remove env/config/cli profile selection logic
 - [ ] In `src/shared/cli.js`:
@@ -190,7 +190,7 @@ Replacement strategy:
 - [ ] Remove mentions of env-driven profiles, embeddings toggles, thread knobs, etc.
 
 ### 3.4 Update config hash behavior
-`tools/dict-utils.js:getEffectiveConfigHash()` currently includes env in the hash.
+`tools/shared/dict-utils.js:getEffectiveConfigHash()` currently includes env in the hash.
 - [ ] Remove env from the effective config hash (or include only secrets-free stable env inputs if you truly need them).
 - [ ] Goal: artifact identity is driven by config + repo content + tool version, not hidden envs.
 
@@ -329,7 +329,7 @@ Make the pipeline deterministic and fixed.
 - `src/retrieval/cli.js`
 - `src/retrieval/pipeline.js`
 - `src/retrieval/sqlite-helpers.js`
-- `tools/build-sqlite-index/*`
+- `tools/build/sqlite/*`
 
 ### 6.2 Remove scoring knobs
 Delete:
@@ -363,7 +363,7 @@ No user knobs.
 
 ### 7.1 Remove LMDB support
 - [ ] Delete:
-  - `tools/build-lmdb-index.js`
+  - `tools/build/lmdb-index.js`
   - LMDB-related runtime modules (if any)
   - `lmdb.*` config namespace (already removed by schema)
   - `pairofcleats lmdb build` dispatch from `bin/pairofcleats.js`
@@ -374,13 +374,13 @@ No user knobs.
   - env `PAIROFCLEATS_VECTOR_EXTENSION`
   - config `sqlite.vectorExtension.*`
 - [ ] Make extension lookup fixed to tool-managed directory:
-  - `tools/download-extensions.js` installs into a known location
+  - `tools/download/extensions.js` installs into a known location
   - runtime checks presence and enables if available
   - never require user path overrides
 
 **Where**
-- `tools/vector-extension.js`
-- `tools/download-extensions.js`
+- `tools/sqlite/vector-extension.js`
+- `tools/download/extensions.js`
 - `docs/sqlite/ann-extension.md` (rewrite to "auto")
 
 **Exit criteria**
@@ -404,8 +404,8 @@ Delete or rewrite:
 - `docs/guides/external-backends.md` (rewrite or delete)
 - any "profile=full required" sections in `docs/guides/commands.md`
 
-### 8.2 Remove unused helper APIs from `tools/dict-utils.js`
-After the hard cut, `tools/dict-utils.js` likely still contains:
+### 8.2 Remove unused helper APIs from `tools/shared/dict-utils.js`
+After the hard cut, `tools/shared/dict-utils.js` likely still contains:
 - paths and resolvers for removed backends
 - config accessors for deleted namespaces (`getRuntimeConfig`, `getModelConfig`, etc.)
 
@@ -414,7 +414,7 @@ Action:
 - [ ] Anything else is deleted or moved to internal modules.
 
 ### 8.3 Re-run and commit inventory
-- [ ] Run `node tools/config-inventory.js` and commit the new `docs/config/inventory.*`
+- [ ] Run `node tools/config/inventory.js` and commit the new `docs/config/inventory.*`
 - [ ] Confirm budgets and enforce.
 
 ### 8.4 Add a "no new knobs" guard
@@ -451,7 +451,7 @@ After Phase 8, the following should be true:
 1. `pairofcleats index build` works on a representative repo with zero config.
 2. `pairofcleats search "foo"` works and returns results.
 3. `pairofcleats search --explain "foo"` prints derived policy decisions (quality, backend mode, etc.).
-4. `node tools/config-inventory.js` outputs:
+4. `node tools/config/inventory.js` outputs:
    - config keys <= 5
    - env vars == 1
    - CLI flags <= 25 for public commands

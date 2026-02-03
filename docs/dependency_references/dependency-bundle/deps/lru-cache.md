@@ -19,4 +19,4 @@ In-process caching for expensive computations (parsing, embeddings), including s
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Use `new LRUCache({ max, maxSize, ttl, sizeCalculation })` with get/set wrappers for cache stats (src/shared/cache.js).)
 - [x] Record configuration knobs that meaningfully change output/performance. (Cache sizing via maxEntries/maxMb and ttlMs mapped to max/maxSize/ttl (src/shared/cache.js).)
-- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/fixtures/build-and-artifacts.test.js (index build exercises caches). Benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Fixture: tests/indexing/fixtures/build-and-artifacts.test.js (index build exercises caches). Benchmark: tools/bench/language-repos.js.)

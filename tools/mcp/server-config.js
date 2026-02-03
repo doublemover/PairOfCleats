@@ -7,7 +7,7 @@ import {
   loadUserConfig,
   resolveRepoRoot,
   resolveToolRoot
-} from '../dict-utils.js';
+} from '../shared/dict-utils.js';
 import { parseTimeoutMs, resolveToolTimeoutMs } from './repo.js';
 
 const DEFAULT_MCP_QUEUE_MAX = 64;

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { Packr, Unpackr } from 'msgpackr';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
-import { resolveLmdbPaths } from '../../../tools/dict-utils.js';
+import { resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
 let open = null;
@@ -47,7 +47,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_lmdb_index', [path.join(root, 'tools', 'build-lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
+runNode('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
 
 const lmdbPaths = resolveLmdbPaths(repoRoot, {});
 const dbPath = lmdbPaths.codePath;

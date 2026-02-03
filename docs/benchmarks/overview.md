@@ -6,7 +6,7 @@ This project has two layers of benchmarking:
 
 ## Query generation
 
-Use `node tools/bench-query-generator.js` to generate a deterministic query suite from the
+Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
 current index metadata.
 
 Common flags:
@@ -110,7 +110,7 @@ See `docs/language/benchmarks.md` for tiered repo lists and recommended commands
 To sweep multiple backend/ANN combinations across the repo matrix, use:
 
 ```
-node tools/bench-language-matrix.js --tier typical --backends sqlite,sqlite-fts --ann-modes auto,on,off
+node tools/bench/language-matrix.js --tier typical --backends sqlite,sqlite-fts --ann-modes auto,on,off
 ```
 
 Matrix runner flags:

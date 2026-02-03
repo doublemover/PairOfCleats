@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { loadUserConfig, getIndexDir } from '../../../../tools/dict-utils.js';
+import { loadUserConfig, getIndexDir } from '../../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-ann-fallback');
@@ -37,7 +37,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_sqlite', [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot]);
+runNode('build_sqlite', [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot]);
 
 const searchResult = spawnSync(
   process.execPath,

@@ -19,4 +19,4 @@ Accurate percentile latency measurements for benchmarks and live metrics with lo
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use Histogram recordValue()/percentile() to track latency distributions.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: lowest/highest values, significant figures, auto-resize.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/perf/bench/run.test.js metrics output. Planned benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/perf/bench/run.test.js metrics output. Planned benchmark: tools/bench/language-repos.js.)

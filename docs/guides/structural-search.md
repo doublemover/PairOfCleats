@@ -12,9 +12,9 @@ Supported engines
 
 CLI
 ```bash
-node tools/structural-search.js --pack semgrep-security --repo /path/to/repo
-node tools/structural-search.js --pack astgrep-js-safety --format json
-node tools/structural-search.js --engine semgrep --rule rules/semgrep/security.yml
+node tools/analysis/structural-search.js --pack semgrep-security --repo /path/to/repo
+node tools/analysis/structural-search.js --pack astgrep-js-safety --format json
+node tools/analysis/structural-search.js --engine semgrep --rule rules/semgrep/security.yml
 ```
 
 Indexing integration

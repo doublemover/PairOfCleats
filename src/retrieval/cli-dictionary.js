@@ -1,5 +1,5 @@
 import fsSync from 'node:fs';
-import { getCodeDictionaryPaths, getDictionaryPaths } from '../../tools/dict-utils.js';
+import { getCodeDictionaryPaths, getDictionaryPaths } from '../../tools/shared/dict-utils.js';
 import { normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 
 /**

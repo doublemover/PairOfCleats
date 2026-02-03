@@ -76,7 +76,7 @@ const getRemediationHint = (error) => {
 
   if (parts.includes('sqlite backend requested but index not found')
     || parts.includes('missing required tables')) {
-    return 'Run `node tools/build-sqlite-index.js` or set sqlite.use=false / --backend memory.';
+    return 'Run `node tools/build/sqlite-index.js` or set sqlite.use=false / --backend memory.';
   }
   if (parts.includes('better-sqlite3 is required')) {
     return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
@@ -90,13 +90,13 @@ const getRemediationHint = (error) => {
   }
   if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
     && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `node tools/download-models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
+    return 'Run `node tools/download/models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
   }
   if (parts.includes('dictionary')
     || parts.includes('wordlist')
     || parts.includes('words_alpha')
     || parts.includes('download-dicts')) {
-    return 'Run `node tools/download-dicts.js --lang en` (or configure dictionary.files/languages).';
+    return 'Run `node tools/download/dicts.js --lang en` (or configure dictionary.files/languages).';
   }
   return null;
 };

@@ -19,7 +19,7 @@ Exports (names are suggestions; adjust to existing style):
 - `resolveIndexRef({ repoRoot, userConfig, requestedModes, preferFrozen, allowMissingModes }) -> ResolvedIndexRef`
 
 Dependencies to reuse:
-- `tools/dict-utils.js`: `getRepoCacheRoot`, `getCurrentBuildInfo`, `getBuildsRoot`, `getRepoId`, `getEffectiveConfigHash`, `getToolVersion`
+- `tools/shared/dict-utils.js`: `getRepoCacheRoot`, `getCurrentBuildInfo`, `getBuildsRoot`, `getRepoId`, `getEffectiveConfigHash`, `getToolVersion`
 - `src/shared/stable-json.js#stableStringify`
 - `src/shared/hash.js#sha1`
 - `src/shared/error-codes.js#createError`

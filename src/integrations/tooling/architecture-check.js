@@ -17,7 +17,7 @@ import {
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
 import { createGraphStore } from '../../graph/store.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const normalizeOptionalNumber = (value) => {
   const parsed = Number(value);

@@ -8,9 +8,9 @@ This document is a **general static sweep** of the repository for **critical/ser
 
 - **Index build pipeline**: `src/index/build/**` (runtime creation, indexer pipeline steps, file processing)
 - **Search/retrieval**: `src/retrieval/**`, `search.js`, `bin/pairofcleats.js` routing
-- **Local API**: `tools/api-server.js` + `tools/api/router/**`
-- **MCP server & service tooling**: `tools/mcp-server.js`, `tools/mcp/**`, `tools/indexer-service.js`
-- **Config/env surfaces**: `src/shared/env.js`, `src/shared/runtime-envelope.js`, `tools/config-inventory.js`
+- **Local API**: `tools/api/server.js` + `tools/api/router/**`
+- **MCP server & service tooling**: `tools/mcp/server.js`, `tools/mcp/**`, `tools/service/indexer-service.js`
+- **Config/env surfaces**: `src/shared/env.js`, `src/shared/runtime-envelope.js`, `tools/config/inventory.js`
 - **Docs/scripts drift**: `README.md`, `AGENTS.md`, `package.json`
 
 ---
@@ -37,7 +37,7 @@ This document is a **general static sweep** of the repository for **critical/ser
 - **Examples of real-world breakage:**
   - `PAIROFCLEATS_EMBEDDINGS=stub` won’t affect `src/index/build/runtime/embeddings.js` (it reads `envConfig.embeddings`).
   - `PAIROFCLEATS_CACHE_ROOT` won’t affect build cache selection (build runtime uses `getCacheRoot()` / user config).
-  - `PAIROFCLEATS_MCP_QUEUE_MAX` / `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES` won’t affect `tools/mcp-server.js` unless testing mode is set.
+  - `PAIROFCLEATS_MCP_QUEUE_MAX` / `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES` won’t affect `tools/mcp/server.js` unless testing mode is set.
 - **Fix options:**
   - **Option A (likely intended):** remove the testing gate so `getEnvConfig()` always returns the normalized env overrides.
   - **Option B (if env overrides are meant to be test-only):** remove/stop using `envConfig.*` in production codepaths and update docs/specs to explicitly say these env vars are test-only.
@@ -50,7 +50,7 @@ This document is a **general static sweep** of the repository for **critical/ser
     - `envConfig.compression`
     - `envConfig.docExtract` (used to gate document extraction)
     - `envConfig.mcpTransport`
-  - `tools/compare-models.js` reads:
+  - `tools/reports/compare-models.js` reads:
     - `envConfig.modelsDir`
     - `envConfig.dictDir`
 - **Evidence (producer):** `src/shared/env.js` does **not** include: `regexEngine`, `compression`, `docExtract`, `mcpTransport`, `modelsDir`, `dictDir`.
@@ -60,9 +60,9 @@ This document is a **general static sweep** of the repository for **critical/ser
 
 ### [ ] HIGH — Several env vars in the public config inventory are not consumed anywhere
 - **Impact:** Users (and docs) are led to believe certain env vars work, but they currently have no effect.
-- **Evidence:** `tools/config-inventory.js` lists (among others):
+- **Evidence:** `tools/config/inventory.js` lists (among others):
   - `PAIROFCLEATS_HOME` (no references found outside the inventory)
-  - `PAIROFCLEATS_MODELS_DIR`, `PAIROFCLEATS_DICT_DIR` (only written into child-process env in `tools/compare-models.js`, never read)
+  - `PAIROFCLEATS_MODELS_DIR`, `PAIROFCLEATS_DICT_DIR` (only written into child-process env in `tools/reports/compare-models.js`, never read)
   - `PAIROFCLEATS_EXTENSIONS_DIR` (listed, but no code reads it)
 - **Fix:** either implement them (and wire into path resolution) or remove from inventory + docs.
 

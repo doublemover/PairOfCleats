@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const baseDir = path.join(root, '.testCache', 'clean-artifacts');
@@ -56,7 +56,7 @@ await fsPromises.writeFile(path.join(extensionsDir, 'ext.bin'), 'ext');
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot],
+  [path.join(root, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 
@@ -83,7 +83,7 @@ await fsPromises.writeFile(path.join(repoCacheRoot, 'marker.txt'), 'marker');
 
 const resultAll = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot, '--all'],
+  [path.join(root, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoRoot, '--all'],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

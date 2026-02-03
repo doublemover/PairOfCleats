@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_JUNIT = path.join(ROOT, 'artifacts', 'junit.xml');
@@ -108,7 +108,7 @@ const main = async () => {
     {
       label: 'Doc contract drift',
       command: process.execPath,
-      args: ['tools/doc-contract-drift.js', '--fail']
+      args: ['tools/docs/contract-drift.js', '--fail']
     },
     {
       label: 'CI test lane',

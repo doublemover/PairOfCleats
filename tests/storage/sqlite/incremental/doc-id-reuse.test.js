@@ -11,7 +11,7 @@ run(
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 run(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
   'build sqlite index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
@@ -49,7 +49,7 @@ run(
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 run(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );

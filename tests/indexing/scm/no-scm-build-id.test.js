@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getCurrentBuildInfo, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const tempRoot = await makeTempDir('poc-scm-noscm-buildid-');

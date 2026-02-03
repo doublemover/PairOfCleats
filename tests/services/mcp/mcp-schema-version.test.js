@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { DEFAULT_MODEL_ID } from '../../../tools/dict-utils.js';
+import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { getToolCatalog, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { validateMcpToolSchemaSnapshot } from '../../../src/integrations/mcp/validate.js';
 

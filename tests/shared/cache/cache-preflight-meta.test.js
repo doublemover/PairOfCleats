@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { readCacheMeta, writeCacheMeta } from '../../../tools/build-embeddings/cache.js';
+import { readCacheMeta, writeCacheMeta } from '../../../tools/build/embeddings/cache.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'cache-preflight-meta');
