@@ -100,6 +100,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const vfsTokenMode = typeof vfsConfig.tokenMode === 'string' && vfsConfig.tokenMode.trim()
     ? vfsConfig.tokenMode.trim()
     : null;
+  const vfsIoBatching = vfsConfig.ioBatching && typeof vfsConfig.ioBatching === 'object'
+    ? vfsConfig.ioBatching
+    : null;
   const normalizeToolList = (value) => {
     if (Array.isArray(value)) {
       return value.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean);
@@ -138,7 +141,8 @@ export function getToolingConfig(repoRoot, userConfig = null) {
       ...(Number.isFinite(vfsMaxBytes) ? { maxVirtualFileBytes: vfsMaxBytes } : {}),
       ...(vfsHashRouting ? { hashRouting: true } : {}),
       ...(vfsCoalesceSegments ? { coalesceSegments: true } : {}),
-      ...(vfsTokenMode ? { tokenMode: vfsTokenMode } : {})
+      ...(vfsTokenMode ? { tokenMode: vfsTokenMode } : {}),
+      ...(vfsIoBatching ? { ioBatching: vfsIoBatching } : {})
     },
     lsp: {
       enabled: lspConfig.enabled !== false,

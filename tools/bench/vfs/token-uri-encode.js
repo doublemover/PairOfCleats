@@ -28,30 +28,45 @@ const seed = Number.isFinite(argv.seed) ? Number(argv.seed) : 1;
 
 const rng = createRng(seed);
 const tokens = new Array(docs);
+const virtualPaths = new Array(docs);
 const tokenMap = new Map();
 for (let i = 0; i < docs; i += 1) {
   const token = randomToken(tokenSize, rng);
   const virtualPath = `.poc-vfs/token/${i}.ts`;
   tokens[i] = token;
+  virtualPaths[i] = virtualPath;
   tokenMap.set(token, virtualPath);
 }
 
-const prefix = 'poc-vfs://token/';
-const uris = tokens.map((token) => `${prefix}${encodeURIComponent(token)}`);
+const prefix = 'poc-vfs:///';
+const legacyUris = virtualPaths.map((vp) => `${prefix}${encodePath(vp)}`);
+const tokenUris = virtualPaths.map((vp, idx) => `${prefix}${encodePath(vp)}?token=${tokens[idx]}`);
 const lookupIndices = buildLookupIndices(lookups, docs, seed + 13);
 
-const encodeBench = runSampled({
+const legacyEncodeBench = runSampled({
   iterations: lookups,
   samples,
-  fn: (i) => `${prefix}${encodeURIComponent(tokens[lookupIndices[i]])}`
+  fn: (i) => `${prefix}${encodePath(virtualPaths[lookupIndices[i]])}`
 });
 
-const decodeBench = runSampled({
+const legacyDecodeBench = runSampled({
+  iterations: lookups,
+  samples,
+  fn: (i) => decodePath(legacyUris[lookupIndices[i]].slice(prefix.length))
+});
+
+const tokenEncodeBench = runSampled({
+  iterations: lookups,
+  samples,
+  fn: (i) => `${prefix}${encodePath(virtualPaths[lookupIndices[i]])}?token=${tokens[lookupIndices[i]]}`
+});
+
+const tokenDecodeBench = runSampled({
   iterations: lookups,
   samples,
   fn: (i) => {
-    const uri = uris[lookupIndices[i]];
-    const token = decodeURIComponent(uri.slice(prefix.length));
+    const uri = tokenUris[lookupIndices[i]];
+    const token = uri.split('token=')[1] || '';
     return tokenMap.get(token);
   }
 });
@@ -63,8 +78,10 @@ const results = {
   tokenSize,
   samples,
   bench: {
-    encode: encodeBench,
-    decode: decodeBench
+    legacyEncode: legacyEncodeBench,
+    legacyDecode: legacyDecodeBench,
+    tokenEncode: tokenEncodeBench,
+    tokenDecode: tokenDecodeBench
   }
 };
 
@@ -77,8 +94,10 @@ if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
   console.error(`[token-uri] docs=${docs} lookups=${lookups}`);
-  printBench('encode', encodeBench);
-  printBench('decode', decodeBench);
+  printBench('legacy-encode', legacyEncodeBench);
+  printBench('legacy-decode', legacyDecodeBench);
+  printBench('token-encode', tokenEncodeBench);
+  printBench('token-decode', tokenDecodeBench);
 }
 
 function clampInt(value, min, fallback) {
@@ -102,6 +121,20 @@ function randomToken(length, rng) {
     chars[i] = alphabet[Math.floor(rng() * alphabet.length)];
   }
   return chars.join('');
+}
+
+function encodePath(virtualPath) {
+  return String(virtualPath || '')
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
+}
+
+function decodePath(encodedPath) {
+  return String(encodedPath || '')
+    .split('/')
+    .map((part) => decodeURIComponent(part))
+    .join('/');
 }
 
 function buildLookupIndices(count, max, seedValue) {

@@ -36,7 +36,8 @@ const segments = buildSegments({
   seed
 });
 
-const bench = runCoalesceBench({ segments, samples });
+const baseline = runBaselineBench({ segments, samples });
+const coalesce = runCoalesceBench({ segments, samples });
 
 const results = {
   generatedAt: new Date().toISOString(),
@@ -46,7 +47,10 @@ const results = {
   languages: languageCount,
   mergeProb,
   samples,
-  bench
+  bench: {
+    baseline,
+    coalesce
+  }
 };
 
 if (argv.out) {
@@ -58,7 +62,8 @@ if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 } else {
   console.error(`[coalesce-docs] files=${fileCount} segments=${segments.length}`);
-  printBench('coalesce', bench);
+  printBench('baseline', baseline);
+  printBench('coalesce', coalesce);
 }
 
 function clampInt(value, min, fallback) {
@@ -123,6 +128,41 @@ function coalesceSegments(segments) {
   }
   if (current) result.push(current);
   return result;
+}
+
+function baselineSegments(segments) {
+  let count = 0;
+  for (const segment of segments) {
+    if (!segment) continue;
+    count += 1;
+  }
+  return count;
+}
+
+function runBaselineBench({ segments, samples }) {
+  const timings = [];
+  let totalMs = 0;
+  let lastCount = 0;
+  for (let i = 0; i < samples; i += 1) {
+    const start = process.hrtime.bigint();
+    lastCount = baselineSegments(segments);
+    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+    timings.push(elapsed);
+    totalMs += elapsed;
+  }
+  const stats = summarizeDurations(timings);
+  const docsBefore = segments.length;
+  const docsAfter = lastCount;
+  const opsPerSec = totalMs > 0 ? docsBefore / (totalMs / 1000) : 0;
+  return {
+    totalMs,
+    stats,
+    docsBefore,
+    docsAfter,
+    lspOpsBefore: docsBefore,
+    lspOpsAfter: docsAfter,
+    opsPerSec
+  };
 }
 
 function runCoalesceBench({ segments, samples }) {

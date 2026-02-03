@@ -113,6 +113,7 @@ const createConfiguredLspProvider = (server) => {
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
         uriScheme: server.uriScheme || 'file',
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         captureDiagnostics: true
       });
       return {

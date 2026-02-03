@@ -125,6 +125,7 @@ export const createPyrightProvider = () => ({
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
       vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
       captureDiagnostics: true
     });
     return {

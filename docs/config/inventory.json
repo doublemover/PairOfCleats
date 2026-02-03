@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T14:11:14.000Z",
+  "generatedAt": "2026-02-03T17:10:17.193Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -235,6 +235,12 @@
       "tooling.typescript.useTsconfig",
       "tooling.vfs.coalesceSegments",
       "tooling.vfs.hashRouting",
+      "tooling.vfs.ioBatching.enabled",
+      "tooling.vfs.ioBatching.flushIntervalMs",
+      "tooling.vfs.ioBatching.maxBatchBytes",
+      "tooling.vfs.ioBatching.maxInflight",
+      "tooling.vfs.ioBatching.maxQueueEntries",
+      "tooling.vfs.ioBatching.writeMode",
       "tooling.vfs.maxVirtualFileBytes",
       "tooling.vfs.strict",
       "tooling.vfs.tokenMode"
@@ -242,8 +248,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 185,
-    "leafKeys": 145,
+    "totalKeys": 195,
+    "leafKeys": 154,
     "topLevel": [
       {
         "key": "cache",
@@ -279,7 +285,7 @@
       },
       {
         "key": "tooling",
-        "count": 50
+        "count": 60
       }
     ]
   },
@@ -1246,6 +1252,44 @@
       "enum": null
     },
     {
+      "path": "tooling.vfs.ioBatching",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.flushIntervalMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxBatchBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxInflight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxQueueEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.writeMode",
+      "type": "string",
+      "enum": [
+        "atomic",
+        "direct"
+      ]
+    },
+    {
       "path": "tooling.vfs.maxVirtualFileBytes",
       "type": "number",
       "enum": null
@@ -2083,7 +2127,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 253,
+    "totalFlags": 278,
     "publicFlags": [
       "backend",
       "host",
@@ -2106,11 +2150,14 @@
       "args",
       "artifactDir",
       "auth-token",
+      "avg",
+      "avgBytes",
       "backends",
       "backup",
       "baseline",
       "batch",
       "bench",
+      "bits",
       "build",
       "build-index",
       "build-sqlite",
@@ -2143,9 +2190,11 @@
       "dims",
       "dir",
       "direction",
+      "docs",
       "dp-max",
       "dry-run",
       "edgeTypes",
+      "edits",
       "emitArtifact",
       "encoding",
       "enforce",
@@ -2159,6 +2208,7 @@
       "failOnViolation",
       "failOnWarn",
       "fields",
+      "files",
       "finding",
       "fixture",
       "fixtures",
@@ -2170,6 +2220,7 @@
       "global",
       "graphFixture",
       "graphs",
+      "hashes",
       "hops",
       "in",
       "include",
@@ -2190,7 +2241,9 @@
       "interactive",
       "interval",
       "justification",
+      "keep",
       "keep-backup",
+      "keys",
       "lang",
       "languages",
       "limit",
@@ -2198,6 +2251,8 @@
       "load",
       "log",
       "log-dir",
+      "lookups",
+      "maskBits",
       "match-mode",
       "max",
       "max-age-days",
@@ -2228,11 +2283,14 @@
       "maxWarnings",
       "maxWorkUnits",
       "mcp-mode",
+      "mergeProb",
       "meta",
+      "min",
       "min-count",
       "min-overlap",
       "min-overlap-single",
       "min-rank-corr",
+      "minBytes",
       "minConfidence",
       "model",
       "model-out",
@@ -2282,17 +2340,24 @@
       "retries",
       "reviewer",
       "root",
+      "rows",
       "rule",
       "rules",
       "run",
+      "runSize",
+      "runs",
       "sample",
+      "samples",
       "schema",
+      "scheme",
       "scip",
       "scope",
       "search",
       "seed",
+      "segments",
       "sha256",
       "sink-rule",
+      "size",
       "skip-artifacts",
       "skip-bench",
       "skip-build",
@@ -2314,10 +2379,12 @@
       "strict",
       "stub-embeddings",
       "table",
+      "targets",
       "testPattern",
       "three-url",
       "timeout-ms",
       "token-postings-size",
+      "tokenSize",
       "tokens",
       "tooling-scope",
       "tools",
@@ -2327,6 +2394,7 @@
       "treeSitter",
       "treeSitterMissingLanguages",
       "type",
+      "unique",
       "update",
       "url",
       "validate",
@@ -2336,6 +2404,7 @@
       "wasd-drag",
       "wasd-max-speed",
       "wasd-sensitivity",
+      "windowBytes",
       "with-sqlite",
       "write-report",
       "yes",
@@ -2573,6 +2642,16 @@
         ]
       },
       {
+        "file": "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js",
+        "flags": [
+          "avgBytes",
+          "maskBits",
+          "maxBytes",
+          "minBytes",
+          "windowBytes"
+        ]
+      },
+      {
         "file": "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
         "flags": [
           "includeCalls",
@@ -2748,6 +2827,131 @@
           "graphFixture",
           "index",
           "outDir"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/bloom-negative-lookup.js",
+        "flags": [
+          "bits",
+          "hashes",
+          "json",
+          "keys",
+          "lookups",
+          "out",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/cdc-segmentation.js",
+        "flags": [
+          "avg",
+          "chunk",
+          "edits",
+          "json",
+          "max",
+          "min",
+          "out",
+          "seed",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/coalesce-docs.js",
+        "flags": [
+          "files",
+          "json",
+          "languages",
+          "mergeProb",
+          "out",
+          "samples",
+          "seed",
+          "segments"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/hash-routing-lookup.js",
+        "flags": [
+          "docs",
+          "input",
+          "json",
+          "lookups",
+          "out",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/io-batching.js",
+        "flags": [
+          "batch",
+          "files",
+          "json",
+          "keep",
+          "mode",
+          "out",
+          "outDir",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/merge-runs-heap.js",
+        "flags": [
+          "json",
+          "out",
+          "runs",
+          "runSize",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/partial-lsp-open.js",
+        "flags": [
+          "docs",
+          "json",
+          "keep",
+          "mode",
+          "out",
+          "samples",
+          "scheme",
+          "targets"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/segment-hash-cache.js",
+        "flags": [
+          "json",
+          "out",
+          "samples",
+          "seed",
+          "segments",
+          "size",
+          "unique"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/token-uri-encode.js",
+        "flags": [
+          "docs",
+          "json",
+          "lookups",
+          "out",
+          "samples",
+          "seed",
+          "tokenSize"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/vfsidx-lookup.js",
+        "flags": [
+          "input",
+          "json",
+          "lookups",
+          "out",
+          "rows",
+          "samples",
+          "seed"
         ]
       },
       {
@@ -3393,7 +3597,7 @@
       },
       {
         "flag": "json",
-        "count": 31,
+        "count": 41,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3405,6 +3609,16 @@
           "tools/api-server.js",
           "tools/bench-dict-seg.js",
           "tools/bench-query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
           "tools/cache-gc.js",
           "tools/combined-summary.js",
           "tools/compare-models.js",
@@ -3430,7 +3644,7 @@
       },
       {
         "flag": "out",
-        "count": 23,
+        "count": 33,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -3438,6 +3652,16 @@
           "tools/assemble-pieces.js",
           "tools/bench-dict-seg.js",
           "tools/bench-query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
           "tools/build-sqlite-index/cli.js",
           "tools/ci-build-artifacts.js",
           "tools/combined-summary.js",
@@ -3459,10 +3683,12 @@
       },
       {
         "flag": "mode",
-        "count": 13,
+        "count": 15,
         "files": [
           "tools/assemble-pieces.js",
           "tools/bench-query-generator.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/partial-lsp-open.js",
           "tools/build-embeddings/cli.js",
           "tools/build-lmdb-index.js",
           "tools/build-sqlite-index/cli.js",
@@ -3474,6 +3700,25 @@
           "tools/index-validate.js",
           "tools/indexer-service.js",
           "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "seed",
+        "count": 13,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3517,6 +3762,20 @@
           "tools/compact-sqlite-index.js",
           "tools/download-extensions.js",
           "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "samples",
+        "count": 8,
+        "files": [
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3570,6 +3829,19 @@
           "tools/build-tantivy-index.js",
           "tools/index-validate.js",
           "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "input",
+        "count": 7,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/scip-ingest.js"
         ]
       },
       {
@@ -3643,17 +3915,6 @@
         ]
       },
       {
-        "flag": "input",
-        "count": 5,
-        "files": [
-          "tools/assemble-pieces.js",
-          "tools/ctags-ingest.js",
-          "tools/gtags-ingest.js",
-          "tools/lsif-ingest.js",
-          "tools/scip-ingest.js"
-        ]
-      },
-      {
         "flag": "maxPerHit",
         "count": 5,
         "files": [
@@ -3684,17 +3945,6 @@
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
           "tests/retrieval/context-expansion/context-expansion-no-candidate-explosion.test.js"
-        ]
-      },
-      {
-        "flag": "seed",
-        "count": 5,
-        "files": [
-          "src/integrations/tooling/context-pack.js",
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tests/fixtures/medium/generate.js",
-          "tools/bench-query-generator.js"
         ]
       },
       {
@@ -3735,6 +3985,16 @@
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "lookups",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3864,12 +4124,39 @@
         ]
       },
       {
+        "flag": "docs",
+        "count": 3,
+        "files": [
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/token-uri-encode.js"
+        ]
+      },
+      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "languages",
+        "count": 3,
+        "files": [
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "max",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/suggest-tests.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/explain-risk.js"
         ]
       },
       {
@@ -3909,6 +4196,15 @@
         ]
       },
       {
+        "flag": "size",
+        "count": 3,
+        "files": [
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
         "flag": "arch",
         "count": 2,
         "files": [
@@ -3922,6 +4218,14 @@
         "files": [
           "tools/combined-summary.js",
           "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "batch",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/io-batching.js",
+          "tools/build-embeddings/cli.js"
         ]
       },
       {
@@ -3973,6 +4277,14 @@
         ]
       },
       {
+        "flag": "chunk",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/explain-risk.js"
+        ]
+      },
+      {
         "flag": "collapse",
         "count": 2,
         "files": [
@@ -4010,6 +4322,14 @@
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "tests/shared/contracts/phase11-schemas-validate.test.js"
+        ]
+      },
+      {
+        "flag": "files",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/io-batching.js"
         ]
       },
       {
@@ -4061,11 +4381,11 @@
         ]
       },
       {
-        "flag": "languages",
+        "flag": "keep",
         "count": 2,
         "files": [
-          "tools/tooling-detect.js",
-          "tools/tooling-install.js"
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/partial-lsp-open.js"
         ]
       },
       {
@@ -4077,11 +4397,11 @@
         ]
       },
       {
-        "flag": "max",
+        "flag": "maxBytes",
         "count": 2,
         "files": [
-          "src/integrations/tooling/suggest-tests.js",
-          "tools/explain-risk.js"
+          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -4130,6 +4450,14 @@
         "files": [
           "tools/map-iso-serve.js",
           "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "outDir",
+        "count": 2,
+        "files": [
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/vfs/io-batching.js"
         ]
       },
       {
@@ -4194,6 +4522,14 @@
         "files": [
           "tests/retrieval/parity/parity.test.js",
           "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "segments",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
       {
@@ -4338,6 +4674,7 @@
       "src/index/chunking/formats/markdown.js",
       "src/index/chunking/formats/yaml.js",
       "src/index/language-registry/registry.js",
+      "src/index/segments.js",
       "src/index/tooling/typescript-provider.js",
       "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",

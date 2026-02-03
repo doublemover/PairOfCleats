@@ -92,7 +92,8 @@ export const createSourcekitProvider = () => ({
       parseSignature: (detail) => parseSwiftSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode
+      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching
     });
     return {
       provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },

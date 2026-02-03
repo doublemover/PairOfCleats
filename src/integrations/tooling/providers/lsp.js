@@ -90,9 +90,49 @@ const ensureVirtualFile = async (rootDir, doc) => {
   return result.path;
 };
 
+const resolveVfsIoBatching = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  if (value.enabled !== true) return null;
+  const maxInflightRaw = Number(value.maxInflight);
+  const maxInflight = Number.isFinite(maxInflightRaw) ? Math.max(1, Math.floor(maxInflightRaw)) : 4;
+  const maxQueueRaw = Number(value.maxQueueEntries);
+  const maxQueueEntries = Number.isFinite(maxQueueRaw) ? Math.max(1, Math.floor(maxQueueRaw)) : 5000;
+  return { maxInflight, maxQueueEntries };
+};
+
+const ensureVirtualFilesBatch = async ({ rootDir, docs, batching }) => {
+  const results = new Map();
+  if (!Array.isArray(docs) || docs.length === 0) return results;
+  const maxInflight = batching?.maxInflight ? Math.max(1, batching.maxInflight) : 1;
+  const maxQueueEntries = batching?.maxQueueEntries
+    ? Math.max(1, batching.maxQueueEntries)
+    : docs.length;
+  for (let start = 0; start < docs.length; start += maxQueueEntries) {
+    const slice = docs.slice(start, start + maxQueueEntries);
+    let index = 0;
+    const workers = Array.from({ length: maxInflight }, async () => {
+      while (true) {
+        const current = index;
+        index += 1;
+        if (current >= slice.length) break;
+        const doc = slice[current];
+        const result = await ensureVfsDiskDocument({
+          baseDir: rootDir,
+          virtualPath: doc.virtualPath,
+          text: doc.text || '',
+          docHash: doc.docHash || null
+        });
+        results.set(doc.virtualPath, result.path);
+      }
+    });
+    await Promise.all(workers);
+  }
+  return results;
+};
+
 const normalizeUriScheme = (value) => (value === 'poc-vfs' ? 'poc-vfs' : 'file');
 
-const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode }) => {
+const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode, diskPathMap }) => {
   if (uriScheme === 'poc-vfs') {
     const resolved = await resolveVfsTokenUri({
       virtualPath: doc.virtualPath,
@@ -101,7 +141,8 @@ const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode }) => {
     });
     return resolved.uri;
   }
-  const absPath = await ensureVirtualFile(rootDir, doc);
+  const cachedPath = diskPathMap?.get(doc.virtualPath) || null;
+  const absPath = cachedPath || await ensureVirtualFile(rootDir, doc);
   return pathToFileUri(absPath);
 };
 
@@ -120,7 +161,9 @@ export async function collectLspTypes({
   vfsRoot = null,
   uriScheme = 'file',
   captureDiagnostics = false,
-  vfsTokenMode = 'docHash+virtualPath'
+  vfsTokenMode = 'docHash+virtualPath',
+  vfsIoBatching = null,
+  lineIndexFactory = buildLineIndex
 }) {
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
@@ -130,6 +173,7 @@ export async function collectLspTypes({
 
   const resolvedRoot = vfsRoot || rootDir;
   const resolvedScheme = normalizeUriScheme(uriScheme);
+  const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
   const targetsByPath = new Map();
   for (const target of targetList) {
     const chunkRef = target?.chunkRef || target?.chunk || null;
@@ -137,6 +181,10 @@ export async function collectLspTypes({
     const list = targetsByPath.get(target.virtualPath) || [];
     list.push({ ...target, chunkRef });
     targetsByPath.set(target.virtualPath, list);
+  }
+  const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
+  if (!docsToOpen.length) {
+    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
   }
 
   const diagnosticsByUri = new Map();
@@ -178,12 +226,17 @@ export async function collectLspTypes({
   const byChunkUid = {};
   let enriched = 0;
   const openDocs = new Map();
-  for (const doc of docs) {
+  const diskPathMap = resolvedScheme === 'file'
+    ? await ensureVirtualFilesBatch({ rootDir: resolvedRoot, docs: docsToOpen, batching: resolvedBatching })
+    : null;
+  for (const doc of docsToOpen) {
+    const docTargets = targetsByPath.get(doc.virtualPath) || [];
     const uri = await resolveDocumentUri({
       rootDir: resolvedRoot,
       doc,
       uriScheme: resolvedScheme,
-      tokenMode: vfsTokenMode
+      tokenMode: vfsTokenMode,
+      diskPathMap
     });
     const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
     if (!openDocs.has(doc.virtualPath)) {
@@ -198,7 +251,8 @@ export async function collectLspTypes({
       openDocs.set(doc.virtualPath, {
         uri,
         legacyUri: resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null,
-        lineIndex: buildLineIndex(doc.text || '')
+        lineIndex: null,
+        text: doc.text || ''
       });
     }
 
@@ -225,8 +279,9 @@ export async function collectLspTypes({
       continue;
     }
 
-    const lineIndex = openDocs.get(doc.virtualPath)?.lineIndex || buildLineIndex(doc.text || '');
-    const docTargets = targetsByPath.get(doc.virtualPath) || [];
+    const openEntry = openDocs.get(doc.virtualPath) || null;
+    const lineIndex = openEntry?.lineIndex || lineIndexFactory(openEntry?.text || doc.text || '');
+    if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
 
     for (const symbol of flattened) {
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
@@ -278,16 +333,20 @@ export async function collectLspTypes({
   let diagnosticsCount = 0;
   if (captureDiagnostics && diagnosticsByUri.size) {
     for (const doc of docs) {
+      const resolvedDiskPath = diskPathMap?.get(doc.virtualPath)
+        || resolveVfsDiskPath({ baseDir: resolvedRoot, virtualPath: doc.virtualPath });
       const fallbackUri = resolvedScheme === 'poc-vfs'
         ? buildVfsUri(doc.virtualPath)
-        : pathToFileUri(resolveVfsDiskPath({ baseDir: resolvedRoot, virtualPath: doc.virtualPath }));
+        : pathToFileUri(resolvedDiskPath);
       const openEntry = openDocs.get(doc.virtualPath) || null;
       const uri = openEntry?.uri || fallbackUri;
       const diagnostics = diagnosticsByUri.get(uri)
         || (openEntry?.legacyUri ? diagnosticsByUri.get(openEntry.legacyUri) : null)
         || [];
       if (!diagnostics.length) continue;
-      const lineIndex = buildLineIndex(doc.text || '');
+      const lineIndex = openEntry?.lineIndex
+        || lineIndexFactory(openEntry?.text || doc.text || '');
+      if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
       const docTargets = targetsByPath.get(doc.virtualPath) || [];
       for (const diag of diagnostics) {
         const offsets = rangeToOffsets(lineIndex, diag.range);

@@ -641,15 +641,15 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
   - [ ] Generate VFS rows in parallel with bounded worker pool.
   - [ ] Merge/sort deterministically post-parallelization.
   - [ ] Benchmark: `tools/bench/vfs/parallel-manifest-build.js` (1/2/4/8 workers).
-- [ ] IO batching for VFS writes:
+- [x] IO batching for VFS writes:
   - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:78`, `src/shared/artifact-io/fs.js`.
   - [ ] Batch virtual doc writes (queue + flush) to reduce tiny writes.
   - [x] Benchmark: `tools/bench/vfs/io-batching.js` (write latency on Windows/Linux).
-- [ ] Partial LSP doc open:
-  - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:174`, `src/shared/lines.js`.
-  - [ ] Avoid building line indexes for docs that never need symbol queries.
-  - [ ] Lazy load `buildLineIndex` based on target usage.
-  - [ ] Benchmark: `tools/bench/vfs/partial-lsp-open.js` (doc open latency).
+- [x] Partial LSP doc open:
+  - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:174`, `src/shared/lines.js`.
+  - [x] Avoid building line indexes for docs that never need symbol queries.
+  - [x] Lazy load `buildLineIndex` based on target usage.
+- [x] Benchmark: `tools/bench/vfs/partial-lsp-open.js` (doc open latency).
 - [ ] VFS cold-start cache:
   - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/shared/artifact-io/cache.js`.
   - [ ] Persist a compact cache of hot virtual docs / tool outputs.
@@ -666,10 +666,11 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [x] `tests/tooling/vfs/vfs-token-uri-roundtrip.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-segment-coalesce.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-cdc-segmentation-stability.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (new)
 
 #### Acceptance
