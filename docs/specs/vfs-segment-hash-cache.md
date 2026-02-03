@@ -27,54 +27,32 @@ Requirements:
 
 ---
 
-## 2) Entry schema (v1.0.0)
+## 2) Behavior
 
-```ts
-type VfsSegmentHashCacheEntryV1 = {
-  schemaVersion: "1.0.0";
-  key: string;
-  fileHash: string;
-  fileHashAlgo: string;
-  languageId: string;
-  effectiveExt: string;
-  segmentStart: number;
-  segmentEnd: number;
-  docHash: string; // "xxh64:<hex16>"
-  updatedAt: string; // ISO 8601
-};
-```
-
----
-
-## 3) Behavior
-
-- In-memory LRU cache is the default (bounded by `maxEntries`).
 - Current implementation uses a bounded in-memory map only.
-- Optional disk persistence MAY store JSONL entries under the cache root:
-  - `cacheRoot/vfs-segment-hash-cache.jsonl`
+- The cache is an LRU-style map: entries are moved to the end on access.
+- Max entries: 50,000 (hard cap). Oldest entries are evicted when the cap is exceeded.
+- If `fileHash` is missing, the cache is bypassed.
 - On lookup:
   - If `key` is present, reuse `docHash`.
   - If not present, compute `docHash` from the segment text and store it.
 
 ---
 
-## 4) Invariants
+## 3) Invariants
 
 - The cache MUST NOT change the `docHash` definition: it is always xxh64 of the exact segment text.
 - Any cache hit MUST correspond to identical container text and segment range.
 
 ---
 
-## 5) Observability
+## 4) Observability
 
-Emit counters:
-- `vfs_segment_hash_cache_hits`
-- `vfs_segment_hash_cache_misses`
-- `vfs_segment_hash_cache_evictions`
+No dedicated counters are emitted today; use existing VFS logs and metrics.
 
 ---
 
-## 6) Related specs
+## 5) Related specs
 
 - `docs/specs/vfs-manifest-artifact.md`
 - `docs/specs/vfs-cdc-segmentation.md`

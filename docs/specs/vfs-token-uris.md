@@ -24,10 +24,9 @@ Compute:
 token = xxh64(tokenSeed)
 ```
 
-Token MUST be lowercase hex (16 chars for xxh64).
+Token MUST be lowercase hex (16 chars for xxh64) and does not include the `xxh64:` prefix.
 If a `docHash`-based mode is selected and `docHash` is missing, producers MUST fall back to `virtualPath`.
-
-If hash routing is enabled, the routing token MAY be reused as the URI token.
+Hash routing does not change token derivation.
 
 ---
 
@@ -49,7 +48,7 @@ Encoding rules:
 
 - If the token changes, the provider MUST treat the document as new.
 - If token mode uses `docHash`, changing content MUST change the token.
-- For `file://` URIs, the token influences disk path via hash routing (see `docs/specs/vfs-hash-routing.md`).
+- Tokens are cached in-process to resolve `token -> virtualPath` for round trips.
 
 ---
 

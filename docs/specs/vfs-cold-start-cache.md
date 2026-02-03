@@ -20,7 +20,7 @@ Cache root (example):
   vfs_cold_start.jsonl
 ```
 
-The JSONL file MAY be sharded for large caches.
+Current implementation keeps a single JSONL file (no sharding).
 
 ---
 
@@ -37,7 +37,10 @@ type VfsColdStartMetaV1 = {
 };
 ```
 
-`manifestHash` is computed over the deterministic `vfs_manifest` content (or its meta+parts list) using xxh64.
+`manifestHash` is computed via `computeVfsManifestHash`:
+- Single manifest: xxh64 over the manifest file contents.
+- Sharded manifest: xxh64 over the ordered `partName:hash` list.
+- If the manifest is larger than the hash cap (64 MB), `manifestHash` is null and the cache is disabled.
 
 ---
 
@@ -59,8 +62,9 @@ type VfsColdStartEntryV1 = {
 ## 4) Validation rules
 
 - Cache is usable only when `indexSignature` and `manifestHash` match the current build.
-- Each entry MUST be validated by comparing `docHash` with the manifest row.
-- If a mismatch is detected, the entry MUST be discarded.
+- If `manifestHash` is missing (too large or unavailable), the cache is disabled.
+- Each entry is validated on lookup by matching the requested `docHash` and verifying `diskPath` exists.
+- Entries with mismatched `docHash` or missing files are ignored.
 
 ---
 
@@ -78,6 +82,11 @@ The cache MAY be controlled via `tooling.vfs.coldStartCache`:
 - `maxBytes` (number)
 - `maxAgeDays` (number)
 - `cacheRoot` (string, optional override)
+
+Defaults:
+- `enabled: true` (disabled by default in tests unless explicitly set to `true`).
+- `maxBytes: 64MB`
+- `maxAgeDays: 7`
 
 ---
 

@@ -1082,11 +1082,11 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [ ] Spec links and references are valid and consistent.
 
 ### Tasks
-- [@] **13.A Inventory + gap analysis**
-- [ ] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
-- [ ] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
-- [ ] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
-- [ ] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
+- [x] **13.A Inventory + gap analysis**
+- [x] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
+- [x] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
+- [x] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
+- [x] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
 
 - [x] **13.B Embeddings cache spec hardening**
 - [x] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
@@ -1094,16 +1094,16 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [x] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
 - [x] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
 
-- [@] **13.C VFS + tooling spec alignment**
+- [x] **13.C VFS + tooling spec alignment**
 - [x] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
 - [x] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
-- [ ] Task 13.C.3: Align token URI and hash routing docs with current code paths.
-- [ ] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
+- [x] Task 13.C.3: Align token URI and hash routing docs with current code paths.
+- [x] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
 
-- [ ] **13.D CLI + contracts + inventories**
-- [ ] Task 13.D.1: Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts/sidecars.
-- [ ] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
-- [ ] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
+- [x] **13.D CLI + contracts + inventories**
+- [x] Task 13.D.1: Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts/sidecars.
+- [x] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
+- [x] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
 
 - [x] **13.E JSDoc standards + enforcement**
 - [x] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
@@ -1122,10 +1122,23 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 ### Task details (decision-complete)
 #### 13.A Inventory + gap analysis
 - [x] Build a doc inventory table in Phase 13 with columns: doc path, purpose, required sections, code touchpoints, tests, gaps.
-- [ ] List docs touched by Phases 0-12 (use git history and PERFPLAN checklists as source of truth).
-- [ ] Enumerate missing sections for each doc: schema, invariants, examples, determinism, error behavior, compatibility.
-- [ ] Capture renamed files/flags/artifacts and link to the code that superseded them.
-- [ ] Output a checklist of required doc edits with explicit owners and completion criteria.
+- [x] List docs touched by Phases 0-12 (use git history and PERFPLAN checklists as source of truth).
+- [x] Enumerate missing sections for each doc: schema, invariants, examples, determinism, error behavior, compatibility.
+- [x] Capture renamed files/flags/artifacts and link to the code that superseded them.
+- [x] Output a checklist of required doc edits with explicit owners and completion criteria.
+
+Doc update checklist (Phase 13.A.4):
+- [x] `docs/specs/vfs-hash-routing.md` - Owner: tooling docs - Completion: hash routing path uses docHash with prefix and matches code.
+- [x] `docs/specs/vfs-token-uris.md` - Owner: tooling docs - Completion: token derivation and URI format match LSP URI code.
+- [x] `docs/specs/vfs-cold-start-cache.md` - Owner: tooling docs - Completion: cache validation, defaults, and testing behavior match code.
+- [x] `docs/specs/vfs-segment-hash-cache.md` - Owner: tooling docs - Completion: in-memory LRU behavior and caps match code.
+- [x] `docs/perf/map-pipeline.md` - Owner: perf docs - Completion: stage2 map pipeline steps documented.
+- [x] `docs/specs/map-artifact.md` - Owner: perf docs - Completion: map schema matches current artifact writer.
+- [x] `docs/perf/indexing-stage-audit.md` - Owner: perf docs - Completion: determinism guidance included.
+- [x] `docs/contracts/indexing.md` - Owner: contracts docs - Completion: VFS artifacts and sidecars listed.
+- [x] `docs/contracts/artifact-contract.md` - Owner: contracts docs - Completion: VFS artifacts and sidecars listed.
+- [x] `docs/guides/commands.md` - Owner: docs - Completion: no Phase 13 flag changes; no update required.
+- [x] `docs/config/contract.md` + `docs/config/inventory.*` - Owner: docs - Completion: VFS config surface already covered; no update required.
 
 #### 13.B Embeddings cache spec hardening
 - [x] Add a cache layout section with full directory tree, shard naming rules, and sidecars.
@@ -1140,25 +1153,25 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 #### 13.C VFS + tooling spec alignment
 - [x] Align VFS manifest trimming and sorting order with actual implementation (row trim, spill/merge order).
 - [x] Document virtualPath encoding and disk-path safety constraints (including Windows specifics).
-- [ ] Align token URI and hash routing docs with current code.
-- [ ] Document cold-start cache and segment hash cache invariants (inputs, invalidation, fallbacks).
+- [x] Align token URI and hash routing docs with current code.
+- [x] Document cold-start cache and segment hash cache invariants (inputs, invalidation, fallbacks).
 - [ ] Touchpoints to review:
   - `src/index/build/vfs-*`
   - `src/index/tooling/vfs*`
   - `src/index/segments/*` (CDC segmentation)
 
 #### 13.D CLI + contracts + inventories
-- [ ] Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts and sidecars.
-- [ ] Update `docs/guides/commands.md` for new flags or behavior.
-- [ ] Regenerate config inventories and add explanations for new fields in `docs/config/contract.md`.
+- [x] Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts and sidecars.
+- [x] Update `docs/guides/commands.md` for new flags or behavior (no Phase 13 deltas found).
+- [x] Regenerate config inventories and add explanations for new fields in `docs/config/contract.md` (no Phase 13 deltas found).
 - [ ] Touchpoints to review:
   - `src/retrieval/cli*`
   - `src/index/build/*`
   - `tools/*` CLI entrypoints
 
 #### 13.E JSDoc standards + enforcement
-- [ ] Write `docs/guides/jsdoc-standards.md` with required tags and examples.
-- [ ] Require sections for streaming behavior, caching/invalidation, determinism, path normalization, concurrency.
+- [x] Write `docs/guides/jsdoc-standards.md` with required tags and examples.
+- [x] Require sections for streaming behavior, caching/invalidation, determinism, path normalization, concurrency.
 - [ ] JSDoc targets (Phase 13 + Quantum spindle work):
   - `src/shared/limits.js`
   - `src/shared/provenance.js`
@@ -1191,7 +1204,7 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [x] `docs/guides/roadmap-checklists.md`: checkbox rules, test logging, ISO-8601 timestamp policy.
 
 #### 13.G Docs validation tests
-- [ ] Add tests under `tests/tooling/docs/`:
+- [x] Add tests under `tests/tooling/docs/`:
   - `embeddings-cache-docs-sync`: ensure required sections and examples exist.
   - `perfplan-docs-sync`: ensure Phase 13 doc inventory table exists and references required docs.
   - `jsdoc-standards-sync`: ensure standards doc exists and includes required tags.

@@ -15,9 +15,7 @@ Non-goals:
 
 - `virtualPath`: canonical `.poc-vfs/...` path (see `docs/specs/vfs-manifest-artifact.md`).
 - `docHash`: `xxh64:<hex16>` for the virtual document text.
-- `routingKey`: string used to derive routing token.
-- `routingToken`: `xxh64(routingKey)` in lowercase hex (no prefix).
-- `routingPrefix`: fanout path derived from `routingToken`.
+- `hashVirtualPath`: `.poc-vfs/by-hash/<docHash><effectiveExt>` when hash routing is enabled.
 
 ---
 
@@ -40,9 +38,11 @@ When `hashRouting` is `true`, tooling virtual documents MAY use a content-addres
 ```
 
 Notes:
+- `docHash` includes the `xxh64:` prefix and is used as-is in the hash path.
 - `hashRouting` does **not** change `vfs_manifest.virtualPath`. The manifest remains the canonical, human-readable path (see `vfs-manifest-artifact.md`).
 - Producers MUST fall back to the legacy `.poc-vfs/<containerPath>#seg:<segmentUid>` path if `docHash` is missing.
 - When hash routing is enabled, producers SHOULD emit `vfs_path_map` to link legacy `virtualPath` to the hash path.
+- Current implementation does not add a routing prefix or fanout beyond `by-hash/`.
 
 ---
 
@@ -64,18 +64,15 @@ Future versions MAY add a routing token and prefix fanout (e.g., `xxh64(routingK
 
 ## 5) Invariants
 
-- Same inputs MUST yield the same `routingToken` and `routingPrefix`.
-- `routingToken` MUST be lowercase hex, 16 characters for xxh64.
 - Hash routing MUST NOT change `virtualPath` stored in `vfs_manifest` or `vfs_index`.
+- `hashVirtualPath` MUST be derived from `docHash` (including the `xxh64:` prefix) plus `effectiveExt`.
+- If `docHash` is missing, the legacy `virtualPath` MUST be used.
 
 ---
 
 ## 6) Observability
 
-Emit counters:
-- `vfs_hash_routing_mode`
-- `vfs_hash_routing_prefix_bytes`
-- `vfs_hash_routing_fallbacks`
+No dedicated counters are emitted today; use existing VFS logs and metrics.
 
 ---
 
