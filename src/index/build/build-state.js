@@ -66,6 +66,9 @@ const mergeState = (base, patch) => {
   if (patch.signatures) {
     merged.signatures = { ...(base?.signatures || {}), ...patch.signatures };
   }
+  if (patch.stageCheckpoints) {
+    merged.stageCheckpoints = { ...(base?.stageCheckpoints || {}), ...patch.stageCheckpoints };
+  }
   if (patch.ignore) {
     merged.ignore = { ...(base?.ignore || {}), ...patch.ignore };
   }

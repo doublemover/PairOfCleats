@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createEmbedder } from '../../src/index/embedding.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../src/index/build/build-state.js';
+import { createStageCheckpointRecorder } from '../../src/index/build/stage-checkpoints.js';
 import { loadIncrementalManifest } from '../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../src/storage/sqlite/vector.js';
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
@@ -20,7 +21,13 @@ import {
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { fromPosix, toPosix } from '../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../src/shared/env.js';
-import { getIndexDir, getRepoCacheRoot, getTriageConfig, resolveSqlitePaths } from '../dict-utils.js';
+import {
+  getIndexDir,
+  getMetricsDir,
+  getRepoCacheRoot,
+  getTriageConfig,
+  resolveSqlitePaths
+} from '../dict-utils.js';
 import {
   buildCacheIdentity,
   buildCacheKey,
@@ -100,6 +107,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
   };
+  const countNonEmptyVectors = (vectors) => {
+    if (!Array.isArray(vectors)) return 0;
+    let count = 0;
+    for (const vec of vectors) {
+      if (vec && typeof vec.length === 'number' && vec.length > 0) count += 1;
+    }
+    return count;
+  };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
   const normalizeDenseVectorMode = (value) => {
     const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -173,6 +188,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = getEnvConfig();
   const crashLoggingEnabled = isTestingEnv()
     || envConfig.debugCrash === true;
@@ -208,6 +224,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) {
         fail(`Invalid mode: ${mode}`);
       }
+      let stageCheckpoints = null;
       modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
       const finishMode = (message) => {
         completedModes += 1;
@@ -313,9 +330,35 @@ export async function runBuildEmbeddingsWithConfig(config) {
           log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
         }
 
+        stageCheckpoints = createStageCheckpointRecorder({
+          buildRoot: indexRoot,
+          metricsDir,
+          mode,
+          buildId: indexRoot ? path.basename(indexRoot) : null
+        });
+        stageCheckpoints.record({
+          stage: 'stage3',
+          step: 'chunks',
+          extra: {
+            files: chunksByFile.size,
+            totalChunks
+          }
+        });
+
         const codeVectors = new Array(totalChunks).fill(null);
         const docVectors = new Array(totalChunks).fill(null);
         const mergedVectors = new Array(totalChunks).fill(null);
+        stageCheckpoints.record({
+          stage: 'stage3',
+          step: 'vectors-allocated',
+          extra: {
+            vectors: {
+              merged: mergedVectors.length,
+              doc: docVectors.length,
+              code: codeVectors.length
+            }
+          }
+        });
         const hnswPaths = {
           merged: resolveHnswPaths(indexDir, 'merged'),
           doc: resolveHnswPaths(indexDir, 'doc'),
@@ -702,6 +745,18 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
         await flushPending();
 
+        stageCheckpoints.record({
+          stage: 'stage3',
+          step: 'vectors-filled',
+          extra: {
+            vectors: {
+              merged: countNonEmptyVectors(mergedVectors),
+              doc: countNonEmptyVectors(docVectors),
+              code: countNonEmptyVectors(codeVectors)
+            }
+          }
+        });
+
         const observedDims = dimsValidator.getDims();
         if (configuredDims && observedDims && configuredDims !== observedDims) {
           throw new Error(
@@ -923,6 +978,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
           lancedbState.count = Number.isFinite(Number(lanceMeta.count)) ? Number(lanceMeta.count) : totalChunks;
         }
 
+        stageCheckpoints.record({
+          stage: 'stage3',
+          step: 'write',
+          extra: {
+            vectors: {
+              merged: countNonEmptyVectors(mergedVectors),
+              doc: countNonEmptyVectors(docVectors),
+              code: countNonEmptyVectors(codeVectors)
+            },
+            hnsw: hnswState.available ? (hnswState.count || 0) : 0,
+            lancedb: lancedbState.available ? (lancedbState.count || 0) : 0,
+            sqliteVec: sqliteVecState.available ? (sqliteVecState.count || 0) : 0
+          }
+        });
+
         const now = new Date().toISOString();
         indexState.generatedAt = indexState.generatedAt || now;
         indexState.updatedAt = now;
@@ -1047,6 +1117,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           // Ignore index state write failures.
         }
         throw err;
+      } finally {
+        if (stageCheckpoints) {
+          await stageCheckpoints.flush();
+        }
       }
     }
 

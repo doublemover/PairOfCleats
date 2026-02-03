@@ -9,9 +9,11 @@ import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { resolveRuntimeEnvelope } from '../../src/shared/runtime-envelope.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../src/index/build/build-state.js';
+import { createStageCheckpointRecorder } from '../../src/index/build/stage-checkpoints.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../src/shared/disk-space.js';
 import {
   getIndexDir,
+  getMetricsDir,
   getModelConfig,
   getRepoCacheRoot,
   getToolVersion,
@@ -200,6 +202,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const root = rootArg || resolveRepoRoot(process.cwd());
     const envConfig = getEnvConfig();
     const userConfig = loadUserConfig(root);
+    const metricsDir = getMetricsDir(root, userConfig);
     const indexRoot = argv['index-root']
       ? path.resolve(argv['index-root'])
       : resolveIndexRoot(root, userConfig);
@@ -304,6 +307,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const buildModeTask = taskFactory('SQLite', { total: modeList.length, stage: 'sqlite' });
     let done = 0;
     for (const mode of modeList) {
+      const stageCheckpoints = createStageCheckpointRecorder({
+        buildRoot: indexRoot,
+        metricsDir,
+        mode,
+        buildId: indexRoot ? path.basename(indexRoot) : null
+      });
       const modeLabel = `${logPrefix} ${mode}`;
       const startTs = Date.now();
       const modeIndexDir = modeIndexDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot });
@@ -375,6 +384,17 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           ...vectorConfig,
           enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
         };
+        stageCheckpoints.record({
+          stage: 'stage4',
+          step: 'start',
+          extra: {
+            incrementalRequested: incrementalRequested ? 1 : 0,
+            incrementalBundles: hasIncrementalBundles ? 1 : 0,
+            incrementalFiles: incrementalFileCount,
+            incrementalBundlesCount: incrementalBundleCount,
+            inputSource: resolvedInput.source === 'incremental' ? 1 : 0
+          }
+        });
 
         if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest) {
           const updateResult = await incrementalUpdateDatabase({
@@ -396,6 +416,19 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             try {
               stat = await fs.stat(outputPath);
             } catch {}
+            stageCheckpoints.record({
+              stage: 'stage4',
+              step: 'incremental-update',
+              extra: {
+                outputBytes: Number(stat?.size) || 0,
+                rows: {
+                  code: counts.code || 0,
+                  prose: counts.prose || 0,
+                  extractedProse: counts['extracted-prose'] || 0,
+                  records: counts.records || 0
+                }
+              }
+            });
             await updateSqliteState({
               root,
               userConfig,
@@ -508,6 +541,20 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const counts = readSqliteCounts(outputPath);
         const durationMs = Date.now() - startTs;
         const stat = await fs.stat(outputPath);
+        stageCheckpoints.record({
+          stage: 'stage4',
+          step: 'build',
+          extra: {
+            inputBytes,
+            outputBytes: Number(stat?.size) || 0,
+            rows: {
+              code: counts.code || 0,
+              prose: counts.prose || 0,
+              extractedProse: counts['extracted-prose'] || 0,
+              records: counts.records || 0
+            }
+          }
+        });
         const note = logDetails.length ? logDetails.join(', ') : null;
         await updateSqliteState({
           root,
@@ -554,6 +601,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           } catch {}
         }
         const errorMessage = err?.message || String(err);
+        stageCheckpoints.record({
+          stage: 'stage4',
+          step: 'error',
+          label: errorMessage
+        });
         await updateSqliteState({
           root,
           userConfig,
@@ -574,6 +626,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         if (exitOnError) process.exit(1);
         throw err;
       } finally {
+        await stageCheckpoints.flush();
         // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.
       }
     }

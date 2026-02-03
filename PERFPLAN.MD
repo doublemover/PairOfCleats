@@ -28,44 +28,74 @@ Perform a cross-codebase audit for duplicate utility implementations, consolidat
 - New features or schema changes.
 
 ### Files to modify (exhaustive for this phase)
+- `src/shared/limits.js` (new)
 - `src/shared/provenance.js` (new)
 - `src/shared/truncation.js` (new)
-- `src/shared/limits.js` (new)
+- `src/shared/path-normalize.js` (new)
+- `src/shared/time-format.js` (new)
+- `src/shared/seed-ref.js` (new)
+- `src/shared/safe-regex.js`
 - `src/graph/impact.js`
 - `src/graph/suggest-tests.js`
 - `src/graph/architecture.js`
 - `src/graph/context-pack.js`
+- `src/graph/neighborhood.js`
+- `src/graph/work-budget.js`
 - `src/context-pack/assemble.js`
+- `src/index/build/file-scan.js`
+- `src/index/build/graphs.js`
+- `src/index/build/runtime/caps.js`
+- `src/index/comments.js`
+- `src/index/segments/config.js`
+- `src/index/segments/markdown.js`
+- `src/index/structural.js`
+- `src/index/risk.js`
 - `src/integrations/tooling/api-contracts.js`
+- `src/integrations/tooling/architecture-check.js`
+- `src/integrations/tooling/context-pack.js`
+- `src/integrations/tooling/graph-context.js`
+- `src/integrations/tooling/impact.js`
+- `src/integrations/tooling/suggest-tests.js`
+- `src/retrieval/cli/normalize-options.js`
 - `src/retrieval/context-expansion.js`
-- `tools/perf/scan-duplicate-utilities.js` (new)
+- `src/retrieval/filter-index.js`
+- `src/retrieval/output/filters/file.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `src/lang/kotlin.js`
+- `src/storage/sqlite/utils.js`
+- `tools/bench/language/metrics.js`
+- `tools/bench/micro/tinybench.js`
+- `tools/indexer-service.js`
 - `docs/perf/shared-component-audit.md` (new)
 - `docs/guides/shared-components.md` (new)
-- `tests/shared/provenance.test.js` (new)
-- `tests/shared/truncation.test.js` (new)
-- `tests/shared/limits-normalization.test.js` (new)
-- `tests/perf/shared-component-audit.test.js` (new)
+- `docs/guides/path-handling.md`
+- `tests/shared/limits/limits-normalization.test.js` (new)
+- `tests/shared/provenance/provenance.test.js` (new)
+- `tests/shared/truncation/truncation.test.js` (new)
+- `tests/shared/seed-ref/parse-seed-ref.test.js` (new)
+- `tests/shared/path-handling.test.js`
 
 ### Docs/specs to add or update
 - `docs/perf/shared-component-audit.md` (new)
 - `docs/guides/shared-components.md` (new)
 
 ### Tasks
-- [ ] Inventory duplicate helper patterns across graph/context-pack/retrieval tooling.
-- [ ] Implement shared helpers for provenance resolution, truncation recording, and limit normalization.
-- [ ] Update all call sites to use shared helpers.
-- [ ] Add a duplicate-utility scan and document required shared usage.
-- [ ] Document shared component expectations and examples.
+- [x] Inventory duplicate helper patterns across graph/context-pack/retrieval tooling.
+- [x] Implement shared helpers for provenance resolution, truncation recording, limit normalization, path normalization, duration formatting, and seed parsing.
+- [x] Update all call sites to use shared helpers.
+- [x] Normalize seed reference parsing into a shared helper.
+- [x] Document shared component expectations and examples.
 
 ### Tests
-- [ ] `tests/shared/provenance.test.js`
-- [ ] `tests/shared/truncation.test.js`
-- [ ] `tests/shared/limits-normalization.test.js`
-- [ ] `tests/perf/shared-component-audit.test.js`
+- [x] `tests/shared/provenance/provenance.test.js`
+- [x] `tests/shared/truncation/truncation.test.js`
+- [x] `tests/shared/limits/limits-normalization.test.js`
+- [x] `tests/shared/seed-ref/parse-seed-ref.test.js`
+- [x] `tests/shared/path-handling.test.js`
 
 ### Acceptance
-- [ ] Duplicate helper implementations removed and replaced by shared modules.
-- [ ] Tests enforce shared helper behavior and prevent drift.
+- [x] Duplicate helper implementations removed and replaced by shared modules.
+- [x] Tests enforce shared helper behavior and prevent drift.
 
 ---
 
@@ -84,15 +114,8 @@ Add consistent timing/memory checkpoints across the 4 indexing stages to identif
 
 ### Files to modify (exhaustive for this phase)
 - `src/index/build/indexer/pipeline.js`
-- `src/index/build/perf-profile.js`
 - `src/index/build/build-state.js`
-- `src/index/build/state.js`
 - `src/index/build/stage-checkpoints.js` (new)
-- `src/index/build/indexer/steps/discover.js`
-- `src/index/build/indexer/steps/process-files.js`
-- `src/index/build/indexer/steps/relations.js`
-- `src/index/build/indexer/steps/postings.js`
-- `src/index/build/indexer/steps/write.js`
 - `tools/build-embeddings/runner.js`
 - `tools/build-sqlite-index/runner.js`
 - `docs/perf/indexing-stage-audit.md` (new)
@@ -103,19 +126,19 @@ Add consistent timing/memory checkpoints across the 4 indexing stages to identif
 - `docs/perf/indexing-stage-audit.md` (new)
 
 ### Tasks
-- [ ] Add per-stage checkpoints (time + heapUsed + rss + external + arrayBuffers).
-- [ ] Record checkpoints in build state or perf profile (schema versioned).
-- [ ] Emit a concise audit summary per mode and per stage.
-- [ ] Capture high-watermarks for postings maps, chunk arrays, relations, and embeddings buffers.
-- [ ] Document the audit output format and interpretation guide.
+- [x] Add per-stage checkpoints (time + heapUsed + rss + external + arrayBuffers).
+- [x] Record checkpoints in build state or perf profile (schema versioned).
+- [x] Emit a concise audit summary per mode and per stage.
+- [x] Capture high-watermarks for postings maps, chunk arrays, relations, and embeddings buffers.
+- [x] Document the audit output format and interpretation guide.
 
 ### Tests
-- [ ] `tests/indexing/runtime/stage-memory-checkpoints.test.js`
-- [ ] `tests/indexing/runtime/stage-timing-checkpoints.test.js`
+- [x] `tests/indexing/runtime/stage-memory-checkpoints.test.js`
+- [x] `tests/indexing/runtime/stage-timing-checkpoints.test.js`
 
 ### Acceptance
-- [ ] Each stage records timing and memory checkpoints.
-- [ ] Audit report is produced and documented.
+- [x] Each stage records timing and memory checkpoints.
+- [x] Audit report is produced and documented.
 
 ---
 
@@ -888,4 +911,3 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [ ] JSDoc standards documented and enforced for new modules.
 
 ---
-

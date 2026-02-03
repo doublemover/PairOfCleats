@@ -9,6 +9,7 @@ import { createCrashLogger } from '../crash-log.js';
 import { updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
+import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import {
@@ -60,6 +61,37 @@ const buildFeatureSettings = (runtime, mode) => {
   };
 };
 
+const countFieldEntries = (fieldMaps) => {
+  if (!fieldMaps || typeof fieldMaps !== 'object') return 0;
+  let total = 0;
+  for (const entry of Object.values(fieldMaps)) {
+    if (entry && typeof entry.size === 'number') total += entry.size;
+  }
+  return total;
+};
+
+const countFieldArrayEntries = (fieldArrays) => {
+  if (!fieldArrays || typeof fieldArrays !== 'object') return 0;
+  let total = 0;
+  for (const entry of Object.values(fieldArrays)) {
+    if (Array.isArray(entry)) total += entry.length;
+  }
+  return total;
+};
+
+const summarizeGraphRelations = (graphRelations) => {
+  if (!graphRelations || typeof graphRelations !== 'object') return null;
+  const summarize = (graph) => ({
+    nodes: Number.isFinite(graph?.nodeCount) ? graph.nodeCount : 0,
+    edges: Number.isFinite(graph?.edgeCount) ? graph.edgeCount : 0
+  });
+  return {
+    callGraph: summarize(graphRelations.callGraph),
+    usageGraph: summarize(graphRelations.usageGraph),
+    importGraph: summarize(graphRelations.importGraph)
+  };
+};
+
 /**
  * Build indexes for a given mode.
  * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
@@ -98,6 +130,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     mode,
     buildId: runtime.buildId,
     features: perfFeatures
+  });
+  const stageCheckpoints = createStageCheckpointRecorder({
+    buildRoot: runtime.buildRoot,
+    metricsDir,
+    mode,
+    buildId: runtime.buildId
   });
   const featureMetrics = runtime.featureMetrics || null;
   if (featureMetrics?.registerSettings) {
@@ -164,6 +202,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     stageNumber: stageIndex,
     abortSignal
   });
+  stageCheckpoints.record({
+    stage: 'stage1',
+    step: 'discovery',
+    extra: {
+      files: allEntries.length,
+      skipped: state.skippedFiles?.length || 0
+    }
+  });
   throwIfAborted(abortSignal);
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const runtimeRef = dictConfig === runtime.dictConfig
@@ -192,6 +238,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     cacheReporter
   });
   if (reused) {
+    stageCheckpoints.record({
+      stage: 'stage1',
+      step: 'incremental',
+      label: 'reused',
+      extra: { files: allEntries.length }
+    });
+    await stageCheckpoints.flush();
     cacheReporter.report();
     return;
   }
@@ -208,6 +261,19 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     incrementalState,
     fileTextByFile,
     abortSignal
+  });
+  stageCheckpoints.record({
+    stage: 'stage1',
+    step: 'imports',
+    extra: {
+      imports: importResult?.stats
+        ? {
+          modules: Number(importResult.stats.modules) || 0,
+          edges: Number(importResult.stats.edges) || 0,
+          files: Number(importResult.stats.files) || 0
+        }
+        : { modules: 0, edges: 0, files: 0 }
+    }
   });
   throwIfAborted(abortSignal);
 
@@ -240,6 +306,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   throwIfAborted(abortSignal);
   const { tokenizationStats, shardSummary } = processResult;
+  stageCheckpoints.record({
+    stage: 'stage1',
+    step: 'processing',
+    extra: {
+      files: allEntries.length,
+      chunks: state.chunks?.length || 0,
+      tokens: state.totalTokens || 0,
+      tokenPostings: state.tokenPostings?.size || 0,
+      phrasePostings: state.phrasePost?.size || 0,
+      chargramPostings: state.triPost?.size || 0,
+      fieldPostings: countFieldEntries(state.fieldPostings),
+      fieldDocLengths: countFieldArrayEntries(state.fieldDocLengths)
+    }
+  });
   await updateBuildState(runtimeRef.buildRoot, {
     counts: {
       [mode]: {
@@ -273,6 +353,23 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     abortSignal
   });
   throwIfAborted(abortSignal);
+  stageCheckpoints.record({
+    stage: 'stage2',
+    step: 'relations',
+    extra: {
+      fileRelations: state.fileRelations?.size || 0,
+      importGraph: state.importResolutionGraph?.stats
+        ? {
+          files: Number(state.importResolutionGraph.stats.files) || 0,
+          edges: Number(state.importResolutionGraph.stats.edges) || 0,
+          resolved: Number(state.importResolutionGraph.stats.resolved) || 0,
+          external: Number(state.importResolutionGraph.stats.external) || 0,
+          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0
+        }
+        : null,
+      graphs: summarizeGraphRelations(graphRelations)
+    }
+  });
   if (mode === 'code' && crossFileEnabled) {
     await updateIncrementalBundles({
       runtime: runtimeRef,
@@ -300,6 +397,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   advanceStage(stagePlan[4]);
   throwIfAborted(abortSignal);
   const postings = await buildIndexPostings({ runtime: runtimeRef, state });
+  stageCheckpoints.record({
+    stage: 'stage1',
+    step: 'postings',
+    extra: {
+      tokenVocab: postings.tokenVocab?.length || 0,
+      phraseVocab: postings.phraseVocab?.length || 0,
+      chargramVocab: postings.chargramVocab?.length || 0,
+      denseVectors: postings.quantizedVectors?.length || 0,
+      docVectors: postings.quantizedDocVectors?.length || 0,
+      codeVectors: postings.quantizedCodeVectors?.length || 0
+    }
+  });
 
   advanceStage(stagePlan[5]);
   throwIfAborted(abortSignal);
@@ -315,6 +424,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     graphRelations,
     shardSummary
   });
+  stageCheckpoints.record({
+    stage: 'stage2',
+    step: 'write',
+    extra: {
+      chunks: state.chunks?.length || 0,
+      tokens: state.totalTokens || 0,
+      tokenVocab: postings.tokenVocab?.length || 0
+    }
+  });
   throwIfAborted(abortSignal);
   if (runtimeRef?.overallProgress?.advance) {
     const finalStage = stagePlan[stagePlan.length - 1];
@@ -323,4 +441,5 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();
+  await stageCheckpoints.flush();
 }
