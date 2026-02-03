@@ -28,9 +28,16 @@ export async function loadIndex(dir, options) {
     denseVectorMode = null,
     fileChargramN,
     includeHnsw = true,
+    includeDense = true,
+    includeMinhash = true,
+    includeFilterIndex = true,
+    includeFileRelations = true,
+    includeRepoMap = true,
+    includeTokenIndex = true,
     hnswConfig: rawHnswConfig,
     strict = true
   } = options || {};
+  const includeTokenIndexResolved = includeFilterIndex ? true : includeTokenIndex;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
   const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
   const loadOptionalObject = async (name, fallbackPath = null) => {
@@ -93,8 +100,8 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const fileRelationsRaw = await loadOptionalArray('file_relations');
-  const repoMap = await loadOptionalArray('repo_map');
+  const fileRelationsRaw = includeFileRelations ? await loadOptionalArray('file_relations') : null;
+  const repoMap = includeRepoMap ? await loadOptionalArray('repo_map') : null;
   let fileRelations = null;
   if (Array.isArray(fileRelationsRaw)) {
     const map = new Map();
@@ -107,13 +114,13 @@ export async function loadIndex(dir, options) {
   const indexState = await loadOptionalObject('index_state', path.join(dir, 'index_state.json'));
   const embeddingsState = indexState?.embeddings || null;
   const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
-  const denseVec = embeddingsReady
+  const denseVec = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors', path.join(dir, 'dense_vectors_uint8.json'))
     : null;
-  const denseVecDoc = embeddingsReady
+  const denseVecDoc = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_doc', path.join(dir, 'dense_vectors_doc_uint8.json'))
     : null;
-  const denseVecCode = embeddingsReady
+  const denseVecCode = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
     : null;
   const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
@@ -124,7 +131,7 @@ export async function loadIndex(dir, options) {
     ? 'dense_vectors_doc_hnsw_meta'
     : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw_meta' : 'dense_vectors_hnsw_meta');
   const hnswPaths = resolveHnswPaths(dir, hnswTarget);
-  const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
+  const hnswMeta = embeddingsReady && includeDense && includeHnsw && hnswConfig.enabled
     ? await loadOptionalObject(hnswMetaName, hnswPaths.metaPath)
     : null;
   let hnswIndex = null;
@@ -156,7 +163,9 @@ export async function loadIndex(dir, options) {
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
   if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
-  const filterIndexRaw = await loadOptionalObject('filter_index', path.join(dir, 'filter_index.json'));
+  const filterIndexRaw = includeFilterIndex
+    ? await loadOptionalObject('filter_index', path.join(dir, 'filter_index.json'))
+    : null;
   const idx = {
     chunkMeta,
     fileRelations,
@@ -174,7 +183,9 @@ export async function loadIndex(dir, options) {
     state: indexState,
     fieldPostings,
     fieldTokens,
-    minhash: await loadOptionalObject('minhash_signatures', path.join(dir, 'minhash_signatures.json')),
+    minhash: includeMinhash
+      ? await loadOptionalObject('minhash_signatures', path.join(dir, 'minhash_signatures.json'))
+      : null,
     phraseNgrams: await loadOptionalObject('phrase_ngrams', path.join(dir, 'phrase_ngrams.json')),
     chargrams: await loadOptionalObject('chargram_postings', path.join(dir, 'chargram_postings.json'))
   };
@@ -191,12 +202,16 @@ export async function loadIndex(dir, options) {
       entry.vocabIndex = new Map(entry.vocab.map((term, i) => [term, i]));
     }
   }
-  idx.filterIndex = filterIndexRaw
-    ? (hydrateFilterIndex(filterIndexRaw) || buildFilterIndex(chunkMeta, { fileChargramN }))
-    : buildFilterIndex(chunkMeta, { fileChargramN });
-  try {
-    idx.tokenIndex = loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
-  } catch {}
+  idx.filterIndex = includeFilterIndex
+    ? (filterIndexRaw
+      ? (hydrateFilterIndex(filterIndexRaw) || buildFilterIndex(chunkMeta, { fileChargramN }))
+      : buildFilterIndex(chunkMeta, { fileChargramN }))
+    : null;
+  if (includeTokenIndexResolved) {
+    try {
+      idx.tokenIndex = loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
+    } catch {}
+  }
   return idx;
 }
 

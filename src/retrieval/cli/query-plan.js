@@ -200,6 +200,7 @@ export function buildQueryPlan({
     resolvedDenseVectorMode,
     filters,
     filtersActive,
-    cacheFilters
+    cacheFilters,
+    requiredArtifacts: new Set()
   };
 }

@@ -34,6 +34,7 @@ import { normalizeSearchOptions } from './cli/normalize-options.js';
 import { buildQueryPlan } from './cli/query-plan.js';
 import { createRunnerHelpers, inferJsonOutputFromArgs } from './cli/runner.js';
 import { resolveRunConfig } from './cli/resolve-run-config.js';
+import { resolveRequiredArtifacts } from './cli/required-artifacts.js';
 import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
@@ -334,6 +335,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
+    const backendStart = stageTracker.mark();
     const backendContext = await createBackendContext({
       backendPolicy,
       useSqlite: useSqliteSelection,
@@ -370,6 +372,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       root: rootDir,
       userConfig
     });
+    stageTracker.record('startup.backend', backendStart, { mode: 'all' });
 
     const {
       useSqlite,
@@ -428,13 +431,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
     }
     const includeCodeDicts = runCode && codeDictLanguages.size > 0;
+    const dictStart = stageTracker.mark();
     const { dict } = await loadDictionary(rootDir, dictConfig, {
       includeCode: includeCodeDicts,
       codeDictLanguages: Array.from(codeDictLanguages)
     });
+    stageTracker.record('startup.dictionary', dictStart, { mode: 'all' });
     throwIfAborted();
 
     const joinComments = commentsEnabled && runCode;
+    const planStart = stageTracker.mark();
     const planConfigSignature = queryPlanCache?.enabled !== false
       ? buildQueryPlanConfigSignature({
         dictConfig,
@@ -541,8 +547,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         })
       );
     }
+    stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
     const annActive = annEnabled && queryPlan.queryTokens.length > 0;
+    const graphRankingEnabled = graphRankingConfig?.enabled === true;
+    const requiredArtifacts = resolveRequiredArtifacts({
+      queryPlan,
+      contextExpansionEnabled,
+      contextExpansionOptions,
+      contextExpansionRespectFilters,
+      graphRankingEnabled,
+      annActive
+    });
+    queryPlan.requiredArtifacts = requiredArtifacts;
 
     const {
       loadIndexFromSqlite,
@@ -553,6 +570,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
+    const indexesStart = stageTracker.mark();
     const {
       idxProse,
       idxExtractedProse,
@@ -583,7 +601,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annActive,
       filtersActive: queryPlan.filtersActive,
       contextExpansionEnabled,
-      graphRankingEnabled: graphRankingConfig?.enabled === true,
+      graphRankingEnabled,
       sqliteFtsRequested: sqliteFtsEnabled,
       backendLabel,
       backendForcedTantivy,
@@ -601,8 +619,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      loadExtractedProse: joinComments
+      loadExtractedProse: joinComments,
+      requiredArtifacts
     });
+    stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
 
     const modelIds = {
@@ -612,6 +632,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       records: modelIdForRecords
     };
 
+    const searchStart = stageTracker.mark();
     const searchResult = await runSearchSession({
       rootDir,
       userConfig,
@@ -703,6 +724,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       signal,
       stageTracker
     });
+    stageTracker.record('startup.search', searchStart, { mode: 'all' });
 
     const elapsedMs = Date.now() - t0;
 

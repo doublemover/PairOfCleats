@@ -26,7 +26,14 @@ import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/dict-utils.js';
 
-const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
+const EMPTY_INDEX = {
+  chunkMeta: [],
+  denseVec: null,
+  minhash: null,
+  filterIndex: null,
+  fileRelations: null,
+  repoMap: null
+};
 
 export async function loadSearchIndexes({
   rootDir,
@@ -58,12 +65,21 @@ export async function loadSearchIndexes({
   indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
-  resolvedDenseVectorMode
+  resolvedDenseVectorMode,
+  requiredArtifacts
 }) {
   const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
   const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
   const runtimeConfig = getRuntimeConfig(rootDir, userConfig);
   const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+  const hasRequirements = requiredArtifacts && typeof requiredArtifacts.has === 'function';
+  const needsAnnArtifacts = hasRequirements ? requiredArtifacts.has('ann') : true;
+  const needsFilterIndex = hasRequirements ? requiredArtifacts.has('filterIndex') : true;
+  const needsFileRelations = hasRequirements ? requiredArtifacts.has('fileRelations') : true;
+  const needsRepoMap = hasRequirements ? requiredArtifacts.has('repoMap') : true;
+  const needsGraphRelations = hasRequirements
+    ? requiredArtifacts.has('graphRelations')
+    : (contextExpansionEnabled || graphRankingEnabled);
 
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
@@ -123,16 +139,21 @@ export async function loadSearchIndexes({
     return resolveTantivyAvailability(mode, indexDir);
   };
 
-  const loadIndexCachedLocal = async (dir, includeHnsw = true, mode = null) => loadIndexCached({
+  const loadIndexCachedLocal = async (dir, options = {}, mode = null) => loadIndexCached({
     indexCache,
     dir,
     modelIdDefault,
     fileChargramN,
-    includeHnsw,
+    includeHnsw: options.includeHnsw !== false,
+    includeDense: options.includeDense !== false,
+    includeMinhash: options.includeMinhash !== false,
+    includeFilterIndex: options.includeFilterIndex !== false,
+    includeFileRelations: options.includeFileRelations !== false,
+    includeRepoMap: options.includeRepoMap !== false,
     hnswConfig,
     denseVectorMode: resolvedDenseVectorMode,
-    loadIndex: (targetDir, options) => loadIndex(targetDir, {
-      ...options,
+    loadIndex: (targetDir, loadOptions) => loadIndex(targetDir, {
+      ...loadOptions,
       strict,
       mode,
       denseVectorMode: resolvedDenseVectorMode
@@ -206,37 +227,48 @@ export async function loadSearchIndexes({
     }
   }
 
+  const loadOptions = {
+    includeDense: needsAnnArtifacts,
+    includeMinhash: needsAnnArtifacts,
+    includeFilterIndex: needsFilterIndex,
+    includeFileRelations: needsFileRelations,
+    includeRepoMap: needsRepoMap,
+    includeHnsw: annActive
+  };
   const idxProse = runProse
     ? (useSqlite ? loadIndexFromSqlite('prose', {
-      includeDense: annActive,
-      includeMinhash: annActive,
+      includeDense: needsAnnArtifacts,
+      includeMinhash: needsAnnArtifacts,
       includeChunks: sqliteContextChunks,
-      includeFilterIndex: filtersActive
+      includeFilterIndex: needsFilterIndex
     }) : (useLmdb ? loadIndexFromLmdb('prose', {
-      includeDense: annActive,
-      includeMinhash: annActive,
+      includeDense: needsAnnArtifacts,
+      includeMinhash: needsAnnArtifacts,
       includeChunks: true,
-      includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(proseDir, annActive, 'prose')))
+      includeFilterIndex: needsFilterIndex
+    }) : await loadIndexCachedLocal(proseDir, loadOptions, 'prose')))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedLoadExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse, 'extracted-prose')
+    ? await loadIndexCachedLocal(extractedProseDir, {
+      ...loadOptions,
+      includeHnsw: annActive && resolvedRunExtractedProse
+    }, 'extracted-prose')
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
-      includeDense: annActive,
-      includeMinhash: annActive,
+      includeDense: needsAnnArtifacts,
+      includeMinhash: needsAnnArtifacts,
       includeChunks: sqliteContextChunks,
-      includeFilterIndex: filtersActive
+      includeFilterIndex: needsFilterIndex
     }) : (useLmdb ? loadIndexFromLmdb('code', {
-      includeDense: annActive,
-      includeMinhash: annActive,
+      includeDense: needsAnnArtifacts,
+      includeMinhash: needsAnnArtifacts,
       includeChunks: true,
-      includeFilterIndex: filtersActive
-    }) : await loadIndexCachedLocal(codeDir, annActive, 'code')))
+      includeFilterIndex: needsFilterIndex
+    }) : await loadIndexCachedLocal(codeDir, loadOptions, 'code')))
     : { ...EMPTY_INDEX };
   const idxRecords = runRecords
-    ? await loadIndexCachedLocal(recordsDir, annActive, 'records')
+    ? await loadIndexCachedLocal(recordsDir, loadOptions, 'records')
     : { ...EMPTY_INDEX };
 
   if (!idxCode.state && indexStates?.code) idxCode.state = indexStates.code;
@@ -266,20 +298,20 @@ export async function loadSearchIndexes({
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
     idxCode.indexDir = codeIndexDir;
-    if ((useSqlite || useLmdb) && !idxCode.fileRelations) {
+    if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
       idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code');
     }
-    if ((useSqlite || useLmdb) && !idxCode.repoMap) {
+    if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
       idxCode.repoMap = loadRepoMap(rootDir, userConfig, 'code');
     }
   }
   if (runProse) {
     idxProse.denseVec = resolveDenseVector(idxProse, 'prose', resolvedDenseVectorMode);
     idxProse.indexDir = proseIndexDir;
-    if ((useSqlite || useLmdb) && !idxProse.fileRelations) {
+    if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
       idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose');
     }
-    if ((useSqlite || useLmdb) && !idxProse.repoMap) {
+    if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
       idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose');
     }
   }
@@ -290,10 +322,10 @@ export async function loadSearchIndexes({
       resolvedDenseVectorMode
     );
     idxExtractedProse.indexDir = extractedProseDir;
-    if (!idxExtractedProse.fileRelations) {
+    if (needsFileRelations && !idxExtractedProse.fileRelations) {
       idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose');
     }
-    if (!idxExtractedProse.repoMap) {
+    if (needsRepoMap && !idxExtractedProse.repoMap) {
       idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose');
     }
   }
@@ -366,7 +398,7 @@ export async function loadSearchIndexes({
   };
 
   const attachGraphRelations = async (idx, dir) => {
-    if (!idx || !dir || (!contextExpansionEnabled && !graphRankingEnabled)) return null;
+    if (!idx || !dir || !needsGraphRelations) return null;
     let manifest = null;
     try {
       manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
@@ -403,10 +435,27 @@ export async function loadSearchIndexes({
     }
   };
 
-  await attachGraphRelations(idxCode, codeIndexDir);
-  await attachLanceDb(idxCode, 'code', codeIndexDir);
-  await attachLanceDb(idxProse, 'prose', proseIndexDir);
-  await attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
+  const attachTasks = [];
+  if (needsGraphRelations) {
+    attachTasks.push(() => attachGraphRelations(idxCode, codeIndexDir));
+  }
+  if (needsAnnArtifacts) {
+    attachTasks.push(() => attachLanceDb(idxCode, 'code', codeIndexDir));
+    attachTasks.push(() => attachLanceDb(idxProse, 'prose', proseIndexDir));
+    attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
+  }
+  if (attachTasks.length) {
+    const limit = 2;
+    let cursor = 0;
+    const runTask = async () => {
+      while (cursor < attachTasks.length) {
+        const current = cursor;
+        cursor += 1;
+        await attachTasks[current]();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, attachTasks.length) }, runTask));
+  }
 
   const attachTantivy = (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;

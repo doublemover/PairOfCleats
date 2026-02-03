@@ -31,5 +31,6 @@ export function validateQueryPlan(plan) {
   if (!isPlainObject(plan.filters)) return false;
   if (typeof plan.filtersActive !== 'boolean') return false;
   if (!isPlainObject(plan.cacheFilters)) return false;
+  if (plan.requiredArtifacts && !(plan.requiredArtifacts instanceof Set)) return false;
   return true;
 }

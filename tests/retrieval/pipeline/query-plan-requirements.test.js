@@ -12,5 +12,6 @@ assert.ok(validateQueryPlan(plan), 'expected query plan to pass schema validatio
 assert.ok(Array.isArray(plan.queryTokens), 'expected query tokens array');
 assert.ok(plan.highlightRegex instanceof RegExp, 'expected highlight regex');
 assert.ok(plan.phraseNgramSet instanceof Set || plan.phraseNgramSet === null, 'expected phrase ngram set');
+assert.ok(plan.requiredArtifacts instanceof Set, 'expected requiredArtifacts set');
 
 console.log('query plan requirements test passed');
