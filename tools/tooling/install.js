@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-install',
@@ -63,7 +64,7 @@ for (const tool of tools) {
 if (argv['dry-run']) {
   const payload = { root, scope, allowFallback, actions, results };
   if (argv.json) {
-    console.log(JSON.stringify(payload, null, 2));
+    emitJson(payload);
   } else {
     console.error('[tooling-install] Dry run. Planned actions:');
     for (const action of actions) {
@@ -86,7 +87,7 @@ for (const action of actions) {
 
 const payload = { root, scope, allowFallback, actions, results };
 if (argv.json) {
-  console.log(JSON.stringify(payload, null, 2));
+  emitJson(payload);
 } else {
   const failed = results.filter((entry) => entry.status === 'failed');
   if (failed.length) {

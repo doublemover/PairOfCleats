@@ -8,7 +8,7 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { resolveRepoRootArg, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './queue.js';
-import { ensureRepo, resolveRepoPath } from './repos.js';
+import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from './indexer-service-helpers.js';
 
 const argv = createCli({
@@ -44,13 +44,7 @@ const resolvedQueueName = resolveQueueName(queueName, {
   mode: argv.mode || null
 });
 
-const resolveRepoEntry = (repoArg) => {
-  if (!repoArg) return null;
-  const resolved = path.resolve(repoArg);
-  return repoEntries.find((entry) => resolveRepoPath(entry, baseDir) === resolved)
-    || repoEntries.find((entry) => entry.id === repoArg)
-    || { id: repoArg, path: resolved, syncPolicy: 'none' };
-};
+const resolveRepoEntryForArg = (repoArg) => resolveRepoEntry(repoArg, repoEntries, baseDir);
 
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
@@ -269,7 +263,7 @@ const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = 
 };
 
 const handleSync = async () => {
-  const targets = argv.repo ? [resolveRepoEntry(argv.repo)].filter(Boolean) : repoEntries;
+  const targets = argv.repo ? [resolveRepoEntryForArg(argv.repo)].filter(Boolean) : repoEntries;
   if (!targets.length) {
     console.error('No repos configured for sync.');
     process.exit(1);
@@ -284,7 +278,7 @@ const handleSync = async () => {
 };
 
 const handleEnqueue = async () => {
-  const target = resolveRepoEntry(resolveRepoRootArg(argv.repo));
+  const target = resolveRepoEntryForArg(resolveRepoRootArg(argv.repo));
   if (!target) {
     console.error('Repo not found for enqueue.');
     process.exit(1);

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
 
 const argv = createCli({
@@ -40,7 +41,7 @@ const result = {
 if (existing && !forceRequested) {
   result.ok = false;
   if (argv.json) {
-    console.log(JSON.stringify(result, null, 2));
+    emitJson(result);
   } else {
     console.error(`[reset-config] Refusing to overwrite ${configPath} without --force.`);
   }
@@ -58,7 +59,7 @@ fs.writeFileSync(configPath, `${template}\n`, 'utf8');
 result.reset = true;
 
 if (argv.json) {
-  console.log(JSON.stringify(result, null, 2));
+  emitJson(result);
 } else {
   console.error(`[reset-config] Wrote default config to ${configPath}`);
   if (result.backupPath) {

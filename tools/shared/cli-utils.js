@@ -68,3 +68,12 @@ export function runCommandOrExit(label, cmd, args, options = {}) {
   }
   return result;
 }
+
+/**
+ * Emit JSON to stdout with a trailing newline.
+ * @param {unknown} payload
+ * @param {NodeJS.WritableStream} [stream]
+ */
+export function emitJson(payload, stream = process.stdout) {
+  stream.write(`${JSON.stringify(payload, null, 2)}\n`);
+}

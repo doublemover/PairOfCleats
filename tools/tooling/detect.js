@@ -3,6 +3,7 @@ import { createCli } from '../../src/shared/cli.js';
 import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './utils.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-detect',
@@ -23,7 +24,7 @@ const report = await buildToolingReport(root, languageOverride, {
 });
 
 if (argv.json) {
-  console.log(JSON.stringify(report, null, 2));
+  emitJson(report);
   process.exit(0);
 }
 

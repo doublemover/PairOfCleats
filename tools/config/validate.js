@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 import { validateConfig } from '../../src/config/validate.js';
 
 const argv = createCli({
@@ -28,7 +29,7 @@ if (!fs.existsSync(schemaPath)) {
 if (!fs.existsSync(configPath)) {
   const message = `Config file not found: ${configPath}`;
   if (argv.json) {
-    console.log(JSON.stringify({ ok: true, found: false, configPath, message }, null, 2));
+    emitJson({ ok: true, found: false, configPath, message });
   } else {
     console.error(message);
   }
@@ -41,7 +42,7 @@ try {
 } catch (err) {
   const message = `Failed to parse config: ${err?.message || err}`;
   if (argv.json) {
-    console.log(JSON.stringify({ ok: false, found: true, configPath, message }, null, 2));
+    emitJson({ ok: false, found: true, configPath, message });
   } else {
     console.error(message);
   }
@@ -51,7 +52,7 @@ try {
 if (!config || typeof config !== 'object' || Array.isArray(config)) {
   const message = 'Config root must be a JSON object.';
   if (argv.json) {
-    console.log(JSON.stringify({ ok: false, found: true, configPath, message }, null, 2));
+    emitJson({ ok: false, found: true, configPath, message });
   } else {
     console.error(message);
   }
@@ -61,7 +62,7 @@ if (!config || typeof config !== 'object' || Array.isArray(config)) {
 const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 const result = validateConfig(schema, config);
 if (argv.json) {
-  console.log(JSON.stringify({ ok: result.ok, found: true, configPath, errors: result.errors }, null, 2));
+  emitJson({ ok: result.ok, found: true, configPath, errors: result.errors });
 } else if (result.ok) {
   console.error(`Config OK: ${configPath}`);
 } else {
