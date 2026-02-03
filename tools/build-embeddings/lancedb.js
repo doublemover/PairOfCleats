@@ -7,7 +7,7 @@ import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-util
 import { dequantizeUint8ToFloat32 } from '../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../src/shared/lancedb.js';
 import { readJsonFile } from '../../src/shared/artifact-io.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { getLanceDbEnv, isTestingEnv } from '../../src/shared/env.js';
 import { runIsolatedNodeScriptSync } from '../../src/shared/subprocess.js';
 
 let warnedMissing = false;
@@ -35,10 +35,10 @@ const resolveVectorsFromFile = (vectorsPath) => {
   return null;
 };
 
-const shouldIsolateLanceDb = (config) => {
-  if (process.env[CHILD_ENV]) return false;
+const shouldIsolateLanceDb = (config, env) => {
+  if (env?.child) return false;
   if (config?.isolate === true) return true;
-  if (process.env.PAIROFCLEATS_LANCEDB_ISOLATE === '1') return true;
+  if (env?.isolate) return true;
   return isTestingEnv();
 };
 
@@ -120,13 +120,14 @@ export async function writeLanceDbIndex({
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
+  const lanceEnv = getLanceDbEnv();
   const resolvedVectors = Array.isArray(vectors) && vectors.length
     ? vectors
     : resolveVectorsFromFile(vectorsPath);
   if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
     return { skipped: true, reason: 'empty' };
   }
-  if (shouldIsolateLanceDb(resolvedConfig)) {
+  if (shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
     if (!vectorsPath) {
       return { skipped: true, reason: 'missing vectors path for isolate' };
     }
