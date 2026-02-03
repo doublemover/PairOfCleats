@@ -5,6 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { isAbsolutePath } from '../src/shared/files.js';
 import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -38,7 +39,7 @@ const toPosix = (value) => value.replace(/\\/g, '/');
 const normalizePath = (value) => {
   if (!value) return null;
   const raw = String(value);
-  const resolved = path.isAbsolute(raw) ? raw : path.resolve(repoRoot, raw);
+  const resolved = isAbsolutePath(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
   return toPosix(rel || raw);
 };

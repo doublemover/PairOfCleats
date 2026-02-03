@@ -10,6 +10,7 @@ import {
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
+import { toPosix } from '../../../src/shared/files.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'chunk-meta-jsonl-cleanup');
@@ -40,7 +41,7 @@ const runWriter = async (chunkMetaPlan) => {
   const enqueueJsonArray = (label, _payload, _options) => {
     throw new Error(`Unexpected enqueueJsonArray for chunk meta (${label})`);
   };
-  const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
+  const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const addPieceFile = (entry, filePath) => {
     pieceEntries.push({ ...entry, path: formatArtifactLabel(filePath) });
   };

@@ -1,13 +1,14 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { compileSafeRegex } from '../../src/shared/safe-regex.js';
+import { toPosix } from '../../src/shared/files.js';
 
 export const splitCsv = (values) => values
   .flatMap((value) => String(value).split(','))
   .map((value) => value.trim())
   .filter(Boolean);
 
-const normalizeSegments = (value) => value.split(path.sep).join('/');
+const normalizeSegments = (value) => toPosix(value);
 
 const hasExcludedSegment = (relPath, excludedDirs) => {
   const parts = relPath.split('/');

@@ -59,7 +59,7 @@ This note lists **additional** issues found when re-checking older phases (relat
 - **Phase 6 CI script interface mismatch**
   - Phase 6 task text repeatedly requires `npm run test:ci-lite` and `npm run test:ci-long`.
   - `package.json` **does not define** `test:ci-lite` or `test:ci-long` scripts.
-  - GitHub Actions CI runs `node tools/ci/run-suite.js --mode pr` (which internally runs `node tests/run.js --lane ci-lite`), so the behavior exists, but the roadmap’s **explicit npm script entrypoints are missing**.
+  - GitHub Actions CI runs `node tools/ci/run-suite.js --mode ci` (which internally runs `node tests/run.js --lane ci-lite`), so the behavior exists, but the roadmap’s **explicit npm script entrypoints are missing**.
 
 - **ci-long lane exists but is not wired to a stable command in CI**
   - The runner supports `--lane ci-long` and auto-adds tag `long`, but there is **no `npm run test:ci-long` alias** and nightly does **not** run a dedicated ci-long pass.

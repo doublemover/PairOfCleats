@@ -6,6 +6,7 @@ import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { checksumFile, sha1File } from '../src/shared/hash.js';
+import { fromPosix, isAbsolutePath, toPosix } from '../src/shared/files.js';
 
 const argv = createCli({
   scriptName: 'ci-restore',
@@ -77,8 +78,8 @@ const parseChecksum = (value) => {
 
 const isSafeManifestPath = (value) => {
   if (typeof value !== 'string' || !value) return false;
-  if (path.isAbsolute(value)) return false;
-  const normalized = value.split('\\').join('/');
+  if (isAbsolutePath(value)) return false;
+  const normalized = toPosix(value);
   if (normalized.startsWith('/')) return false;
   const segments = normalized.split('/');
   if (segments.some((segment) => segment === '..')) return false;
@@ -89,10 +90,10 @@ const resolveManifestPath = (indexDir, relPath) => {
   if (!isSafeManifestPath(relPath)) {
     throw new Error(`Unsafe manifest path for ${relPath}`);
   }
-  const resolved = path.resolve(indexDir, relPath.split('/').join(path.sep));
+  const resolved = path.resolve(indexDir, fromPosix(relPath));
   const root = path.resolve(indexDir);
   const relative = path.relative(root, resolved);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (relative.startsWith('..') || isAbsolutePath(relative)) {
     throw new Error(`Manifest path escapes index root: ${relPath}`);
   }
   return resolved;

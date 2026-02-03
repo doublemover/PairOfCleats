@@ -39,7 +39,7 @@ jobs:
 
       - name: CI Long
         run: |
-          node tools/ci/run-suite.js --mode pr --lane ci-long
+          node tools/ci/run-suite.js --mode ci --lane ci-long
 
       - name: Upload test artifacts
         if: always()

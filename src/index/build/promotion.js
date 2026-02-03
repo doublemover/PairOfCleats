@@ -6,6 +6,7 @@ import {
   getRepoCacheRoot,
   getToolVersion
 } from '../../shared/dict-utils.js';
+import { isAbsolutePath, toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
@@ -29,13 +30,13 @@ export async function promoteBuild({
   if (!resolvedBuildRoot.startsWith(resolvedCacheRoot + path.sep) && resolvedBuildRoot !== resolvedCacheRoot) {
     throw new Error(`buildRoot escapes repo cache root: ${buildRoot}`);
   }
-  const relativeRoot = path.relative(repoCacheRoot, buildRoot).split(path.sep).join('/');
+  const relativeRoot = toPosix(path.relative(repoCacheRoot, buildRoot));
   const normalizeRelativeRoot = (value) => {
     if (typeof value !== 'string' || !value.trim()) return null;
-    const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+    const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
     const normalized = path.resolve(resolved);
     if (!normalized.startsWith(resolvedCacheRoot + path.sep) && normalized !== resolvedCacheRoot) return null;
-    return path.relative(repoCacheRoot, normalized).split(path.sep).join('/');
+    return toPosix(path.relative(repoCacheRoot, normalized));
   };
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};

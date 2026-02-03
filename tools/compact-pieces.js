@@ -7,6 +7,7 @@ import { createCli } from '../src/shared/cli.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../src/shared/json-stream.js';
 import { checksumFile } from '../src/shared/hash.js';
 import { readJsonFile, readJsonLinesArray } from '../src/shared/artifact-io.js';
+import { fromPosix } from '../src/shared/files.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -189,7 +190,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   const flush = async () => {
     if (!buffer.length) return;
     const name = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-    const relPath = path.join('chunk_meta.parts', name).split(path.sep).join('/');
+    const relPath = path.posix.join('chunk_meta.parts', name);
     const outPath = path.join(tmpDir, name);
     let outBytes = 0;
     if (!dryRun) {
@@ -276,7 +277,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   const flush = async () => {
     if (!vocabBuffer.length) return;
     const name = `token_postings.part-${String(partIndex).padStart(5, '0')}.json`;
-    const relPath = path.join('token_postings.shards', name).split(path.sep).join('/');
+    const relPath = path.posix.join('token_postings.shards', name);
     const outPath = path.join(tmpDir, name);
     if (!dryRun) {
       await writeJsonObjectFile(outPath, {
@@ -359,7 +360,7 @@ const updateManifest = async (indexDir, updates) => {
   for (const update of updates) {
     for (let i = 0; i < update.parts.length; i++) {
       const relPath = update.parts[i];
-      const absPath = path.join(indexDir, relPath.split('/').join(path.sep));
+      const absPath = path.join(indexDir, fromPosix(relPath));
       const stat = await fs.stat(absPath);
       const result = await checksumFile(absPath);
       const checksum = result?.value || null;

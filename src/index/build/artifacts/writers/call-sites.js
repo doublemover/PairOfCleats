@@ -6,6 +6,7 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { sha1 } from '../../../../shared/hash.js';
+import { fromPosix } from '../../../../shared/files.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
@@ -263,7 +264,7 @@ export const enqueueCallSitesArtifacts = ({
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];
-        const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+        const absPath = path.join(outDir, fromPosix(relPath));
         addPieceFile({
           type: 'relations',
           name: 'call_sites',

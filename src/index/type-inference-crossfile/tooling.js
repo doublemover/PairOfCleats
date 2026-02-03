@@ -6,10 +6,11 @@ import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
+import { isAbsolutePath } from '../../shared/files.js';
 
 const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
-  const absDir = path.isAbsolute(logDir) ? logDir : path.join(rootDir, logDir);
+  const absDir = isAbsolutePath(logDir) ? logDir : path.join(rootDir, logDir);
   const logFile = path.join(absDir, `${provider}.log`);
   let ensured = false;
   const ensureDir = async () => {
@@ -167,7 +168,7 @@ export const runToolingPass = async ({
 
   const cacheDirRaw = toolingConfig?.cache?.dir;
   const cacheDir = cacheDirRaw
-    ? (path.isAbsolute(cacheDirRaw) ? cacheDirRaw : path.join(buildRoot || rootDir, cacheDirRaw))
+    ? (isAbsolutePath(cacheDirRaw) ? cacheDirRaw : path.join(buildRoot || rootDir, cacheDirRaw))
     : path.join(buildRoot || rootDir, 'tooling-cache');
 
   const ctx = {

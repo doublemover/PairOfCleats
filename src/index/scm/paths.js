@@ -1,10 +1,10 @@
 import path from 'node:path';
-import { toPosix } from '../../shared/files.js';
+import { isAbsolutePath, toPosix } from '../../shared/files.js';
 
 export const toRepoPosixPath = (filePath, repoRoot) => {
   if (!filePath) return null;
   const baseRoot = repoRoot ? path.resolve(repoRoot) : null;
-  const resolved = path.isAbsolute(filePath)
+  const resolved = isAbsolutePath(filePath)
     ? path.resolve(filePath)
     : (baseRoot ? path.resolve(baseRoot, filePath) : path.resolve(filePath));
   const rel = baseRoot ? path.relative(baseRoot, resolved) : resolved;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { isAbsolutePath } from '../src/shared/files.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRunConfig, loadRunRules } from './runner/run-config.js';
 import {
@@ -306,7 +307,7 @@ const main = async () => {
   if (hasLogTimesFlag || (logTimesArg !== null && logTimesArg !== undefined && logTimesArg !== false)) {
     const raw = typeof logTimesArg === 'string' ? logTimesArg.trim() : '';
     if (raw) {
-      logTimesPath = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+      logTimesPath = isAbsolutePath(raw) ? raw : path.resolve(ROOT, raw);
     } else {
       const laneLabel = resolveLaneLabel(requestedLanes);
       logTimesPath = path.join(ROOT, '.testLogs', `${laneLabel}-testRunTimes.txt`);

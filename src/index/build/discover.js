@@ -181,11 +181,9 @@ export async function discoverEntries({
   };
 
   const scmResult = await listScmFiles();
-  const useScm = scmResult
-    && Array.isArray(scmResult.files)
-    && scmResult.files.length > 0;
-  const candidates = useScm
-    ? scmResult.files.map((rel) => path.join(scmResult.repoRoot || root, rel))
+  const scmFiles = scmResult && Array.isArray(scmResult.files) ? scmResult.files : null;
+  const candidates = scmFiles && scmFiles.length > 0
+    ? scmFiles.map((rel) => path.join(scmResult.repoRoot || root, rel))
     : await listFdirFiles();
 
   const entries = [];

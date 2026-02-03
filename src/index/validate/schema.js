@@ -5,6 +5,7 @@ import {
   MANIFEST_ONLY_ARTIFACT_NAMES,
   validateArtifact
 } from '../../shared/artifact-schemas.js';
+import { fromPosix } from '../../shared/files.js';
 import { addIssue } from './issues.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 
@@ -41,7 +42,7 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
     } else {
       seenPaths.add(normalized);
     }
-    const resolved = path.resolve(dir, normalized.split('/').join(path.sep));
+    const resolved = path.resolve(dir, fromPosix(normalized));
     if (!resolved.startsWith(root + path.sep) && resolved !== root) {
       addIssue(report, mode, `manifest path escapes index root: ${relPath}`);
       continue;

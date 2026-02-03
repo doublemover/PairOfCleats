@@ -5,6 +5,7 @@ import {
   writeJsonLinesSharded,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
+import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 const MAX_ROW_BYTES = 32768;
@@ -204,7 +205,7 @@ export const enqueueSymbolsArtifacts = async ({
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];
-        const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+        const absPath = path.join(outDir, fromPosix(relPath));
         addPieceFile({
           type: 'symbols',
           name: 'symbols',

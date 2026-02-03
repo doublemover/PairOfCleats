@@ -10,6 +10,7 @@ import { normalizeProviderId } from './provider-contract.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
+import { isAbsolutePath } from '../../shared/files.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 
@@ -84,7 +85,7 @@ const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   const candidates = [];
   if (clangdConfig?.compileCommandsDir) {
     const value = clangdConfig.compileCommandsDir;
-    candidates.push(path.isAbsolute(value) ? value : path.join(rootDir, value));
+    candidates.push(isAbsolutePath(value) ? value : path.join(rootDir, value));
   } else {
     candidates.push(rootDir);
     candidates.push(path.join(rootDir, 'build'));
@@ -320,7 +321,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
 
       if (toolingConfig.typescript?.useTsconfig !== false && toolingConfig.typescript?.tsconfigPath) {
-        const tsconfigPath = path.isAbsolute(toolingConfig.typescript.tsconfigPath)
+        const tsconfigPath = isAbsolutePath(toolingConfig.typescript.tsconfigPath)
           ? toolingConfig.typescript.tsconfigPath
           : path.join(repoRoot, toolingConfig.typescript.tsconfigPath);
         if (!fsSync.existsSync(tsconfigPath)) {

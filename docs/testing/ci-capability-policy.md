@@ -2,13 +2,13 @@
 
 This policy defines how optional capabilities are treated in CI and nightly runs.
 
-## PR (run-suite --mode pr)
-- Required: core CI lane (`tests/run.js --lane ci`).
+## CI (run-suite --mode ci)
+- Required: core CI-lite lane (`tests/run.js --lane ci-lite`).
 - Optional capabilities (SQLite, LMDB, HNSW, LanceDB, Tantivy) should **skip with a reason** if unavailable.
-- Missing optional capabilities must not fail PRs.
+- Missing optional capabilities must not fail CI.
 
-## Nightly (run-suite --mode nightly)
-- Run broader lanes (including storage/perf where applicable).
+## Nightly (run-suite --mode ci --lane ci)
+- Required: core CI lane (`tests/run.js --lane ci`).
 - Optional capabilities are exercised when available; missing capabilities are logged as warnings.
 
 ## Reporting

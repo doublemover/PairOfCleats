@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
-import { toPosix } from '../../shared/files.js';
+import { isAbsolutePath, toPosix } from '../../shared/files.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -37,7 +37,7 @@ const normalizeRelPath = (value) => {
 
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) return null;
   return normalizeRelPath(toPosix(rel));
 };
 
@@ -114,8 +114,8 @@ const resolveTsConfigExtends = (baseDir, extendsValue) => {
   if (!extendsValue || typeof extendsValue !== 'string') return null;
   const raw = extendsValue.trim();
   if (!raw) return null;
-  if (path.isAbsolute(raw) || raw.startsWith('.')) {
-    const resolved = path.isAbsolute(raw) ? raw : path.resolve(baseDir, raw);
+  if (isAbsolutePath(raw) || raw.startsWith('.')) {
+    const resolved = isAbsolutePath(raw) ? raw : path.resolve(baseDir, raw);
     return resolved.endsWith('.json') ? resolved : `${resolved}.json`;
   }
   const requireFrom = createRequire(import.meta.url);

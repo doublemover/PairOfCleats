@@ -11,7 +11,7 @@ const gatePath = path.join(ROOT, 'tools', 'ci', 'capability-gate.js');
 const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cap-'));
 const jsonPath = path.join(tmpDir, 'capabilities.json');
 
-const result = spawnSync(process.execPath, [gatePath, '--mode', 'pr', '--json', jsonPath], {
+const result = spawnSync(process.execPath, [gatePath, '--mode', 'ci', '--json', jsonPath], {
   encoding: 'utf8'
 });
 

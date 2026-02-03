@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
+import { toPosix } from '../src/shared/files.js';
 import { splitId } from '../src/shared/tokenize.js';
 
 const argv = createCli({
@@ -76,7 +77,7 @@ async function listFiles() {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      const relPath = path.relative(repoRoot, fullPath).split(path.sep).join('/');
+      const relPath = toPosix(path.relative(repoRoot, fullPath));
       const ignoreKey = entry.isDirectory() ? `${relPath}/` : relPath;
       if (ignoreMatcher.ignores(ignoreKey)) continue;
       if (entry.isDirectory()) {
