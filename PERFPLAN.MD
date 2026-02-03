@@ -762,23 +762,23 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `tests/retrieval/pipeline/filter-bitmap-equivalence.test.js` (new)
 
 #### Tasks
-- [ ] Build bitmap representations for filter results and candidate sets.
-- [ ] Use bitmap intersection/union for fast allowlist computation.
-- [ ] Define a Set↔bitmap threshold (cardinality-based) and keep it configurable.
-- [ ] Ensure bitmap↔id mapping remains stable across index versions.
-- [ ] Compile and cache path/ext/pattern predicates in the query plan.
-- [ ] Add early exit when allowlist is empty or unchanged.
-- [ ] Keep `Set` fallback for small populations.
+- [x] Build bitmap representations for filter results and candidate sets.
+- [x] Use bitmap intersection/union for fast allowlist computation.
+- [x] Define a Set↔bitmap threshold (cardinality-based) and keep it configurable.
+- [x] Ensure bitmap↔id mapping remains stable across index versions.
+- [x] Compile and cache path/ext/pattern predicates in the query plan.
+- [x] Add early exit when allowlist is empty or unchanged.
+- [x] Keep `Set` fallback for small populations.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js`
-- [ ] `tests/retrieval/pipeline/filter-bitmap-equivalence.test.js`
-- [ ] `tests/retrieval/pipeline/filter-compiled-reuse.test.js` (new)
-- [ ] `tests/retrieval/pipeline/filter-bitmap-threshold.test.js` (new)
+- [x] `tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js`
+- [x] `tests/retrieval/pipeline/filter-bitmap-equivalence.test.js`
+- [x] `tests/retrieval/pipeline/filter-compiled-reuse.test.js` (new)
+- [x] `tests/retrieval/pipeline/filter-bitmap-threshold.test.js` (new)
 
 #### Acceptance
-- [ ] Filtered queries avoid large `Set` allocations.
-- [ ] Filter semantics remain identical.
+- [x] Filtered queries avoid large `Set` allocations.
+- [x] Filter semantics remain identical.
 
 ---
 
@@ -880,20 +880,20 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `src/retrieval/output/*`
 
 #### Tasks
-- [ ] Add lightweight persistent query-plan cache (optional disk cache) to avoid parse cost across runs.
-- [ ] Use typed arrays for score accumulation and reduce object churn.
-- [ ] Add small object pools for candidate structs and buffers to reduce GC churn.
-- [ ] Add ANN backend preflight to avoid slow failures and repeated retries.
-- [ ] Profile and cap expensive explain output work when not requested.
+- [x] Add lightweight persistent query-plan cache (optional disk cache) to avoid parse cost across runs.
+- [x] Use typed arrays for score accumulation and reduce object churn.
+- [x] Add small object pools for candidate structs and buffers to reduce GC churn.
+- [x] Add ANN backend preflight to avoid slow failures and repeated retries.
+- [x] Profile and cap expensive explain output work when not requested.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/query-plan-disk-cache.test.js` (new)
-- [ ] `tests/retrieval/pipeline/ann-preflight.test.js` (new)
-- [ ] `tests/retrieval/pipeline/query-plan-disk-cache-size-cap.test.js` (new)
-- [ ] `tests/retrieval/pipeline/object-pool-leak.test.js` (new)
+- [x] `tests/retrieval/pipeline/query-plan-disk-cache.test.js` (new)
+- [x] `tests/retrieval/pipeline/ann-preflight.test.js` (new)
+- [x] `tests/retrieval/pipeline/query-plan-disk-cache-size-cap.test.js` (new)
+- [x] `tests/retrieval/pipeline/object-pool-leak.test.js` (new)
 
 #### Acceptance
-- [ ] Additional performance improvements measurable in microbenchmarks.
+- [x] Additional performance improvements measurable in microbenchmarks.
 
 ---
 

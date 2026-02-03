@@ -1,5 +1,6 @@
 import { tryRequire } from '../../../shared/optional-deps.js';
 import { SPARSE_PROVIDER_IDS } from '../types.js';
+import { bitmapHas, getBitmapSize } from '../../bitmap.js';
 
 const normalizeHits = (rows) => {
   if (!Array.isArray(rows)) return [];
@@ -58,9 +59,9 @@ export function createTantivyProvider({ verbose = false, logger } = {}) {
       if (!handle) return { hits: [], type: 'tantivy' };
       const query = Array.isArray(queryTokens) ? queryTokens.join(' ') : '';
       if (!query) return { hits: [], type: 'tantivy' };
-      const candidateSet = allowedIds && allowedIds.size ? allowedIds : null;
+      const candidateSet = allowedIds && getBitmapSize(allowedIds) ? allowedIds : null;
       const overfetch = candidateSet
-        ? Math.min(candidateSet.size, Math.max(topN, Math.min(topN * 3, 2000)))
+        ? Math.min(getBitmapSize(candidateSet), Math.max(topN, Math.min(topN * 3, 2000)))
         : topN;
       let rows = [];
       try {
@@ -70,7 +71,7 @@ export function createTantivyProvider({ verbose = false, logger } = {}) {
       }
       let hits = normalizeHits(rows);
       if (candidateSet) {
-        hits = hits.filter((hit) => candidateSet.has(hit.idx));
+        hits = hits.filter((hit) => bitmapHas(candidateSet, hit.idx));
       }
       hits.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));
       if (hits.length > topN) hits = hits.slice(0, topN);

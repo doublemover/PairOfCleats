@@ -12,6 +12,7 @@ import {
   resolveIntentFieldWeights,
   resolveIntentVectorMode
 } from '../query-intent.js';
+import { compileFilterPredicates } from '../output/filters.js';
 
 export function buildQueryPlan({
   query,
@@ -135,6 +136,7 @@ export function buildQueryPlan({
     excludePhraseRange
   };
   const filtersActive = hasActiveFilters(filters);
+  const filterPredicates = compileFilterPredicates(filters, { fileChargramN });
 
   const cacheFilters = {
     type: searchType,
@@ -201,6 +203,7 @@ export function buildQueryPlan({
     filters,
     filtersActive,
     cacheFilters,
+    filterPredicates,
     requiredArtifacts: new Set()
   };
 }

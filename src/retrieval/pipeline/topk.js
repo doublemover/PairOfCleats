@@ -137,13 +137,24 @@ export const createTopKReducer = ({
     statsRef.usedSort = false;
   };
 
-  const makeEntry = (scoreValue, idValue, rankValue, payload, item) => ({
-    score: scoreValue,
-    id: idValue,
-    sourceRank: rankValue,
-    payload,
-    item
-  });
+  const fillEntry = (entry, scoreValue, idValue, rankValue, payload, item) => {
+    entry.score = scoreValue;
+    entry.id = idValue;
+    entry.sourceRank = rankValue;
+    entry.payload = payload;
+    entry.item = item;
+    return entry;
+  };
+  const makeEntry = (scoreValue, idValue, rankValue, payload, item) => (
+    fillEntry(
+      { score: 0, id: null, sourceRank: 0, payload: null, item: null },
+      scoreValue,
+      idValue,
+      rankValue,
+      payload,
+      item
+    )
+  );
 
   const shouldStopEarly = (scoreValue, idValue, rankValue) => {
     if (!sorted || heap.length < limit) return false;
@@ -177,7 +188,7 @@ export const createTopKReducer = ({
       updateStats();
       return false;
     }
-    heap[0] = makeEntry(normalized, idValue, rankVal, payload, item);
+    heap[0] = fillEntry(heap[0], normalized, idValue, rankVal, payload, item);
     heapBubbleDown(heap, 0);
     updateStats();
     return false;

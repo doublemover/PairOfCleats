@@ -40,17 +40,15 @@ import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
+import { compileFilterPredicates } from './output/filters.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
   buildQueryPlanIndexSignature,
-  createQueryPlanCache,
+  createQueryPlanDiskCache,
   createQueryPlanEntry
 } from './query-plan-cache.js';
 import { createRetrievalStageTracker } from './pipeline/stage-checkpoints.js';
-
-const defaultQueryPlanCache = createQueryPlanCache();
-
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
@@ -59,7 +57,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
-  const queryPlanCache = options.queryPlanCache ?? defaultQueryPlanCache;
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
@@ -106,6 +103,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
 
   configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
+  const queryPlanCachePath = path.join(
+    queryCacheDir || metricsDir,
+    'queryPlanCache.json'
+  );
+  const queryPlanCache = options.queryPlanCache
+    ?? createQueryPlanDiskCache({ path: queryPlanCachePath });
+  if (typeof queryPlanCache?.load === 'function') {
+    queryPlanCache.load();
+  }
 
   const { bail, throwIfAborted } = createRunnerHelpers({
     emitOutput,
@@ -535,6 +541,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       branchFilter
     });
+    if (!queryPlan.filterPredicates) {
+      queryPlan.filterPredicates = compileFilterPredicates(queryPlan.filters, { fileChargramN });
+    }
     stageTracker.record('parse', parseStart, { mode: 'all' });
     if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
       queryPlanCache.set(
@@ -683,6 +692,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       maxCandidates,
       filters: queryPlan.filters,
       filtersActive: queryPlan.filtersActive,
+      filterPredicates: queryPlan.filterPredicates,
       explain,
       scoreBlend: {
         enabled: scoreBlendEnabled,
@@ -815,6 +825,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       if (err) err.emitted = true;
     }
     throw err;
+  } finally {
+    if (typeof queryPlanCache?.persist === 'function') {
+      try {
+        await queryPlanCache.persist();
+      } catch {}
+    }
   }
 }
 

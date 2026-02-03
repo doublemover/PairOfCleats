@@ -1,18 +1,19 @@
 import { SimpleMinHash } from '../index/minhash.js';
 import { createTopKReducer } from './pipeline/topk.js';
+import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
  * @param {object} idx
  * @param {string[]} tokens
  * @param {number} topN
- * @param {Set<number>|null} [allowedIdx]
+ * @param {Set<number>|object|null} [allowedIdx]
  * @returns {Array<{idx:number,score:number}>}
  */
 export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
-  if (allowedIdx && allowedIdx.size === 0) return [];
+  if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
   const scores = new Map();
-  const ids = allowedIdx ? Array.from(allowedIdx) : idx.chunkMeta.map((_, i) => i);
+  const ids = allowedIdx ? bitmapToArray(allowedIdx) : idx.chunkMeta.map((_, i) => i);
   ids.forEach((i) => {
     const chunk = idx.chunkMeta[i];
     if (!chunk) return;
@@ -66,7 +67,7 @@ export function getTokenIndex(idx) {
  * @param {string[]} params.tokens
  * @param {number} params.topN
  * @param {object|null} [params.tokenIndexOverride]
- * @param {Set<number>|null} [params.allowedIdx]
+ * @param {Set<number>|object|null} [params.allowedIdx]
  * @param {number} [params.k1]
  * @param {number} [params.b]
  * @returns {Array<{idx:number,score:number}>}
@@ -84,7 +85,7 @@ export function rankBM25({
   if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) {
     return rankBM25Legacy(idx, tokens, topN, allowedIdx);
   }
-  if (allowedIdx && allowedIdx.size === 0) return [];
+  if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
   const scores = new Map();
   const docLengths = tokenIndex.docLengths;
@@ -103,7 +104,7 @@ export function rankBM25({
     const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
     for (const [docId, tf] of posting) {
-      if (allowedIdx && !allowedIdx.has(docId)) continue;
+      if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
       const dl = docLengths[docId] || 0;
       const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
       const score = idf * ((tf * (k1 + 1)) / denom) * qCount;
@@ -134,7 +135,7 @@ export function rankBM25({
  * @param {string[]} params.tokens
  * @param {number} params.topN
  * @param {object} params.fieldWeights
- * @param {Set<number>|null} [params.allowedIdx]
+ * @param {Set<number>|object|null} [params.allowedIdx]
  * @param {number} [params.k1]
  * @param {number} [params.b]
  * @returns {Array<{idx:number,score:number}>}
@@ -152,7 +153,7 @@ export function rankBM25Fields({
   if (!fields || !fieldWeights || !tokens.length) {
     return rankBM25({ idx, tokens, topN, k1, b, allowedIdx });
   }
-  if (allowedIdx && allowedIdx.size === 0) return [];
+  if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
   // NOTE:
   // The build pipeline may intentionally omit a dedicated "body" field postings map
@@ -198,7 +199,7 @@ export function rankBM25Fields({
       const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
       for (const [docId, tf] of posting) {
-        if (allowedIdx && !allowedIdx.has(docId)) continue;
+        if (allowedIdx && !bitmapHas(allowedIdx, docId)) continue;
         const dl = docLengths[docId] || 0;
         const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
         const score = idf * ((tf * (k1 + 1)) / denom) * qCount * fieldWeight;
@@ -246,7 +247,7 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   if (!idx.minhash?.signatures?.length) return [];
   if (!Array.isArray(tokens) || !tokens.length) return [];
   const qSig = minhashSigForTokens(tokens);
-  const ids = candidateSet ? Array.from(candidateSet) : idx.minhash.signatures.map((_, i) => i);
+  const ids = candidateSet ? bitmapToArray(candidateSet) : idx.minhash.signatures.map((_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
     buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
@@ -266,7 +267,7 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
  * @param {object} idx
  * @param {number[]} queryEmbedding
  * @param {number} topN
- * @param {Set<number>|null} candidateSet
+ * @param {Set<number>|object|null} candidateSet
  * @returns {Array<{idx:number,sim:number}>}
  */
 export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
@@ -298,7 +299,7 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const scale = Number.isFinite(idx.denseVec?.scale)
     ? idx.denseVec.scale
     : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
-  const ids = candidateSet ? Array.from(candidateSet) : vectors.map((_, i) => i);
+  const ids = candidateSet ? bitmapToArray(candidateSet) : vectors.map((_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
     buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })

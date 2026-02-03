@@ -1,4 +1,5 @@
-import { filterChunks } from './output.js';
+import { filterChunkIds } from './output.js';
+import { bitmapHas, bitmapToSet, getBitmapSize } from './bitmap.js';
 import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankBM25Fields, rankMinhash } from './rankers.js';
 import { createJsBm25Provider } from './sparse/providers/js-bm25.js';
@@ -51,6 +52,7 @@ export function createSearchPipeline(context) {
     symbolBoost,
     filters,
     filtersActive,
+    filterPredicates,
     topN,
     maxCandidates,
     annEnabled,
@@ -206,6 +208,18 @@ export function createSearchPipeline(context) {
       'Rebuild embeddings or enable a compatible ANN backend to restore vector search.'
     );
   };
+  const markProviderDisabled = (provider, mode, reason) => {
+    if (!provider) return;
+    if (!provider._disabledModes) provider._disabledModes = new Set();
+    if (provider._disabledModes.has(mode)) return;
+    provider._disabledModes.add(mode);
+    if (reason && !provider._disabledReason) {
+      provider._disabledReason = reason;
+    }
+  };
+  const isProviderDisabled = (provider, mode) => (
+    Boolean(provider?._disabledModes && provider._disabledModes.has(mode))
+  );
 
   /**
    * Execute the full search pipeline for a mode.
@@ -241,6 +255,13 @@ export function createSearchPipeline(context) {
       return stageTracker?.span ? stageTracker.span(stage, info, handler) : handler();
     };
 
+    const getAllowedSize = (value) => (value ? getBitmapSize(value) : 0);
+    const hasAllowedId = (value, id) => bitmapHas(value, id);
+    const ensureAllowedSet = (value) => {
+      if (!value) return null;
+      return value instanceof Set ? value : bitmapToSet(value);
+    };
+
     const poolSnapshot = () => ({
       candidate: { ...candidatePool?.stats },
       score: { ...scoreBufferPool?.stats }
@@ -259,37 +280,42 @@ export function createSearchPipeline(context) {
       // Filtering
       const filterMetrics = {};
       const filterResult = runStage('filter', filterMetrics, () => {
-        const filtered = filtersEnabled
-          ? filterChunks(meta, filters, idx.filterIndex, idx.fileRelations)
-          : meta;
-        let allowed = null;
-        if (filtersEnabled) {
-          allowed = candidatePool.acquire();
-          for (const chunk of filtered) {
-            if (chunk && Number.isFinite(chunk.id)) allowed.add(chunk.id);
-          }
-          trackReleaseSet(allowed);
+        if (!filtersEnabled) {
+          filterMetrics.counts = {
+            filtered: Array.isArray(meta) ? meta.length : 0,
+            allowed: null
+          };
+          return { allowed: null };
         }
+        const allowed = filterChunkIds(meta, filters, idx.filterIndex, idx.fileRelations, {
+          compiled: filterPredicates,
+          preferBitmap: true
+        });
+        const allowedCount = allowed ? getAllowedSize(allowed) : null;
+        const filteredCount = allowed == null ? (Array.isArray(meta) ? meta.length : 0) : allowedCount;
         filterMetrics.counts = {
-          filtered: Array.isArray(filtered) ? filtered.length : 0,
-          allowed: allowed ? allowed.size : null
+          filtered: filteredCount ?? 0,
+          allowed: allowed ? allowedCount : null,
+          bitmap: allowed ? !(allowed instanceof Set) : false
         };
-        return { filtered, allowed };
+        return { allowed };
       });
       throwIfAborted();
       const allowedIdx = filterResult.allowed;
-      if (filtersEnabled && (!allowedIdx || allowedIdx.size === 0)) {
+      const allowedCount = allowedIdx ? getAllowedSize(allowedIdx) : 0;
+      if (filtersEnabled && allowedIdx && allowedCount === 0) {
         return [];
       }
       throwIfAborted();
 
       const intersectCandidateSet = (candidateSet, allowedSet) => {
         if (!allowedSet) return { set: candidateSet, owned: false };
-        if (!candidateSet) return { set: allowedSet, owned: false };
-        if (candidateSet === allowedSet) return { set: candidateSet, owned: false };
+        const resolvedAllowed = allowedSet instanceof Set ? allowedSet : bitmapToSet(allowedSet);
+        if (!candidateSet) return { set: resolvedAllowed, owned: !(allowedSet instanceof Set) };
+        if (candidateSet === resolvedAllowed) return { set: candidateSet, owned: false };
         const filtered = candidatePool.acquire();
         for (const id of candidateSet) {
-          if (allowedSet.has(id)) filtered.add(id);
+          if (hasAllowedId(allowedSet, id)) filtered.add(id);
         }
         return { set: filtered, owned: true };
       };
@@ -301,7 +327,9 @@ export function createSearchPipeline(context) {
         let bmHits = [];
         let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
         let sqliteFtsUsed = false;
-        const sqliteFtsAllowed = allowedIdx && allowedIdx.size ? allowedIdx : null;
+        const sqliteFtsAllowed = allowedIdx && allowedCount
+          ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
+          : null;
         const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
         const sqliteFtsEligible = sqliteEnabledForMode
         && sqliteFtsRequested
@@ -365,7 +393,7 @@ export function createSearchPipeline(context) {
           sqliteFtsUsed = false;
         }
         candidateMetrics.counts = {
-          allowed: allowedIdx ? allowedIdx.size : null,
+          allowed: allowedIdx ? allowedCount : null,
           candidates: candidates ? candidates.size : null,
           bmHits: bmHits.length
         };
@@ -416,6 +444,30 @@ export function createSearchPipeline(context) {
             .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
         };
 
+        const ensureProviderPreflight = async (provider) => {
+          if (!provider || typeof provider.preflight !== 'function') return true;
+          if (!provider._preflight) provider._preflight = new Map();
+          if (provider._preflight.has(mode)) {
+            return provider._preflight.get(mode);
+          }
+          try {
+            const result = await provider.preflight({
+              idx,
+              mode,
+              embedding: queryEmbedding,
+              signal
+            });
+            const ok = result !== false;
+            provider._preflight.set(mode, ok);
+            if (!ok) markProviderDisabled(provider, mode, 'preflight failed');
+            return ok;
+          } catch (err) {
+            provider._preflight.set(mode, false);
+            markProviderDisabled(provider, mode, err?.message || 'preflight failed');
+            return false;
+          }
+        };
+
         const runAnnQuery = async (provider, candidateSet) => {
           if (!provider || typeof provider.query !== 'function') return [];
           try {
@@ -428,7 +480,8 @@ export function createSearchPipeline(context) {
               signal
             });
             return normalizeAnnHits(hits);
-          } catch {
+          } catch (err) {
+            markProviderDisabled(provider, mode, err?.message || 'query failed');
             return [];
           }
         };
@@ -447,7 +500,10 @@ export function createSearchPipeline(context) {
           for (const backend of annOrder) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
+            if (isProviderDisabled(provider, mode)) continue;
             if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) continue;
+            const preflightOk = await ensureProviderPreflight(provider);
+            if (!preflightOk) continue;
             providerAvailable = true;
             annHits = await runAnnQuery(provider, annCandidates);
             if (!annHits.length && annFallback) {
@@ -506,6 +562,7 @@ export function createSearchPipeline(context) {
           'sparseType',
           'blendInfo'
         ],
+        numericFields: ['idx', 'score'],
         capacity: Math.max(bmHits.length + annHits.length, searchTopN + topkSlack)
       });
       trackReleaseBuffer(fusionBuffer);
@@ -550,7 +607,7 @@ export function createSearchPipeline(context) {
         });
         const processEntry = (entry, sourceRank) => {
           if (!entry) return;
-          if (allowedIdx && !allowedIdx.has(entry.idx)) return;
+          if (allowedIdx && !hasAllowedId(allowedIdx, entry.idx)) return;
           abortIfNeeded();
           const idxVal = entry.idx;
           const sparseScore = entry.sparseScore;
