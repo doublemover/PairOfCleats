@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { normalizeCap } from '../../shared/limits.js';
 import { compareStrings } from '../../shared/sort.js';
 import { resolveChunkId } from '../chunk-id.js';
 import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relative-import.js';
@@ -6,12 +7,6 @@ import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relat
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
-
-const normalizeCap = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
-};
 
 const resolveCaps = (caps) => ({
   maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),

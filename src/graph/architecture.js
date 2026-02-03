@@ -1,28 +1,9 @@
-import path from 'node:path';
 import picomatch from 'picomatch';
-import { isAbsolutePathNative, toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
-
-const normalizeCap = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const normalizePath = (value, repoRoot) => {
-  if (!value) return null;
-  const raw = String(value);
-  let normalized = raw;
-  if (repoRoot && isAbsolutePathNative(raw)) {
-    const rel = path.relative(repoRoot, raw);
-    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
-      normalized = rel;
-    }
-  }
-  normalized = toPosix(normalized);
-  if (normalized.startsWith('./')) normalized = normalized.slice(2);
-  return normalized;
-};
+import { normalizeCap } from '../shared/limits.js';
+import { normalizePathForRepo } from '../shared/path-normalize.js';
+import { resolveProvenance } from '../shared/provenance.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
 
 const buildMatcherSet = (patterns) => patterns.map((pattern) => picomatch(pattern, { dot: true }));
 
@@ -46,39 +27,6 @@ const compilePathSelector = (selector) => {
       return true;
     }
   };
-};
-
-const resolveProvenance = ({
-  provenance,
-  indexSignature,
-  indexCompatKey,
-  capsUsed,
-  repo,
-  indexDir,
-  now
-}) => {
-  const timestamp = typeof now === 'function' ? now() : new Date().toISOString();
-  if (provenance && typeof provenance === 'object') {
-    const merged = { ...provenance };
-    if (!merged.generatedAt) merged.generatedAt = timestamp;
-    if (!merged.capsUsed) merged.capsUsed = capsUsed || {};
-    if (!merged.indexSignature && !merged.indexCompatKey) {
-      throw new Error('Provenance must include indexSignature or indexCompatKey.');
-    }
-    return merged;
-  }
-  if (!indexSignature && !indexCompatKey) {
-    throw new Error('Architecture report requires indexSignature or indexCompatKey.');
-  }
-  const base = {
-    generatedAt: timestamp,
-    capsUsed: capsUsed || {}
-  };
-  if (indexSignature) base.indexSignature = indexSignature;
-  if (indexCompatKey) base.indexCompatKey = indexCompatKey;
-  if (repo) base.repo = repo;
-  if (indexDir) base.indexDir = indexDir;
-  return base;
 };
 
 const normalizeRulesInput = (rules) => {
@@ -154,7 +102,7 @@ const buildOrderedNodes = (nodeIndex) => {
 
 const resolveNodeRef = (graphType, node, fallbackId, repoRoot) => {
   if (graphType === 'import') {
-    const pathValue = normalizePath(node?.file || fallbackId, repoRoot);
+    const pathValue = normalizePathForRepo(node?.file || fallbackId, repoRoot);
     if (!pathValue) return null;
     return { type: 'file', path: pathValue };
   }
@@ -165,7 +113,7 @@ const resolveNodeRef = (graphType, node, fallbackId, repoRoot) => {
 
 const resolveNodePath = (node, fallbackId, repoRoot) => {
   const raw = node?.file || fallbackId || null;
-  return normalizePath(raw, repoRoot);
+  return normalizePathForRepo(raw, repoRoot);
 };
 
 export const parseArchitectureRules = (payload) => {
@@ -195,17 +143,8 @@ export const buildArchitectureReport = ({
   now = () => new Date().toISOString()
 } = {}) => {
   const warnings = [];
-  const truncation = [];
-  const truncationSeen = new Set();
-  const recordTruncation = (cap, detail) => {
-    if (truncationSeen.has(cap)) return;
-    truncationSeen.add(cap);
-    truncation.push({
-      scope: 'architecture',
-      cap,
-      ...detail
-    });
-  };
+  const truncation = createTruncationRecorder({ scope: 'architecture' });
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const maxViolations = normalizeCap(caps.maxViolations);
   const maxEdgesExamined = normalizeCap(caps.maxEdgesExamined);
@@ -223,7 +162,8 @@ export const buildArchitectureReport = ({
     capsUsed,
     repo,
     indexDir,
-    now
+    now,
+    label: 'Architecture report'
   });
 
   const normalizedRules = normalizeRulesInput(rules);
@@ -250,7 +190,7 @@ export const buildArchitectureReport = ({
       provenance: resolvedProvenance,
       rules: summaries,
       violations,
-      truncation: truncation.length ? truncation : null,
+      truncation: truncation.list.length ? truncation.list : null,
       warnings: warnings.length ? warnings : null
     };
   }
@@ -404,7 +344,7 @@ export const buildArchitectureReport = ({
     provenance: resolvedProvenance,
     rules: summaries,
     violations,
-    truncation: truncation.length ? truncation : null,
+    truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };
 };

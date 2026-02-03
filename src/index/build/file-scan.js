@@ -3,15 +3,12 @@ import path from 'node:path';
 import { fileTypeFromBuffer } from 'file-type';
 import * as istextorbinary from 'istextorbinary';
 import { CSS_EXTS, HTML_EXTS, JS_EXTS } from '../constants.js';
+import { normalizePositiveNumber } from '../../shared/limits.js';
 
 const MINIFIED_NAME_REGEX = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
 
-const normalizeLimit = (value, fallback) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return fallback;
-};
+const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
 
 export const isMinifiedName = (baseName) => {
   if (!baseName) return false;

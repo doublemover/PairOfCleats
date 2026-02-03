@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { compileSafeRegex } from '../../../shared/safe-regex.js';
-import { toPosix } from '../../../shared/files.js';
+import { normalizeFilePath } from '../../../shared/path-normalize.js';
 import { defaultNormalize, normalizeList } from './predicates.js';
-const normalizeFilePath = (value) => toPosix(String(value || ''));
 
 const parseFileMatcher = ({ entry, normalizeFile, regexConfig }) => {
   const raw = String(entry || '').trim();

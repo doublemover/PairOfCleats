@@ -1,9 +1,8 @@
-export const normalizeLimit = (value, fallback) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
+import { normalizeCapNullOnZero } from '../../shared/limits.js';
+
+export const normalizeLimit = (value, fallback) => (
+  normalizeCapNullOnZero(value, fallback)
+);
 
 export const pickMinLimit = (...values) => {
   const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
@@ -25,12 +24,9 @@ export const normalizeRatio = (value, fallback) => {
   return Math.min(1, Math.max(0, parsed));
 };
 
-const normalizeCapValue = (value) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return null;
-};
+const normalizeCapValue = (value) => (
+  normalizeCapNullOnZero(value, null)
+);
 
 export const normalizeCapEntry = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};

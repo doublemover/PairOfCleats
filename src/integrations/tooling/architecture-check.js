@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { readJsoncFile } from '../../shared/jsonc.js';
 import { buildArchitectureReport, parseArchitectureRules } from '../../graph/architecture.js';
 import { renderArchitectureReport } from '../../retrieval/output/architecture.js';
@@ -18,12 +19,6 @@ import {
 } from '../../shared/artifact-io.js';
 import { createGraphStore } from '../../graph/store.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
-
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
-};
 
 const resolveFormat = (argv) => {
   const raw = argv.format || (argv.json ? 'json' : 'json');

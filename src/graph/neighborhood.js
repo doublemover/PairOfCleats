@@ -1,4 +1,6 @@
+import { normalizeCap, normalizeDepth } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphEdges, compareGraphNodes, compareWitnessPaths, edgeKey, nodeKey } from './ordering.js';
 import { createWorkBudget } from './work-budget.js';
 
@@ -12,18 +14,6 @@ const GRAPH_NODE_TYPES = {
   callGraph: 'chunk',
   usageGraph: 'chunk',
   importGraph: 'file'
-};
-
-const normalizeCap = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const normalizeDepth = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
 };
 
 const normalizeCaps = (caps) => ({
@@ -237,17 +227,8 @@ export const buildGraphNeighborhood = ({
   workBudget = null
 } = {}) => {
   const warnings = [];
-  const truncation = [];
-  const truncationSeen = new Set();
-  const recordTruncation = (cap, detail) => {
-    if (truncationSeen.has(cap)) return;
-    truncationSeen.add(cap);
-    truncation.push({
-      scope: 'graph',
-      cap,
-      ...detail
-    });
-  };
+  const truncation = createTruncationRecorder({ scope: 'graph' });
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const normalizedCaps = normalizeCaps(caps);
   const requestedDepth = normalizeDepth(depth, 1);
@@ -303,7 +284,7 @@ export const buildGraphNeighborhood = ({
       nodes: [],
       edges: [],
       paths: includePaths ? [] : null,
-      truncation: truncation.length ? truncation : null,
+      truncation: truncation.list.length ? truncation.list : null,
       warnings,
       stats: {
         artifactsUsed: {
@@ -625,7 +606,7 @@ export const buildGraphNeighborhood = ({
     nodes,
     edges,
     paths: includePaths ? paths : null,
-    truncation: truncation.length ? truncation : null,
+    truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null,
     stats: {
       artifactsUsed: {

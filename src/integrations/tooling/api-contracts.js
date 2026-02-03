@@ -2,6 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { resolveProvenance } from '../../shared/provenance.js';
 import { validateApiContracts } from '../../contracts/validators/analysis.js';
 import {
   MAX_JSON_BYTES,
@@ -16,12 +18,6 @@ import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
 
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
-};
-
 const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
   const caps = {};
   if (Number.isFinite(maxSymbols)) caps.maxSymbols = maxSymbols;
@@ -30,38 +26,6 @@ const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
   return caps;
 };
 
-const resolveProvenance = ({
-  provenance,
-  indexSignature,
-  indexCompatKey,
-  capsUsed,
-  repo,
-  indexDir,
-  now
-}) => {
-  const timestamp = typeof now === 'function' ? now() : new Date().toISOString();
-  if (provenance && typeof provenance === 'object') {
-    const merged = { ...provenance };
-    if (!merged.generatedAt) merged.generatedAt = timestamp;
-    if (!merged.capsUsed) merged.capsUsed = capsUsed || {};
-    if (!merged.indexSignature && !merged.indexCompatKey) {
-      throw new Error('Provenance must include indexSignature or indexCompatKey.');
-    }
-    return merged;
-  }
-  if (!indexSignature && !indexCompatKey) {
-    throw new Error('ApiContracts requires indexSignature or indexCompatKey.');
-  }
-  const base = {
-    generatedAt: timestamp,
-    capsUsed: capsUsed || {}
-  };
-  if (indexSignature) base.indexSignature = indexSignature;
-  if (indexCompatKey) base.indexCompatKey = indexCompatKey;
-  if (repo) base.repo = repo;
-  if (indexDir) base.indexDir = indexDir;
-  return base;
-};
 
 const isExportedSymbol = (symbol) => {
   const kind = String(symbol.kind || '').toLowerCase();
@@ -451,7 +415,8 @@ export const buildApiContractsReport = ({
       capsUsed: { apiContracts: capsPayload },
       repo,
       indexDir,
-      now
+      now,
+      label: 'ApiContracts'
     }),
     options: {
       onlyExports,

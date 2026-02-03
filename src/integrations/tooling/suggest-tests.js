@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/files.js';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
 import { renderSuggestTestsReport } from '../../retrieval/output/suggest-tests.js';
 import { validateSuggestTests } from '../../contracts/validators/analysis.js';
@@ -28,12 +30,6 @@ const parseList = (value) => {
     .filter(Boolean);
 };
 
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
-};
-
 const resolveFormat = (argv) => {
   const formatRaw = argv.format || (argv.json ? 'json' : 'json');
   const format = String(formatRaw).trim().toLowerCase();
@@ -41,14 +37,9 @@ const resolveFormat = (argv) => {
   return 'json';
 };
 
-const resolveRepoRelativePath = (raw, repoRoot) => {
-  const value = String(raw || '').trim();
-  if (!value) return null;
-  const abs = isAbsolutePathNative(value) ? value : path.resolve(repoRoot, value);
-  const rel = path.relative(repoRoot, abs);
-  if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
-  return toPosix(rel);
-};
+const resolveRepoRelativePath = (raw, repoRoot) => (
+  normalizeRepoRelativePath(raw, repoRoot)
+);
 
 const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
   const entries = [];

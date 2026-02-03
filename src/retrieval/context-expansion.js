@@ -1,6 +1,8 @@
 import { compareGraphEdges } from '../graph/ordering.js';
 import { createWorkBudget } from '../graph/work-budget.js';
+import { normalizeLimit, normalizeOptionalLimit } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
 
 const DEFAULT_MAX_PER_HIT = 4;
 const DEFAULT_MAX_TOTAL = 40;
@@ -8,18 +10,6 @@ const DEFAULT_MAX_REASONS = 3;
 
 const REASON_PRIORITY_ORDER = ['call', 'usage', 'export', 'import', 'nameFallback'];
 const REASON_PRIORITY = new Map(REASON_PRIORITY_ORDER.map((reason, index) => [reason, index]));
-
-const normalizeLimit = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const normalizeOptionalLimit = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
 
 const resolvePriority = (reasonType) => (
   REASON_PRIORITY.has(reasonType) ? REASON_PRIORITY.get(reasonType) : REASON_PRIORITY_ORDER.length + 1
@@ -252,17 +242,8 @@ export function expandContext({
   const primaryIds = new Set(hits.map((hit) => hit?.id).filter((id) => id != null));
   const contextHits = [];
   const candidateMap = new Map();
-  const truncation = [];
-  const truncationSeen = new Set();
-  const recordTruncation = (cap, detail) => {
-    if (truncationSeen.has(cap)) return;
-    truncationSeen.add(cap);
-    truncation.push({
-      scope: 'graph',
-      cap,
-      ...detail
-    });
-  };
+  const truncation = createTruncationRecorder({ scope: 'graph' });
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const workBudget = createWorkBudget({
     maxWorkUnits: caps.maxWorkUnits,
@@ -637,7 +618,7 @@ export function expandContext({
     stats: {
       added: contextHits.length,
       workUnitsUsed: workBudget.getUsed(),
-      truncation: truncation.length ? truncation : null
+      truncation: truncation.list.length ? truncation.list : null
     }
   };
 }

@@ -1,5 +1,5 @@
 import { tri } from '../shared/tokenize.js';
-import { toPosix } from '../shared/files.js';
+import { normalizeFilePath } from '../shared/path-normalize.js';
 import { buildBitmapIndex } from './bitmap.js';
 
 /**
@@ -42,7 +42,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     }
   };
 
-  const normalizeFilePath = (value) => toPosix(String(value || '')).toLowerCase();
+  const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });
   const addFileChargrams = (fileId, fileValue) => {
     const grams = new Set(tri(fileValue, fileChargramN));
     for (const gram of grams) {
@@ -56,7 +56,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
   };
   const addFile = (fileValue, chunkId) => {
     if (!fileValue) return;
-    const normalized = normalizeFilePath(fileValue);
+    const normalized = normalizeFilePathKey(fileValue);
     let fileId = index.fileIdByPath.get(normalized);
     if (fileId == null) {
       fileId = index.fileById.length;

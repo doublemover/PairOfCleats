@@ -16,10 +16,7 @@ import {
 } from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
-
-const normalizeOptionalNumber = (value) => (
-  Number.isFinite(Number(value)) ? Number(value) : null
-);
+import { normalizeOptionalNumber } from '../../shared/limits.js';
 
 const normalizeAnnBackend = (value) => {
   if (typeof value !== 'string') return null;

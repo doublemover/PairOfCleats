@@ -1,4 +1,5 @@
 import { sha1 } from '../../shared/hash.js';
+import { normalizeLimit } from '../../shared/limits.js';
 
 const CONFIG_EXTS = new Set([
   '.json',
@@ -156,12 +157,6 @@ export const normalizeFenceLanguage = (raw) => {
   const normalized = String(raw).trim().split(/\s+/)[0]?.toLowerCase();
   if (!normalized) return null;
   return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized;
-};
-
-const normalizeLimit = (value, fallback) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(0, Math.floor(num));
 };
 
 export function normalizeSegmentsConfig(input = {}) {
