@@ -1,7 +1,12 @@
 import fsSync from 'node:fs';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
-import { normalizeFilePath, removeSqliteSidecars } from '../utils.js';
+import {
+  normalizeFilePath,
+  removeSqliteSidecars,
+  resolveSqliteBatchSize,
+  bumpSqliteBatchStat
+} from '../utils.js';
 import {
   dequantizeUint8ToFloat32,
   isVectorEncodingCompatible,
@@ -34,6 +39,9 @@ import { createBundleLoader } from './bundle-loader.js';
  * @param {object} params.modelConfig
  * @param {string} [params.workerPath]
  * @param {object} [params.logger]
+ * @param {number} [params.inputBytes]
+ * @param {number} [params.batchSize]
+ * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
 export async function buildDatabaseFromBundles({
@@ -48,7 +56,10 @@ export async function buildDatabaseFromBundles({
   vectorConfig,
   modelConfig,
   workerPath,
-  logger
+  logger,
+  inputBytes,
+  batchSize,
+  stats
 }) {
   const log = (message) => {
     if (!emitOutput || !message) return;
@@ -73,6 +84,9 @@ export async function buildDatabaseFromBundles({
   if (!incrementalData?.manifest) {
     return { count: 0, denseCount: 0, reason: 'missing incremental manifest' };
   }
+  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const batchStats = stats && typeof stats === 'object' ? stats : null;
+  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   const manifestEntries = manifestLookup.entries;
@@ -187,15 +201,10 @@ export async function buildDatabaseFromBundles({
 
     let denseFloatChunks = 0;
     let denseU8Chunks = 0;
-    const insertBundle = db.transaction((bundle, fileKey) => {
-      const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : null;
-      if (!chunks) {
-        warn(`[sqlite] Bundle missing chunks for ${fileKey}; skipping.`);
-        return;
-      }
-      const normalizedFile = normalizeFilePath(fileKey);
-      let chunkCount = 0;
-      for (const chunk of chunks) {
+    const insertBundleBatch = db.transaction((chunks, start, end, fileKey, normalizedFile) => {
+      for (let idx = start; idx < end; idx += 1) {
+        const chunk = chunks[idx];
+        if (!chunk) continue;
         const docId = nextDocId;
         nextDocId += 1;
 
@@ -329,17 +338,31 @@ export async function buildDatabaseFromBundles({
             }
           }
         }
+      }
+    });
 
-        chunkCount += 1;
+    const insertBundle = (bundle, fileKey) => {
+      const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : null;
+      if (!chunks) {
+        warn(`[sqlite] Bundle missing chunks for ${fileKey}; skipping.`);
+        return;
+      }
+      const normalizedFile = normalizeFilePath(fileKey);
+      let chunkCount = 0;
+      for (let start = 0; start < chunks.length; start += resolvedBatchSize) {
+        const end = Math.min(start + resolvedBatchSize, chunks.length);
+        insertBundleBatch(chunks, start, end, fileKey, normalizedFile);
+        chunkCount += end - start;
+        recordBatch('bundleChunkBatches');
       }
 
       fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + chunkCount);
-    });
+    };
 
     let count = 0;
     let bundleFailure = null;
     const maxInFlightBundles = useBundleWorkers
-      ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads * 2), 64))
+      ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
       : 1;
     const batchSize = maxInFlightBundles;
     try {

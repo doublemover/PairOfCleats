@@ -23,6 +23,38 @@ export function chunkArray(items, size = 900) {
   return chunks;
 }
 
+const SQLITE_BATCH_MIN = 50;
+const BYTES_PER_MB = 1024 * 1024;
+
+/**
+ * Resolve a batch size for sqlite inserts based on input size.
+ * @param {{batchSize?:number|null,inputBytes?:number|null}} [options]
+ * @returns {number}
+ */
+export function resolveSqliteBatchSize(options = {}) {
+  const requested = Number(options.batchSize);
+  if (Number.isFinite(requested) && requested > 0) {
+    return Math.max(SQLITE_BATCH_MIN, Math.floor(requested));
+  }
+  const inputBytes = Number(options.inputBytes);
+  if (Number.isFinite(inputBytes) && inputBytes > 0) {
+    if (inputBytes >= 2048 * BYTES_PER_MB) return 200;
+    if (inputBytes >= 512 * BYTES_PER_MB) return 400;
+    if (inputBytes >= 128 * BYTES_PER_MB) return 700;
+  }
+  return 1000;
+}
+
+/**
+ * Increment a batch statistic counter when provided.
+ * @param {object|null} stats
+ * @param {string} key
+ */
+export function bumpSqliteBatchStat(stats, key) {
+  if (!stats || !key) return;
+  stats[key] = (stats[key] || 0) + 1;
+}
+
 /**
  * Return the set of table names in a SQLite database.
  * @param {import('better-sqlite3').Database} db

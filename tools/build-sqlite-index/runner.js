@@ -407,7 +407,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             emitOutput,
             validateMode,
             expectedDense: pieces?.denseVec || null,
-            logger: externalLogger || { log, warn, error }
+            logger: externalLogger || { log, warn, error },
+            inputBytes
           });
           if (updateResult?.used) {
             const counts = readSqliteCounts(outputPath);
@@ -479,7 +480,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             validateMode,
             vectorConfig: resolvedVectorConfig,
             modelConfig,
-            logger: externalLogger || { log, warn, error }
+            logger: externalLogger || { log, warn, error },
+            inputBytes
           });
           const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
@@ -501,7 +503,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               vectorConfig: resolvedVectorConfig,
               emitOutput,
               logger: externalLogger || { log, warn, error },
-              task: workTask
+              task: workTask,
+              inputBytes
             });
           } else {
           }
@@ -522,7 +525,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             vectorConfig: resolvedVectorConfig,
             emitOutput,
             logger: externalLogger || { log, warn, error },
-            task: workTask
+            task: workTask,
+            inputBytes
           });
         }
         const hadVectorTable = await hasVectorTable(Database, tempOutputPath);

@@ -54,3 +54,8 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Call-site edges are added directly during graph construction to avoid buffering large edge lists.
 - Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention.
 - Filter index maps/sets are released after serialization to reduce retention during artifact writes.
+
+## Stage4 Memory Notes
+- SQLite inserts are chunked into bounded transactions based on input size to reduce WAL and statement retention.
+- Bundle ingestion splits large files into smaller insert batches to avoid oversized transactions.
+- Incremental updates only load chunk rows for changed/deleted files instead of scanning the full chunks table.

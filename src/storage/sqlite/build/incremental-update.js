@@ -3,7 +3,14 @@ import path from 'node:path';
 import { readBundleFile } from '../../../shared/bundle-io.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
-import { hasRequiredTables, normalizeFilePath, removeSqliteSidecars } from '../utils.js';
+import {
+  chunkArray,
+  hasRequiredTables,
+  normalizeFilePath,
+  removeSqliteSidecars,
+  resolveSqliteBatchSize,
+  bumpSqliteBatchStat
+} from '../utils.js';
 import {
   packUint32,
   packUint8,
@@ -52,6 +59,9 @@ class IncrementalSkipError extends Error {
  * @param {string} params.validateMode
  * @param {object} [params.expectedDense]
  * @param {object} [params.logger]
+ * @param {number} [params.inputBytes]
+ * @param {number} [params.batchSize]
+ * @param {object} [params.stats]
  * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number}>}
  */
 export async function incrementalUpdateDatabase({
@@ -64,7 +74,10 @@ export async function incrementalUpdateDatabase({
   emitOutput,
   validateMode,
   expectedDense,
-  logger
+  logger,
+  inputBytes,
+  batchSize,
+  stats
 }) {
   const warn = (message) => {
     if (!emitOutput || !message) return;
@@ -78,6 +91,9 @@ export async function incrementalUpdateDatabase({
     }
     console.warn(message);
   };
+  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const batchStats = stats && typeof stats === 'object' ? stats : null;
+  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -243,17 +259,23 @@ export async function incrementalUpdateDatabase({
     bundles.set(normalizedFile, { bundle: result.bundle, entry, fileKey, normalizedFile });
   }
 
-  const tokenValues = [];
-  const phraseValues = [];
-  const chargramValues = [];
+  const tokenValues = new Set();
+  const phraseValues = new Set();
+  const chargramValues = new Set();
   const incomingDimsSet = new Set();
   for (const bundleEntry of bundles.values()) {
     const bundle = bundleEntry.bundle;
     for (const chunk of bundle.chunks || []) {
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-      if (tokensArray.length) tokenValues.push(...tokensArray);
-      if (Array.isArray(chunk.ngrams)) phraseValues.push(...chunk.ngrams);
-      if (Array.isArray(chunk.chargrams)) chargramValues.push(...chunk.chargrams);
+      if (tokensArray.length) {
+        for (const token of tokensArray) tokenValues.add(token);
+      }
+      if (Array.isArray(chunk.ngrams)) {
+        for (const ngram of chunk.ngrams) phraseValues.add(ngram);
+      }
+      if (Array.isArray(chunk.chargrams)) {
+        for (const gram of chunk.chargrams) chargramValues.add(gram);
+      }
       if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
         incomingDimsSet.add(chunk.embedding.length);
       }
@@ -329,13 +351,33 @@ export async function incrementalUpdateDatabase({
   } = statements;
 
   const existingIdsByFile = new Map();
-  const fileRows = db.prepare('SELECT id, file FROM chunks WHERE mode = ? ORDER BY id')
-    .all(mode);
-  for (const row of fileRows) {
-    const normalized = normalizeFilePath(row.file);
-    const entry = existingIdsByFile.get(normalized) || { file: normalized, ids: [] };
-    entry.ids.push(row.id);
-    existingIdsByFile.set(normalized, entry);
+  const targetFiles = new Set();
+  for (const record of changed) {
+    if (record?.normalized) targetFiles.add(record.normalized);
+  }
+  for (const file of deleted) {
+    if (file) targetFiles.add(normalizeFilePath(file));
+  }
+  const targetList = Array.from(targetFiles).filter(Boolean);
+  const fileQueryBatch = Math.max(1, resolvedBatchSize);
+  if (targetList.length) {
+    for (const batch of chunkArray(targetList, fileQueryBatch)) {
+      const placeholders = batch.map(() => '?').join(',');
+      const stmt = db.prepare(
+        `SELECT id, file FROM chunks WHERE mode = ? AND file IN (${placeholders}) ORDER BY id`
+      );
+      const rows = stmt.all(mode, ...batch);
+      recordBatch('existingChunkBatches');
+      if (batchStats) {
+        batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows.length;
+      }
+      for (const row of rows) {
+        const normalized = normalizeFilePath(row.file);
+        const entry = existingIdsByFile.get(normalized) || { file: normalized, ids: [] };
+        entry.ids.push(row.id);
+        existingIdsByFile.set(normalized, entry);
+      }
+    }
   }
 
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?')
@@ -374,7 +416,7 @@ export async function incrementalUpdateDatabase({
       'token_vocab',
       'token_id',
       'token',
-      tokenValues,
+      Array.from(tokenValues),
       insertTokenVocab,
       { limits: VOCAB_GROWTH_LIMITS.token_vocab }
     );
@@ -388,7 +430,7 @@ export async function incrementalUpdateDatabase({
       'phrase_vocab',
       'phrase_id',
       'ngram',
-      phraseValues,
+      Array.from(phraseValues),
       insertPhraseVocab,
       { limits: VOCAB_GROWTH_LIMITS.phrase_vocab }
     );
@@ -402,7 +444,7 @@ export async function incrementalUpdateDatabase({
       'chargram_vocab',
       'gram_id',
       'gram',
-      chargramValues,
+      Array.from(chargramValues),
       insertChargramVocab,
       { limits: VOCAB_GROWTH_LIMITS.chargram_vocab }
     );
