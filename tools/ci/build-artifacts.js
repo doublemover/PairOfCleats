@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { createDisplay } from '../../src/shared/cli/display.js';
+import { createToolDisplay } from '../shared/cli-display.js';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
@@ -22,12 +22,7 @@ const argv = createCli({
   }
 }).parse();
 
-const display = createDisplay({
-  stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: argv.quiet === true
-});
+const display = createToolDisplay({ argv, stream: process.stderr });
 const logger = {
   log: (message) => display.log(message),
   warn: (message) => display.warn(message),

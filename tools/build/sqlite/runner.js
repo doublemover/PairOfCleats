@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { createDisplay } from '../../../src/shared/cli/display.js';
+import { createTaskFactory, createToolDisplay } from '../../shared/cli-display.js';
 import { createTempPath } from './temp-path.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
@@ -63,22 +63,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     : null;
   const display = externalLogger
     ? null
-    : createDisplay({
-      stream: process.stderr,
-      progressMode: argv.progress,
-      verbose: argv.verbose === true,
-      quiet: argv.quiet === true
-    });
-  const createNoopTask = () => ({
-    tick() {},
-    set() {},
-    done() {},
-    fail() {},
-    update() {}
-  });
-  const taskFactory = display?.task
-    ? display.task.bind(display)
-    : () => createNoopTask();
+    : createToolDisplay({ argv, stream: process.stderr });
+  const taskFactory = createTaskFactory(display);
   let stopHeartbeat = () => {};
   let finalized = false;
   const finalize = () => {

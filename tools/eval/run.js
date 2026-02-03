@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { createDisplay } from '../../src/shared/cli/display.js';
+import { createToolDisplay } from '../shared/cli-display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { matchExpected, resolveMatchMode } from './match.js';
@@ -25,12 +25,10 @@ const argv = createCli({
   aliases: { n: 'top' }
 }).parse();
 
-const display = createDisplay({
+const display = createToolDisplay({
+  argv,
   stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: argv.quiet === true,
-  json: true
+  displayOptions: { json: true }
 });
 const fail = (message, code = 1) => {
   display.error(message);

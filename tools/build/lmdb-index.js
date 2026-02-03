@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createCli } from '../../src/shared/cli.js';
-import { createDisplay } from '../../src/shared/cli/display.js';
+import { createToolDisplay } from '../shared/cli-display.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifactSync,
@@ -37,12 +37,7 @@ const argv = createCli({
   }
 }).parse();
 
-const display = createDisplay({
-  stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: argv.quiet === true
-});
+const display = createToolDisplay({ argv, stream: process.stderr });
 const log = (message) => display.log(message);
 const warn = (message) => display.warn(message);
 const fail = (message, code = 1) => {

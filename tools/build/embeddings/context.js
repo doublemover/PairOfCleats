@@ -1,12 +1,7 @@
-import { createDisplay } from '../../../src/shared/cli/display.js';
+import { createToolDisplay } from '../../shared/cli-display.js';
 
 export function createBuildEmbeddingsContext({ argv }) {
-  const display = createDisplay({
-    stream: process.stderr,
-    progressMode: argv.progress,
-    verbose: argv.verbose === true,
-    quiet: argv.quiet === true
-  });
+  const display = createToolDisplay({ argv, stream: process.stderr });
   let stopHeartbeat = () => {};
   let finalized = false;
   let displayClosed = false;

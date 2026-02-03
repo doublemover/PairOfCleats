@@ -25,7 +25,7 @@ import {
   validateEncodingFixtures
 } from './language/metrics.js';
 import { buildReportOutput, printSummary } from './language/report.js';
-import { createDisplay } from '../../src/shared/cli/display.js';
+import { createToolDisplay } from '../shared/cli-display.js';
 
 const parseList = (value) => {
   if (!value) return [];
@@ -64,13 +64,14 @@ const {
 
 const baseEnv = { ...process.env };
 const quietMode = argv.quiet === true || argv.json === true;
-const display = createDisplay({
+const display = createToolDisplay({
+  argv,
   stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: quietMode,
-  logWindowSize,
-  json: argv.json === true
+  displayOptions: {
+    quiet: quietMode,
+    logWindowSize,
+    json: argv.json === true
+  }
 });
 const exitWithDisplay = (code) => {
   display.close();

@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { createCli } from '../../src/shared/cli.js';
-import { createDisplay } from '../../src/shared/cli/display.js';
+import { createToolDisplay } from '../shared/cli-display.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../src/shared/files.js';
 import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
@@ -42,12 +42,7 @@ const argv = createCli({
   }
 }).parse();
 
-const display = createDisplay({
-  stream: process.stderr,
-  progressMode: argv.progress,
-  verbose: argv.verbose === true,
-  quiet: argv.quiet === true
-});
+const display = createToolDisplay({ argv, stream: process.stderr });
 logger = {
   log: (message) => display.log(message),
   warn: (message) => display.warn(message),
