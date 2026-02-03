@@ -1082,21 +1082,21 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [ ] Spec links and references are valid and consistent.
 
 ### Tasks
-- [ ] **13.A Inventory + gap analysis**
+- [@] **13.A Inventory + gap analysis**
 - [ ] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
 - [ ] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
 - [ ] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
 - [ ] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
 
-- [ ] **13.B Embeddings cache spec hardening**
-- [ ] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
-- [ ] Task 13.B.2: Define cache key and invalidation rules (provider/model/dims/quantization/hash).
-- [ ] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
-- [ ] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
+- [x] **13.B Embeddings cache spec hardening**
+- [x] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
+- [x] Task 13.B.2: Define cache key and invalidation rules (provider/model/dims/quantization/hash).
+- [x] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
+- [x] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
 
-- [ ] **13.C VFS + tooling spec alignment**
-- [ ] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
-- [ ] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
+- [@] **13.C VFS + tooling spec alignment**
+- [x] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
+- [x] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
 - [ ] Task 13.C.3: Align token URI and hash routing docs with current code paths.
 - [ ] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
 
@@ -1105,41 +1105,41 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - [ ] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
 - [ ] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
 
-- [ ] **13.E JSDoc standards + enforcement**
-- [ ] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
-- [ ] Task 13.E.2: Add rules for tricky behaviors (streaming, caching, determinism, path handling).
-- [ ] Task 13.E.3: Update touched modules with missing JSDoc blocks.
+- [x] **13.E JSDoc standards + enforcement**
+- [x] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
+- [x] Task 13.E.2: Add rules for tricky behaviors (streaming, caching, determinism, path handling).
+- [x] Task 13.E.3: Update touched modules with missing JSDoc blocks.
 
-- [ ] **13.F Execution guides**
-- [ ] Task 13.F.1: Add `docs/guides/perfplan-execution.md` describing how to execute phases in order.
-- [ ] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
+- [x] **13.F Execution guides**
+- [x] Task 13.F.1: Add `docs/guides/perfplan-execution.md` describing how to execute phases in order.
+- [x] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
 
-- [ ] **13.G Docs validation tests**
-- [ ] Task 13.G.1: Implement `tests/tooling/docs/embeddings-cache-docs-sync.test.js`.
-- [ ] Task 13.G.2: Add tests for spec link validation and checklist consistency.
-- [ ] Task 13.G.3: Add docs/config inventory sync test.
+- [x] **13.G Docs validation tests**
+- [x] Task 13.G.1: Implement `tests/tooling/docs/embeddings-cache-docs-sync.test.js`.
+- [x] Task 13.G.2: Add tests for spec link validation and checklist consistency.
+- [x] Task 13.G.3: Add docs/config inventory sync test.
 
 ### Task details (decision-complete)
 #### 13.A Inventory + gap analysis
-- [ ] Build a doc inventory table in Phase 13 with columns: doc path, purpose, required sections, code touchpoints, tests, gaps.
+- [x] Build a doc inventory table in Phase 13 with columns: doc path, purpose, required sections, code touchpoints, tests, gaps.
 - [ ] List docs touched by Phases 0-12 (use git history and PERFPLAN checklists as source of truth).
 - [ ] Enumerate missing sections for each doc: schema, invariants, examples, determinism, error behavior, compatibility.
 - [ ] Capture renamed files/flags/artifacts and link to the code that superseded them.
 - [ ] Output a checklist of required doc edits with explicit owners and completion criteria.
 
 #### 13.B Embeddings cache spec hardening
-- [ ] Add a cache layout section with full directory tree, shard naming rules, and sidecars.
-- [ ] Document cache keys and invalidation rules (provider/model/dims/quantization/index signature/schema version).
-- [ ] Specify compression format(s), headers, and forward/backward compatibility rules.
-- [ ] Add examples for: cache hit, partial reuse, invalidation after config change.
+- [x] Add a cache layout section with full directory tree, shard naming rules, and sidecars.
+- [x] Document cache keys and invalidation rules (provider/model/dims/quantization/index signature/schema version).
+- [x] Specify compression format(s), headers, and forward/backward compatibility rules.
+- [x] Add examples for: cache hit, partial reuse, invalidation after config change.
 - [ ] Touchpoints to review:
   - `src/shared/embeddings-cache/*`
   - `tools/build/embeddings/*`
   - `src/index/build/*` (cache reuse/write paths)
 
 #### 13.C VFS + tooling spec alignment
-- [ ] Align VFS manifest trimming and sorting order with actual implementation (row trim, spill/merge order).
-- [ ] Document virtualPath encoding and disk-path safety constraints (including Windows specifics).
+- [x] Align VFS manifest trimming and sorting order with actual implementation (row trim, spill/merge order).
+- [x] Document virtualPath encoding and disk-path safety constraints (including Windows specifics).
 - [ ] Align token URI and hash routing docs with current code.
 - [ ] Document cold-start cache and segment hash cache invariants (inputs, invalidation, fallbacks).
 - [ ] Touchpoints to review:
@@ -1187,8 +1187,8 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
   - `src/index/segments/cdc.js`
 
 #### 13.F Execution guides
-- [ ] `docs/guides/perfplan-execution.md`: how to run phases, gating criteria, expected artifacts, failure triage.
-- [ ] `docs/guides/roadmap-checklists.md`: checkbox rules, test logging, ISO-8601 timestamp policy.
+- [x] `docs/guides/perfplan-execution.md`: how to run phases, gating criteria, expected artifacts, failure triage.
+- [x] `docs/guides/roadmap-checklists.md`: checkbox rules, test logging, ISO-8601 timestamp policy.
 
 #### 13.G Docs validation tests
 - [ ] Add tests under `tests/tooling/docs/`:
