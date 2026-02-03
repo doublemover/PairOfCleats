@@ -498,7 +498,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   try {
     const result = await pool.run(payload, { name: 'parseTreeSitter' });
-    if (Array.isArray(result) && result.length) return result;
+    if (Array.isArray(result)) return result;
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
     try {

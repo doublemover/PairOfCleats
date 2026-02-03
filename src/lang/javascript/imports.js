@@ -7,13 +7,30 @@ import { parseJavaScriptAst } from './parse.js';
  */
 export function collectImportsFromAst(ast) {
   const imports = new Set();
-  const walk = (node) => {
-    if (!node) return;
+  const WALK_SKIP_KEYS = new Set([
+    'loc',
+    'start',
+    'end',
+    'tokens',
+    'comments',
+    'leadingComments',
+    'trailingComments',
+    'innerComments',
+    'extra',
+    'parent'
+  ]);
+
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
     if (Array.isArray(node)) {
-      node.forEach(walk);
-      return;
+      for (let i = node.length - 1; i >= 0; i -= 1) {
+        stack.push(node[i]);
+      }
+      continue;
     }
-    if (typeof node !== 'object') return;
+    if (typeof node !== 'object') continue;
 
     if (node.type === 'ImportDeclaration') {
       if (node.source && node.source.value) imports.add(node.source.value);
@@ -42,14 +59,16 @@ export function collectImportsFromAst(ast) {
         imports.add(arg.value);
       }
     }
-    for (const key of Object.keys(node)) {
-      if (key === 'loc' || key === 'start' || key === 'end') continue;
+    const keys = Object.keys(node);
+    for (let i = keys.length - 1; i >= 0; i -= 1) {
+      const key = keys[i];
+      if (WALK_SKIP_KEYS.has(key)) continue;
       const child = node[key];
-      if (child && typeof child === 'object') walk(child);
+      if (child && typeof child === 'object') {
+        stack.push(child);
+      }
     }
-  };
-
-  walk(ast);
+  }
   return Array.from(imports);
 }
 

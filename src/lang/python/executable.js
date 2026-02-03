@@ -12,11 +12,24 @@ async function checkPythonCandidate(candidate) {
       stdio: ['ignore', 'pipe', 'ignore']
     });
     let output = '';
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(ok);
+    };
+    const timeout = setTimeout(() => {
+      try {
+        proc.kill();
+      } catch {}
+      finish(false);
+    }, 3000);
     proc.stdout.on('data', (chunk) => {
       output += chunk.toString();
     });
-    proc.on('error', () => resolve(false));
-    proc.on('close', (code) => resolve(code === 0 && output.trim() === 'ok'));
+    proc.on('error', () => finish(false));
+    proc.on('close', (code) => finish(code === 0 && output.trim() === 'ok'));
   });
 }
 
