@@ -449,7 +449,7 @@
       }
     },
     {
-      "query": "repometrics",
+      "query": "metrics",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
           "elapsedMs": 358,

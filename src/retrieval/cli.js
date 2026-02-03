@@ -9,6 +9,7 @@ import {
   getAutoPolicy,
   getRepoRoot,
   getMetricsDir,
+  getQueryCacheDir,
   getModelConfig,
   loadUserConfig,
   resolveLmdbPaths,
@@ -110,6 +111,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const metricsDir = getMetricsDir(rootDir, userConfig);
+    const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
     let normalized;
     try {
@@ -119,6 +121,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         rootDir,
         userConfig,
         metricsDir,
+        queryCacheDir,
         policy
       });
     } catch (err) {
@@ -376,6 +379,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       caseSensitive: caseFile,
       root: rootDir,
       metricsDir,
+      queryCacheDir,
       runCode,
       runProse,
       backendLabel,
@@ -527,6 +531,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       rootDir,
       userConfig,
       metricsDir,
+      queryCacheDir,
       query,
       searchMode,
       runCode,

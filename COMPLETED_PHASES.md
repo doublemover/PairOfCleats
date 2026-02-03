@@ -5768,7 +5768,7 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
     - `docs/guides/code-maps.md` (`pairofcleats report map`)
     - `docs/benchmarks/evaluation.md` (`pairofcleats report eval`)
     - `docs/benchmarks/model-comparison.md` (`pairofcleats report compare-models`)
-    - `docs/guides/repometrics-dashboard.md` (`pairofcleats report repometrics`)
+    - `docs/guides/metrics-dashboard.md` (`pairofcleats report metrics`)
   - Reality:
     - `bin/pairofcleats.js` does **not** implement `report`.
     - Some underlying tools exist (e.g., `tools/report-code-map.js`) but are not routed.

@@ -14,6 +14,7 @@ import {
   getDictionaryPaths,
   getIndexDir,
   getMetricsDir,
+  getQueryCacheDir,
   getModelConfig,
   getRepoCacheRoot,
   getRepoId,
@@ -178,6 +179,7 @@ function listArtifacts(repoPath, userConfig) {
   const indexProse = getIndexDir(repoPath, 'prose', userConfig);
   const indexRecords = getIndexDir(repoPath, 'records', userConfig);
   const metricsDir = getMetricsDir(repoPath, userConfig);
+  const queryCacheDir = getQueryCacheDir(repoPath, userConfig);
   const sqlitePaths = resolveSqlitePaths(repoPath, userConfig);
   return {
     index: {
@@ -202,7 +204,7 @@ function listArtifacts(repoPath, userConfig) {
       indexCode: path.join(metricsDir, 'index-code.json'),
       indexProse: path.join(metricsDir, 'index-prose.json'),
       indexRecords: path.join(metricsDir, 'index-records.json'),
-      queryCache: path.join(metricsDir, 'queryCache.json')
+      queryCache: path.join(queryCacheDir, 'queryCache.json')
     },
     sqlite: {
       code: sqlitePaths.codePath,

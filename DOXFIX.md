@@ -80,6 +80,44 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 
 ---
 
+## Parallelization bundles (for sub‑agents)
+
+Use these bundles to split work safely in parallel. Each bundle lists the files to touch and the canonical sources to compare against.
+
+**Bundle A — Contracts docs**  
+- Files: `docs/contracts/*.md`  
+- Canonical: `src/contracts/schemas/*.js`, `src/contracts/validators/*.js`, `src/shared/artifact-io/*`, `src/storage/sqlite/schema.js`, `src/retrieval/cli-args.js`
+
+**Bundle B — Guides + API docs**  
+- Files: `docs/guides/*.md`, `docs/api/*.md`  
+- Canonical: `bin/pairofcleats.js`, `search.js`, `tools/*` entrypoints, `src/retrieval/*`, `tools/api/*`, `tools/mcp/*`
+
+**Bundle C — Testing docs**  
+- Files: `docs/testing/*.md`  
+- Canonical: `tests/run.js`, `tests/run.rules.jsonc`, `tests/tooling/script-coverage/*`
+
+**Bundle D — Tooling docs**  
+- Files: `docs/tooling/*.md`, `docs/tooling/repo-inventory.json`  
+- Canonical: `tools/*-ingest.js`, `tools/repo-inventory.js`, `bin/pairofcleats.js`
+
+**Bundle E — Config docs**  
+- Files: `docs/config/*.md`, `docs/config/schema.json`  
+- Canonical: `docs/config/schema.json`, `src/shared/env.js`, `tools/config-inventory/*`
+
+**Bundle F — Specs (risk + artifacts)**  
+- Files: `docs/specs/risk-*.md`, `docs/specs/artifact-schemas.md`, `docs/specs/analysis-schemas.md`  
+- Canonical: `src/contracts/schemas/artifacts.js`, `src/contracts/schemas/analysis.js`, `src/index/build/artifacts/writers/*`
+
+**Bundle G — Specs (tooling + VFS + TS)**  
+- Files: `docs/specs/tooling-*.md`, `docs/specs/vfs-manifest-artifact.md`, `docs/specs/typescript-provider-js-parity.md`  
+- Canonical: `src/index/tooling/*`, `src/index/tooling/vfs.js`, `src/index/tooling/provider-registry.js`, `src/index/tooling/orchestrator.js`
+
+**Bundle H — Specs (SCM + workspace)**  
+- Files: `docs/specs/scm-provider-*.md`, `docs/specs/workspace-*.md`  
+- Canonical: `src/index/scm/providers/*`, `docs/config/schema.json`
+
+---
+
 ## 0) Canonical source decisions (must do first)
 
 [ ] [DECISION] Confirm canonical source per domain:
@@ -101,6 +139,8 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `src/contracts/schemas/analysis.js` ~L684 (`API_CONTRACTS_SCHEMA`)
       - `src/contracts/validators/analysis.js` ~L77 (`validateApiContracts`)
+    - Fields to list explicitly:
+      - `options.onlyExports`, `options.failOnWarn`, `options.caps.maxSymbols`, `options.caps.maxCallsPerSymbol`, `options.caps.maxWarnings`
 
 ### 1.2 docs/contracts/artifact-contract.md
 - Issues: legacy sharded meta format; compressed sidecar precedence described incorrectly.
@@ -108,10 +148,14 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 [ ] [DOC] Replace sharded JSONL meta description with jsonl-sharded schema.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L317 (`baseShardedJsonlMeta`)
+    - Required fields to document:
+      - `schemaVersion`, `format=jsonl-sharded`, `compression`, `totalRecords`, `totalBytes`, `maxPartBytes`, `targetMaxBytes`, `parts[]`
 [ ] [DOC] Fix loader precedence: raw `.json` first, compressed sidecars only when raw missing.
     - Touchpoints:
       - `src/shared/artifact-io/json.js` ~L16 (`readJsonFile`)
       - `src/shared/artifact-io/loaders.js` ~L20 (`resolveJsonlArtifactSources`)
+    - Note:
+      - `readJsonFile` does **not** prefer `.json.zst` when `.json` exists.
 
 ### 1.3 docs/contracts/artifact-schemas.md
 - Issues: missing artifacts; `api_contracts_meta` mismatch; missing required fields.
@@ -130,6 +174,8 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/contracts/schemas/artifacts.js`
     - Tests:
       - `tests/tooling/docs/artifact-schema-index.test.js` (new)
+    - Suggested output schema:
+      - `{ artifact, schemaVersion, requiredFields[], optionalFields[] }` for each entry.
 
 ### 1.4 docs/contracts/compatibility-key.md
 - Issue: wrong callsite path.
@@ -209,13 +255,17 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 ### 2.2 docs/guides/external-backends.md
 [ ] [DOC] Note `pairofcleats search` rejects `--backend memory` (wrapper only supports auto|sqlite|sqlite-fts|lmdb).
 [ ] [DOC] Document forced backend behavior (no fallback if required indexes missing).
+    - Source of truth:
+      - `bin/pairofcleats.js` (search command wrapper)
+      - `search.js` / `src/retrieval/cli-args.js` (full CLI, includes memory backend)
 
 ### 2.3 docs/guides/mcp.md
 [ ] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp-server.js`.
     - Touchpoints:
       - `bin/pairofcleats.js` (no mcp service route)
+      - `tools/mcp-server.js` (actual entrypoint)
 
-### 2.4 docs/guides/repometrics-dashboard.md
+### 2.4 docs/guides/metrics-dashboard.md
 [ ] [DOC] Remove unsupported fields or implement them (cache hit rate, BM25 params, timings).
 [ ] [DOC] Add `--top` flag to usage.
 
@@ -263,6 +313,10 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `tests/run.js` (defaults)
       - `tests/run.rules.jsonc` (lane list)
+    - Explicit defaults to document:
+      - Timeouts: `ci-lite=15000`, `ci=90000`, `ci-long=240000`, default `30000`
+      - Jobs: physical core count (see `resolvePhysicalCores`)
+      - Cache root: defaults to `.testCache` unless overridden
 [ ] [DOC] Document timing ledger (`--log-times`) and watchdog behavior once added.
     - Touchpoints:
       - `tests/run.js`
@@ -277,15 +331,19 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 
 ### 4.1 docs/tooling/ctags.md
 [ ] [DOC] Update CLI examples to `node tools/ctags-ingest.js` or npm script.
+    - Source of truth: `tools/ctags-ingest.js`, `package.json` scripts
 
 ### 4.2 docs/tooling/gtags.md
 [ ] [DOC] Update CLI examples to `node tools/gtags-ingest.js` or npm script.
+    - Source of truth: `tools/gtags-ingest.js`, `package.json` scripts
 
 ### 4.3 docs/tooling/lsif.md
 [ ] [DOC] Update CLI examples to `node tools/lsif-ingest.js` or npm script.
+    - Source of truth: `tools/lsif-ingest.js`, `package.json` scripts
 
 ### 4.4 docs/tooling/scip.md
 [ ] [DOC] Update CLI examples to `node tools/scip-ingest.js` or npm script.
+    - Source of truth: `tools/scip-ingest.js`, `package.json` scripts
 
 ### 4.5 docs/tooling/repo-inventory.json
 [ ] [DOC] Ensure `tools/mcp-server-sdk.js` appears in `tools.entrypoints`.
@@ -302,9 +360,16 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 [ ] [DOC] Update buildIndex options list (stage/quality/modes/rawArgv/log/etc).
 [ ] [DOC] Update search params (`--compact` vs jsonCompact; ann-backend/context/filter params).
 [ ] [DOC] Update status params (`includeAll` vs `all`).
+    - Source of truth:
+      - `tools/api/router/build-index.js` (buildIndex args)
+      - `tools/api/router/search.js` (search args + mapping)
+      - `tools/api/router/status.js` (status params)
 
 ### 5.2 docs/api/mcp-server.md
 [ ] [DOC] Note default MCP mode is legacy unless `auto` explicitly requested.
+    - Source of truth:
+      - `tools/mcp/server-config.js` (default mode)
+      - `tools/mcp-server.js` (arg handling)
 
 ### 5.3 docs/api/server.md
 [ ] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
@@ -328,6 +393,11 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `docs/config/contract.md`
     - Tests:
       - `tests/tooling/docs/config-contract-doc.test.js` (new)
+    - Implementation details:
+      - Parse schema at `docs/config/schema.json` (include descriptions, defaults, enums).
+      - Pull env var metadata from `src/shared/env.js` (source of truth).
+      - Emit sections: Overview, Schema keys, Defaults, Env overrides, CLI flags (if applicable).
+      - Preserve line endings/BOM on regeneration (match `tools/config-inventory.js` behavior).
 
 ### 6.2 docs/config/deprecations.md
 [ ] [DOC] Align deprecations with `docs/config/schema.json`.
@@ -418,6 +488,8 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 [ ] [DOC] Align required fields with schema (`mode`, `callSiteSampling`, `timingMs.io`, etc).
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js`
+    - Schema entries to cross-check:
+      - `risk_summaries`, `risk_flows`, `risk_interprocedural_stats`, `call_sites`
 [ ] [DECISION] Enforce deterministic trimming/ordering in code or update spec to current behavior.
     - Touchpoints:
       - `src/index/build/artifacts/writers/*`
@@ -440,6 +512,10 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `src/index/scm/providers/git.js`
       - `src/index/scm/providers/jj.js`
+    - Concrete behaviors to document:
+      - `listTrackedFiles` return shape (paths POSIX + repo‑relative)
+      - provenance `head` (hash + operationId for jj) + `dirty` semantics
+      - error handling: fall back to `provider=none` vs hard error
 
 ### 11.9 docs/specs/segmentation-perf.md
 [ ] [DOC] Update caps/targets to current maxBytes and fallback logic.
@@ -522,6 +598,18 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
     - Touchpoints:
       - `tools/` (new script)
       - `docs/testing/` for policy
+[ ] [CODE] Define comparison inputs/outputs:
+    - Inputs:
+      - CLI flags from `src/retrieval/cli-args.js` + `src/shared/cli.js`
+      - Artifact list from `src/contracts/schemas/artifacts.js` (`ARTIFACT_SCHEMA_DEFS`)
+      - Lanes from `tests/run.rules.jsonc` (`knownLanes`, `laneRules`)
+    - Docs to verify:
+      - `docs/contracts/search-cli.md`, `docs/contracts/search-contract.md`
+      - `docs/contracts/artifact-schemas.md`
+      - `docs/testing/test-runner-interface.md`, `docs/testing/test-decomposition-regrouping.md`
+    - Outputs:
+      - `docs/tooling/doc-contract-drift.json` (machine readable)
+      - `docs/tooling/doc-contract-drift.md` (short summary for CI)
 [ ] [CODE] Wire doc drift checker into CI (fail on drift, print diff summary).
     - Touchpoints:
       - `tools/ci/run-suite.js`
@@ -534,3 +622,423 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 - If a doc is a contract/spec referenced by validation or build code, treat it as authoritative and fix code unless the contract is obsolete.
 - If a guide/bench doc is inconsistent with current CLI/tools, fix the doc unless you intend to support the documented behavior.
 - If both doc and code are ambiguous, record a decision first and then update both.
+---
+
+## Appendix A: Doc line ranges (current baseline)
+
+Line ranges are provided for every markdown file under docs/** to give line-level anchors for updates. When a task references a doc file, use the range below for precise edits.
+
+```text
+docs\api\core-api.md | lines 1-28
+docs\api\mcp-server.md | lines 1-56
+docs\api\server.md | lines 1-124
+docs\archived\interprocedural-state-and-pipeline_DRAFT.md | lines 1-161
+docs\archived\PHASE_0.md | lines 1-121
+docs\archived\PHASE_1.md | lines 1-40
+docs\archived\PHASE_2.md | lines 1-51
+docs\archived\PHASE_3.md | lines 1-471
+docs\archived\PHASE_4.md | lines 1-430
+docs\archived\PHASE_5.md | lines 1-542
+docs\archived\PHASE_6.md | lines 1-553
+docs\archived\PHASE_8.md | lines 1-1007
+docs\archived\README.md | lines 1-17
+docs\archived\risk-callsite-id-and-stats_IMPROVED.md | lines 1-125
+docs\archived\spec_risk-flows-and-call-sites_RECONCILED.md | lines 1-146
+docs\archived\spec_risk-interprocedural-config_IMPROVED.md | lines 1-104
+docs\archived\spec_risk-summaries_IMPROVED.md | lines 1-174
+docs\benchmarks\evaluation.md | lines 1-46
+docs\benchmarks\model-comparison.md | lines 1-31
+docs\benchmarks\overview.md | lines 1-76
+docs\config\budgets.md | lines 1-30
+docs\config\contract.md | lines 1-83
+docs\config\deprecations.md | lines 1-15
+docs\config\env-overrides.md | lines 1-10
+docs\config\execution-plan.md | lines 1-471
+docs\config\hard-cut.md | lines 1-318
+docs\config\inventory-notes.md | lines 1-29
+docs\config\inventory.md | lines 1-737
+docs\config\surface-directives.md | lines 1-234
+docs\contracts\analysis-schemas.md | lines 1-167
+docs\contracts\artifact-contract.md | lines 1-221
+docs\contracts\artifact-schemas.md | lines 1-97
+docs\contracts\chunking.md | lines 1-24
+docs\contracts\compatibility-key.md | lines 1-47
+docs\contracts\coverage-ledger.md | lines 1-25
+docs\contracts\graph-tools-cli.md | lines 1-267
+docs\contracts\indexing.md | lines 1-75
+docs\contracts\mcp-api.md | lines 1-128
+docs\contracts\mcp-error-codes.md | lines 1-34
+docs\contracts\public-artifact-surface.md | lines 1-113
+docs\contracts\retrieval-ranking.md | lines 1-101
+docs\contracts\search-cli.md | lines 1-109
+docs\contracts\search-contract.md | lines 1-86
+docs\contracts\sqlite.md | lines 1-24
+docs\dependency_references\aider-repomap-blog.md | lines 1-12
+docs\dependency_references\aider-repomap-docs.md | lines 1-12
+docs\dependency_references\ast-grep.md | lines 1-12
+docs\dependency_references\comby.md | lines 1-12
+docs\dependency_references\continue-embeddings.md | lines 1-12
+docs\dependency_references\continue-retrieval-accuracy.md | lines 1-12
+docs\dependency_references\ctags-interactive-mode.md | lines 1-12
+docs\dependency_references\ctags-json-output.md | lines 1-12
+docs\dependency_references\dependency-bundle\deps\aho-corasick.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\ajv.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\ast-grep-napi.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\astrojs-compiler.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\babel-traverse.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\better-sqlite3.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\chardet.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\chokidar.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\dockerfile-ast.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\es-joy-jsdoccomment.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\esquery.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\execa.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\fast-xml-parser.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\fdir.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\fflate.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\file-type.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\graphology.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\graphql.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\greedy-number-partitioning.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\handlebars-parser.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\hdr-histogram-js.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\hnswlib-node.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\iconv-lite.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\ignore.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\istextorbinary.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\jsdoc-type-pratt-parser.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\jsonc-parser.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\lancedb.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\linguist-languages.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\lmdb.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\lru-cache.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\mammoth.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\mdx-js-mdx.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\micromark.md | lines 1-27
+docs\dependency_references\dependency-bundle\deps\modelcontextprotocol-sdk.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\mongodb-js-zstd.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\msgpackr.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\node-rs-xxhash.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\nunjucks.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\onnxruntime-node.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\parcel-watcher.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\parse5.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\pdfjs-dist.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\picomatch.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\pino-pretty.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\pino.md | lines 1-26
+docs\dependency_references\dependency-bundle\deps\piscina.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\prom-client.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\protobufjs.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\pyright.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\re2.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\re2js.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\roaring-wasm.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\seedrandom.md | lines 1-21
+docs\dependency_references\dependency-bundle\deps\semver.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\smol-toml.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\svelte.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\swc-core.md | lines 1-23
+docs\dependency_references\dependency-bundle\deps\tantivy.md | lines 1-20
+docs\dependency_references\dependency-bundle\deps\tinybench.md | lines 1-22
+docs\dependency_references\dependency-bundle\deps\typescript-eslint-typescript-estree.md | lines 1-27
+docs\dependency_references\dependency-bundle\deps\typescript.md | lines 1-27
+docs\dependency_references\dependency-bundle\deps\vscode-ripgrep.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\vue-compiler-sfc.md | lines 1-26
+docs\dependency_references\dependency-bundle\deps\xenova-transformers.md | lines 1-25
+docs\dependency_references\dependency-bundle\deps\xxhash-wasm.md | lines 1-24
+docs\dependency_references\dependency-bundle\deps\yaml.md | lines 1-26
+docs\dependency_references\dependency-bundle\link-inventory.md | lines 1-63
+docs\dependency_references\dependency-bundle\readme.md | lines 1-199
+docs\dependency_references\dependency-bundle\topic-guide.md | lines 1-106
+docs\dependency_references\dependency-coverage.md | lines 1-45
+docs\dependency_references\github-code-search-tech.md | lines 1-13
+docs\dependency_references\gitlab-exact-code-search.md | lines 1-13
+docs\dependency_references\glean-meta-blog.md | lines 1-12
+docs\dependency_references\glean.md | lines 1-12
+docs\dependency_references\gnu-global.md | lines 1-12
+docs\dependency_references\haystack-rag-eval.md | lines 1-12
+docs\dependency_references\hound.md | lines 1-12
+docs\dependency_references\kythe.md | lines 1-12
+docs\dependency_references\lancedb-docs.md | lines 1-12
+docs\dependency_references\lancedb.md | lines 1-12
+docs\dependency_references\langchain-github-loader-api.md | lines 1-12
+docs\dependency_references\langchain-github-loader-docs.md | lines 1-12
+docs\dependency_references\livegrep.md | lines 1-12
+docs\dependency_references\llamaindex-embeddings.md | lines 1-12
+docs\dependency_references\llamaindex-ts.md | lines 1-12
+docs\dependency_references\lsif.md | lines 1-12
+docs\dependency_references\meilisearch.md | lines 1-12
+docs\dependency_references\opengrok.md | lines 1-12
+docs\dependency_references\readme.md | lines 1-45
+docs\dependency_references\regrams.md | lines 1-12
+docs\dependency_references\ripgrep.md | lines 1-12
+docs\dependency_references\scip.md | lines 1-12
+docs\dependency_references\semgrep.md | lines 1-12
+docs\dependency_references\sourcebot-docs.md | lines 1-12
+docs\dependency_references\sourcebot-v3-discussion.md | lines 1-12
+docs\dependency_references\sourcebot.md | lines 1-12
+docs\dependency_references\stack-graphs-blog.md | lines 1-12
+docs\dependency_references\stack-graphs.md | lines 1-12
+docs\dependency_references\tantivy.md | lines 1-12
+docs\dependency_references\typesense.md | lines 1-12
+docs\dependency_references\zoekt-go-docs.md | lines 1-12
+docs\dependency_references\zoekt-query-syntax.md | lines 1-13
+docs\dependency_references\zoekt.md | lines 1-14
+docs\guides\architecture.md | lines 1-203
+docs\guides\code-maps.md | lines 1-61
+docs\guides\commands.md | lines 1-77
+docs\guides\editor-integration.md | lines 1-46
+docs\guides\embeddings.md | lines 1-114
+docs\guides\external-backends.md | lines 1-38
+docs\guides\mcp.md | lines 1-51
+docs\guides\metrics-dashboard.md | lines 1-21
+docs\guides\query-cache.md | lines 1-28
+docs\guides\release-discipline.md | lines 1-24
+docs\guides\risk-rules.md | lines 1-87
+docs\guides\rule-packs.md | lines 1-38
+docs\guides\search.md | lines 1-87
+docs\guides\service-mode.md | lines 1-71
+docs\guides\setup.md | lines 1-57
+docs\guides\structural-search.md | lines 1-49
+docs\guides\triage-records.md | lines 1-109
+docs\language\ast-feature-list.md | lines 1-91
+docs\language\benchmarks.md | lines 1-65
+docs\language\fidelity.md | lines 1-138
+docs\language\import-links.md | lines 1-19
+docs\language\onboarding-playbook.md | lines 1-35
+docs\language\parser-backbone.md | lines 1-80
+docs\language\symbol-sources.md | lines 1-53
+docs\new_docs\cross-file-symbol-resolution.md | lines 1-258
+docs\new_docs\fts_query_compilation_spec_draft.md | lines 1-218
+docs\new_docs\identity-contracts.md | lines 1-46
+docs\new_docs\jj_provider_spec_draft.md | lines 1-288
+docs\new_docs\mcp-tool-schema-and-proc-kill-spec-draft.md | lines 1-315
+docs\new_docs\metaV2_provenance_and_anchor_spec_draft.md | lines 1-245
+docs\new_docs\migration-and-backcompat.md | lines 1-97
+docs\new_docs\phase13_scm_provider_interface_spec.md | lines 1-290
+docs\new_docs\symbol-artifacts-and-pipeline.md | lines 1-94
+docs\new_docs\symbol-artifacts.md | lines 1-314
+docs\new_docs\symbol-identity-and-symbolref.md | lines 1-360
+docs\perf\graph-caps.md | lines 1-22
+docs\specs\analysis-policy.md | lines 1-32
+docs\specs\as-of-retrieval-integration.md | lines 1-218
+docs\specs\build-state-integrity.md | lines 1-40
+docs\specs\concurrency-abort-runwithqueue.md | lines 1-300
+docs\specs\context-packs.md | lines 1-353
+docs\specs\federated-search.md | lines 1-537
+docs\specs\graph-explainability.md | lines 1-225
+docs\specs\graph-product-surfaces.md | lines 1-827
+docs\specs\graph-ranking.md | lines 1-216
+docs\specs\identity-and-symbol-contracts.md | lines 1-410
+docs\specs\identity-contract.md | lines 1-324
+docs\specs\identity-contracts.md | lines 1-132
+docs\specs\impact-analysis.md | lines 1-283
+docs\specs\implementation-checklist.md | lines 1-168
+docs\specs\implementation-plan.md | lines 1-246
+docs\specs\import-resolution.md | lines 1-62
+docs\specs\index-diffs.md | lines 1-413
+docs\specs\index-refs-and-snapshots.md | lines 1-563
+docs\specs\jj-provider-commands-and-parsing.md | lines 1-218
+docs\specs\json-stream-atomic-replace.md | lines 1-232
+docs\specs\large-file-caps-strategy.md | lines 1-226
+docs\specs\lsp-provider-hardening.md | lines 1-187
+docs\specs\metadata-schema-v2.md | lines 1-159
+docs\specs\migration-and-backcompat.md | lines 1-45
+docs\specs\risk-callsite-id-and-stats.md | lines 1-40
+docs\specs\risk-flows-and-call-sites.md | lines 1-176
+docs\specs\risk-interprocedural-config.md | lines 1-195
+docs\specs\risk-interprocedural-stats.md | lines 1-147
+docs\specs\risk-summaries.md | lines 1-252
+docs\specs\runtime-envelope.md | lines 1-299
+docs\specs\safe-regex-hardening.md | lines 1-203
+docs\specs\scm-provider-config-and-state-schema.md | lines 1-175
+docs\specs\scm-provider-contract.md | lines 1-152
+docs\specs\segmentation-perf.md | lines 1-40
+docs\specs\signature.md | lines 1-38
+docs\specs\subprocess-helper.md | lines 1-228
+docs\specs\symbol-artifacts-and-pipeline.md | lines 1-122
+docs\specs\test-strategy-and-conformance-matrix.md | lines 1-375
+docs\specs\tooling-and-api-contract.md | lines 1-436
+docs\specs\tooling-doctor-and-reporting.md | lines 1-179
+docs\specs\tooling-io.md | lines 1-40
+docs\specs\tooling-provider-registry.md | lines 1-311
+docs\specs\tooling-vfs-and-segment-routing.md | lines 1-287
+docs\specs\typescript-provider-js-parity.md | lines 1-292
+docs\specs\vfs-manifest-artifact.md | lines 1-178
+docs\specs\watch-atomicity.md | lines 1-38
+docs\specs\workspace-config.md | lines 1-412
+docs\specs\workspace-manifest.md | lines 1-432
+docs\sqlite\ann-extension.md | lines 1-91
+docs\sqlite\compaction.md | lines 1-24
+docs\sqlite\incremental-updates.md | lines 1-74
+docs\sqlite\index-schema.md | lines 1-108
+docs\testing\ci-capability-policy.md | lines 1-16
+docs\testing\failing-tests.md | lines 1-27
+docs\testing\fixture-corpus.md | lines 1-22
+docs\testing\fixture-tracking.md | lines 1-28
+docs\testing\index-state-nondeterministic-fields.md | lines 1-67
+docs\testing\test-decomposition-regrouping.md | lines 1-379
+docs\testing\test-runner-interface.md | lines 1-225
+docs\testing\truth-table.md | lines 1-167
+docs\tooling\ctags.md | lines 1-36
+docs\tooling\gtags.md | lines 1-22
+docs\tooling\lsif.md | lines 1-19
+docs\tooling\scip.md | lines 1-25
+```
+
+---
+
+## Appendix B: Code touchpoint index (line‑level anchors)
+
+Use this index as the canonical list of **code files to review**, with line‑level anchors for each subsystem. These are the exact locations that should be inspected/updated when reconciling docs vs behavior.
+
+### Contracts + schemas (authoritative)
+- `src/contracts/schemas/analysis.js`
+  - `GRAPH_CONTEXT_PACK_SCHEMA` — L505
+  - `API_CONTRACTS_SCHEMA` — L684
+  - `SUGGEST_TESTS_SCHEMA` — L774
+- `src/contracts/validators/analysis.js`
+  - `validateGraphContextPack` — L62
+  - `validateApiContracts` — L77
+  - `validateSuggestTests` — L87
+- `src/contracts/schemas/artifacts.js`
+  - `baseShardedJsonlMeta` — L317
+  - `ARTIFACT_SCHEMA_DEFS` — L810
+  - `call_sites` — L879
+  - `risk_summaries` — L930
+  - `risk_flows` — L934
+  - `risk_interprocedural_stats` — L938
+  - `*_meta` sharded meta entries — L1159‑1161
+- `src/contracts/versioning.js`
+  - `ARTIFACT_SURFACE_VERSION` — L1
+  - `resolveSupportedMajors` — L19
+
+### Artifact loading + manifests
+- `src/shared/artifact-io/json.js`
+  - `readJsonFile` — L16
+- `src/shared/artifact-io/loaders.js`
+  - `resolveJsonlArtifactSources` — L20
+  - manifest fallback use sites — L103, L287, L533
+
+### Retrieval CLI + output formatting
+- `src/retrieval/cli-args.js`
+  - graph ranking flags — L98‑101
+  - CLI help list — L132‑149
+- `src/retrieval/cli/normalize-options.js`
+  - `parseFilterExpression` use — L82
+  - `graphRankingConfig` assembly — L186‑206
+- `src/retrieval/output/explain.js`
+  - `formatScoreBreakdown` + graph fields — L16‑62
+- `src/retrieval/pipeline/graph-ranking.js`
+  - graph index + scoring — L19‑126
+
+### Storage (SQLite)
+- `src/storage/sqlite/schema.js`
+  - `REQUIRED_TABLES` — L3
+
+### CLI entrypoints + tools
+- `bin/pairofcleats.js`
+  - `search` entrypoint mapping — L64‑70
+  - command list display — L697
+- `tools/mcp-server.js`
+  - CLI args + mode selection — L10‑41
+- `tools/mcp/server-config.js`
+  - mcp config/env merge — L37‑44
+- `tools/mcp-server-sdk.js`
+  - SDK entrypoint + module resolution — L1‑40
+- `tools/ctags-ingest.js`
+  - script name + defaults — L12‑36
+  - spawn + error handling — L138‑145
+- `tools/gtags-ingest.js`
+  - script name + output — L12‑29
+- `tools/lsif-ingest.js`
+  - script name + output — L11‑26
+- `tools/scip-ingest.js`
+  - script name + output — L12‑33
+  - spawn + error handling — L199‑206
+- `tools/repo-inventory.js`
+  - CLI + output location — L9‑11
+  - generator metadata — L206
+
+### API server/router
+- `tools/api/router.js`
+  - status handlers — L101‑151
+- `tools/api/router/search.js`
+  - CLI arg mapping — L41‑141
+- `src/integrations/core/search.js`
+  - `search` handler — L11
+- `src/integrations/core/status.js`
+  - `status` handler — L257
+- `src/integrations/core/build-index/index.js`
+  - `buildIndex` entrypoint — L39
+
+### CI + test runner
+- `tools/ci/run-suite.js`
+  - capability gate wiring — L93, L137
+- `tools/ci/capability-gate.js`
+  - CLI + failure reporting — L18, L145‑190
+- `tests/run.js`
+  - lane timeout resolution — L297
+  - `--log-times` / timings output — L306‑319, L464‑468
+- `tests/run.rules.jsonc`
+  - `laneRules` — L15‑24
+- `tests/run.config.jsonc`
+  - `lanes` definition — L10
+- `tests/tooling/script-coverage/paths.js`
+  - `.testLogs` + `.testCache` roots — L13‑17
+
+### Config + env
+- `src/shared/env.js`
+  - `getEnvConfig` — ~L23‑60
+  - `getTestEnvConfig` — ~L64‑120
+- `src/shared/runtime-envelope.js`
+  - `resolveRuntimeEnvelope` — L115
+
+### Safety + regex
+- `src/shared/safe-regex.js`
+  - `compileSafeRegex` — L144
+- `src/shared/safe-regex/backends/re2js.js`
+  - RE2JS translate/compile — L14‑28
+
+### SCM providers
+- `src/index/scm/providers/git.js`
+  - `listTrackedFiles` — L33
+  - `getRepoProvenance` head/dirty — L59‑63
+- `src/index/scm/providers/jj.js`
+  - `listTrackedFiles` — L206
+  - `getRepoProvenance` head/dirty — L247‑287
+
+### Index signatures + tooling
+- `src/index/build/indexer/signatures.js`
+  - `SIGNATURE_VERSION` usage — L63, L130
+- `src/index/tooling/doctor.js`
+  - `annotateEnabled` — L235
+- `src/index/tooling/provider-contract.js`
+  - `validateToolingProvider` — L50‑58
+- `src/index/tooling/provider-registry.js`
+  - provider ordering/filters — L18‑138
+- `src/index/tooling/orchestrator.js`
+  - provider run + cache key — L158‑257
+- `src/index/tooling/vfs.js`
+  - VFS constants + trim logging — L8, L100, L245
+- `src/index/tooling/typescript-provider.js`
+  - compiler defaults — L19‑25
+  - config discovery — L78‑95
+  - parse config — L109‑122
+  - provider entrypoint `run` — L287‑437
+
+### Risk artifacts + call sites
+- `src/index/build/artifacts/writers/risk-interprocedural.js`
+  - stats assembly + artifact writes — L156‑211
+- `src/index/build/artifacts/writers/call-sites.js`
+  - JSONL write + sharding — L189‑280
+
+### Watch/promotion
+- `src/index/build/watch/resolve-backend.js`
+  - backend selection + warnings — L8‑21
+- `src/index/build/watch/lock.js`
+  - lock retry logging — L32‑34
+- `src/index/build/watch/attempts.js`
+  - attempts root + ids — L19‑61
+

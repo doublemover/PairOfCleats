@@ -23,6 +23,7 @@ export async function runSearchSession({
   rootDir,
   userConfig,
   metricsDir,
+  queryCacheDir,
   query,
   searchMode,
   runCode,
@@ -170,7 +171,8 @@ export async function runSearchSession({
   let cacheData = null;
   let cachedPayload = null;
 
-  const queryCachePath = path.join(metricsDir, 'queryCache.json');
+  const cacheDir = queryCacheDir || metricsDir;
+  const queryCachePath = path.join(cacheDir, 'queryCache.json');
   if (queryCacheEnabled) {
     const signature = getIndexSignature({
       useSqlite,

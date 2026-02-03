@@ -338,7 +338,7 @@ Status: OK
 Notes:
 - No CLI behaviors to reconcile.
 
-## docs/guides/repometrics-dashboard.md
+## docs/guides/metrics-dashboard.md
 References:
 - docs/tooling/repo-inventory.json
 - COMPLETED_PHASES.md

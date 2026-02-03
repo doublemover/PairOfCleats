@@ -33,7 +33,7 @@ This prefilter is advisory only: it narrows candidates but never skips the final
 
 The filter index is loaded into memory for fast path/file/metadata filters. Its memory footprint is
 roughly proportional to the on-disk `filter_index.json` size. Index metrics report
-`artifacts.filterIndex` (counts + `jsonBytes`) in `repometrics/index-<mode>.json` so large repos can
+`artifacts.filterIndex` (counts + `jsonBytes`) in `metrics/index-<mode>.json` so large repos can
 track growth. Index builds emit a soft warning when the filter index approaches the JSON size limit.
 
 ## Scoring and Fusion

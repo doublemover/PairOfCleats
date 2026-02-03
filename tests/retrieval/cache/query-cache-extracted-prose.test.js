@@ -124,7 +124,7 @@ if (!repoCacheDirs.length) {
   process.exit(1);
 }
 const repoCacheRoot = path.join(cacheRoot, 'repos', repoCacheDirs[0]);
-const queryCachePath = path.join(repoCacheRoot, 'repometrics', 'queryCache.json');
+const queryCachePath = path.join(repoCacheRoot, 'query-cache', 'queryCache.json');
 if (!fs.existsSync(queryCachePath)) {
   console.error(`Query cache extracted-prose test failed: missing cache file at ${queryCachePath}`);
   process.exit(1);

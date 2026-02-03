@@ -24,10 +24,10 @@ const env = {
 const repoCacheRoot = getRepoCacheRoot(repoRoot, null);
 await fsPromises.mkdir(path.join(repoCacheRoot, 'index-code'), { recursive: true });
 await fsPromises.mkdir(path.join(repoCacheRoot, 'index-prose'), { recursive: true });
-await fsPromises.mkdir(path.join(repoCacheRoot, 'repometrics'), { recursive: true });
+await fsPromises.mkdir(path.join(repoCacheRoot, 'metrics'), { recursive: true });
 await fsPromises.writeFile(path.join(repoCacheRoot, 'index-code', 'chunk_meta.json'), '[]');
 await fsPromises.writeFile(path.join(repoCacheRoot, 'index-prose', 'chunk_meta.json'), '[]');
-await fsPromises.writeFile(path.join(repoCacheRoot, 'repometrics', 'metrics.json'), '{}');
+await fsPromises.writeFile(path.join(repoCacheRoot, 'metrics', 'metrics.json'), '{}');
 
 const cacheSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
 await fsPromises.mkdir(cacheSqliteDir, { recursive: true });
