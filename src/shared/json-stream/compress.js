@@ -76,7 +76,8 @@ export const createZstdStream = (options = {}) => {
   const zstd = resolveZstd(options);
   const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 3;
   const chunkSize = normalizeZstdChunkSize(options.chunkSize);
-  let pending = Buffer.alloc(0);
+  let pendingBytes = 0;
+  const pendingChunks = [];
   let stream;
   const compressChunk = async (chunk) => {
     if (!chunk?.length) return;
@@ -85,18 +86,41 @@ export const createZstdStream = (options = {}) => {
       stream.push(toBuffer(compressed));
     }
   };
+  const appendPending = (buffer) => {
+    if (!buffer?.length) return;
+    pendingChunks.push(buffer);
+    pendingBytes += buffer.length;
+  };
+  const readPending = (size) => {
+    const target = Math.min(size, pendingBytes);
+    if (target <= 0) return null;
+    const out = Buffer.allocUnsafe(target);
+    let offset = 0;
+    while (offset < target && pendingChunks.length) {
+      const head = pendingChunks[0];
+      const take = Math.min(head.length, target - offset);
+      head.copy(out, offset, 0, take);
+      offset += take;
+      if (take === head.length) {
+        pendingChunks.shift();
+      } else {
+        pendingChunks[0] = head.subarray(take);
+      }
+    }
+    pendingBytes -= target;
+    return out;
+  };
   const drainBuffer = async (flush) => {
-    while (pending.length >= chunkSize || (flush && pending.length)) {
-      const size = flush ? pending.length : chunkSize;
-      const slice = pending.subarray(0, size);
-      pending = pending.subarray(size);
-      await compressChunk(slice);
+    while (pendingBytes >= chunkSize || (flush && pendingBytes)) {
+      const size = flush ? pendingBytes : chunkSize;
+      const slice = readPending(size);
+      if (slice) await compressChunk(slice);
     }
   };
   stream = new Transform({
     transform(chunk, encoding, callback) {
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
-      pending = pending.length ? Buffer.concat([pending, buffer]) : buffer;
+      appendPending(buffer);
       (async () => {
         await drainBuffer(false);
       })()
