@@ -13,6 +13,7 @@ docs/benchmarks.json
 .diagnostics/
 .testCache/
 .testLogs/
+.benchCache/
 *.db
 *.db-shm
 *.db-wal

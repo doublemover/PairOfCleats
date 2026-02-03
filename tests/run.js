@@ -304,6 +304,7 @@ const main = async () => {
     if (!normalized.length) return 'tests';
     return 'multi';
   };
+  const laneLabel = resolveLaneLabel(requestedLanes);
   const logTimesArg = argv['log-times'];
   let logTimesPath = '';
   if (hasLogTimesFlag || (logTimesArg !== null && logTimesArg !== undefined && logTimesArg !== false)) {
@@ -311,7 +312,6 @@ const main = async () => {
     if (raw) {
       logTimesPath = isAbsolutePathNative(raw) ? raw : path.resolve(ROOT, raw);
     } else {
-      const laneLabel = resolveLaneLabel(requestedLanes);
       logTimesPath = path.join(ROOT, '.testLogs', `${laneLabel}-testRunTimes.txt`);
     }
   }
@@ -407,7 +407,8 @@ const main = async () => {
     skipExitCode: SKIP_EXIT_CODE,
     redoExitCodes: REDO_EXIT_CODES,
     maxOutputBytes: MAX_OUTPUT_BYTES,
-    borderPattern: BORDER_PATTERN
+    borderPattern: BORDER_PATTERN,
+    laneLabel
   };
 
   context.initReporter = createInitReporter({ context });
