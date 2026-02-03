@@ -75,6 +75,7 @@ const splitFilterTokens = (raw) => {
   const tokens = [];
   const input = String(raw || '').trim();
   if (!input) return tokens;
+  FILTER_TOKEN_RE.lastIndex = 0;
   let match = null;
   while ((match = FILTER_TOKEN_RE.exec(input))) {
     tokens.push(match[1] ?? match[2] ?? match[3]);

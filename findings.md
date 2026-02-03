@@ -1,23 +1,3 @@
-# PairOfCleats Project Review — Findings
-
-**Review type:** Static analysis + targeted manual code inspection (no runtime execution)  
-**Reason runtime execution wasn’t performed:** Repo indicates it requires **Node >= 24.13.0**, while the available environment was **Node 22** (so `npm install`/run was not attempted).  
-**Date:** 2026-02-03 (America/Detroit)
-
----
-
-## What I reviewed
-
-- **Primary scope:** all JS/TS under `src/`, `tools/`, `bin/`, `extensions/`  
-- **Root scripts:** `build_index.js`, `search.js`
-- **Total code files evaluated:** **726**
-  - `src/`: 555  
-  - `tools/`: 167  
-  - `bin/`: 1  
-  - `extensions/`: 1  
-  - root scripts: 2 (`build_index.js`, `search.js`)
-
-> Line numbers below are approximate (based on the scanned snapshot); confirm in your editor.
 
 ---
 
