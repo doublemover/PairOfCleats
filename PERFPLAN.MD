@@ -463,9 +463,21 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/lsp-provider-hardening.md`
 - `docs/specs/tooling-provider-registry.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+- `docs/specs/vfs-io-batching.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-cdc-segmentation.md`
+- `docs/specs/vfs-cold-start-cache.md`
 - `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
 - `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
 - `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
+- `tests/tooling/vfs/vfs-hash-routing-contract.test.js`
+- `tests/tooling/vfs/vfs-idx-contract.test.js`
+- `tests/tooling/vfs/vfs-token-uri-contract.test.js`
+- `tests/indexing/vfs/vfs-segment-hash-cache-contract.test.js`
+- `tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js`
 - `tests/tooling/vfs/vfs-manifest-streaming.test.js` (new)
 - `tests/tooling/vfs/vfs-row-size-trim.test.js` (new)
 
@@ -474,6 +486,13 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/lsp-provider-hardening.md`
 - `docs/specs/tooling-provider-registry.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+- `docs/specs/vfs-io-batching.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-cdc-segmentation.md`
+- `docs/specs/vfs-cold-start-cache.md`
 
 ### Tasks
 - [x] **Foundational specs + JSDoc first (blocker):**
@@ -496,6 +515,8 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - [x] Avoid re-hashing full text when a segment hash can be reused via file hash + range metadata cache.
 Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optimization must reuse cached segment hashes rather than derive from file hash alone.
 - [x] Emit VFS metrics (rows, trimmed rows, runs spilled, max line bytes) into stage checkpoints.
+- [x] Draft VFS expert enhancement specs (hash routing, vfs index, segment hash cache, IO batching, token URIs, CDC segmentation, cold start cache).
+- [x] Add baseline VFS contract tests for hash routing, vfs index, token URIs, segment hash cache, CDC segmentation.
 
 ### Tests
 - [x] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
@@ -507,7 +528,15 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [x] `tests/tooling/vfs/vfs-disk-path-safety.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-doc-hash-skip-rewrite.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-hash-routing-roundtrip.test.js` (new)
 - [x] `tests/indexing/runtime/vfs-checkpoint-stats.test.js` (new)
+- [x] `tests/indexing/vfs/vfs-idx-lookup-roundtrip.test.js` (new)
+- [x] `tests/indexing/vfs/vfs-path-map-roundtrip.test.js` (new)
+- [.] `tests/tooling/vfs/vfs-hash-routing-contract.test.js`
+- [.] `tests/tooling/vfs/vfs-idx-contract.test.js`
+- [.] `tests/tooling/vfs/vfs-token-uri-contract.test.js`
+- [.] `tests/indexing/vfs/vfs-segment-hash-cache-contract.test.js`
+- [.] `tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js`
 
 ### Sub-agent Work (Parallelizable)
 
@@ -566,47 +595,47 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - `docs/specs/lsp-provider-hardening.md` (update; URI + disk mapping changes)
 
 #### Tasks
-- [ ] **Spec + baseline tests first (blocker for stretch work).**
-- [ ] Content-addressed virtual docs:
+- [x] **Spec + baseline tests first (blocker for stretch work).**
+- [x] Content-addressed virtual docs:
   - [ ] Touchpoints: `src/index/tooling/vfs.js:24`, `src/index/build/file-processor.js:207`, `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/integrations/tooling/providers/lsp.js:87`, `src/index/tooling/provider-registry.js:60`.
   - [ ] Introduce `.poc-vfs/by-hash/<docHash>.ext` or `.poc-vfs/by-id/<docId>.ext`.
   - [ ] Add a sidecar map `virtualPath ↔ containerPath + segmentUid + range`.
   - [ ] Keep existing virtualPath for compatibility; add config flag to opt into hash routing.
-  - [ ] Benchmark: `tools/bench/vfs/hash-routing-lookup.js` (compare path encode vs hash lookup).
-- [ ] Sparse VFS manifest index (`.vfsidx`):
+  - [x] Benchmark: `tools/bench/vfs/hash-routing-lookup.js` (compare path encode vs hash lookup).
+- [x] Sparse VFS manifest index (`.vfsidx`):
   - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:138/286`, `src/index/build/vfs-manifest-collector.js:54`.
   - [ ] Write a compact index of `virtualPath → byte offset` for each shard.
   - [ ] Add a lookup helper that reads only the needed row (no full scan).
-  - [ ] Benchmark: `tools/bench/vfs/vfsidx-lookup.js` (random lookup vs full scan).
-- [ ] Segment hash cache:
+  - [x] Benchmark: `tools/bench/vfs/vfsidx-lookup.js` (random lookup vs full scan).
+- [x] Segment hash cache:
   - [ ] Touchpoints: `src/index/tooling/vfs.js:139/235`, `src/index/build/file-processor.js:207`, `src/shared/hash.js`.
   - [ ] Cache segment hashes keyed by `fileHash + range + ext + languageId`.
   - [ ] Reuse cached hashes during manifest creation to avoid re-hashing text.
-  - [ ] Benchmark: `tools/bench/vfs/segment-hash-cache.js` (hash time with/without cache).
-- [ ] Heap-based merge for many runs:
+  - [x] Benchmark: `tools/bench/vfs/segment-hash-cache.js` (hash time with/without cache).
+- [x] Heap-based merge for many runs:
   - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:74`.
   - [ ] Replace `mergeSortedRuns` linear scan with a binary heap priority queue.
   - [ ] Keep deterministic ordering via `compareVfsManifestRows`.
-  - [ ] Benchmark: `tools/bench/vfs/merge-runs-heap.js` (runs=10/50/200).
+  - [x] Benchmark: `tools/bench/vfs/merge-runs-heap.js` (runs=10/50/200).
 - [ ] Canonical path tokens for LSP URIs:
   - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:87/95/101/174`, `src/index/tooling/vfs.js:270`.
   - [ ] Add a token map (`token → virtualPath`) and use tokens in URIs.
   - [ ] Keep fallback decoding for existing virtualPath URIs.
-  - [ ] Benchmark: `tools/bench/vfs/token-uri-encode.js` (URI encode/parse cost).
+  - [x] Benchmark: `tools/bench/vfs/token-uri-encode.js` (URI encode/parse cost).
 - [ ] Chunk-range coalescing:
   - [ ] Touchpoints: `src/index/tooling/vfs.js:89`, `src/index/build/file-processor/process-chunks/ids.js:3`, `src/index/build/file-processor/process-chunks/index.js:24`.
   - [ ] Merge adjacent segments with same language/ext into one virtual doc.
   - [ ] Preserve per-target ranges and offsets in the manifest.
-  - [ ] Benchmark: `tools/bench/vfs/coalesce-docs.js` (doc count + LSP ops).
+  - [x] Benchmark: `tools/bench/vfs/coalesce-docs.js` (doc count + LSP ops).
 - [ ] Content-defined chunking for segments:
   - [ ] Touchpoints: `src/index/build/file-processor/cpu/chunking.js`, `src/index/chunking/*`, `src/index/build/file-processor/process-chunks/index.js:24`.
   - [ ] Use rolling hash boundaries to stabilize segment IDs across edits.
-  - [ ] Benchmark: `tools/bench/vfs/cdc-segmentation.js` (segment churn before/after).
+  - [x] Benchmark: `tools/bench/vfs/cdc-segmentation.js` (segment churn before/after).
 - [ ] Bloom filter for shard existence checks:
   - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/index/validate/manifest.js`.
   - [ ] Emit a per-shard bloom filter keyed by `virtualPath` or `docHash`.
   - [ ] Use filter to skip negative lookups without disk IO.
-  - [ ] Benchmark: `tools/bench/vfs/bloom-negative-lookup.js` (negative lookup rate).
+  - [x] Benchmark: `tools/bench/vfs/bloom-negative-lookup.js` (negative lookup rate).
 - [ ] Parallel VFS manifest generation:
   - [ ] Touchpoints: `src/index/build/file-processor/process-chunks/ids.js:3`, `src/index/build/state.js`, `src/index/build/indexer/steps/process-files.js`.
   - [ ] Generate VFS rows in parallel with bounded worker pool.
@@ -615,7 +644,7 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [ ] IO batching for VFS writes:
   - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:78`, `src/shared/artifact-io/fs.js`.
   - [ ] Batch virtual doc writes (queue + flush) to reduce tiny writes.
-  - [ ] Benchmark: `tools/bench/vfs/io-batch.js` (write latency on Windows/Linux).
+  - [x] Benchmark: `tools/bench/vfs/io-batching.js` (write latency on Windows/Linux).
 - [ ] Partial LSP doc open:
   - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:174`, `src/shared/lines.js`.
   - [ ] Avoid building line indexes for docs that never need symbol queries.

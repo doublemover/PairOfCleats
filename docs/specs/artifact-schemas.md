@@ -19,7 +19,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
-Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
+Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
 
 ## Artifact registry
 
@@ -31,6 +31,8 @@ Machine-readable index:
 - `chunk_meta` (array): entries require `id`, `start`, `end` (ints). Optional: `fileId`, `startLine`, `endLine`, `kind`, `name`, `ext`, `metaV2`. Additional properties allowed.
 - `chunk_uid_map` (array): entries require `docId`, `chunkUid`, `chunkId`, `file`, `start`, `end`. Optional: `segmentUid`, `segmentId`.
 - `vfs_manifest` (array): entries require `schemaVersion`, `virtualPath`, `docHash`, `containerPath`, `containerExt`, `containerLanguageId`, `languageId`, `effectiveExt`, `segmentUid`, `segmentStart`, `segmentEnd`. Optional: `segmentId`, `lineStart`, `lineEnd`.
+- `vfs_path_map` (array): entries require `schemaVersion`, `virtualPath`, `hashVirtualPath`, `containerPath`, `segmentUid`, `segmentStart`, `segmentEnd`, `effectiveExt`, `languageId`, `docHash`.
+- `vfs_manifest_index` (array): entries require `schemaVersion`, `virtualPath`, `offset`, `bytes`.
 - `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
 - `file_relations` (array): entries require `file`, `relations` (object). Optional: `importBindings` (object).

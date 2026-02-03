@@ -1,5 +1,7 @@
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { toPosix } from '../../shared/files.js';
@@ -7,6 +9,7 @@ import { buildChunkRef } from '../../shared/identity.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
 
 const VFS_PREFIX = '.poc-vfs/';
+const VFS_HASH_PREFIX = `${VFS_PREFIX}by-hash/`;
 export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
 const VFS_DOC_HASH_CACHE = new Map();
@@ -41,6 +44,35 @@ export const buildVfsVirtualPath = ({ containerPath, segmentUid, effectiveExt })
   return `${VFS_PREFIX}${encoded}#seg:${segmentUid}${effectiveExt || ''}`;
 };
 
+/**
+ * Build a content-addressed VFS virtual path.
+ * @param {{docHash:string,effectiveExt?:string|null}} input
+ * @returns {string|null}
+ */
+export const buildVfsHashVirtualPath = ({ docHash, effectiveExt }) => {
+  if (!docHash) return null;
+  return `${VFS_HASH_PREFIX}${docHash}${effectiveExt || ''}`;
+};
+
+/**
+ * Resolve the VFS virtual path based on routing settings.
+ * @param {{containerPath:string,segmentUid?:string|null,effectiveExt?:string|null,docHash?:string|null,hashRouting?:boolean}} input
+ * @returns {string}
+ */
+export const resolveVfsVirtualPath = ({
+  containerPath,
+  segmentUid,
+  effectiveExt,
+  docHash = null,
+  hashRouting = false
+}) => {
+  if (hashRouting) {
+    const hashPath = buildVfsHashVirtualPath({ docHash, effectiveExt });
+    if (hashPath) return hashPath;
+  }
+  return buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt });
+};
+
 const resolveTextSource = (fileTextByPath, containerPath) => {
   if (!fileTextByPath) return null;
   if (typeof fileTextByPath.get === 'function') return fileTextByPath.get(containerPath) || null;
@@ -48,10 +80,19 @@ const resolveTextSource = (fileTextByPath, containerPath) => {
   return null;
 };
 
-const buildDocHashCacheKey = ({ fileHash, fileHashAlgo, containerPath, segmentUid, segmentStart, segmentEnd }) => {
+const buildDocHashCacheKey = ({
+  fileHash,
+  fileHashAlgo,
+  languageId,
+  effectiveExt,
+  segmentStart,
+  segmentEnd
+}) => {
   if (!fileHash) return null;
   const algo = fileHashAlgo || 'sha1';
-  return `${algo}:${fileHash}::${containerPath}::${segmentUid || ''}::${segmentStart}-${segmentEnd}`;
+  const lang = languageId || 'unknown';
+  const ext = effectiveExt || '';
+  return `${algo}:${fileHash}::${lang}::${ext}::${segmentStart}-${segmentEnd}`;
 };
 
 const getCachedDocHash = (cacheKey) => {
@@ -174,12 +215,14 @@ export const buildToolingVirtualDocuments = async ({
   fileTextByPath,
   strict = true,
   maxVirtualFileBytes = null,
+  hashRouting = false,
   log = null
 }) => {
   if (!Array.isArray(chunks) || !chunks.length) {
     return { documents: [], targets: [] };
   }
   const docMap = new Map();
+  const skippedSegments = new Set();
   const targets = [];
 
   for (const chunk of chunks) {
@@ -195,44 +238,52 @@ export const buildToolingVirtualDocuments = async ({
     const containerLanguageId = chunk.containerLanguageId || null;
     const segment = chunk.segment || null;
     const segmentUid = segment?.segmentUid || null;
+    const segmentKeyBase = `${containerPath}::${segmentUid || ''}`;
+    if (skippedSegments.has(segmentKeyBase)) continue;
     if (segment && !segmentUid && strict) {
       throw new Error(`Missing segmentUid for ${containerPath}`);
     }
     const segmentStart = segment ? segment.start : 0;
     const segmentEnd = segment ? segment.end : fileText.length;
-    const segmentKey = `${containerPath}::${segmentUid || ''}`;
-    if (!docMap.has(segmentKey)) {
-      const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
-      const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
-      const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
-      const fileHash = chunk.fileHash || chunk.metaV2?.fileHash || null;
-      const fileHashAlgo = chunk.fileHashAlgo || chunk.metaV2?.fileHashAlgo || null;
-      if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
-        const textBytes = Buffer.byteLength(text, 'utf8');
-        if (textBytes > maxVirtualFileBytes) {
-          const message = `[vfs] virtual document exceeds maxVirtualFileBytes (${textBytes} > ${maxVirtualFileBytes}) for ${containerPath}`;
-          if (strict) throw new Error(message);
-          if (log) log(message);
-          docMap.set(segmentKey, null);
-          continue;
-        }
+    const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
+    const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
+    const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
+    const fileHash = chunk.fileHash || chunk.metaV2?.fileHash || null;
+    const fileHashAlgo = chunk.fileHashAlgo || chunk.metaV2?.fileHashAlgo || null;
+    if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
+      const textBytes = Buffer.byteLength(text, 'utf8');
+      if (textBytes > maxVirtualFileBytes) {
+        const message = `[vfs] virtual document exceeds maxVirtualFileBytes (${textBytes} > ${maxVirtualFileBytes}) for ${containerPath}`;
+        if (strict) throw new Error(message);
+        if (log) log(message);
+        skippedSegments.add(segmentKeyBase);
+        continue;
       }
-      const docHashCacheKey = buildDocHashCacheKey({
-        fileHash,
-        fileHashAlgo,
-        containerPath,
-        segmentUid,
-        segmentStart,
-        segmentEnd
-      });
-      const docHash = await computeDocHash(text, docHashCacheKey);
-      const virtualPath = buildVfsVirtualPath({
-        containerPath,
-        segmentUid,
-        effectiveExt
-      });
+    }
+    const docHashCacheKey = buildDocHashCacheKey({
+      fileHash,
+      fileHashAlgo,
+      languageId,
+      effectiveExt,
+      segmentStart,
+      segmentEnd
+    });
+    const docHash = await computeDocHash(text, docHashCacheKey);
+    const virtualPath = resolveVfsVirtualPath({
+      containerPath,
+      segmentUid,
+      effectiveExt,
+      docHash,
+      hashRouting
+    });
+    const legacyVirtualPath = hashRouting
+      ? buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt })
+      : null;
+    const segmentKey = hashRouting ? virtualPath : `${containerPath}::${segmentUid || ''}`;
+    if (!docMap.has(segmentKey)) {
       docMap.set(segmentKey, {
         virtualPath,
+        legacyVirtualPath: legacyVirtualPath && legacyVirtualPath !== virtualPath ? legacyVirtualPath : null,
         containerPath,
         containerExt,
         containerLanguageId,
@@ -327,8 +378,8 @@ export const buildVfsManifestRowsForFile = async ({
     const docHashCacheKey = buildDocHashCacheKey({
       fileHash,
       fileHashAlgo,
-      containerPath: safeContainerPath,
-      segmentUid,
+      languageId,
+      effectiveExt,
       segmentStart,
       segmentEnd
     });
@@ -379,12 +430,12 @@ export const ensureVfsDiskDocument = async ({ baseDir, virtualPath, text = '', d
   const cached = VFS_DISK_CACHE.get(cacheKey);
   if (cached && cached.docHash === docHash) {
     try {
-      await fs.access(absPath);
+      await fsPromises.access(absPath);
       return { path: absPath, cacheHit: true };
     } catch {}
   }
-  await fs.mkdir(path.dirname(absPath), { recursive: true });
-  await fs.writeFile(absPath, text || '', 'utf8');
+  await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
+  await fsPromises.writeFile(absPath, text || '', 'utf8');
   VFS_DISK_CACHE.set(cacheKey, { path: absPath, docHash });
   return { path: absPath, cacheHit: false };
 };
@@ -408,4 +459,79 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
   });
   const relative = safeParts.join(path.sep);
   return path.join(baseDir, relative);
+};
+
+/**
+ * Load a VFS manifest index (.vfsidx) into a map.
+ * @param {{indexPath:string}} input
+ * @returns {Promise<Map<string,{virtualPath:string,offset:number,bytes:number}>>}
+ */
+export const loadVfsManifestIndex = async ({ indexPath }) => {
+  const map = new Map();
+  const stream = fs.createReadStream(indexPath, { encoding: 'utf8' });
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  let lineNumber = 0;
+  try {
+    for await (const line of rl) {
+      lineNumber += 1;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let entry;
+      try {
+        entry = JSON.parse(trimmed);
+      } catch (err) {
+        const message = err?.message || 'JSON parse error';
+        throw new Error(`Invalid vfs_manifest index JSON at ${indexPath}:${lineNumber}: ${message}`);
+      }
+      if (!entry?.virtualPath) continue;
+      map.set(entry.virtualPath, entry);
+    }
+  } finally {
+    rl.close();
+    stream.destroy();
+  }
+  return map;
+};
+
+/**
+ * Read a single JSONL row by byte offset and length.
+ * @param {{manifestPath:string,offset:number,bytes:number}} input
+ * @returns {Promise<object|null>}
+ */
+export const readVfsManifestRowAtOffset = async ({ manifestPath, offset, bytes }) => {
+  if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) return null;
+  const handle = await fsPromises.open(manifestPath, 'r');
+  try {
+    const buffer = Buffer.alloc(bytes);
+    const result = await handle.read(buffer, 0, bytes, offset);
+    if (!result?.bytesRead) return null;
+    const line = buffer.slice(0, result.bytesRead).toString('utf8').trim();
+    if (!line) return null;
+    return JSON.parse(line);
+  } finally {
+    await handle.close();
+  }
+};
+
+/**
+ * Load a VFS manifest row by virtualPath using a vfsidx file.
+ * @param {{manifestPath:string,indexPath?:string,index?:Map<string,object>,virtualPath:string}} input
+ * @returns {Promise<object|null>}
+ */
+export const loadVfsManifestRowByPath = async ({
+  manifestPath,
+  indexPath = null,
+  index = null,
+  virtualPath
+}) => {
+  if (!virtualPath) return null;
+  const resolvedIndex = index || (indexPath ? await loadVfsManifestIndex({ indexPath }) : null);
+  if (!resolvedIndex) return null;
+  const entry = resolvedIndex.get(virtualPath);
+  if (!entry) return null;
+  return readVfsManifestRowAtOffset({
+    manifestPath,
+    offset: entry.offset,
+    bytes: entry.bytes
+  });
 };

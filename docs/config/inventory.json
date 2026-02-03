@@ -233,6 +233,7 @@
       "tooling.typescript.resolveOrder",
       "tooling.typescript.tsconfigPath",
       "tooling.typescript.useTsconfig",
+      "tooling.vfs.hashRouting",
       "tooling.vfs.maxVirtualFileBytes",
       "tooling.vfs.strict"
     ]
@@ -1230,6 +1231,11 @@
     {
       "path": "tooling.vfs",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.hashRouting",
+      "type": "boolean",
       "enum": null
     },
     {

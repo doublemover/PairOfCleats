@@ -8,6 +8,7 @@ import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
+import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
 import { writeFileLists } from './artifacts/file-lists.js';
 import { buildFileMeta } from './artifacts/file-meta.js';
@@ -107,6 +108,8 @@ export async function writeIndexArtifacts(input) {
   const maxJsonBytes = MAX_JSON_BYTES;
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;
+  const toolingConfig = getToolingConfig(root, userConfig);
+  const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   const { fileMeta, fileIdByPath } = buildFileMeta(state);
   const repoMapIterator = createRepoMapIterator({
     chunks: state.chunks,
@@ -347,6 +350,7 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes,
     compression: vfsManifestCompression,
     gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,
+    hashRouting: vfsHashRouting,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel

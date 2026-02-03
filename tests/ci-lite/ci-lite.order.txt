@@ -114,6 +114,8 @@ shared/path-handling
 tooling/architecture/forbidden-call-edge
 indexing/runtime/stage-overrides
 indexing/vfs/virtual-path-stability
+indexing/vfs/vfs-idx-lookup-roundtrip
+indexing/vfs/vfs-path-map-roundtrip
 retrieval/filters/active-filters
 retrieval/graph/context-pack-determinism
 indexing/artifacts/call-sites-manifest
@@ -156,6 +158,7 @@ indexing/artifacts/symbol-artifacts-smoke
 indexing/risk/interprocedural/flows-timeout
 shared/async/runwithqueue-failfast
 tooling/vfs/vfs-virtualpath-deterministic
+tooling/vfs/vfs-hash-routing-roundtrip
 indexing/embeddings/merge-vectors-no-nan
 retrieval/ranking/keyword-downweighting
 indexing/contracts/index-compatibility-key-generation

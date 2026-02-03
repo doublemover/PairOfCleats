@@ -781,6 +781,47 @@ const vfsManifestRow = {
   additionalProperties: false
 };
 
+const vfsPathMapRow = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'virtualPath',
+    'hashVirtualPath',
+    'containerPath',
+    'segmentUid',
+    'segmentStart',
+    'segmentEnd',
+    'effectiveExt',
+    'languageId',
+    'docHash'
+  ],
+  properties: {
+    schemaVersion: { type: 'string' },
+    virtualPath: { type: 'string' },
+    hashVirtualPath: { type: 'string' },
+    containerPath: { type: 'string' },
+    segmentUid: nullableString,
+    segmentStart: intId,
+    segmentEnd: intId,
+    effectiveExt: { type: 'string' },
+    languageId: { type: 'string' },
+    docHash: { type: 'string' }
+  },
+  additionalProperties: false
+};
+
+const vfsManifestIndexRow = {
+  type: 'object',
+  required: ['schemaVersion', 'virtualPath', 'offset', 'bytes'],
+  properties: {
+    schemaVersion: { type: 'string' },
+    virtualPath: { type: 'string' },
+    offset: intId,
+    bytes: intId
+  },
+  additionalProperties: false
+};
+
 const chunkUidMapRow = {
   type: 'object',
   required: ['docId', 'chunkUid', 'chunkId', 'file', 'start', 'end'],
@@ -819,6 +860,14 @@ export const ARTIFACT_SCHEMA_DEFS = {
   vfs_manifest: {
     type: 'array',
     items: vfsManifestRow
+  },
+  vfs_path_map: {
+    type: 'array',
+    items: vfsPathMapRow
+  },
+  vfs_manifest_index: {
+    type: 'array',
+    items: vfsManifestIndexRow
   },
   file_meta: {
     type: 'array',
@@ -1152,6 +1201,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
+  vfs_path_map_meta: buildShardedJsonlMeta('vfs_path_map'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
   symbols_meta: buildShardedJsonlMeta('symbols'),
   symbol_occurrences_meta: buildShardedJsonlMeta('symbol_occurrences'),

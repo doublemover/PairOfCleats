@@ -8,6 +8,13 @@ This spec aligns with:
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/identity-contract.md` (segmentUid source)
 
+Related extension specs:
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-cold-start-cache.md`
+
 ---
 
 ## 1) Artifact name and format (normative)
@@ -20,6 +27,20 @@ Emission forms (MUST support one of):
 
 Manifest inventory:
 - The artifact and its meta/parts MUST be listed in `pieces/manifest.json` (manifest-first).
+
+---
+
+### 1.1 Optional derived artifacts
+
+When `tooling.vfs.hashRouting` is enabled, producers SHOULD emit:
+- `vfs_path_map.jsonl` (or sharded `vfs_path_map.parts/*`) mapping legacy `virtualPath` → hash-routed path.
+- `vfs_path_map.meta.json` when sharded.
+
+When emitting uncompressed JSONL (`.jsonl`), producers MAY emit:
+- `vfs_manifest.vfsidx` (or `vfs_manifest.part-00000.vfsidx` for sharded parts), a sparse index for fast lookups.
+
+All derived artifacts MUST be listed in `pieces/manifest.json` with the appropriate logical names
+(`vfs_path_map`, `vfs_path_map_meta`, `vfs_manifest_index`).
 
 ---
 

@@ -64,6 +64,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "hashRouting": { "type": "boolean" },
             "strict": { "type": "boolean" },
             "maxVirtualFileBytes": { "type": "number" }
           }

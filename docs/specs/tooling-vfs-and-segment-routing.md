@@ -13,9 +13,17 @@ This document refines the previous draft by:
 ## 0. Dependencies
 
 - `docs/specs/identity-and-symbol-contracts.md` (ChunkRef + chunkUid)
+- `docs/specs/vfs-manifest-artifact.md`
 - Effective language contract (container vs effective fields) is aligned with P0-04:
   - `effectiveLanguageId`, `effectiveExt`
   - `containerLanguageId`, `containerExt`
+
+Optional extensions:
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-cdc-segmentation.md`
+- `docs/specs/vfs-cold-start-cache.md`
 
 ---
 
@@ -95,6 +103,12 @@ To keep the system uniform and reduce provider branching, prefer always using `.
 
 - `containerPath` MUST be derived from `relKey` (repo-relative POSIX).
 - Only `#` and `%` are encoded in `containerPath` before embedding in `.poc-vfs/...`.
+
+### 2.5 Optional routing enhancements (draft)
+
+- Hash routing MAY prepend a hash-derived prefix for disk paths and token URIs; see `docs/specs/vfs-hash-routing.md`.
+- Token URIs MAY use `poc-vfs://` with a token derived from `docHash`; see `docs/specs/vfs-token-uris.md`.
+- These extensions MUST NOT change `virtualPath` in `vfs_manifest`.
 
 ---
 
@@ -236,6 +250,12 @@ If not available, re-slice from container text using segment `{start,end}`:
 
 This must match the chunk offsets after segment adjustment.
 
+### 6.4 Optional lookup accelerators (draft)
+
+- `vfs_index` MAY be used to resolve `virtualPath` without scanning `vfs_manifest` (see `docs/specs/vfs-index.md`).
+- Segment hashing MAY reuse a cache keyed by file hash + segment range (see `docs/specs/vfs-segment-hash-cache.md`).
+- Large files MAY use CDC segmentation when no language-specific segmenter exists (see `docs/specs/vfs-cdc-segmentation.md`).
+
 ---
 
 ## 7. Provider routing (mandatory)
@@ -267,6 +287,11 @@ cacheKey = sha1(
 This ensures:
 - any change in virtual doc content invalidates cache
 - ordering is deterministic
+
+## 8.1 Operational performance extensions (draft)
+
+- Cold-start cache MAY reuse VFS disk docs across runs; see `docs/specs/vfs-cold-start-cache.md`.
+- IO batching MAY reduce disk write churn during VFS materialization; see `docs/specs/vfs-io-batching.md`.
 
 ---
 

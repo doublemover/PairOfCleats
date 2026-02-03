@@ -7,6 +7,7 @@ This refinement adds:
 - Virtual document support (VFS)
 - Deterministic restart semantics
 - Clear failure accounting policy
+- Token URIs + hash routing options for VFS documents (draft)
 
 ---
 
@@ -62,6 +63,10 @@ Before querying hover/signature help for a target in `virtualPath`:
    - do not re-open unless content hash changed
    - if content hash changed, send `didChange` (preferred) or close+open
 
+Disk-backed VFS materialization MAY use:
+- IO batching (see `docs/specs/vfs-io-batching.md`)
+- cold-start cache reuse (see `docs/specs/vfs-cold-start-cache.md`)
+
 ### 3.2 URI scheme
 
 Prefer `file://` URIs with an absolute path under a temp directory that mirrors `.poc-vfs/...` structure, **if** the server requires filesystem-backed paths.
@@ -69,6 +74,11 @@ Prefer `file://` URIs with an absolute path under a temp directory that mirrors 
 If the server supports in-memory schemes, allow `poc-vfs://...`.
 
 This must be configurable per language server.
+
+#### Token URIs (draft)
+
+- When enabled, the provider SHOULD use `poc-vfs` URIs with a token query parameter (see `docs/specs/vfs-token-uris.md`).
+- When using `file://` URIs, hash routing SHOULD be applied to disk paths so token changes force a new on-disk path (see `docs/specs/vfs-hash-routing.md`).
 
 #### URI encoding rules
 
