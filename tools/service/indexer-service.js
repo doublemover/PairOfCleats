@@ -443,7 +443,7 @@ const handleWork = async () => {
 };
 
 const handleServe = async () => {
-  const apiPath = path.join(toolRoot, 'tools', 'api-server.js');
+  const apiPath = path.join(toolRoot, 'tools', 'api', 'server.js');
   const repoArg = resolveRepoRootArg(argv.repo);
   logThreadpoolInfo(repoArg, 'indexer');
   const userConfig = loadUserConfig(repoArg);
