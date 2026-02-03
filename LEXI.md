@@ -1,10 +1,12 @@
 # LEXI
 
-This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defines a complete, repo-aligned implementation plan with granular tasks, tests, and touchpoints.
+This document consolidates the Phase 11.9 lexicon specs into a complete, repo-aligned implementation plan with granular tasks, tests, and touchpoints. The draft spec content has been absorbed here; future/lexi drafts can be removed once this plan is the single source of truth.
 
 ---
 
 ## Evaluation Notes (by document)
+
+These notes assume the Phase 11.9 specs are promoted into `docs/specs/` (see 11.9.0 tasks). Any discrepancies should be resolved in those canonical docs first, then reflected here.
 
 ### phase-11.9-lexicon-aware-relations-and-retrieval-enrichment.md
 - Well structured and matches repo architecture; touchpoints listed are mostly accurate.
@@ -15,12 +17,13 @@ This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defin
 
 ### spec-language-lexicon-wordlists.md
 - Solid and conservative; aligns with a fail-open loader.
-- Ambiguity: “ASCII only” is safe but may exclude keywords for some languages (e.g., localized keywords). This should be explicit as a v1 constraint with a future v2 note.
+- Ambiguity: "ASCII only" is safe but may exclude keywords for some languages (e.g., localized keywords). This should be explicit as a v1 constraint with a future v2 note.
 - Add a clearer contract for `extractSymbolBaseName` and document separators ordering (consistent with relations spec).
+- Ensure the canonical wordlist format includes `formatVersion`, `languageId`, and required arrays, with a strict schema (additionalProperties=false).
 
 ### spec-lexicon-relations-filtering.md
 - Correct placement and safety constraints.
-- Ambiguity: Should filtering also apply to `rawRelations.imports/exports`? The spec says no; keep it explicit and add a note that only usages/calls/callDetails are filtered in v1.
+- Ambiguity: Should filtering also apply to `rawRelations.imports/exports`? The spec says no; keep it explicit and add a note that only usages/calls/callDetails/callDetailsWithRange are filtered in v1.
 - Recommend adding per-language overrides for stopword sets (e.g., JS keyword subset) to avoid over-filtering.
 
 ### spec-lexicon-retrieval-boosts.md
@@ -32,6 +35,54 @@ This document evaluates the Phase 11.9 lexicon specs in `future/lexi/` and defin
 - Matches current architecture.
 - Adjustment: `annCandidateMinDocCount` and related knobs are not currently parsed or surfaced; add explicit config plumbing and schema updates in this phase.
 - Candidate policy should be shared between ANN and minhash fallbacks (currently the pipeline reuses `annCandidateBase` for minhash); the policy should be applied consistently.
+
+---
+
+## Spec Extracts to Carry Forward (Authoritative Details)
+
+These are the non-negotiable details that must be preserved when the Phase 11.9 specs are promoted into `docs/specs/` and implemented.
+
+### Lexicon wordlist format (v1)
+- Required fields: `formatVersion` (const 1), `languageId`, `keywords[]`, `literals[]`.
+- Optional fields: `types[]`, `builtins[]`, `modules[]`, `notes[]`.
+- File layout: `src/lang/lexicon/wordlists/_generic.json` and `src/lang/lexicon/wordlists/<languageId>.json` (languageId must match registry id).
+- Normalization rules: lowercase, trim, ASCII-only, non-empty, dedupe. Sort on disk, but loader must normalize regardless.
+- Derived stopword domains:
+  - `relations = keywords ∪ literals`
+  - `ranking = keywords ∪ literals ∪ types ∪ builtins`
+  - `chargrams = keywords ∪ literals` (optionally extended to types/builtins when chargramStopwords is enabled)
+- Fail-open loader with `_generic` fallback and one-time warnings on schema failures.
+
+### Lexicon schema requirements
+- `language-lexicon-wordlist.schema.json` v1:
+  - `additionalProperties=false`
+  - `formatVersion` const 1
+  - arrays of strings (minLength 1) for wordlist fields
+- The schema must be registered under `src/contracts/registry.js` if validation is enforced at load time.
+
+### Relations filtering (build-time)
+- Filter only `usages`, `calls`, `callDetails`, `callDetailsWithRange` (not imports/exports in v1).
+- `extractSymbolBaseName` separators (split, take last non-empty): `.`, `::`, `->`, `#`, `/`.
+- Trim trailing `()`, `;`, `,` from base name.
+- Preserve stable order; optional stable de-dupe (keep first occurrence).
+
+### Retrieval relation boosts
+- Signal tokens derive from `buildQueryPlan(...)` output (use pipeline query plan, not recompute).
+- Per-hit stopword filtering in ranking domain; case-folding must respect `caseTokens`.
+- Scoring: `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)` with small defaults.
+- Explain output includes `relationBoost` with bounded token lists and deterministic ordering/truncation.
+
+### Chargram enrichment + ANN candidate policy
+- Allowed `chargramFields`: `name`, `signature`, `doc`, `comment`, `body` (default `name,doc`).
+- Optional `chargramStopwords` uses lexicon `chargrams` domain for token filtering.
+- Candidate policy rules (deterministic):
+  - `null` candidates -> null (full ANN)
+  - empty set -> empty set (no ANN hits)
+  - too large -> null
+  - too small with no filters -> null
+  - filtersActive + allowedIdx -> allowedIdx
+  - otherwise -> candidates
+- Explain `annCandidatePolicy` includes `inputSize`, `output`, `reason` (`noCandidates`, `tooLarge`, `tooSmallNoFilters`, `filtersActiveAllowedIdx`, `ok`).
 
 ---
 
@@ -131,6 +182,7 @@ Provide a standardized lexicon for all language registry ids, with a cached load
   - [ ] `getLanguageLexicon(languageId, { allowFallback })` -> returns normalized sets.
   - [ ] `isLexiconStopword(languageId, token, domain)` for `relations|ranking|chargrams`.
   - [ ] `extractSymbolBaseName(name)` shared helper.
+  - Must split on `.`, `::`, `->`, `#`, `/` and trim trailing `()`, `;`, `,`.
   - [ ] Expose per-language overrides in the lexicon JSON (e.g., allowlists/exclusions for relations stopwords).
 - [ ] Loader behavior:
   - [ ] Use `import.meta.url` to resolve wordlist directory.
@@ -148,7 +200,7 @@ Provide a standardized lexicon for all language registry ids, with a cached load
 - [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
 - [ ] `tests/lexicon/lexicon-stopwords.test.js` (verify derived stopword sets)
 - [ ] `tests/lexicon/lexicon-fallback.test.js` (missing/invalid file -> _generic)
-- [ ] `tests/lexicon/extract-symbol-base-name.test.js` (separator ordering, edge cases)
+- [ ] `tests/lexicon/extract-symbol-base-name.test.js` (separators `.`, `::`, `->`, `#`, `/` and trailing punctuation trimming)
 - [ ] `tests/lexicon/lexicon-ascii-only.test.js` (explicit v1 constraint)
  - [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
@@ -165,6 +217,10 @@ Filter `rawRelations` before building `file_relations` and `callIndex`, using le
 - `src/index/build/file-processor/relations.js`
   - `buildFileRelations(rawRelations, relKey)`
   - `buildCallIndex(rawRelations)`
+- `src/index/build/file-processor/process-chunks.js`
+  - Builds per-chunk `codeRelations` from `callIndex` and writes call details; ensure filtered relations are reflected.
+- `src/retrieval/output/filters.js`
+  - `--calls` / `--uses` filters consume `codeRelations` and `file_relations`.
 - New:
   - `src/index/build/file-processor/lexicon-relations-filter.js`
 
@@ -174,7 +230,7 @@ Filter `rawRelations` before building `file_relations` and `callIndex`, using le
   - In `cpu.js` inside the per-file processing flow, right after `lang.buildRelations(...)` and before `buildFileRelations` / `buildCallIndex`.
 - [ ] Filtering rules:
   - `usages`: drop tokens whose normalized form is in `lexicon.stopwords.relations`.
-  - `calls` / `callDetails`: drop entries if `extractSymbolBaseName(callee)` is a stopword.
+  - `calls` / `callDetails` / `callDetailsWithRange`: drop entries if `extractSymbolBaseName(callee)` is a stopword.
   - Preserve stable ordering; dedupe only if required.
 - [ ] Fail-open if lexicon missing or disabled.
 - [ ] Add a per-language override mechanism (e.g., config to drop keywords/literals/builtins/types separately).
@@ -242,7 +298,7 @@ Allow optional chargram enrichment without recall loss, and enforce candidate se
 - [ ] Implement `resolveAnnCandidateSet(...)` and apply it to ANN and minhash candidate selection:
   - Use `annCandidateCap`, `annCandidateMinDocCount`, `annCandidateMaxDocCount`.
   - Ensure filtersActive + allowedIdx behavior is preserved.
-- [ ] Emit explain payload for candidate policy decisions.
+- [ ] Emit explain payload for candidate policy decisions, with deterministic `reason` codes (`noCandidates`, `tooLarge`, `tooSmallNoFilters`, `filtersActiveAllowedIdx`, `ok`).
 - [ ] Ensure ANN/minhash use the same candidate policy (no divergence).
  - [ ] Add a shared policy contract for `resolveAnnCandidateSet` and reuse in both paths.
 

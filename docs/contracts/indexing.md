@@ -14,11 +14,12 @@
 - `records` indexes log/record artifacts and excludes those files from other modes.
 - `all` == `{code, prose, extracted-prose, records}`.
 
-## Optional document extraction dependencies
-- PDF and DOCX extraction require optional packages:
+## Optional document extraction dependencies (planned)
+- PDF/DOCX extraction is planned and currently used only by optional tooling/benchmarks.
+- When indexing gains document extraction, it will require optional packages:
   - `pdfjs-dist` (PDF)
   - `mammoth` (DOCX)
-- When these dependencies are missing, extraction for those formats is skipped and a warning is emitted.
+- Until then, missing dependencies only affect optional tooling/benchmarks; indexing does not extract PDF/DOCX content.
 
 ## Artifact minimum set
 Required (baseline search):

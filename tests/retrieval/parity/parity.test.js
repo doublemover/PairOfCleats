@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createCli } from '../../../src/shared/cli.js';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'parity',
@@ -101,7 +101,7 @@ function ensureParityIndexes() {
 
   const sqliteResult = spawnSync(
     process.execPath,
-    [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', root],
+    [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', root],
     { env, cwd: root, stdio: 'inherit' }
   );
   if (sqliteResult.status !== 0) {

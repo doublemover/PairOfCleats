@@ -18,13 +18,13 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const dataflowEnabled = options.dataflow !== false;
   const controlFlowEnabled = options.controlFlow !== false;
   const imports = new Set();
-  const importBindings = {};
+  const importBindings = Object.create(null);
   const exports = new Set();
   const calls = [];
   const callDetails = [];
   const usages = new Set();
-  const functionMeta = {};
-  const classMeta = {};
+  const functionMeta = Object.create(null);
+  const classMeta = Object.create(null);
   const flowByName = new Map();
   const functionStack = [];
   const classStack = [];
@@ -254,7 +254,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
   const registerFunctionMeta = (node, parent) => {
     const name = inferFunctionName(node, parent);
-    const existing = functionMeta[name];
+    const hasExisting = Object.prototype.hasOwnProperty.call(functionMeta, name);
+    const existing = hasExisting ? functionMeta[name] : null;
     const { paramNames, stableParamNames, paramDefaults } = collectParamMeta(node);
     const signature = buildSignature(node, name);
     const modifiers = {
@@ -276,7 +277,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       const key = keyName(node.key);
       modifiers.visibility = visibilityFor(key);
     }
-    if (!existing) {
+    if (!hasExisting) {
       functionMeta[name] = {
         params: paramNames,
         paramNames: stableParamNames,
@@ -441,251 +442,280 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return '...';
   };
 
-  const walk = (node, parent) => {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach((child) => walk(child, parent));
-      return;
-    }
-    if (typeof node !== 'object') return;
+  const WALK_SKIP_KEYS = new Set([
+    'loc',
+    'start',
+    'end',
+    'tokens',
+    'comments',
+    'leadingComments',
+    'trailingComments',
+    'innerComments',
+    'extra',
+    'parent'
+  ]);
 
-    if (node.type === 'ImportDeclaration') {
-      if (node.source?.value) imports.add(node.source.value);
-      const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
-      if (sourceValue && Array.isArray(node.specifiers)) {
-        node.specifiers.forEach((specifier) => {
-          const localName = specifier?.local?.name;
-          if (!localName) return;
-          if (specifier.type === 'ImportSpecifier') {
-            const importedName = specifier.imported?.name || null;
-            importBindings[localName] = { imported: importedName || null, module: sourceValue };
-            return;
-          }
-          if (specifier.type === 'ImportDefaultSpecifier') {
-            importBindings[localName] = { imported: 'default', module: sourceValue };
-            return;
-          }
-          if (specifier.type === 'ImportNamespaceSpecifier') {
-            importBindings[localName] = { imported: '*', module: sourceValue };
-          }
+  const walk = (root) => {
+    const stack = [{ node: root, parent: null, phase: 0, exitType: null }];
+    while (stack.length) {
+      const frame = stack.pop();
+      const { node, parent, phase, exitType } = frame;
+      if (!node) continue;
+      if (phase === 1) {
+        if (exitType === 'function') functionStack.pop();
+        if (exitType === 'class') classStack.pop();
+        continue;
+      }
+      if (Array.isArray(node)) {
+        for (let i = node.length - 1; i >= 0; i -= 1) {
+          stack.push({ node: node[i], parent, phase: 0, exitType: null });
+        }
+        continue;
+      }
+      if (typeof node !== 'object') continue;
+
+      if (node.type === 'ImportDeclaration') {
+        if (node.source?.value) imports.add(node.source.value);
+        const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
+        if (sourceValue && Array.isArray(node.specifiers)) {
+          node.specifiers.forEach((specifier) => {
+            const localName = specifier?.local?.name;
+            if (!localName) return;
+            if (specifier.type === 'ImportSpecifier') {
+              const importedName = specifier.imported?.name || null;
+              importBindings[localName] = { imported: importedName || null, module: sourceValue };
+              return;
+            }
+            if (specifier.type === 'ImportDefaultSpecifier') {
+              importBindings[localName] = { imported: 'default', module: sourceValue };
+              return;
+            }
+            if (specifier.type === 'ImportNamespaceSpecifier') {
+              importBindings[localName] = { imported: '*', module: sourceValue };
+            }
+          });
+        }
+        node.specifiers?.forEach((s) => {
+          if (s.local?.name) usages.add(s.local.name);
         });
       }
-      node.specifiers?.forEach((s) => {
-        if (s.local?.name) usages.add(s.local.name);
-      });
-    }
 
-    if (node.type === 'ImportExpression' && node.source) {
-      const sourceValue = node.source.value;
-      if (typeof sourceValue === 'string') imports.add(sourceValue);
-    }
-    if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
-      const arg = node.arguments?.[0];
-      const value = arg && (arg.value ?? null);
-      if (typeof value === 'string') imports.add(value);
-    }
-    if (node.type === 'CallExpression' && node.callee?.type === 'Identifier'
-      && node.callee.name === 'require') {
-      const arg = node.arguments?.[0];
-      if (arg && typeof arg.value === 'string') imports.add(arg.value);
-    }
+      if (node.type === 'ImportExpression' && node.source) {
+        const sourceValue = node.source.value;
+        if (typeof sourceValue === 'string') imports.add(sourceValue);
+      }
+      if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
+        const arg = node.arguments?.[0];
+        const value = arg && (arg.value ?? null);
+        if (typeof value === 'string') imports.add(value);
+      }
+      if (node.type === 'CallExpression' && node.callee?.type === 'Identifier'
+        && node.callee.name === 'require') {
+        const arg = node.arguments?.[0];
+        if (arg && typeof arg.value === 'string') imports.add(arg.value);
+      }
 
-    if (node.type === 'ExportAllDeclaration') {
-      exports.add('*');
-      if (node.source?.value) imports.add(node.source.value);
-    }
+      if (node.type === 'ExportAllDeclaration') {
+        exports.add('*');
+        if (node.source?.value) imports.add(node.source.value);
+      }
 
-    if (node.type === 'ExportNamedDeclaration') {
-      if (node.declaration) {
-        if (node.declaration.id?.name) exports.add(node.declaration.id.name);
-        if (node.declaration.declarations) {
-          node.declaration.declarations.forEach((d) => d.id?.name && exports.add(d.id.name));
+      if (node.type === 'ExportNamedDeclaration') {
+        if (node.declaration) {
+          if (node.declaration.id?.name) exports.add(node.declaration.id.name);
+          if (node.declaration.declarations) {
+            node.declaration.declarations.forEach((d) => d.id?.name && exports.add(d.id.name));
+          }
+        }
+        node.specifiers?.forEach((s) => {
+          if (s.exported?.name) exports.add(s.exported.name);
+        });
+        if (node.source?.value) imports.add(node.source.value);
+      }
+
+      if (node.type === 'ExportDefaultDeclaration') {
+        if (node.declaration?.id?.name) exports.add(node.declaration.id.name);
+        if (node.declaration?.type === 'Identifier' && node.declaration.name) {
+          exports.add(node.declaration.name);
+        }
+        exports.add('default');
+      }
+
+      if (node.type === 'TSImportEqualsDeclaration') {
+        const value = node.moduleReference?.expression?.value;
+        if (typeof value === 'string') imports.add(value);
+      }
+
+      if (node.type === 'AssignmentExpression') {
+        const left = getMemberName(node.left);
+        if (left === 'module.exports') exports.add('default');
+        if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
+      }
+
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+        const calleeName = getCalleeName(node.callee);
+        const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
+        if (calleeName) {
+          calls.push([callerName, calleeName]);
+          const args = Array.isArray(node.arguments)
+            ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
+            : [];
+          const location = resolveCallLocation(node);
+          const calleeParts = resolveCalleeParts(calleeName);
+          const detail = {
+            caller: callerName,
+            callee: calleeName,
+            calleeRaw: calleeParts.calleeRaw || calleeName,
+            calleeNormalized: calleeParts.calleeNormalized || calleeName,
+            receiver: calleeParts.receiver || null,
+            args
+          };
+          if (location) {
+            detail.start = location.start;
+            detail.end = location.end;
+            detail.startLine = location.startLine;
+            detail.startCol = location.startCol;
+            detail.endLine = location.endLine;
+            detail.endCol = location.endCol;
+          }
+          callDetails.push(detail);
         }
       }
-      node.specifiers?.forEach((s) => {
-        if (s.exported?.name) exports.add(s.exported.name);
-      });
-      if (node.source?.value) imports.add(node.source.value);
-    }
 
-    if (node.type === 'ExportDefaultDeclaration') {
-      if (node.declaration?.id?.name) exports.add(node.declaration.id.name);
-      if (node.declaration?.type === 'Identifier' && node.declaration.name) {
-        exports.add(node.declaration.name);
+      if (node.type === 'IfStatement' || node.type === 'ConditionalExpression') {
+        recordControl('branches');
       }
-      exports.add('default');
-    }
+      if (node.type === 'SwitchStatement') {
+        const count = Array.isArray(node.cases) && node.cases.length ? node.cases.length : 1;
+        recordControl('branches', count);
+      }
+      if (node.type === 'TryStatement') {
+        recordControl('branches');
+      }
+      if (node.type === 'CatchClause') {
+        recordControl('branches');
+      }
+      if (node.type === 'ForStatement'
+        || node.type === 'ForInStatement'
+        || node.type === 'ForOfStatement'
+        || node.type === 'WhileStatement'
+        || node.type === 'DoWhileStatement') {
+        recordControl('loops');
+      }
+      if (node.type === 'BreakStatement') {
+        recordControl('breaks');
+      }
+      if (node.type === 'ContinueStatement') {
+        recordControl('continues');
+      }
 
-    if (node.type === 'TSImportEqualsDeclaration') {
-      const value = node.moduleReference?.expression?.value;
-      if (typeof value === 'string') imports.add(value);
-    }
+      if (node.type === 'Identifier') {
+        usages.add(node.name);
+        if (shouldCountRead(node, parent)) {
+          recordRead(node.name);
+        }
+      }
 
-    if (node.type === 'AssignmentExpression') {
-      const left = getMemberName(node.left);
-      if (left === 'module.exports') exports.add('default');
-      if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
-    }
+      if (node.type === 'VariableDeclarator' && node.id) {
+        recordPatternWrite(node.id);
+        if (node.id.type === 'Identifier' && node.init) {
+          const target = getMemberName(node.init);
+          if (target) recordAlias(node.id.name, target);
+        }
+      }
 
-    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
-      const calleeName = getCalleeName(node.callee);
-      const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
-      if (calleeName) {
-        calls.push([callerName, calleeName]);
-        const args = Array.isArray(node.arguments)
-          ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
-          : [];
-        const location = resolveCallLocation(node);
-        const calleeParts = resolveCalleeParts(calleeName);
-        const detail = {
-          caller: callerName,
-          callee: calleeName,
-          calleeRaw: calleeParts.calleeRaw || calleeName,
-          calleeNormalized: calleeParts.calleeNormalized || calleeName,
-          receiver: calleeParts.receiver || null,
-          args
+      if (node.type === 'AssignmentExpression' && node.left) {
+        if (node.left.type === 'Identifier') {
+          recordWrite(node.left.name);
+          const target = getMemberName(node.right);
+          if (target) recordAlias(node.left.name, target);
+        } else if (node.left.type === 'MemberExpression') {
+          recordMutation(getMemberName(node.left));
+        } else {
+          recordPatternWrite(node.left);
+        }
+      }
+
+      if (node.type === 'UpdateExpression' && node.argument) {
+        if (node.argument.type === 'Identifier') {
+          recordWrite(node.argument.name);
+        } else if (node.argument.type === 'MemberExpression') {
+          recordMutation(getMemberName(node.argument));
+        }
+      }
+
+      if (node.type === 'ReturnStatement') {
+        recordReturn();
+      }
+
+      if (node.type === 'ThrowStatement') {
+        const thrown = getThrownName(node.argument);
+        if (thrown) recordThrow(thrown);
+      }
+
+      if (node.type === 'AwaitExpression') {
+        const awaited = getAwaitName(node.argument);
+        if (awaited) recordAwait(awaited);
+      }
+
+      if (node.type === 'YieldExpression') {
+        recordYield();
+      }
+
+      if (node.type === 'CatchClause' && node.param) {
+        recordPatternWrite(node.param);
+      }
+
+      if ((node.type === 'ForInStatement' || node.type === 'ForOfStatement') && node.left && node.left.type !== 'VariableDeclaration') {
+        if (node.left.type === 'Identifier') {
+          recordWrite(node.left.name);
+        } else if (node.left.type === 'MemberExpression') {
+          recordMutation(getMemberName(node.left));
+        } else {
+          recordPatternWrite(node.left);
+        }
+      }
+
+      if (node.type === 'ClassDeclaration' && node.id?.name) {
+        const className = node.id.name;
+        const extendsName = getMemberName(node.superClass);
+        classMeta[className] = {
+          extends: extendsName ? [extendsName] : [],
+          modifiers: { visibility: visibilityFor(className) }
         };
-        if (location) {
-          detail.start = location.start;
-          detail.end = location.end;
-          detail.startLine = location.startLine;
-          detail.startCol = location.startCol;
-          detail.endLine = location.endLine;
-          detail.endCol = location.endCol;
+        classStack.push(node.id.name);
+        stack.push({ node, parent, phase: 1, exitType: 'class' });
+        if (node.body?.body) {
+          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null });
         }
-        callDetails.push(detail);
+        continue;
       }
-    }
 
-    if (node.type === 'IfStatement' || node.type === 'ConditionalExpression') {
-      recordControl('branches');
-    }
-    if (node.type === 'SwitchStatement') {
-      const count = Array.isArray(node.cases) && node.cases.length ? node.cases.length : 1;
-      recordControl('branches', count);
-    }
-    if (node.type === 'TryStatement') {
-      recordControl('branches');
-    }
-    if (node.type === 'CatchClause') {
-      recordControl('branches');
-    }
-    if (node.type === 'ForStatement'
-      || node.type === 'ForInStatement'
-      || node.type === 'ForOfStatement'
-      || node.type === 'WhileStatement'
-      || node.type === 'DoWhileStatement') {
-      recordControl('loops');
-    }
-    if (node.type === 'BreakStatement') {
-      recordControl('breaks');
-    }
-    if (node.type === 'ContinueStatement') {
-      recordControl('continues');
-    }
-
-    if (node.type === 'Identifier') {
-      usages.add(node.name);
-      if (shouldCountRead(node, parent)) {
-        recordRead(node.name);
+      if (isFunctionNode(node)) {
+        const fnName = registerFunctionMeta(node, parent);
+        functionStack.push(fnName);
+        stack.push({ node, parent, phase: 1, exitType: 'function' });
+        if (node.body) {
+          stack.push({ node: node.body, parent: node, phase: 0, exitType: null });
+        }
+        continue;
       }
-    }
 
-    if (node.type === 'VariableDeclarator' && node.id) {
-      recordPatternWrite(node.id);
-      if (node.id.type === 'Identifier' && node.init) {
-        const target = getMemberName(node.init);
-        if (target) recordAlias(node.id.name, target);
-      }
-    }
-
-    if (node.type === 'AssignmentExpression' && node.left) {
-      if (node.left.type === 'Identifier') {
-        recordWrite(node.left.name);
-        const target = getMemberName(node.right);
-        if (target) recordAlias(node.left.name, target);
-      } else if (node.left.type === 'MemberExpression') {
-        recordMutation(getMemberName(node.left));
-      } else {
-        recordPatternWrite(node.left);
-      }
-    }
-
-    if (node.type === 'UpdateExpression' && node.argument) {
-      if (node.argument.type === 'Identifier') {
-        recordWrite(node.argument.name);
-      } else if (node.argument.type === 'MemberExpression') {
-        recordMutation(getMemberName(node.argument));
-      }
-    }
-
-    if (node.type === 'ReturnStatement') {
-      recordReturn();
-    }
-
-    if (node.type === 'ThrowStatement') {
-      const thrown = getThrownName(node.argument);
-      if (thrown) recordThrow(thrown);
-    }
-
-    if (node.type === 'AwaitExpression') {
-      const awaited = getAwaitName(node.argument);
-      if (awaited) recordAwait(awaited);
-    }
-
-    if (node.type === 'YieldExpression') {
-      recordYield();
-    }
-
-    if (node.type === 'CatchClause' && node.param) {
-      recordPatternWrite(node.param);
-    }
-
-    if ((node.type === 'ForInStatement' || node.type === 'ForOfStatement') && node.left && node.left.type !== 'VariableDeclaration') {
-      if (node.left.type === 'Identifier') {
-        recordWrite(node.left.name);
-      } else if (node.left.type === 'MemberExpression') {
-        recordMutation(getMemberName(node.left));
-      } else {
-        recordPatternWrite(node.left);
-      }
-    }
-
-    if (node.type === 'ClassDeclaration' && node.id?.name) {
-      const className = node.id.name;
-      const extendsName = getMemberName(node.superClass);
-      classMeta[className] = {
-        extends: extendsName ? [extendsName] : [],
-        modifiers: { visibility: visibilityFor(className) }
-      };
-      classStack.push(node.id.name);
-      if (node.body?.body) {
-        walk(node.body.body, node);
-      }
-      classStack.pop();
-      return;
-    }
-
-    if (isFunctionNode(node)) {
-      const fnName = registerFunctionMeta(node, parent);
-      functionStack.push(fnName);
-      walk(node.body, node);
-      functionStack.pop();
-      return;
-    }
-
-    for (const key of Object.keys(node)) {
-      if (key === 'loc' || key === 'start' || key === 'end') continue;
-      const child = node[key];
-      if (child && typeof child === 'object') {
-        walk(child, node);
+      const keys = Object.keys(node);
+      for (let i = keys.length - 1; i >= 0; i -= 1) {
+        const key = keys[i];
+        if (WALK_SKIP_KEYS.has(key)) continue;
+        const child = node[key];
+        if (child && typeof child === 'object') {
+          stack.push({ node: child, parent: node, phase: 0, exitType: null });
+        }
       }
     }
   };
 
   const ast = options.ast || parseJavaScriptAst(text, options);
   if (ast) {
-    walk(ast, null);
+    walk(ast);
   }
   const astTokens = Array.isArray(ast?.tokens) ? ast.tokens : null;
   if (astTokens && astTokens.length) {
@@ -707,7 +737,9 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
   if (dataflowEnabled || controlFlowEnabled) {
     for (const [name, flow] of flowByName.entries()) {
-      const meta = functionMeta[name] || {};
+      const meta = Object.prototype.hasOwnProperty.call(functionMeta, name)
+        ? functionMeta[name]
+        : {};
       if (dataflowEnabled) {
         meta.dataflow = {
           reads: Array.from(flow.reads),

@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -17,8 +17,8 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const buildPath = path.join(root, 'build_index.js');
-const embeddingsPath = path.join(root, 'tools', 'build-embeddings.js');
-const validatePath = path.join(root, 'tools', 'index-validate.js');
+const embeddingsPath = path.join(root, 'tools', 'build/embeddings.js');
+const validatePath = path.join(root, 'tools', 'index', 'validate.js');
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });

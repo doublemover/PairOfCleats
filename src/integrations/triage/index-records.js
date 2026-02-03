@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getTriageConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, getTriageConfig } from '../../../tools/shared/dict-utils.js';
 import { SimpleMinHash } from '../../index/minhash.js';
 import { getHeadline } from '../../index/headline.js';
 import { STOP, SYN } from '../../index/constants.js';
@@ -84,7 +84,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
 
     const isTriage = recordEntry.source === 'triage'
       && recordsDir
-      && absPath.startsWith(recordsDir);
+      && isPathUnderDir(recordsDir, absPath);
     const record = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
     const docmeta = buildDocMeta(record, triageConfig, recordEntry.recordMeta);
     const recordName = record?.vuln?.vulnId
@@ -246,6 +246,12 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     repoProvenance: runtime.repoProvenance
   });
 }
+
+const isPathUnderDir = (baseDir, targetPath) => {
+  if (!baseDir || !targetPath) return false;
+  const rel = path.relative(baseDir, targetPath);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+};
 
 async function listMarkdownFiles(rootDir) {
   try {

@@ -1,13 +1,39 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 
-export const writeJsonl = (items, outPath = null) => {
-  const payload = items.map((item) => JSON.stringify(item)).join('\n');
-  if (outPath) {
-    fs.writeFileSync(outPath, `${payload}${payload ? '\n' : ''}`, 'utf8');
-  } else {
-    process.stdout.write(`${payload}${payload ? '\n' : ''}`);
+export const writeJsonl = async (items, outPath = null) => {
+  const stream = outPath
+    ? fs.createWriteStream(outPath, { encoding: 'utf8' })
+    : process.stdout;
+  if (!outPath) {
+    for (const item of items) {
+      const line = JSON.stringify(item);
+      if (!stream.write(`${line}\n`)) {
+        await new Promise((resolve) => stream.once('drain', resolve));
+      }
+    }
+    return;
   }
+
+  await new Promise((resolve, reject) => {
+    stream.on('error', reject);
+    stream.on('finish', resolve);
+
+    (async () => {
+      try {
+        for (const item of items) {
+          const line = JSON.stringify(item);
+          if (!stream.write(`${line}\n`)) {
+            await new Promise((resolveDrain) => stream.once('drain', resolveDrain));
+          }
+        }
+        stream.end();
+      } catch (err) {
+        stream.destroy(err);
+        reject(err);
+      }
+    })();
+  });
 };
 
 export const writeJson = async (items, outPath = null) => {

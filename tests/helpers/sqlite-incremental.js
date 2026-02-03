@@ -2,7 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');

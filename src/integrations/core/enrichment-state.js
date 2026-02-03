@@ -1,14 +1,24 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { writeJsonObjectFile } from '../../shared/json-stream.js';
 
 const resolveEnrichmentStatePath = (repoCacheRoot) => path.join(repoCacheRoot, 'enrichment_state.json');
 
-export const updateEnrichmentState = async (repoCacheRoot, patch) => {
+export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) => {
   if (!repoCacheRoot) return null;
+  const statePath = resolveEnrichmentStatePath(repoCacheRoot);
   let state = {};
   try {
-    state = JSON.parse(await fs.readFile(resolveEnrichmentStatePath(repoCacheRoot), 'utf8'));
-  } catch {}
+    state = JSON.parse(await fs.readFile(statePath, 'utf8'));
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      if (typeof log === 'function') {
+        log(`[enrichment] Failed to read state: ${err?.message || err}`);
+      } else {
+        console.warn(`[enrichment] Failed to read state: ${err?.message || err}`);
+      }
+    }
+  }
   const next = {
     ...state,
     ...patch,
@@ -16,7 +26,13 @@ export const updateEnrichmentState = async (repoCacheRoot, patch) => {
   };
   try {
     await fs.mkdir(repoCacheRoot, { recursive: true });
-    await fs.writeFile(resolveEnrichmentStatePath(repoCacheRoot), JSON.stringify(next, null, 2));
-  } catch {}
+    await writeJsonObjectFile(statePath, { fields: next, atomic: true, trailingNewline: true });
+  } catch (err) {
+    if (typeof log === 'function') {
+      log(`[enrichment] Failed to write state: ${err?.message || err}`);
+    } else {
+      console.warn(`[enrichment] Failed to write state: ${err?.message || err}`);
+    }
+  }
   return next;
 };

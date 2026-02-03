@@ -83,7 +83,7 @@ const loadCacheIndex = async (rootDir) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const { cacheDir, index } = await loadCacheIndex(cacheRoot);
 const entryKeys = Object.keys(index.entries || {});
@@ -103,7 +103,7 @@ if (!fs.existsSync(shardPath)) {
 }
 const before = await fsPromises.stat(shardPath);
 
-runNode('build_embeddings cached', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings cached', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const after = await fsPromises.stat(shardPath);
 if (after.mtimeMs !== before.mtimeMs) {

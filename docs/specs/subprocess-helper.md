@@ -179,7 +179,7 @@ This is required to prevent leaks in watch mode.
 
 ### 5.1 Critical adoption targets (must)
 1. `src/integrations/core/index.js: runEmbeddingsTool()`
-2. `tools/indexer-service.js` (spawn + wait helpers)
+2. `tools/service/indexer-service.js` (spawn + wait helpers)
 3. Any subprocess started in indexing pipeline that can outlive the parent (watch mode cancellation)
 
 ### 5.2 Deferred adoption targets (optional / later)

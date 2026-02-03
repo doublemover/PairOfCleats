@@ -20,4 +20,4 @@ Run local ONNX models (e.g., MiniLM embeddings) with tuned threading and memory 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: create InferenceSession and run() to generate embeddings.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: executionProviders, intraOpNumThreads, graphOptimizationLevel.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/perf/bench/run.test.js (real embeddings). Planned benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/perf/bench/run.test.js (real embeddings). Planned benchmark: tools/bench/language-repos.js.)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { parseBuildSqliteArgs, normalizeValidateMode } from '../../../../tools/build-sqlite-index/cli.js';
+import { parseBuildSqliteArgs, normalizeValidateMode } from '../../../../tools/build/sqlite/cli.js';
 
 const parsed = parseBuildSqliteArgs(['--mode', 'prose', '--out', 'outdir', '--validate', 'full']);
 assert.equal(parsed.modeArg, 'prose');

@@ -176,8 +176,22 @@ export async function discoverEntries({
   };
 
   const listFdirFiles = async () => {
-    const crawler = new fdir().withFullPaths().crawl(root);
-    return crawler.withPromise();
+    let crawler = new fdir().withFullPaths();
+    if (maxDepthValue != null) {
+      crawler = crawler.withMaxDepth(maxDepthValue);
+    }
+    if (abortSignal) {
+      crawler = crawler.withAbortSignal(abortSignal);
+    }
+    if (ignoreMatcher) {
+      crawler = crawler.exclude((entryPath) => {
+        const relPosix = toPosix(path.relative(root, entryPath));
+        if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+        if (path.isAbsolute(relPosix)) return false;
+        return ignoreMatcher.ignores(relPosix);
+      });
+    }
+    return crawler.crawl(root).withPromise();
   };
 
   const scmResult = await listScmFiles();
@@ -221,6 +235,10 @@ export async function discoverEntries({
     const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
     if (minifiedNameRegex.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
+      return;
+    }
+    if (path.isAbsolute(relPosix)) {
+      recordSkip(absPath, 'ignored', { reason: 'absolute-rel-path' });
       return;
     }
     if (ignoreMatcher.ignores(relPosix)) {

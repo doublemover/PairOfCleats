@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { syncProcessEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -34,7 +34,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build index');
-run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
+run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
 
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);

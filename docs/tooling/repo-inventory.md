@@ -5,7 +5,7 @@ The repo inventory report summarizes docs, tool entrypoints, and script referenc
 ## CLI
 
 ```bash
-node tools/repo-inventory.js --root . --json docs/tooling/repo-inventory.json
+node tools/docs/repo-inventory.js --root . --json docs/tooling/repo-inventory.json
 ```
 
 The CLI help identifies itself as `pairofcleats repo-inventory`.

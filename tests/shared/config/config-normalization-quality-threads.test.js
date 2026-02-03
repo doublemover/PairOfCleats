@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { loadUserConfig } from '../../../tools/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { buildAutoPolicy } from '../../../src/shared/auto-policy.js';
 import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
 

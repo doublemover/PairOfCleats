@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -80,7 +80,7 @@ await fsPromises.rm(bundlePath, { force: true });
 const sqliteBuild = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'build-sqlite-index.js'),
+    path.join(root, 'tools', 'build/sqlite-index.js'),
     '--mode',
     'code',
     '--repo',

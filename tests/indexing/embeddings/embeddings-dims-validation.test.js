@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createDimsValidator, isDimsMismatch, validateCachedDims } from '../../../tools/build-embeddings/embed.js';
+import { createDimsValidator, isDimsMismatch, validateCachedDims } from '../../../tools/build/embeddings/embed.js';
 
 const validator = createDimsValidator({ mode: 'code', configuredDims: 4 });
 validator.assertDims(4);

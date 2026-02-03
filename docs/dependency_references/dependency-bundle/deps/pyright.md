@@ -20,4 +20,4 @@ Use Pyright for optional Python type inference and structured diagnostics output
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: run pyright analysis and capture diagnostics/types for Python files.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: pythonVersion, pythonPlatform, typeCheckingMode, stubPath.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js (python). Planned benchmark: tools/bench-language-repos.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js (python). Planned benchmark: tools/bench/language-repos.js.)

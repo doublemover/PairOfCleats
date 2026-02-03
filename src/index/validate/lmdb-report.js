@@ -53,7 +53,7 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
           addLmdbIssue(
             label,
             `schema mismatch (expected ${LMDB_SCHEMA_VERSION}, got ${version ?? 'missing'})`,
-            'Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB artifacts.'
+            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
         const modeValue = decode(db.get(LMDB_META_KEYS.mode));
@@ -61,7 +61,7 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
           addLmdbIssue(
             label,
             `mode mismatch (expected ${label}, got ${modeValue})`,
-            'Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB artifacts.'
+            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
         const chunkCount = decode(db.get(LMDB_META_KEYS.chunkCount));
@@ -85,7 +85,7 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
           addLmdbIssue(
             label,
             'meta:artifacts missing or invalid',
-            'Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB artifacts.'
+            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
           return;
         }
@@ -94,14 +94,14 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
             addLmdbIssue(
               label,
               `missing artifact key ${key}`,
-              'Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB artifacts.'
+              'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
             );
           }
           if (db.get(key) == null) {
             addLmdbIssue(
               label,
               `artifact missing: ${key}`,
-              'Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB artifacts.'
+              'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
             );
           }
         }

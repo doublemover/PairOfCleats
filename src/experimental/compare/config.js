@@ -22,7 +22,9 @@ export function parseModelList(value) {
  */
 export function resolveCompareModels({ argvModels, configCompareModels, defaultModel }) {
   const fromArgs = parseModelList(argvModels);
-  const fromConfig = Array.isArray(configCompareModels) ? configCompareModels : [];
+  const fromConfig = Array.isArray(configCompareModels)
+    ? configCompareModels.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
   const list = fromArgs.length ? fromArgs : (fromConfig.length ? fromConfig : [defaultModel]);
   return Array.from(new Set(list.map(String)));
 }
@@ -50,7 +52,12 @@ export function resolveBaseline(models, baselineArg) {
  * @returns {{annEnabled:boolean,annFlagPresent:boolean}}
  */
 export function resolveAnnSetting({ rawArgs, argv, userConfig }) {
-  const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
+  const annFlagPresent = rawArgs.some((arg) => (
+    arg === '--ann'
+    || arg === '--no-ann'
+    || arg.startsWith('--ann=')
+    || arg.startsWith('--no-ann=')
+  ));
   const annDefault = userConfig.search?.annDefault !== false;
   const annEnabled = annFlagPresent ? argv.ann : annDefault;
   return { annEnabled, annFlagPresent };

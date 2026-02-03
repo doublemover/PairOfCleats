@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
@@ -328,6 +329,18 @@ function createPythonAstPool({ pythonBin, config, log }) {
         const sourceText = typeof text === 'string' ? text : '';
         if (maxTextBytes && Buffer.byteLength(sourceText, 'utf8') > maxTextBytes) {
           if (path) {
+            try {
+              const stat = fs.statSync(path);
+              if (stat.size > maxTextBytes) {
+                logOnce('[python-ast] File too large; falling back to heuristic chunking.', 'payload');
+                resolve(null);
+                return;
+              }
+            } catch {
+              logOnce('[python-ast] Failed to stat source file; falling back to heuristic chunking.', 'payload-stat');
+              resolve(null);
+              return;
+            }
             text = null;
           } else {
             logOnce('[python-ast] Payload too large; falling back to heuristic chunking.', 'payload');

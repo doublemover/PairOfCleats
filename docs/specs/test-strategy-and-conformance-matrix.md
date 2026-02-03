@@ -87,8 +87,8 @@ Purpose:
 - Validate cancellation, timeouts, and overload behavior.
 
 Characteristics:
-- spawn `tools/mcp-server.js` (SDK mode)
-- spawn `tools/api-server.js`
+- spawn `tools/mcp/server.js` (SDK mode)
+- spawn `tools/api/server.js`
 - interact via real transports (stdio, HTTP/SSE)
 
 ### 2.3 Contract & parity tests (API ↔ MCP equivalence)

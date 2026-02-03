@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveIndexRoot } from '../../../tools/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveIndexRoot } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -64,7 +64,7 @@ await fsPromises.rm(manifestPath, { force: true });
 const sqliteBuild = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'build-sqlite-index.js'),
+    path.join(root, 'tools', 'build/sqlite-index.js'),
     '--mode',
     'code',
     '--repo',
@@ -96,7 +96,7 @@ run([
   repoRoot
 ], 'rebuild index');
 run([
-  path.join(root, 'tools', 'build-sqlite-index.js'),
+  path.join(root, 'tools', 'build/sqlite-index.js'),
   '--mode',
   'code',
   '--repo',

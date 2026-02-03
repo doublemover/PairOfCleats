@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getCacheRoot } from '../dict-utils.js';
+import { getCacheRoot } from '../shared/dict-utils.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 
 export function getServiceConfigPath(inputPath = null) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { updateSqliteDense } from '../../../tools/build-embeddings/sqlite-dense.js';
+import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 
 let Database = null;
 try {

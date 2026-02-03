@@ -129,22 +129,29 @@ export async function acquireIndexLock({
       return {
         lockPath,
         release: async () => {
-          detachHandlers();
           try {
             await fs.rm(lockPath, { force: true });
+            released = true;
           } catch {}
-          released = true;
+          if (released) {
+            detachHandlers();
+          }
         }
       };
     } catch (err) {
       if (err?.code !== 'EEXIST') throw err;
       const stale = await isLockStale(lockPath, staleMs);
       if (stale) {
-        try {
-          await fs.rm(lockPath, { force: true });
-          log(`Removed stale index lock at ${lockPath}.`);
-          continue;
-        } catch {}
+        const info = await readLockInfo(lockPath);
+        const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
+        const alive = pid ? isProcessAlive(pid) : false;
+        if (!alive) {
+          try {
+            await fs.rm(lockPath, { force: true });
+            log(`Removed stale index lock at ${lockPath}.`);
+            continue;
+          } catch {}
+        }
       }
       const info = await readLockInfo(lockPath);
       const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;

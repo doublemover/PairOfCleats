@@ -10,7 +10,7 @@ import {
   resolveRepoRoot,
   resolveRuntimeEnv,
   resolveToolRoot
-} from '../tools/dict-utils.js';
+} from '../tools/shared/dict-utils.js';
 import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../src/shared/runtime-envelope.js';
 import { createCli } from '../src/shared/cli.js';
 import { INDEX_BUILD_OPTIONS } from '../src/shared/cli-options.js';
@@ -57,7 +57,7 @@ function resolveCommand(primary, rest) {
       return { script: 'build_index.js', extraArgs: ['--watch'], args: rest };
     }
     if (sub === 'validate') {
-      return { script: 'tools/index-validate.js', extraArgs: [], args: rest };
+      return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
     }
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
@@ -71,11 +71,11 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'setup') {
     validateArgs(rest, [], []);
-    return { script: 'tools/setup.js', extraArgs: [], args: rest };
+    return { script: 'tools/setup/setup.js', extraArgs: [], args: rest };
   }
   if (primary === 'bootstrap') {
     validateArgs(rest, [], []);
-    return { script: 'tools/bootstrap.js', extraArgs: [], args: rest };
+    return { script: 'tools/setup/bootstrap.js', extraArgs: [], args: rest };
   }
   if (primary === 'report') {
     const sub = rest.shift();
@@ -141,7 +141,7 @@ function resolveCommand(primary, rest) {
           'cache-dir'
         ]
       );
-      return { script: 'tools/report-code-map.js', extraArgs: [], args: rest };
+      return { script: 'tools/reports/report-code-map.js', extraArgs: [], args: rest };
     }
     if (sub === 'eval') {
       validateArgs(
@@ -207,11 +207,11 @@ function resolveCommand(primary, rest) {
           'limit'
         ]
       );
-      return { script: 'tools/compare-models.js', extraArgs: [], args: rest };
+      return { script: 'tools/reports/compare-models.js', extraArgs: [], args: rest };
     }
     if (sub === 'metrics') {
       validateArgs(rest, ['json', 'out', 'repo', 'top'], ['out', 'repo', 'top']);
-      return { script: 'tools/metrics-dashboard.js', extraArgs: [], args: rest };
+      return { script: 'tools/reports/metrics-dashboard.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown report subcommand: ${sub}`);
     printHelp();
@@ -257,7 +257,7 @@ function resolveCommand(primary, rest) {
           'progress'
         ]
       );
-      return { script: 'tools/build-sqlite-index.js', extraArgs: [], args: rest };
+      return { script: 'tools/build/sqlite-index.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown sqlite subcommand: ${sub}`);
     printHelp();
@@ -272,7 +272,7 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'api') {
       validateArgs(rest, ['host', 'port', 'repo'], ['host', 'port', 'repo']);
-      return { script: 'tools/api-server.js', extraArgs: [], args: rest };
+      return { script: 'tools/api/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
       validateArgs(
@@ -280,7 +280,7 @@ function resolveCommand(primary, rest) {
         ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'watch', 'interval', 'concurrency', 'queue'],
         ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'interval', 'concurrency', 'queue']
       );
-      return { script: 'tools/indexer-service.js', extraArgs: [], args: rest };
+      return { script: 'tools/service/indexer-service.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown service subcommand: ${sub}`);
     printHelp();
@@ -328,7 +328,7 @@ function resolveCommand(primary, rest) {
         'maxWallClockMs'
       ]
     );
-    return { script: 'tools/graph-context.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/graph-context.js', extraArgs: [], args: rest };
   }
   if (primary === 'architecture-check') {
     validateArgs(
@@ -345,7 +345,7 @@ function resolveCommand(primary, rest) {
       ],
       ['repo', 'rules', 'format', 'maxViolations', 'maxEdgesExamined']
     );
-    return { script: 'tools/architecture-check.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/architecture-check.js', extraArgs: [], args: rest };
   }
   if (primary === 'suggest-tests') {
     validateArgs(
@@ -386,7 +386,7 @@ function resolveCommand(primary, rest) {
         'maxWallClockMs'
       ]
     );
-    return { script: 'tools/suggest-tests.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/suggest-tests.js', extraArgs: [], args: rest };
   }
   if (primary === 'context-pack') {
     validateArgs(
@@ -434,7 +434,7 @@ function resolveCommand(primary, rest) {
         'maxWallClockMs'
       ]
     );
-    return { script: 'tools/context-pack.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/context-pack.js', extraArgs: [], args: rest };
   }
   if (primary === 'api-contracts') {
     validateArgs(
@@ -454,7 +454,7 @@ function resolveCommand(primary, rest) {
       ],
       ['repo', 'format', 'maxSymbols', 'maxCallsPerSymbol', 'maxCalls', 'maxWarnings', 'artifactDir']
     );
-    return { script: 'tools/api-contracts.js', extraArgs: [], args: rest };
+    return { script: 'tools/api/contracts.js', extraArgs: [], args: rest };
   }
   if (primary === 'impact') {
     validateArgs(
@@ -501,7 +501,7 @@ function resolveCommand(primary, rest) {
         'maxWallClockMs'
       ]
     );
-    return { script: 'tools/impact.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/impact.js', extraArgs: [], args: rest };
   }
   if (primary === 'tooling') {
     const sub = rest.shift();
@@ -512,7 +512,7 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'doctor') {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
-      return { script: 'tools/tooling-doctor.js', extraArgs: [], args: rest };
+      return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown tooling subcommand: ${sub}`);
     printHelp();
@@ -527,7 +527,7 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'build') {
       validateArgs(rest, ['repo', 'mode'], ['repo', 'mode']);
-      return { script: 'tools/build-lmdb-index.js', extraArgs: [], args: rest };
+      return { script: 'tools/build/lmdb-index.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown lmdb subcommand: ${sub}`);
     printHelp();
@@ -546,7 +546,7 @@ function resolveCommand(primary, rest) {
         ['index', 'chunk', 'max', 'source-rule', 'sink-rule', 'json'],
         ['index', 'chunk', 'max', 'source-rule', 'sink-rule']
       );
-      return { script: 'tools/explain-risk.js', extraArgs: [], args: rest };
+      return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown risk subcommand: ${sub}`);
     printHelp();
@@ -659,8 +659,16 @@ async function runScript(scriptPath, extraArgs, restArgs) {
 }
 
 function extractRepoArg(args) {
-  const idx = args.indexOf('--repo');
-  if (idx >= 0 && args[idx + 1]) return args[idx + 1];
+  const endOfOptions = args.indexOf('--');
+  const scanArgs = endOfOptions === -1 ? args : args.slice(0, endOfOptions);
+  for (let i = 0; i < scanArgs.length; i += 1) {
+    const arg = scanArgs[i];
+    if (arg === '--repo' && scanArgs[i + 1]) return scanArgs[i + 1];
+    if (arg.startsWith('--repo=')) {
+      const value = arg.slice('--repo='.length);
+      if (value) return value;
+    }
+  }
   return null;
 }
 

@@ -192,17 +192,19 @@ export const buildImportEdges = ({ fileRelations, fileSet }) => {
   const edges = [];
   for (const entry of fileRelations) {
     if (!entry?.file) continue;
-    if (fileSet && !fileSet.has(entry.file)) continue;
+    const from = normalizePath(entry.file);
+    if (fileSet && !fileSet.has(from)) continue;
     const imports = Array.isArray(entry.relations?.importLinks)
       ? entry.relations.importLinks
       : [];
     for (const target of imports) {
       if (!target) continue;
-      if (fileSet && !fileSet.has(target)) continue;
+      const to = normalizePath(target);
+      if (fileSet && !fileSet.has(to)) continue;
       edges.push({
         type: 'import',
-        from: { file: entry.file },
-        to: { file: target },
+        from: { file: from },
+        to: { file: to },
         label: null
       });
     }

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
@@ -15,21 +15,25 @@ const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
  * @returns {Promise<number>}
  */
 async function sizeOfPath(targetPath) {
-  try {
-    const stat = await fsPromises.lstat(targetPath);
-    if (stat.isSymbolicLink()) return 0;
-    if (stat.isFile()) return stat.size;
-    if (!stat.isDirectory()) return 0;
-
-    const entries = await fsPromises.readdir(targetPath);
-    let total = 0;
-    for (const entry of entries) {
-      total += await sizeOfPath(path.join(targetPath, entry));
-    }
-    return total;
-  } catch {
-    return 0;
+  const stack = [targetPath];
+  let total = 0;
+  while (stack.length) {
+    const current = stack.pop();
+    try {
+      const stat = await fsPromises.lstat(current);
+      if (stat.isSymbolicLink()) continue;
+      if (stat.isFile()) {
+        total += stat.size;
+        continue;
+      }
+      if (!stat.isDirectory()) continue;
+      const entries = await fsPromises.readdir(current);
+      for (const entry of entries) {
+        stack.push(path.join(current, entry));
+      }
+    } catch {}
   }
+  return total;
 }
 
 /**
@@ -180,7 +184,7 @@ export async function getStatus(input = {}) {
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `node tools/build-sqlite-index.js` to rebuild SQLite indexes.');
+    health.hints.push('Run `node tools/build/sqlite-index.js` to rebuild SQLite indexes.');
   }
 
   const lmdbIssues = [];
@@ -194,7 +198,7 @@ export async function getStatus(input = {}) {
   }
   if (lmdbIssues.length) {
     health.issues.push(...lmdbIssues);
-    health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build-lmdb-index.js`) to rebuild LMDB indexes.');
+    health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB indexes.');
   }
 
   const payload = {

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'two-stage-state');

@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getToolCatalog, getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
-import { DEFAULT_MODEL_ID } from '../../../tools/dict-utils.js';
+import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp-server.js');

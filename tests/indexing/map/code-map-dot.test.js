@@ -49,7 +49,7 @@ if (buildResult.status !== 0) {
 const mapResult = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'report-code-map.js'),
+    path.join(root, 'tools', 'reports/report-code-map.js'),
     '--format',
     'dot',
     '--include',

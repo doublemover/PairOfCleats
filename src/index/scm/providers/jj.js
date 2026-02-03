@@ -76,7 +76,7 @@ const buildBaseArgs = ({ operation, ignoreWorkingCopy }) => {
   return args;
 };
 
-const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true }) => {
+const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true, signal }) => {
   const config = resolveJjConfig();
   const queue = useQueue ? getQueue(config.maxConcurrentProcesses) : null;
   const run = () => runScmCommand('jj', args, {
@@ -85,7 +85,8 @@ const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true }) => {
     captureStdout: true,
     captureStderr: true,
     rejectOnNonZeroExit: false,
-    timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.timeoutMs
+    timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.timeoutMs,
+    signal
   });
   return queue ? queue.add(run) : run();
 };
@@ -172,7 +173,7 @@ const ensurePinnedOperation = async (repoRoot, config) => {
   return snapshotPromise;
 };
 
-const runJjCommand = async ({ repoRoot, args, timeoutMs }) => {
+const runJjCommand = async ({ repoRoot, args, timeoutMs, signal }) => {
   const config = resolveJjConfig();
   await logJjInfo(repoRoot, config);
   const operation = await ensurePinnedOperation(repoRoot, config);
@@ -184,6 +185,7 @@ const runJjCommand = async ({ repoRoot, args, timeoutMs }) => {
     repoRoot,
     args: [...baseArgs, ...args],
     timeoutMs,
+    signal,
     useQueue: true
   });
 };
@@ -364,7 +366,7 @@ export const jjProvider = {
       churnCommits
     };
   },
-  async annotate({ repoRoot, filePosix, timeoutMs }) {
+  async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const config = resolveJjConfig();
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
@@ -372,7 +374,8 @@ export const jjProvider = {
     const result = await runJjCommand({
       repoRoot,
       args: ['file', 'annotate', '-T', template, fileset],
-      timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.annotateTimeoutMs
+      timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.annotateTimeoutMs,
+      signal
     });
     if (result.exitCode !== 0) {
       return { ok: false, reason: 'unavailable' };

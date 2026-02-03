@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildIndex } from '../../../src/integrations/core/index.js';
-import { getRepoCacheRoot } from '../../dict-utils.js';
+import { getRepoCacheRoot } from '../../shared/dict-utils.js';
 import { hrtimeMs, summarizeDurations } from './utils.js';
 
 export async function runIndexBuildBenchmark({

@@ -1,6 +1,6 @@
 # SQLite Index Schema
 
-This schema is created by `tools/build-sqlite-index.js`.
+This schema is created by `tools/build/sqlite-index.js`.
 
 ## Core tables
 

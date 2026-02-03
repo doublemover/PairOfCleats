@@ -20,5 +20,5 @@ Fast non-cryptographic hashing for content fingerprints, chunk IDs, and MinHash-
 ## Suggested extraction checklist
 - [x] Define artifact formats and version them (xxhash is used for checksums with an `xxh64:` prefix, validated in `src/index/validate.js`).
 - [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs (hash UTF-8 bytes from normalized inputs; aligned in `src/shared/hash.js`).
-- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load (capture hashing throughput in `tools/report-artifacts.js` or bench runs).
+- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load (capture hashing throughput in `tools/index/report-artifacts.js` or bench runs).
 - [x] Plan for corruption detection (hashes) and safe partial rebuilds (xxhash checksums are verified during `pairofcleats index validate`).

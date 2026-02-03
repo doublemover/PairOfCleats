@@ -12,10 +12,10 @@ Mode selection order: CLI `--mcp-mode` → env (`MCP_MODE`/`PAIROFCLEATS_MCP_MOD
 
 ## Run
 
-- `node tools/mcp-server.js`
-- `node tools/mcp-server.js --mcp-mode auto`
-- `node tools/mcp-server.js --mcp-mode sdk`
-- `node tools/mcp-server.js --mcp-mode legacy`
+- `node tools/mcp/server.js`
+- `node tools/mcp/server.js --mcp-mode auto`
+- `node tools/mcp/server.js --mcp-mode sdk`
+- `node tools/mcp/server.js --mcp-mode legacy`
 
 There is no `pairofcleats service mcp` wrapper; run the tool script directly.
 

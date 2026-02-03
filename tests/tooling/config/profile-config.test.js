@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { loadUserConfig } from '../../../tools/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-profile-'));
 const configPath = path.join(tempRoot, '.pairofcleats.json');

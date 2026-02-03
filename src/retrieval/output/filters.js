@@ -46,11 +46,13 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
+  const excludeNeedleSet = excludeNeedles.length ? new Set(excludeNeedles) : null;
   const normalizePhraseNeedle = (value) => {
     const normalized = caseTokens ? String(value || '') : normalize(value);
     return normalized.replace(/\s+/g, '_');
   };
   const excludePhraseNeedles = normalizePhraseList(filters.excludePhrases).map(normalizePhraseNeedle);
+  const excludePhraseSet = excludePhraseNeedles.length ? new Set(excludePhraseNeedles) : null;
   const derivedPhraseRange = (() => {
     if (filters.excludePhraseRange?.min && filters.excludePhraseRange?.max) return filters.excludePhraseRange;
     if (!excludePhraseNeedles.length) return null;

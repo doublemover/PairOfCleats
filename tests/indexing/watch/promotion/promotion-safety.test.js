@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { promoteBuild } from '../../../../src/index/build/promotion.js';
-import { getBuildsRoot, getCurrentBuildInfo, getRepoCacheRoot } from '../../../../tools/dict-utils.js';
+import { getBuildsRoot, getCurrentBuildInfo, getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-'));
 applyTestEnv({ cacheRoot: tempRoot });

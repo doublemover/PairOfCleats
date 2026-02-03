@@ -1,5 +1,21 @@
 const uniq = (values) => Array.from(new Set(values.filter(Boolean)));
 
+const isSafeImportUrl = (value) => {
+  if (typeof value !== 'string' || !value) return false;
+  try {
+    const resolved = new URL(value, window.location.href);
+    return resolved.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+const assertSafeImportUrl = (value, label) => {
+  if (!isSafeImportUrl(value)) {
+    throw new Error(`Unsafe module URL for ${label || 'module'}: ${value}`);
+  }
+};
+
 const guessExamplesBases = (threeUrl) => {
   const bases = [];
   bases.push('/three/examples/jsm/');
@@ -45,7 +61,8 @@ const guessExamplesBases = (threeUrl) => {
 };
 
 const importFromBases = async (bases, relPath) => {
-  for (const base of bases) {
+  const safeBases = bases.filter((base) => isSafeImportUrl(base));
+  for (const base of safeBases) {
     try {
       return await import(`${base}${relPath}`);
     } catch (err) {
@@ -56,6 +73,7 @@ const importFromBases = async (bases, relPath) => {
 };
 
 export const loadThreeModules = async (threeUrl) => {
+  assertSafeImportUrl(threeUrl, 'three');
   const THREE = await import(threeUrl);
   let LineSegments2 = null;
   let LineSegmentsGeometry = null;
@@ -75,7 +93,7 @@ export const loadThreeModules = async (threeUrl) => {
 };
 
 export const loadRgbeLoader = async (url, threeUrl) => {
-  if (url) {
+  if (url && isSafeImportUrl(url)) {
     try {
       const module = await import(url);
       return module.RGBELoader || null;

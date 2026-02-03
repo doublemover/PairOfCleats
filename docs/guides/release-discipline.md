@@ -20,5 +20,5 @@ This document defines release rules for schema changes, flag removals, and chang
 ## Changelog enforcement
 - Maintain `CHANGELOG.md` with entries per release.
 - Breaking changes must be listed under `### Breaking` for the release section.
-- Run `node tools/release-check.js --breaking` for breaking releases to enforce the changelog entry.
+- Run `node tools/release/check.js --breaking` for breaking releases to enforce the changelog entry.
 

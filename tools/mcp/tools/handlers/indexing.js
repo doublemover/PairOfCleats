@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadUserConfig } from '../../../dict-utils.js';
+import { loadUserConfig } from '../../../shared/dict-utils.js';
 import {
   buildIndex as coreBuildIndex,
   buildSqliteIndex as coreBuildSqliteIndex
@@ -112,7 +112,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
 export async function compactSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'compact-sqlite-index.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'build', 'compact-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (args.keepBackup === true) scriptArgs.push('--keep-backup');

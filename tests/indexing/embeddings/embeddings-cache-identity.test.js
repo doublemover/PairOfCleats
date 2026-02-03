@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readCacheEntry } from '../../../tools/build-embeddings/cache.js';
+import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 
 const root = process.cwd();
@@ -37,7 +37,7 @@ const runEmbeddings = (dims) => {
   const result = spawnSync(
     process.execPath,
     [
-      path.join(root, 'tools', 'build-embeddings.js'),
+      path.join(root, 'tools', 'build/embeddings.js'),
       '--stub-embeddings',
       '--mode',
       'code',

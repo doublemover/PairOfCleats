@@ -6,7 +6,7 @@ import { discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { readTextFile } from '../../../src/shared/encoding.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
-import { getTriageConfig } from '../../dict-utils.js';
+import { getTriageConfig } from '../../shared/dict-utils.js';
 
 export const formatDuration = (ms) => formatDurationMs(ms);
 

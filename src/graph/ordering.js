@@ -57,9 +57,15 @@ export const referenceEnvelopeKey = (envelope) => {
     : null;
   const resolvedKey = candidateKey(resolved);
   if (resolvedKey) return resolvedKey;
-  const firstCandidate = Array.isArray(envelope.candidates) ? envelope.candidates[0] : null;
-  const candidateFallback = candidateKey(firstCandidate);
-  if (candidateFallback) return candidateFallback;
+  const candidateKeys = Array.isArray(envelope.candidates)
+    ? envelope.candidates.map((candidate) => candidateKey(candidate)).filter(Boolean)
+    : [];
+  if (candidateKeys.length) {
+    const unique = Array.from(new Set(candidateKeys));
+    unique.sort(compareStrings);
+    if (unique.length === 1) return unique[0];
+    return `candidates:${unique.join('|')}`;
+  }
   if (typeof envelope.targetName === 'string' && envelope.targetName) {
     return `name:${envelope.targetName}`;
   }

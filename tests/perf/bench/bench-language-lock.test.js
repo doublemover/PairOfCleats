@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'bench-language-lock');
@@ -41,7 +41,7 @@ await fsPromises.writeFile(
   JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })
 );
 
-const scriptPath = path.join(root, 'tools', 'bench-language-repos.js');
+const scriptPath = path.join(root, 'tools', 'bench/language-repos.js');
 const result = spawnSync(
   process.execPath,
   [

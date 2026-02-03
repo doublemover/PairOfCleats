@@ -391,7 +391,7 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
 - Goal: add CLI wrappers in `bin/pairofcleats.js`.
 - Touchpoints:
   - `bin/pairofcleats.js`
-  - `tools/ctags-ingest.js`, `tools/gtags-ingest.js`, `tools/lsif-ingest.js`, `tools/scip-ingest.js`
+  - `tools/ingest/ctags.js`, `tools/ingest/gtags.js`, `tools/ingest/lsif.js`, `tools/ingest/scip.js`
   - Docs: `docs/tooling/ctags.md`, `docs/tooling/gtags.md`, `docs/tooling/lsif.md`, `docs/tooling/scip.md`, `docs/guides/commands.md`
 - Tasks:
   - [ ] Add `pairofcleats ingest <ctags|gtags|lsif|scip>` routes.
@@ -466,3 +466,23 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
 - [ ] Workspace config/manifest validation stubs present.
 - [ ] Test runner emits timing ledger and coverage merge output.
 - [ ] Error telemetry codes consistent across surfaces.
+
+---
+
+## Deferred: full fix for sync FS on request paths
+
+Context: We mitigated the hottest sync FS usage by switching index cache signature validation to `index_state.json`. A full fix requires eliminating remaining sync filesystem calls on request-time paths (search + tooling integrations).
+
+Required work (future):
+- [ ] Refactor `src/retrieval/index-cache.js` so `buildIndexSignature()` becomes async and uses async FS (or a cached signature map keyed by build id + TTL).
+- [ ] Update all call sites to await async signature (touchpoints):
+  - `src/retrieval/cli/run-search-session.js` (signature checks before search)
+  - `src/integrations/tooling/*` (graph-context, impact, suggest-tests, api-contracts, architecture-check)
+  - `src/retrieval/cli/index-loader.js` / `loadIndexWithCache`
+- [ ] Decide caching strategy for signatures to avoid repeated stat scans:
+  - Use `index_state.json` buildId as primary signature
+  - Use shard stats only on cache miss, and cache results for TTL
+- [ ] Add tests:
+  - [ ] Search path does not perform sync fs (mock fs + verify no sync calls)
+  - [ ] Signature invalidation when `index_state.json` changes
+  - [ ] Fallback signature path still detects shard changes

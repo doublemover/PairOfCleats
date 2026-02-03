@@ -209,7 +209,7 @@ The loader **MUST** reject:
 
 ### 5.7 `repoId` derivation
 
-Use existing `getRepoId(repoRootCanonical)` from `tools/dict-utils.js`.
+Use existing `getRepoId(repoRootCanonical)` from `tools/shared/dict-utils.js`.
 
 Constraints:
 - `repoId` MUST be computed from **canonical** roots (not the raw `root` input).
@@ -382,7 +382,7 @@ Use these existing utilities:
 - `readJsoncFile` -- `src/shared/jsonc.js`
 - `stableStringify` -- `src/shared/stable-json.js`
 - `sha1` -- `src/shared/hash.js`
-- `resolveRepoRoot`, `getRepoId` -- `tools/dict-utils.js`
+- `resolveRepoRoot`, `getRepoId` -- `tools/shared/dict-utils.js`
 - `createError`, `ERROR_CODES` -- `src/shared/errors.js` / `src/shared/error-codes.js` (or workspace-local errors)
 
 ---

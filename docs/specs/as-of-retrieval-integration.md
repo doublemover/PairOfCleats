@@ -60,8 +60,8 @@ All later filesystem index resolution MUST be based on this context.
 
 ### 1.2 Minimal changes to existing code paths
 Today the retrieval CLI resolves index directories using:
-- `tools/dict-utils.js#resolveIndexRoot(...)`
-- `tools/dict-utils.js#getIndexDir(...)`
+- `tools/shared/dict-utils.js#resolveIndexRoot(...)`
+- `tools/shared/dict-utils.js#getIndexDir(...)`
 - `src/retrieval/cli-index.js#resolveIndexDir(...)`
 
 Phase 14 MUST *not* rewrite the search stack. Instead, it should:
@@ -114,7 +114,7 @@ Rules:
 - Return `path.join(indexBaseRoot, 'index-' + mode)` (or use `getIndexDir` with an explicit `indexRoot` override)
 
 Implementation note:
-- You can reuse `tools/dict-utils.js#getIndexDir(repoRoot, userConfig, { mode, indexRoot })`
+- You can reuse `tools/shared/dict-utils.js#getIndexDir(repoRoot, userConfig, { mode, indexRoot })`
   by passing `indexRoot = indexBaseRoot`.
 
 ### 2.5 SQLite/LMDB backend selection with as-of

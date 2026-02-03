@@ -57,8 +57,18 @@ export function closeOutput(output = process.stdout) {
   closeJsonRpcWriter(output);
 }
 
+const MAX_HINT_INPUT = 16384;
+
+const capHintInput = (value) => {
+  if (!value) return '';
+  const text = String(value);
+  if (text.length <= MAX_HINT_INPUT) return text;
+  return text.slice(0, MAX_HINT_INPUT);
+};
+
 const getRemediationHint = (error) => {
   const parts = [error?.message, error?.stderr, error?.stdout]
+    .map(capHintInput)
     .filter(Boolean)
     .join('\n')
     .toLowerCase();
@@ -66,7 +76,7 @@ const getRemediationHint = (error) => {
 
   if (parts.includes('sqlite backend requested but index not found')
     || parts.includes('missing required tables')) {
-    return 'Run `node tools/build-sqlite-index.js` or set sqlite.use=false / --backend memory.';
+    return 'Run `node tools/build/sqlite-index.js` or set sqlite.use=false / --backend memory.';
   }
   if (parts.includes('better-sqlite3 is required')) {
     return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
@@ -80,13 +90,13 @@ const getRemediationHint = (error) => {
   }
   if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
     && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `node tools/download-models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
+    return 'Run `node tools/download/models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
   }
   if (parts.includes('dictionary')
     || parts.includes('wordlist')
     || parts.includes('words_alpha')
     || parts.includes('download-dicts')) {
-    return 'Run `node tools/download-dicts.js --lang en` (or configure dictionary.files/languages).';
+    return 'Run `node tools/download/dicts.js --lang en` (or configure dictionary.files/languages).';
   }
   return null;
 };
@@ -106,7 +116,12 @@ export function formatToolError(error) {
     message: error?.message || String(error)
   };
   if (!isErrorCode(error?.code) && error?.code != null) {
-    payload.exitCode = error.code;
+    const numericCode = Number(error.code);
+    if (Number.isFinite(numericCode)) {
+      payload.exitCode = numericCode;
+    } else {
+      payload.nativeCode = String(error.code);
+    }
   }
   if (error?.stderr) payload.stderr = String(error.stderr).trim();
   if (error?.stdout) payload.stdout = String(error.stdout).trim();

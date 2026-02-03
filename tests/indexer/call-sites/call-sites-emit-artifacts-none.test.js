@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { loadUserConfig, getIndexDir } from '../../../tools/dict-utils.js';
+import { loadUserConfig, getIndexDir } from '../../../tools/shared/dict-utils.js';
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';

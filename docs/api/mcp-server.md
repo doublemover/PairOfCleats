@@ -3,7 +3,7 @@
 PairOfCleats ships an MCP server that exposes indexing, search, and maintenance tools over JSON-RPC.
 
 ## Run
-- `node tools/mcp-server.js --mcp-mode <legacy|sdk|auto>`
+- `node tools/mcp/server.js --mcp-mode <legacy|sdk|auto>`
 
 Mode selection order: CLI `--mcp-mode` → env (`PAIROFCLEATS_MCP_MODE`) → config `mcp.mode`.
 Default mode is `legacy` unless `auto` is explicitly requested.

@@ -6,16 +6,16 @@ Use the ctags ingest tool to normalize ctags JSON into a cache-backed JSONL arti
 
 ```bash
 # Run ctags directly (default when no --input is provided)
-node tools/ctags-ingest.js --repo . --run
+node tools/ingest/ctags.js --repo . --run
 
 # Or via npm
 npm run ctags-ingest -- --repo . --run
 
 # Ingest a pre-generated JSONL file
-node tools/ctags-ingest.js --repo . --input ctags.jsonl --out ./ctags.jsonl
+node tools/ingest/ctags.js --repo . --input ctags.jsonl --out ./ctags.jsonl
 
 # Stream JSONL from stdin
-ctags --output-format=json --tag-relative=yes --recurse=yes . | node tools/ctags-ingest.js --repo . --input -
+ctags --output-format=json --tag-relative=yes --recurse=yes . | node tools/ingest/ctags.js --repo . --input -
 ```
 
 ## Options

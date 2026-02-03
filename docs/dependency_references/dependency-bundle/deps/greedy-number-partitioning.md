@@ -18,4 +18,4 @@ Partition weighted tasks into k bins (e.g., files by size/estimated parse cost) 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: use greedy partitioning to balance shard weights or queue batches.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: number of groups, weight function, max group size.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tools/shard-census.js sample outputs. Planned benchmark: tools/shard-census.js or tests/shared/runtime/thread-limits.test.js.)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tools/index/shard-census.js sample outputs. Planned benchmark: tools/index/shard-census.js or tests/shared/runtime/thread-limits.test.js.)

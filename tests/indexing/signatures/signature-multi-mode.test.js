@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { applyAdaptiveDictConfig } from '../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig } from '../../../tools/shared/dict-utils.js';
 import { buildTokenizationKey } from '../../../src/index/build/indexer/signatures.js';
 
 const dictConfig = {

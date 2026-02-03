@@ -1,20 +1,25 @@
+import { StringDecoder } from 'node:string_decoder';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 
 const createLineEmitter = (onLine) => {
+  const decoder = new StringDecoder('utf8');
   let buffer = '';
   const emitLine = (line) => {
     const trimmed = line.trimEnd();
     if (trimmed) onLine(trimmed);
   };
   const handleChunk = (chunk) => {
-    buffer += chunk;
+    const text = Buffer.isBuffer(chunk) ? decoder.write(chunk) : String(chunk);
+    buffer += text;
     const parts = buffer.split(/\r?\n/);
     buffer = parts.pop() || '';
     for (const line of parts) emitLine(line);
   };
   const flush = () => {
+    const tail = decoder.end();
+    if (tail) buffer += tail;
     if (buffer) emitLine(buffer);
     buffer = '';
   };

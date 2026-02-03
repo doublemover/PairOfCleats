@@ -1,4 +1,4 @@
-import { execaSync } from 'execa';
+import { runCommand } from '../../shared/cli-utils.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
@@ -31,7 +31,7 @@ export const createProcessRunner = ({
     if (!Number.isFinite(pid)) return;
     try {
       if (process.platform === 'win32') {
-        execaSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', reject: false });
+        runCommand('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
         return;
       }
       process.kill(pid, 'SIGTERM');

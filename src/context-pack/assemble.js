@@ -89,13 +89,53 @@ const resolvePrimaryRef = (seedRef, chunk) => {
   return seedRef || null;
 };
 
+const trimUtf8Buffer = (buffer) => {
+  let end = buffer.length;
+  while (end > 0 && (buffer[end - 1] & 0xC0) === 0x80) {
+    end -= 1;
+  }
+  if (end === 0) return buffer.subarray(0, 0);
+  const lead = buffer[end - 1];
+  let needed = 1;
+  if ((lead & 0x80) === 0) needed = 1;
+  else if ((lead & 0xE0) === 0xC0) needed = 2;
+  else if ((lead & 0xF0) === 0xE0) needed = 3;
+  else if ((lead & 0xF8) === 0xF0) needed = 4;
+  if (end - 1 + needed <= buffer.length) {
+    return buffer;
+  }
+  return buffer.subarray(0, Math.max(0, end - 1));
+};
+
+const readFilePrefix = (filePath, maxBytes) => {
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
+  let fd = null;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.allocUnsafe(maxBytes);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
+    return slice.toString('utf8');
+  } finally {
+    if (fd) fs.closeSync(fd);
+  }
+};
+
+const isPathInsideRepo = (repoRoot, filePath) => {
+  const relative = path.relative(repoRoot, filePath);
+  if (!relative) return true;
+  if (relative.startsWith('..')) return false;
+  return !path.isAbsolute(relative);
+};
+
 const sliceExcerpt = (text, maxBytes, maxTokens) => {
   let excerpt = text;
   let truncated = false;
   if (maxBytes != null && maxBytes > 0) {
     const buffer = Buffer.from(excerpt, 'utf8');
     if (buffer.length > maxBytes) {
-      excerpt = buffer.subarray(0, maxBytes).toString('utf8');
+      const safe = trimUtf8Buffer(buffer.subarray(0, maxBytes));
+      excerpt = safe.toString('utf8');
       truncated = true;
     }
   }
@@ -116,14 +156,33 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
   }
   const filePath = chunk.file ? path.resolve(repoRoot, chunk.file) : null;
   let text = '';
-  if (filePath && fs.existsSync(filePath)) {
-    const fileText = fs.readFileSync(filePath, 'utf8');
-    const start = Number.isFinite(chunk.start) ? chunk.start : 0;
-    const end = Number.isFinite(chunk.end) ? chunk.end : fileText.length;
-    if (end > start) {
-      text = fileText.slice(start, end);
+  if (filePath) {
+    if (!isPathInsideRepo(repoRoot, filePath)) {
+      warnings.push({
+        code: 'PRIMARY_PATH_OUTSIDE_REPO',
+        message: 'Primary chunk path resolves outside repo root.'
+      });
+    } else if (fs.existsSync(filePath)) {
+      const start = Number.isFinite(chunk.start) ? chunk.start : null;
+      const end = Number.isFinite(chunk.end) ? chunk.end : null;
+      const maxBytesNum = normalizeOptionalNumber(maxBytes);
+      if (maxBytesNum && (start == null || end == null || end <= start)) {
+        text = readFilePrefix(filePath, maxBytesNum);
+      } else {
+        const fileText = fs.readFileSync(filePath, 'utf8');
+        const safeStart = Number.isFinite(start) ? start : 0;
+        const safeEnd = Number.isFinite(end) ? end : fileText.length;
+        if (safeEnd > safeStart) {
+          text = fileText.slice(safeStart, safeEnd);
+        } else {
+          text = fileText;
+        }
+      }
     } else {
-      text = fileText;
+      warnings.push({
+        code: 'PRIMARY_PATH_MISSING',
+        message: 'Primary chunk path not found on disk.'
+      });
     }
   } else if (chunk.headline) {
     text = String(chunk.headline);

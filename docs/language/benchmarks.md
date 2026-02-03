@@ -10,21 +10,21 @@ Use the language benchmark harness to run search and performance baselines acros
 
 ## Quick usage
 - List targets:
-  - `node tools/bench-language-repos.js --list`
+  - `node tools/bench/language-repos.js --list`
 - Run only JavaScript repos (clone if missing, build indexes, write per-repo JSON):
-  - `node tools/bench-language-repos.js --language javascript --build`
+  - `node tools/bench/language-repos.js --language javascript --build`
 - Run everything with builds:
-  - `node tools/bench-language-repos.js --build`
+  - `node tools/bench/language-repos.js --build`
 - Run only typical repos, skip cloning:
-  - `node tools/bench-language-repos.js --tier typical --no-clone`
+  - `node tools/bench/language-repos.js --tier typical --no-clone`
 - Run only typical Python repos:
-  - `node tools/bench-language-repos.js --language python --tier typical --build`
+  - `node tools/bench/language-repos.js --language python --tier typical --build`
 - Write an aggregate summary for Grafana:
-  - `node tools/bench-language-repos.js --language python --build --out docs/benchmarks-python.json --json`
+  - `node tools/bench/language-repos.js --language python --build --out docs/benchmarks-python.json --json`
 
 ## Convenience note
-The old `bench-language:*` npm scripts were removed; use `node tools/bench-language-repos.js` with flags instead.
-The matrix runner is `node tools/bench-language-matrix.js`.
+The old `bench-language:*` npm scripts were removed; use `node tools/bench/language-repos.js` with flags instead.
+The matrix runner is `node tools/bench/language-matrix.js`.
 
 ## Output
 - Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/perf/bench/run.test.js`).

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { attachEmbeddings } from '../../../src/index/build/file-processor/embeddings.js';
-import { buildQuantizedVectors } from '../../../tools/build-embeddings/embed.js';
+import { buildQuantizedVectors } from '../../../tools/build/embeddings/embed.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 
 const vectorNorm = (vec) => {

@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
 const root = process.cwd();
-const validatorPath = path.join(root, 'tools', 'index-validate.js');
+const validatorPath = path.join(root, 'tools', 'index', 'validate.js');
 
 const result = spawnSync(
   process.execPath,

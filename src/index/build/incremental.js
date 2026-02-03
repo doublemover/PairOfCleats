@@ -31,6 +31,14 @@ const summarizeSignatureDelta = (current, previous, limit = 5) => {
   return `${diffList.join(', ')}${extra}`;
 };
 
+const isCoarseMtime = (mtimeMs) => (
+  Number.isFinite(mtimeMs) && Math.trunc(mtimeMs) % 1000 === 0
+);
+
+const shouldVerifyHash = (fileStat, cachedEntry) => (
+  isCoarseMtime(fileStat?.mtimeMs) && !!cachedEntry?.hash
+);
+
 /**
  * Initialize incremental cache state for a mode.
  * @param {{repoCacheRoot:string,mode:'code'|'prose',enabled:boolean,tokenizationKey?:string,log?:(msg:string)=>void}} input
@@ -224,6 +232,13 @@ export async function readCachedBundle({
   const bundlePath = path.join(bundleDir, bundleName);
   if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && fsSync.existsSync(bundlePath)) {
     try {
+      if (shouldVerifyHash(fileStat, cachedEntry)) {
+        buffer = await fs.readFile(absPath);
+        fileHash = sha1(buffer);
+        if (fileHash !== cachedEntry.hash) {
+          return { cachedBundle, fileHash, buffer };
+        }
+      }
       const result = await readBundleFile(bundlePath, {
         format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
       });
@@ -282,6 +297,15 @@ export async function readCachedImports({
       const bundle = result.bundle;
       const imports = bundle?.fileRelations?.imports;
       return Array.isArray(imports) ? imports : null;
+    } catch {
+      return null;
+    }
+  }
+  if (shouldVerifyHash(fileStat, cachedEntry)) {
+    try {
+      const buffer = await fs.readFile(absPath);
+      const fileHash = sha1(buffer);
+      if (fileHash !== cachedEntry.hash) return null;
     } catch {
       return null;
     }

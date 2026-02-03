@@ -18,7 +18,7 @@ import {
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
 import { createGraphStore } from '../../graph/store.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const parseList = (value) => {
   if (!value) return [];
@@ -197,13 +197,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     } else {
       console.error(message);
     }
-    process.exit(1);
+    return { ok: false, code: 'ERR_GRAPH_IMPACT', message };
   }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  runImpactCli().catch((err) => {
-    console.error(err?.message || err);
-    process.exit(1);
-  });
+  runImpactCli()
+    .then((result) => {
+      if (result?.ok === false) process.exit(1);
+    })
+    .catch((err) => {
+      console.error(err?.message || err);
+      process.exit(1);
+    });
 }

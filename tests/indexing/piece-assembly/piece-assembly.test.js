@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from '../../helpers/test-env.js';
 import { loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
@@ -11,7 +11,7 @@ import { stableStringify } from '../../../src/shared/stable-json.js';
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const buildIndexPath = path.join(root, 'build_index.js');
-const assemblePath = path.join(root, 'tools', 'assemble-pieces.js');
+const assemblePath = path.join(root, 'tools', 'index', 'assemble-pieces.js');
 
 if (!fs.existsSync(fixtureRoot)) {
   console.error(`Missing fixture: ${fixtureRoot}`);

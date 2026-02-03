@@ -19,7 +19,7 @@ Exports (names are suggestions; adjust to existing style):
 - `resolveIndexRef({ repoRoot, userConfig, requestedModes, preferFrozen, allowMissingModes }) -> ResolvedIndexRef`
 
 Dependencies to reuse:
-- `tools/dict-utils.js`: `getRepoCacheRoot`, `getCurrentBuildInfo`, `getBuildsRoot`, `getRepoId`, `getEffectiveConfigHash`, `getToolVersion`
+- `tools/shared/dict-utils.js`: `getRepoCacheRoot`, `getCurrentBuildInfo`, `getBuildsRoot`, `getRepoId`, `getEffectiveConfigHash`, `getToolVersion`
 - `src/shared/stable-json.js#stableStringify`
 - `src/shared/hash.js#sha1`
 - `src/shared/error-codes.js#createError`
@@ -145,7 +145,7 @@ Do not load all chunk meta for large repos; filter by fileId sets.
 
 If you add snapshot/diff retention configuration:
 - Update `docs/config/schema.json`
-- Update `tools/dict-utils.js#normalizeUserConfig` to pass through the new keys
+- Update `tools/shared/dict-utils.js#normalizeUserConfig` to pass through the new keys
 
 Keep defaults in code so existing repos without new config continue to work.
 

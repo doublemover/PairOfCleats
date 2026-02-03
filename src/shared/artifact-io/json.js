@@ -325,10 +325,7 @@ export const readJsonLinesArraySync = (
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
 ) => {
   const useCache = !requiredKeys;
-  if (useCache) {
-    const cached = readCache(filePath);
-    if (cached) return cached;
-  }
+  const readCached = (targetPath) => (useCache ? readCache(targetPath) : null);
   const readJsonlFromBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
       throw toJsonTooLargeError(sourcePath, buffer.length);
@@ -344,6 +341,8 @@ export const readJsonLinesArraySync = (
     return parsed;
   };
   const tryRead = (targetPath, cleanup = false) => {
+    const cached = readCached(targetPath);
+    if (cached) return cached;
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);

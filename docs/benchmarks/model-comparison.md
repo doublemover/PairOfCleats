@@ -4,8 +4,8 @@
 Compare search latency and ranking differences across embedding models.
 
 ## Usage
-- `node tools/compare-models.js --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --build`
-- `node tools/compare-models.js --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --backend sqlite --build --build-sqlite`
+- `node tools/reports/compare-models.js --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --build`
+- `node tools/reports/compare-models.js --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --backend sqlite --build --build-sqlite`
 
 - JSON output: add `--json` or `--out path/to/report.json`
 

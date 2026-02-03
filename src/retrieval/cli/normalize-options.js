@@ -1,4 +1,4 @@
-import { getVectorExtensionConfig } from '../../../tools/vector-extension.js';
+import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../shared/onnx-embeddings.js';

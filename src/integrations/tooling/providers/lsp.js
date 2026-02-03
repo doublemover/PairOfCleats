@@ -87,6 +87,17 @@ const findTargetForOffsets = (targets, offsets, nameHint = null) => {
  * Uses docHash to avoid unnecessary rewrites.
  */
 const ensureVirtualFile = async (rootDir, doc, coldStartCache = null) => {
+  const virtualPath = doc?.virtualPath;
+  const normalized = typeof virtualPath === 'string' ? virtualPath.replace(/\\/g, '/') : '';
+  if (!normalized) {
+    throw new Error('LSP document is missing a virtualPath.');
+  }
+  if (path.isAbsolute(normalized) || normalized.startsWith('/')) {
+    throw new Error(`LSP virtualPath must be relative: ${normalized}`);
+  }
+  if (normalized.split('/').some((part) => part === '..')) {
+    throw new Error(`LSP virtualPath must not escape the VFS root: ${normalized}`);
+  }
   const result = await ensureVfsDiskDocument({
     baseDir: rootDir,
     virtualPath: doc.virtualPath,

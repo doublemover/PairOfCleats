@@ -1,7 +1,16 @@
+import path from 'node:path';
+import { isAbsolutePathNative, toPosix } from '../shared/files.js';
 import { normalizeCap, normalizeDepth } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
-import { compareGraphEdges, compareGraphNodes, compareWitnessPaths, edgeKey, nodeKey } from './ordering.js';
+import {
+  compareCandidates,
+  compareGraphEdges,
+  compareGraphNodes,
+  compareWitnessPaths,
+  edgeKey,
+  nodeKey
+} from './ordering.js';
 import { createWorkBudget } from './work-budget.js';
 
 const GRAPH_EDGE_TYPES = {
@@ -14,6 +23,29 @@ const GRAPH_NODE_TYPES = {
   callGraph: 'chunk',
   usageGraph: 'chunk',
   importGraph: 'file'
+};
+
+const normalizeImportPath = (value, repoRoot) => {
+  if (!value) return null;
+  const raw = String(value);
+  let normalized = raw;
+  if (repoRoot && isAbsolutePathNative(raw)) {
+    const rel = path.relative(repoRoot, raw) || '.';
+    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
+      normalized = rel;
+    }
+  }
+  normalized = toPosix(normalized);
+  if (normalized.startsWith('./')) normalized = normalized.slice(2);
+  return normalized;
+};
+
+const normalizeFileRef = (ref, repoRoot) => {
+  if (!ref || typeof ref !== 'object') return ref;
+  if (ref.type !== 'file') return ref;
+  const normalized = normalizeImportPath(ref.path, repoRoot);
+  if (!normalized || normalized === ref.path) return ref;
+  return { ...ref, path: normalized };
 };
 
 const normalizeCaps = (caps) => ({
@@ -54,15 +86,21 @@ const normalizeEdgeFilter = (edgeFilters) => {
   };
 };
 
-const buildGraphIndex = (graph) => {
+const buildGraphIndex = (graph, { normalizeId = null } = {}) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   for (const node of nodes) {
     if (!node || typeof node.id !== 'string' || !node.id) continue;
-    map.set(node.id, node);
+    const normalizedId = normalizeId ? normalizeId(node.id) : node.id;
+    if (!normalizedId) continue;
+    map.set(normalizedId, node);
   }
   return map;
 };
+
+const buildImportGraphIndex = (graph, repoRoot) => buildGraphIndex(graph, {
+  normalizeId: (value) => normalizeImportPath(value, repoRoot)
+});
 
 const buildChunkInfo = (callGraphIndex, usageGraphIndex) => {
   const map = new Map();
@@ -135,10 +173,11 @@ const resolveSymbolId = (ref) => {
   if (!ref || typeof ref !== 'object') return null;
   if (ref.resolved && ref.resolved.symbolId) return ref.resolved.symbolId;
   const candidates = Array.isArray(ref.candidates) ? ref.candidates : [];
-  for (const candidate of candidates) {
-    if (candidate?.symbolId) return candidate.symbolId;
-  }
-  return null;
+  const symbolCandidates = candidates.filter((candidate) => candidate?.symbolId);
+  if (!symbolCandidates.length) return null;
+  const ordered = symbolCandidates.slice();
+  ordered.sort(compareCandidates);
+  return ordered[0].symbolId;
 };
 
 const buildSymbolEdgesIndex = (symbolEdges, { maxCandidates, recordTruncation }) => {
@@ -180,7 +219,7 @@ const buildCallSiteIndex = (callSites) => {
   return map;
 };
 
-const resolveNodeMeta = (ref, chunkInfo, importGraphIndex) => {
+const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, repoRoot) => {
   if (!ref || typeof ref !== 'object') return {};
   if (ref.type === 'chunk') {
     const meta = chunkInfo.get(ref.chunkUid);
@@ -192,8 +231,10 @@ const resolveNodeMeta = (ref, chunkInfo, importGraphIndex) => {
     } : {};
   }
   if (ref.type === 'file') {
-    const meta = importGraphIndex.get(ref.path);
-    return meta ? { file: meta.file ?? ref.path } : { file: ref.path };
+    const normalizedPath = normalizeImportPath(ref.path, repoRoot);
+    const meta = normalizedPath ? importGraphIndex.get(normalizedPath) : null;
+    const file = normalizeImportPath(meta?.file || ref.path, repoRoot) || ref.path;
+    return { file };
   }
   if (ref.type === 'symbol') {
     return {
@@ -224,11 +265,26 @@ export const buildGraphNeighborhood = ({
   edgeFilters = null,
   caps = null,
   includePaths = false,
-  workBudget = null
+  workBudget = null,
+  repoRoot = null
 } = {}) => {
   const warnings = [];
   const truncation = createTruncationRecorder({ scope: 'graph' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
+  const missingImportGraphRefs = new Set();
+  let importGraphMisses = 0;
+  const recordImportGraphMiss = (sourceId) => {
+    if (!sourceId) return;
+    if (missingImportGraphRefs.has(sourceId)) return;
+    if (importGraphMisses >= 3) return;
+    missingImportGraphRefs.add(sourceId);
+    importGraphMisses += 1;
+    warnings.push({
+      code: 'IMPORT_GRAPH_LOOKUP_MISS',
+      message: 'Import graph lookup missed for a normalized path; import expansion may be incomplete.',
+      data: { path: sourceId }
+    });
+  };
 
   const normalizedCaps = normalizeCaps(caps);
   const requestedDepth = normalizeDepth(depth, 1);
@@ -250,13 +306,14 @@ export const buildGraphNeighborhood = ({
 
   const callGraphIndex = buildGraphIndex(graphRelations?.callGraph);
   const usageGraphIndex = buildGraphIndex(graphRelations?.usageGraph);
-  const importGraphIndex = buildGraphIndex(graphRelations?.importGraph);
+  const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges, {
     maxCandidates: normalizedCaps.maxCandidates,
     recordTruncation
   });
   const callSiteIndex = buildCallSiteIndex(callSites);
+  const normalizeImportId = (value) => normalizeImportPath(value, repoRoot);
 
   const hasGraphRelations = Boolean(graphRelations);
   const hasSymbolEdges = Array.isArray(symbolEdges) && symbolEdges.length > 0;
@@ -316,7 +373,8 @@ export const buildGraphNeighborhood = ({
   const queue = [];
 
   const addNode = (ref, distance) => {
-    const key = nodeKey(ref);
+    const normalizedRef = normalizeFileRef(ref, repoRoot);
+    const key = nodeKey(normalizedRef);
     if (!key) return false;
     if (nodeMap.has(key)) return false;
     if (normalizedCaps.maxNodes != null && nodeMap.size >= normalizedCaps.maxNodes) {
@@ -328,9 +386,9 @@ export const buildGraphNeighborhood = ({
       });
       return false;
     }
-    const meta = resolveNodeMeta(ref, chunkInfo, importGraphIndex);
+    const meta = resolveNodeMeta(normalizedRef, chunkInfo, importGraphIndex, repoRoot);
     nodeMap.set(key, {
-      ref,
+      ref: normalizedRef,
       distance,
       label: meta.name || meta.file || null,
       file: meta.file ?? null,
@@ -340,7 +398,7 @@ export const buildGraphNeighborhood = ({
       confidence: null
     });
     if (distance < effectiveDepth) {
-      queue.push({ ref, distance });
+      queue.push({ ref: normalizedRef, distance });
     }
     return true;
   };
@@ -397,7 +455,7 @@ export const buildGraphNeighborhood = ({
     return edgeTypeFilter.has(edgeType.toLowerCase());
   };
 
-  const resolveGraphNeighbors = (graphIndex, nodeId, dir) => {
+  const resolveGraphNeighbors = (graphIndex, nodeId, dir, normalizeNeighborId = null) => {
     const node = graphIndex.get(nodeId);
     if (!node) return [];
     const out = Array.isArray(node.out) ? node.out : [];
@@ -406,7 +464,13 @@ export const buildGraphNeighborhood = ({
     if (dir === 'out') neighbors = out;
     else if (dir === 'in') neighbors = incoming;
     else neighbors = out.concat(incoming);
-    const set = new Set(neighbors.filter(Boolean));
+    const set = new Set();
+    for (const neighbor of neighbors) {
+      if (!neighbor) continue;
+      const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
+      if (!normalized) continue;
+      set.add(normalized);
+    }
     const list = Array.from(set);
     list.sort(compareStrings);
     return list;
@@ -426,16 +490,18 @@ export const buildGraphNeighborhood = ({
   };
 
   const resolveImportSourceId = (ref) => {
-    if (ref.type === 'file') return ref.path;
+    if (ref.type === 'file') return normalizeImportPath(ref.path, repoRoot);
     if (ref.type === 'chunk') {
       const meta = chunkInfo.get(ref.chunkUid);
-      return meta?.file || null;
+      return normalizeImportPath(meta?.file || null, repoRoot);
     }
     return null;
   };
 
-  while (queue.length) {
-    const current = queue.shift();
+  let queueIndex = 0;
+  while (queueIndex < queue.length) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
     if (!current) continue;
     if (current.distance >= effectiveDepth) continue;
     const currentRef = current.ref;
@@ -486,7 +552,10 @@ export const buildGraphNeighborhood = ({
     if (includeGraph('importGraph') && importGraphIndex.size) {
       const sourceId = resolveImportSourceId(currentRef);
       if (sourceId) {
-        const neighbors = resolveGraphNeighbors(importGraphIndex, sourceId, normalizedDirection);
+        if (!importGraphIndex.has(sourceId)) {
+          recordImportGraphMiss(sourceId);
+        }
+        const neighbors = resolveGraphNeighbors(importGraphIndex, sourceId, normalizedDirection, normalizeImportId);
         for (const neighborId of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
           if (!includeEdgeType(edgeType)) continue;
@@ -556,7 +625,7 @@ export const buildGraphNeighborhood = ({
           limit: budgetState.limit,
           observed: budgetState.reason === 'maxWallClockMs' ? budgetState.elapsedMs : budgetState.used
         });
-        queue.length = 0;
+        queue.length = queueIndex;
         break;
       }
       if (minConfidence != null && edge.confidence != null && edge.confidence < minConfidence) {
@@ -564,7 +633,7 @@ export const buildGraphNeighborhood = ({
       }
       const added = addEdge(edge);
       if (!added && normalizedCaps.maxEdges != null && edges.length >= normalizedCaps.maxEdges) {
-        queue.length = 0;
+        queue.length = queueIndex;
         break;
       }
       const nextRef = candidate.nextRef

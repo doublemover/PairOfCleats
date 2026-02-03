@@ -5,16 +5,16 @@ Use the SCIP ingest tool to import symbol occurrences from a SCIP JSON or JSONL 
 ## CLI
 
 ```bash
-node tools/scip-ingest.js --repo . --input scip.jsonl
+node tools/ingest/scip.js --repo . --input scip.jsonl
 
 # Or via npm
 npm run scip-ingest -- --repo . --input scip.jsonl
 
 # Run the SCIP CLI directly
-node tools/scip-ingest.js --repo . --run --input index.scip
+node tools/ingest/scip.js --repo . --run --input index.scip
 
 # Read JSONL from stdin
-scip print --format=json --input index.scip | node tools/scip-ingest.js --repo . --input -
+scip print --format=json --input index.scip | node tools/ingest/scip.js --repo . --input -
 ```
 
 ## Options

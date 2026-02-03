@@ -291,7 +291,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
   if (!resolvedModelPath) {
     const basePath = normalized.modelPath || (modelsDir ? path.join(modelsDir, modelId || '') : '');
     throw new Error(
-      `ONNX model path not found. Set indexing.embeddings.onnx.modelPath or run tools/download-models.js (expected near ${basePath || 'models dir'}).`
+      `ONNX model path not found. Set indexing.embeddings.onnx.modelPath or run tools/download/models.js (expected near ${basePath || 'models dir'}).`
     );
   }
   const modelSize = statSize(resolvedModelPath);

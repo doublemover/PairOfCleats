@@ -7,6 +7,17 @@ const buildMissingBinaryMessage = (engine, cmd) => {
   return `${engine} binary not found on PATH. Checked: ${checked.join(', ')}`;
 };
 
+const assertExitOk = (engine, result) => {
+  const status = result?.status;
+  if (status === 0 || status === null || status === undefined) return;
+  if (engine === 'semgrep' && status === 1 && result.stdout) return;
+  const message = result.stderr || `${engine} failed (status ${status})`;
+  const err = new Error(message);
+  err.code = 'ERR_STRUCTURAL_TOOL';
+  err.exitCode = status;
+  throw err;
+};
+
 const runSemgrep = (repoRoot, pack, rules) => {
   const cmd = resolveBinary('semgrep');
   const args = ['--json'];
@@ -19,9 +30,7 @@ const runSemgrep = (repoRoot, pack, rules) => {
     }
     throw result.error;
   }
-  if (result.status !== 0 && !result.stdout) {
-    throw new Error(result.stderr || 'semgrep failed');
-  }
+  assertExitOk('semgrep', result);
   return parseSemgrep(result.stdout || '', pack);
 };
 
@@ -37,9 +46,7 @@ const runAstGrep = (repoRoot, pack, rules) => {
       }
       throw result.error;
     }
-    if (result.status !== 0 && !result.stdout) {
-      throw new Error(result.stderr || 'ast-grep failed');
-    }
+    assertExitOk('ast-grep', result);
     results.push(...parseAstGrep(result.stdout || '', pack));
   }
   return results;
@@ -64,9 +71,7 @@ const runComby = (repoRoot, pack, rules) => {
       }
       throw result.error;
     }
-    if (result.status !== 0 && !result.stdout) {
-      throw new Error(result.stderr || 'comby failed');
-    }
+    assertExitOk('comby', result);
     results.push(...parseComby(result.stdout || '', pack, rule.id, rule.message));
   }
   return results;

@@ -17,7 +17,7 @@ import {
   loadChunkMeta
 } from '../../shared/artifact-io.js';
 import { createGraphStore } from '../../graph/store.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const resolveFormat = (argv) => {
   const formatRaw = argv.format || (argv.json ? 'json' : 'json');
@@ -158,13 +158,17 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     } else {
       console.error(message);
     }
-    process.exit(1);
+    return { ok: false, code: 'ERR_CONTEXT_PACK', message };
   }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  runContextPackCli().catch((err) => {
-    console.error(err?.message || err);
-    process.exit(1);
-  });
+  runContextPackCli()
+    .then((result) => {
+      if (result?.ok === false) process.exit(1);
+    })
+    .catch((err) => {
+      console.error(err?.message || err);
+      process.exit(1);
+    });
 }

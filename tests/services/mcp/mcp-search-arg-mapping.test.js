@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { buildMcpSearchArgs } from '../../../tools/mcp/tools/search-args.js';
-import { DEFAULT_MODEL_ID } from '../../../tools/dict-utils.js';
+import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 
 const searchDef = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'search');

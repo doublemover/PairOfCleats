@@ -50,7 +50,10 @@ const resolveKillGraceMs = (value) => {
 
 const resolveExpectedExitCodes = (value) => {
   if (Array.isArray(value) && value.length) {
-    return value.filter((entry) => Number.isFinite(Number(entry)));
+    const normalized = value
+      .map((entry) => Math.trunc(Number(entry)))
+      .filter(Number.isFinite);
+    return normalized.length ? normalized : [0];
   }
   return [0];
 };
@@ -351,6 +354,14 @@ export function spawnSubprocessSync(command, args, options = {}) {
     stdout,
     stderr
   });
+  if (result.error) {
+    const name = options.name ? `${options.name} ` : '';
+    throw new SubprocessError(
+      `${name}failed to spawn: ${result.error.message || result.error}`,
+      normalized,
+      result.error
+    );
+  }
   if (!rejectOnNonZeroExit || expectedExitCodes.includes(normalized.exitCode ?? -1)) {
     return normalized;
   }

@@ -43,7 +43,7 @@ Completed phase snapshots are archived here after being removed from GIGAROADMAP
 
 **Spec conflict (resolved):** The original Phase R.1 demanded `package.json` scripts be reduced to <10.  
 The current repo has already adopted a **policy-based approach** instead:
-- `tools/script-inventory.js` generates `docs/tooling/script-inventory.json` and `docs/guides/commands.md`.
+- `tools/docs/script-inventory.js` generates `docs/tooling/script-inventory.json` and `docs/guides/commands.md`.
 - `tests/indexing/policy/script-surface-policy.test.js` enforces that the inventory matches `package.json`.
 
 This is a better trade-off than “<10 scripts” because:
@@ -51,18 +51,18 @@ This is a better trade-off than “<10 scripts” because:
 - The repo has explicit policy + inventory tooling already; rewriting the entire script surface would be noisy and high-churn.
 
 #### R.1.1 Script inventory + policy enforcement
-- [x] Keep `tools/script-inventory.js` as the single generator for:
+- [x] Keep `tools/docs/script-inventory.js` as the single generator for:
   - `docs/tooling/script-inventory.json`
   - `docs/guides/commands.md`
 - [x] Keep `tests/indexing/policy/script-surface-policy.test.js` enforcing inventory ↔ package parity.
 
 **Callouts**
-- Generator: `tools/script-inventory.js`
+- Generator: `tools/docs/script-inventory.js`
 - Inventory: `docs/tooling/script-inventory.json`
 - Policy test: `tests/indexing/policy/script-surface-policy.test.js`
 
 #### R.1.2 Fix doc drift: commands.md must be reproducible
-- [x] Resolve the current mismatch where `docs/guides/commands.md` contains a “Phase 3 specs” section that **is not emitted** by `tools/script-inventory.js`.
+- [x] Resolve the current mismatch where `docs/guides/commands.md` contains a “Phase 3 specs” section that **is not emitted** by `tools/docs/script-inventory.js`.
   - **Best choice:** make `commands.md` purely generated; either:
     1) Update generator to also emit a “Phase specs” section (recommended), or  
     2) Remove the non-generated section from `commands.md` and move it to a separate doc (less ideal; increases doc surface).
@@ -103,7 +103,7 @@ The repo already treats `commands.md` as generated. Making the generator respons
   - orphan docs (not referenced by any “Docs to read” list)
   - orphan tools (not referenced by any script/CLI)
   - orphan scripts (not referenced by docs/CI/tests)
-- Suggested location: `tools/repo-inventory.js`
+- Suggested location: `tools/docs/repo-inventory.js`
 - Output: `docs/tooling/repo-inventory.json`
 - [x] Add a policy test that only checks the file exists + JSON schema sanity (don’t gate PRs on the contents yet).
 
@@ -265,7 +265,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] Keep `assembleIndexPieces(...)` in `piece-assembly.js` as orchestrator (or move to `piece-assembly/index.js` with a facade).
 
 **Callers**
-- `tools/assemble-pieces.js` (CLI tool)
+- `tools/index/assemble-pieces.js` (CLI tool)
 - `tests/indexing/contracts/index-compatibility-key-federation-block.test.js`
 
 **Tests to run**
@@ -468,16 +468,16 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] `tools/api/router.js` already delegates to `tools/api/router/*`
 
 #### R.6.3 build-embeddings split
-- [x] `tools/build-embeddings/run.js` delegates to `tools/build-embeddings/*`
+- [x] `tools/build/embeddings/run.js` delegates to `tools/build/embeddings/*`
 
 #### R.6.4 build-sqlite-index split
-- [x] `tools/build-sqlite-index/run.js` delegates to `tools/build-sqlite-index/*`
+- [x] `tools/build/sqlite/run.js` delegates to `tools/build/sqlite/*`
 
 #### R.6.5 config-inventory split
-- [x] `tools/config-inventory.js` delegates to `tools/config-inventory/*`
+- [x] `tools/config/inventory.js` delegates to `tools/config/inventory/*`
 
 #### R.6.6 dict-utils split
-- [x] `tools/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
+- [x] `tools/shared/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
 
 ---
 
@@ -1138,7 +1138,7 @@ Unify embeddings and ANN artifacts across all build paths (inline indexing, buil
 All items must be satisfied:
 
 - ✅ **Embedding jobs are build-scoped**
-  - `tools/indexer-service.js` uses the job payload to run build-embeddings **against the correct build root** even if builds/current.json changes.
+  - `tools/service/indexer-service.js` uses the job payload to run build-embeddings **against the correct build root** even if builds/current.json changes.
   - Queue payload format is versioned and validated (`embeddingPayloadFormatVersion`).
 
 - ✅ **No quantization overflow / wrap**
@@ -1179,7 +1179,7 @@ Phase 7 touches multiple “spec surfaces”. Use this hierarchy when conflicts 
 **Explicit Phase 7 conflicts discovered and resolution choices:**
 - **Conflict A:** Embedding queue `indexRoot` meaning is inconsistent (pipeline passes per-mode index dir; build-embeddings `--index-root` expects base build root).  
   ✅ Resolution: **Rename/clarify fields** in the job payload (`buildRoot` as base; `indexDir` as per-mode). Update tests + worker accordingly. This removes ambiguity and matches build-embeddings behavior.
-- **Conflict B:** `tools/build-embeddings/manifest.js` currently filters entries by `ARTIFACT_SCHEMA_DEFS`, which omits non-JSON artifacts like HNSW `.bin` and LanceDB directories.  
+- **Conflict B:** `tools/build/embeddings/manifest.js` currently filters entries by `ARTIFACT_SCHEMA_DEFS`, which omits non-JSON artifacts like HNSW `.bin` and LanceDB directories.  
   ✅ Resolution: **Manifest must include these artifacts**. Update manifest writer to include them via an allowlist even if they are not JSON-schema-validated, and update docs/contracts to explicitly list them as part of the public surface.
 - **Conflict C:** Retrieval loaders read many JSON artifacts via direct filesystem reads (bypassing manifest), contradicting “manifest-first”.  
   ✅ Resolution: In strict mode, retrieval must use `src/shared/artifact-io.js` manifest-based resolvers for all artifacts it loads (JSON and non-JSON).
@@ -1241,7 +1241,7 @@ All new Phase 7 tests must land in the intended CI lane.
 ### Why this exists
 
 Current embedding service flow is not fully build-scoped:
-- `src/index/build/indexer/pipeline.js` enqueues an embedding job, but the worker (`tools/indexer-service.js`) ignores job buildRoot/indexRoot and calls `tools/build-embeddings.js` without `--index-root`.
+- `src/index/build/indexer/pipeline.js` enqueues an embedding job, but the worker (`tools/service/indexer-service.js`) ignores job buildRoot/indexRoot and calls `tools/build/embeddings.js` without `--index-root`.
 - Queue tests currently allow inconsistent `buildRoot` vs `indexRoot` values, which hides real scoping bugs.
 
 ### 7.1.1 Define the embedding job payload schema (versioned)
@@ -1249,7 +1249,7 @@ Current embedding service flow is not fully build-scoped:
 **Touchpoints**
 - `src/index/build/indexer/embedding-queue.js` (~L1–L49)
 - `tools/service/queue.js` (~L1–L270)
-- `tools/indexer-service.js` (~L1–L441)
+- `tools/service/indexer-service.js` (~L1–L441)
 - Tests: `tests/indexing/embeddings/embedding-queue.test.js` (~L1–L51), `tests/indexing/embeddings/embedding-queue-defaults.test.js` (~L1–L37)
 
 **New canonical job payload fields** (JSON):
@@ -1316,9 +1316,9 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.3 Worker must run build-embeddings against the correct build root
 
 **Touchpoints**
-- `tools/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
-- `tools/build-embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
-- `tools/build-embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
+- `tools/service/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
+- `tools/build/embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
+- `tools/build/embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
 
 **Required changes**
 - Update `runBuildEmbeddings({ job })` to include:
@@ -1337,7 +1337,7 @@ Current embedding service flow is not fully build-scoped:
 
 **Touchpoints**
 - `src/index/build/indexer/steps/write.js` (~L1–L101) (writes initial index_state during stage2)
-- `tools/build-embeddings/runner.js` (~L1–L763) (updates index_state during stage3)
+- `tools/build/embeddings/runner.js` (~L1–L763) (updates index_state during stage3)
 
 **Required state machine**
 - Stage2 build when embeddings are configured to run later via service:
@@ -1380,7 +1380,7 @@ Current embedding service flow is not fully build-scoped:
   - Create two builds (b1 and b2) under a temp repo
   - Create a job targeting buildRoot=b1
   - Simulate builds/current.json pointing at b2
-  - Run `tools/indexer-service.js --once --queue embeddings` (or equivalent)
+  - Run `tools/service/indexer-service.js --once --queue embeddings` (or equivalent)
   - Assert embeddings artifacts were written under build b1 (not b2)
   - Assert job is marked completed and `index_state.json` under b1 indicates `ready=true`.
 
@@ -1391,7 +1391,7 @@ Current embedding service flow is not fully build-scoped:
 ### Why this exists
 
 Contracts require manifest-first discovery. Today:
-- `tools/build-embeddings/manifest.js` tries to add embedding pieces but filters them by `ARTIFACT_SCHEMA_DEFS`, excluding important non-JSON artifacts.
+- `tools/build/embeddings/manifest.js` tries to add embedding pieces but filters them by `ARTIFACT_SCHEMA_DEFS`, excluding important non-JSON artifacts.
 - Retrieval/validation still open some artifacts by guessed filenames.
 
 Phase 7 makes embeddings and ANN artifacts fully discoverable via the manifest.
@@ -1404,7 +1404,7 @@ Phase 7 makes embeddings and ANN artifacts fully discoverable via the manifest.
 
 **Code to update**
 - `src/contracts/registry.js` and/or `src/contracts/schemas/artifacts.js` (if adding names)
-- `tools/build-embeddings/manifest.js`
+- `tools/build/embeddings/manifest.js`
 - `src/shared/artifact-io/manifest.js` (if adding helpers for binary/dir artifacts)
 - `src/retrieval/cli-index.js`, `src/retrieval/cli/load-indexes.js`, `src/index/validate.js`
 
@@ -1442,7 +1442,7 @@ SQLite vector extension ANN presence:
 ### 7.2.2 Update the embeddings manifest writer to include non-JSON artifacts
 
 **Touchpoints**
-- `tools/build-embeddings/manifest.js` (~L1–L111)
+- `tools/build/embeddings/manifest.js` (~L1–L111)
 
 **Current behavior**
 - Builds `embeddingPieces`, then filters by `ARTIFACT_SCHEMA_DEFS` names, which excludes:
@@ -1499,8 +1499,8 @@ SQLite vector extension ANN presence:
 
 **Touchpoints**
 - `src/index/build/indexer/steps/write.js` (~L1–L101) (stage2)
-- `tools/build-embeddings/runner.js` (~L1–L763) (stage3)
-- Tests: `tests/indexing/embeddings/embeddings-validate.test.js` (~L1–L82), `tools/index-validate.js` (~L1–L130) output
+- `tools/build/embeddings/runner.js` (~L1–L763) (stage3)
+- Tests: `tests/indexing/embeddings/embeddings-validate.test.js` (~L1–L82), `tools/index/validate.js` (~L1–L130) output
 
 **Required new fields**
 - `index_state.embeddings.embeddingIdentity` (object)
@@ -1560,7 +1560,7 @@ This phase enforces correct quantization everywhere.
 - `src/storage/sqlite/vector.js` (~L1–L71) (function `resolveQuantizationParams`)
 - `src/shared/embedding-utils.js` (~L1–L176) (`quantizeEmbeddingVector`, `quantizeEmbeddingVectorUint8`, `dequantizeUint8ToFloat32`)
 - `src/index/embedding.js` (~L1–L56) (`quantizeVec`, `quantizeVecUint8`)
-- `tools/build-embeddings/embed.js` (~L1–L119)
+- `tools/build/embeddings/embed.js` (~L1–L119)
 - `src/storage/sqlite/build/incremental-update.js` (~L1–L567)
 - `src/index/build/file-processor/embeddings.js` (~L1–L260)
 
@@ -1583,11 +1583,11 @@ This phase enforces correct quantization everywhere.
 - `dense_vectors_uint8.json` (`dense_vectors`)
 - `dense_vectors_doc_uint8.json` (`dense_vectors_doc`)
 - `dense_vectors_code_uint8.json` (`dense_vectors_code`)
-- SQLite dense tables written by `tools/build-embeddings/sqlite-dense.js`
+- SQLite dense tables written by `tools/build/embeddings/sqlite-dense.js`
 - HNSW/LanceDB build paths that dequantize from uint8
 
 **Required changes**
-- Update `tools/build-embeddings/embed.js` to quantize using the clamped path.
+- Update `tools/build/embeddings/embed.js` to quantize using the clamped path.
   - Prefer storing vectors as plain arrays of integers 0..255 in JSON.
 - Update `src/storage/sqlite/build/incremental-update.js` to use a clamped quantizer before packing into Uint8Array.
 
@@ -1606,18 +1606,18 @@ Current code often assumes `minVal=-1` and `levels=256`, which breaks if config 
 
 **Touchpoints**
 - Writers:
-  - `tools/build-embeddings/runner.js` (~L1–L763) (when writing dense_vectors*.json and meta)
-  - `tools/build-embeddings/hnsw.js` (~L1–L115) (meta output)
-  - `tools/build-embeddings/lancedb.js` (~L1–L143) (meta output)
+  - `tools/build/embeddings/runner.js` (~L1–L763) (when writing dense_vectors*.json and meta)
+  - `tools/build/embeddings/hnsw.js` (~L1–L115) (meta output)
+  - `tools/build/embeddings/lancedb.js` (~L1–L143) (meta output)
 - Readers:
   - `src/retrieval/rankers.js` (~L1–L292) (rankDenseVectors: stop hardcoding `minVal=-1`)
   - `src/retrieval/sqlite-helpers.js` (~L1–L544) (dense meta: stop hardcoding minVal)
-  - `tools/build-embeddings/lancedb.js` (~L1–L143) (dequantizeUint8ToFloat32 must use correct quantization)
+  - `tools/build/embeddings/lancedb.js` (~L1–L143) (dequantizeUint8ToFloat32 must use correct quantization)
 
 ### 7.3.4 Update LanceDB build to dequantize correctly
 
 **Touchpoints**
-- `tools/build-embeddings/lancedb.js` (~L1–L143)
+- `tools/build/embeddings/lancedb.js` (~L1–L143)
 
 **Required changes**
 - `buildBatch()` currently calls `dequantizeUint8ToFloat32(row.vec)` without passing params (defaults to -1..1, 256).
@@ -1672,9 +1672,9 @@ Normalization affects:
 
 **Touchpoints**
 - `src/shared/embedding-adapter.js` (~L1–L158) (ensures embedding providers normalize)
-- `tools/build-embeddings/embed.js` (~L1–L119) (mergeEmbeddingVectors + normalizeEmbeddingVector)
+- `tools/build/embeddings/embed.js` (~L1–L119) (mergeEmbeddingVectors + normalizeEmbeddingVector)
 - `src/index/build/file-processor/embeddings.js` (~L1–L260) (inline embeddings path)
-- `tools/build-embeddings/runner.js` (~L1–L763) (cache load path where HNSW vectors are dequantized)
+- `tools/build/embeddings/runner.js` (~L1–L763) (cache load path where HNSW vectors are dequantized)
 
 **Required changes**
 - Ensure build-embeddings cache load path normalizes HNSW float vectors whenever identity.normalize is true, not only when `hnswConfig.space === 'cosine'`.
@@ -1818,8 +1818,8 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 
 **Touchpoints**
 - Writer:
-  - `tools/build-embeddings/runner.js` (~L1–L763)
-  - `tools/build-embeddings/hnsw.js` (~L1–L115)
+  - `tools/build/embeddings/runner.js` (~L1–L763)
+  - `tools/build/embeddings/hnsw.js` (~L1–L115)
 - Reader:
   - `src/retrieval/cli-index.js` (~L1–L416) (HNSW load)
   - `src/retrieval/ann/providers/hnsw.js` (~L1–L27) (already uses idx.hnsw)
@@ -1844,7 +1844,7 @@ Add/Update the following tests (names are prescriptive; adjust location if the r
 ### 7.6.3 Improve insert failure observability
 
 **Touchpoints**
-- `tools/build-embeddings/hnsw.js` (~L1–L115)
+- `tools/build/embeddings/hnsw.js` (~L1–L115)
 
 **Required changes**
 - Preserve and rely on the existing atomic write pattern:
@@ -1941,7 +1941,7 @@ We need a single coherent way to:
 - HNSW:
   - `src/shared/hnsw.js` (~L1–L160) path resolver must support variants.
 - SQLite-vec:
-  - `tools/build-embeddings/sqlite-dense.js` (~L1–L209) and `tools/vector-extension.js` (~L1–L393)
+  - `tools/build/embeddings/sqlite-dense.js` (~L1–L209) and `tools/sqlite/vector-extension.js` (~L1–L393)
   - If SQLite-vec is kept as merged-only, it must be documented and enforced.
 
 **Required behavior**
@@ -2006,7 +2006,7 @@ Add/Update tests:
 ### 7.8.1 LMDB mapSize planning
 
 **Touchpoints**
-- `tools/build-lmdb-index.js` (~L1–L311)
+- `tools/build/lmdb-index.js` (~L1–L311)
 - `src/storage/lmdb/schema.js` (~L1–L49) (meta keys)
 - Tests: `tests/storage/lmdb/lmdb-backend.test.js` (~L1–L122), `tests/storage/lmdb/lmdb-corruption.test.js` (~L1–L105), `tests/storage/lmdb/lmdb-report-artifacts.test.js` (~L1–L125)
 
@@ -2020,7 +2020,7 @@ Add/Update tests:
 ### 7.8.2 SQLite dense writer safety for shared DB paths
 
 **Touchpoints**
-- `tools/build-embeddings/sqlite-dense.js` (~L1–L209)
+- `tools/build/embeddings/sqlite-dense.js` (~L1–L209)
 - `tools/dict-utils/paths/db.js` (~L1–L62) (resolveSqlitePaths)
 
 **Current risk**
@@ -2033,13 +2033,13 @@ Choose one (documented) approach:
 - Alternative: add `mode` column to vector table and delete by mode (if supported by extension).
 
 Update all query code accordingly:
-- `tools/vector-extension.js` query table name must match.
+- `tools/sqlite/vector-extension.js` query table name must match.
 
 ### 7.8.3 Embedding cache preflight metadata
 
 **Touchpoints**
-- `tools/build-embeddings/cache.js` (~L1–L26)
-- `tools/build-embeddings/runner.js` (~L1–L763)
+- `tools/build/embeddings/cache.js` (~L1–L26)
+- `tools/build/embeddings/runner.js` (~L1–L763)
 
 **Goal**
 - Avoid scanning full cache to validate dims/identity each run on huge repos.
@@ -2065,7 +2065,7 @@ Update all query code accordingly:
 ### 7.8.5 Acceptance criteria
 
 - LMDB build is resilient:
-  - `tools/build-lmdb-index.js` chooses a mapSize that prevents MapFull errors on Phase 7 fixtures.
+  - `tools/build/lmdb-index.js` chooses a mapSize that prevents MapFull errors on Phase 7 fixtures.
   - The chosen mapSize is recorded in LMDB metadata for debugging.
 - SQLite ANN tables are mode-safe:
   - If code and prose share a DB file, running embeddings build for one mode does not delete the other mode’s ANN data.
@@ -2118,14 +2118,14 @@ Add/Update tests:
 
 ### ANN backends
 - LanceDB:
-  - Build: `tools/build-embeddings/lancedb.js`
+  - Build: `tools/build/embeddings/lancedb.js`
   - Runtime: `src/retrieval/lancedb.js`, `src/retrieval/ann/providers/lancedb.js`, `src/shared/lancedb.js`
 - HNSW:
-  - Build: `tools/build-embeddings/hnsw.js`
+  - Build: `tools/build/embeddings/hnsw.js`
   - Runtime: `src/shared/hnsw.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/cli-index.js`
 - SQLite vector extension:
-  - Build: `tools/build-embeddings/sqlite-dense.js`
-  - Runtime: `tools/vector-extension.js`, `src/retrieval/sqlite-helpers.js`
+  - Build: `tools/build/embeddings/sqlite-dense.js`
+  - Runtime: `tools/sqlite/vector-extension.js`, `src/retrieval/sqlite-helpers.js`
 
 ### Artifact contract / manifest
 - Contract docs:
@@ -2135,7 +2135,7 @@ Add/Update tests:
   - `src/contracts/registry.js`
   - `src/contracts/schemas/artifacts.js`
 - Manifest tooling:
-  - `tools/build-embeddings/manifest.js`
+  - `tools/build/embeddings/manifest.js`
   - `src/shared/artifact-io/manifest.js`
 
 ---
@@ -4477,10 +4477,10 @@ Add command:
 - [x] `risk explain`
 
 Map to new tool:
-- [x] `tools/explain-risk.js`
+- [x] `tools/analysis/explain-risk.js`
 
 ### 10.8.2 Implement explain tool
-**New file:** `tools/explain-risk.js`
+**New file:** `tools/analysis/explain-risk.js`
 
 Requirements:
 - [x] Inputs:
@@ -4649,21 +4649,21 @@ These appendices are generated to remove scavenger-hunts:
 - `src/storage/sqlite/vector.js` (~L1-L71)  -  exports/anchors: `quantizeVec`, `resolveQuantizationParams`, `dequantizeUint8ToFloat32`, `toSqliteRowId`, `packUint32`
 
 ### Existing tools/ files referenced (edit candidates)
-- `tools/build-embeddings.js` (~L1-L12)
-- `tools/build-embeddings/cache.js` (~L1-L26)  -  exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
-- `tools/build-embeddings/cli.js` (~L1-L95)  -  exports/anchors: `parseBuildEmbeddingsArgs`
-- `tools/build-embeddings/embed.js` (~L1-L119)  -  exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
-- `tools/build-embeddings/hnsw.js` (~L1-L115)  -  exports/anchors: `createHnswBuilder`
-- `tools/build-embeddings/lancedb.js` (~L1-L143)
-- `tools/build-embeddings/manifest.js` (~L1-L111)  -  exports/anchors: `updatePieceManifest`
-- `tools/build-embeddings/runner.js` (~L1-L763)
-- `tools/build-embeddings/sqlite-dense.js` (~L1-L209)  -  exports/anchors: `updateSqliteDense`
-- `tools/build-lmdb-index.js` (~L1-L311)
+- `tools/build/embeddings.js` (~L1-L12)
+- `tools/build/embeddings/cache.js` (~L1-L26)  -  exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
+- `tools/build/embeddings/cli.js` (~L1-L95)  -  exports/anchors: `parseBuildEmbeddingsArgs`
+- `tools/build/embeddings/embed.js` (~L1-L119)  -  exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
+- `tools/build/embeddings/hnsw.js` (~L1-L115)  -  exports/anchors: `createHnswBuilder`
+- `tools/build/embeddings/lancedb.js` (~L1-L143)
+- `tools/build/embeddings/manifest.js` (~L1-L111)  -  exports/anchors: `updatePieceManifest`
+- `tools/build/embeddings/runner.js` (~L1-L763)
+- `tools/build/embeddings/sqlite-dense.js` (~L1-L209)  -  exports/anchors: `updateSqliteDense`
+- `tools/build/lmdb-index.js` (~L1-L311)
 - `tools/dict-utils/paths/db.js` (~L1-L62)  -  exports/anchors: `resolveLmdbPaths`, `resolveSqlitePaths`
-- `tools/index-validate.js` (~L1-L130)
-- `tools/indexer-service.js` (~L1-L441)
+- `tools/index/validate.js` (~L1-L130)
+- `tools/service/indexer-service.js` (~L1-L441)
 - `tools/service/queue.js` (~L1-L270)  -  exports/anchors: `resolveQueueName`, `getQueuePaths`
-- `tools/vector-extension.js` (~L1-L393)  -  exports/anchors: `getBinarySuffix`, `getPlatformKey`, `getVectorExtensionConfig`, `resolveVectorExtensionPath`, `loadVectorExtension`
+- `tools/sqlite/vector-extension.js` (~L1-L393)  -  exports/anchors: `getBinarySuffix`, `getPlatformKey`, `getVectorExtensionConfig`, `resolveVectorExtensionPath`, `loadVectorExtension`
 
 ### Existing docs/ files referenced (edit candidates)
 - `docs/contracts/artifact-schemas.md` (~L1-L67)
@@ -4876,7 +4876,7 @@ These appendices are generated to remove scavenger-hunts:
   - `src/index/risk-interprocedural/summaries.js` (NEW  -  create as part of this phase)
   - `src/index/validate/risk-interprocedural.js` (NEW  -  create as part of this phase)
 - **tools/**
-  - `tools/explain-risk.js` (NEW  -  create as part of this phase)
+  - `tools/analysis/explain-risk.js` (NEW  -  create as part of this phase)
 - **docs/**
   - `docs/archived` (NEW  -  create as part of this phase)
   - `docs/archived/README.md` (NEW doc/spec  -  create as part of this phase)
@@ -4966,7 +4966,7 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
   - Touchpoints:
     - `docs/config/schema.json`
     - `tools/dict-utils/config.js`
-    - `tools/validate-config.js`
+    - `tools/config/validate.js`
     - `src/config/validate.js`
 
 - [x] Standardize module home for new graph tooling commands.
@@ -5497,7 +5497,7 @@ Touchpoints (test selection):
 ### Objective
 Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
 
-- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
+- Current grounding: MCP entrypoint is `tools/mcp/server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
 - This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
 
 ---
@@ -5517,18 +5517,18 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 
 - [x] Ensure MCP server mode selection is observable and capability-gated.
   - Touchpoints:
-    - [x] `tools/mcp-server.js` — entrypoint dispatch
-    - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
+    - [x] `tools/mcp/server.js` — entrypoint dispatch
+    - [x] `tools/config/dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
     - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
   - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
     - [x] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
 
 Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `tools/mcp/server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
 - `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
 - `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
 - `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
-- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
+- `tools/config/dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
   - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
 
 #### Tests / Verification
@@ -5542,8 +5542,8 @@ Touchpoints (anchors; approximate):
 
 - [x] Implement an SDK-backed server alongside the legacy transport.
   - Touchpoints:
-    - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
-    - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+    - [x] `tools/mcp/server-sdk.js` (new) — SDK-backed server implementation
+    - [x] `tools/mcp/server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
       - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
   - [x] Requirements for SDK server:
     - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
@@ -5557,8 +5557,8 @@ Touchpoints (anchors; approximate):
   - [x] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
 
 Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
-- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp/server-sdk.js` (new; SDK wiring)
 - `tools/mcp/tools.js` (tool execution entrypoint)
 - `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
   - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
@@ -5567,7 +5567,7 @@ Touchpoints (anchors; approximate):
 
 - [x] Services: `tests/services/mcp/sdk-mode.test.js` (new)
   - Skip if SDK is not installed.
-  - Start `tools/mcp-server-sdk.js` and run at least:
+  - Start `tools/mcp/server-sdk.js` and run at least:
     - `tools/list`
     - one representative `tools/call` (e.g., `index_status`)
   - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
@@ -5632,7 +5632,7 @@ Touchpoints (anchors; approximate):
   - Touchpoints:
     - [x] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
     - [x] `tools/mcp/transport.js` — legacy transport handler
-    - [x] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [x] `tools/mcp/server-sdk.js` — SDK error mapping
     - [x] `src/shared/error-codes.js` — canonical internal codes
   - [x] Define stable, client-facing codes (examples):
     - [x] invalid args
@@ -5659,7 +5659,7 @@ Touchpoints (anchors; approximate):
 Touchpoints (anchors; approximate):
 - `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
 - `tools/mcp/transport.js` (legacy transport)
-- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `tools/mcp/server-sdk.js` (SDK error mapping)
 - `src/shared/error-codes.js` (canonical internal codes)
 
 ---
@@ -5741,17 +5741,17 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - [x] Add `test:ci-long` script **or** update workflow to use `node tools/ci/run-suite.js ...`.
 
 - [x] Fix release-check script failing in clean checkout.
-  - Symptom: `tools/release-check.js` requires `CHANGELOG.md` which is not present.
+  - Symptom: `tools/release/check.js` requires `CHANGELOG.md` which is not present.
   - Touchpoints:
-    - `tools/release-check.js`
+    - `tools/release/check.js`
     - `docs/guides/release-discipline.md`
   - Action:
     - [x] Add `CHANGELOG.md` **or** relax/check conditionally.
 
 - [x] Fix critical-deps validator pointing at the wrong docs directory.
-  - Symptom: `tools/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
+  - Symptom: `tools/ci/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
   - Touchpoints:
-    - `tools/validate-critical-deps.js`
+    - `tools/ci/validate-critical-deps.js`
     - `docs/dependency_references/dependency-coverage.md`
   - Action:
     - [x] Update expected paths or move docs folder (prefer updating script).
@@ -5771,7 +5771,7 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
     - `docs/guides/metrics-dashboard.md` (`pairofcleats report metrics`)
   - Reality:
     - `bin/pairofcleats.js` does **not** implement `report`.
-    - Some underlying tools exist (e.g., `tools/report-code-map.js`) but are not routed.
+    - Some underlying tools exist (e.g., `tools/reports/report-code-map.js`) but are not routed.
   - Action:
     - [x] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
     - [x] Update docs to use `node tools/...` or `npm run ...`.
@@ -5783,7 +5783,7 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
 
 - [x] Implement or de-document `pairofcleats service indexer ...`.
   - Docs reference: `docs/guides/service-mode.md` (`service indexer start/status/stop`)
-  - Reality: CLI only supports `pairofcleats service api`. `tools/indexer-service.js` exists but is not routed.
+  - Reality: CLI only supports `pairofcleats service api`. `tools/service/indexer-service.js` exists but is not routed.
   - Action: route `service indexer` or change docs to `npm run indexer-service`.
 
 - [x] Fix broken doc links and API surface claims.
@@ -5827,7 +5827,7 @@ Ensure the config file (`.pairofcleats.json`) is:
   - Issues observed:
     - Schema uses `anyOf` and union types (e.g., `"type": ["number","null"]`) but validator ignores `anyOf` and mishandles array-`type`.
     - Root `additionalProperties:false` rejects many keys the code expects/normalizes (`sqlite`, `lmdb`, etc.) unless schema is expanded.
-    - `tools/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
+    - `tools/config/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
   - Action (recommended):
     - [x] Switch to Ajv (or equivalent) and treat `docs/config/schema.json` as authoritative.
     - [x] Add tests for `anyOf` + union types + unknown top-level keys.
@@ -5859,7 +5859,7 @@ Manifest-driven and output-driven filesystem reads must be safe **regardless of 
   - Findings:
     - `src/index/validate/manifest.js` only validates entry paths when `strict===true`, but still `existsSync()` / hashes resolved paths when non-strict.
     - `src/shared/artifact-io/manifest.js` similarly only enforces safety when strict.
-    - `tools/ci-restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
+    - `tools/ci/restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
   - Risk: path traversal (`../`) can read outside indexDir if manifest is corrupted/untrusted.
   - Action:
     - [x] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
@@ -5933,12 +5933,12 @@ Make search behavior deterministic, debuggable, and aligned with its public CLI 
 Remove dead code paths, misleading cleanup, and brittle precondition assumptions.
 
 - [x] Clean up SQLite build runner resource handling.
-  - `tools/build-sqlite-index/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
+  - `tools/build/sqlite/runner.js` treats returned stats as a DB handle and calls `.close()` (swallowed).
   - Unused variables like `hasVectorTableBefore` and wording mismatches in warnings.
   - Action: make return types explicit, remove dead cleanup, fix warnings.
 
 - [x] Improve Tantivy build error messaging and prerequisite checks.
-  - `tools/build-tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
+  - `tools/build/tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
   - Action: explicitly detect required artifacts and print remediation steps.
 
 - [x] Optional doc extraction deps are capability-probed but not declared.
@@ -6024,31 +6024,31 @@ Turn current failures/drifts into permanent guardrails.
 ### Objective
 Reduce “mystery behavior” and make internal tooling more robust.
 
-- [x] Improve `tools/check-env-usage.js` detection patterns.
+- [x] Improve `tools/ci/check-env-usage.js` detection patterns.
   - Currently misses bracket access, destructuring, and other env read patterns.
   - Consider AST-based linting.
 
-- [x] Fix `tools/download-extensions.js` chmod contradiction and improve download safety.
+- [x] Fix `tools/download/extensions.js` chmod contradiction and improve download safety.
   - `chmod 0755` is immediately overwritten by `chmod 0644`.
   - Archive downloads are buffered in memory without size caps.
   - Consider forcing HTTPS or requiring hashes for HTTP.
 
-- [x] Fix `tools/download-models.js` ONNX copy logic.
+- [x] Fix `tools/download/models.js` ONNX copy logic.
   - Current logic checks `!existsSync(onnxTarget)` then calls `statSync(onnxTarget)`, making directory handling dead.
   - Also doesn’t copy when target dir already exists.
 
-- [x] Fix `tools/compare-models.js` index existence probe.
+- [x] Fix `tools/reports/compare-models.js` index existence probe.
   - Checks only for `chunk_meta.json` and may miss valid indexes in other shapes.
 
 - [x] Tool detection should verify executability, not just filename presence.
-  - `tools/tooling-detect.js` should run `--version` before claiming “found”.
+  - `tools/tooling/detect.js` should run `--version` before claiming “found”.
 
 - [x] Fix `src/integrations/core/status.js` payload naming ambiguity.
   - `repo.root` appears to report cache root, not repository root.
 
 - [x] Compact/shard tooling scalability:
-  - `tools/compact-pieces.js` now streams gzip + zstd JSONL shards.
-  - `tools/ctags-ingest.js` backpressure handled.
+  - `tools/index/compact-pieces.js` now streams gzip + zstd JSONL shards.
+  - `tools/ingest/ctags.js` backpressure handled.
 
 ---
 
@@ -6398,12 +6398,12 @@ Touchpoints (anchors; approximate):
 Touchpoints:
 - `bin/pairofcleats.js` (flag plumbing)
 - `src/shared/cli-options.js` (new flags)
-- `tools/tooling-doctor.js` (report SCM provider)
+- `tools/tooling/doctor.js` (report SCM provider)
 
 Touchpoints (anchors; approximate):
 - `bin/pairofcleats.js` (~L509 `tooling doctor` dispatch, ~L692 `index build` help)
 - `src/shared/cli-options.js` (~L4 `INDEX_BUILD_OPTIONS`)
-- `tools/tooling-doctor.js` (~L33 `runToolingDoctor`)
+- `tools/tooling/doctor.js` (~L33 `runToolingDoctor`)
 - `src/index/tooling/doctor.js` (~L139 `runToolingDoctor`)
 
 ---
@@ -6617,7 +6617,7 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/contracts/schemas/artifacts.js` ~L1101 (`riskInterprocedural`)
 [x] [CODE] Export `docs/contracts/artifact-schema-index.json` (schema registry → required fields + version).
     - Touchpoints:
-      - `tools/export-artifact-schema-index.js` (new)
+      - `tools/docs/export-artifact-schema-index.js` (new)
       - `src/contracts/schemas/artifacts.js`
     - Tests:
       - `tests/tooling/docs/artifact-schema-index.test.js` (new)
@@ -6717,28 +6717,28 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/storage/backend-policy.js` L8‑138
 
 ### 2.3 docs/guides/mcp.md
-[x] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp-server.js`.
+[x] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp/server.js`.
     - Touchpoints:
       - `bin/pairofcleats.js` L266‑285 (service subcommands exclude mcp)
-      - `tools/mcp-server.js` L10‑41 (actual entrypoint + mode selection)
+      - `tools/mcp/server.js` L10‑41 (actual entrypoint + mode selection)
 
 ### 2.4 docs/guides/metrics-dashboard.md
 [x] [DOC] Remove unsupported fields or implement them (cache hit rate, BM25 params, timings).
 [x] [DOC] Add `--top` flag to usage.
     - Touchpoints:
-      - `tools/metrics-dashboard.js` L9‑118 (current output fields)
+      - `tools/reports/metrics-dashboard.js` L9‑118 (current output fields)
       - `tools/dict-utils/paths/cache.js` L178‑184 (metrics dir)
 
 ### 2.5 docs/guides/rule-packs.md
-[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/analysis/structural-search.js`.
     - Touchpoints:
-      - `tools/structural-search.js` L6‑13
+      - `tools/analysis/structural-search.js` L6‑13
       - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.6 docs/guides/structural-search.md
-[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/analysis/structural-search.js`.
     - Touchpoints:
-      - `tools/structural-search.js` L6‑13
+      - `tools/analysis/structural-search.js` L6‑13
       - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.7 docs/guides/triage-records.md
@@ -6767,22 +6767,22 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `bin/pairofcleats.js` L704‑727 (help list)
 [x] [DOC] Add short “how to run” sections or per-command mini guides for the same tools (or add new guide pages and link from commands).
     - Touchpoints:
-      - `tools/graph-context.js` L1‑4
-      - `tools/context-pack.js` L1‑4
-      - `tools/impact.js` L1‑4
-      - `tools/suggest-tests.js` L1‑4
-      - `tools/api-contracts.js` L1‑4
-      - `tools/architecture-check.js` L1‑4
-      - `tools/explain-risk.js` L1‑4
-      - `tools/tooling-doctor.js` L14
-      - `tools/compare-models.js` L28
+      - `tools/analysis/graph-context.js` L1‑4
+      - `tools/analysis/context-pack.js` L1‑4
+      - `tools/analysis/impact.js` L1‑4
+      - `tools/analysis/suggest-tests.js` L1‑4
+      - `tools/api/contracts.js` L1‑4
+      - `tools/analysis/architecture-check.js` L1‑4
+      - `tools/analysis/explain-risk.js` L1‑4
+      - `tools/tooling/doctor.js` L14
+      - `tools/reports/compare-models.js` L28
       - `tools/eval/run.js` L11
 
 ### 2.10 docs/guides/service-mode.md
 [x] [DOC] Remove or correct `indexModes` example; indexer service ignores repo-level indexModes.
     - Touchpoints:
-      - `tools/indexer-service.js` L19‑44 (argv → mode)
-      - `tools/indexer-service.js` L297‑381 (job mode handling)
+      - `tools/service/indexer-service.js` L19‑44 (argv → mode)
+      - `tools/service/indexer-service.js` L297‑381 (job mode handling)
 
 ---
 
@@ -6841,48 +6841,48 @@ Note: timing ledger/watchdog and coverage-merge documentation is tracked in `NIK
 ## 4) Tooling docs (docs/tooling)
 
 ### 4.1 docs/tooling/ctags.md
-[x] [DOC] Update CLI examples to `node tools/ctags-ingest.js` or npm script.
-    - Source of truth: `tools/ctags-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/ctags.js` or npm script.
+    - Source of truth: `tools/ingest/ctags.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--ctags`, `--args`, stdin behavior, and default `--run` when no input.
     - Touchpoints:
-      - `tools/ctags-ingest.js` L12‑22 (options)
-      - `tools/ctags-ingest.js` L150‑163 (stdin/run behavior)
+      - `tools/ingest/ctags.js` L12‑22 (options)
+      - `tools/ingest/ctags.js` L150‑163 (stdin/run behavior)
 
 ### 4.2 docs/tooling/gtags.md
-[x] [DOC] Update CLI examples to `node tools/gtags-ingest.js` or npm script.
-    - Source of truth: `tools/gtags-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/gtags.js` or npm script.
+    - Source of truth: `tools/ingest/gtags.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--global`, `--args`, stdin behavior, and default stdin when no input.
     - Touchpoints:
-      - `tools/gtags-ingest.js` L13‑20 (options)
-      - `tools/gtags-ingest.js` L110‑115 (stdin/run behavior)
+      - `tools/ingest/gtags.js` L13‑20 (options)
+      - `tools/ingest/gtags.js` L110‑115 (stdin/run behavior)
 
 ### 4.3 docs/tooling/lsif.md
-[x] [DOC] Update CLI examples to `node tools/lsif-ingest.js` or npm script.
-    - Source of truth: `tools/lsif-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/lsif.js` or npm script.
+    - Source of truth: `tools/ingest/lsif.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, stdin behavior when `--input -`.
     - Touchpoints:
-      - `tools/lsif-ingest.js` L12‑16 (options)
-      - `tools/lsif-ingest.js` L165‑168 (stdin behavior)
+      - `tools/ingest/lsif.js` L12‑16 (options)
+      - `tools/ingest/lsif.js` L165‑168 (stdin behavior)
 
 ### 4.4 docs/tooling/scip.md
-[x] [DOC] Update CLI examples to `node tools/scip-ingest.js` or npm script.
-    - Source of truth: `tools/scip-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/scip.js` or npm script.
+    - Source of truth: `tools/ingest/scip.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--scip`, `--args`, stdin behavior, and JSON (non‑JSONL) file parsing path.
     - Touchpoints:
-      - `tools/scip-ingest.js` L13‑20 (options)
-      - `tools/scip-ingest.js` L214‑218 (JSON file handling)
+      - `tools/ingest/scip.js` L13‑20 (options)
+      - `tools/ingest/scip.js` L214‑218 (JSON file handling)
 
 ### 4.5 docs/tooling/repo-inventory.json
-[x] [DOC] Ensure `tools/mcp-server-sdk.js` appears in `tools.entrypoints`.
+[x] [DOC] Ensure `tools/mcp/server-sdk.js` appears in `tools.entrypoints`.
     - Touchpoints:
-      - `tools/mcp-server-sdk.js` (shebang)
-      - `tools/repo-inventory.js` (generator)
+      - `tools/mcp/server-sdk.js` (shebang)
+      - `tools/docs/repo-inventory.js` (generator)
 Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` (Phase 5).
 
 ### 4.6 docs/tooling/repo-inventory.md (new)
 [x] [DOC] Add a short guide for `pairofcleats repo-inventory` and the JSON output format.
     - Touchpoints:
-      - `tools/repo-inventory.js` L9‑232
+      - `tools/docs/repo-inventory.js` L9‑232
 
 ---
 
@@ -6903,12 +6903,12 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 [x] [DOC] Note default MCP mode is legacy unless `auto` explicitly requested.
     - Source of truth:
       - `tools/mcp/server-config.js` (default mode)
-      - `tools/mcp-server.js` (arg handling)
+      - `tools/mcp/server.js` (arg handling)
 
 ### 5.3 docs/api/server.md
 [x] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
     - Touchpoints:
-      - `tools/api-server.js` L47‑59 (authRequired logic)
+      - `tools/api/server.js` L47‑59 (authRequired logic)
 [x] [DOC] Document that API server runs in-process (no CLI shell-out).
     - Touchpoints:
       - `tools/api/router.js` L1 (imports core search/status)
@@ -6939,7 +6939,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 [x] [DOC] Update CLI flags list to current CLI options.
 [x] [CODE] Generate `docs/config/contract.md` from `docs/config/schema.json` + `src/shared/env.js` (deterministic output).
     - Touchpoints:
-      - `tools/config-contract-doc.js` (new)
+      - `tools/config/contract-doc.js` (new)
       - `docs/config/contract.md`
     - Tests:
       - `tests/tooling/docs/config-contract-doc.test.js` (new)
@@ -6947,7 +6947,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - Parse schema at `docs/config/schema.json` (include descriptions, defaults, enums).
       - Pull env var metadata from `src/shared/env.js` (source of truth).
       - Emit sections: Overview, Schema keys, Defaults, Env overrides, CLI flags (if applicable).
-      - Preserve line endings/BOM on regeneration (match `tools/config-inventory.js` behavior).
+      - Preserve line endings/BOM on regeneration (match `tools/config/inventory.js` behavior).
     - Source line anchors:
       - `docs/config/schema.json` L18‑396 (namespace keys)
       - `src/shared/env.js` L32‑58 (env surface)
@@ -7016,13 +7016,13 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - `tools/bench/micro/tinybench.js` L18‑60
 [x] [DOC] Document query generator flags: `--repo`, `--out`, `--json`, `--index-root`, and default JSON output path.
     - Touchpoints:
-      - `tools/bench-query-generator.js` L13‑19, L90‑99
+      - `tools/bench/query-generator.js` L13‑19, L90‑99
 [x] [DOC] Document bench harness `--query-concurrency` (and where it applies).
     - Touchpoints:
       - `src/shared/cli-options.js` L50
 [x] [DOC] Add bench matrix runner flags (`--ann-modes`, `--backends`, `--out-dir`, `--log-dir`, `--fail-fast`) or link to language benchmarks doc.
     - Touchpoints:
-      - `tools/bench-language-matrix.js` L20‑38, L54‑96
+      - `tools/bench/language-matrix.js` L20‑38, L54‑96
 
 ### 8.2 docs/benchmarks/evaluation.md
 [x] [DOC] Confirm evaluation options + output formats match `tools/eval/run.js` (update if drift is found).
@@ -7030,9 +7030,9 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - `tools/eval/run.js` L11‑180 (metrics schema + output)
 
 ### 8.3 docs/benchmarks/model-comparison.md
-[x] [DOC] Confirm model comparison CLI flags and outputs match `tools/compare-models.js`.
+[x] [DOC] Confirm model comparison CLI flags and outputs match `tools/reports/compare-models.js`.
     - Touchpoints:
-      - `tools/compare-models.js` L28‑120 (CLI args + output)
+      - `tools/reports/compare-models.js` L28‑120 (CLI args + output)
 
 ---
 
@@ -7041,14 +7041,14 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 ### 9.1 docs/language/benchmarks.md
 [x] [DOC] Document that `--stub-embeddings/--real-embeddings` are forwarded to the runner (not ignored).
     - Touchpoints:
-      - `tools/bench-language-repos.js` L653‑657
+      - `tools/bench/language-repos.js` L653‑657
 [x] [DOC] Update tier definitions to include `small`/`tiny` (positional filters allowed).
     - Touchpoints:
-      - `tools/bench-language-repos.js` L290‑296
+      - `tools/bench/language-repos.js` L290‑296
 [x] [DOC] Document language bench CLI flags (`--dry-run`, `--results`, `--repos`, `--only`, `--languages`, `--queries`, `--heap-mb`, `--cache-run`).
     - Touchpoints:
       - `tools/bench/language/cli.js` L53‑96
-      - `tools/bench-language-repos.js` L302‑305, L533‑568, L647‑680
+      - `tools/bench/language-repos.js` L302‑305, L533‑568, L647‑680
 
 ### 9.2 docs/language/lang-sql.md
 [x] [DOC] Update default mode to `--mode all` (no lang-sql doc present; no update needed).
@@ -7213,7 +7213,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
     - Test lanes vs docs
     - Output fields vs docs (initially `scoreBreakdown` keys)
     - Touchpoints:
-      - `tools/doc-contract-drift.js`
+      - `tools/docs/contract-drift.js`
       - `docs/testing/` for policy
     - Note:
       - Entry point vs docs remains covered by `tests/indexing/policy/script-surface-policy.test.js`.
@@ -7241,5 +7241,1411 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 - If a doc is a contract/spec referenced by validation or build code, treat it as authoritative and fix code unless the contract is obsolete.
 - If a guide/bench doc is inconsistent with current CLI/tools, fix the doc unless you intend to support the documented behavior.
 - If both doc and code are ambiguous, record a decision first and then update both.
+
 ---
 
+# Findings 1-4 
+
+---
+
+## Confirmed correctness bugs
+
+### 1) Stateful global RegExp breaks filter parsing across multiple calls
+- **Severity:** High
+- **File:** `src/retrieval/filters.js`
+- **Where:** `FILTER_TOKEN_RE` (~L63) + `splitFilterTokens()` loop (~L74–82)
+- **Problem:** `FILTER_TOKEN_RE` is declared with the global (`g`) flag and reused across calls. Using `.exec()` advances `lastIndex`, so subsequent calls can start scanning mid-string or immediately return `null`, producing empty/partial token lists.
+- **Impact:** In long-running processes (API server / MCP), filters can silently stop working after a previous query.
+- **Fix:** Reset `FILTER_TOKEN_RE.lastIndex = 0` at the start of `splitFilterTokens()`, or instantiate a fresh regex inside the function.
+
+---
+
+### 2) CLI wrapper mis-parses `--repo` (ignores `--repo=...` and can misread query text)
+- **Severity:** Medium
+- **File:** `bin/pairofcleats.js`
+- **Where:** `extractRepoArg()` (~L661–665)
+- **Problems:**
+  1. Only supports `--repo <path>`, not `--repo=<path>`.
+  2. Does not respect the `--` end-of-options sentinel. If a user searches for the literal token `--repo` after `--`, the wrapper can incorrectly treat it as a flag and grab the next token as the repo path.
+- **Impact:** Wrong repo root selection → wrong config/runtime envelope and confusing failures.
+- **Fix:** Only scan args before `--`, and support both `--repo value` and `--repo=value`.
+
+---
+
+### 3) API server breaks for IPv6 hosts (e.g. `--host ::1`)
+- **Severity:** Medium
+- **Files:**
+  - `tools/api/router.js`
+  - `tools/api/server.js`
+- **Where:**
+  - `tools/api/router.js`: `new URL(req.url..., \`http://${host}\`)` (~L63)
+  - `tools/api/server.js`: `baseUrl = \`http://${host}:${actualPort}\`` (~L94)
+- **Problem:** IPv6 literals must be bracketed in URLs (`http://[::1]:7345`). As written, `http://::1` is invalid.
+- **Impact:** API becomes unusable under IPv6 host settings (invalid URL / 500s).
+- **Fix:** Bracket IPv6 in URL contexts or avoid interpolating host into the parsing base (use a fixed base like `http://localhost` for request URL parsing).
+
+---
+
+## Major performance / scalability issues
+
+### 4) Per-chunk duplication of file-level lint/complexity bloats memory & artifacts
+- **Severity:** Medium–High
+- **Files:**
+  - `src/index/build/file-processor/process-chunks/index.js` (~L381–420)
+  - `src/index/build/file-processor/assemble.js` (~L96–130)
+- **Problem:** `processChunks()` computes `fileComplexity` / `fileLint` once per file, but attaches them to **every chunk**. `buildChunkPayload()` stores them verbatim (`complexity`, `lint`).
+- **Impact:** Larger in-memory `chunks[]`, larger serialized artifacts / SQLite rows, slower IO and load/search on large repos.
+- **Fix options:**
+  1. Store lint/complexity once per file (e.g., `file_meta`) and reference by file id.
+  2. If chunk-level details are needed, filter lint/complexity down to the chunk’s line range.
+  3. Gate behind a config flag (default off).
+
+---
+
+### 5) Index cache validation always recomputes a full signature (expensive with sharded artifacts)
+- **Severity:** High (latency)
+- **File:** `src/retrieval/index-cache.js`
+- **Where:**
+  - `buildIndexSignature()` (~L128–142)
+  - `loadIndexWithCache()` (~L200–213), signature computed at ~L205 even on cache hits
+- **Problem:** Every `loadIndexWithCache()` call computes a signature requiring `readdirSync()` + `statSync()` on *many* shard files.
+- **Impact:** Even warm cache searches can do lots of synchronous filesystem work, blocking the Node event loop and dominating request latency on large builds.
+- **Fix options:**
+  1. Use a single build marker / build id file for validation (e.g., `index_state.json` build id).
+  2. Cache signatures with a TTL.
+  3. Avoid per-shard stats if the `.meta.json` reliably changes whenever shards change.
+
+---
+
+### 6) File discovery materializes and sorts full candidate lists; then per-file `lstat` (heavy on huge repos)
+- **Severity:** Medium
+- **Files:** `src/index/build/file-scan.js`, `src/index/build/discover.js`
+- **Problem:** Candidate paths are collected into memory, sorted, then `fs.lstat()` is called per candidate.
+- **Impact:** Big repos → high peak memory, lots of metadata IO, long wall time.
+- **Potential improvements:** Use fdir’s stats mode if possible, apply max-files earlier, and stream candidates rather than fully materializing.
+
+---
+
+### 7) Watch-mode fallback can run unbounded async work (`Promise.all`) if IO queue missing
+- **Severity:** Medium
+- **File:** `src/index/build/watch.js` (~L170–190)
+- **Problem:** If `runtimeRef.queues?.io` is absent, it does `Promise.all(absPaths.map(handleUpdate))`.
+- **Impact:** Large change bursts can spawn thousands of concurrent operations (CPU + IO contention, process instability).
+- **Fix:** Ensure an IO queue always exists in watch mode, or cap concurrency in the fallback.
+
+---
+
+## Reliability / maintainability issues
+
+### 8) Queue lock can become permanently blocking after crashes (no stale-lock recovery)
+- **Severity:** Medium
+- **File:** `tools/service/queue.js`
+- **Where:** `withLock()` (~L9–41)
+- **Problem:** Lock is a simple file created with `open(...,'wx')`. If a process dies while holding it, the lock file remains; others wait 5s then throw `Queue lock timeout`. There is no stale lock cleanup.
+- **Impact:** Queue can deadlock until manual deletion.
+- **Fix:** Add PID/timestamp + stale-lock detection (a similar pattern exists in `src/index/build/lock.js`).
+
+---
+
+### 9) Redundant AbortController + duplicated listeners in API routes
+- **Severity:** Low
+- **File:** `tools/api/router.js`
+- **Where:**
+  - `/search/stream`: unused `abortController` (~L159–164) then separate `controller` used later
+  - `/search`: similar pattern (~L254–258 then ~L305+)
+- **Impact:** Unnecessary complexity/overhead; makes abort logic harder to reason about.
+- **Fix:** Keep one controller per request and wire its `signal` consistently.
+
+---
+
+### 10) SCM annotate timeout wrapper doesn’t cancel underlying work
+- **Severity:** Medium
+- **File:** `src/index/build/file-processor/cpu.js`
+- **Where:** `annotateWithTimeout()` (~L321–339)
+- **Problem:** Uses `Promise.race()`; when the timer wins, underlying annotate work may continue unless the provider truly enforces timeouts.
+- **Impact:** Potential background work continuing past timeouts.
+- **Fix:** Ensure underlying annotate supports cancellation / kill; don’t rely solely on `Promise.race()`.
+
+---
+
+### 11) Sync filesystem usage on request-time paths can block the event loop
+- **Severity:** Medium
+- **Examples:** `src/retrieval/index-cache.js` signature logic; some API server path checks that use sync fs.
+- **Impact:** Head-of-line blocking under concurrent requests.
+- **Fix:** Use async FS on hot paths or move heavy work to workers / background processes.
+
+---
+
+### 12) Streaming JSON-RPC parser does `Buffer.concat()` on every chunk (potential O(n²) copying)
+- **Severity:** Medium
+- **File:** `src/shared/jsonrpc.js`
+- **Where:** `createFramedJsonRpcParser().push()` (~L161–172), esp. ~L170
+- **Problem:** `Buffer.concat([buffer, incoming])` repeatedly copies as payload grows.
+- **Impact:** Lower throughput for many small incoming chunks (stdio pipes/LSP/MCP).
+- **Fix:** Use chunk arrays + offsets (buffer list) and only concatenate when needed.
+
+---
+
+## Additional findings from extended pass
+
+### 13) Index lock can be “stolen” from a still-running build after 30 minutes
+- **Severity:** High
+- **File:** `src/index/build/lock.js` (~L141–L151)
+- **Problem:** If a lock exists and is “stale” by mtime (>30 min), the code can delete it *before* verifying whether the owning PID is still alive. A legitimate long-running build can lose its lock.
+- **Impact:** Two builds can run concurrently against the same output/cache directories → race conditions and inconsistent artifacts.
+- **Fix:** If lock is stale, also check PID liveness before deleting; or have the owner periodically refresh (touch) the lock.
+
+---
+
+### 14) Index lock `release()` can mark “released” even if deletion failed
+- **Severity:** Medium
+- **File:** `src/index/build/lock.js` (~L127–L137)
+- **Problem:** `released = true` is set even if `fs.rm(lockPath)` fails; cleanup handlers are detached.
+- **Impact:** Lock file can remain behind and block future builds until stale cleanup kicks in or manual deletion occurs.
+- **Fix:** Only set `released = true` after successful deletion; keep cleanup active/log hard on failure.
+
+---
+
+### 15) `createJsonWriteStream(maxBytes)` enforces size limit **after** committing the file atomically
+- **Severity:** High
+- **File:** `src/shared/json-stream/streams.js` (~L67–L86)
+- **Problem:** Byte counter sets `overLimit`, but the stream isn’t aborted. `replaceFile(tempPath, finalPath)` is called and then `done()` throws if overLimit.
+- **Impact:** Oversized artifact may already be promoted to its final location even though the function throws (callers may assume nothing was written).
+- **Fix:** Abort the pipeline immediately when maxBytes is exceeded; or at minimum check `overLimit` before `replaceFile()`.
+
+---
+
+### 16) Atomic replace waits for `'finish'`, not `'close'` — rename race risk on Windows
+- **Severity:** Medium
+- **File:** `src/shared/json-stream/streams.js` (`waitForFinish` ~L10–L13)
+- **Problem:** `'finish'` can fire before the fd is closed on `fs.WriteStream`. Renames can fail if the file is still open.
+- **Impact:** Intermittent failures on Windows (`EPERM`/`EBUSY`).
+- **Fix:** Await `'close'` on the write stream (or ensure fd closure) before renaming.
+
+---
+
+### 17) Temp-file cleanup gaps on abort/error paths during JSON streaming writes
+- **Severity:** Low–Medium
+- **File:** `src/shared/json-stream/streams.js`
+- **Problem:** Temp files may be left behind on errors prior to `replaceFile()`.
+- **Impact:** Disk clutter and confusing artifacts over time.
+- **Fix:** Ensure tempPath cleanup in `catch/finally` unless promoted to final.
+
+---
+
+### 18) Zstd stream buffering uses repeated `Buffer.concat()` in hot path
+- **Severity:** Medium (performance)
+- **File:** `src/shared/json-stream/compress.js` (~L88–L124, esp. ~L99)
+- **Problem:** Repeated concatenations can be costly with many small input chunks.
+- **Impact:** Unnecessary CPU/memory churn while compressing.
+- **Fix:** Use a buffer list strategy and concatenate only when flushing.
+
+---
+
+### 19) Zip extraction can still be vulnerable to zip-bomb style memory spikes
+- **Severity:** Medium–High (resource exhaustion)
+- **File:** `tools/download/extensions.js` (~L266–L296)
+- **Problem:** `entry.getData()` decompresses entries fully into memory. Declared-size limit checks don’t prevent decompression allocation spikes.
+- **Impact:** Potential OOM / severe slowdown if extension zips are untrusted or compromised.
+- **Fix:** Use a streaming zip reader and enforce decompressed-byte limits while streaming (plus compression ratio heuristics).
+
+---
+
+### 20) Git SCM annotate ignores `timeoutMs`; outer timeout wrapper can leave `git blame` running
+- **Severity:** Medium–High
+- **File:** `src/index/scm/providers/git.js` (~L112–L119)
+- **Related:** `src/index/build/file-processor/cpu.js` (`annotateWithTimeout`)
+- **Problem:** `timeoutMs` is accepted but not used by the git provider. `Promise.race` timeout doesn’t cancel the underlying blame work.
+- **Impact:** Many concurrent long-running `git blame` processes can keep running after timeouts, causing CPU/disk contention and long tail latency.
+- **Fix:** Use a subprocess runner with timeout + abort support; ensure process-tree kill.
+
+---
+
+### 21) Path-prefix checks using `.startsWith()` without boundary checks can misclassify paths
+- **Severity:** Low–Medium (hardening)
+- **Files:**
+  - `src/index/git.js` (`filePathResolved.startsWith(baseDir)`)
+  - `src/index/build/import-resolution.js` (`dir.startsWith(rootAbs)`)
+- **Problem:** String prefix checks can treat `/repo2` as within `/repo`.
+- **Impact:** Usually limited by call-site constraints, but can lead to incorrect relpaths/caches if a weird path enters.
+- **Fix:** Use `path.relative()` and ensure it doesn’t start with `..` and isn’t absolute.
+
+---
+
+### 22) Incremental caching trusts `(size, mtimeMs)` too much — can miss edits on coarse timestamp FS
+- **Severity:** Medium
+- **File:** `src/index/build/incremental.js` (~L200–L320 range)
+- **Problem:** Unchanged detection often relies on “same size and same `mtimeMs`”.
+- **Impact:** On coarse timestamp filesystems or tooling that preserves timestamps, edits can be missed → cached results reused → stale index.
+- **Fix:** Add content hash checks in more cases; or sample hashes when `(size,mtime)` matches; or detect coarse FS and adjust.
+
+---
+
+### 23) Bundle reads have no max size; corrupted/huge bundle files can OOM
+- **Severity:** Medium
+- **File:** `src/shared/bundle-io.js` (`readBundleFile` ~L80–L124)
+- **Used by:** `src/index/build/incremental.js`, `src/storage/sqlite/build/*`
+- **Problem:** Reads whole bundle into memory (`readFile`) then parses (JSON.parse/msgpack) without size checks.
+- **Impact:** A huge or corrupted bundle can crash the process or cause very high memory usage.
+- **Fix:** `stat()` first; enforce max bundle size; consider streaming parse for JSON if large bundles are expected.
+
+---
+
+### 24) Exclude-filtering builds per-chunk Sets (avoidable allocations/GC)
+- **Severity:** Low
+- **File:** `src/retrieval/output/filters.js` (~L140–L190)
+- **Problem:** For each chunk, builds `Set`s of normalized tokens/ngrams when exclude filters are present.
+- **Impact:** Higher GC pressure for large result sets.
+- **Fix:** Prefer linear scan or cache normalized representations per chunk when reused.
+
+---
+
+
+## Critical / high-severity issues
+
+### 1) Zstd decompression fallback can OOM the process (output limit is not enforced during execution)
+
+- **Files / locations**
+  - `src/shared/artifact-io/json.js`
+    - `readJsonFile()` calls `decompressBuffer(...)` during JSON reads (L16–74; call at L35–39).
+    - `readJsonLinesArray()` falls back to `decompressBuffer(...)` for `.jsonl.zst` if streaming zstd isn’t available (L185–204; fallback at L199–203).
+    - `readJsonLinesArraySync()` also uses `decompressBuffer(...)` for compressed candidates (L279–299).
+  - `src/shared/artifact-io/compression.js`
+    - `zstdDecompressSync()` buffers stdin and decompresses in a child process (L17–58).
+  - `src/shared/subprocess.js`
+    - `spawnSubprocessSync()` uses `spawnSync()` and only trims output *after* completion (L320–395).
+
+- **Root cause**
+  - `.zst` decoding ultimately uses `zstdDecompressSync()`, which runs a child Node process and returns decompressed data via stdout.
+  - In the parent, `spawnSubprocessSync()` relies on `child_process.spawnSync()`, which buffers stdout in memory without a true max-buffer cap.
+  - `maxOutputBytes` is applied after-the-fact via `trimOutput()`, which cannot prevent OOM if stdout was huge.
+
+- **Impact**
+  - A malicious or accidental “decompression bomb” `.zst` artifact can crash the process (or the child) with OOM.
+  - The current safety checks mostly examine **compressed size**, which does not bound decompressed size.
+
+- **Why this is tricky**
+  - The code *looks* like it enforces limits (`MAX_JSON_BYTES`, `maxOutputBytes`), but the limit is not effective for `spawnSync()`-captured output.
+
+- **Recommended fixes**
+  1) Prefer in-process streaming zstd (`createZstdDecompress`) with an inflated-bytes counter that aborts at `maxBytes` (similar to the gzip streaming path).
+  2) If subprocess fallback is required, avoid `spawnSync()`; use the async `spawnSubprocess()` collector so memory is bounded while reading.
+  3) In the child, avoid buffering full stdin/output; stream and enforce an output byte cap in the child too.
+
+---
+
+### 2) `expectedExitCodes` normalization is incorrect (string exit codes never match numeric exit codes)
+
+- **File:** `src/shared/subprocess.js`
+- **Location:** `resolveExpectedExitCodes()` (L45–56), used by `spawnSubprocess()` (L174+) and `spawnSubprocessSync()` (L331+).
+
+- **Problem**
+  - The function filters by `Number.isFinite(Number(entry))` but returns the original entries (potentially strings).
+  - Later comparisons use `expectedExitCodes.includes(exitCode)` where `exitCode` is numeric, so `'0'` will not match `0`.
+
+- **Impact**
+  - Callers that pass exit codes as strings (common if values flow from CLI/env/JSON) will see false failures.
+
+- **Fix**
+  - Normalize to numbers:
+    - `return value.map((v) => Math.trunc(Number(v))).filter(Number.isFinite)`
+
+---
+
+### 3) `spawnSubprocessSync()` drops the real cause for spawn failures (ENOENT, EACCES, etc.)
+
+- **File:** `src/shared/subprocess.js`
+- **Location:** `spawnSubprocessSync()` (L320–395).
+
+- **Problem**
+  - `spawnSync()` sets `result.error` when the process cannot be spawned.
+  - The code does not check `result.error`, and instead throws a generic “exited with code unknown” `SubprocessError`.
+
+- **Impact**
+  - “Missing binary” failures become unnecessarily hard to diagnose (especially in CI).
+
+- **Fix**
+  - If `result.error` exists, throw a `SubprocessError` that wraps it (or rethrow with context), rather than reporting an “unknown exit code”.
+
+---
+
+## Medium-severity correctness / cross-platform reliability issues
+
+### 4) Atomic JSON writes may rename the temp file before the file descriptor is closed (Windows/AV/FS edge cases)
+
+- **File:** `src/shared/json-stream/streams.js`
+- **Locations:**
+  - `waitForFinish()` listens to `finish` (L15–18).
+  - `createJsonWriteStream().done` waits for `finish` then calls `replaceFile()` (L62–69, L85–92, L106–113).
+
+- **Problem**
+  - `finish` means all data has been flushed to the writable stream, but **does not guarantee** the fd is closed.
+  - Renaming an open file is unreliable on Windows and can fail intermittently with `EPERM`/`EBUSY`.
+
+- **Fix**
+  - For the final `fs.createWriteStream(...)`, await `close` (or use `pipeline()` and await its callback), then rename.
+
+---
+
+### 5) `replaceSqliteDatabase()` deletes WAL/SHM sidecars unconditionally (risky if WAL still contains needed pages)
+
+- **File:** `src/storage/sqlite/utils.js`
+- **Location:** `replaceSqliteDatabase()` (L146–206); sidecar cleanup at L166–168.
+
+- **Risk**
+  - If WAL contains committed-but-not-checkpointed data (or another process has an open connection), deleting WAL/SHM can corrupt or lose data.
+
+- **Mitigation / fix ideas**
+  - Ensure all writers checkpoint and close before replacement.
+  - Consider moving sidecar cleanup until after successful replacement (or skipping it unless explicitly requested).
+
+---
+
+## Performance / memory issues that become big in real workloads
+
+### 6) `createFflateGzipStream()` needlessly copies every incoming Buffer chunk
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `createFflateGzipStream()` transform (L28–55); `Buffer.from(chunk)` copy at L34–35.
+
+- **Impact**
+  - For large JSON streams, this doubles memory traffic and increases GC pressure.
+
+- **Fix**
+  - Use `Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding)`.
+
+---
+
+### 7) `createZstdStream()` repeatedly `Buffer.concat()`s pending data (can approach quadratic copying with many small writes)
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `pending = Buffer.concat([pending, buffer])` (L99).
+
+- **Impact**
+  - Many small writes → repeated copies of the pending buffer.
+
+- **Fix**
+  - Accumulate chunks in an array and concat only when you have ≥ `chunkSize` (or use a small ring buffer).
+
+---
+
+### 8) JSONL sync reader cache never hits when only the compressed form exists
+
+- **File:** `src/shared/artifact-io/json.js`
+- **Location:** `readJsonLinesArraySync()` (L262–349)
+  - Cache lookup uses `readCache(filePath)` (L266–270).
+  - Cache write uses `writeCache(targetPath, parsed)` (L296–297).
+
+- **Problem**
+  - If `filePath` doesn’t exist and only `filePath.gz` / `filePath.zst` exists, `readCache(filePath)` always misses because it stats `filePath`.
+  - The parsed result is cached under the candidate path, but never consulted on subsequent calls.
+
+- **Fix**
+  - Cache using the resolved candidate path (or cache under both keys).
+
+---
+
+### 9) SQLite compaction disk-space estimate is likely too low for `VACUUM` in worst cases
+
+- **File:** `tools/build/compact-sqlite-index.js`
+- **Locations:**
+  - required bytes computation (L87–93)
+  - `outDb.exec('VACUUM')` (L444)
+
+- **Risk**
+  - `VACUUM` often needs temporary space roughly comparable to the DB size (sometimes more), depending on SQLite and temp-store configuration.
+
+- **Fix**
+  - Increase the estimate (often ~2× DB size worst-case), or make it configurable and document the requirement.
+
+---
+
+
+## Key findings (technical / tricky)
+
+### 1) Validator recompiles schema on every call (can be slow + can leak memory via Ajv schema cache)
+**Severity:** Medium → High (depends on call frequency)  
+**Where:** `validateConfig()` lines **72–79**
+
+- `validateConfig()` does:
+  - `structuredClone(schema)` (line 73)
+  - `ajv.compile(normalizedSchema)` (line 75) **every call**
+- If `validateConfig()` is called repeatedly (e.g., in a long-running server process, or per-request), this is unnecessary work and can become a latency hotspot.
+- Depending on Ajv internals and `$id` usage, repeatedly compiling “equivalent” schemas can also grow internal caches over time (more likely if schemas differ or are dynamically generated).
+
+**Recommendation**
+- Cache compiled validators keyed by schema identity or stable hash:
+  - simplest: `WeakMap<object, ValidateFunction>`
+  - stronger: compute a stable signature for schema content (only if schema objects are not referentially stable).
+- For the canonical config schema (`docs/config/schema.json`), compile once at startup and reuse.
+
+---
+
+### 2) `ensureRequiredProperties()` silently “fixes” unsatisfiable schemas by injecting `{}` property schemas (can hide schema bugs and weaken validation)
+**Severity:** Medium  
+**Where:** `ensureRequiredProperties()` lines **17–31**
+
+When `additionalProperties === false` and `required` contains keys missing from `properties`, the schema is unsatisfiable in vanilla JSON Schema. The code “repairs” that by creating `schema.properties[key] = {}`.
+
+That makes the schema satisfiable, but it also means:
+- the missing property gets an **“always true”** schema (`{}`) → it accepts any value type/shape
+- typos or omissions in the schema (e.g., forgetting to specify `port: {type:"number"}`) are no longer caught early; they become permissive instead of failing fast.
+
+**Recommendation**
+- Consider tightening the behavior:
+  1. Add a **warning** path (dev log) when you have to inject `{}` due to an underspecified schema.
+  2. Prefer injecting a **conservative schema** if possible, or require schema authors to define the property explicitly (and remove this workaround once schemas are cleaned up).
+  3. At minimum, guard with an opt-in flag for “lenient schema repair”.
+
+---
+
+### 3) Prototype pollution / object-shape corruption risk via required keys like `__proto__`
+**Severity:** Low in current usage, but **High** if schema becomes user-controlled  
+**Where:** `ensureRequiredProperties()` lines **27–30**
+
+If `schema.required` contains strings such as `__proto__`, `constructor`, or `prototype`, this line:
+
+```js
+schema.properties[key] = {};
+```
+
+can mutate the prototype of `schema.properties` (because `__proto__` is a special setter on plain objects), leading to hard-to-debug behavior and possible security issues.
+
+Even if your current schemas are trusted, this is the kind of “lurking” issue that bites later when schemas become extensible (plugins/extensions/custom schemas).
+
+**Recommendation**
+- When copying required keys into `properties`, explicitly block or sanitize:
+  - `__proto__`, `prototype`, `constructor`
+- Safer approach: build `properties` as an object with a null prototype:
+  - `schema.properties = Object.create(null)`
+  - (and similarly for other maps if you want a consistent hardening posture)
+
+---
+
+### 4) No cycle detection in schema traversal (possible infinite recursion on cyclic schema graphs)
+**Severity:** Low (most JSON schemas are acyclic), but tricky if schemas are programmatically composed  
+**Where:** `ensureRequiredProperties()` recursive traversal (lines **11–56**)
+
+`ensureRequiredProperties()` assumes the schema is a tree. If the schema object graph contains cycles (possible in JS-built schemas), recursion can become infinite.
+
+**Recommendation**
+- Add a `WeakSet` of visited nodes:
+  - early return when already visited.
+
+---
+
+### 5) Validation strictness is intentionally lowered (`strict:false`) and formats aren’t registered
+**Severity:** Medium (validation strength / correctness)  
+**Where:** Ajv initialization lines **3–7**
+
+- `strict:false` means Ajv will not enforce many schema correctness checks and may ignore unknown keywords; schema typos can slip through.
+- No format plugin (`ajv-formats`) is registered. If schemas use `"format"` in the future, behavior may be “unknown format ignored” under non-strict modes.
+
+**Recommendation**
+- Prefer `strict: true` in dev/test (or at least CI) so schema mistakes are caught early.
+- If you ever introduce `format` usage, explicitly register formats via `ajv-formats`.
+
+---
+
+## Small cleanup / maintainability nits
+
+### 6) Redundant `schema.items` traversal
+**Severity:** Low  
+**Where:** lines **47–48**
+
+Line 47 already handles arrays (`ensureRequiredProperties()` handles arrays at the top), so line 48 is redundant.
+
+---
+
+## Suggested “hard to find” regression tests
+
+1. **Ajv compile caching**: call `validateConfig(sameSchema, config)` in a tight loop and ensure compile count doesn’t grow once caching is added.
+2. **Schema repair warning**: schema with `additionalProperties:false` + `required:["port"]` but missing `properties.port` should emit a warning (or fail, depending on desired policy).
+3. **Prototype pollution hardening**: schema with `required:["__proto__"]` should not mutate prototypes or crash; validate should behave deterministically.
+4. **Cycle detection**: construct a cyclic schema object in JS and ensure `validateConfig()` doesn’t hang.
+
+---
+
+## Proposed patch sketch (non-binding)
+
+- Add:
+
+```js
+const validatorCache = new WeakMap();
+```
+
+- In `validateConfig()`:
+
+```js
+let validate = validatorCache.get(schema);
+if (!validate) {
+  const normalizedSchema = structuredClone(schema);
+  ensureRequiredProperties(normalizedSchema);
+  validate = ajv.compile(normalizedSchema);
+  validatorCache.set(schema, validate);
+}
+```
+
+- In `ensureRequiredProperties()`:
+  - add `visited` (`WeakSet`)
+  - sanitize required keys and/or use `Object.create(null)` for maps
+
+---
+
+
+## Findings (prioritized)
+
+### I1) LSP client shutdown timer can kill a *new* LSP process (cross-generation kill)
+- **Severity:** High (correctness, intermittent)
+- **File:** `src/integrations/tooling/lsp/client.js` — `shutdownAndExit()` (~L292–303)
+- **What’s happening:** `shutdownAndExit()` schedules `setTimeout(() => { if (proc) kill(); }, 2500)`.  
+  If the client is reused and `start()` creates a new LSP process before the timeout fires, the timeout will call `kill()` on the **new** process (because it reads the current `proc` variable at firing time).
+- **Why it’s hard to find:** Only manifests when callers reuse a client after shutdown or when teardown overlaps with reconnection/backoff flows.
+- **Fix:** Capture the current process or generation when scheduling:
+  - `const current = proc; setTimeout(() => { if (proc === current) kill(); }, 2500)`
+  - or capture `childGen` and check it’s unchanged.
+
+### I2) LSP stderr handler ignores generation checks (noise + potential confusion during restarts)
+- **Severity:** Low–Medium
+- **File:** `src/integrations/tooling/lsp/client.js` — stderr handler (~L213–216)
+- **What’s happening:** Unlike stdout handlers, stderr logging has no `(proc !== child || childGen !== generation)` guard. After restarts, logs from an old process can appear “current”.
+- **Fix:** Add the same guard used elsewhere.
+
+### I3) LSP VFS write path can escape the VFS root if `virtualPath` is absolute
+- **Severity:** High (security / correctness hardening)
+- **File:** `src/integrations/tooling/providers/lsp.js` — `ensureVirtualFile()` (~L87–91)
+- **What’s happening:** `ensureVirtualFile()` writes to disk using `resolveVfsDiskPath({ baseDir, virtualPath })`.  
+  If a caller supplies a document with `virtualPath` that begins with `/` (POSIX absolute), the derived “relative” path can become absolute and `path.join(baseDir, absolute)` will ignore `baseDir` → writing outside the intended sandbox.
+- **Why it’s tricky:** In normal flows, virtual paths are generated internally and are safe; this appears only if documents are accepted from external callers.
+- **Fix (in integrations):** Validate `doc.virtualPath` before writing:
+  - reject if `path.isAbsolute(doc.virtualPath)` or it starts with `/` / `\\`
+  - optionally also reject `..` segments even if later-encoded.
+
+### I4) LSP position conversion doesn’t clamp negative values
+- **Severity:** Low–Medium (hardening)
+- **File:** `src/integrations/tooling/lsp/positions.js` — `positionToOffset()` (~L9–16)
+- **What’s happening:** `col = Number(position.character) || 0` preserves negative values (because `-1 || 0` yields `-1`).
+- **Impact:** If a server ever emits a negative `character`/`line` (buggy server / malformed diagnostics), offsets can go negative and break range matching.
+- **Fix:** Clamp: `Math.max(0, Number(position.character) || 0)` and `Math.max(0, Number(position.line) || 0)`.
+
+---
+
+### I5) MCP error formatting mislabels non-numeric `error.code` as an “exitCode”
+- **Severity:** Medium (client compatibility)
+- **File:** `src/integrations/mcp/protocol.js` — `formatToolError()` (~L102–116), especially (~L108–110)
+- **What’s happening:** If `error.code` exists but is not a known MCP error code, it is emitted as `payload.exitCode = error.code`.  
+  For many Node/system errors, `error.code` is a **string** like `"ENOENT"` or `"EACCES"`, not a numeric exit code.
+- **Impact:** Clients expecting `exitCode:number` may mis-handle failures.
+- **Fix:** Emit separate fields:
+  - `nativeCode` for string codes (`ENOENT`, etc.)
+  - `exitCode` only when it’s a finite integer.
+
+### I6) MCP remediation hint builder can do large lowercasing/joins of stdout+stderr
+- **Severity:** Medium (performance/memory)
+- **File:** `src/integrations/mcp/protocol.js` — `getRemediationHint()` (~L60–92)
+- **What’s happening:** Concatenates `message`, `stderr`, and `stdout`, then lowercases the entire result. If stdout/stderr are large, this is expensive and memory-hungry.
+- **Fix:** Truncate inputs before joining/lowercasing (e.g., first 8–32KB of each), or scan in a streaming/capped way.
+
+---
+
+### I7) `updateEnrichmentState()` is non-atomic, racy, and swallows all IO errors
+- **Severity:** Medium (reliability)
+- **File:** `src/integrations/core/enrichment-state.js` (~L6–21)
+- **What’s happening:**
+  - read/parse errors are ignored → state silently resets to `{}`.
+  - updates are read-modify-write without a lock → concurrent writers lose fields.
+  - writes are not atomic → partial/corrupted JSON possible on crash/interruption.
+  - write errors are swallowed → callers assume state updated when it may not be.
+- **Fix:** Use an atomic write (temp + rename) and a lock (or a single-writer discipline). At least log errors.
+
+### I8) Records indexing uses `startsWith()` for directory containment checks (prefix bug)
+- **Severity:** Medium (correctness hardening)
+- **File:** `src/integrations/triage/index-records.js` (~L85–88)
+- **What’s happening:** `absPath.startsWith(recordsDir)` is used to decide whether a record is under the triage directory.
+- **Why it’s tricky:** String prefixes can misclassify paths (e.g., `/repo/triage` vs `/repo/triage-old`).
+- **Fix:** Use `path.relative(recordsDir, absPath)` and validate it doesn’t start with `..` and isn’t absolute (pattern used elsewhere in the codebase).
+
+### I9) Triage `ensureRecordId()` fallback can be huge and can throw
+- **Severity:** Medium (robustness)
+- **File:** `src/integrations/triage/normalize/helpers.js` (~L98–107), especially (~L101–104)
+- **What’s happening:** If no stable key exists, it uses `JSON.stringify(raw)` as the “key” input.
+- **Impact:**
+  - Very large payloads → large allocations and slow hashing.
+  - Cyclic structures → `JSON.stringify` throws.
+- **Fix:** Use a capped stable stringify/hashing approach:
+  - stable stringify with key ordering + size cap, or
+  - hash a selected stable subset of fields, or
+  - compute a content hash of the input file/record id.
+
+### I10) Generic triage normalizer can undo routing meta and produce non-ISO timestamps
+- **Severity:** Medium (data integrity)
+- **File:** `src/integrations/triage/normalize/generic.js` (~L17–83), especially `Object.assign(record, raw)` (~L33)
+- **What’s happening:**
+  - `buildBaseRecord()` applies meta routing and default timestamps, then `Object.assign(record, raw)` allows the incoming payload to overwrite `service/env/team/owner/repo`, timestamps, `source`, etc.
+  - `createdAt` / `updatedAt` are accepted as-is (not normalized to ISO), which can fail downstream schema expectations.
+- **Fix:** Merge in the opposite direction (raw into a sanitized scaffold) or whitelist the fields that raw is allowed to override. Normalize timestamps via `toIso()`.
+
+---
+
+### I11) Tooling CLIs frequently compute `buildIndexSignature()` (can be very slow on large sharded indexes)
+- **Severity:** Medium–High (performance)
+- **Files:** `src/integrations/tooling/*` (api-contracts, architecture-check, context-pack, graph-context, impact, suggest-tests)
+- **What’s happening:** These commands call `buildIndexSignature(indexDir)` even though they also read `compatibilityKey`.  
+  In this repo, signature building is implemented as lots of synchronous directory listing + `stat` calls across shard files (see earlier findings).
+- **Impact:** “Tooling” commands can become unexpectedly slow on large repos/indexes.
+- **Fix:** Prefer the compatibility key/build id for provenance, or cache signatures, or avoid sharded-per-file stats.
+
+### I12) Some `run*Cli()` functions call `process.exit()` internally
+- **Severity:** Low–Medium (reusability/testing)
+- **Files:** `context-pack.js`, `graph-context.js`, `impact.js`, `suggest-tests.js` (and to a lesser extent the others)
+- **What’s happening:** Errors inside the exported `run*Cli()` functions terminate the process directly.
+- **Impact:** Harder to import and test these as library functions.
+- **Fix:** Return `{ok:false,...}` or throw and let the “bin” wrapper decide the exit code.
+
+### I13) `status()` size computation is purely recursive and sequential
+- **Severity:** Medium (performance on large caches)
+- **File:** `src/integrations/core/status.js` — `sizeOfPath()` (~L17–33)
+- **Impact:** Large cache roots → very slow status calls; also recursion depth could become a problem on pathological trees.
+- **Fix:** Use iterative traversal (stack/queue) and/or bounded concurrency; consider sampling or skipping known-large trees unless requested.
+
+### I14) Embeddings line parsing uses string concatenation on Buffer chunks (UTF-8 boundary edge case)
+- **Severity:** Low–Medium (edge correctness)
+- **File:** `src/integrations/core/embeddings.js` — `createLineEmitter.handleChunk()` (~L11–16)
+- **What’s happening:** `buffer += chunk` coerces Buffers to strings; if multibyte UTF-8 characters are split across chunks, you can get replacement characters or corrupted lines.
+- **Fix:** Use `StringDecoder('utf8')` from `node:string_decoder` to decode chunk boundaries safely.
+
+### I15) Compatibility computation copies the entire runtime object per mode
+- **Severity:** Low (perf/clarity)
+- **File:** `src/integrations/core/build-index/compatibility.js` (~L6–18)
+- **What’s happening:** `const runtimeSnapshot = { ...runtime, dictConfig: adaptedDictConfig }` for each mode.  
+  If runtime carries large structures, this is extra overhead and can make debugging confusing.
+- **Fix:** Pass only the minimal config subset needed by `buildTokenizationKey()`.
+
+---
+
+## Notes
+- A number of integration modules depend on shared utilities (`subprocess`, `json-stream`, `index-cache`) that have separate findings in earlier reports; where that dependency materially affects integrations behavior, I’ve called it out (e.g., signature cost, atomic write behavior).
+
+---
+
+
+---
+
+## Findings (bugs, reliability hazards, performance traps)
+
+### 1) **Non-zero exit codes are treated as “OK” whenever `stdout` is non-empty** (can silently accept corrupted / partial output)
+**Severity:** High (silent correctness failures)  
+**File:** `src/experimental/structural/runner.js`  
+**Where:** lines **22–25**, **40–43**, **67–70**
+
+Pattern:
+
+```js
+if (result.status !== 0 && !result.stdout) throw ...
+return parseX(result.stdout || '', ...)
+```
+
+**Why this is tricky**
+- Many tools write *something* to stdout even on partial failure (or write “best effort” output and then exit non-zero).
+- The current logic treats **any** non-empty `stdout` as a green light, even if the exit code indicates an error.
+- Result: you can ingest incomplete data, miss matches, or misreport findings while losing the real error signal.
+
+**Recommendation**
+- Treat exit codes explicitly per engine:
+  - **semgrep**: exit code 1 often means “findings found”; codes ≥2 are typically errors (exact semantics depend on semgrep version).
+  - **ast-grep / comby**: decide what exit codes mean “findings vs error”; do not assume non-empty stdout implies success.
+- At minimum: if `status !== 0`, still surface stderr (and optionally attach parsed results as “partial”).
+
+---
+
+### 2) **Windows `shell: true` for `.cmd/.bat` can introduce quoting / parsing edge cases** (esp. paths with spaces, special characters)
+**Severity:** Medium (platform-specific correctness, hard to reproduce)  
+**File:** `src/experimental/structural/binaries.js`  
+**Where:** lines **8–13**, esp. **11–12**
+
+```js
+const useShell = isWindows && /\.(cmd|bat)$/i.test(command);
+spawnSync(command, args, { shell: useShell })
+```
+
+**What can go wrong**
+- When `shell:true`, Node routes execution through `cmd.exe` and must stringify/quote the command+args.
+- Edge cases can appear with:
+  - paths containing `&`, `^`, `|`, parentheses, `!` (delayed expansion),
+  - odd quoting when args include JSON or regex-like strings,
+  - command path resolution differences vs non-shell execution.
+
+**Recommendation**
+- Prefer executing `.cmd/.bat` via `cmd.exe /d /s /c` with carefully controlled quoting *or* avoid shell execution by resolving to an `.exe` where possible.
+- If you keep `shell:true`, add regression tests for:
+  - rule paths with spaces,
+  - repo roots with parentheses,
+  - patterns containing `&` or `|`.
+
+---
+
+### 3) **Resolver cache can become stale if PATH changes** (surprising behavior in long-running sessions)
+**Severity:** Low–Medium  
+**File:** `src/experimental/structural/binaries.js`  
+**Where:** line **6** (global `binaryCache`), usage at **59**
+
+- `resolveBinary(engine)` memoizes the resolution forever for the process lifetime.
+- If a user installs `semgrep`/`sg` after the process starts (or PATH is modified), the resolver can remain stuck pointing to “missing” or an old path.
+
+**Recommendation**
+- Either:
+  - include `process.env.PATH` (or a hash of it) in the cache key, or
+  - allow an explicit “refresh” option.
+
+---
+
+### 4) **JSON-lines parsing silently drops bad lines and can drop valid falsy JSON values**
+**Severity:** Medium (silent data loss)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** `parseJsonLines()` lines **4–15**
+
+Issues:
+- Parse errors return `null` and are then filtered out with `.filter(Boolean)` → parse failures are *silent*.
+- `.filter(Boolean)` also drops valid JSON values like `0`, `false`, and `""` (less likely here, but it’s a lurking footgun).
+
+**Why this is tricky**
+- If tool output changes format, includes prelude logs, or prints a single malformed line, you can end up with “empty results” and no error.
+
+**Recommendation**
+- Track parse failures:
+  - return `{items, parseErrors}` and decide policy (warn/fail-fast).
+- Use a filter that only removes `null/undefined` rather than Boolean coercion:
+  - e.g., `.filter((x) => x != null)`.
+
+---
+
+### 5) **`parseAstGrep()` format assumptions are brittle** (likely to misparse some valid output shapes)
+**Severity:** Medium (silent missed matches)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** `parseAstGrep()` lines **61–97**
+
+- It assumes entries look like `{ matches: [...] }`.
+- If `sg scan --json` emits JSON Lines of *match objects* (or a different schema version), the loop will see `entry.matches` as undefined and produce no results (silently).
+
+**Recommendation**
+- Detect and normalize multiple possible output shapes:
+  - array of `{matches:[...]}`,
+  - JSONL of `{range, text, ...}` matches,
+  - single object with `{matches:[...]}`.
+- Fail loudly if output parses but doesn’t match expected schema (optional strict mode).
+
+---
+
+### 6) **`readCombyRule()` has no validation and uses permissive defaults** (can lead to “do nothing” searches)
+**Severity:** Low–Medium (correctness)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** lines **129–137**
+
+- Missing / invalid rule fields are defaulted:
+  - `language: '.'`, `pattern: ''`
+- That can yield confusing behavior:
+  - empty pattern, broad matcher, or tool errors depending on comby semantics.
+
+**Recommendation**
+- Validate required fields:
+  - require `pattern` non-empty,
+  - require `language` to be a known matcher,
+  - surface a clear error pointing to the rule file.
+
+---
+
+### 7) **`writeJsonl()` builds a full in-memory string and writes synchronously** (scales poorly on large outputs)
+**Severity:** Low–Medium (performance/memory)  
+**File:** `src/experimental/structural/io.js`  
+**Where:** lines **4–11**
+
+- `items.map(JSON.stringify).join('\n')` builds one big string.
+- `fs.writeFileSync()` blocks the event loop.
+- For large result sets, this can be a noticeable memory spike.
+
+**Recommendation**
+- Stream JSONL output:
+  - write line-by-line to a write stream
+  - handle backpressure
+- If remaining synchronous, at least document that it’s intended for small result sets.
+
+---
+
+### 8) Minor CLI-arg edge cases in model comparison helper
+**Severity:** Low  
+**File:** `src/experimental/compare/config.js`  
+**Where:** lines **23–28**, **52–56**
+
+- `resolveCompareModels()` dedupes but does not `trim()` config-provided entries (only CLI list gets trim) → `["gpt-4", " gpt-4"]` can survive as distinct until later.
+- `resolveAnnSetting()` only detects `--ann` / `--no-ann` *as exact tokens* (raw string match). Variants like `--ann=false` or `--no-ann=true` could be misclassified depending on the arg parser used upstream.
+
+**Recommendation**
+- Normalize config model IDs with `.trim()`.
+- Detect arg presence in a parser-aware way, or expand detection to include `--ann=` patterns if needed.
+
+---
+
+## “Hard-to-find” regression tests worth adding (if this graduates from experimental)
+
+1. **Non-zero exit + stdout**: simulate a tool that prints partial JSON then exits 2; ensure you don’t silently accept results without reporting error.
+2. **Windows quoting**: run with repo root containing parentheses + rules path containing spaces; ensure the invoked command sees correct argv.
+3. **ast-grep schema variants**: feed JSONL match objects and array-of-results formats; ensure parser returns expected normalized results.
+4. **JSONL parse error visibility**: include one malformed JSONL line; ensure you surface the parse error count and/or fail-fast in strict mode.
+5. **Large output streaming**: 100k results JSONL should not allocate a single huge string or block for long.
+
+---
+
+## Patch sketches (non-binding)
+
+- Make exit-code handling explicit per engine in `runner.js`, e.g.:
+
+```js
+const assertOk = ({ engine, status, stdout, stderr }) => {
+  if (engine === 'semgrep') {
+    if (status === 0 || status === 1) return; // (example semantics)
+    throw new Error(stderr || `semgrep failed (status ${status})`);
+  }
+  if (status !== 0) throw new Error(stderr || `${engine} failed (status ${status})`);
+};
+```
+
+- Improve `parseJsonLines()`:
+
+```js
+const parseJsonLines = (text) => {
+  const items = [];
+  const errors = [];
+  for (const [i, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    try { items.push(JSON.parse(line)); }
+    catch (e) { errors.push({ line: i + 1, error: String(e) }); }
+  }
+  return { items, errors };
+};
+```
+
+- Switch `writeJsonl()` to streaming for large result sets.
+
+---
+
+
+
+### 1) **Prototype pollution / global object corruption** via plain-object “maps” keyed by code identifiers
+
+**Severity:** Critical  
+**Location:** `src/lang/javascript/relations.js` (around L240–L320)
+
+This file uses plain objects as dictionaries keyed by *identifier names from parsed code*:
+
+- `const functionMeta = {};`
+- `const classMeta = {};`
+- later: `const existing = functionMeta[name]; if (!existing) ... else ...`
+
+This is extremely dangerous in JavaScript because names like `__proto__`, `constructor`, `toString`, etc. have special meaning on objects with `Object.prototype` in their prototype chain.
+
+#### Why this is a real exploit path (not theoretical)
+
+If a repo being indexed contains a function named `__proto__` (valid identifier):
+
+```js
+function __proto__() {}
+```
+
+Then:
+
+- `functionMeta["__proto__"]` **does not return** a stored entry.
+- It returns `Object.prototype` (because `__proto__` is an accessor).
+- `existing` becomes `Object.prototype`, which is truthy.
+- The `else` branch mutates `existing.*` → **mutates `Object.prototype` globally**.
+
+That means a single adversarial identifier can:
+- corrupt global prototypes (`Object.prototype.params`, etc.),
+- create unpredictable behavior across the entire process,
+- potentially become a security primitive depending on downstream assumptions.
+
+This is a classic “hard-to-find” bug because normal repos rarely define `__proto__`-named functions/classes.
+
+**Suggestion (strong)**
+- Replace these dictionaries with `Map`, **or** with `Object.create(null)` and strict own-property checks.
+- In particular: never use `if (!existing)` on dictionary lookups; always use an own-key check.
+
+**Example patch shape**
+- `const functionMeta = new Map();`
+- `if (!functionMeta.has(name)) functionMeta.set(name, {...}); else { merge... }`
+
+Or:
+
+- `const functionMeta = Object.create(null);`
+- `if (!Object.prototype.hasOwnProperty.call(functionMeta, name)) { ... }`
+
+---
+
+### 2) Generic AST traversal walks `tokens` (and other heavy fields) → big avoidable CPU cost
+
+**Severity:** Medium (perf)  
+**Locations:**
+- `src/lang/javascript/imports.js` (around L45–L99)
+- `src/lang/javascript/relations.js` (around L660–L820)
+- `src/lang/typescript/relations.js` (generic AST walk)
+
+These modules implement a generic recursive walker that iterates `Object.keys(node)` / `Object.values(node)` and recurses into every object/array field, only skipping `loc`, `start`, `end`.
+
+When Babel parsing is configured to include tokens, the AST includes a large `tokens` array. The generic walkers will recursively traverse **every token object** even though token objects are irrelevant for import/call extraction.
+
+This can become a large runtime tax:
+- O(#tokens) additional traversal work per file
+- extra allocations and GC pressure
+- duplicates work in `relations.js`, which separately processes tokens later
+
+**Suggestion**
+- Explicitly skip well-known non-AST fields: `tokens`, `comments`, `leadingComments`, `trailingComments`, `extra`, etc.
+- Or use a structured AST walker that only follows known AST child fields.
+- Consider an iterative stack to avoid recursion overhead (see next finding).
+
+---
+
+### 3) Recursive AST walking risks call stack overflow on adversarially deep syntax
+
+**Severity:** Medium (stability)  
+**Locations:** same as Finding #2
+
+The walkers are recursive. A deeply nested AST (intentional or accidental) can exceed the JS call stack and crash the indexing run.
+
+This is rare in normal code, but it’s common in “fuzzer / adversarial repo” scenarios and can happen with:
+- very deeply nested expressions / arrays / chained calls
+- huge generated code blobs
+
+**Suggestion**
+- Rewrite walkers to iterative form (explicit stack).
+- Or use a traversal library that is iterative.
+
+---
+
+### 4) TypeScript signature param parsing is regex-based and breaks on nested parentheses (function types, defaults)
+
+**Severity:** Medium (correctness)  
+**Location:** `src/lang/typescript/signature.js` (around L13–L16 and L33–L37)
+
+These helpers extract params using:
+
+- `signature.match(/\(([^)]*)\)/)`
+- and split on commas
+
+This fails when parameter types contain parentheses, e.g.:
+
+```ts
+foo(cb: (x: number) => string, y: string)
+```
+
+The regex stops at the first `)` (end of `(x: number)`), producing truncated parameter lists and wrong type extraction.
+
+**Suggestion**
+- Reuse the more robust delimiter-aware scanning approach used elsewhere (you already have complex parsing logic in `src/integrations/tooling/api-contracts.js`).
+- Or implement a simple parenthesis-depth scanner here as well.
+
+---
+
+### 5) Tree-sitter async chunking treats “no chunks” as a worker failure → double parsing
+
+**Severity:** Low–Medium (perf)  
+**Location:** `src/lang/tree-sitter/chunking.js` (around L501–L513)
+
+In `buildTreeSitterChunksAsync()`:
+
+- If the worker returns an empty array (valid “no chunks” result), the code treats it as failure and falls back to main-thread parsing.
+
+This can cause redundant work (parse twice) on files that legitimately have no chunkable declarations.
+
+**Suggestion**
+- Distinguish “failure” from “valid empty result”:
+  - Worker returns `null` on failure, `[]` on success/no-chunks.
+  - Accept `[]` as a valid result.
+- Or return a `{ok:boolean, chunks:Array}` envelope.
+
+---
+
+### 6) Python executable discovery has no timeout → potential indefinite hang
+
+**Severity:** Low–Medium (stability)  
+**Location:** `src/lang/python/executable.js` (around L25–L73)
+
+`checkPythonCandidate()` spawns a candidate python with `-c` and waits for it to exit, but does not enforce a timeout.
+
+In most environments this is fine, but it becomes a risk if:
+- a “python” candidate is actually a wrapper that blocks,
+- environment hooks cause the process to hang.
+
+**Suggestion**
+- Add a timeout (e.g., 2–5 seconds) and kill the process if it doesn’t exit.
+
+---
+
+### 7) Python AST pool size guard can be bypassed by using `path` instead of inline `text`
+
+**Severity:** Medium (perf/stability)  
+**Location:** `src/lang/python/pool.js` (around L330–L356)
+
+When `text` exceeds `maxTextBytes` **and** `path` is provided, the pool sets `text = null` and sends only `path` to the worker:
+
+- This avoids transferring large text over stdin (good),
+- but it means the *file size* is no longer bounded by `maxTextBytes`.
+- A huge file at `path` can still be read and parsed by the worker, potentially crashing it or triggering repeated pool backoff.
+
+**Suggestion**
+- If `path` is used, add a file-size check (`fs.stat`) and enforce a maximum file size too.
+- Optionally validate that `path` is inside the repo root / expected sandbox.
+
+---
+
+
+---
+
+## Findings
+
+### 1) Potential arbitrary file read / path traversal via `chunk.file`
+
+**Severity:** High  
+**Location:** `src/context-pack/assemble.js` (around L157–L160)
+
+`buildPrimaryExcerpt()` constructs a filesystem path as:
+
+- `filePath = path.resolve(repoRoot, chunk.file)`
+
+There is **no explicit check** that `chunk.file` is:
+- a safe repo-relative path, and
+- still inside `repoRoot` after resolution.
+
+If `chunkMeta` (or anything upstream producing `chunk.file`) is tampered with, a crafted value like `../../../../etc/passwd` (or an absolute path) will resolve outside the repo and the code will attempt to read it.
+
+Even if your current pipeline “should never” produce such values, this is the kind of bug that appears later when:
+- context-pack assembly is used with external indexes/caches,
+- indexes are copied between machines,
+- multi-tenant environments share caches.
+
+**Suggestion**
+- Enforce a containment check before reading:
+  - Resolve the path
+  - Ensure `path.relative(repoRoot, filePath)` does not start with `..` and is not absolute.
+- Consider rejecting absolute `chunk.file` entirely.
+
+---
+
+### 2) Synchronous full-file reads even when only a bounded excerpt is needed
+
+**Severity:** Medium (perf / memory)  
+**Location:** `src/context-pack/assemble.js` (around L152–L173)
+
+`buildPrimaryExcerpt()` does:
+
+- `fs.readFileSync(filePath, 'utf8')`
+- then conditionally truncates with `sliceExcerpt(excerpt, maxBytes, ...)`
+
+For large files, this forces a **full read into memory** even if the final excerpt is capped to (say) 10–50KB.
+
+**Suggestion**
+- When `maxBytes` is set, consider:
+  - reading only the needed region (range reads), or
+  - reading a bounded prefix (streaming) and truncating early.
+
+---
+
+### 3) Byte truncation can cut a multibyte UTF-8 codepoint
+
+**Severity:** Low (correctness)  
+**Location:** `src/context-pack/assemble.js` (around L18–L33)
+
+`sliceExcerpt()` truncates by bytes using:
+
+- `Buffer.from(excerpt, 'utf8').subarray(0, maxBytes).toString('utf8')`
+
+This can split a multi-byte character, producing the replacement character (�) at boundaries.
+
+**Suggestion**
+- If the output is user-visible or diffed, consider truncating on codepoint boundaries (or accept the replacement char as acceptable tradeoff).
+
+---
+
+### 4) Avoidable memory duplication when `maxBytes` is enabled
+
+**Severity:** Low (perf)  
+**Location:** `src/context-pack/assemble.js` (around L18–L33)
+
+`Buffer.from(excerpt, 'utf8')` duplicates memory proportional to excerpt size.
+
+In typical use this is fine, but in worst-case scenarios (many large chunks; high parallelism) it can increase peak RSS.
+
+**Suggestion**
+- Prefer early truncation strategies (see Finding #2), which naturally reduce or eliminate this duplication.
+
+---
+
+## Suggested hardening patch (shape)
+
+- Validate `chunk.file` stays inside repoRoot before reading.
+- If `maxBytes` is set, read only what you need.
+- Treat chunkMeta/index artifacts as semi-trustworthy inputs (because caches can drift/tamper).
+
+---
+
+
+## Findings
+
+### [HIGH] G-1 — BFS uses `Array.shift()` causing O(n²) traversal cost on large neighborhoods
+
+**Location:** `src/graph/neighborhood.js:457`
+
+The neighborhood builder performs a breadth-first exploration using an array as a queue.
+It dequeues via `queue.shift()` (line 457), which is O(n) per pop because it must reindex the entire array.
+For graphs/neighborhoods with many enqueued nodes, this turns the traversal into O(n²) behavior and can dominate runtime.
+
+This is particularly tricky because everything else in the algorithm looks linear-ish, so performance regressions only show up on larger repos or higher `depth` values.
+
+**Recommendation:**
+
+Replace `shift()` with a queue index pointer (the project already uses this pattern elsewhere, e.g. `src/graph/suggest-tests.js` uses `queueIndex`).
+Example pattern:
+- Keep `let qi = 0;`
+- Use `const current = queue[qi++];`
+- Stop when `qi >= queue.length`.
+
+This change is mechanically safe and typically yields large speedups for big traversals.
+
+### [HIGH] G-2 — Unresolved symbol-reference candidate ordering can make edge de-duplication and ordering non-deterministic
+
+**Location:** `src/graph/neighborhood.js:109-158`, `src/graph/ordering.js:53-64`
+
+Edges are de-duplicated using an `edgeKey()` that ultimately depends on `edgeEndpointKey()`.
+For symbol-edge endpoints that are *reference envelopes* (unresolved/ambiguous), `referenceEnvelopeKey()` uses:
+
+- `envelope.resolved` if present, else
+- the **first** element of `envelope.candidates` (ordering.js:53-64).
+
+However, when building normalized symbol envelopes, `normalizeSymbolRef()` copies candidates but **does not sort or canonicalize them** (neighborhood.js:109-158).
+
+If upstream generation of candidates is not strictly deterministic (or changes between versions), the “first candidate” can vary even when the underlying set is the same.
+That makes edge keys (and therefore edge de-duplication, ordering, and even path/witness outputs) **unstable across runs**.
+
+Symptoms you may see:
+- duplicate edges appearing/disappearing across builds
+- unstable ordering of edges/nodes for the same inputs
+- confusing diffs in generated reports/artifacts
+
+**Recommendation:**
+
+Canonicalize unresolved envelopes before they participate in edge keys:
+- Sort `candidates` deterministically (e.g., by a stable key such as `symbolId|chunkUid|path`).
+- Or, when unresolved, have `referenceEnvelopeKey()` hash **all** candidate keys (stable sorted) rather than using only the first.
+
+If you want to preserve ranking semantics, you can keep the original candidate order for UX, but compute a separate canonical key used only for identity/dedup.
+
+### [MEDIUM] G-3 — Import-graph expansion can silently fail due to inconsistent file-path normalization
+
+**Location:** `src/graph/neighborhood.js:67-75`, `src/graph/neighborhood.js:447-452`
+
+The import graph is indexed by raw `node.id` strings (`buildGraphIndex`, neighborhood.js:67-75).
+When the traversal is currently on a chunk node, it attempts to join into the import graph via:
+
+- `resolveImportSourceId(ref)` → `chunkInfo.get(ref.chunkUid)?.file` (neighborhood.js:447-452).
+
+If `chunkInfo.file` is in a different format than `importGraph.node.id` (e.g., Windows `\` vs POSIX `/`, absolute vs relative, or different casing), `resolveGraphNeighbors()` will return no neighbors and the import expansion just… stops (no warning).
+
+This is a classic “looks fine, but some repos have mysteriously empty import neighborhoods” type of bug.
+
+**Recommendation:**
+
+Normalize file paths consistently before indexing and before lookup:
+- Apply a shared normalization function (at minimum: `toPosix()`, trim leading `./`).
+- Ideally allow `buildGraphNeighborhood()` to accept `repoRoot` and normalize to repo-relative paths (like other parts of the codebase do).
+- Consider emitting a warning if an importGraph lookup is attempted and the resolved ID is not found in the importGraph index.
+
+### [MEDIUM] G-4 — `GraphStore.loadOnce()` caches rejected promises, preventing retries after transient failures
+
+**Location:** `src/graph/store.js:35-41`
+
+`loadOnce()` memoizes the promise returned by the loader and stores it in `artifactCache`.
+If the loader rejects (e.g., transient read error, partial file, momentary FS hiccup), the rejected promise stays cached and every subsequent call returns the same rejection.
+
+This is subtle because it only matters when failures are transient or recoverable (e.g., CI artifact restore races).
+
+**Recommendation:**
+
+Evict cache entries on rejection to allow retry:
+
+```js
+const promise = Promise.resolve().then(loader).catch(err => {
+  artifactCache.delete(name);
+  throw err;
+});
+```
+
+If you *do* want sticky failures, consider recording the error explicitly and surfacing it via `getArtifactsUsed()` or a diagnostic API.
+
+### [MEDIUM] M-1 — `scope=dir` filter uses `startsWith()` without a directory boundary check
+
+**Location:** `src/map/build-map/filters.js:104-115`
+
+Directory scoping uses:
+
+- `node.path.startsWith(normalizedFocus)` (filters.js:106).
+
+If the user passes `focus="src"` (no trailing slash), this will also match paths like `src-old/...` or `src2/...`.
+That yields confusing “why did this file show up?” results and makes scoped maps unreliable in monorepos with similarly-prefixed directories.
+
+**Recommendation:**
+
+Use a boundary-aware check:
+- `node.path === normalizedFocus || node.path.startsWith(normalizedFocus + '/')`
+
+You can also normalize `focus` by stripping any trailing slashes and then applying the boundary check above.
+
+### [MEDIUM] M-2 — Potential symbol ID collisions for same-name symbols in the same file, plus “first metadata wins” merge semantics
+
+**Location:** `src/map/build-map/symbols.js:6-18`, `src/map/build-map/symbols.js:54-69`
+
+When `symbolId` and `chunkUid` are absent, `buildSymbolId()` falls back to `${file}::${name}` (symbols.js:6-18).
+If multiple symbols share the same name in the same file (common with overloads, re-exports, or certain languages), this can collide.
+
+Additionally, `upsertMember()` only overwrites fields when the existing member is missing that field (symbols.js:54-69).
+If a low-fidelity source (e.g., legacy repo_map) creates a member first, then a higher-fidelity source (e.g., chunk_meta v2) arrives later, the better metadata may be ignored forever.
+
+These are ‘soft correctness’ problems that are hard to notice unless you compare the map output against ground truth.
+
+**Recommendation:**
+
+Collision mitigation options:
+- Incorporate range (startLine/endLine) into the fallback ID when available.
+- Or incorporate `kind` + startLine even when `name` is present (if uniqueness is more important than readability).
+
+Merge precedence options:
+- Track a `source` / `confidence` field and allow later higher-priority sources to overwrite.
+- Or add a `prefer` flag when calling `upsertMember` from chunk_meta vs repo_map.
+
+### [MEDIUM] M-3 — `buildImportEdges()` does not normalize paths, risking missing/misaligned import edges on Windows or mixed formats
+
+**Location:** `src/map/build-map/edges.js:190-209`
+
+`buildImportEdges()` uses `entry.file` and `target` verbatim when creating edges (edges.js:193-206).
+Elsewhere in map building, file paths are normalized (POSIX slashes) via `normalizePath()`.
+
+If `file_relations` ever contains Windows-style separators or absolute paths, the import edges may not match the normalized file nodes and will be filtered out later (or render as dangling).
+
+**Recommendation:**
+
+Normalize both endpoints:
+- `const from = normalizePath(entry.file);`
+- `const to = normalizePath(target);`
+
+Also normalize before applying `fileSet` checks, otherwise the filter will behave inconsistently.
+
+### [MEDIUM] M-4 — HTML export injects raw SVG without sanitization (XSS risk if SVG is untrusted)
+
+**Location:** `src/map/html-writer.js:42`
+
+`renderSvgHtml()` inserts `${svg || ''}` directly into the HTML output (html-writer.js:42).
+If the SVG content is ever derived from untrusted input (or if a malicious repo can influence the SVG), this can allow script execution when the HTML file is opened.
+
+This is easy to miss because other strings are escaped via `escapeHtml()`.
+
+**Recommendation:**
+
+If the SVG is always generated locally and never from untrusted sources, document that assumption clearly.
+Otherwise consider:
+- Sanitizing SVG (remove `<script>`, event handlers, foreignObject, etc.).
+- Or embedding the SVG as an `<img src="data:image/svg+xml;base64,...">` so it isn’t executed as DOM (still has caveats).
+- Or serving it in a sandboxed iframe.
+
+### [MEDIUM] M-5 — Isometric viewer can navigate to arbitrary URIs via template; includes an unencoded `{fileRaw}` placeholder
+
+**Location:** `src/map/isometric/client/selection.js:567-597`
+
+`buildOpenUri()` builds a URL from `state.config.openUriTemplate` and then navigates via `window.location.href` (selection.js:592-597).
+It provides both an encoded `{file}` and an unencoded `{fileRaw}` replacement (selection.js:580-588).
+
+If the template uses `{fileRaw}` and the underlying file path contains unexpected characters, it can produce malformed URIs or enable injection-like behavior depending on the consumer.
+
+This may be acceptable for a trusted, local-only viewer, but it’s a sharp edge if the viewer is ever hosted/shared.
+
+**Recommendation:**
+
+Prefer an all-encoded template surface:
+- Deprecate or remove `{fileRaw}` (or encode it as well).
+- Consider whitelisting allowed URI schemes (e.g., `vscode://`, `file://`) before navigation.
+- Alternatively, open in a new tab with `noopener` to reduce risk when navigating off-site.
+
+### [LOW] G-5 — `createWorkBudget().consume()` accepts negative/float units, allowing limit bypass if misused
+
+**Location:** `src/graph/work-budget.js:33-37`
+
+`consume()` uses `Number.isFinite(units) ? units : 1` and then adds it to `used` (work-budget.js:35-37).
+If any caller ever passes a negative value, `used` decreases and caps can be bypassed.
+
+Today, callers appear to pass `1`, so this is mainly a future-proofing correctness guard.
+
+**Recommendation:**
+
+Clamp `units` to a positive integer:
+- `const increment = Math.max(1, Math.floor(Number(units) || 1));`
+Or if you really want fractional work units, at least enforce `increment > 0`.
+
+### [LOW] G-6 — Edge case: path normalization can retain absolute paths when `path.relative()` returns an empty string
+
+**Location:** `src/graph/architecture.js:12-25`
+
+In `normalizePath()`, the code checks `if (rel && !rel.startsWith('..') ...)` (architecture.js:18).
+If `raw === repoRoot`, `path.relative(repoRoot, raw)` returns `''` (empty string), which is falsy, so the absolute path is retained.
+
+This is a niche edge case (likely only triggered if a rule/event incorrectly provides the repo root itself as a “file path”), but it can cause absolute-path leakage into reports.
+
+**Recommendation:**
+
+Treat `rel === ''` as `'.'` or explicitly handle this case:
+- `const rel = path.relative(repoRoot, raw) || '.';`
+Then strip `./` as you already do.
+
+### [LOW] G-7 — Test discovery uses synchronous FS traversal without per-directory error handling
+
+**Location:** `src/graph/suggest-tests.js:99-133`
+
+`discoverCandidateTests()` walks the repo using `fs.readdirSync()` (line 109).
+Two implications:
+
+- **Robustness:** if it encounters a directory it cannot read (permissions, transient IO errors), it will throw and abort the entire suggestion run.
+- **Performance:** synchronous recursive walks can be slow on huge repos or networked filesystems, and this is done before the rest of the test-suggestion logic.
+
+**Recommendation:**
+
+Wrap the `readdirSync()` call in a try/catch and skip unreadable directories.
+Optionally add an async version or allow callers to provide a precomputed file list.
+
+### [LOW] M-6 — Viewer loads modules via dynamic `import()` from configurable URLs (supply-chain / XSS footgun if config is untrusted)
+
+**Location:** `src/map/isometric/client/three-loader.js:58-89`
+
+`loadThreeModules(threeUrl)` does `await import(threeUrl)` (three-loader.js:58-60).
+`loadRgbeLoader(url)` similarly imports from `url` if provided (three-loader.js:77-85).
+
+If these URLs can be influenced by an untrusted party, this is equivalent to arbitrary script execution in the viewer context.
+In a local developer tool this may be fine; in a hosted scenario, it’s dangerous.
+
+**Recommendation:**
+
+If the viewer is meant to be local-only, document that clearly.
+If it can be hosted, restrict imports to a safe allowlist (or bundle dependencies rather than importing arbitrary URLs).
+
+### [LOW] M-7 — Isometric layout ordering is O(n²) and may stall for very large file counts
+
+**Location:** `src/map/isometric/client/layout-utils.js:149-190`
+
+`orderByAdjacency()` selects the next item by scoring every remaining item against all already-placed items.
+That is inherently O(n²) (and can approach O(n³) if adjacency scoring is dense).
+
+This is acceptable for small/medium maps, but for maps near the default max files (200) it can become noticeable in the browser.
+
+**Recommendation:**
+
+If large interactive maps are a goal:
+- Add a fast-path: skip adjacency ordering past a threshold.
+- Or use a heuristic that doesn’t rescore against all placed items (e.g., greedy from the last placed, or a limited-window scoring).
+
+---

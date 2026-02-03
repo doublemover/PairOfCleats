@@ -4,19 +4,19 @@ This document maps user-visible behavior to implementation, configuration switch
 
 ## Build modes and stages
 - Claim: `build_index.js --mode code|prose|records|extracted-prose|all` builds mode-specific indexes under the repo cache; `all` expands to `code`, `prose`, `extracted-prose`, and `records`.
-  - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
+  - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/shared/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
   - Config: CLI `--mode`, `--repo`, `--index-root`; environment `PAIROFCLEATS_CACHE_ROOT`.
   - Tests: `tests/indexing/fixtures/build-and-artifacts.test.js`, `tests/indexing/extracted-prose/extracted-prose.test.js`, `tests/tooling/triage/records-index-and-search.test.js`, `tests/cli/build-index/build-index-all.test.js`.
   - Limitations: `records` requires triage record inputs.
 
 - Claim: stage flags gate enrichment (`stage1` sparse, `stage2` relations, `stage3` embeddings, `stage4` sqlite).
-  - Implementation: `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `src/index/build/runtime.js` (`normalizeStage`, `buildStageOverrides`), `tools/build-embeddings.js` (script entrypoint), `tools/build-sqlite-index.js` (script entrypoint).
+  - Implementation: `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `src/index/build/runtime.js` (`normalizeStage`, `buildStageOverrides`), `tools/build/embeddings.js` (script entrypoint), `tools/build/sqlite-index.js` (script entrypoint).
   - Config: CLI `--stage`, `--stage1`, `--stage2`, `--stage3`, `--stage4`; `indexing.twoStage.*`, `indexing.embeddings.*`, `sqlite.use`; environment `PAIROFCLEATS_STAGE`.
   - Tests: `tests/indexing/runtime/two-stage-state.test.js`, `tests/indexing/embeddings/embeddings-validate.test.js`, `tests/storage/sqlite/sqlite-build-indexes.test.js`.
   - Limitations: stage3 requires embeddings; stage4 requires sqlite dependencies.
 
 - Claim: `index_state.json` gates readers on pending stage outputs (embeddings/sqlite/lmdb).
-  - Implementation: `src/index/build/artifacts.js` (`writeIndexArtifacts`), `tools/build-embeddings.js` (index_state updates), `tools/build-sqlite-index.js` (index_state updates), `tools/build-lmdb-index.js` (`updateLmdbState`), `src/retrieval/cli.js` (pending warnings), `src/retrieval/cli/index-loader.js` (`warnPendingState`).
+  - Implementation: `src/index/build/artifacts.js` (`writeIndexArtifacts`), `tools/build/embeddings.js` (index_state updates), `tools/build/sqlite-index.js` (index_state updates), `tools/build/lmdb-index.js` (`updateLmdbState`), `src/retrieval/cli.js` (pending warnings), `src/retrieval/cli/index-loader.js` (`warnPendingState`).
   - Config: `indexing.twoStage.*`, `indexing.embeddings.*`, `sqlite.use`, `lmdb.use`.
   - Tests: `tests/indexing/runtime/two-stage-state.test.js`, `tests/indexing/embeddings/embeddings-validate.test.js`, `tests/storage/sqlite/incremental/file-manifest-updates.test.js`, `tests/storage/lmdb/lmdb-backend.test.js`.
   - Limitations: manual edits can override gating.
@@ -36,7 +36,7 @@ This document maps user-visible behavior to implementation, configuration switch
   - Limitations: sqlite requires `better-sqlite3` (and optional ANN extension); auto thresholds are disabled when set to `0`, and missing stats trigger a warning + memory fallback.
 
 - Claim: `--backend lmdb` uses LMDB stores when present; auto fallback selects LMDB when sqlite is unavailable.
-  - Implementation: `src/storage/backend-policy.js` (`resolveBackendPolicy`), `src/retrieval/cli-lmdb.js` (`createLmdbBackend`), `tools/build-lmdb-index.js` (LMDB build entrypoint).
+  - Implementation: `src/storage/backend-policy.js` (`resolveBackendPolicy`), `src/retrieval/cli-lmdb.js` (`createLmdbBackend`), `tools/build/lmdb-index.js` (LMDB build entrypoint).
   - Config: CLI `--backend`; `lmdb.use`, `lmdb.*` paths.
   - Tests: `tests/storage/lmdb/lmdb-backend.test.js`, `tests/storage/backend/backend-policy.test.js`.
   - Limitations: LMDB requires `lmdb` dependency and pre-built stores.
@@ -130,31 +130,31 @@ This document maps user-visible behavior to implementation, configuration switch
 
 ## Service/API/MCP behavior
 - Claim: indexer service queue persists jobs, supports claim/complete transitions, and runs repo-scoped builds.
-  - Implementation: `tools/service/queue.js` (`enqueueJob`, `claimNextJob`, `completeJob`), `tools/indexer-service.js` (queue workers), `tools/service/config.js` (`loadServiceConfig`).
+  - Implementation: `tools/service/queue.js` (`enqueueJob`, `claimNextJob`, `completeJob`), `tools/service/indexer-service.js` (queue workers), `tools/service/config.js` (`loadServiceConfig`).
   - Config: service config (`tools/service/config.js`) `queue.maxQueued`, `worker.concurrency`, `embeddings.queue.maxQueued`, `embeddings.worker.*`; CLI `--config`, `--queue`.
   - Tests: `tests/services/queue/service-queue.test.js`, `tests/services/indexer/indexer-service.test.js`.
   - Limitations: queue storage is local filesystem state.
 
 - Claim: embedding and stage queues enforce maxQueued limits with best-effort enqueue.
-  - Implementation: `src/integrations/core/index.js` (`enqueueJob` usage), `tools/indexer-service.js` (`handleEnqueue`).
+  - Implementation: `src/integrations/core/index.js` (`enqueueJob` usage), `tools/service/indexer-service.js` (`handleEnqueue`).
   - Config: `indexing.embeddings.queue.maxQueued`, `indexing.embeddings.queue.dir`, `indexing.twoStage.queue`, `indexing.twoStage.background`.
   - Tests: `tests/indexing/runtime/two-stage-state.test.js`.
   - Limitations: enqueue is skipped when queue is full.
 
 - Claim: API server exposes build/search endpoints and streams responses when requested.
-  - Implementation: `tools/api-server.js` (server entry), `tools/api/router.js` (`createApiRouter`), `tools/api/validation.js` (`validateSearchPayload`).
+  - Implementation: `tools/api/server.js` (server entry), `tools/api/router.js` (`createApiRouter`), `tools/api/validation.js` (`validateSearchPayload`).
   - Config: CLI `--repo`; environment `PAIROFCLEATS_*` config values.
   - Tests: `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/services/api/api-server-stream.test.js`.
   - Limitations: streaming requires clients to handle SSE backpressure.
 
 - Claim: MCP server enforces per-tool timeouts and queue limits.
-  - Implementation: `tools/mcp-server.js` (queue/timeouts), `tools/mcp/transport.js` (`createMcpTransport`), `tools/mcp/repo.js` (`resolveToolTimeoutMs`).
+  - Implementation: `tools/mcp/server.js` (queue/timeouts), `tools/mcp/transport.js` (`createMcpTransport`), `tools/mcp/repo.js` (`resolveToolTimeoutMs`).
   - Config: `mcp.queueMax`, `mcp.toolTimeoutMs`, `mcp.toolTimeouts`; environment `PAIROFCLEATS_MCP_QUEUE_MAX`, `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`.
   - Tests: `tests/services/mcp/mcp-robustness.test.js`, `tests/services/mcp/mcp-runner-abort-kills-child.test.js`, `tests/services/mcp/mcp-schema.test.js`.
   - Limitations: long-running tools require explicit overrides.
 
 - Claim: MCP server advertises core resources and tool actions using repo-scoped config.
-  - Implementation: `tools/mcp-server.js` (tool defs), `src/integrations/mcp/defs.js` (`getToolDefs`).
+  - Implementation: `tools/mcp/server.js` (tool defs), `src/integrations/mcp/defs.js` (`getToolDefs`).
   - Config: CLI `--repo`; environment `PAIROFCLEATS_*` config values.
   - Tests: `tests/services/mcp/tools-list.test.js`.
   - Limitations: tools are limited to configured repo root.

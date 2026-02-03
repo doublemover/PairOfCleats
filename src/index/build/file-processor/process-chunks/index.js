@@ -175,6 +175,15 @@ export const processChunks = async (context) => {
   let lastLineLogged = 0;
   let lastLineLogMs = 0;
   const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
+  const filterLintForChunk = (entries, startLine, endLine, includeUnscoped) => {
+    if (!entries.length) return entries;
+    return entries.filter((entry) => {
+      const entryLine = Number(entry?.line);
+      if (!Number.isFinite(entryLine)) return includeUnscoped;
+      const entryEnd = Number.isFinite(Number(entry?.endLine)) ? Number(entry.endLine) : entryLine;
+      return entryLine <= endLine && entryEnd >= startLine;
+    });
+  };
 
   const resolvedTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
     ? analysisPolicy.typeInference.local.enabled
@@ -400,7 +409,9 @@ export const processChunks = async (context) => {
     const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
     const complexity = fileComplexity;
-    const lint = fileLint;
+    const lint = fileLint.length
+      ? filterLintForChunk(fileLint, startLine, endLine, ci === 0)
+      : fileLint;
 
     let preContext = [], postContext = [];
     if (contextWin > 0 && lineReader) {

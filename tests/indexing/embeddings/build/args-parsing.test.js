@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parseBuildEmbeddingsArgs } from '../../../../tools/build-embeddings/cli.js';
+import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'build-embeddings-args');

@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
 import { syncProcessEnv } from './test-env.js';
@@ -172,7 +172,7 @@ export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
   const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
     run(
-      [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', fixtureRoot],
+      [path.join(ROOT, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot],
       'build sqlite index',
       { cwd: fixtureRoot, env, stdio: 'inherit' }
     );

@@ -322,19 +322,27 @@ export const processFileCpu = async (context) => {
     if (withinAnnotateCap) {
       const annotateWithTimeout = async () => {
         const timeoutMs = Math.max(0, annotateTimeoutMs);
+        const controller = new AbortController();
         let timeoutId = null;
-        const timeoutPromise = new Promise((resolve) => {
-          timeoutId = setTimeout(() => resolve({ ok: false, reason: 'timeout' }), timeoutMs);
-        });
+        if (timeoutMs > 0) {
+          timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        }
         try {
-          const result = await Promise.race([
-            Promise.resolve(scmProviderImpl.annotate({
-              repoRoot: scmRepoRoot,
-              filePosix,
-              timeoutMs
-            })).catch(() => ({ ok: false, reason: 'unavailable' })),
-            timeoutPromise
-          ]);
+          const result = await Promise.resolve(scmProviderImpl.annotate({
+            repoRoot: scmRepoRoot,
+            filePosix,
+            timeoutMs,
+            signal: controller.signal
+          })).catch((err) => {
+            if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
+            if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {
+              return { ok: false, reason: 'timeout' };
+            }
+            return { ok: false, reason: 'unavailable' };
+          });
+          if (controller.signal.aborted) {
+            return { ok: false, reason: 'timeout' };
+          }
           return result;
         } finally {
           if (timeoutId) clearTimeout(timeoutId);

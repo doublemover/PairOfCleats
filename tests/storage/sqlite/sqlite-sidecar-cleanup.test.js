@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { loadUserConfig, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -32,7 +32,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--mode', 'code', '--repo', repoRoot], 'build sqlite');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--mode', 'code', '--repo', repoRoot], 'build sqlite');
 
 const userConfig = loadUserConfig(repoRoot);
 let sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -41,7 +41,7 @@ let shmPath = `${sqlitePaths.codePath}-shm`;
 await fsPromises.writeFile(walPath, 'stale-wal');
 await fsPromises.writeFile(shmPath, 'stale-shm');
 
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--mode', 'code', '--repo', repoRoot], 'rebuild sqlite');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--mode', 'code', '--repo', repoRoot], 'rebuild sqlite');
 
 const staleWal = fs.existsSync(walPath) ? fs.readFileSync(walPath) : null;
 const staleShm = fs.existsSync(shmPath) ? fs.readFileSync(shmPath) : null;
@@ -67,7 +67,7 @@ shmPath = `${sqlitePaths.codePath}-shm`;
 await fsPromises.writeFile(walPath, 'stale-wal');
 await fsPromises.writeFile(shmPath, 'stale-shm');
 run([
-  path.join(root, 'tools', 'build-sqlite-index.js'),
+  path.join(root, 'tools', 'build/sqlite-index.js'),
   '--incremental',
   '--mode',
   'code',

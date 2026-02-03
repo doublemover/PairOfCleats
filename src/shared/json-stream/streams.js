@@ -12,9 +12,10 @@ export const writeChunk = async (stream, chunk) => {
   }
 };
 
-const waitForFinish = (stream) => new Promise((resolve, reject) => {
+const waitForFinish = (stream, requireClose = false) => new Promise((resolve, reject) => {
   stream.on('error', reject);
-  stream.on('finish', resolve);
+  const event = requireClose ? 'close' : 'finish';
+  stream.on(event, resolve);
 });
 
 const waitForClose = (stream) => {
@@ -25,23 +26,30 @@ const waitForClose = (stream) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const createByteCounter = (highWaterMark) => {
+const createByteCounter = (maxBytes, highWaterMark) => {
   let bytes = 0;
+  let overLimit = false;
   const counter = new Transform({
     ...(highWaterMark ? { highWaterMark } : {}),
     transform(chunk, _encoding, callback) {
       bytes += chunk.length;
+      if (Number.isFinite(Number(maxBytes)) && maxBytes > 0 && bytes > maxBytes) {
+        overLimit = true;
+        callback(new Error(`JSON stream exceeded maxBytes (${bytes} > ${maxBytes}).`));
+        return;
+      }
       callback(null, chunk);
     }
   });
   return {
     counter,
-    getBytes: () => bytes
+    getBytes: () => bytes,
+    isOverLimit: () => overLimit
   };
 };
 
 export const createJsonWriteStream = (filePath, options = {}) => {
-  const { compression = null, atomic = false, signal = null } = options;
+  const { compression = null, atomic = false, signal = null, maxBytes = null } = options;
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   if (signal?.aborted) {
     throw createAbortError();
@@ -51,8 +59,9 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     targetPath,
     highWaterMark ? { highWaterMark } : undefined
   );
-  const { counter, getBytes } = createByteCounter(highWaterMark);
+  const { counter, getBytes, isOverLimit } = createByteCounter(maxBytes, highWaterMark);
   let writer = null;
+  let committed = false;
   const streams = [];
   const attachAbortHandler = () => {
     if (!signal) return () => {};
@@ -102,17 +111,28 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return {
       stream: gzip,
       getBytesWritten: getBytes,
-      done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
+      done: Promise.all([...new Set(streams)].map((entry) => (
+        waitForFinish(entry, entry === fileStream)
+      )))
         .then(async () => {
+          if (isOverLimit()) {
+            throw new Error('JSON stream exceeded maxBytes.');
+          }
           if (atomic) {
             await replaceFile(targetPath, filePath);
+            committed = true;
           }
         })
         .catch(async (err) => {
           await removeTempFile();
           throw err;
         })
-        .finally(detachAbort)
+        .finally(async () => {
+          if (atomic && !committed) {
+            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+          }
+          detachAbort();
+        })
     };
   }
   if (compression === 'zstd') {
@@ -124,17 +144,28 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return {
       stream: zstd,
       getBytesWritten: getBytes,
-      done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
+      done: Promise.all([...new Set(streams)].map((entry) => (
+        waitForFinish(entry, entry === fileStream)
+      )))
         .then(async () => {
+          if (isOverLimit()) {
+            throw new Error('JSON stream exceeded maxBytes.');
+          }
           if (atomic) {
             await replaceFile(targetPath, filePath);
+            committed = true;
           }
         })
         .catch(async (err) => {
           await removeTempFile();
           throw err;
         })
-        .finally(detachAbort)
+        .finally(async () => {
+          if (atomic && !committed) {
+            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+          }
+          detachAbort();
+        })
     };
   }
   writer = counter;
@@ -144,16 +175,27 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   return {
     stream: counter,
     getBytesWritten: getBytes,
-    done: Promise.all([...new Set(streams)].map((entry) => waitForFinish(entry)))
+    done: Promise.all([...new Set(streams)].map((entry) => (
+      waitForFinish(entry, entry === fileStream)
+    )))
       .then(async () => {
+        if (isOverLimit()) {
+          throw new Error('JSON stream exceeded maxBytes.');
+        }
         if (atomic) {
           await replaceFile(targetPath, filePath);
+          committed = true;
         }
       })
       .catch(async (err) => {
         await removeTempFile();
         throw err;
       })
-      .finally(detachAbort)
+      .finally(async () => {
+        if (atomic && !committed) {
+          try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+        }
+        detachAbort();
+      })
   };
 };

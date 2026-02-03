@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getVectorExtensionConfig } from '../../../tools/vector-extension.js';
+import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'vector-extension-sanitize');
