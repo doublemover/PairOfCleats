@@ -8,8 +8,8 @@ import { lineColToOffset } from '../../../shared/lines.js';
  */
 export function positionToOffset(lineIndex, position) {
   if (!position) return 0;
-  const line = Number(position.line) + 1;
-  const col = Number(position.character) || 0;
+  const line = Math.max(0, Number(position.line) || 0) + 1;
+  const col = Math.max(0, Number(position.character) || 0);
   return lineColToOffset(lineIndex, line, col);
 }
 

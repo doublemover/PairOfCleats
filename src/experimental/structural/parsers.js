@@ -1,18 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const parseJsonLines = (text) => text
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line) => {
+const parseJsonLines = (text) => {
+  const items = [];
+  const errors = [];
+  const lines = String(text || '').split(/\r?\n/);
+  for (const [idx, raw] of lines.entries()) {
+    const line = raw.trim();
+    if (!line) continue;
     try {
-      return JSON.parse(line);
-    } catch {
-      return null;
+      items.push(JSON.parse(line));
+    } catch (err) {
+      errors.push({ line: idx + 1, error: err?.message || String(err) });
     }
-  })
-  .filter(Boolean);
+  }
+  return { items, errors };
+};
 
 const mergeTags = (tags = [], packTags = []) => {
   const combined = [...tags, ...packTags].map((entry) => String(entry)).filter(Boolean);
@@ -64,31 +67,40 @@ export const parseAstGrep = (output, pack) => {
   try {
     parsed = JSON.parse(output);
   } catch {
-    parsed = parseJsonLines(output);
+    const { items, errors } = parseJsonLines(output);
+    if (errors.length && !items.length) {
+      const err = new Error(`ast-grep output parse failed (${errors.length} error(s)).`);
+      err.parseErrors = errors;
+      throw err;
+    }
+    parsed = items;
   }
   const entries = Array.isArray(parsed) ? parsed : [parsed];
   const results = [];
   for (const entry of entries) {
     if (!entry) continue;
-    const matches = Array.isArray(entry.matches) ? entry.matches : [];
-    const ruleId = entry.ruleId || entry.rule?.id || null;
+    const ruleId = entry.ruleId || entry.rule?.id || entry.rule || null;
+    const matches = Array.isArray(entry.matches)
+      ? entry.matches
+      : (entry.range && (entry.file || entry.path) ? [entry] : []);
+    const entryPath = entry.file || entry.path || null;
     for (const match of matches) {
-      const range = match.range || {};
-      const start = range.start || {};
-      const end = range.end || {};
+      const range = match.range || entry.range || {};
+      const start = range.start || match.start || {};
+      const end = range.end || match.end || {};
       results.push(normalizeResult({
         engine: 'ast-grep',
         pack,
-        ruleId,
+        ruleId: match.ruleId || ruleId,
         message: match.message || entry.message || null,
-        severity: entry.severity || null,
+        severity: entry.severity || match.severity || null,
         tags: Array.isArray(entry.tags) ? entry.tags : [],
-        path: entry.file || entry.path || null,
+        path: match.file || match.path || entryPath,
         startLine: start.line ?? null,
-        startCol: start.column ?? null,
+        startCol: start.column ?? start.col ?? null,
         endLine: end.line ?? null,
-        endCol: end.column ?? null,
-        snippet: match.text || match.matched || null,
+        endCol: end.column ?? end.col ?? null,
+        snippet: match.text || match.matched || entry.text || null,
         metadata: entry.metadata || null
       }));
     }
@@ -97,7 +109,12 @@ export const parseAstGrep = (output, pack) => {
 };
 
 export const parseComby = (output, pack, ruleId, message) => {
-  const entries = parseJsonLines(output);
+  const { items: entries, errors } = parseJsonLines(output);
+  if (errors.length && !entries.length) {
+    const err = new Error(`comby output parse failed (${errors.length} error(s)).`);
+    err.parseErrors = errors;
+    throw err;
+  }
   const results = [];
   for (const entry of entries) {
     if (!entry) continue;
@@ -128,11 +145,22 @@ export const parseComby = (output, pack, ruleId, message) => {
 
 export const readCombyRule = (rulePath) => {
   const payload = JSON.parse(fs.readFileSync(rulePath, 'utf8'));
+  if (!payload || typeof payload !== 'object') {
+    throw new Error(`Invalid comby rule payload: ${rulePath}`);
+  }
+  const language = payload.language || '.';
+  const pattern = typeof payload.pattern === 'string' ? payload.pattern : '';
+  if (!pattern.trim()) {
+    throw new Error(`Comby rule is missing a pattern: ${rulePath}`);
+  }
+  if (!language || typeof language !== 'string') {
+    throw new Error(`Comby rule is missing a language: ${rulePath}`);
+  }
   return {
     id: payload.id || path.basename(rulePath),
     message: payload.message || null,
-    language: payload.language || '.',
-    pattern: payload.pattern || '',
+    language,
+    pattern: pattern.trim(),
     rewrite: payload.rewrite || ''
   };
 };

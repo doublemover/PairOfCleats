@@ -76,6 +76,17 @@ const findTargetForOffsets = (targets, offsets, nameHint = null) => {
 };
 
 const ensureVirtualFile = async (rootDir, doc) => {
+  const virtualPath = doc?.virtualPath;
+  const normalized = typeof virtualPath === 'string' ? virtualPath.replace(/\\/g, '/') : '';
+  if (!normalized) {
+    throw new Error('LSP document is missing a virtualPath.');
+  }
+  if (path.isAbsolute(normalized) || normalized.startsWith('/')) {
+    throw new Error(`LSP virtualPath must be relative: ${normalized}`);
+  }
+  if (normalized.split('/').some((part) => part === '..')) {
+    throw new Error(`LSP virtualPath must not escape the VFS root: ${normalized}`);
+  }
   const absPath = resolveVfsDiskPath({ baseDir: rootDir, virtualPath: doc.virtualPath });
   await fs.mkdir(path.dirname(absPath), { recursive: true });
   await fs.writeFile(absPath, doc.text || '', 'utf8');

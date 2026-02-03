@@ -5,11 +5,26 @@ import { spawnSync } from 'node:child_process';
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
 
+const quoteCmdArg = (value) => {
+  const text = String(value);
+  if (!/[\\s&|^()<>]/.test(text) && !text.includes('"')) return text;
+  return `"${text.replace(/"/g, '\\"')}"`;
+};
+
+const buildCmdLine = (command, args) => [
+  quoteCmdArg(command),
+  ...args.map(quoteCmdArg)
+].join(' ');
+
 const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
-  const useShell = isWindows && /\.(cmd|bat)$/i.test(command);
-  return spawnSync(command, [...argsPrefix, ...args], { ...options, shell: useShell });
+  const effectiveArgs = [...argsPrefix, ...args];
+  if (isWindows && /\.(cmd|bat)$/i.test(command)) {
+    const cmdLine = buildCmdLine(command, effectiveArgs);
+    return spawnSync('cmd.exe', ['/d', '/s', '/c', cmdLine], { ...options, shell: false });
+  }
+  return spawnSync(command, effectiveArgs, { ...options, shell: false });
 };
 
 const findOnPath = (candidate) => {
@@ -56,7 +71,9 @@ const resolvePowerShell = () => {
 };
 
 export const resolveBinary = (engine) => {
-  if (binaryCache.has(engine)) return binaryCache.get(engine);
+  const pathEnv = process.env.PATH || '';
+  const cached = binaryCache.get(engine);
+  if (cached && cached.pathEnv === pathEnv) return cached.value;
   const candidates = {
     semgrep: ['semgrep'],
     'ast-grep': ['sg', 'ast-grep'],
@@ -76,38 +93,38 @@ export const resolveBinary = (engine) => {
           argsPrefix: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolved.path],
           checkedPaths
         };
-        binaryCache.set(engine, output);
+        binaryCache.set(engine, { pathEnv, value: output });
         return output;
       }
       if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
         const output = { command: process.execPath, argsPrefix: [resolved.path], checkedPaths };
-        binaryCache.set(engine, output);
+        binaryCache.set(engine, { pathEnv, value: output });
         return output;
       }
       const output = { command: resolved.path, argsPrefix: [], checkedPaths };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
     const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths };
-    binaryCache.set(engine, output);
+    binaryCache.set(engine, { pathEnv, value: output });
     return output;
   }
   for (const candidate of candidates) {
     const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
     if (!result.error && result.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
     const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
     if (!help.error && help.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
   }
   const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths: [] };
-  binaryCache.set(engine, output);
+  binaryCache.set(engine, { pathEnv, value: output });
   return output;
 };
 

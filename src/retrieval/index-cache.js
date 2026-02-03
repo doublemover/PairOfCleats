@@ -5,6 +5,7 @@ import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
+const indexSignatureCache = new Map();
 
 const INDEX_FILES = [
   'phrase_ngrams.json',
@@ -147,7 +148,14 @@ const jsonlArtifactSignature = (dir, baseName) => {
 export function buildIndexSignature(dir) {
   if (!dir) return null;
   const stateSig = indexStateSignature(dir);
-  if (stateSig) return `index_state:${stateSig}`;
+  if (stateSig) {
+    const cacheKey = `${dir}|${stateSig}`;
+    const cached = indexSignatureCache.get(cacheKey);
+    if (cached) return cached;
+    const signature = `index_state:${stateSig}`;
+    indexSignatureCache.set(cacheKey, signature);
+    return signature;
+  }
   const parts = [
     chunkMetaSignature(dir),
     tokenPostingsSignature(dir),

@@ -4,7 +4,8 @@ import {
   normalizeExposure,
   normalizeSeverity,
   normalizeStringArray,
-  pickFirst
+  pickFirst,
+  toIso
 } from './helpers.js';
 
 /**
@@ -21,7 +22,7 @@ export function normalizeGeneric(raw, meta = {}, options = {}) {
   const createdAt = raw?.createdAt || null;
   const updatedAt = raw?.updatedAt || raw?.createdAt || null;
 
-  const record = buildBaseRecord({
+  const baseRecord = buildBaseRecord({
     source,
     recordType,
     meta,
@@ -29,8 +30,13 @@ export function normalizeGeneric(raw, meta = {}, options = {}) {
     createdAt,
     updatedAt
   });
-
-  Object.assign(record, raw || {});
+  const rawPayload = raw && typeof raw === 'object' ? raw : {};
+  const record = { ...rawPayload, ...baseRecord };
+  if (rawPayload.recordId) record.recordId = rawPayload.recordId;
+  const normalizedCreatedAt = toIso(record.createdAt) || baseRecord.createdAt;
+  const normalizedUpdatedAt = toIso(record.updatedAt) || normalizedCreatedAt || baseRecord.updatedAt;
+  record.createdAt = normalizedCreatedAt;
+  record.updatedAt = normalizedUpdatedAt;
 
   const vulnId = pickFirst(record.vuln?.vulnId, record.vulnId, record.vulnerabilityId);
   const cve = pickFirst(record.vuln?.cve, record.cve);

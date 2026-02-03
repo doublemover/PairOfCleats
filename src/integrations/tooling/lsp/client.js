@@ -211,6 +211,7 @@ export function createLspClient(options) {
       log(`[lsp] stdout error: ${err?.message || err}`);
     });
     child.stderr.on('data', (chunk) => {
+      if (proc !== child || childGen !== generation) return;
       const text = chunk.toString('utf8').trim();
       if (text) log(`[lsp] ${text}`);
     });
@@ -297,8 +298,10 @@ export function createLspClient(options) {
     if (!writerClosed) {
       notify('exit', null);
     }
+    const current = proc;
+    const currentGen = generation;
     setTimeout(() => {
-      if (proc) kill();
+      if (proc === current && generation === currentGen) kill();
     }, 2500).unref?.();
   };
 
