@@ -91,11 +91,11 @@ pairofcleats graph-context --repo . --seed chunk:<chunkUid> --depth 2 --directio
 - `--includePaths` (boolean; default false)
 - `--graphs callGraph,importGraph,usageGraph,symbolEdges` (filter graphs)
 - `--minConfidence <0..1>` (when confidence exists)
-- `--edgeTypes call,usage,import,export,dataflow` (filter edge types)
+- `--edgeTypes call,usage,import` (filter edge types)
 
 Edge type notes:
-- `call`, `usage`, `import`, `export`, `dataflow` apply to `graph_relations` graphs.
-- When `--graphs` includes `symbolEdges`, `--edgeTypes` refers to `symbol_edges.type` values.
+- `call`, `usage`, `import` apply to `graph_relations` graphs.
+- When `--graphs` includes `symbolEdges`, `--edgeTypes` refers to `symbol_edges.type` values (default `symbol` when missing).
 
 ### Output
 - JSON: `GraphContextPack` (validated)
@@ -119,23 +119,24 @@ pairofcleats impact --repo . --seed symbol:<symbolId> --direction downstream --d
 ```
 
 ### Required flags
-- `--seed <ref>`
 - `--direction upstream|downstream`
 - `--depth <n>`
 
 ### Optional flags
+- `--seed <ref>`
 - `--changed <file>` (repeatable)
-- `--changed-file <path>` (file containing newline-separated paths)
+- `--changedFile <path>` (file containing newline-separated paths)
 - `--graphs callGraph,importGraph,usageGraph,symbolEdges` (filter graphs)
-- `--edgeTypes call,usage,import,export,dataflow` (filter edge types)
+- `--edgeTypes call,usage,import` (filter edge types)
 - `--minConfidence <0..1>` (when confidence exists)
 
 Edge type notes:
-- `call`, `usage`, `import`, `export`, `dataflow` apply to `graph_relations` graphs.
-- When `--graphs` includes `symbolEdges`, `--edgeTypes` refers to `symbol_edges.type` values.
+- `call`, `usage`, `import` apply to `graph_relations` graphs.
+- When `--graphs` includes `symbolEdges`, `--edgeTypes` refers to `symbol_edges.type` values (default `symbol` when missing).
 
 If changed-set flags are used and `--seed` is absent:
 - the tool SHOULD derive seeds deterministically (best-effort) and record warnings.
+- if the changed set resolves to empty (no usable repo-relative paths), the tool returns an empty impact set with a warning (`EMPTY_CHANGED_SET`).
 
 ### Output
 - JSON: `GraphImpactAnalysis` (validated)
@@ -161,9 +162,9 @@ pairofcleats context-pack --repo . --seed chunk:<chunkUid> --hops 2 --maxBytes 2
 ### Required flags
 - `--seed <ref>`
 - `--hops <n>`
-- `--maxBytes <n>`
 
 ### Optional flags
+- `--maxBytes <n>`
 - `--maxTokens <n>` (soft; deterministic estimator)
 - `--includeGraph` / `--no-includeGraph`
 - `--includeTypes` / `--no-includeTypes`
@@ -171,9 +172,8 @@ pairofcleats context-pack --repo . --seed chunk:<chunkUid> --hops 2 --maxBytes 2
 - `--includeImports` / `--no-includeImports`
 - `--includeUsages` / `--no-includeUsages`
 - `--includeCallersCallees` / `--no-includeCallersCallees`
+- `--includePaths` / `--no-includePaths`
 - `--maxTypeEntries <n>`
-- `--riskMaxFlows <n>`
-- `--riskMaxEvidencePerFlow <n>`
 
 ### Output
 - JSON: `CompositeContextPack` (validated)

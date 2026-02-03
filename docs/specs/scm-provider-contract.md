@@ -25,12 +25,13 @@ Rules:
 ```ts
 function listTrackedFiles({ repoRoot, subdir }:
   { repoRoot: string; subdir?: string | null }):
-  { filesPosix: string[] };
+  { filesPosix: string[] } | { ok: false; reason: 'unavailable' };
 ```
 
 Rules:
 - `filesPosix` are repo-relative, POSIX separators, sorted ascending.
 - `subdir` filters to a repo-relative folder (provider may ignore if unsupported).
+- On provider errors (missing tool, repo unreadable), return `{ ok:false, reason:'unavailable' }` so callers can fall back.
 
 ### getRepoProvenance
 
@@ -43,6 +44,7 @@ function getRepoProvenance({ repoRoot }:
     head: {
       commitId?: string | null;
       changeId?: string | null;
+      operationId?: string | null;
       branch?: string | null;
       bookmarks?: string[] | null;
       author?: string | null;
@@ -103,6 +105,7 @@ All providers must normalize paths the same way:
 - Repo-relative, POSIX separators (`/`).
 - No leading `./`.
 - No `..` segments.
+- Preserve leading/trailing spaces in filenames; do not trim entries (drop only empty entries).
 
 Use a shared helper: `toRepoPosixPath(filePath, repoRoot)`.
 

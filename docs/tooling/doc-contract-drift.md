@@ -1,0 +1,40 @@
+# Doc Contract Drift
+
+Status: DRIFT
+
+## searchCliFlags
+- doc: docs/contracts/search-cli.md
+- source: src/retrieval/cli-args.js
+- missing in docs: none
+- extra in docs: none
+
+## searchContractFlags
+- doc: docs/contracts/search-contract.md
+- source: src/retrieval/cli-args.js
+- missing in docs (57): --alias, --ann, --ann-backend, --async, --author, --awaits, --backend, --bm25-b, --bm25-k1, --branch
+- extra in docs: none
+
+## artifactSchemas
+- doc: docs/contracts/artifact-schemas.md
+- source: src/contracts/schemas/artifacts.js
+- missing in docs (19): api_contracts, call_sites_meta, chunk_meta_meta, chunk_uid_map_meta, dense_vectors_code, dense_vectors_code_hnsw_meta, dense_vectors_code_lancedb_meta, dense_vectors_doc, dense_vectors_doc_hnsw_meta, dense_vectors_doc_lancedb_meta
+- extra in docs: none
+
+## scoreBreakdown
+- doc: docs/contracts/search-contract.md
+- source: src/retrieval/pipeline.js
+- missing in docs: none
+- extra in docs: none
+
+## testRunnerLanes
+- doc: docs/testing/test-runner-interface.md
+- source: tests/run.rules.jsonc
+- missing in docs: none
+- extra in docs: none
+
+## testRegroupingLanes
+- doc: docs/testing/test-decomposition-regrouping.md
+- source: tests/run.rules.jsonc
+- missing in docs: none
+- extra in docs: none
+

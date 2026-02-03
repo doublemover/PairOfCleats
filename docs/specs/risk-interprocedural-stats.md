@@ -89,7 +89,7 @@ Status guidelines:
   },
 
   droppedRecords?: {
-    artifact: "risk_summaries" | "call_sites" | "risk_flows",
+    artifact: "risk_summaries" | "risk_flows",
     count: number,
     reasons?: { reason: string, count: number }[]
   }[]
@@ -111,6 +111,7 @@ type ArtifactRef = {
 * Otherwise: `status = "ok"`.
 
 Normative: `timed_out` MUST imply `flowsEmitted === 0` and `uniqueCallSitesReferenced === 0`.
+`call_sites` emission is independent of flow propagation and may still occur when `status = "timed_out"` if enabled.
 
 ## 5) Artifact references
 When `emitArtifacts = "jsonl"`:

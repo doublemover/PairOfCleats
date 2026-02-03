@@ -63,6 +63,17 @@ When structural matches are ingested (see `docs/guides/structural-search.md`), y
 - `--struct-rule <id>`
 - `--struct-tag <tag>`
 
+## Output formats
+
+- Default output is human-readable sections for code/prose/records.
+- `--json` emits a JSON payload with `backend`, `code`, `prose`, `extractedProse`, and `records`.
+- `--compact` trims JSON hits to a stable subset of fields (use `--json --compact`).
+- `--stats` adds a `stats` object to JSON output; `--explain` implies stats and adds score breakdowns.
+
+Notes:
+- JSON output strips `tokens` fields from hits (and nested context/contextHits) to keep payloads smaller.
+- Planned output modes like `symbol-first` / `context-only` are not implemented yet.
+
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)
@@ -76,7 +87,7 @@ Configuration:
 
 ### Explain output
 
-Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:  
+Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:
 - `sparse` details (BM25 or FTS5, k1/b, normalization)
 - `ann` details (dense source)
 - `rrf` contributions (ranks and fused score), when used

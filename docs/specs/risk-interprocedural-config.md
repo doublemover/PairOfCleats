@@ -126,6 +126,7 @@ Normative rule:
 * `"jsonl"`:
   * Artifacts are written in JSONL form and may be sharded.
   * Global artifact compression settings (if any) must apply consistently.
+  * `call_sites` emission is independent of `summaryOnly` and uses the call details available in `codeRelations`.
 
 ## 6) Strictness modes (`strictness`)
 
@@ -175,9 +176,11 @@ Minimum required ordering rules:
 Normative behavior:
 1. If the time budget is exceeded during propagation, the implementation must:
    * abort propagation entirely,
-   * emit **zero** `risk_flows` rows and **zero** `call_sites` rows,
+   * emit **zero** `risk_flows` rows,
    * record `status="timed_out"` in the stats artifact.
 2. Summaries must still be produced (they are computed before propagation).
+
+Note: `call_sites` is written from call details and is not currently gated on timeout; it may still be emitted when `status="timed_out"` if enabled.
 
 Disallowed behavior:
 * emitting a partial prefix of flows that depends on machine speed or scheduling.

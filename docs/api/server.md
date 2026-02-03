@@ -1,12 +1,18 @@
 # Minimal API Server
 
 ## Overview
-The API server is a lightweight local HTTP JSON wrapper around the search/status
-pipeline with CLI-compatible payloads. It is intended for local developer
-tooling (or local agent orchestration), not for exposing publicly. **Auth is
-required by default**; provide a bearer token via `PAIROFCLEATS_API_TOKEN` or
-`--auth-token`. Use `--allow-unauthenticated` only when you explicitly want to
-disable auth.
+The API server is a lightweight local HTTP JSON wrapper around the core search/status
+handlers. It is intended for local developer tooling (or local agent orchestration),
+not for exposing publicly.
+
+Auth behavior:
+- When bound to a non-localhost address, auth is required unless `--allow-unauthenticated` is set.
+- When bound to localhost, auth is optional unless you provide a token (then it is required).
+
+Provide a bearer token via `PAIROFCLEATS_API_TOKEN` or `--auth-token`. Use
+`--allow-unauthenticated` only when you explicitly want to disable auth.
+
+The server runs in-process and does not shell out to the CLI.
 
 ## Startup
 - `pairofcleats service api`
@@ -36,8 +42,8 @@ Response:
 ```
 
 ### `GET /status`
-Reports artifact sizes and cache health using the same logic as
-`pairofcleats cache report`.
+Reports artifact sizes and cache health using the core status payload from
+`src/integrations/core/status.js`.
 
 Query params:
 - `repo`: optional repo path override
@@ -47,12 +53,12 @@ Response:
 {
   "ok": true,
   "repo": "/path/to/repo",
-  "status": { "...": "see cache report output" }
+  "status": { "...": "see core status output" }
 }
 ```
 
 ### `GET /status/stream`
-Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.    
+Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.
 
 Events:
 - `start` `{ ok, repo }`
@@ -72,11 +78,28 @@ Response:
 ### `POST /search`
 Executes the search pipeline with the provided payload and returns JSON output.
 
-Payload fields:
-- `query` (required)
-- `repo` / `repoPath` (optional override)
-- `mode`, `backend`, `output`, `ann`, `top`, `context`
-- Any CLI filter equivalent (e.g. `type`, `signature`, `reads`, `riskTag`, `path`, `ext`, `meta`)
+Payload schema (canonical):
+- The server validates payloads against `searchRequestSchema` in `tools/api/validation.js`.
+- Unknown keys are rejected (`additionalProperties: false`).
+
+Required:
+- `query` (string, non-empty)
+
+Optional:
+- `repo` / `repoPath` (string)
+- `output` (`compact` | `json` | `full`)
+- `mode` (`code` | `prose` | `records` | `both` | `all` | `extracted-prose`)
+- `backend` (`auto` | `memory` | `sqlite` | `sqlite-fts` | `lmdb`)
+- `ann` (boolean), `top` (integer), `context` (integer)
+- `type`, `author`, `import`, `calls`, `uses`, `signature`, `param`, `decorator`, `inferredType`,
+  `returnType`, `throws`, `reads`, `writes`, `mutates`, `alias`, `awaits`
+- `risk`, `riskTag`, `riskSource`, `riskSink`, `riskCategory`, `riskFlow`
+- `branchesMin`, `loopsMin`, `breaksMin`, `continuesMin`, `churnMin` (integers)
+- `chunkAuthor`, `modifiedAfter` (strings), `modifiedSince` (integer)
+- `visibility`, `extends`, `branch`, `lang`
+- `lint`, `async`, `generator`, `returns`, `case`, `caseFile`, `caseTokens` (booleans)
+- `path`, `file`, `ext` (string or array of strings)
+- `meta` (string | array | object), `metaJson` (any JSON value)
 
 Response:
 ```json
@@ -89,12 +112,14 @@ Response:
 
 Errors:
 - `400 INVALID_REQUEST` for schema or repo validation failures.
+- `401 UNAUTHORIZED` for missing/invalid auth.
+- `403 FORBIDDEN` for disallowed repo paths.
 - `409 NO_INDEX` when indexes are missing.
 - `500 INTERNAL` for unexpected failures.
 Error payloads include `{ ok: false, code, message }` plus optional `errors` (validation) or `error` (internal detail).
 
 ### `POST /search/stream`
-Runs a search and streams progress/results as SSE events. The request payload   
+Runs a search and streams progress/results as SSE events. The request payload
 matches `/search`.
 
 Events:
@@ -112,13 +137,22 @@ curl -N http://127.0.0.1:7345/search/stream \
 ```
 
 Notes:
-- By default, `output` is `compact` (same as `--json` in the CLI).      
+- By default, `output` is `compact` (uses `--json --compact` in the CLI).
 - Missing indexes return `409 NO_INDEX` with a JSON error payload.
 - `Content-Type: application/json` is required for POST payloads.
-- `repoPath` overrides are **disabled by default** and only allowed when `--allowed-repo-roots` (or `api.allowedRepoRoots`) is set.
+- `repoPath` overrides are disabled by default and only allowed when `--allowed-repo-roots` is set.
+
+## Error codes and troubleshooting
+PairOfCleats uses the shared error code registry in `docs/contracts/mcp-error-codes.md`.
+Common cases:
+- `INVALID_REQUEST`: payload schema errors; verify required fields and types.
+- `UNAUTHORIZED`: missing or invalid token; set `PAIROFCLEATS_API_TOKEN` or `--auth-token`.
+- `FORBIDDEN`: repo path not allowed; update `--allowed-repo-roots`.
+- `NO_INDEX`: indexes are missing; run `pairofcleats index build` (or `node build_index.js`).
+- `INTERNAL`: unexpected failure; check server logs for details.
 
 ## Security considerations
-- Auth is required by default; use `--allow-unauthenticated` only when you explicitly want to disable it.
-- CORS is disabled by default; enable with `--cors-allowed-origins` (include localhost explicitly) or opt-in to `--cors-allow-any` only if you understand the exposure.
+- Auth is required for non-localhost bindings unless `--allow-unauthenticated` is set.
+- CORS is disabled by default; enable with `--cors-allowed-origins` (include localhost explicitly) or opt-in to
+  `--cors-allow-any` only if you understand the exposure.
 - `repoPath` overrides require an explicit allowlist; otherwise the server uses its configured repo only.
-- The server shells out to the CLI on each request. Ensure the repo is trusted.

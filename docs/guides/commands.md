@@ -17,6 +17,94 @@ Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats inde
 Index build/watch SCM flags: `--scm-provider <auto|git|jj|none>`, `--scm-annotate`, `--no-scm-annotate`.
 See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 
+## CLI commands (pairofcleats)
+
+Additional CLI commands exposed by `bin/pairofcleats.js`:
+- `graph-context`
+- `context-pack`
+- `impact`
+- `suggest-tests`
+- `api-contracts`
+- `architecture-check`
+- `report eval`
+- `report compare-models`
+- `tooling doctor`
+- `risk explain`
+- `lmdb build`
+- `sqlite build`
+
+### graph-context
+Build a graph context pack for a seed.
+```bash
+pairofcleats graph-context --seed symbol:<id> --depth 2 --direction out --repo .
+```
+
+### context-pack
+Build a composite context pack for a seed.
+```bash
+pairofcleats context-pack --seed file:src/index.js --hops 2 --repo .
+```
+
+### impact
+Compute bounded graph impact for a seed or change set.
+```bash
+pairofcleats impact --changed src/index.js --depth 2 --direction downstream --repo .
+```
+
+### suggest-tests
+Suggest tests impacted by a change list.
+```bash
+pairofcleats suggest-tests --changed src/index.js --max 10 --repo .
+```
+
+### api-contracts
+Report cross-file API contracts (from indexed symbols + call sites).
+```bash
+pairofcleats api-contracts --repo . --onlyExports --maxSymbols 200
+```
+
+### architecture-check
+Evaluate architecture rules over graphs (JSON or YAML rules).
+```bash
+pairofcleats architecture-check --rules rules/architecture.json --repo . --fail-on-violation
+```
+
+### report eval
+Run evaluation suites over a query dataset.
+```bash
+pairofcleats report eval --dataset tests/fixtures/sample/eval.json --repo . --backend auto --top 10
+```
+
+### report compare-models
+Compare embedding models across a query set.
+```bash
+pairofcleats report compare-models --models modelA,modelB --baseline modelA --repo . --backend sqlite
+```
+
+### tooling doctor
+Inspect tooling availability and config.
+```bash
+pairofcleats tooling doctor --repo . --json
+```
+
+### risk explain
+Explain interprocedural risk flows for a chunk.
+```bash
+pairofcleats risk explain --index path/to/index-code --chunk <chunkUid> --max 20
+```
+
+### lmdb build
+Build LMDB indexes from file-backed artifacts.
+```bash
+pairofcleats lmdb build --repo . --mode all
+```
+
+### sqlite build
+Build SQLite indexes from file-backed artifacts.
+```bash
+pairofcleats sqlite build --repo . --mode all --validate smoke
+```
+
 | Script | Category | CI Allowed | Replacement |
 | --- | --- | --- | --- |
 | `api-server` | tooling | no |  |
@@ -74,4 +162,3 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `uninstall` | tooling | no |  |
 | `verify-extensions` | tooling | no |  |
 | `watch-index` | indexing | no |  |
-

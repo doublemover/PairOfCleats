@@ -2,7 +2,7 @@
 
 This document defines the analysis-related schemas used across indexing, validation, and retrieval. Schema validation is enforced by `src/contracts/validators/analysis.js`.
 
-> Note: Phase 11 introduces several **analysis output** schemas (JSON-first) intended for CLI today and API/MCP consumers later. These outputs are not index artifacts unless explicitly stated.
+> Note: Phase 11 introduces several analysis outputs (JSON-first) intended for CLI today and API/MCP consumers later. These outputs are not index artifacts unless explicitly stated.
 
 ## Metadata v2 (per chunk)
 
@@ -14,7 +14,7 @@ This document defines the analysis-related schemas used across indexing, validat
     - `metaV2.container.{ext,languageId}`
     - `metaV2.effective.{ext,languageId}`
   - `segment.languageId` remains the raw segment hint (for example, `tsx` from a fence or `<script lang="tsx">`).
-  - `modifiers` may be an array of strings (canonical) or a legacy object map (e.g., `{ visibility: 'public', static: true }`).
+  - `modifiers` may be an array of strings (canonical) or a legacy object map (e.g., `{ visibility: "public", static: true }`).
 - `types` is an object with optional `declared`, `inferred`, and `tooling` buckets.
 - Canonical shapes:
   - `types.<bucket>.returns`: `TypeEntry[]`
@@ -53,14 +53,13 @@ Phase 11 adds JSON-first outputs that are validated under `src/contracts/schemas
 ### Shared Phase 11 contract notes
 
 All Phase 11 outputs share:
-- **Deterministic ordering** for all arrays.
-- **Strict caps** (depth/fanout/nodes/edges/paths/candidates/work-units plus feature-specific caps like
+- Deterministic ordering for all arrays.
+- Strict caps (depth/fanout/nodes/edges/paths/candidates/work-units plus feature-specific caps like
   maxSymbols/maxCallsPerSymbol/maxWarnings, maxViolations/maxEdgesExamined, maxSuggestions/maxSeeds).
-- **Truncation records** when caps trigger:
-  - which cap fired + measurable counts when available.
-- **Warning records** for partial/missing artifact behavior.
+- Truncation records when caps trigger (which cap fired + measurable counts when available).
+- Warning records for partial/missing artifact behavior.
 - Versioned top-level payloads (SemVer string).
-- **Provenance metadata** (`generatedAt`, `indexCompatKey`/`indexSignature`, `capsUsed`).
+- Provenance metadata (`generatedAt`, `indexCompatKey`/`indexSignature`, `capsUsed`).
 
 Authoritative Phase 11 spec:
 - `docs/specs/graph-product-surfaces.md`
@@ -121,7 +120,7 @@ Minimum fields:
 Schema: `API_CONTRACTS_SCHEMA`
 
 Purpose:
-- Cross-file “API contract” extraction from existing artifacts:
+- Cross-file API contract extraction from existing artifacts:
   - declared/tooling signature + observed calls + compatibility warnings.
 
 Minimum fields:
@@ -171,5 +170,3 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
-
-

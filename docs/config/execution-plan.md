@@ -1,6 +1,8 @@
 # PairOfCleats -- Config/Flags/Env Simplification Execution Plan (Phased, Big-Bang Outcome)
 
-This document is an **execution-ready** plan: phased checklist, PR slices, file-level targets, and explicit exit criteria. It assumes the end-state described in `docs/config/hard-cut.md` (minimal config, minimal flags, secrets-only env, AutoPolicy-driven behavior).
+This document is a **planned future** execution outline. It does **not** describe current behavior.
+For the current contract, see `docs/config/contract.md` and `docs/config/schema.json`.
+It assumes the end-state described in `docs/config/hard-cut.md` (minimal config, minimal flags, secrets-only env, AutoPolicy-driven behavior).
 
 ## Status legend (matches NEW_ROADMAP style)
 
@@ -12,6 +14,10 @@ This document is an **execution-ready** plan: phased checklist, PR slices, file-
 - No deprecation period. When a knob is cut, it is removed.
 - Default to deleting code paths rather than "keeping it but undocumented."
 - Each phase should land in a runnable state (tests may evolve, but core CLI must function).
+- Use current mode names (`code`, `prose`, `extracted-prose`, `records`, `all`);
+  avoid legacy `metadata-only`.
+- Provider policy references should target tooling providers (clangd/pyright/ts)
+  rather than editor-specific labels.
 
 ---
 

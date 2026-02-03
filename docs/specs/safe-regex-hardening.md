@@ -1,203 +1,80 @@
-# Spec: Safe Regex Hardening and Determinism (Phase 4.8)
+# Spec: Safe Regex Hardening (current)
 
-Date: 2026-01-25  
-Repo reviewed: `PairOfCleats-main (39).zip`
+Status: Implemented
 
-## 0. Goals
+This document describes the current safe-regex behavior in `src/shared/safe-regex.js` and its
+RE2/RE2JS backends.
 
-Phase 4.8 ensures that any *user-driven* or *config-driven* regex evaluation is:
+## 1) Goals
 
-1. **Safe by construction** (no catastrophic backtracking / ReDoS class hazards).
-2. **Deterministic** across environments (native `re2` present vs fallback `re2js`).
-3. **Bounded** by explicit, preemptive guardrails:
-   * max pattern length
-   * max program size
-   * max input length
-4. **Consistent** in flag handling and feature support, so behavior does not silently differ by engine.
-5. **Observable**: compilation rejections should be diagnosable (warnings + structured error info where feasible).
+- Prevent catastrophic backtracking by using RE2/RE2JS engines.
+- Enforce deterministic guards: max pattern length, max input length, max program size.
+- Normalize regex flags to a cross-engine deterministic subset.
+- Provide structured diagnostics via `compileSafeRegex`.
 
-## 1. Current State (zip 39)
+## 2) Engines and selection
 
-### 1.1 SafeRegex implementation exists
-* `src/shared/safe-regex.js`
-  * Chooses engine: `re2` (if available) else `re2js`.
-  * Normalizes configuration: `normalizeSafeRegexConfig()`.
-  * Builds a `SafeRegex` wrapper with `.exec()` / `.test()`.
+- Preferred engine: native `re2` if available.
+- Fallback: `re2js` when `re2` is unavailable or explicitly requested.
+- If `engine: 're2'` is requested and unavailable, a warning is emitted and `re2js` is used.
 
-### 1.2 Guardrails already present
-Already enforced today:
-* `maxPatternLength`
-* `maxInputLength`
-* `maxProgramSize`
-  * `re2js`: enforced in backend compile (`src/shared/safe-regex/backends/re2js.js`)
-  * `re2`: enforced via `checkProgramSize()` (RE2JS translation) before compiling (`src/shared/safe-regex.js`)
+## 3) Config and normalization
 
-### 1.3 User-driven call sites already using safe-regex
-* `src/index/risk-rules.js` compiles risk rule patterns via `createSafeRegex`.
-* `src/retrieval/output/filters.js` compiles user-provided file regex matchers (e.g., `/.../flags`) via `createSafeRegex`.
+`DEFAULT_SAFE_REGEX_CONFIG`:
+- `maxPatternLength`: 512
+- `maxInputLength`: 10000
+- `maxProgramSize`: 2000
+- `timeoutMs`: null (ignored)
+- `flags`: ''
 
-## 2. Problems to Fix
+Normalization rules:
+- `timeoutMs` is ignored (always `null`).
+- Limits are clamped to positive integers or `null` when disabled.
+- Allowed flags: `gims` only; any other flag is rejected by `compileSafeRegex`.
+- Canonical flag order: `gims` with duplicates removed.
 
-### 2.1 Post-hoc timeouts are misleading and nondeterministic
-`SafeRegex.exec()` and `SafeRegex.test()` currently do:
+## 4) APIs
 
-* run the regex to completion
-* then compare `Date.now()` against `timeoutMs`
-* discard results if the duration exceeded the threshold
+### 4.1 `compileSafeRegex(pattern, flags, config)`
+Returns `{ regex, error }` with structured errors:
+- `EMPTY_PATTERN`
+- `PATTERN_TOO_LONG`
+- `PROGRAM_TOO_LARGE`
+- `UNSUPPORTED_FLAGS`
+- `INVALID_PATTERN`
+- `ENGINE_UNAVAILABLE`
 
-This is not a real safety mechanism (it cannot prevent expensive work), and it makes behavior nondeterministic under load.
+If compilation succeeds, `regex` is a SafeRegex instance and `error` is null.
 
-### 2.2 Flag support is not guaranteed identical across engines
-Current normalizer accepts `gimsu`. However:
-* RE2JS backend only maps `i/m/s` into its flag mask; `u` is not mapped.
-* This can cause engine-dependent behavior (native `re2` vs `re2js`).
+### 4.2 `createSafeRegex(pattern, flags, config)`
+Returns a SafeRegex instance or `null` without diagnostics.
 
-### 2.3 Compilation failures are silent (no reason)
-`createSafeRegex()` returns `null` on:
-* invalid pattern
-* pattern too long
-* program too large
-* unsupported flags / engine issues
+### 4.3 SafeRegex runtime behavior
+- `exec` and `test` enforce `maxInputLength` deterministically.
+- Global regexes track `lastIndex` using backend-provided `nextIndex`.
+- No post-hoc timeout checks are used.
 
-Call sites can silently drop patterns or degrade behavior without telling the user.
+## 5) Deterministic program size checks
 
-## 3. Best-Version Decisions
+Program size checks are performed before compilation:
+- `checkProgramSize` from `re2js` backend is used for both engines.
+- If the program is too large but the pattern is valid, `compileSafeRegex`
+  returns `PROGRAM_TOO_LARGE`.
 
-### 3.1 Remove post-hoc timeout semantics entirely
-**Decision:** Phase 4.8 removes `timeoutMs` from SafeRegex evaluation semantics.
+## 6) Implementation references
 
-* Default behavior must not depend on timing.
-* Safety is provided via RE2/RE2JS + compile-time + input-length guardrails.
+- `src/shared/safe-regex.js`
+- `src/shared/safe-regex/backends/re2.js`
+- `src/shared/safe-regex/backends/re2js.js`
 
-Compatibility policy:
-* If users specify `timeoutMs` in config, treat it as **deprecated and ignored**, and (optionally) emit a one-time stderr warning in verbose mode.
+Tests:
+- `tests/shared/safe-regex/program-size-cap.test.js`
+- `tests/shared/safe-regex/input-length-cap.test.js`
+- `tests/shared/safe-regex/flags-normalization.test.js`
+- `tests/shared/safe-regex/safe-regex-engine.test.js`
 
-### 3.2 Restrict normalized flags to the cross-engine deterministic set
-**Decision:** Normalize and permit only `g`, `i`, `m`, `s`.
+## 7) Compatibility notes
 
-* Drop `u` (and any other flags) during normalization.
-* Guarantee deterministic ordering and uniqueness (canonical string order: `gims`).
-
-Rationale:
-* Cross-engine determinism is more important than accepting flags that only apply in one backend.
-* If `u` support is needed later, it must be implemented with parity across engines and covered by tests.
-
-### 3.3 Provide diagnostics for rejected compilation
-**Decision:** Add a non-breaking API that provides structured diagnostics while keeping `createSafeRegex()` stable.
-
-Proposed API additions (in `src/shared/safe-regex.js`):
-
-```js
-export function compileSafeRegex(pattern, flags = '', config = {}) {
-  // returns { regex: SafeRegex|null, error: { code, message }|null }
-}
-```
-
-Rules:
-* `createSafeRegex(...)` remains as-is (returns `SafeRegex|null`).
-* New `compileSafeRegex(...)` is used by call sites that need observability (risk rules, config validation, etc.).
-
-Error codes (minimum set):
-* `EMPTY_PATTERN`
-* `PATTERN_TOO_LONG`
-* `PROGRAM_TOO_LARGE`
-* `UNSUPPORTED_FLAGS`
-* `INVALID_PATTERN`
-* `ENGINE_UNAVAILABLE` (rare; only if backend cannot initialize)
-
-## 4. Implementation Plan
-
-### 4.1 `src/shared/safe-regex.js`
-1. Remove time measurement in `SafeRegex.exec()` and `SafeRegex.test()`:
-   * Delete `Date.now()` timing logic.
-   * Remove `timeoutMs` from `DEFAULT_SAFE_REGEX_CONFIG` (or set to `null` but unused).
-2. Update `normalizeFlags()` / allowed flag set:
-   * allowed: `gims`
-   * canonicalize to deterministic unique order.
-3. Update `normalizeSafeRegexConfig()`:
-   * Accept `timeoutMs` but set normalized value to `null` and/or drop it (documented as deprecated).
-4. Implement `compileSafeRegex(pattern, flags, config)`:
-   * Perform the same validations as `createSafeRegex`, but return structured error info.
-   * Internally call `createSafeRegex` after pre-checks when feasible.
-5. Ensure engine selection remains deterministic:
-   * Maintain existing `tryRequire('re2')` behavior.
-   * Keep the warning when falling back to `re2js`, but ensure it does not contaminate stdout (stderr only).
-
-### 4.2 `src/shared/safe-regex/backends/*`
-No functional changes required unless:
-* additional flag parity work is needed, or
-* we need to surface "unsupported flag" diagnostics more precisely.
-
-### 4.3 Call-site updates
-
-#### 4.3.1 `src/index/risk-rules.js`
-Use `compileSafeRegex(...)` instead of `createSafeRegex(...)` for:
-* rule `requires`
-* rule `patterns`
-
-Behavior:
-* If a pattern is rejected, record a warning (preferably via the Phase 4.5 logging/progress infrastructure) including:
-  * which rule id/source
-  * which pattern/flags
-  * error code/message
-* Continue loading other patterns/rules (best-effort).
-
-Output contract:
-* Extend the normalized risk rules bundle to include:
-  * `bundle.diagnostics = { errors: [...], warnings: [...] }` (names can be tuned)
-  * This must be bounded in size (cap number of diagnostic records) to avoid exploding on a bad ruleset.
-
-#### 4.3.2 `src/retrieval/output/filters.js`
-Two acceptable options:
-
-**Option A (minimal change, backward compatible):**
-* Keep the current behavior (regex-like `/.../flags` that fails compilation becomes substring match).
-* Change the substring fallback to use the **pattern** (not the raw `/.../flags`) to reduce surprise.
-* Do not log by default (avoid noisy output for interactive retrieval).
-
-**Option B (clearer semantics, preferred for correctness):**
-* If user explicitly uses `/.../flags` syntax and compilation fails:
-  * treat that matcher as **invalid** (ignore it)
-  * attach a warning to the query plan (requires plumbing warnings upward)
-* This is more correct but requires additional API surface in retrieval CLI/pipeline.
-
-**Decision for Phase 4.8:** implement **Option A** (low-risk), and leave Option B as a follow-up once query-plan surfaces warnings consistently.
-
-### 4.4 Contracts / schema updates
-If `fileCaps.byMode` or other Phase 4.7 config changes are implemented, ensure safe-regex schema changes remain isolated.
-
-For safe-regex specifically:
-* Update `src/contracts/schemas/analysis.js` (or relevant schema) if it explicitly enumerates allowed flags or safe-regex config fields.
-
-## 5. Tests / Verification
-
-### 5.1 Required tests (as per Phase 4.8 roadmap)
-1. `tests/shared/safe-regex/program-size-cap.test.js`
-   * Configure `maxProgramSize` small and ensure compilation returns null / error code.
-2. `tests/shared/safe-regex/input-length-cap.test.js`
-   * Compile a simple matcher with small `maxInputLength`.
-   * Ensure `.test()` returns `null` / false deterministically on oversized inputs.
-3. `tests/shared/safe-regex/flags-normalization.test.js`
-   * Verify:
-     * duplicates removed
-     * ordering canonical (`gims`)
-     * unsupported flags dropped (including `u`)
-     * behavior identical with `re2` present vs absent (this can be simulated by forcing engine selection in tests via config)
-
-### 5.2 Additional recommended tests
-4. `tests/safe-regex/no-timeout-semantics.test.js`
-   * Ensure `timeoutMs` does not affect evaluation (ignored/deprecated).
-5. `tests/indexing/risk/rules/invalid-pattern-diagnostics.test.js`
-   * Provide a ruleset with an invalid regex.
-   * Ensure diagnostics are produced and the rest of rules still load.
-
-## 6. Performance Notes
-
-* Removing `Date.now()` checks slightly reduces overhead in tight loops (risk scanning, filters).
-* Guardrails are constant-time checks (length, program size).
-
-## 7. Future Phase Alignment
-
-* Phase 10.6.4 expects safe-regex compilation to be deterministic; this spec tightens determinism via flag parity and removal of timing-based behavior.
-* If "real timeout" semantics are desired later, they should be implemented externally (worker/subprocess kill) and tied into Phase 4.4 cancellation semantics.
-
+- Unsupported flags are rejected by `compileSafeRegex`; `createSafeRegex` silently drops them
+  via normalization.
+- `timeoutMs` in config is deprecated and ignored.

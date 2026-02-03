@@ -1,0 +1,925 @@
+{
+  "schemaHash": "529b72d8e57712a2540f28e1031ce6bf9d8476e3",
+  "artifacts": [
+    {
+      "artifact": "api_contracts",
+      "schemaVersion": null,
+      "requiredFields": [
+        "observedCalls",
+        "signature",
+        "symbol"
+      ],
+      "optionalFields": [
+        "truncation",
+        "warnings"
+      ]
+    },
+    {
+      "artifact": "builds_current",
+      "schemaVersion": null,
+      "requiredFields": [
+        "artifactSurfaceVersion",
+        "buildId",
+        "buildRoot",
+        "promotedAt"
+      ],
+      "optionalFields": [
+        "buildRoots",
+        "buildRootsByMode",
+        "buildRootsByStage",
+        "compatibilityKey",
+        "configHash",
+        "extensions",
+        "modes",
+        "repo",
+        "stage",
+        "tool"
+      ]
+    },
+    {
+      "artifact": "call_sites",
+      "schemaVersion": null,
+      "requiredFields": [
+        "args",
+        "callSiteId",
+        "calleeNormalized",
+        "calleeRaw",
+        "callerChunkUid",
+        "end",
+        "endCol",
+        "endLine",
+        "file",
+        "languageId",
+        "start",
+        "startCol",
+        "startLine"
+      ],
+      "optionalFields": [
+        "callerDocId",
+        "confidence",
+        "evidence",
+        "extensions",
+        "kwargs",
+        "receiver",
+        "segmentId",
+        "snippetHash",
+        "targetCandidates",
+        "targetChunkUid",
+        "targetDocId"
+      ]
+    },
+    {
+      "artifact": "call_sites_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "chargram_postings",
+      "schemaVersion": null,
+      "requiredFields": [
+        "postings",
+        "vocab"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "chunk_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "end",
+        "id",
+        "start"
+      ],
+      "optionalFields": [
+        "endLine",
+        "ext",
+        "fileId",
+        "kind",
+        "metaV2",
+        "name",
+        "startLine"
+      ]
+    },
+    {
+      "artifact": "chunk_meta_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "chunk_uid_map",
+      "schemaVersion": null,
+      "requiredFields": [
+        "chunkId",
+        "chunkUid",
+        "docId",
+        "end",
+        "file",
+        "start"
+      ],
+      "optionalFields": [
+        "extensions",
+        "segmentId",
+        "segmentUid"
+      ]
+    },
+    {
+      "artifact": "chunk_uid_map_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "dense_vectors",
+      "schemaVersion": null,
+      "requiredFields": [
+        "dims",
+        "vectors"
+      ],
+      "optionalFields": [
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_code",
+      "schemaVersion": null,
+      "requiredFields": [
+        "dims",
+        "vectors"
+      ],
+      "optionalFields": [
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_code_hnsw_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "efConstruction",
+        "efSearch",
+        "m",
+        "space"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_code_lancedb_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "embeddingColumn",
+        "idColumn",
+        "metric",
+        "table"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_doc",
+      "schemaVersion": null,
+      "requiredFields": [
+        "dims",
+        "vectors"
+      ],
+      "optionalFields": [
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_doc_hnsw_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "efConstruction",
+        "efSearch",
+        "m",
+        "space"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_doc_lancedb_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "embeddingColumn",
+        "idColumn",
+        "metric",
+        "table"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_hnsw_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "efConstruction",
+        "efSearch",
+        "m",
+        "space"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_lancedb_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "embeddingColumn",
+        "idColumn",
+        "metric",
+        "table"
+      ],
+      "optionalFields": [
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_sqlite_vec_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "count",
+        "dims",
+        "table"
+      ],
+      "optionalFields": [
+        "embeddingColumn",
+        "generatedAt",
+        "idColumn",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "version"
+      ]
+    },
+    {
+      "artifact": "field_postings",
+      "schemaVersion": null,
+      "requiredFields": [
+        "fields"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "field_tokens",
+      "schemaVersion": null,
+      "requiredFields": [],
+      "optionalFields": [
+        "body",
+        "comment",
+        "doc",
+        "name",
+        "signature"
+      ]
+    },
+    {
+      "artifact": "file_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "file",
+        "id"
+      ],
+      "optionalFields": [
+        "encoding",
+        "encodingConfidence",
+        "encodingFallback",
+        "ext"
+      ]
+    },
+    {
+      "artifact": "file_relations",
+      "schemaVersion": null,
+      "requiredFields": [
+        "file",
+        "relations"
+      ],
+      "optionalFields": [
+        "importBindings"
+      ]
+    },
+    {
+      "artifact": "file_relations_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "filelists",
+      "schemaVersion": null,
+      "requiredFields": [
+        "generatedAt",
+        "scanned",
+        "skipped"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "filter_index",
+      "schemaVersion": null,
+      "requiredFields": [
+        "fileById",
+        "fileChunksById"
+      ],
+      "optionalFields": [
+        "byAuthor",
+        "byChunkAuthor",
+        "byExt",
+        "byKind",
+        "byLang",
+        "byVisibility",
+        "fileChargramN",
+        "fileChargrams"
+      ]
+    },
+    {
+      "artifact": "graph_relations",
+      "schemaVersion": null,
+      "requiredFields": [
+        "callGraph",
+        "generatedAt",
+        "importGraph",
+        "usageGraph",
+        "version"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "graph_relations_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "import_resolution_graph",
+      "schemaVersion": null,
+      "requiredFields": [
+        "edges",
+        "generatedAt",
+        "nodes",
+        "stats"
+      ],
+      "optionalFields": [
+        "importScanMode",
+        "toolVersion",
+        "warnings"
+      ]
+    },
+    {
+      "artifact": "index_state",
+      "schemaVersion": null,
+      "requiredFields": [
+        "artifactSurfaceVersion",
+        "generatedAt",
+        "mode"
+      ],
+      "optionalFields": [
+        "assembled",
+        "buildId",
+        "compatibilityKey",
+        "embeddings",
+        "enrichment",
+        "extensions",
+        "features",
+        "filterIndex",
+        "lmdb",
+        "repoId",
+        "riskInterprocedural",
+        "riskRules",
+        "shards",
+        "sqlite",
+        "stage",
+        "updatedAt"
+      ]
+    },
+    {
+      "artifact": "minhash_signatures",
+      "schemaVersion": null,
+      "requiredFields": [
+        "signatures"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "phrase_ngrams",
+      "schemaVersion": null,
+      "requiredFields": [
+        "postings",
+        "vocab"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "pieces_manifest",
+      "schemaVersion": null,
+      "requiredFields": [
+        "artifactSurfaceVersion",
+        "pieces",
+        "version"
+      ],
+      "optionalFields": [
+        "buildId",
+        "compatibilityKey",
+        "extensions",
+        "generatedAt",
+        "mode",
+        "repoId",
+        "stage",
+        "updatedAt"
+      ]
+    },
+    {
+      "artifact": "repo_map",
+      "schemaVersion": null,
+      "requiredFields": [
+        "file",
+        "name"
+      ],
+      "optionalFields": [
+        "exported",
+        "kind",
+        "signature"
+      ]
+    },
+    {
+      "artifact": "repo_map_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "risk_flows",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "confidence",
+        "flowId",
+        "notes",
+        "path",
+        "schemaVersion",
+        "sink",
+        "source"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "risk_flows_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "risk_interprocedural_stats",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "callSiteSampling",
+        "capsHit",
+        "counts",
+        "effectiveConfig",
+        "generatedAt",
+        "mode",
+        "schemaVersion",
+        "status",
+        "timingMs"
+      ],
+      "optionalFields": [
+        "artifacts",
+        "droppedRecords",
+        "reason"
+      ]
+    },
+    {
+      "artifact": "risk_summaries",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "chunkUid",
+        "file",
+        "schemaVersion",
+        "signals",
+        "totals",
+        "truncated"
+      ],
+      "optionalFields": [
+        "languageId",
+        "symbol",
+        "taintHints"
+      ]
+    },
+    {
+      "artifact": "risk_summaries_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "symbol_edges",
+      "schemaVersion": null,
+      "requiredFields": [
+        "from",
+        "to",
+        "type",
+        "v"
+      ],
+      "optionalFields": [
+        "confidence",
+        "reason"
+      ]
+    },
+    {
+      "artifact": "symbol_edges_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "symbol_occurrences",
+      "schemaVersion": null,
+      "requiredFields": [
+        "host",
+        "ref",
+        "role",
+        "v"
+      ],
+      "optionalFields": [
+        "range"
+      ]
+    },
+    {
+      "artifact": "symbol_occurrences_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "symbols",
+      "schemaVersion": null,
+      "requiredFields": [
+        "chunkUid",
+        "file",
+        "kindGroup",
+        "qualifiedName",
+        "scopedId",
+        "symbolId",
+        "symbolKey",
+        "v",
+        "virtualPath"
+      ],
+      "optionalFields": [
+        "extensions",
+        "kind",
+        "lang",
+        "name",
+        "scheme",
+        "segmentUid",
+        "signature",
+        "signatureKey"
+      ]
+    },
+    {
+      "artifact": "symbols_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
+      "artifact": "token_postings",
+      "schemaVersion": null,
+      "requiredFields": [
+        "docLengths",
+        "postings",
+        "vocab"
+      ],
+      "optionalFields": [
+        "avgDocLen",
+        "totalDocs"
+      ]
+    },
+    {
+      "artifact": "token_postings_meta",
+      "schemaVersion": null,
+      "requiredFields": [
+        "format",
+        "parts",
+        "shardSize",
+        "vocabCount"
+      ],
+      "optionalFields": [
+        "avgDocLen",
+        "compression",
+        "docLengths",
+        "extensions",
+        "totalDocs"
+      ]
+    },
+    {
+      "artifact": "vfs_manifest",
+      "schemaVersion": {
+        "type": "string"
+      },
+      "requiredFields": [
+        "containerExt",
+        "containerLanguageId",
+        "containerPath",
+        "docHash",
+        "effectiveExt",
+        "languageId",
+        "schemaVersion",
+        "segmentEnd",
+        "segmentStart",
+        "segmentUid",
+        "virtualPath"
+      ],
+      "optionalFields": [
+        "extensions",
+        "lineEnd",
+        "lineStart",
+        "segmentId"
+      ]
+    },
+    {
+      "artifact": "vfs_manifest_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    }
+  ]
+}

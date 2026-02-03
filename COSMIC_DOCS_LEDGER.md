@@ -1057,3 +1057,10 @@ Status: Needs update
 Notes:
 - Spec may be correct but tooling not implemented; ensure manifestHash and build pointer fields match current plan.
 ```
+
+## Resolution updates (2026-02-03)
+- [DOC] docs/archived/interprocedural-state-and-pipeline_DRAFT.md: corrected archived risk callsite filename to `risk-callsite-id-and-stats_IMPROVED.md`.
+- [DOC] docs/archived/spec_risk-flows-and-call-sites_RECONCILED.md: aligned callSiteId reference to `risk-callsite-id-and-stats_IMPROVED.md`.
+- [DOC] docs/archived/risk-callsite-id-and-stats_IMPROVED.md: aligned interprocedural state reference to `interprocedural-state-and-pipeline_DRAFT.md`.
+- [DOC] Archived naming adjustment: standardized internal references on existing archived filenames (no file moves).
+- [DOC] docs/archived does not currently include PHASE_7.md, PHASE_9.md, PHASE_10.md, or PHASE_11.md; audit entries remain as historical references only.

@@ -1,6 +1,6 @@
 # Artifact Schemas (0.0.2)
 
-This document is the canonical contract for on-disk index artifacts. Schema validation is enforced by `src/index/validate` against the registry in `src/contracts/schemas/artifacts.js`.
+This document defines the on-disk index artifact contracts. Schema validation is enforced by `src/index/validate` against the registry in `src/contracts/schemas/artifacts.js`.
 
 > Phase 11 adds an optional new artifact (`api_contracts`) if artifact emission is enabled for cross-file API contract reports.
 
@@ -8,7 +8,7 @@ This document is the canonical contract for on-disk index artifacts. Schema vali
 
 - Strict readers resolve artifacts via `pieces/manifest.json` (manifest-first).
 - Non-strict readers may fall back to file-system discovery with warnings when manifest entries are missing.
-- Paths are **relative** and **posix-normalized**; `..` and absolute paths are invalid.
+- Paths are relative and POSIX-normalized; `..` and absolute paths are invalid.
 - Unknown top-level fields are errors when a schema sets `additionalProperties: false`.
 - Most artifact schemas allow `additionalProperties`; use `extensions` for namespaced data but it is not the only permitted location.
 
@@ -63,22 +63,23 @@ Machine-readable index:
 - `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `compatibilityKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.
 - `builds_current` (object): requires `buildId`, `buildRoot`, `promotedAt`, `artifactSurfaceVersion`. Optional: `buildRoots`, `buildRootsByMode`, `buildRootsByStage`, `stage`, `modes`, `configHash`, `compatibilityKey`, `tool`, `repo`, `extensions`.
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
-- `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional edge fields include `kind`, `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`. Optional top-level `warnings[]`.
+- `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `kind`, `resolvedType`. Optional fields include `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`, `warnings[]`.
 
 ### Phase 11 optional: `api_contracts` (JSONL)
+
 If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MAY be produced.
 
 - `api_contracts` (array/JSONL): one record per symbol.
   - Required fields:
     - `symbol` (object):
       - `symbolId` (string)
+      - `chunkUid` (string|null)
+      - `file` (string|null)
+      - `name` (string|null)
+      - `kind` (string|null)
     - `signature` (object; `declared`, `tooling` optional)
     - `observedCalls[]` (bounded)
   - Optional fields:
-    - `symbol.chunkUid` (string|null)
-    - `symbol.file` (string|null)
-    - `symbol.name` (string|null)
-    - `symbol.kind` (string|null)
     - `warnings[]` (bounded)
     - `truncation[]` (bounded)
   - The artifact MUST be bounded (caps) and deterministic in ordering when emitted.
@@ -100,5 +101,3 @@ Canonical contract for the report surface:
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
-
-

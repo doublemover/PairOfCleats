@@ -7,10 +7,10 @@ Editor integrations shell out to the CLI and expect JSON output.
 
 The JSON payload contains the following top-level keys:
 - `backend`: the selected backend (`memory`, `sqlite`, `sqlite-fts`, `lmdb`).
-- `code`, `prose`, `records`: arrays of result hits (may be empty).
-- `stats`: search timing and cache metadata.
+- `code`, `prose`, `extractedProse`, `records`: arrays of result hits (may be empty).
+- `stats`: search timing, cache, and backend metadata (only when `--stats` or `--explain` is used).
 
-Compact hit fields (subset, for `--json`):
+Compact hit fields (subset, for `--json --compact`):
 - `file`: repo-relative path for the chunk.
 - `startLine`, `endLine`: 1-based line numbers for editor navigation.
 - `start`, `end`: byte offsets (optional).

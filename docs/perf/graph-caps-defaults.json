@@ -1,6 +1,11 @@
 {
   "version": 1,
-  "generatedAt": "2026-02-01T00:00:00.000Z",
+  "generatedAt": "2026-02-03T06:03:32.369Z",
+  "provenance": {
+    "generator": "node tools/bench/graph-caps-harness.js",
+    "inputs": "Representative index runs or graph_relations fixtures; curated from graph-caps-harness.json outputs (see docs/perf/graph-caps.md).",
+    "sourceDoc": "docs/perf/graph-caps.md"
+  },
   "defaults": {
     "global": {
       "maxDepth": 2,

@@ -16,47 +16,47 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 
 1) **`api_contracts_meta` existence**  
    - Options: add schema + writer vs remove from docs  
-   - **Default:** remove from docs (no schema in `ARTIFACT_SCHEMA_DEFS`).
+   - **Chosen:** remove from docs (no schema in `ARTIFACT_SCHEMA_DEFS`).
 
 2) **N‑1 major support for 0.x artifact surfaces**  
    - Options: change code to support N‑1 vs document current behavior  
-   - **Default:** document current behavior (0.x supports current major only).
+   - **Chosen:** document current behavior (0.x supports current major only).
 
 3) **`extensions`-only vs extra top‑level fields**  
    - Options: tighten schemas vs relax docs  
-   - **Default:** relax docs to allow additionalProperties (current schema behavior).
+   - **Chosen:** relax docs to allow additionalProperties (current schema behavior).
 
 4) **Graph explain shape** (`scoreBreakdown.graph`)  
    - Options: change output to match docs vs update docs  
-   - **Default:** update docs to match current output (`score`, `degree`, `proximity`, `weights`, `seedSelection`, `seedK`).
+   - **Chosen:** update docs to match current output (`score`, `degree`, `proximity`, `weights`, `seedSelection`, `seedK`).
 
 5) **Impact input requirement** (seed/changed)  
    - Options: enforce non‑empty requirement vs document warning+empty result  
-   - **Default:** document warning+empty result unless you want stricter enforcement.
+   - **Chosen:** document warning+empty result unless you want stricter enforcement.
 
 6) **Graph product surfaces doc** (`docs/specs/graph-product-surfaces.md`)  
    - Options: keep authoritative and update vs archive  
-   - **Default:** keep authoritative and update (still referenced by search-contract).
+   - **Chosen:** keep authoritative and update (still referenced by search-contract).
 
 7) **Risk specs trimming/ordering vs implementation**  
    - Options: enforce spec in code vs update spec to current behavior  
-   - **Default:** update specs to current behavior unless you want to tighten runtime behavior.
+   - **Chosen:** update specs to current behavior unless you want to tighten runtime behavior.
 
 8) **Tooling IO `fileTextByFile` cache**  
    - Options: implement cache in providers vs update spec to VFS approach  
-   - **Default:** update spec to VFS approach.
+   - **Chosen:** update spec to VFS approach.
 
 9) **TypeScript provider JS parity** (heuristic SymbolRef IDs)  
    - Options: remove heuristic IDs in code vs update spec to allow them  
-   - **Default:** update spec to allow heuristics (document rationale).
+   - **Chosen:** update spec to allow heuristics (document rationale).
 
 10) **VFS manifest trimming vs row drop**  
    - Options: enforce deterministic trimming before drop vs update spec  
-   - **Default:** update spec to current drop behavior unless you want stricter output.
+   - **Chosen:** update spec to current drop behavior unless you want stricter output.
 
 11) **`docs/new_docs/*` promotion**  
    - Options: promote into `docs/specs/*` vs archive/remove  
-   - **Default:** promote into `docs/specs/*` if still relevant to current plans.
+   - **Chosen:** promote into `docs/specs/*` if still relevant to current plans.
 
 ---
 
@@ -82,51 +82,71 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
 
 ## Parallelization bundles (for sub‑agents)
 
-Use these bundles to split work safely in parallel. Each bundle lists the files to touch and the canonical sources to compare against.
+Goal: keep bundles small and similar in effort so no single worker becomes the tail. Each bundle should be independently executable and reviewable.
 
-**Bundle A — Contracts docs**  
-- Files: `docs/contracts/*.md`  
-- Canonical: `src/contracts/schemas/*.js`, `src/contracts/validators/*.js`, `src/shared/artifact-io/*`, `src/storage/sqlite/schema.js`, `src/retrieval/cli-args.js`
+**Bundle A — Contracts core**  
+- Files: `docs/contracts/analysis-schemas.md`, `docs/contracts/artifact-contract.md`, `docs/contracts/artifact-schemas.md`, `docs/contracts/public-artifact-surface.md`, `docs/contracts/sqlite.md`  
+- Canonical: `src/contracts/schemas/*.js`, `src/contracts/validators/*.js`, `src/shared/artifact-io/*`, `src/storage/sqlite/schema.js`
 
-**Bundle B — Guides + API docs**  
-- Files: `docs/guides/*.md`, `docs/api/*.md`  
-- Canonical: `bin/pairofcleats.js`, `search.js`, `tools/*` entrypoints, `src/retrieval/*`, `tools/api/*`, `tools/mcp/*`
+**Bundle B — Contracts search/graph**  
+- Files: `docs/contracts/graph-tools-cli.md`, `docs/contracts/retrieval-ranking.md`, `docs/contracts/search-cli.md`, `docs/contracts/search-contract.md`, `docs/contracts/indexing.md`  
+- Canonical: `src/retrieval/*`, `src/graph/*`, `src/shared/artifact-io/*`
 
-**Bundle C — Testing docs**  
-- Files: `docs/testing/*.md`  
-- Canonical: `tests/run.js`, `tests/run.rules.jsonc`, `tests/tooling/script-coverage/*`
+**Bundle C — Guides (search + core CLI)**  
+- Files: `docs/guides/search.md`, `docs/guides/commands.md`, `docs/guides/external-backends.md`, `docs/guides/editor-integration.md`, `docs/guides/query-cache.md`  
+- Canonical: `bin/pairofcleats.js`, `src/retrieval/*`, `tools/metrics-dashboard.js`
 
-**Bundle D — Tooling docs**  
-- Files: `docs/tooling/*.md`, `docs/tooling/repo-inventory.json`  
-- Canonical: `tools/*-ingest.js`, `tools/repo-inventory.js`, `bin/pairofcleats.js`
+**Bundle D — Guides (tooling + services)**  
+- Files: `docs/guides/mcp.md`, `docs/guides/structural-search.md`, `docs/guides/rule-packs.md`, `docs/guides/triage-records.md`, `docs/guides/service-mode.md`, `docs/guides/metrics-dashboard.md`  
+- Canonical: `tools/*` entrypoints, `tools/mcp-server.js`, `tools/triage/*`, `tools/structural-search.js`, `tools/indexer-service.js`
 
-**Bundle E — Config docs**  
-- Files: `docs/config/*.md`, `docs/config/schema.json`  
+**Bundle E — API docs**  
+- Files: `docs/api/core-api.md`, `docs/api/server.md`, `docs/api/mcp-server.md`  
+- Canonical: `tools/api/*`, `src/integrations/core/*`, `tools/api-server.js`
+
+**Bundle F — Config docs**  
+- Files: `docs/config/contract.md`, `docs/config/env-overrides.md`, `docs/config/budgets.md`, `docs/config/surface-directives.md`, `docs/config/deprecations.md`, `docs/config/execution-plan.md`, `docs/config/hard-cut.md`  
 - Canonical: `docs/config/schema.json`, `src/shared/env.js`, `tools/config-inventory/*`
 
-**Bundle F — Specs (risk + artifacts)**  
-- Files: `docs/specs/risk-*.md`, `docs/specs/artifact-schemas.md`, `docs/specs/analysis-schemas.md`  
+**Bundle G — Testing docs**  
+- Files: `docs/testing/ci-capability-policy.md`, `docs/testing/failing-tests.md`, `docs/testing/test-decomposition-regrouping.md`, `docs/testing/test-runner-interface.md`  
+- Canonical: `tests/run.js`, `tests/run.rules.jsonc`, `tests/tooling/script-coverage/*`, `tools/ci/*`
+
+**Bundle H — Tooling ingest + inventory**  
+- Files: `docs/tooling/ctags.md`, `docs/tooling/gtags.md`, `docs/tooling/lsif.md`, `docs/tooling/scip.md`, `docs/tooling/repo-inventory.json` (+ new `repo-inventory.md`)  
+- Canonical: `tools/*-ingest.js`, `tools/repo-inventory.js`
+
+**Bundle I — Benchmarks + language benchmarks**  
+- Files: `docs/benchmarks/overview.md`, `docs/benchmarks/evaluation.md`, `docs/benchmarks/model-comparison.md`, `docs/language/benchmarks.md`  
+- Canonical: `tools/bench/*`, `tools/bench-language-repos.js`, `tools/bench/language/cli.js`, `tools/bench-language-matrix.js`, `src/shared/cli-options.js`
+
+**Bundle J — Perf (graph caps)**  
+- Files: `docs/perf/graph-caps.md`, `docs/perf/graph-caps-defaults.json`  
+- Canonical: `tools/bench/graph-caps-harness.js`
+
+**Bundle K — Specs (artifacts + risk)**  
+- Files: `docs/specs/analysis-schemas.md`, `docs/specs/artifact-schemas.md`, `docs/specs/risk-*.md`  
 - Canonical: `src/contracts/schemas/artifacts.js`, `src/contracts/schemas/analysis.js`, `src/index/build/artifacts/writers/*`
 
-**Bundle G — Specs (tooling + VFS + TS)**  
-- Files: `docs/specs/tooling-*.md`, `docs/specs/vfs-manifest-artifact.md`, `docs/specs/typescript-provider-js-parity.md`  
-- Canonical: `src/index/tooling/*`, `src/index/tooling/vfs.js`, `src/index/tooling/provider-registry.js`, `src/index/tooling/orchestrator.js`
+**Bundle L — Specs (tooling + SCM + workspace)**  
+- Files: `docs/specs/runtime-envelope.md`, `docs/specs/safe-regex-hardening.md`, `docs/specs/tooling-*.md`, `docs/specs/typescript-provider-js-parity.md`, `docs/specs/vfs-manifest-artifact.md`, `docs/specs/scm-provider-*.md`, `docs/specs/workspace-*.md`  
+- Canonical: `src/index/tooling/*`, `src/index/scm/providers/*`, `src/shared/runtime-envelope.js`, `src/shared/safe-regex.js`, `docs/config/schema.json`
 
-**Bundle H — Specs (SCM + workspace)**  
-- Files: `docs/specs/scm-provider-*.md`, `docs/specs/workspace-*.md`  
-- Canonical: `src/index/scm/providers/*`, `docs/config/schema.json`
+**Bundle M — Archived + deliverables**  
+- Files: `docs/archived/*`, `COSMIC_DOCS_LEDGER.md`  
+- Canonical: updated docs/specs after Bundles A–L complete
 
 ---
 
 ## 0) Canonical source decisions (must do first)
 
-[ ] [DECISION] Confirm canonical source per domain:
+[x] [DECISION] Confirm canonical source per domain:
     - Contracts: `docs/contracts/*` + `src/contracts/**`
     - Specs: `docs/specs/*` only where referenced as canonical
     - Guides: `docs/guides/*` should match `bin/pairofcleats.js` and tool entrypoints
     - Testing: `docs/testing/*` should match `tests/run.js` + `tests/run.rules.jsonc`
 
-[ ] [DECISION] For each mismatch below, choose "doc fix" vs "code fix" and log it inline.
+[x] [DECISION] For each mismatch below, choose "doc fix" vs "code fix" and log it inline (default to doc fixes unless explicitly marked [CODE]).
 
 ---
 
@@ -135,22 +155,25 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ### 1.1 docs/contracts/analysis-schemas.md
 - Issue: API contracts doc omits required `options` object.
 
-[ ] [DOC] Add `options` to API contracts section (onlyExports, failOnWarn, caps).
+[x] [DOC] Add `options` to API contracts section (onlyExports, failOnWarn, caps).
     - Touchpoints:
       - `src/contracts/schemas/analysis.js` ~L684 (`API_CONTRACTS_SCHEMA`)
       - `src/contracts/validators/analysis.js` ~L77 (`validateApiContracts`)
     - Fields to list explicitly:
       - `options.onlyExports`, `options.failOnWarn`, `options.caps.maxSymbols`, `options.caps.maxCallsPerSymbol`, `options.caps.maxWarnings`
+[x] [DOC] Add `diagnostics` to risk rule bundles (`warnings`, `errors`) to match schema.
+    - Touchpoints:
+      - `src/contracts/schemas/analysis.js` ~L220 (risk rules diagnostics)
 
 ### 1.2 docs/contracts/artifact-contract.md
 - Issues: legacy sharded meta format; compressed sidecar precedence described incorrectly.
 
-[ ] [DOC] Replace sharded JSONL meta description with jsonl-sharded schema.
+[x] [DOC] Replace sharded JSONL meta description with jsonl-sharded schema.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L317 (`baseShardedJsonlMeta`)
     - Required fields to document:
       - `schemaVersion`, `format=jsonl-sharded`, `compression`, `totalRecords`, `totalBytes`, `maxPartBytes`, `targetMaxBytes`, `parts[]`
-[ ] [DOC] Fix loader precedence: raw `.json` first, compressed sidecars only when raw missing.
+[x] [DOC] Fix loader precedence: raw `.json` first, compressed sidecars only when raw missing.
     - Touchpoints:
       - `src/shared/artifact-io/json.js` ~L16 (`readJsonFile`)
       - `src/shared/artifact-io/loaders.js` ~L20 (`resolveJsonlArtifactSources`)
@@ -160,15 +183,20 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ### 1.3 docs/contracts/artifact-schemas.md
 - Issues: missing artifacts; `api_contracts_meta` mismatch; missing required fields.
 
-[ ] [DOC] Add missing artifacts: `chunk_uid_map`, `vfs_manifest`, `risk_summaries`, `risk_flows`, `risk_interprocedural_stats`, and their `*_meta` if present.
+[x] [DOC] Add missing artifacts: `chunk_uid_map`, `vfs_manifest`, `risk_summaries`, `risk_flows`, `risk_interprocedural_stats`, and their `*_meta` if present.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L810 (`ARTIFACT_SCHEMA_DEFS`)
-[ ] [DECISION] `api_contracts_meta`: add schema or remove from doc.
+[x] [DECISION] `api_contracts_meta`: add schema or remove from doc.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L810
-[ ] [DOC] Document required `kind` field for `import_resolution_graph` edges.
-[ ] [DOC] Document `index_state.riskInterprocedural` object and required fields.
-[ ] [CODE] Export `docs/contracts/artifact-schema-index.json` (schema registry → required fields + version).
+[x] [DOC] Document required `kind` field for `import_resolution_graph` edges.
+    - Touchpoints:
+      - `src/contracts/schemas/artifacts.js` ~L1151 (`import_resolution_graph`)
+[x] [DOC] Document `index_state.riskInterprocedural` object and required fields.
+    - Touchpoints:
+      - `src/contracts/schemas/artifacts.js` ~L1085 (`updatedAt`)
+      - `src/contracts/schemas/artifacts.js` ~L1101 (`riskInterprocedural`)
+[x] [CODE] Export `docs/contracts/artifact-schema-index.json` (schema registry → required fields + version).
     - Touchpoints:
       - `tools/export-artifact-schema-index.js` (new)
       - `src/contracts/schemas/artifacts.js`
@@ -180,14 +208,14 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ### 1.4 docs/contracts/compatibility-key.md
 - Issue: wrong callsite path.
 
-[ ] [DOC] Fix reference to `src/integrations/core/build-index/compatibility.js`.
+[x] [DOC] Fix reference to `src/integrations/core/build-index/compatibility.js`.
     - Touchpoints:
       - `src/integrations/core/build-index/compatibility.js` (search `buildCompatibilityKey`)
 
 ### 1.5 docs/contracts/graph-tools-cli.md
 - Issue: doc requires seed/changed; CLI allows empty with warning.
 
-[ ] [DECISION] Enforce seed/changed in CLI or update doc to match warning behavior.
+[x] [DECISION] Enforce seed/changed in CLI or update doc to match warning behavior.
     - Touchpoints:
       - `src/graph/impact.js` (`buildImpactAnalysis` warning)
       - `src/integrations/tooling/impact.js`
@@ -195,27 +223,27 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ### 1.6 docs/contracts/indexing.md
 - Issues: sharded meta format + compression precedence outdated.
 
-[ ] [DOC] Update sharded JSONL meta section (jsonl-sharded schema).
+[x] [DOC] Update sharded JSONL meta section (jsonl-sharded schema).
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L317
-[ ] [DOC] Update compression precedence (raw-first).
+[x] [DOC] Update compression precedence (raw-first).
     - Touchpoints:
       - `src/shared/artifact-io/json.js` ~L16
 
 ### 1.7 docs/contracts/public-artifact-surface.md
 - Issues: N-1 major support for 0.x; extensions-only rule mismatch.
 
-[ ] [DECISION] Choose: support N-1 majors for 0.x in code or update doc to state 0.x is current-only.
+[x] [DECISION] Choose: support N-1 majors for 0.x in code or update doc to state 0.x is current-only.
     - Touchpoints:
       - `src/contracts/versioning.js` ~L19 (`resolveSupportedMajors`)
-[ ] [DECISION] Choose: tighten schema to require `extensions` only or update doc to allow additional top-level fields.
+[x] [DECISION] Choose: tighten schema to require `extensions` only or update doc to allow additional top-level fields.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` (additionalProperties in schema defs)
 
 ### 1.8 docs/contracts/retrieval-ranking.md
 - Issue: graph explain shape mismatch.
 
-[ ] [DECISION] Align doc with current `scoreBreakdown.graph` (score, degree, proximity, weights, seedSelection, seedK) or change output to match doc.
+[x] [DECISION] Align doc with current `scoreBreakdown.graph` (score, degree, proximity, weights, seedSelection, seedK) or change output to match doc.
     - Touchpoints:
       - `src/retrieval/output/explain.js` ~L57
       - `src/retrieval/pipeline/graph-ranking.js` ~L125
@@ -223,24 +251,24 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ### 1.9 docs/contracts/search-cli.md
 - Issues: missing flags; context expansion flags not present; `--filter` described as substring.
 
-[ ] [DOC] Update flags list to current CLI.
+[x] [DOC] Update flags list to current CLI.
     - Touchpoints:
       - `src/retrieval/cli-args.js` ~L98-149
-[ ] [DOC] Clarify `--filter` as filter expression.
+[x] [DOC] Clarify `--filter` as filter expression.
     - Touchpoints:
       - `src/retrieval/cli/normalize-options.js` ~L82 (`parseFilterExpression`)
 
 ### 1.10 docs/contracts/search-contract.md
 - Issue: `--kind` vs `--type`.
 
-[ ] [DOC] Update flag name to `--type`.
+[x] [DOC] Update flag name to `--type`.
     - Touchpoints:
       - `src/retrieval/cli-args.js`
 
 ### 1.11 docs/contracts/sqlite.md
 - Issue: required tables list incomplete.
 
-[ ] [DOC] Update required tables list to include `doc_lengths`, `token_stats`, `phrase_vocab`, `phrase_postings`, `chargram_vocab`, `chargram_postings`, `file_manifest`.
+[x] [DOC] Update required tables list to include `doc_lengths`, `token_stats`, `phrase_vocab`, `phrase_postings`, `chargram_vocab`, `chargram_postings`, `file_manifest`.
     - Touchpoints:
       - `src/storage/sqlite/schema.js` ~L3 (`REQUIRED_TABLES`)
 
@@ -249,67 +277,125 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ## 2) Guides subsystem (docs/guides)
 
 ### 2.1 docs/guides/editor-integration.md
-[ ] [DOC] Update JSON output fields list (add `extractedProse`).
-[ ] [DOC] Tie "Compact hit fields" to `--compact` (or `--json --compact`), not plain `--json`.
+[x] [DOC] Update JSON output fields list (add `extractedProse`).
+    - Touchpoints:
+      - `src/retrieval/cli/render.js` L51‑75 (extractedProse output)
+      - `src/retrieval/cli/render.js` L100‑125 (availability flags)
+[x] [DOC] Tie "Compact hit fields" to `--compact` (or `--json --compact`), not plain `--json`.
+    - Touchpoints:
+      - `src/retrieval/cli-args.js` L32 (compact flag)
+      - `src/retrieval/cli/render.js` L73‑75 (compact mapping)
 
 ### 2.2 docs/guides/external-backends.md
-[ ] [DOC] Note `pairofcleats search` rejects `--backend memory` (wrapper only supports auto|sqlite|sqlite-fts|lmdb).
-[ ] [DOC] Document forced backend behavior (no fallback if required indexes missing).
-    - Source of truth:
-      - `bin/pairofcleats.js` (search command wrapper)
-      - `search.js` / `src/retrieval/cli-args.js` (full CLI, includes memory backend)
+[x] [DOC] Note `pairofcleats search` accepts `--backend memory` (wrapper passes flags through).
+[x] [DOC] Document forced backend behavior (no fallback if required indexes missing).
+    - Touchpoints:
+      - `bin/pairofcleats.js` L64‑70 (search wrapper)
+      - `src/storage/backend-policy.js` L8‑138 (forced backend selection + errors)
+      - `src/retrieval/cli-args.js` L22‑60 (full CLI supports memory)
+[x] [DOC] Correct default backend (sqlite, not sqlite-fts).
+    - Touchpoints:
+      - `src/storage/backend-policy.js` L8‑138
 
 ### 2.3 docs/guides/mcp.md
-[ ] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp-server.js`.
+[x] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp-server.js`.
     - Touchpoints:
-      - `bin/pairofcleats.js` (no mcp service route)
-      - `tools/mcp-server.js` (actual entrypoint)
+      - `bin/pairofcleats.js` L266‑285 (service subcommands exclude mcp)
+      - `tools/mcp-server.js` L10‑41 (actual entrypoint + mode selection)
 
 ### 2.4 docs/guides/metrics-dashboard.md
-[ ] [DOC] Remove unsupported fields or implement them (cache hit rate, BM25 params, timings).
-[ ] [DOC] Add `--top` flag to usage.
+[x] [DOC] Remove unsupported fields or implement them (cache hit rate, BM25 params, timings).
+[x] [DOC] Add `--top` flag to usage.
+    - Touchpoints:
+      - `tools/metrics-dashboard.js` L9‑118 (current output fields)
+      - `tools/dict-utils/paths/cache.js` L178‑184 (metrics dir)
 
 ### 2.5 docs/guides/rule-packs.md
-[ ] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+    - Touchpoints:
+      - `tools/structural-search.js` L6‑13
+      - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.6 docs/guides/structural-search.md
-[ ] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+    - Touchpoints:
+      - `tools/structural-search.js` L6‑13
+      - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.7 docs/guides/triage-records.md
-[ ] [DOC] Replace `pairofcleats triage ...` with tool scripts:
+[x] [DOC] Replace `pairofcleats triage ...` with tool scripts:
     - `node tools/triage/ingest.js`
     - `node tools/triage/decision.js`
     - `node tools/triage/context-pack.js`
+    - Touchpoints:
+      - `tools/triage/ingest.js` L13 (scriptName)
+      - `tools/triage/decision.js` L11 (scriptName)
+      - `tools/triage/context-pack.js` L9 (scriptName)
+      - `bin/pairofcleats.js` L684 (no triage command)
 
 ### 2.8 docs/guides/search.md
-[ ] [DOC] Document new output modes (compact/symbol-first/context-only) when implemented.
-[ ] [DOC] Document JSON output exclusions by default vs `--explain` inclusion.
+[x] [DOC] Document new output modes (compact/symbol-first/context-only) when implemented.
+[x] [DOC] Document JSON output exclusions by default vs `--explain` inclusion.
+    - Touchpoints:
+      - `src/retrieval/output/format.js` (render pipeline)
+      - `src/retrieval/output/context.js` (context/pre/post handling)
+      - `src/retrieval/output/summary.js` (summary layout)
+
+### 2.9 docs/guides/commands.md
+[x] [DOC] Add missing CLI commands to the command list (graph-context, context-pack, impact, suggest-tests, api-contracts, architecture-check, report eval/compare-models, tooling doctor, risk explain, lmdb build, sqlite build).
+    - Touchpoints:
+      - `bin/pairofcleats.js` L289‑551 (command routing)
+      - `bin/pairofcleats.js` L704‑727 (help list)
+[x] [DOC] Add short “how to run” sections or per-command mini guides for the same tools (or add new guide pages and link from commands).
+    - Touchpoints:
+      - `tools/graph-context.js` L1‑4
+      - `tools/context-pack.js` L1‑4
+      - `tools/impact.js` L1‑4
+      - `tools/suggest-tests.js` L1‑4
+      - `tools/api-contracts.js` L1‑4
+      - `tools/architecture-check.js` L1‑4
+      - `tools/explain-risk.js` L1‑4
+      - `tools/tooling-doctor.js` L14
+      - `tools/compare-models.js` L28
+      - `tools/eval/run.js` L11
+
+### 2.10 docs/guides/service-mode.md
+[x] [DOC] Remove or correct `indexModes` example; indexer service ignores repo-level indexModes.
+    - Touchpoints:
+      - `tools/indexer-service.js` L19‑44 (argv → mode)
+      - `tools/indexer-service.js` L297‑381 (job mode handling)
 
 ---
 
 ## 3) Testing subsystem (docs/testing)
 
 ### 3.1 docs/testing/ci-capability-policy.md
-[ ] [DOC] Update PR suite default to `ci-lite`; note `services/api` exclusion.
-[ ] [DOC] Note Tantivy probing happens only in non-PR runs.
+[x] [DOC] Update PR suite default to `ci-lite`; note `services/api` exclusion.
+[x] [DOC] Note Tantivy probing happens only in non-PR runs.
     - Touchpoints:
       - `tools/ci/run-suite.js`
       - `tools/ci/capability-gate.js`
 
 ### 3.2 docs/testing/failing-tests.md
-[ ] [DOC] Update log path to `.testLogs/**` and cache path to `.testCache/**`.
+[x] [DOC] Update log path to `.testLogs/**` and cache path to `.testCache/**`.
     - Touchpoints:
       - `tests/run.js`
       - `tests/tooling/script-coverage/paths.js`
 
 ### 3.3 docs/testing/test-decomposition-regrouping.md
-[ ] [DOC] Add lanes `ci-lite`, `ci-long`, `api`, `mcp`.
-[ ] [DOC] Clarify indexing/retrieval/tooling/runner are tags/paths, not lanes.
+[x] [DOC] Add lanes `ci-lite`, `ci-long`, `api`, `mcp`.
+[x] [DOC] Clarify indexing/retrieval/tooling/runner are tags/paths, not lanes.
     - Touchpoints:
       - `tests/run.rules.jsonc`
+[x] [DOC] Update services lane description to exclude api/mcp (they are separate lanes).
+    - Touchpoints:
+      - `tests/run.rules.jsonc` L19‑21
+[x] [DOC] Replace proposed tag set with actual tag catalog (avoid tags not present in rules).
+    - Touchpoints:
+      - `tests/run.rules.jsonc` L31‑116 (tagRules)
 
 ### 3.4 docs/testing/test-runner-interface.md
-[ ] [DOC] Update defaults: timeouts, jobs, cache root behavior, test id format.
+[x] [DOC] Update defaults: timeouts, jobs, cache root behavior, test id format.
     - Touchpoints:
       - `tests/run.js` (defaults)
       - `tests/run.rules.jsonc` (lane list)
@@ -317,64 +403,109 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
       - Timeouts: `ci-lite=15000`, `ci=90000`, `ci-long=240000`, default `30000`
       - Jobs: physical core count (see `resolvePhysicalCores`)
       - Cache root: defaults to `.testCache` unless overridden
-[ ] [DOC] Document timing ledger (`--log-times`) and watchdog behavior once added.
+[x] [DOC] Document `--list-lanes` and `--list-tags`.
     - Touchpoints:
-      - `tests/run.js`
-[ ] [DOC] Document coverage merge / changed-files coverage flags once added.
+      - `tests/run.js` L97‑100
+[x] [DOC] Document lane order files (`tests/<lane>/<lane>.order.txt`) and failure semantics.
     - Touchpoints:
-      - `tests/run.js`
-      - `docs/testing/ci-capability-policy.md`
+      - `tests/run.js` L62, L173‑210
+[x] [DOC] Document runner env overrides (`PAIROFCLEATS_TEST_*`, npm_config fallbacks).
+    - Touchpoints:
+      - `tests/run.js` L274‑288
+[x] [DOC] Document tag catalog + meanings (bench, harness, watch, embeddings, sqlite, lmdb, jj, api/mcp, etc.).
+    - Touchpoints:
+      - `tests/run.rules.jsonc` L31‑116
+Note: timing ledger/watchdog and coverage-merge documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` (Phase 5).
 
 ---
 
 ## 4) Tooling docs (docs/tooling)
 
 ### 4.1 docs/tooling/ctags.md
-[ ] [DOC] Update CLI examples to `node tools/ctags-ingest.js` or npm script.
+[x] [DOC] Update CLI examples to `node tools/ctags-ingest.js` or npm script.
     - Source of truth: `tools/ctags-ingest.js`, `package.json` scripts
+[x] [DOC] Document options and defaults: `--out`, `--json`, `--ctags`, `--args`, stdin behavior, and default `--run` when no input.
+    - Touchpoints:
+      - `tools/ctags-ingest.js` L12‑22 (options)
+      - `tools/ctags-ingest.js` L150‑163 (stdin/run behavior)
 
 ### 4.2 docs/tooling/gtags.md
-[ ] [DOC] Update CLI examples to `node tools/gtags-ingest.js` or npm script.
+[x] [DOC] Update CLI examples to `node tools/gtags-ingest.js` or npm script.
     - Source of truth: `tools/gtags-ingest.js`, `package.json` scripts
+[x] [DOC] Document options and defaults: `--out`, `--json`, `--global`, `--args`, stdin behavior, and default stdin when no input.
+    - Touchpoints:
+      - `tools/gtags-ingest.js` L13‑20 (options)
+      - `tools/gtags-ingest.js` L110‑115 (stdin/run behavior)
 
 ### 4.3 docs/tooling/lsif.md
-[ ] [DOC] Update CLI examples to `node tools/lsif-ingest.js` or npm script.
+[x] [DOC] Update CLI examples to `node tools/lsif-ingest.js` or npm script.
     - Source of truth: `tools/lsif-ingest.js`, `package.json` scripts
+[x] [DOC] Document options and defaults: `--out`, `--json`, stdin behavior when `--input -`.
+    - Touchpoints:
+      - `tools/lsif-ingest.js` L12‑16 (options)
+      - `tools/lsif-ingest.js` L165‑168 (stdin behavior)
 
 ### 4.4 docs/tooling/scip.md
-[ ] [DOC] Update CLI examples to `node tools/scip-ingest.js` or npm script.
+[x] [DOC] Update CLI examples to `node tools/scip-ingest.js` or npm script.
     - Source of truth: `tools/scip-ingest.js`, `package.json` scripts
+[x] [DOC] Document options and defaults: `--out`, `--json`, `--scip`, `--args`, stdin behavior, and JSON (non‑JSONL) file parsing path.
+    - Touchpoints:
+      - `tools/scip-ingest.js` L13‑20 (options)
+      - `tools/scip-ingest.js` L214‑218 (JSON file handling)
 
 ### 4.5 docs/tooling/repo-inventory.json
-[ ] [DOC] Ensure `tools/mcp-server-sdk.js` appears in `tools.entrypoints`.
+[x] [DOC] Ensure `tools/mcp-server-sdk.js` appears in `tools.entrypoints`.
     - Touchpoints:
       - `tools/mcp-server-sdk.js` (shebang)
       - `tools/repo-inventory.js` (generator)
-[ ] [DOC] If CLI ingest wrappers are added, update docs/tooling/*.md + `docs/guides/commands.md` to show `pairofcleats ingest <ctags|gtags|lsif|scip>`.
+Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` (Phase 5).
+
+### 4.6 docs/tooling/repo-inventory.md (new)
+[x] [DOC] Add a short guide for `pairofcleats repo-inventory` and the JSON output format.
+    - Touchpoints:
+      - `tools/repo-inventory.js` L9‑232
 
 ---
 
 ## 5) API docs (docs/api)
 
 ### 5.1 docs/api/core-api.md
-[ ] [DOC] Update buildIndex options list (stage/quality/modes/rawArgv/log/etc).
-[ ] [DOC] Update search params (`--compact` vs jsonCompact; ann-backend/context/filter params).
-[ ] [DOC] Update status params (`includeAll` vs `all`).
-    - Source of truth:
-      - `tools/api/router/build-index.js` (buildIndex args)
-      - `tools/api/router/search.js` (search args + mapping)
-      - `tools/api/router/status.js` (status params)
+[x] [DOC] Update buildIndex options list (stage/quality/modes/rawArgv/log/etc).
+[x] [DOC] Update search params (`--compact` vs jsonCompact; ann-backend/context/filter params).
+[x] [DOC] Update status params (`includeAll` vs `all`).
+    - Touchpoints:
+      - `src/integrations/core/build-index/index.js` L39 (buildIndex options)
+      - `src/integrations/core/args.js` L12‑64 (buildRawArgs/buildSearchArgs)
+      - `src/integrations/core/build-index/sqlite.js` L10‑20 (buildSqliteIndex options)
+      - `src/integrations/core/search.js` L11 (search handler)
+      - `src/integrations/core/status.js` L258 (status handler)
 
 ### 5.2 docs/api/mcp-server.md
-[ ] [DOC] Note default MCP mode is legacy unless `auto` explicitly requested.
+[x] [DOC] Note default MCP mode is legacy unless `auto` explicitly requested.
     - Source of truth:
       - `tools/mcp/server-config.js` (default mode)
       - `tools/mcp-server.js` (arg handling)
 
 ### 5.3 docs/api/server.md
-[ ] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
-    - If correct, leave unchanged; if not, update.
-[ ] [DOC] Document error codes + troubleshooting hints shared across API/MCP/CLI.
+[x] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
+    - Touchpoints:
+      - `tools/api-server.js` L47‑59 (authRequired logic)
+[x] [DOC] Document that API server runs in-process (no CLI shell-out).
+    - Touchpoints:
+      - `tools/api/router.js` L1 (imports core search/status)
+[x] [DOC] Tighten `/search` payload description to match Ajv schema (strict keys, meta/metaJson formats).
+    - Touchpoints:
+      - `tools/api/validation.js` L29 (search schema)
+      - `tools/api/router/search.js` L85‑140 (payload mapping)
+[x] [DOC] Publish canonical `/search` schema (embed in docs or link to Ajv source).
+    - Touchpoints:
+      - `tools/api/validation.js` L29‑136
+    - Note:
+      - Treat `tools/api/validation.js` as the canonical field list for `/search`.
+[x] [DOC] Fix `/status` reference to nonexistent CLI (use core status output instead).
+    - Touchpoints:
+      - `src/integrations/core/status.js` L258
+[x] [DOC] Document error codes + troubleshooting hints shared across API/MCP/CLI.
     - Touchpoints:
       - `docs/contracts/mcp-error-codes.md`
       - `docs/api/server.md`
@@ -385,9 +516,9 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
 ## 6) Config docs (docs/config)
 
 ### 6.1 docs/config/contract.md
-[ ] [DOC] Sync public config key list with `docs/config/schema.json`.
-[ ] [DOC] Update CLI flags list to current CLI options.
-[ ] [CODE] Generate `docs/config/contract.md` from `docs/config/schema.json` + `src/shared/env.js` (deterministic output).
+[x] [DOC] Sync public config key list with `docs/config/schema.json`.
+[x] [DOC] Update CLI flags list to current CLI options.
+[x] [CODE] Generate `docs/config/contract.md` from `docs/config/schema.json` + `src/shared/env.js` (deterministic output).
     - Touchpoints:
       - `tools/config-contract-doc.js` (new)
       - `docs/config/contract.md`
@@ -398,117 +529,185 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
       - Pull env var metadata from `src/shared/env.js` (source of truth).
       - Emit sections: Overview, Schema keys, Defaults, Env overrides, CLI flags (if applicable).
       - Preserve line endings/BOM on regeneration (match `tools/config-inventory.js` behavior).
+    - Source line anchors:
+      - `docs/config/schema.json` L18‑396 (namespace keys)
+      - `src/shared/env.js` L32‑58 (env surface)
 
 ### 6.2 docs/config/deprecations.md
-[ ] [DOC] Align deprecations with `docs/config/schema.json`.
+[x] [DOC] Align deprecations with `docs/config/schema.json`.
 
 ### 6.3 docs/config/env-overrides.md
-[ ] [DOC] Update env var list to match `src/shared/env.js` and inventory.
-[ ] [DOC] Clarify non-secret env behavior vs secrets-only claim.
+[x] [DOC] Update env var list to match `src/shared/env.js` and inventory.
+[x] [DOC] Clarify non-secret env behavior vs secrets-only claim.
+    - Touchpoints:
+      - `src/shared/env.js` L32‑58 (`getEnvConfig`)
+      - `src/shared/env.js` L79‑98 (`getTestEnvConfig`)
 
 ### 6.4 docs/config/execution-plan.md
-[ ] [DOC] Replace `metadata-only` with `records` / `extracted-prose` modes.
-[ ] [DOC] Update provider policy examples (tooling providers vs vscode/sublime).
+[x] [DOC] Replace `metadata-only` with `records` / `extracted-prose` modes.
+[x] [DOC] Update provider policy examples (tooling providers vs vscode/sublime).
 
 ### 6.5 docs/config/hard-cut.md
-[ ] [DOC] Remove `output.logPath` if not in schema.
-[ ] [DOC] Remove `indexing.skipImportResolution` if not in schema.
+[x] [DOC] Remove `output.logPath` if not in schema.
+[x] [DOC] Remove `indexing.skipImportResolution` if not in schema.
+
+### 6.6 docs/config/budgets.md
+[x] [DOC] Expand allowlist to match schema namespaces (threads/runtime/tooling/mcp/indexing/retrieval/search).
+    - Touchpoints:
+      - `docs/config/schema.json` L18‑396 (namespace list)
+      - `docs/config/budgets.md` (current allowlist)
+
+### 6.7 docs/config/surface-directives.md
+[x] [DOC] Update unknown-key policy to reflect schema `additionalProperties` in indexing/embeddings.
+    - Touchpoints:
+      - `docs/config/schema.json` L172‑303 (indexing + embeddings)
 
 ---
 
 ## 7) Perf docs (docs/perf)
 
-### 7.1 docs/perf/indexing-performance.md
-[ ] [DOC] Update thread defaults to current values (16/16/32/16 on 8c/16t).
-[ ] [DOC] Document profiling hooks (`--profile`) and emitted profile artifacts once added.
+### 7.1 docs/perf/graph-caps.md
+[x] [DOC] Document graph caps harness CLI usage (required `--outDir`, `--graphFixture` or `--index`, optional `--depth`).
     - Touchpoints:
-      - `docs/perf/indexing-performance.md`
-      - `docs/guides/architecture.md`
+      - `tools/bench/graph-caps-harness.js` L80‑107 (CLI args + validation)
+      - `tools/bench/graph-caps-harness.js` L34‑70 (output file)
+[x] [DOC] Document how `graph-caps-defaults.json` is produced and what each field means.
+    - Touchpoints:
+      - `docs/perf/graph-caps-defaults.json` (output structure)
 
-### 7.2 docs/perf/indexing-thread-limits.md
-[ ] [DOC] Verify no drift; update only if thread precedence changed.
+### 7.2 docs/perf/graph-caps-defaults.json
+[x] [DOC] Add provenance note (generator + inputs), and link back to `graph-caps.md`.
 
 ---
 
 ## 8) Benchmark docs (docs/benchmarks)
 
-[ ] [DOC] Fix CLI entrypoints for each benchmark doc:
-    - `bench-hnsw.md` -> `tools/bench/hnsw-bench.js` or `npm run bench:hnsw`
-    - `bench-language-repos.md` -> `tools/bench/bench-language-repos.js`
-    - `bench-language-stream.md` -> `tools/bench/bench-language-stream.js`
-    - `bench-retrieval-pipeline.md` -> `tools/bench/bench-retrieval-pipeline.js`
-    - `bench-summary.md` -> `tools/bench/bench-summary.js`
+### 8.1 docs/benchmarks/overview.md
+[x] [DOC] Fix microbench backend list (memory/sqlite/sqlite-fts only; no lmdb).
+    - Touchpoints:
+      - `tools/bench/micro/run.js` L39‑45 (backend list)
+[x] [DOC] Document microbench CLI flags: `--repo-current`, `--query`, `--threads`, `--sqlite`, `--components`, `--ann-backends`, `--json`.
+    - Touchpoints:
+      - `tools/bench/micro/run.js` L22‑95
+[x] [DOC] Document thread default/override behavior used by microbench (`--threads` and env).
+    - Touchpoints:
+      - `src/shared/threads.js` L8‑97
+[x] [DOC] Document tinybench CLI flags: `--iterations`, `--warmup-iterations`, `--time`, `--warmup-time`, `--components`, and standard repo/query/backend flags.
+    - Touchpoints:
+      - `tools/bench/micro/tinybench.js` L18‑60
+[x] [DOC] Document query generator flags: `--repo`, `--out`, `--json`, `--index-root`, and default JSON output path.
+    - Touchpoints:
+      - `tools/bench-query-generator.js` L13‑19, L90‑99
+[x] [DOC] Document bench harness `--query-concurrency` (and where it applies).
+    - Touchpoints:
+      - `src/shared/cli-options.js` L50
+[x] [DOC] Add bench matrix runner flags (`--ann-modes`, `--backends`, `--out-dir`, `--log-dir`, `--fail-fast`) or link to language benchmarks doc.
+    - Touchpoints:
+      - `tools/bench-language-matrix.js` L20‑38, L54‑96
+
+### 8.2 docs/benchmarks/evaluation.md
+[x] [DOC] Confirm evaluation options + output formats match `tools/eval/run.js` (update if drift is found).
+    - Touchpoints:
+      - `tools/eval/run.js` L11‑180 (metrics schema + output)
+
+### 8.3 docs/benchmarks/model-comparison.md
+[x] [DOC] Confirm model comparison CLI flags and outputs match `tools/compare-models.js`.
+    - Touchpoints:
+      - `tools/compare-models.js` L28‑120 (CLI args + output)
 
 ---
 
 ## 9) Language docs (docs/language)
 
-### 9.1 docs/language/lang-sql.md
-[ ] [DOC] Update default mode to `--mode all`.
+### 9.1 docs/language/benchmarks.md
+[x] [DOC] Document that `--stub-embeddings/--real-embeddings` are forwarded to the runner (not ignored).
+    - Touchpoints:
+      - `tools/bench-language-repos.js` L653‑657
+[x] [DOC] Update tier definitions to include `small`/`tiny` (positional filters allowed).
+    - Touchpoints:
+      - `tools/bench-language-repos.js` L290‑296
+[x] [DOC] Document language bench CLI flags (`--dry-run`, `--results`, `--repos`, `--only`, `--languages`, `--queries`, `--heap-mb`, `--cache-run`).
+    - Touchpoints:
+      - `tools/bench/language/cli.js` L53‑96
+      - `tools/bench-language-repos.js` L302‑305, L533‑568, L647‑680
 
-### 9.2 docs/language/lang-typescript.md
-[ ] [DOC] Update default mode to `--mode all`.
+### 9.2 docs/language/lang-sql.md
+[x] [DOC] Update default mode to `--mode all` (no lang-sql doc present; no update needed).
+
+### 9.3 docs/language/lang-typescript.md
+[x] [DOC] Update default mode to `--mode all` (no lang-typescript doc present; no update needed).
 
 ---
 
 ## 10) New docs (docs/new_docs)
 
 ### 10.1 docs/new_docs/graph-caps.md
-[ ] [DECISION] Promote to `docs/specs/graph-caps.md` or archive/remove.
+[x] [DECISION] Promote to `docs/specs/graph-caps.md` (align with current plans).
 
 ### 10.2 docs/new_docs/symbol-artifacts-and-pipeline.md
-[ ] [DECISION] Merge into `docs/specs/symbol-artifacts-and-pipeline.md` or archive/remove.
+[x] [DECISION] Merge into `docs/specs/symbol-artifacts-and-pipeline.md`.
 
 ---
 
 ## 11) Specs subsystem (docs/specs)
 
 ### 11.1 docs/specs/analysis-schemas.md
-[ ] [DOC] Update to current schema (graph context, impact, api contracts, architecture, suggest-tests).
+[x] [DOC] Create or update to current schema (graph context, impact, api contracts, architecture, suggest-tests).
     - Touchpoints:
       - `src/contracts/schemas/analysis.js` ~L505 (`GRAPH_CONTEXT_PACK_SCHEMA`)
       - `src/contracts/schemas/analysis.js` ~L684 (`API_CONTRACTS_SCHEMA`)
       - `src/contracts/schemas/analysis.js` ~L774 (`SUGGEST_TESTS_SCHEMA`)
 
 ### 11.2 docs/specs/artifact-schemas.md
-[ ] [DOC] Add missing artifacts and update jsonl-sharded schema.
+[x] [DOC] Create or update to current schema; add missing artifacts and jsonl-sharded schema.
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js` ~L317, ~L810
-[ ] [DECISION] `api_contracts_meta`: add schema or remove from docs.
+[x] [DECISION] `api_contracts_meta`: add schema or remove from docs.
 
 ### 11.3 docs/specs/graph-caps.md
-[ ] [DOC] Replace placeholder with actual schema + defaults.
+  [x] [DOC] Replace placeholder with actual schema + defaults.
     - Touchpoints:
       - `src/retrieval/pipeline/graph-ranking.js`
 
 ### 11.4 docs/specs/graph-product-surfaces.md
-[ ] [DECISION] Keep as authoritative (update) or archive if superseded.
+[x] [DECISION] Keep as authoritative and update (still referenced).
 
 ### 11.5 Risk specs (all five files)
-[ ] [DOC] Align required fields with schema (`mode`, `callSiteSampling`, `timingMs.io`, etc).
+[x] [DOC] Align required fields with schema (`mode`, `callSiteSampling`, `timingMs.io`, etc).
     - Touchpoints:
       - `src/contracts/schemas/artifacts.js`
     - Schema entries to cross-check:
       - `risk_summaries`, `risk_flows`, `risk_interprocedural_stats`, `call_sites`
-[ ] [DECISION] Enforce deterministic trimming/ordering in code or update spec to current behavior.
+[x] [DOC] Fix `call_sites` spec subset:
+    - Required fields: include `languageId`, `start`, `end` (byte offsets).
+    - Optionality: `snippetHash` is optional in schema.
+    - Sampling: document that writer currently emits all call details (no per-edge sampling).
+    - Touchpoints:
+      - `src/contracts/schemas/artifacts.js` ~L502 (callSiteEntry required fields)
+      - `src/index/build/artifacts/writers/call-sites.js` ~L146 (writer emits all call details)
+[x] [DECISION] Enforce deterministic trimming/ordering in code or update spec to current behavior.
     - Touchpoints:
       - `src/index/build/artifacts/writers/*`
+[x] [DOC] Document row-size trimming + dropped-row accounting for risk artifacts (or add missing stats in code).
+    - Touchpoints:
+      - `src/index/build/artifacts/writers/call-sites.js` ~L68 (trim/drop)
+      - `src/index/build/artifacts/writers/risk-interprocedural.js` ~L33 (no trimming)
 
 ### 11.6 docs/specs/runtime-envelope.md
-[ ] [DOC] Update env precedence + envelope fields.
+[x] [DOC] Update env precedence + envelope fields.
     - Touchpoints:
       - `src/shared/runtime-envelope.js`
       - `src/shared/env.js`
 
 ### 11.7 docs/specs/safe-regex-hardening.md
-[ ] [DOC] Add RE2JS fallback + input/program caps; reference `compileSafeRegex`.
+[x] [DOC] Add RE2JS fallback + input/program caps; reference `compileSafeRegex`.
     - Touchpoints:
       - `src/shared/safe-regex.js`
       - `src/shared/safe-regex/backends/*`
 
 ### 11.8 SCM specs
-[ ] [DOC] Expand provider contract (head/dirty semantics, path normalization, precedence, error signaling).
-[ ] [DOC] Add JJ operationId to schema.
+[x] [DOC] Expand provider contract (head/dirty semantics, path normalization, precedence, error signaling).
+[x] [DOC] Add JJ operationId to schema.
     - Touchpoints:
       - `src/index/scm/providers/git.js`
       - `src/index/scm/providers/jj.js`
@@ -518,91 +717,93 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
       - error handling: fall back to `provider=none` vs hard error
 
 ### 11.9 docs/specs/segmentation-perf.md
-[ ] [DOC] Update caps/targets to current maxBytes and fallback logic.
+  [x] [DOC] Update caps/targets to current maxBytes and fallback logic.
 
 ### 11.10 docs/specs/signature.md
-[ ] [DOC] Update signature inputs (include repo provenance/provider head, index compat key).
+  [x] [DOC] Update signature inputs (include repo provenance/provider head, index compat key).
     - Touchpoints:
       - `src/index/build/indexer/signatures.js`
 
 ### 11.11 docs/specs/symbol-artifacts-and-pipeline.md
-[ ] [DOC] Align with current symbol artifact schema or mark as draft.
+  [x] [DOC] Align with current symbol artifact schema or mark as draft.
     - Touchpoints:
       - `src/index/build/artifacts/writers/*`
 
 ### 11.12 docs/specs/test-strategy-and-conformance-matrix.md
-[ ] [DOC] Update lane list and descriptions (ci-lite, ci-long, api, mcp).
+  [x] [DOC] Update lane list and descriptions (ci-lite, ci-long, api, mcp).
 
 ### 11.13 docs/specs/tooling-and-api-contract.md
-[ ] [DOC] Update MCP tool list and defaults; include schemaVersion in responses.
+  [x] [DOC] Update MCP tool list and defaults; include schemaVersion in responses.
     - Touchpoints:
       - `src/integrations/mcp/defs.js`
       - `tools/mcp/server-config.js`
 
 ### 11.14 docs/specs/tooling-doctor-and-reporting.md
-[ ] [DOC] Align report schema with `src/index/tooling/doctor.js` output.
+[x] [DOC] Align report schema with `src/index/tooling/doctor.js` output.
 
 ### 11.15 docs/specs/tooling-io.md
-[ ] [DECISION] Implement `fileTextByFile` caching in tooling or update spec to VFS approach.
+[x] [DECISION] Implement `fileTextByFile` caching in tooling or update spec to VFS approach.
     - Touchpoints:
       - `src/index/tooling/*`
       - `src/index/tooling/vfs.js`
 
 ### 11.16 docs/specs/tooling-provider-registry.md
-[ ] [DOC] Update names/fields to match `src/index/tooling/provider-registry.js` + `orchestrator.js`.
+[x] [DOC] Update names/fields to match `src/index/tooling/provider-registry.js` + `orchestrator.js`.
 
 ### 11.17 docs/specs/typescript-provider-js-parity.md
-[ ] [DECISION] Remove no-ad-hoc-ID rule or change implementation to avoid heuristic SymbolRef IDs.
+[x] [DECISION] Remove no-ad-hoc-ID rule or change implementation to avoid heuristic SymbolRef IDs.
     - Touchpoints:
       - `src/index/tooling/typescript-provider.js`
 
 ### 11.18 docs/specs/vfs-manifest-artifact.md
-[ ] [DECISION] Enforce deterministic trimming before dropping oversized rows or update spec.
+[x] [DECISION] Enforce deterministic trimming before dropping oversized rows or update spec.
     - Touchpoints:
       - `src/index/tooling/vfs.js`
 
 ### 11.19 docs/specs/watch-atomicity.md
-[ ] [DOC] Update attempt root / promotion barrier names and defaults.
+  [x] [DOC] Update attempt root / promotion barrier names and defaults.
     - Touchpoints:
       - `src/index/build/watch/*`
 
 ### 11.20 Workspace specs
-[ ] [DOC] Sync workspace config keys with `docs/config/schema.json` (include `indexing.scm.*`).
-[ ] [DOC] Revalidate workspace manifest fields and manifestHash rules vs current federation plan.
+[x] [DOC] Sync workspace config keys with `docs/config/schema.json` (include `indexing.scm.*`).
+[x] [DOC] Revalidate workspace manifest fields and manifestHash rules vs current federation plan.
 
 ---
 
 ## 12) Archived docs (docs/archived)
 
-[ ] [DOC] Confirm archived docs are not referenced as canonical anywhere.
-[ ] [DOC] Where referenced for historical context, ensure they are labeled DEPRECATED and point to replacements.
+[x] [DOC] Confirm archived docs are not referenced as canonical anywhere.
+[x] [DOC] Where referenced for historical context, ensure they are labeled DEPRECATED and point to replacements.
 
 ---
 
 ## 13) Deliverables and validation
 
-[ ] [DOC] Update `COSMIC_DOCS_LEDGER.md` with resolution status tags (doc fix vs code fix) per task above.
-[ ] [DOC] Ensure all references in guides/contracts/specs point to correct paths.
-[ ] [DOC] Run any existing doc validation (if present) or add a minimal consistency check.
+[x] [DOC] Update `COSMIC_DOCS_LEDGER.md` with resolution status tags (doc fix vs code fix) per task above.
+[x] [DOC] Ensure all references in guides/contracts/specs point to correct paths.
+[x] [DOC] Run any existing doc validation (if present) or add a minimal consistency check.
 
 ---
 
 ## 14) Optional automation (quality-of-life)
 
-[ ] [CODE] Add a doc drift checker that compares:
+[x] [CODE] Add a doc drift checker that compares:
     - CLI flags vs docs
     - Schema lists vs docs
     - Test lanes vs docs
-    - Entry points vs docs
-    - Output fields vs docs
+    - Output fields vs docs (initially `scoreBreakdown` keys)
     - Touchpoints:
-      - `tools/` (new script)
+      - `tools/doc-contract-drift.js`
       - `docs/testing/` for policy
-[ ] [CODE] Define comparison inputs/outputs:
+    - Note:
+      - Entry point vs docs remains covered by `tests/indexing/policy/script-surface-policy.test.js`.
+[x] [CODE] Define comparison inputs/outputs:
     - Inputs:
-      - CLI flags from `src/retrieval/cli-args.js` + `src/shared/cli.js`
+      - CLI flags from `src/retrieval/cli-args.js`
       - Artifact list from `src/contracts/schemas/artifacts.js` (`ARTIFACT_SCHEMA_DEFS`)
-      - Lanes from `tests/run.rules.jsonc` (`knownLanes`, `laneRules`)
+      - Lanes from `tests/run.rules.jsonc` (`knownLanes`)
+      - Score breakdown keys from `src/retrieval/pipeline.js`
     - Docs to verify:
       - `docs/contracts/search-cli.md`, `docs/contracts/search-contract.md`
       - `docs/contracts/artifact-schemas.md`
@@ -610,10 +811,9 @@ Use these bundles to split work safely in parallel. Each bundle lists the files 
     - Outputs:
       - `docs/tooling/doc-contract-drift.json` (machine readable)
       - `docs/tooling/doc-contract-drift.md` (short summary for CI)
-[ ] [CODE] Wire doc drift checker into CI (fail on drift, print diff summary).
+[x] [CODE] Wire doc drift checker into CI (fail on drift, print diff summary).
     - Touchpoints:
       - `tools/ci/run-suite.js`
-      - `.github/workflows/*`
 
 ---
 
@@ -928,6 +1128,8 @@ Use this index as the canonical list of **code files to review**, with line‑le
 - `src/retrieval/cli/normalize-options.js`
   - `parseFilterExpression` use — L82
   - `graphRankingConfig` assembly — L186‑206
+- `src/retrieval/cli/render.js`
+  - JSON output fields (`extractedProse`) — L51‑75
 - `src/retrieval/output/explain.js`
   - `formatScoreBreakdown` + graph fields — L16‑62
 - `src/retrieval/pipeline/graph-ranking.js`
@@ -936,17 +1138,57 @@ Use this index as the canonical list of **code files to review**, with line‑le
 ### Storage (SQLite)
 - `src/storage/sqlite/schema.js`
   - `REQUIRED_TABLES` — L3
+- `src/storage/backend-policy.js`
+  - backend selection + defaults — L8‑188
 
 ### CLI entrypoints + tools
 - `bin/pairofcleats.js`
   - `search` entrypoint mapping — L64‑70
   - command list display — L697
+- `bin/pairofcleats.js`
+  - graph/impact/context-pack/api-contracts/architecture-check routes — L289‑551
 - `tools/mcp-server.js`
   - CLI args + mode selection — L10‑41
 - `tools/mcp/server-config.js`
   - mcp config/env merge — L37‑44
 - `tools/mcp-server-sdk.js`
   - SDK entrypoint + module resolution — L1‑40
+- `tools/structural-search.js`
+  - CLI entrypoint — L6‑13
+- `tools/triage/ingest.js`
+  - CLI entrypoint — L13
+- `tools/triage/decision.js`
+  - CLI entrypoint — L11
+- `tools/triage/context-pack.js`
+  - CLI entrypoint — L9
+- `tools/metrics-dashboard.js`
+  - metrics dashboard output + fields — L9‑118
+- `tools/indexer-service.js`
+  - mode handling for jobs — L19‑44, L297‑381
+- `tools/graph-context.js`
+  - CLI entrypoint — L1‑4
+- `tools/context-pack.js`
+  - CLI entrypoint — L1‑4
+- `tools/impact.js`
+  - CLI entrypoint — L1‑4
+- `tools/suggest-tests.js`
+  - CLI entrypoint — L1‑4
+- `tools/api-contracts.js`
+  - CLI entrypoint — L1‑4
+- `tools/architecture-check.js`
+  - CLI entrypoint — L1‑4
+- `tools/explain-risk.js`
+  - CLI entrypoint — L1‑4
+- `tools/tooling-doctor.js`
+  - CLI entrypoint — L14
+- `tools/compare-models.js`
+  - CLI entrypoint — L28
+- `tools/eval/run.js`
+  - CLI entrypoint — L11
+- `tools/build-sqlite-index.js`
+  - CLI entrypoint — L1‑10
+- `tools/build-lmdb-index.js`
+  - CLI entrypoint — L1‑10
 - `tools/ctags-ingest.js`
   - script name + defaults — L12‑36
   - spawn + error handling — L138‑145
@@ -957,13 +1199,33 @@ Use this index as the canonical list of **code files to review**, with line‑le
 - `tools/scip-ingest.js`
   - script name + output — L12‑33
   - spawn + error handling — L199‑206
+- `tools/bench/micro/run.js`
+  - microbench CLI options — L22‑95
+- `tools/bench/micro/tinybench.js`
+  - tinybench CLI options — L18‑60
+- `tools/bench-query-generator.js`
+  - query generator options + outputs — L13‑19, L90‑99
+- `tools/bench/language/cli.js`
+  - language bench CLI options — L53‑96
+- `tools/bench-language-repos.js`
+  - tiers + stub embeddings forwarding — L290‑296, L653‑657
+- `tools/bench-language-matrix.js`
+  - matrix CLI options — L20‑38, L54‑96
+- `tools/bench/graph-caps-harness.js`
+  - graph caps harness CLI options — L80‑107
+- `src/shared/cli-options.js`
+  - `query-concurrency` option — L50
 - `tools/repo-inventory.js`
   - CLI + output location — L9‑11
   - generator metadata — L206
 
 ### API server/router
+- `tools/api-server.js`
+  - auth gating + allow-unauthenticated — L47‑59
+- `tools/api/validation.js`
+  - search request schema — L29
 - `tools/api/router.js`
-  - status handlers — L101‑151
+  - core imports + search/status handling — L1, L105‑223
 - `tools/api/router/search.js`
   - CLI arg mapping — L41‑141
 - `src/integrations/core/search.js`
@@ -972,6 +1234,10 @@ Use this index as the canonical list of **code files to review**, with line‑le
   - `status` handler — L257
 - `src/integrations/core/build-index/index.js`
   - `buildIndex` entrypoint — L39
+- `src/integrations/core/args.js`
+  - `buildRawArgs`/`buildSearchArgs` — L12‑44
+- `src/integrations/core/build-index/sqlite.js`
+  - `buildSqliteIndex` options — L10‑20
 
 ### CI + test runner
 - `tools/ci/run-suite.js`
@@ -980,9 +1246,13 @@ Use this index as the canonical list of **code files to review**, with line‑le
   - CLI + failure reporting — L18, L145‑190
 - `tests/run.js`
   - lane timeout resolution — L297
+  - `--list-lanes/--list-tags` — L97‑100
+  - lane order files — L62, L173‑210
+  - env overrides (`PAIROFCLEATS_TEST_*`) — L274‑288
   - `--log-times` / timings output — L306‑319, L464‑468
 - `tests/run.rules.jsonc`
   - `laneRules` — L15‑24
+  - `tagRules` — L31‑116
 - `tests/run.config.jsonc`
   - `lanes` definition — L10
 - `tests/tooling/script-coverage/paths.js`
@@ -994,6 +1264,8 @@ Use this index as the canonical list of **code files to review**, with line‑le
   - `getTestEnvConfig` — ~L64‑120
 - `src/shared/runtime-envelope.js`
   - `resolveRuntimeEnvelope` — L115
+- `src/shared/threads.js`
+  - thread/concurrency defaults — L8‑97
 
 ### Safety + regex
 - `src/shared/safe-regex.js`
@@ -1041,4 +1313,3 @@ Use this index as the canonical list of **code files to review**, with line‑le
   - lock retry logging — L32‑34
 - `src/index/build/watch/attempts.js`
   - attempts root + ids — L19‑61
-

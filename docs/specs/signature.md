@@ -20,6 +20,38 @@ Make incremental signatures deterministic, explainable, and safe by default.
 - Mismatch => reuse rejected (hard no-reuse).
 - Persist `signatureVersion` in incremental manifests and `build_state.json`.
 
+## Signature payload (current)
+Signature inputs are derived from `buildIncrementalSignaturePayload`:
+
+- **Schema + compatibility**
+  - `artifactSchemaHash` (`ARTIFACT_SCHEMA_HASH`)
+  - `chunkIdAlgoVersion` (`CHUNK_ID_ALGO_VERSION`)
+  - `cacheSchemaVersion` (tool version from `runtime.toolInfo.version`)
+- **Mode + tokenization**
+  - `mode` (code/prose/etc)
+  - `tokenizationKey` (see `buildTokenizationKey`)
+- **Feature flags**
+  - `astDataflowEnabled`, `controlFlowEnabled`, `lintEnabled`, `complexityEnabled`
+  - `riskAnalysisEnabled`, `riskAnalysisCrossFileEnabled`
+  - `riskInterproceduralEnabled`, `riskInterproceduralSummaryOnly` (mode-aware)
+  - `typeInferenceEnabled`, `typeInferenceCrossFileEnabled`
+  - `gitBlameEnabled`
+- **Risk config**
+  - `riskInterproceduralConfig` (with `enabled` + `summaryOnly` normalized per mode)
+  - `riskRules`, `riskCaps`
+- **Language + parser options**
+  - `parsers.javascript`, `parsers.javascriptFlow`, `parsers.typescript`, `parsers.typescriptImportsOnly`
+  - `treeSitter.*` config (enabled + per-language overrides)
+  - `yamlChunking`, `kotlin`
+- **Indexing + embedding**
+  - `importScan`
+  - `embeddings` (enabled/mode/service/batchSize/identityKey)
+  - `fileCaps`, `fileScan`
+  - `incrementalBundleFormat`
+- **SCM provenance**
+  - `scm.provider`
+  - `scm.head.commitId`, `scm.head.changeId`, `scm.head.operationId`
+
 ## Diagnostics
 - Provide bounded "top-level delta" summary when reuse is rejected.
 - Never dump full configs by default.
@@ -36,3 +68,5 @@ Make incremental signatures deterministic, explainable, and safe by default.
 - `src/index/build/indexer/signatures.js`
 - `src/index/build/runtime/hash.js`
 - `src/index/build/incremental.js`
+- `src/contracts/registry.js`
+- `src/contracts/compatibility.js`

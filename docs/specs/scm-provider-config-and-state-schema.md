@@ -116,7 +116,8 @@ When `provider=none`, `repo.head` and other SCM fields are `null`.
     "root": "/abs/path",
     "head": {
       "commitId": "kqrx...",
-      "changeId": "qpvu..."
+      "changeId": "qpvu...",
+      "operationId": "9f8a1b2c3d4e"
     },
     "bookmarks": ["main"],
     "dirty": true,
@@ -124,6 +125,9 @@ When `provider=none`, `repo.head` and other SCM fields are `null`.
   }
 }
 ```
+
+Notes:
+- `head.operationId` is populated when `indexing.scm.jj.snapshotWorkingCopy=true` (pinned op); otherwise `null`.
 
 ### Example (Git)
 

@@ -54,7 +54,7 @@ type VfsManifestRowV1 = {
   lineStart: number|null;     // 1-based line where segment starts in container
   lineEnd: number|null;       // 1-based line where segment ends in container
 
-  extensions?: object;        // the only allowed extension point
+  extensions?: object;        // preferred extension point (schema allows additionalProperties)
 };
 ```
 
@@ -159,8 +159,10 @@ For sharded output:
 ## 6) Size limits
 
 - No row may exceed 32KB UTF-8.
-- If a row would exceed the limit, the producer MUST deterministically trim optional fields (e.g., `extensions`, `segmentId`) to fit.
-- If the row still exceeds the limit after trimming, the producer MUST drop the row and MUST record a warning in build logs (or a future stats artifact, if one exists).
+- If a row would exceed the limit, the producer trims optional fields in this order:
+  1. drop `extensions`
+  2. null out `segmentId`
+- If the row still exceeds the limit after trimming, the producer drops the row and logs a warning.
 
 ---
 

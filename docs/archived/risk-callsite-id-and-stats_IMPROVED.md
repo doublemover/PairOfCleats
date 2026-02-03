@@ -115,7 +115,7 @@ type RiskInterproceduralStatsV1_1 = {
   - Writer: `src/index/build/artifacts/writers/call-sites.js` (`createCallSiteId`)
 
 - Stats production:
-  - `state.riskInterprocedural.stats` (see `spec_risk-interprocedural-state-and-pipeline_DRAFT.md`)
+- `state.riskInterprocedural.stats` (see `interprocedural-state-and-pipeline_DRAFT.md`)
   - Writer: `src/index/build/artifacts/writers/risk-interprocedural.js`
 
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T03:01:38.129Z",
+  "generatedAt": "2026-02-03T05:51:29.958Z",
   "generatedBy": "node tools/repo-inventory.js",
   "root": "C:/Users/sneak/Development/PairOfCleats_CODEX",
   "docs": {
@@ -201,6 +201,8 @@
       "docs/new_docs/symbol-identity-and-symbolref.md",
       "docs/perf/graph-caps.md",
       "docs/specs/analysis-policy.md",
+      "docs/specs/analysis-schemas.md",
+      "docs/specs/artifact-schemas.md",
       "docs/specs/as-of-retrieval-integration.md",
       "docs/specs/build-state-integrity.md",
       "docs/specs/concurrency-abort-runwithqueue.md",
@@ -263,6 +265,7 @@
       "docs/tooling/ctags.md",
       "docs/tooling/gtags.md",
       "docs/tooling/lsif.md",
+      "docs/tooling/repo-inventory.md",
       "docs/tooling/scip.md"
     ],
     "referenced": [
@@ -463,6 +466,8 @@
       "docs/new_docs/symbol-identity-and-symbolref.md",
       "docs/perf/graph-caps.md",
       "docs/specs/analysis-policy.md",
+      "docs/specs/analysis-schemas.md",
+      "docs/specs/artifact-schemas.md",
       "docs/specs/as-of-retrieval-integration.md",
       "docs/specs/build-state-integrity.md",
       "docs/specs/concurrency-abort-runwithqueue.md",
@@ -523,6 +528,7 @@
       "docs/tooling/ctags.md",
       "docs/tooling/gtags.md",
       "docs/tooling/lsif.md",
+      "docs/tooling/repo-inventory.md",
       "docs/tooling/scip.md"
     ]
   },
@@ -560,6 +566,7 @@
       "tools/compact-pieces.js",
       "tools/compact-sqlite-index.js",
       "tools/compare-models.js",
+      "tools/config-contract-doc.js",
       "tools/config-dump.js",
       "tools/config-inventory.js",
       "tools/context-pack.js",
@@ -569,6 +576,7 @@
       "tools/download-models.js",
       "tools/eval/run.js",
       "tools/explain-risk.js",
+      "tools/export-artifact-schema-index.js",
       "tools/generate-demo-config.js",
       "tools/generate-repo-dict.js",
       "tools/get-last-failure.js",
@@ -751,6 +759,8 @@
       "tools/ci/capability-gate.js",
       "tools/ci/run-suite.js",
       "tools/compact-pieces.js",
+      "tools/config-contract-doc.js",
+      "tools/export-artifact-schema-index.js",
       "tools/generate-demo-config.js",
       "tools/mcp-server-sdk.js",
       "tools/repo-inventory.js",
@@ -823,6 +833,10 @@
     ],
     "referencedByDocs": [
       "config:budget",
+      "ctags-ingest",
+      "gtags-ingest",
+      "lsif-ingest",
+      "scip-ingest",
       "test-all-no-bench",
       "test:pr"
     ],
@@ -832,7 +846,11 @@
     ],
     "referenced": [
       "config:budget",
+      "ctags-ingest",
       "download-dicts",
+      "gtags-ingest",
+      "lsif-ingest",
+      "scip-ingest",
       "test-all-no-bench",
       "test:pr"
     ],
@@ -858,7 +876,6 @@
       "config-dump",
       "config-reset",
       "config-validate",
-      "ctags-ingest",
       "download-extensions",
       "download-models",
       "env:check",
@@ -866,11 +883,9 @@
       "format",
       "generate-repo-dict",
       "get-last-failure",
-      "gtags-ingest",
       "index-validate",
       "indexer-service",
       "lint",
-      "lsif-ingest",
       "map-iso",
       "mcp-server",
       "metrics-dashboard",
@@ -878,7 +893,6 @@
       "release-check",
       "release-check:breaking",
       "report-artifacts",
-      "scip-ingest",
       "search",
       "setup",
       "shard-census",

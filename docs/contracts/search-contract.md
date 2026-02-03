@@ -23,7 +23,7 @@ weighted sum depending on config (`search.rrf`, `search.scoreBlend`).
 ## Filters and precedence
 
 Filters are applied before ranking. Supported filters include:
-- `--lang`, `--ext`, `--file`, `--path`, `--kind`, `--signature`
+- `--lang`, `--ext`, `--file`, `--path`, `--type`, `--signature`
 - `--risk`, `--risk-tag`, `--risk-source`, `--risk-sink`, `--risk-category`, `--risk-flow`
 - `--inferred-type`, `--return-type`, `--param`, `--uses`, `--calls`
 
@@ -57,10 +57,12 @@ Backends must emit this schema consistently so that parity checks are meaningful
 When graph-aware ranking is enabled, explain SHOULD include:
 
 - `scoreBreakdown.graph`:
-  - `enabled` (boolean)
-  - `delta` (number)
-  - `features` (object of named features)
-  - optional truncation metadata when caps trigger
+  - `score` (number): additive score applied for graph-aware reordering
+  - `degree` (number)
+  - `proximity` (number)
+  - `weights` (object; `degree`, `proximity`)
+  - `seedSelection` (`top1|topK|none`)
+  - `seedK` (number|null)
 
 ## Phase 11: Graph-aware ranking (membership invariant)
 

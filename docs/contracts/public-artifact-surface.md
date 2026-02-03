@@ -52,15 +52,14 @@ Per-record invariants:
 
 ## Extension policy
 
-- Additional fields are **only** allowed under an `extensions` object.
-- Extensions must be namespaced by key (e.g., `extensions.vendorName.*`).
-- Unknown top-level fields are **errors** unless explicitly listed in schema.
+- Many artifact schemas allow `additionalProperties`; extra fields may appear outside `extensions` unless a schema sets `additionalProperties: false`.
+- Extensions remain the recommended place for namespaced vendor data (e.g., `extensions.vendorName.*`).
 
 ## Schema versioning
 
 - All schemas use SemVer strings.
 - `schemaVersion` is required for sharded JSONL meta files.
-- Readers must support **N-1 major** for schema versions and artifact surface version; unknown majors are **hard errors**.
+- For major `0`, readers support the current major only. For major `1+`, readers support **N-1 major**; unknown majors are **hard errors**.
 
 ## Sharded JSONL meta schema (required)
 

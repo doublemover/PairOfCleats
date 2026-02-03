@@ -55,7 +55,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, **MAY** are to
 ### 3.2 Formats
 
 - `toolVersion` MUST be a SemVer string (e.g., `"0.9.0"`).
-- `schemaVersion` MUST be a SemVer string (e.g., `"2.0.0"`).
+- `schemaVersion` MUST be a SemVer string (e.g., `"1.0.0"`).
 
 ### 3.3 Governance
 
@@ -169,7 +169,7 @@ Example (shape, not full content):
     "tools": { "listChanged": false },
     "experimental": {
       "pairofcleats": {
-        "schemaVersion": "2.0.0",
+        "schemaVersion": "1.0.0",
         "toolVersion": "0.9.0",
         "capabilities": {
           "docs": { "pdfjsDist": true, "mammoth": false },
@@ -184,7 +184,7 @@ Example (shape, not full content):
 ```
 
 Rules:
-- `schemaVersion` and `toolVersion` MUST be present.
+- `schemaVersion` and `toolVersion` MUST be present (see `src/integrations/mcp/defs.js` and `tools/mcp/server-config.js`).
 - The `capabilities` object SHOULD be sourced from `src/shared/capabilities.js` (or a narrowed subset), so clients can adapt.
 
 ### 6.5 Tools: list and call
@@ -194,7 +194,7 @@ Rules:
 - `tools/list` MUST return the full set of tool definitions.
 - Tool names MUST remain stable within a schemaVersion major.
 
-#### 6.5.2 Required tool set (schemaVersion 2.x)
+#### 6.5.2 Required tool set (schemaVersion 1.x)
 The following tool names MUST exist (currently present in `defs.js`):
 
 - `index_status`
@@ -265,17 +265,32 @@ If the server cannot accept a request due to internal queue limits, it MUST resp
 - `error.code = -32001` (server-defined)
 - `error.message`: short summary
 - `error.data`:
-  - `code = "QUEUE_OVERLOADED"`
-  - `message`: human readable
-  - `details.queue`: `{ max, size }` (numbers)
+    - `code = "QUEUE_OVERLOADED"`
+    - `message`: human readable
+    - `details.queue`: `{ max, size }` (numbers)
+
+Default limits (from `tools/mcp/server-config.js`):
+- `queueMax`: 64
+- `maxBufferBytes`: 8 MB
 
 #### 6.10.2 Tool timeout
 If a tool exceeds its configured timeout:
 - In-flight execution MUST be aborted.
 - The server MUST return **tool execution error** (not protocol error):
-  - `CallToolResult.isError = true`
-  - Payload `code = "TOOL_TIMEOUT"`
-  - `timeoutMs` MUST be included.
+    - `CallToolResult.isError = true`
+    - Payload `code = "TOOL_TIMEOUT"`
+    - `timeoutMs` MUST be included.
+
+Default timeout policy (from `tools/mcp/server-config.js`):
+- Global default: 120000 ms.
+- Per-tool defaults:
+  - `build_index`: 10 min
+  - `build_sqlite_index`: 10 min
+  - `download_models`: 10 min
+  - `download_dictionaries`: 10 min
+  - `download_extensions`: 10 min
+  - `bootstrap`: 10 min
+  - `triage_ingest`: 5 min
 
 ---
 
@@ -359,7 +374,7 @@ The `search` MCP tool exposes `arguments` that map 1:1 to the search CLI flags u
 - map to a CLI flag (or core search param), OR
 - be explicitly listed as RESERVED (future use) and rejected if provided.
 
-### 9.1 Mapping table (schemaVersion 2.x)
+### 9.1 Mapping table (schemaVersion 1.x)
 
 | MCP arg | CLI flag | Type | Notes |
 |---|---|---|---|
