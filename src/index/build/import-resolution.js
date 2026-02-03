@@ -133,6 +133,10 @@ const resolveTsConfigExtends = (baseDir, extendsValue) => {
 const createTsConfigLoader = ({ rootAbs }) => {
   const tsconfigCache = new Map();
   const dirCache = new Map();
+  const isWithinRoot = (dir) => {
+    const rel = path.relative(rootAbs, dir);
+    return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
+  };
 
   const loadConfig = (tsconfigPath, stack = new Set()) => {
     if (!tsconfigPath || stack.has(tsconfigPath)) return null;
@@ -187,7 +191,7 @@ const createTsConfigLoader = ({ rootAbs }) => {
     const startDir = path.dirname(importerAbs);
     let dir = startDir;
     const visited = [];
-    while (dir && dir.startsWith(rootAbs)) {
+    while (dir && isWithinRoot(dir)) {
       if (dirCache.has(dir)) {
         const cached = dirCache.get(dir);
         for (const seen of visited) dirCache.set(seen, cached);
