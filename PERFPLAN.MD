@@ -485,27 +485,45 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - [x] **Deterministic path + language foundation (must land before perf work):**
   - [x] Define a single effective language resolver used by `buildToolingVirtualDocuments` and `buildVfsManifestRowsForFile`, and align with provider language filtering.
   - [x] Document that `virtualPath` is always derived from `relKey` (POSIX) and only escapes `%`/`#` in the container path.
-- [ ] Validate VFS virtualPath determinism and path normalization across platforms.
-- [ ] Stream or shard VFS manifest rows to avoid large in-memory arrays (use collector runs).
+- [x] Validate VFS virtualPath determinism and path normalization across platforms.
+- [x] Stream or shard VFS manifest rows to avoid large in-memory arrays (use collector runs).
 - [x] Use a heap/priority queue for `mergeSortedRuns` when there are many run files to avoid `O(runs)` scans per row.
 - [x] Enforce row size caps and deterministic trimming rules (extensions → segmentId → drop row).
-- [ ] Ensure VFS routing always uses `.poc-vfs/` paths for segment docs.
-- [ ] Use VFS segment language routing to minimize unnecessary tree-sitter loads.
+- [x] Ensure VFS routing always uses `.poc-vfs/` paths for segment docs.
+- [x] Use VFS segment language routing to minimize unnecessary tree-sitter loads.
 - [x] Provide stable mapping from virtualPath → disk path (for LSP file scheme fallback).
 - [x] Skip rewriting VFS disk files when `docHash` is unchanged to reduce IO churn.
 - [ ] Avoid re-hashing full text when a segment hash can be derived from file hash + range metadata.
 - [x] Emit VFS metrics (rows, trimmed rows, runs spilled, max line bytes) into stage checkpoints.
 
 ### Tests
-- [ ] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
-- [ ] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
-- [ ] `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
-- [ ] `tests/tooling/vfs/vfs-manifest-streaming.test.js`
-- [ ] `tests/tooling/vfs/vfs-row-size-trim.test.js`
+- [x] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
+- [x] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
+- [x] `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
+- [x] `tests/indexing/vfs/vfs-manifest-streaming.test.js`
+- [x] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js`
 - [x] `tests/tooling/vfs/vfs-row-trim-order.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-disk-path-safety.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-doc-hash-skip-rewrite.test.js` (new)
+
+### Sub-agent Work (Parallelizable)
+
+#### Sub-agent 7A — VFS Routing + Language Audit
+- [ ] Audit all tooling entrypoints to ensure `.poc-vfs/` routing for segmented docs only.
+- [ ] Inspect `src/index/tooling/vfs.js`, `src/index/type-inference-crossfile/tooling.js`, `src/index/tooling/provider-registry.js`, `src/integrations/tooling/providers/lsp.js`.
+- [ ] Confirm `languageId` is normalized to lowercase end-to-end for routing.
+- [ ] Add/update tests to assert `.poc-vfs/` prefix for segmented docs and correct routing on uppercase language IDs.
+- [ ] Run: `tests/tooling/vfs/vfs-routing-by-effective-language.test.js` and `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`.
+- [ ] Update PERFPLAN checkboxes for tasks/tests completed.
+
+#### Sub-agent 7B — VFS Manifest Streaming + Metrics Audit
+- [ ] Verify `createVfsManifestCollector` is used for all non-empty VFS rows and spills to runs deterministically.
+- [ ] Inspect `src/index/build/vfs-manifest-collector.js`, `src/index/build/artifacts/writers/vfs-manifest.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/indexer/pipeline.js`, `src/index/build/state.js`.
+- [ ] Add a test to assert VFS stats are emitted into stage checkpoints (rows, bytes, trimmed, dropped, runsSpilled).
+- [ ] Ensure `mergeSortedRuns` heap ordering is deterministic for equal rows.
+- [ ] Run: `tests/indexing/vfs/vfs-manifest-streaming.test.js` and the new stats test.
+- [ ] Update PERFPLAN checkboxes for tasks/tests completed.
 
 ### Acceptance
 - [ ] VFS manifest rows are deterministic and schema-valid.
