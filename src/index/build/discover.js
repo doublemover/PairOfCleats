@@ -186,7 +186,7 @@ export async function discoverEntries({
     if (ignoreMatcher) {
       crawler = crawler.exclude((entryPath) => {
         const relPosix = toPosix(path.relative(root, entryPath));
-        if (!relPosix || relPosix === '.') return false;
+        if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
         return ignoreMatcher.ignores(relPosix);
       });
     }
