@@ -17,6 +17,7 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
 const loggedTraversalBudget = new Set();
+const MAX_TIMEOUTS_PER_RUN = 3;
 
 const bumpMetric = (key, amount = 1) => {
   if (!key) return;
@@ -334,6 +335,10 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (treeSitterState.disabledLanguages?.has(resolvedId)) {
+    bumpMetric('fallbacks', 1);
+    return null;
+  }
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
@@ -381,6 +386,21 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
         if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
           options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
           loggedParseTimeouts.add(resolvedId);
+        }
+        const counts = treeSitterState.timeoutCounts;
+        if (counts) {
+          const nextCount = (counts.get(resolvedId) || 0) + 1;
+          counts.set(resolvedId, nextCount);
+          if (nextCount >= MAX_TIMEOUTS_PER_RUN && treeSitterState.disabledLanguages) {
+            treeSitterState.disabledLanguages.add(resolvedId);
+            if (options?.log && !treeSitterState.loggedTimeoutDisable?.has(resolvedId)) {
+              options.log(
+                `Tree-sitter disabled for ${resolvedId} after ${nextCount} timeouts; ` +
+                'using heuristic chunking for the remainder of this run.'
+              );
+              treeSitterState.loggedTimeoutDisable?.add?.(resolvedId);
+            }
+          }
         }
         bumpMetric('parseTimeouts', 1);
         bumpMetric('fallbacks', 1);
@@ -484,6 +504,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   // Avoid spinning up / dispatching to workers when we already know we will skip tree-sitter.
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (treeSitterState.disabledLanguages?.has(resolvedId)) return null;
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   if (!LANG_CONFIG[resolvedId]) return null;
 

@@ -25,6 +25,9 @@ export const treeSitterState = {
   loggedEvictionWarnings: new Set(),
   loggedInitFailure: new Set(),
   loggedWorkerFailures: new Set(),
+  loggedTimeoutDisable: new Set(),
+  timeoutCounts: new Map(),
+  disabledLanguages: new Set(),
   metrics: {
     wasmLoads: 0,
     wasmLoadFailures: 0,

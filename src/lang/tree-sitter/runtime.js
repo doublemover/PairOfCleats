@@ -80,6 +80,9 @@ export const resetTreeSitterStats = () => {
   treeSitterState.loggedEvictionWarnings?.clear?.();
   treeSitterState.loggedInitFailure?.clear?.();
   treeSitterState.loggedWorkerFailures?.clear?.();
+  treeSitterState.loggedTimeoutDisable?.clear?.();
+  treeSitterState.timeoutCounts?.clear?.();
+  treeSitterState.disabledLanguages?.clear?.();
 };
 
 export const getTreeSitterStats = () => {
