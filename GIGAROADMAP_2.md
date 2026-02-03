@@ -69,6 +69,13 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
   + 14.1.3 Atomic writes + locking
   + 14.1.4 Path safety and privacy
   + 14.1.5 Retention defaults 
+- Phase 15 -- Federation & Multi-Repo (Workspaces, Manifests, Federated Search)
+  + 15.1 Workspace configuration, repo identity, and repo-set IDs
+  + 15.2 Workspace manifest + build orchestration
+  + 15.3 Federated search orchestration (CLI/API/MCP)
+  + 15.4 Cohort gating (compatibility safety)
+  + 15.5 Federated query cache (keying + invalidation + canonicalization)
+  + 15.6 Cache taxonomy, CAS, GC, and scale-out ergonomics
 
 ---
 
@@ -655,3 +662,312 @@ Touchpoints:
 
 Tests:
 - [ ] `tests/services/api-search-asof.test.js` (if API is added)
+
+## Phase 15 — Federation & Multi-Repo (Workspaces, Manifests, Federated Search)
+
+### Objective
+
+Enable first-class **workspace** workflows: index and query across **multiple repositories** in a single operation (CLI/API/MCP), with:
+
+- explicit and deterministic repo identity (`repoId`, `repoRootCanonical`, `repoSetId`)
+- deterministic selection, cohort gating, and merge semantics; stable JSON output for reproducibility
+- correct cache keying and invalidation for both per-repo caches and federation-level query caches
+- safe-by-default compatibility gating (cohorts) with explicit overrides and loud diagnostics
+- clear cache layering with an eventual content-addressed store (CAS) and manifest-driven garbage collection (GC)
+
+### Canonical specs and required updates
+
+Phase 15 MUST align with these authoritative docs:
+- `docs/specs/workspace-config.md`
+- `docs/specs/workspace-manifest.md`
+- `docs/specs/federated-search.md`
+- `docs/contracts/compatibility-key.md`
+
+Specs that must be drafted before implementation (authoritative once added):
+- `docs/specs/federation-cohorts.md` (from the cohort spec notes below)
+- `docs/specs/federated-query-cache.md` (federated cache keying + eviction policy)
+- `docs/specs/cache-cas-gc.md` (cache taxonomy, CAS layout, GC)
+
+Spec updates required in Phase 15:
+- Update `docs/specs/federated-search.md` to:
+  - accept `workspaceId` (preferred) and allowlisted `workspacePath`
+  - default to redacting absolute paths (only include when debug.includePaths=true)
+  - record cohort choices without leaking paths
+
+Additional docs that MUST be updated if Phase 15 adds new behavior or config:
+- `docs/config/schema.json` + `docs/config/contract.md` (if new config flags are added)
+- `docs/guides/commands.md` (workspace/federation CLI flags)
+
+### 15.1 Workspace configuration, repo identity, and repo-set IDs
+
+> **Authoritative spec:** `docs/specs/workspace-config.md`
+
+- [ ] Implement a strict workspace configuration loader (JSONC-first).
+  - [ ] Recommended convention: `.pairofcleats-workspace.jsonc`.
+  - [ ] Parsing MUST use `src/shared/jsonc.js` (`readJsoncFile` / `parseJsoncText`).
+  - [ ] Root MUST be an object; unknown keys MUST hard-fail at all object levels.
+
+- [ ] Resolve and canonicalize every repo entry deterministically.
+  - [ ] Resolve `root`:
+    - [ ] absolute paths allowed
+    - [ ] relative paths resolved from `workspaceDir`
+    - [ ] schemaVersion=1: do not accept registry/catalog ids
+  - [ ] Resolve to a repo root (not a subdir): `repoRootResolved = resolveRepoRoot(rootAbs)`.
+  - [ ] Canonicalize identity root: `repoRootCanonical = toRealPath(repoRootResolved)`; normalize win32 casing.
+  - [ ] Compute `repoId = getRepoId(repoRootCanonical)`.
+
+- [ ] Normalize metadata deterministically.
+  - [ ] `alias`: trim; empty -> null; uniqueness is case-insensitive.
+  - [ ] `tags`: trim -> lowercase -> drop empties -> dedupe -> sort.
+  - [ ] `enabled`: boolean (default from `defaults.enabled`, else true).
+  - [ ] `priority`: integer (default from `defaults.priority`, else 0).
+
+- [ ] Enforce uniqueness constraints (fail fast, actionable errors).
+  - [ ] No duplicate `repoRootCanonical`.
+  - [ ] No duplicate `repoId`.
+  - [ ] No duplicate alias (case-insensitive).
+
+- [ ] Introduce stable workspace membership identity: `repoSetId`.
+  - [ ] Compute per spec (order-independent, excludes display fields):
+    - [ ] sorted list of `{ repoId, repoRootCanonical }`
+    - [ ] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
+  - [ ] `repoSetId` is used for:
+    - [ ] workspace manifest pathing (15.2)
+    - [ ] federated query cache directory naming (15.5)
+
+- [ ] Centralize identity/canonicalization helpers across all callers.
+  - [ ] Any cache key that includes a repo path MUST use `repoRootCanonical`.
+  - [ ] API server routing (`tools/api/router.js`), MCP repo resolution (`tools/mcp/repo.js`), CLI, and workspace loader MUST share the same canonicalization semantics.
+
+**Touchpoints:**
+- `tools/shared/dict-utils.js` (repo root resolution, `getRepoId`, cache root helpers)
+- `src/shared/jsonc.js`, `src/shared/stable-json.js`, `src/shared/hash.js`
+- New (preferred): `src/workspace/config.js`
+
+**Tests**
+- [ ] `tests/workspace/config-parsing.test.js`
+- [ ] `tests/workspace/repo-set-id-determinism.test.js`
+- [ ] `tests/workspace/repo-canonicalization-dedup.test.js`
+- [ ] `tests/workspace/alias-uniqueness-and-tags-normalization.test.js`
+
+---
+
+### 15.2 Workspace manifest (index discovery) + workspace-aware build orchestration
+
+> **Authoritative spec:** `docs/specs/workspace-manifest.md`
+
+- [ ] Implement deterministic workspace manifest generation (schemaVersion = 1).
+  - [ ] Resolve `federationCacheRoot` per spec:
+    - workspace `cacheRoot` (resolved absolute or relative to `workspaceDir`) else `getCacheRoot()`.
+  - [ ] Write atomically to:
+    - `<federationCacheRoot>/federation/<repoSetId>/workspace_manifest.json`.
+  - [ ] Serialize with `stableStringify` so the file is byte-stable for unchanged state.
+
+- [ ] Populate manifest entries per repo (sorted by `repoId`).
+  - [ ] Resolve per-repo config and compute `repoCacheRoot`.
+  - [ ] Read build pointer: `<repoCacheRoot>/builds/current.json`.
+    - [ ] invalid/unreadable JSON MUST be treated as missing pointer (do not preserve stale values).
+  - [ ] For each mode in `{code, prose, extracted-prose, records}`:
+    - [ ] derive `indexDir` from the build roots
+    - [ ] compute `indexSignatureHash` as `is1-` + sha1(buildIndexSignature(indexDir))
+    - [ ] read `cohortKey` (preferred) and `compatibilityKey` (fallback) from `<indexDir>/index_state.json` (warn if both missing)
+  - [ ] Resolve sqlite artifacts and compute file signatures (`size:mtimeMs`) per spec.
+
+- [ ] Compute and persist `manifestHash` (`wm1-...`) exactly per spec.
+  - [ ] MUST change for search-relevant state changes (build pointer, index signature, sqlite changes, compatibilityKey/cohortKey).
+  - [ ] MUST NOT change for display-only edits (alias/tags/enabled/priority/name).
+
+- [ ] CLI ergonomics: add explicit manifest commands.
+  - [ ] `pairofcleats workspace manifest --workspace <path>` (generate/refresh and print path + hashes)
+  - [ ] `pairofcleats workspace status --workspace <path>` (human-readable per-repo/mode availability)
+
+- [ ] Workspace-aware build orchestration (multi-repo indexing).
+  - [ ] Add a workspace build entrypoint:
+    - [ ] either `pairofcleats index build --workspace <path> ...`
+    - [ ] or `pairofcleats workspace build ...`
+  - [ ] Requirements:
+    - [ ] each repo’s `.pairofcleats.json` is applied (repo-local cache roots, ignore rules, etc.)
+    - [ ] workspace config v1 supplies no per-repo build overrides
+    - [ ] concurrency-limited repo builds (avoid “N repos × M threads” explosion)
+  - [ ] Post-step: regenerate workspace manifest and emit `repoSetId` + `manifestHash`.
+
+- [ ] Optional debug tooling: cache inspection (“catalog”) commands.
+  - [ ] If implemented, treat as debug tooling only; do not make federation correctness depend on scanning `<cacheRoot>/repos/*`.
+
+**Touchpoints:**
+- `tools/shared/dict-utils.js` (cache roots, build pointer resolution, sqlite path helpers)
+- `src/retrieval/index-cache.js` (`buildIndexSignature`)
+- New (preferred): `src/workspace/manifest.js`
+
+**Tests**
+- [ ] `tests/workspace/manifest-determinism.test.js`
+- [ ] `tests/workspace/manifest-hash-invalidation.test.js`
+- [ ] `tests/workspace/build-pointer-invalid-treated-missing.test.js`
+- [ ] `tests/workspace/index-signature-sharded-variants.test.js`
+
+---
+
+### 15.3 Federated search orchestration (CLI, API server, MCP)
+
+> **Authoritative spec:** `docs/specs/federated-search.md`
+
+- [ ] CLI: implement federated mode for search.
+  - [ ] `pairofcleats search --workspace <workspaceFile> "<query>" [searchFlags...] [workspaceFlags...]`
+  - [ ] Workspace flags (per spec): `--select`, `--tag`, `--repo-filter`, `--include-disabled`, `--merge`, `--top-per-repo`, `--concurrency`
+  - [ ] Forbidden combinations (per spec): if `--workspace` is present, `--repo` MUST error (`ERR_FEDERATED_REPO_FLAG_NOT_ALLOWED`).
+
+- [ ] Implement a single federation coordinator used by CLI/API/MCP.
+  - [ ] Load workspace config (15.1) and manifest (15.2).
+  - [ ] Apply deterministic selection rules.
+  - [ ] Apply cohort gating hook (15.4).
+  - [ ] Derive `perRepoTop` and rewrite per-repo args.
+  - [ ] Fanout per-repo searches with bounded concurrency; reuse `indexCache` and `sqliteCache`.
+  - [ ] Merge per-mode results with RRF and deterministic tie-breakers.
+  - [ ] Emit federated response with stable serialization (`stableStringify`) and required meta fields.
+
+- [ ] Output invariants (multi-repo unambiguity).
+  - [ ] Every hit MUST include `repoId`, `repoAlias`, and `globalId = "${repoId}:${hit.id}"`.
+  - [ ] Results must remain unambiguous even when `relPath` collides across repos.
+
+- [ ] API server: add `POST /search/federated` (recommended by spec).
+  - [ ] Enforce repo-root allowlist checks for every repo in the request.
+  - [ ] Apply workspacePath allowlisting and prefer workspaceId mapping.
+  - [ ] Default to redacting absolute paths unless `debug.includePaths=true`.
+
+- [ ] MCP: add federated tool(s).
+  - [ ] Implement `search_workspace` tool with inputs matching the API request.
+  - [ ] Ensure output includes repo attribution and is stable JSON.
+
+**Touchpoints:**
+- `bin/pairofcleats.js` (CLI)
+- `src/retrieval/cli.js`, `src/retrieval/cli-args.js`
+- `src/integrations/core/index.js`
+- `tools/api/router.js`
+- `tools/mcp/server.js` / `tools/mcp/repo.js`
+- New (per spec): `src/retrieval/federation/{coordinator,select,merge,args}.js`
+
+**Tests**
+- [ ] `tests/retrieval/federation/search-multi-repo-basic.test.js`
+- [ ] `tests/retrieval/federation/search-determinism.test.js` (byte-identical JSON)
+- [ ] `tests/retrieval/federation/repo-selection.test.js`
+- [ ] `tests/api/federated-search-workspace-allowlist.test.js`
+- [ ] `tests/api/federated-search-redacts-paths.test.js`
+
+---
+
+### 15.4 Compatibility gating (cohorts) + safe federation defaults
+
+> **Authoritative contract:** `docs/contracts/compatibility-key.md`
+> **Spec to draft:** `docs/specs/federation-cohorts.md`
+
+- [ ] Do not duplicate compatibility key computation.
+  - [ ] Continue computing `compatibilityKey` at index time via `buildCompatibilityKey`.
+  - [ ] Ensure it is persisted to `index_state.json` (and `pieces/manifest.json` where relevant).
+
+- [ ] Add a federation-specific `cohortKey` (mode-scoped) and persist it.
+  - [ ] Compute `cohortKey` per mode from the same input family as `compatibilityKey`, but scoped so it does not change merely because other modes were built.
+  - [ ] Persist `cohortKey` into `<indexDir>/index_state.json` alongside `compatibilityKey`.
+  - [ ] Back-compat: if `cohortKey` is absent, federation uses `compatibilityKey`.
+  - [ ] Update workspace manifest generation (15.2) to read `cohortKey` and include it per mode.
+
+- [ ] Implement cohort partitioning in the federation coordinator (per mode).
+  - [ ] Partition repos by `effectiveKey = cohortKey ?? compatibilityKey ?? null`.
+  - [ ] Default policy: choose highest-ranked cohort, exclude others, emit `WARN_FEDERATED_MULTI_COHORT`.
+  - [ ] Strict policy: error on multi-cohort (`ERR_FEDERATED_MULTI_COHORT`).
+  - [ ] Explicit selection: `--cohort <key>` or `--cohort <mode>:<key>`.
+  - [ ] Unsafe mixing: `--allow-unsafe-mix` with loud warning `WARN_FEDERATED_UNSAFE_MIXING`.
+
+- [ ] Update `docs/specs/workspace-manifest.md` and `docs/specs/federated-search.md` to reflect cohortKey (fallback to compatibilityKey).
+
+**Touchpoints:**
+- `src/contracts/compatibility.js`
+- `src/integrations/core/build-index/compatibility.js`
+- `src/index/build/indexer/steps/write.js` (index_state write)
+- `src/retrieval/federation/coordinator.js`
+- `src/workspace/manifest.js`
+
+**Tests**
+- [ ] `tests/retrieval/federation/compat-cohort-defaults.test.js`
+- [ ] `tests/retrieval/federation/compat-cohort-determinism.test.js`
+- [ ] `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
+
+---
+
+### 15.5 Federated query caching + cache-key correctness + multi-repo bug fixes
+
+> **Spec to draft:** `docs/specs/federated-query-cache.md`
+
+- [ ] Introduce federated query cache storage under `federationCacheRoot`.
+  - [ ] Location MUST be: `<federationCacheRoot>/federation/<repoSetId>/queryCache.json`.
+  - [ ] Writes MUST be atomic; tolerate concurrent readers and avoid file corruption.
+  - [ ] Eviction MUST be deterministic.
+
+- [ ] Cache keying MUST be complete and stable.
+  - [ ] Cache key MUST include (directly or via `manifestHash`):
+    - [ ] `repoSetId`
+    - [ ] `manifestHash` (primary invalidator)
+    - [ ] normalized selection (selected repo ids, includeDisabled, tags, repoFilter, explicit selects)
+    - [ ] cohort decision inputs/outputs
+    - [ ] normalized search request knobs that affect output (query, modes, filters, backend choices, ranking knobs)
+    - [ ] merge strategy and limits (`top`, `perRepoTop`, `rrfK`, concurrency)
+  - [ ] Key payload serialization MUST use `stableStringify`.
+
+- [ ] Stop duplicating or weakening index signature logic.
+  - [ ] For federation invalidation, prefer `manifestHash` rather than ad hoc per-repo signatures.
+  - [ ] For per-repo cache invalidation, use `buildIndexSignature` (not bespoke partial signatures).
+
+- [ ] Canonicalize repo-path keyed caches everywhere federation touches.
+  - [ ] API server repo cache keys MUST use `repoRootCanonical`.
+  - [ ] MCP repo cache keys MUST canonicalize subdir inputs to the repo root.
+  - [ ] If `builds/current.json` is invalid JSON, clear build id and caches rather than keeping stale state.
+
+**Touchpoints:**
+- `src/retrieval/index-cache.js`
+- `src/shared/artifact-io.js`
+- `src/retrieval/query-cache.js`
+- `tools/api/router.js`
+- `tools/mcp/repo.js`
+- `tools/shared/dict-utils.js`
+
+**Tests**
+- [ ] `tests/retrieval/federation/query-cache-key-stability.test.js`
+- [ ] `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
+- [ ] `tests/retrieval/federation/mcp-repo-canonicalization.test.js`
+- [ ] `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
+
+---
+
+### 15.6 Shared caches, CAS, GC, and scale-out ergonomics
+
+> **Spec to draft:** `docs/specs/cache-cas-gc.md`
+
+- [ ] Make cache layers explicit and document them.
+  - [ ] Global caches (models, tooling assets, dictionaries/wordlists)
+  - [ ] Repo-scoped caches (index builds, sqlite artifacts)
+  - [ ] Workspace-scoped caches (workspace manifest, federated query cache)
+
+- [ ] (Design first) Introduce content-addressed storage (CAS) for expensive derived artifacts.
+  - [ ] Define object identity (hashing), layout, and reference tracking.
+  - [ ] Ensure deterministic, safe reuse across repos and workspaces.
+
+- [ ] Implement a manifest-driven GC tool.
+  - [ ] `pairofcleats cache gc --dry-run`
+  - [ ] Preserve any objects reachable from active manifests/snapshots; delete unreferenced objects deterministically.
+  - [ ] Be safe under concurrency (do not delete objects currently in use).
+
+- [ ] Scale-out controls.
+  - [ ] Concurrency limits for multi-repo indexing and federated fanout search.
+  - [ ] Memory remains bounded under “N repos × large query” workloads.
+
+**Touchpoints:**
+- `src/shared/cache.js`
+- `tools/cache-gc.js`
+- `tools/shared/dict-utils.js`
+- `docs/guides/commands.md`
+
+**Tests**
+- [ ] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
+- [ ] `tests/indexing/cache/cas-reuse-across-repos.test.js`
+- [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
+- [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
+
