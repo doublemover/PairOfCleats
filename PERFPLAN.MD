@@ -338,9 +338,9 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - [@] Implement a global, compressed embeddings cache in OS cache root.
 - [.] Partition cache by provider/model/dims to avoid scanning unrelated entries.
 - [ ] Replace per-file cache entries with append-only shards + index for faster listing.
-- [ ] Cache format: binary + zstd, store quantized vectors and metadata header.
+- [x] Cache format: binary + zstd, store quantized vectors and metadata header.
 - [ ] Include cache schema/version fields (quantization, normalize flags, model identity) in headers.
-- [ ] Use `@mongodb-js/zstd` for compression.
+- [x] Use Node zlib Zstd for cache compression.
 - [x] Cache keys include file hash, chunkSignature, identityKey.
 - [ ] Validate cache key inputs cover content; add chunk-content hash guard if needed.
 - [ ] Add LRU metadata and two-phase pruning by size and age.
@@ -349,7 +349,7 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - [x] Isolate HNSW writes in tests/Windows to avoid native heap crashes.
 
 ### Tests
-- [ ] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
+- [x] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
 - [ ] `tests/indexing/embeddings/cache-identity-invalidation.test.js`
 - [ ] `tests/indexing/embeddings/cache-compression-zstd.test.js`
 - [ ] `tests/indexing/embeddings/cache-pruning.test.js`

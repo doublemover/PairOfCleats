@@ -33,8 +33,10 @@ import {
   buildCacheKey,
   isCacheValid,
   readCacheMeta,
+  readCacheEntry,
   resolveCacheDir,
   resolveCacheRoot,
+  writeCacheEntry,
   writeCacheMeta
 } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -52,7 +54,6 @@ import { createHnswBuilder, writeHnswIndex } from './hnsw.js';
 import { writeLanceDbIndex } from './lancedb.js';
 import { updatePieceManifest } from './manifest.js';
 import { updateSqliteDense } from './sqlite-dense.js';
-import { createTempPath, replaceFile } from './atomic.js';
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
 
@@ -91,18 +92,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
     setHeartbeat
   } = createBuildEmbeddingsContext({ argv });
   const embeddingNormalize = embeddingsConfig.normalize !== false;
-  const writeCacheEntry = async (targetPath, payload) => {
-    const tempPath = createTempPath(targetPath);
-    try {
-      await fs.writeFile(tempPath, JSON.stringify(payload));
-      await replaceFile(tempPath, targetPath);
-    } catch (err) {
-      try {
-        await fs.rm(tempPath, { force: true });
-      } catch {}
-      throw err;
-    }
-  };
   const isVectorLike = (value) => {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
@@ -442,21 +431,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
               );
             }
           }
-          try {
-            const entries = await fs.readdir(cacheDir);
-            for (const entry of entries) {
-              if (!entry.endsWith('.json')) continue;
-              const cached = JSON.parse(await fs.readFile(path.join(cacheDir, entry), 'utf8'));
-              if (cached.cacheMeta?.identityKey !== cacheIdentityKey) continue;
-              const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
-              validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
-              validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
-              validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
-            }
-          } catch (err) {
-            if (isDimsMismatch(err)) throw err;
-          // Ignore cache preflight errors.
-          }
         }
 
         let processedFiles = 0;
@@ -525,9 +499,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
             cachedMergedVectors.push(quantized.quantizedMerged);
           }
 
-          if (entry.cachePath) {
+          if (entry.cacheKey && entry.cacheDir) {
             try {
-              await writeCacheEntry(entry.cachePath, {
+              await writeCacheEntry(entry.cacheDir, entry.cacheKey, {
                 key: entry.cacheKey,
                 file: entry.normalizedRel,
                 hash: entry.fileHash,
@@ -616,11 +590,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             signature: chunkSignature,
             identityKey: cacheIdentityKey
           });
-          let cachePath = cacheKey ? path.join(cacheDir, `${cacheKey}.json`) : null;
-
-          if (cacheEligible && cachePath && fsSync.existsSync(cachePath)) {
+          const cachedResult = cacheEligible && cacheKey
+            ? await readCacheEntry(cacheDir, cacheKey)
+            : null;
+          const cached = cachedResult?.entry;
+          if (cached) {
             try {
-              const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
               const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
               if (cacheIdentityMatches) {
                 const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
@@ -654,7 +629,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
             } catch (err) {
               if (isDimsMismatch(err)) throw err;
-            // Ignore cache parse errors.
+              // Ignore cache parse errors.
             }
           }
 
@@ -685,10 +660,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
               signature: chunkSignature,
               identityKey: cacheIdentityKey
             });
-            cachePath = cacheKey ? path.join(cacheDir, `${cacheKey}.json`) : null;
-            if (cacheEligible && cachePath && fsSync.existsSync(cachePath)) {
+            const cachedAfterHash = cacheEligible && cacheKey
+              ? await readCacheEntry(cacheDir, cacheKey)
+              : null;
+            const cached = cachedAfterHash?.entry;
+            if (cached) {
               try {
-                const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
                 const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
                 if (cacheIdentityMatches) {
                   const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
@@ -722,7 +699,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 }
               } catch (err) {
                 if (isDimsMismatch(err)) throw err;
-              // Ignore cache parse errors.
+                // Ignore cache parse errors.
               }
             }
           }
@@ -740,7 +717,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             normalizedRel,
             items,
             cacheKey,
-            cachePath,
+            cacheDir,
             fileHash,
             chunkSignature,
             codeTexts,

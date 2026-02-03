@@ -64,8 +64,9 @@ const walk = (dir) => {
       walk(fullPath);
       continue;
     }
-    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    if (!entry.isFile()) continue;
     if (entry.name === 'cache.meta.json') continue;
+    if (!entry.name.endsWith('.json') && !entry.name.endsWith('.zst')) continue;
     cacheFiles.push(fullPath);
   }
 };

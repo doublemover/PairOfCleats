@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { readCacheEntryFile } from '../../../tools/build-embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 
 const root = process.cwd();
@@ -68,10 +69,11 @@ const loadCacheEntries = async (cacheDir) => {
         await walk(fullPath);
         continue;
       }
-      if (!item.isFile() || !item.name.endsWith('.json')) continue;
+      if (!item.isFile()) continue;
       if (item.name === 'cache.meta.json') continue;
+      if (!item.name.endsWith('.json') && !item.name.endsWith('.zst')) continue;
       try {
-        const cache = JSON.parse(await fsPromises.readFile(fullPath, 'utf8'));
+        const cache = await readCacheEntryFile(fullPath);
         entries.push({ name: item.name, path: fullPath, cache });
       } catch {}
     }

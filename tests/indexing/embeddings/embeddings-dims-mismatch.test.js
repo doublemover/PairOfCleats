@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { readCacheEntryFile, writeCacheEntry } from '../../../tools/build-embeddings/cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -62,10 +63,11 @@ const loadCacheEntries = async (cacheDir) => {
         await walk(fullPath);
         continue;
       }
-      if (!item.isFile() || !item.name.endsWith('.json')) continue;
+      if (!item.isFile()) continue;
       if (item.name === 'cache.meta.json') continue;
+      if (!item.name.endsWith('.json') && !item.name.endsWith('.zst')) continue;
       try {
-        const cache = JSON.parse(await fsPromises.readFile(fullPath, 'utf8'));
+        const cache = await readCacheEntryFile(fullPath);
         entries.push({ name: item.name, path: fullPath, cache });
       } catch {}
     }
@@ -84,8 +86,8 @@ if (firstRun.status !== 0) {
   process.exit(firstRun.status ?? 1);
 }
 
-const cacheDir = path.join(cacheRoot, 'embeddings');
-const cacheEntries = await loadCacheEntries(cacheDir);
+const cacheRootDir = path.join(cacheRoot, 'embeddings');
+const cacheEntries = await loadCacheEntries(cacheRootDir);
 if (!cacheEntries.length) {
   console.error('embeddings dims mismatch test failed: no cache files found');
   process.exit(1);
@@ -101,12 +103,32 @@ if (!targetEntry) {
 const targetPath = targetEntry.path;
 const cached = targetEntry.cache;
 const bumpVector = (vec) => {
-  if (Array.isArray(vec)) vec.push(0);
+  if (!vec) return vec;
+  if (Array.isArray(vec)) {
+    vec.push(0);
+    return vec;
+  }
+  if (ArrayBuffer.isView(vec)) {
+    const out = new Uint8Array(vec.length + 1);
+    out.set(vec, 0);
+    out[vec.length] = 0;
+    return out;
+  }
+  return vec;
 };
-bumpVector(cached?.mergedVectors?.[0]);
-bumpVector(cached?.codeVectors?.[0]);
-bumpVector(cached?.docVectors?.[0]);
-await fsPromises.writeFile(targetPath, JSON.stringify(cached));
+if (Array.isArray(cached?.mergedVectors)) {
+  cached.mergedVectors[0] = bumpVector(cached.mergedVectors[0]);
+}
+if (Array.isArray(cached?.codeVectors)) {
+  cached.codeVectors[0] = bumpVector(cached.codeVectors[0]);
+}
+if (Array.isArray(cached?.docVectors)) {
+  cached.docVectors[0] = bumpVector(cached.docVectors[0]);
+}
+const cacheDir = path.dirname(targetPath);
+const baseName = path.basename(targetPath);
+const cacheKey = baseName.replace(/\\.embcache\\.zst$/i, '').replace(/\\.json$/i, '');
+await writeCacheEntry(cacheDir, cacheKey, cached);
 
 const secondRun = runEmbeddings();
 if (secondRun.status === 0) {
