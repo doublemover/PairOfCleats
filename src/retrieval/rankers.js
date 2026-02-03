@@ -1,4 +1,5 @@
 import { SimpleMinHash } from '../index/minhash.js';
+import { createTopKReducer } from './pipeline/topk.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -23,11 +24,18 @@ export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
     });
     scores.set(i, score);
   });
-  return [...scores.entries()]
-    .filter(([, s]) => s > 0)
-    .map(([i, s]) => ({ idx: i, score: s }))
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .slice(0, topN);
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
+  });
+  let order = 0;
+  for (const [docId, score] of scores.entries()) {
+    if (score > 0) {
+      reducer.pushRaw(score, docId, order);
+      order += 1;
+    }
+  }
+  return reducer.finish({ limit: topN });
 }
 
 /**
@@ -103,15 +111,20 @@ export function rankBM25({
     }
   }
 
-  const weighted = [...scores.entries()].map(([docId, score]) => {
-    const weight = idx.chunkMeta[docId]?.weight || 1;
-    return { idx: docId, score: score * weight };
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
   });
-
-  return weighted
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .slice(0, topN);
+  let order = 0;
+  for (const [docId, score] of scores.entries()) {
+    const weight = idx.chunkMeta[docId]?.weight || 1;
+    const weightedScore = score * weight;
+    if (weightedScore > 0) {
+      reducer.pushRaw(weightedScore, docId, order);
+      order += 1;
+    }
+  }
+  return reducer.finish({ limit: topN });
 }
 
 /**
@@ -194,15 +207,20 @@ export function rankBM25Fields({
     }
   }
 
-  const weighted = [...scores.entries()].map(([docId, score]) => {
-    const weight = idx.chunkMeta[docId]?.weight || 1;
-    return { idx: docId, score: score * weight };
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
   });
-
-  return weighted
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .slice(0, topN);
+  let order = 0;
+  for (const [docId, score] of scores.entries()) {
+    const weight = idx.chunkMeta[docId]?.weight || 1;
+    const weightedScore = score * weight;
+    if (weightedScore > 0) {
+      reducer.pushRaw(weightedScore, docId, order);
+      order += 1;
+    }
+  }
+  return reducer.finish({ limit: topN });
 }
 
 function minhashSigForTokens(tokens) {
@@ -229,15 +247,18 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   if (!Array.isArray(tokens) || !tokens.length) return [];
   const qSig = minhashSigForTokens(tokens);
   const ids = candidateSet ? Array.from(candidateSet) : idx.minhash.signatures.map((_, i) => i);
-  const scored = [];
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
+  });
+  let order = 0;
   for (const id of ids) {
     const sig = idx.minhash.signatures[id];
     if (!sig) continue;
-    scored.push({ idx: id, sim: jaccard(qSig, sig) });
+    reducer.pushRaw(jaccard(qSig, sig), id, order);
+    order += 1;
   }
-  return scored
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, topN);
+  return reducer.finish({ limit: topN });
 }
 
 /**
@@ -278,7 +299,11 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     ? idx.denseVec.scale
     : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
   const ids = candidateSet ? Array.from(candidateSet) : vectors.map((_, i) => i);
-  const scored = [];
+  const reducer = createTopKReducer({
+    k: topN,
+    buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
+  });
+  let order = 0;
 
   for (const id of ids) {
     const vec = vectors[id];
@@ -289,10 +314,9 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
       const v = vec[i] * scale + minVal;
       dot += v * queryEmbedding[i];
     }
-    scored.push({ idx: id, sim: dot });
+    reducer.pushRaw(dot, id, order);
+    order += 1;
   }
 
-  return scored
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, topN);
+  return reducer.finish({ limit: topN });
 }

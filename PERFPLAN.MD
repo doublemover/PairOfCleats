@@ -201,6 +201,7 @@ Optimize shared JSON streaming, artifact IO, and compression paths used across i
 - [ ] Retrieval, graph/context-pack, map, and shared IO perf improvements landed with tests.
 - [ ] No artifact schema regressions.
 - [ ] Documentation and JSDoc standards met.
+
 ## Phase 3 — Stage1 (Discovery + Chunking + Token Postings) Optimizations
 
 ### Objective
@@ -717,27 +718,27 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `tests/cli/search/search-startup-checkpoints-order.test.js` (new)
 
 #### Tasks
-- [ ] Introduce a query-plan “requiredArtifacts” set (filterIndex, fileRelations, graphRelations, repoMap, contextIndex, ann).
-- [ ] Define artifact dependency rules (e.g., repoMap requires graphRelations, filterIndex requires tokenIndex) and enforce them.
-- [ ] Load only required artifacts for the plan; defer everything else.
-- [ ] Ensure lazy index loader only parses manifest/metadata first.
-- [ ] Lazy-import ANN backends and storage adapters only when required by the plan.
-- [ ] Parallelize required artifact loads with a small concurrency limit and deterministic ordering.
-- [ ] Add search startup profiler checkpoints and document them.
-- [ ] Add fast paths for `search --help`/`--version` without initializing retrieval internals.
+- [x] Introduce a query-plan “requiredArtifacts” set (filterIndex, fileRelations, graphRelations, repoMap, contextIndex, ann).
+- [x] Define artifact dependency rules (e.g., repoMap requires graphRelations, filterIndex requires tokenIndex) and enforce them.
+- [x] Load only required artifacts for the plan; defer everything else.
+- [x] Ensure lazy index loader only parses manifest/metadata first.
+- [x] Lazy-import ANN backends and storage adapters only when required by the plan.
+- [x] Parallelize required artifact loads with a small concurrency limit and deterministic ordering.
+- [x] Add search startup profiler checkpoints and document them.
+- [x] Add fast paths for `search --help`/`--version` without initializing retrieval internals.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/search-startup-fastpath.test.js`
-- [ ] `tests/retrieval/pipeline/artifact-gating.test.js`
-- [ ] `tests/retrieval/pipeline/index-loader-lazy.test.js`
-- [ ] `tests/retrieval/pipeline/ann-lazy-import.test.js` (new)
-- [ ] `tests/retrieval/pipeline/artifact-gating-deps.test.js` (new)
-- [ ] `tests/cli/search/search-startup-checkpoints-order.test.js` (new)
+- [x] `tests/retrieval/pipeline/search-startup-fastpath.test.js`
+- [x] `tests/retrieval/pipeline/artifact-gating.test.js`
+- [x] `tests/retrieval/pipeline/index-loader-lazy.test.js`
+- [x] `tests/retrieval/pipeline/ann-lazy-import.test.js` (new)
+- [x] `tests/retrieval/pipeline/artifact-gating-deps.test.js` (new)
+- [x] `tests/cli/search/search-startup-checkpoints-order.test.js` (new)
 
 #### Acceptance
-- [ ] Search startup avoids loading unused artifacts.
-- [ ] `search --help` avoids heavy initialization.
-- [ ] Artifact gating respects dependency rules with deterministic load order.
+- [x] Search startup avoids loading unused artifacts.
+- [x] `search --help` avoids heavy initialization.
+- [x] Artifact gating respects dependency rules with deterministic load order.
 
 ---
 
@@ -812,55 +813,55 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `tests/retrieval/pipeline/ann-fallback-nonvector.test.js` (new)
 
 #### Tasks
-- [ ] Add a `topk` helper with heap selection and stable tie‑breaking (score, id, secondary key).
-- [ ] Define the exact tie‑break order (primary score desc, secondary normalized id asc, tertiary source rank).
-- [ ] Document ordering invariants in `docs/perf/retrieval-pipeline.md` with examples.
-- [ ] Add a `score-buffer` pool for candidate scores and ids; reuse across pipeline stages.
-- [ ] Size the pool based on `k` and the max candidate fanout; cap to avoid unbounded growth.
-- [ ] Stream candidate generation into top‑K rather than materializing full arrays.
-- [ ] Implement a streaming reducer that only keeps `k + slack` best candidates.
-- [ ] Add an early cutoff mechanism (score thresholds, `k` saturation, optional time budget).
-- [ ] Define cutoff heuristics and ensure they never drop a potentially better candidate.
-- [ ] Reduce duplicate candidate materialization between BM25 + ANN by using shared buffers.
-- [ ] Merge score buffers in-place to avoid re-allocating intermediate arrays.
-- [ ] Ensure ANN backends are only initialized when vector mode is active and required.
-- [ ] Guard ANN initialization behind `requiredArtifacts` and vector mode flags.
-- [ ] Implement a strict fallback path when ANN is unavailable (log + continue with sparse).
-- [ ] Define a single warning log with clear reason and recovery path.
-- [ ] Add metrics for candidate counts, buffer reuse, and cutoff triggers.
-- [ ] Emit metrics in verbose mode and in perf checkpoints.
+- [x] Add a `topk` helper with heap selection and stable tie‑breaking (score, id, secondary key).
+- [x] Define the exact tie‑break order (primary score desc, secondary normalized id asc, tertiary source rank).
+- [x] Document ordering invariants in `docs/perf/retrieval-pipeline.md` with examples.
+- [x] Add a `score-buffer` pool for candidate scores and ids; reuse across pipeline stages.
+- [x] Size the pool based on `k` and the max candidate fanout; cap to avoid unbounded growth.
+- [x] Stream candidate generation into top‑K rather than materializing full arrays.
+- [x] Implement a streaming reducer that only keeps `k + slack` best candidates.
+- [x] Add an early cutoff mechanism (score thresholds, `k` saturation, optional time budget).
+- [x] Define cutoff heuristics and ensure they never drop a potentially better candidate.
+- [x] Reduce duplicate candidate materialization between BM25 + ANN by using shared buffers.
+- [x] Merge score buffers in-place to avoid re-allocating intermediate arrays.
+- [x] Ensure ANN backends are only initialized when vector mode is active and required.
+- [x] Guard ANN initialization behind `requiredArtifacts` and vector mode flags.
+- [x] Implement a strict fallback path when ANN is unavailable (log + continue with sparse).
+- [x] Define a single warning log with clear reason and recovery path.
+- [x] Add metrics for candidate counts, buffer reuse, and cutoff triggers.
+- [x] Emit metrics in verbose mode and in perf checkpoints.
 
 #### Tests
-- [ ] `tests/retrieval/pipeline/candidates-memory-plateau.test.js`
+- [x] `tests/retrieval/pipeline/candidates-memory-plateau.test.js`
   - Validates that peak memory stays flat (no full-array materialization) on large candidate sets.
   - Success: peak RSS/heap growth remains within a fixed threshold vs baseline.
-- [ ] `tests/retrieval/pipeline/ranking-fastpath.test.js`
+- [x] `tests/retrieval/pipeline/ranking-fastpath.test.js`
   - Verifies ranking path uses top‑K selection instead of full sort when `k << N`.
   - Success: top‑K helper is invoked; results match full sort output.
-- [ ] `tests/retrieval/pipeline/topk-equivalence.test.js`
+- [x] `tests/retrieval/pipeline/topk-equivalence.test.js`
   - Compares top‑K output with full sort for randomized candidate sets.
   - Success: identical ordering and scores for multiple seeds.
-- [ ] `tests/retrieval/pipeline/topk-tie-break.test.js` (new)
+- [x] `tests/retrieval/pipeline/topk-tie-break.test.js` (new)
   - Exercises equal-score candidates with differing ids/sources.
   - Success: deterministic tie order matches documented rules.
-- [ ] `tests/retrieval/pipeline/candidates-buffer-reuse.test.js` (new)
+- [x] `tests/retrieval/pipeline/candidates-buffer-reuse.test.js` (new)
   - Asserts score/id buffers are reused across stages without reallocations.
   - Success: allocation counter does not increase across repeated queries.
-- [ ] `tests/retrieval/pipeline/candidates-early-cutoff.test.js` (new)
+- [x] `tests/retrieval/pipeline/candidates-early-cutoff.test.js` (new)
   - Forces cutoff conditions and verifies no better candidates are dropped.
   - Success: results equal to non-cutoff baseline.
-- [ ] `tests/retrieval/pipeline/ann-optional-skip.test.js` (new)
+- [x] `tests/retrieval/pipeline/ann-optional-skip.test.js` (new)
   - Simulates missing ANN backend in vector mode.
   - Success: warning is logged once; pipeline continues with sparse results.
-- [ ] `tests/retrieval/pipeline/ann-fallback-nonvector.test.js` (new)
+- [x] `tests/retrieval/pipeline/ann-fallback-nonvector.test.js` (new)
   - Ensures ANN is not initialized when query does not require vectors.
   - Success: ANN provider init not called; results are correct.
 
 #### Acceptance
-- [ ] Candidate and ranking stages reduce memory spikes and avoid full-array sorts on large inputs.
-- [ ] Top‑K results match prior ordering within deterministic tie rules.
-- [ ] ANN backends are only initialized when required and safe to use.
-- [ ] Fallback to sparse-only ranking preserves correct results without hard failures.
+- [x] Candidate and ranking stages reduce memory spikes and avoid full-array sorts on large inputs.
+- [x] Top‑K results match prior ordering within deterministic tie rules.
+- [x] ANN backends are only initialized when required and safe to use.
+- [x] Fallback to sparse-only ranking preserves correct results without hard failures.
 
 ---
 
