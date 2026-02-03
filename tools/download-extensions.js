@@ -314,6 +314,9 @@ async function extractZipNode(archivePath, destDir, limits) {
           .then(() => new Promise((resolveStream, rejectStream) => {
             zipfile.openReadStream(entry, (streamErr, readStream) => {
               if (streamErr || !readStream) return rejectStream(streamErr);
+              const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2, 8)}`;
               let written = 0;
               readStream.on('data', (chunk) => {
                 written += chunk.length;
@@ -323,16 +326,24 @@ async function extractZipNode(archivePath, destDir, limits) {
                   );
                 }
               });
-              const writer = fsSync.createWriteStream(targetPath, { mode: FILE_MODE });
+              const writer = fsSync.createWriteStream(tempPath, { mode: FILE_MODE });
               pipeline(readStream, writer)
                 .then(async () => {
                   if (written > counted) {
                     limiter.addBytes(written - counted);
                   }
+                  try { await fs.chmod(tempPath, FILE_MODE); } catch {}
+                  if (fsSync.existsSync(targetPath)) {
+                    try { await fs.rm(targetPath, { force: true }); } catch {}
+                  }
+                  await fs.rename(tempPath, targetPath);
                   try { await fs.chmod(targetPath, FILE_MODE); } catch {}
                   resolveStream();
                 })
-                .catch(rejectStream);
+                .catch(async (err) => {
+                  try { await fs.rm(tempPath, { force: true }); } catch {}
+                  rejectStream(err);
+                });
             });
           }))
           .then(() => zipfile.readEntry())
