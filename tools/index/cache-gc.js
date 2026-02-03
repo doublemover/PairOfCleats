@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
-import { getCacheRoot, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
@@ -19,9 +19,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const envConfig = getEnvConfig();
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const gcConfig = userConfig.cache?.gc || {};

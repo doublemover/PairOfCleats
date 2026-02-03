@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
@@ -27,9 +27,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const scriptRoot = resolveToolRoot();

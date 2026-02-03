@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { runCommand, runCommandOrExit } from '../shared/cli-utils.js';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 const argv = createCli({
@@ -22,8 +22,7 @@ const argv = createCli({
   aliases: { s: 'with-sqlite', i: 'incremental' }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const toolRoot = resolveToolRoot();
 const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
@@ -37,7 +36,6 @@ if (argv['validate-config'] && fs.existsSync(configPath)) {
   }
 }
 
-const userConfig = loadUserConfig(root);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);

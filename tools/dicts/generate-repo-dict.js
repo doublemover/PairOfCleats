@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import ignore from 'ignore';
-import { getDictConfig, getRepoDictPath, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getDictConfig, getRepoDictPath, resolveRepoConfig } from '../shared/dict-utils.js';
 import { toPosix } from '../../src/shared/files.js';
 import { splitId } from '../../src/shared/tokenize.js';
 
@@ -20,9 +20,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const dictConfig = getDictConfig(repoRoot, userConfig);
 const outputPath = argv.out ? path.resolve(argv.out) : getRepoDictPath(repoRoot, dictConfig);
 const minCount = Math.max(1, parseInt(argv['min-count'], 10) || 3);

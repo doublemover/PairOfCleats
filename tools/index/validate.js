@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getIndexDir, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 
 const hasIndexMeta = (dir) => {
@@ -55,10 +55,8 @@ async function runCli() {
     }
   }).parse();
 
-  const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-  const root = rootArg || resolveRepoRoot(process.cwd());
+  const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
-  const userConfig = loadUserConfig(root);
   const modes = parseModes(argv.mode, root, userConfig);
   if (argv.strict && argv['non-strict']) {
     throw new Error('Choose either --strict or --non-strict, not both.');

@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
-import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
@@ -497,9 +497,7 @@ if (isDirectRun) {
     error: (message) => display.error(message)
   };
 
-  const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-  const root = rootArg || resolveRepoRoot(process.cwd());
-  const userConfig = loadUserConfig(root);
+  const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const vectorExtension = getVectorExtensionConfig(root, userConfig);
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
 

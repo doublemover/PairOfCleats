@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import simpleGit from 'simple-git';
-import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { checksumFile, sha1File } from '../../src/shared/hash.js';
 import { fromPosix, isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
 
@@ -17,8 +17,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const fromDir = argv.from ? path.resolve(argv.from) : path.join(root, 'ci-artifacts');
 const manifestPath = path.join(fromDir, 'manifest.json');
 if (!fs.existsSync(manifestPath)) {
@@ -50,7 +49,6 @@ if (!commitMatch && !argv.force) {
   process.exit(1);
 }
 
-const userConfig = loadUserConfig(root);
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);

@@ -15,7 +15,7 @@ import {
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { updateIndexStateManifest } from '../shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
-import { getIndexDir, getMetricsDir, loadUserConfig, resolveIndexRoot, resolveLmdbPaths, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { Packr } from 'msgpackr';
 
 const require = createRequire(import.meta.url);
@@ -52,9 +52,7 @@ if (!open) {
 
 const validateArtifacts = argv.validate === true;
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const indexRoot = argv['index-root']
   ? path.resolve(argv['index-root'])
   : resolveIndexRoot(root, userConfig);

@@ -8,7 +8,7 @@ import https from 'node:https';
 import { URL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { replaceFile } from '../../src/shared/json-stream.js';
-import { getDictConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getDictConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   parseHashOverrides,
   resolveDownloadPolicy,
@@ -31,9 +31,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const defaultDictConfig = getDictConfig(repoRoot, userConfig);
 
 const dictDir = argv.dir ? path.resolve(argv.dir) : defaultDictConfig.dir;

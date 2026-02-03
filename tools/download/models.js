@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { pipeline, env } from '@xenova/transformers';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
-import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'download-models',
@@ -19,9 +19,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const modelConfig = getModelConfig(root, userConfig);
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });

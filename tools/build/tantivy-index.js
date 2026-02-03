@@ -10,9 +10,8 @@ import { tryRequire } from '../../src/shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../src/shared/tantivy.js';
 import {
   getIndexDir,
-  loadUserConfig,
   resolveIndexRoot,
-  resolveRepoRoot
+  resolveRepoConfig
 } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -64,9 +63,7 @@ if (typeof buildIndex !== 'function') {
   fail('tantivy module missing buildIndex/build entrypoint.');
 }
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const indexRoot = argv['index-root']
   ? path.resolve(argv['index-root'])
   : resolveIndexRoot(root, userConfig);

@@ -12,7 +12,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../src/shared/files.js';
-import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   parseHashOverrides,
   resolveDownloadPolicy,
@@ -54,9 +54,7 @@ const fail = (message, code = 1) => {
   process.exit(code);
 };
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const overrides = {
   provider: argv.provider,
   dir: argv.dir,

@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import simpleGit from 'simple-git';
-import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { getIndexDir, getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'ci-build',
@@ -34,10 +34,8 @@ const updateProgress = (message) => {
   display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message });
 };
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const scriptRoot = resolveToolRoot();
-const userConfig = loadUserConfig(root);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');

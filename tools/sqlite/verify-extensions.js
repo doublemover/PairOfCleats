@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   encodeVector,
   ensureVectorTable,
@@ -30,9 +30,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const overrides = {
   provider: argv.provider,
   dir: argv.dir,

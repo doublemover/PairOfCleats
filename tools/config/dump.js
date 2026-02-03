@@ -7,8 +7,7 @@ import {
   getCacheRoot,
   getAutoPolicy,
   getRepoCacheRoot,
-  loadUserConfig,
-  resolveRepoRoot
+  resolveRepoConfig
 } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -19,9 +18,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const envConfig = getEnvConfig();
 const policy = await getAutoPolicy(repoRoot, userConfig);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();

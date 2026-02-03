@@ -5,7 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
-import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
@@ -17,9 +17,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const dictConfig = getDictConfig(root, userConfig);
 const envConfig = getEnvConfig();
 const defaultCacheRoot = getCacheRoot();

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getMetricsDir, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'metrics-dashboard',
@@ -15,9 +15,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);
 

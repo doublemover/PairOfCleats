@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getStatus } from '../../src/integrations/core/status.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
-import { getMetricsDir, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
@@ -15,9 +15,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);
 const status = await getStatus({ repoRoot: root, includeAll: argv.all });
 

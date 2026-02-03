@@ -9,7 +9,7 @@ import { buildCodeMap, buildNodeList, buildMapCacheKey } from '../../src/map/bui
 import { renderDot } from '../../src/map/dot-writer.js';
 import { renderSvgHtml } from '../../src/map/html-writer.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
-import { loadUserConfig, resolveRepoRoot, getIndexDir, getCurrentBuildInfo, getRepoId } from '../shared/dict-utils.js';
+import { getCurrentBuildInfo, getIndexDir, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'report map',
@@ -44,9 +44,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = String(argv.mode || 'code').toLowerCase();
 const indexDir = getIndexDir(repoRoot, mode, userConfig, {
   indexRoot: argv['index-root'] ? path.resolve(argv['index-root']) : null

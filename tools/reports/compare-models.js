@@ -16,9 +16,8 @@ import {
   getModelConfig,
   getRepoId,
   getRuntimeConfig,
-  loadUserConfig,
+  resolveRepoConfig,
   resolveRuntimeEnv,
-  resolveRepoRoot,
   resolveSqlitePaths,
   resolveToolRoot
 } from '../shared/dict-utils.js';
@@ -49,10 +48,8 @@ const argv = createCli({
   aliases: { n: 'top', q: 'queries' }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const scriptRoot = resolveToolRoot();
-const userConfig = loadUserConfig(root);
 const envConfig = getEnvConfig();
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);

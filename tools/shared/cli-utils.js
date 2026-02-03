@@ -37,6 +37,22 @@ export function runCommand(cmd, args, options = {}) {
 }
 
 /**
+ * Test whether a command can run successfully.
+ * @param {string} cmd
+ * @param {string[]} [args]
+ * @param {object} [options]
+ * @returns {boolean}
+ */
+export function canRunCommand(cmd, args = ['--version'], options = {}) {
+  try {
+    const result = runCommand(cmd, args, { encoding: 'utf8', stdio: 'ignore', ...options });
+    return result.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Run a command and exit if it fails.
  * @param {string} label
  * @param {string} cmd

@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getToolingConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
 import { resolveScmConfig } from '../../src/index/scm/registry.js';
@@ -24,9 +24,7 @@ async function runCli() {
     throw new Error('Choose either --strict or --non-strict, not both.');
   }
 
-  const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-  const repoRoot = rootArg || resolveRepoRoot(process.cwd());
-  const userConfig = loadUserConfig(repoRoot);
+  const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
   const toolingConfig = getToolingConfig(repoRoot, userConfig);
   const strict = argv['non-strict'] ? false : argv.strict !== false;
   const scmConfig = resolveScmConfig({

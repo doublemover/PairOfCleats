@@ -8,7 +8,7 @@ import { writeJsonLinesFile, writeJsonObjectFile } from '../../src/shared/json-s
 import { checksumFile } from '../../src/shared/hash.js';
 import { readJsonFile, readJsonLinesArray } from '../../src/shared/artifact-io.js';
 import { fromPosix } from '../../src/shared/files.js';
-import { getIndexDir, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'compact-pieces',
@@ -22,9 +22,7 @@ const argv = createCli({
   }
 }).parse();
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const modeArg = (argv.mode || 'code').toLowerCase();
 const modes = modeArg === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [modeArg];
 const dryRun = argv['dry-run'] === true;
