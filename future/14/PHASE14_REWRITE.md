@@ -12,10 +12,10 @@ Introduce **first-class snapshot and diff artifacts** to enable:
 
 Phase 14 must be implemented according to these specs (they are authoritative for formats and semantics):
 
-- `docs/phases/phase-14/index-refs-and-snapshots.md` — IndexRef grammar + snapshot registry + freeze semantics
-- `docs/phases/phase-14/index-diffs.md` — diff identity + formats + deterministic event stream
-- `docs/phases/phase-14/as-of-retrieval-integration.md` — `--as-of` retrieval integration + cache safety
-- `docs/phases/phase-14/implementation-checklist.md` — file-level implementation checklist and acceptance criteria
+- `docs/specs/index-refs-and-snapshots.md` — IndexRef grammar + snapshot registry + freeze semantics
+- `docs/specs/index-diffs.md` — diff identity + formats + deterministic event stream
+- `docs/specs/as-of-retrieval-integration.md` — `--as-of` retrieval integration + cache safety
+- `docs/specs/implementation-checklist.md` — file-level implementation checklist and acceptance criteria
 
 **Roadmap rule**: this Phase 14 roadmap MUST NOT restate or fork JSON schemas, file layouts, or event formats.
 Instead, it should reference the specs and focus on:
@@ -139,7 +139,7 @@ Notes:
   - [ ] `pairofcleats index diff prune [policy flags]`
 - [ ] Ensure protected tags are respected (never delete protected snapshots/diffs)
 - [ ] Optional-but-recommended: add config defaults for retention and bounds:
-  - [ ] Draft/implement `docs/phases/phase-14/config-defaults.md` (see “Spec refresh/drafts” below)
+  - [ ] Draft/implement `docs/specs/config-defaults.md` (see “Spec refresh/drafts” below)
   - [ ] Update `docs/config/schema.json` and config normalization to support new keys
 
 Touchpoints:
@@ -217,7 +217,7 @@ Acceptance criteria:
   - [ ] `POST /index/snapshots` (create)
   - [ ] Never return absolute paths
   - [ ] Enforce allowed repo roots (`allowedRepoRoots`) like existing API does
-  - [ ] Spec required: `docs/phases/phase-14/http-api.md` (draft in this rewrite pack)
+  - [ ] Spec required: `docs/specs/http-api.md` (draft in this rewrite pack)
 
 Touchpoints:
 - `bin/pairofcleats.js` (route `index snapshot` to tool script)
@@ -427,7 +427,7 @@ Touchpoints:
 - [ ] Extend existing `/search` API payload to accept `asOf` (string IndexRef):
   - [ ] Add `payload.asOf` / `payload.as_of` (choose one; document)
   - [ ] Thread through to CLI args as `--as-of <IndexRef>`
-- [ ] If implementing snapshot/diff endpoints, follow `docs/phases/phase-14/http-api.md`
+- [ ] If implementing snapshot/diff endpoints, follow `docs/specs/http-api.md`
 
 Touchpoints:
 - `src/retrieval/cli-args.js` (add as-of)
@@ -455,9 +455,9 @@ Touchpoints:
 
 The authoritative sources for this phase are the Phase 14 specs:
 
-- `docs/phases/phase-14/index-refs-and-snapshots.md`
-- `docs/phases/phase-14/index-diffs.md`
-- `docs/phases/phase-14/as-of-retrieval-integration.md`
-- `docs/phases/phase-14/implementation-checklist.md`
+- `docs/specs/index-refs-and-snapshots.md`
+- `docs/specs/index-diffs.md`
+- `docs/specs/as-of-retrieval-integration.md`
+- `docs/specs/implementation-checklist.md`
 
 If additional “idea” or “master roadmap” docs exist outside the repo, they MUST NOT be referenced here unless they are added to the repository and kept current.

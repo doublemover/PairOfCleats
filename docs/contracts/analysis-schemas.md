@@ -61,7 +61,7 @@ All Phase 11 outputs share:
 - **Provenance metadata** (`generatedAt`, `indexCompatKey`/`indexSignature`, `capsUsed`).
 
 Authoritative Phase 11 spec:
-- `docs/phases/phase-11/spec.md`
+- `docs/specs/graph-product-surfaces.md`
 
 ### Graph context pack
 
@@ -163,3 +163,5 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
+
+

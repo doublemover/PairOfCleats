@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 0 Plan (CI, Test Harness, Developer Workflow Baseline)
 
 Intent: implement all Phase 0 tasks in `GIGAROADMAP.md` with a deterministic CI entrypoint, hardened test runner, capability gating, and policy docs. Focus on minimizing CI drift and making local runs match PR gates.
@@ -99,10 +104,18 @@ Invocation corrections:
 - Updated `tests/indexing/discovery/discover.test.js` to use standardized skip semantics.
 - Removed git hooks tooling and tests (unused in current version), updated script coverage actions, and regenerated script/config inventories.
 - Updated config inventory generator to ignore `worktrees/` directories.
-- Added `docs/phases/phase-0/tracking.md` for Phase 0 status tracking.
+- Added `docs/testing/fixture-tracking.md` for Phase 0 status tracking.
 - Documented `npm run test:pr` in `README.md`.
-- Added `docs/phases/phase-0/fixture-corpus.md` to document Phase 0 fixtures.
+- Added `docs/testing/fixture-corpus.md` to document Phase 0 fixtures.
 - Added `docs/testing/ci-capability-policy.md` to document optional capability handling in CI/nightly.
 - Added stable entrypoints section to `docs/guides/commands.md` via script inventory generator.
-- Expanded `docs/phases/phase-0/tracking.md` with fixture links and definition of done.
+- Expanded `docs/testing/fixture-tracking.md` with fixture links and definition of done.
+
+
+
+
+
+
+
+
 

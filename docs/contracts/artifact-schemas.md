@@ -77,7 +77,7 @@ If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MA
   - If sharded, `api_contracts_meta` follows the sharded JSONL meta schema.
 
 Canonical contract for the report surface:
-- `docs/phases/phase-11/spec.md` (`ApiContractsReportV1`)
+- `docs/specs/graph-product-surfaces.md` (`ApiContractsReportV1`)
 
 ## Additions and phase notes
 
@@ -93,3 +93,5 @@ Canonical contract for the report surface:
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
+
+

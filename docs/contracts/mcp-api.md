@@ -123,4 +123,6 @@ Each tool MUST:
 - `docs/api/server.md`
 - `docs/api/mcp-server.md`
 - `docs/contracts/analysis-schemas.md`
-- `docs/phases/phase-11/spec.md`
+- `docs/specs/graph-product-surfaces.md`
+
+

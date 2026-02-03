@@ -16,7 +16,7 @@ When a document/spec conflicts with the running code, follow this order:
 
 1) **`src/contracts/**` and validators** are authoritative for artifact shapes and required keys.
 2) **Current implementation** is authoritative for runtime behavior *when it is already validated by contracts/tests*.
-3) **Docs** (`docs/contracts/**`, `docs/specs/**`, `docs/phases/**`) must be updated to match (never the other way around) unless we have a deliberate migration plan.
+3) **Docs** (`docs/contracts/**`, `docs/specs/**`) must be updated to match (never the other way around) unless we have a deliberate migration plan.
 
 If you discover a conflict:
 - **Prefer "fix docs to match code"** when the code is already contract-validated and has tests.
@@ -85,10 +85,19 @@ Introduce **first-class snapshot & diff artifacts** so we can:
 This phase establishes:
 
 > **Authoritative spec**: the on-disk layout, ID conventions, and resolution rules for this phase are already refined in:
-> - `docs/phases/phase-14/index-refs-and-snapshots.md` (snapshot registry + IndexRef)
-> - `docs/phases/phase-14/index-diffs.md` (diff schemas + deterministic event stream)
+> - `docs/specs/index-refs-and-snapshots.md` (snapshot registry + IndexRef)
+> - `docs/specs/index-diffs.md` (diff schemas + deterministic event stream)
 >
 > This roadmap section must stay aligned with those specs (notably: snapshot IDs are `snap-*` and diff IDs are `diff_*`).
+
+Additional docs that MUST be updated if Phase 14 adds new behavior or config:
+  - `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` (public artifact surface)
+  - `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md` + `docs/config/inventory-notes.md`
+  - `docs/guides/commands.md` (new CLI flags/subcommands)
+  - `docs/specs/index-refs-and-snapshots.md`
+  - `docs/specs/index-diffs.md`
+  - `docs/specs/as-of-retrieval-integration.md`
+  - `docs/specs/http-api.md` (if HTTP API endpoints are implemented)
 
 - **Pointer snapshots** (cheap metadata references to validated builds).
 - **Frozen snapshots** (immutable, self-contained archival copies).
@@ -100,10 +109,12 @@ This phase establishes:
 - [ ] Define the on-disk **public artifact surface** under each repo cache root:
   - [ ] `snapshots/manifest.json` — snapshot registry (authoritative index of snapshots)
   - [ ] `snapshots/<snapshotId>/snapshot.json` — immutable per-snapshot metadata record
+  - [ ] `snapshots/<snapshotId>/frozen.json` — immutable freeze metadata record (when frozen)
   - [ ] `snapshots/<snapshotId>/frozen/index-<mode>/...` — frozen snapshot index roots (immutable copies)
   - [ ] `diffs/manifest.json` — diff registry (authoritative index of diffs)
+  - [ ] `diffs/<diffId>/inputs.json` — canonical diff input identity (always present)
   - [ ] `diffs/<diffId>/summary.json` — bounded diff summary (always present)
-  - [ ] `diffs/<diffId>/index_diff.jsonl` — bounded event stream (may be truncated)
+  - [ ] `diffs/<diffId>/events.jsonl` — bounded event stream (may be truncated)
 
 - [ ] Standardize **ID + naming rules**:
   - [ ] Snapshot IDs: `snap-YYYYMMDD-HHMMSS-<shortid>` (default) plus optional user `label`
@@ -118,14 +129,21 @@ This phase establishes:
   - [ ] `buildRoot` (repo-cache-relative path), plus `modeBuildRoots` map (`mode -> repo-cache-relative index root`)
   - [ ] `repoProvenance` (best-effort: SCM provider + revision/branch if available)
   - [ ] `integritySummary` (best-effort counts + size estimates + `validatedAt` timestamp)
+  - [ ] `hasFrozen` + `frozenAt` (when frozen)
+  - [ ] `frozenFromBuildId` (optional, when frozen snapshot derives from pointer)
   - [ ] future-proof fields (schema allows but does not require): `workspaceId`, `namespaceKey`
     - Defer multi-repo/workspace orchestration to **Phase 15 — Federation & Multi-Repo**.
 
-- [ ] Define diff registry entry schema (minimum fields):
-  - [ ] `id`, `createdAt`, `from` + `to` refs (snapshotId/buildId/indexRootRef), `modes`
-  - [ ] `summaryPath` and optional `eventsPath`
-  - [ ] `truncated` flag + truncation metadata (`maxEvents`, `maxBytes`)
-  - [ ] `compat` block capturing `from.configHash` vs `to.configHash` and `toolVersion` mismatches.
+  - [ ] Define diff registry entry schema (minimum fields):
+    - [ ] `id`, `createdAt`, `from` + `to` refs (snapshotId/buildId/indexRootRef), `modes`
+    - [ ] `summaryPath` and optional `eventsPath`
+    - [ ] `truncated` flag + truncation metadata (`maxEvents`, `maxBytes`)
+    - [ ] `compat` block capturing `from.configHash` vs `to.configHash` and `toolVersion` mismatches.
+- [ ] Define `diffs/<diffId>/inputs.json` schema (minimum fields):
+  - [ ] `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`
+  - [ ] `identityHash` of canonical inputs (deterministic)
+  - [ ] `from.configHash`/`to.configHash`, `from.toolVersion`/`to.toolVersion` (for audit)
+  - [ ] Specify identity hash inputs explicitly (fields included/excluded; createdAt/tags/labels excluded).
 
 - [ ] Make registries **atomic and crash-safe**:
   - [ ] Use atomic write (temp + rename) and stable JSON output.
@@ -145,6 +163,8 @@ This phase establishes:
   - [ ] Treat all registry paths as repo-cache-relative.
   - [ ] Refuse any `buildRoot` / `modeBuildRoots` values that escape the repo cache root (no `..`, no absolute paths).
   - [ ] Refuse snapshot/diff output dirs if they escape the repo cache root.
+  - [ ] Define redaction rules for `path:` refs and output fields (persist hash + redacted placeholder; never persist raw absolute paths).
+  - [ ] Define error codes for snapshot/diff failures (validation missing, path escape, mismatch without allow, unknown ref).
 
 - [ ] Integrate **validation gating semantics** into the contract:
   - [ ] Pointer snapshots may only reference builds that passed index validation (see Phase 14.2).
@@ -153,16 +173,25 @@ This phase establishes:
 Touchpoints:
 - `src/index/snapshots/**` (new)
 - `src/index/diffs/**` (new)
-- `src/shared/artifact-schemas.js` (add AJV validators for `snapshots/manifest.json`, `diffs/manifest.json`, `diffs/*/summary.json`)
-- `docs/` (new: `docs/snapshots-and-diffs.md`; update public artifact surface docs if present)
+  - `src/shared/artifact-schemas.js` (add AJV validators for `snapshots/manifest.json`, `diffs/manifest.json`, `diffs/*/inputs.json`, `diffs/*/summary.json`)
+  - `src/contracts/registry.js` (register new schemas)
+  - `src/contracts/schemas/*` (new snapshot/diff schemas)
+  - `docs/contracts/indexing.md`
+  - `docs/contracts/artifact-contract.md`
+  - `docs/specs/index-refs-and-snapshots.md`
+  - `docs/specs/index-diffs.md`
 
 #### Tests
 - [ ] `tests/unit/snapshots-registry.unit.js`
   - [ ] Registry schema validation (valid/invalid cases)
   - [ ] Atomic update behavior (simulate interrupted write; registry remains readable)
   - [ ] Path safety (reject absolute paths and `..` traversal)
+  - [ ] Deterministic ordering (`createdAt`, then `id`)
+  - [ ] Tag reverse index is stable + deterministic
+  - [ ] Retention honors protected tags (e.g., `release`)
 - [ ] `tests/unit/diffs-registry.unit.js`
   - [ ] Schema validation + bounded/truncation metadata correctness
+  - [ ] Registry ordering is deterministic
 
 
 ### 14.2 Pointer snapshots (creation, validation gating, CLI/API)
@@ -173,9 +202,11 @@ Touchpoints:
   - [ ] Require a successful artifact validation signal before snapshotting:
     - [ ] Preferred: consume a persisted validation report if present.
     - [ ] Otherwise: run validation on-demand against each mode index root.
+    - [ ] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
   - [ ] Refuse snapshot creation when builds are incomplete:
     - [ ] If an index mode is missing required artifacts, fail.
-    - [ ] If embeddings/risk passes are still pending for a mode, fail unless explicitly overridden (`--allow-incomplete`, default false).
+    - [ ] If embeddings/risk passes are still pending for a mode, fail.
+    - [ ] No allow-incomplete override in Phase 14 (must align with spec).
   - [ ] Materialize snapshot entry with:
     - [ ] `buildRoot` + `modeBuildRoots` captured as **repo-cache-relative** paths.
     - [ ] `integritySummary` populated from validation output + minimal artifact counts.
@@ -186,7 +217,7 @@ Touchpoints:
   - [ ] Apply retention after creation (delete oldest pointer snapshots unless tagged).
 
 - [ ] Add CLI surface:
-  - [ ] `pairofcleats index snapshot create [--label <label>] [--tags <csv>] [--modes <csv>] [--allow-incomplete]`
+  - [ ] `pairofcleats index snapshot create [--label <label>] [--tags <csv>] [--modes <csv>]`
   - [ ] `pairofcleats index snapshot list [--json]`
   - [ ] `pairofcleats index snapshot show <snapshotId> [--json]`
   - [ ] `pairofcleats index snapshot rm <snapshotId> [--force]`
@@ -206,12 +237,19 @@ Touchpoints:
 - `tools/index-snapshot.js` (new CLI implementation)
 - `src/index/snapshots/registry.js` (new)
 - `src/index/snapshots/validate-source.js` (new: shared logic to validate a build root before snapshotting)
+- `src/index/build/build-state.js` (read validation flags + build metadata)
+- `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
+- `src/index/validate.js` + `src/index/validate/*` (on-demand validation)
+- `tools/index-validate.js` (if snapshot create invokes CLI validation)
+- `docs/guides/commands.md` (CLI surface)
 - `tools/api/**` (if API endpoints added)
 
 #### Tests
-- [ ] `tests/services/snapshot-create.services.js`
+  - [ ] `tests/services/snapshot-create.test.js`
   - [ ] Build an index; create a pointer snapshot; assert registry entry exists and references current build.
   - [ ] Fail creation when artifacts are missing or validation fails.
+  - [ ] Fail creation when `build_state.json` is missing or `validation.ok !== true`.
+  - [ ] No allow-incomplete override: ensure creation fails when validation missing even with flags.
   - [ ] `--modes` subset only snapshots those modes.
   - [ ] Retention deletes oldest untagged pointer snapshots.
 
@@ -246,12 +284,17 @@ Touchpoints:
 - `tools/index-snapshot.js` (freeze + gc)
 - `src/index/snapshots/freeze.js` (new)
 - `src/index/snapshots/copy-pieces.js` (new; copy/hardlink logic)
+- `src/shared/artifact-io/manifest.js` (verify checksums + manifest parsing)
+- `src/shared/json-stream.js` (atomic JSON writes for frozen.json)
+- `src/shared/fs/atomic-replace.js` (if needed for atomic directory swaps)
 
 #### Tests
-- [ ] `tests/services/snapshot-freeze.services.js`
+  - [ ] `tests/services/snapshot-freeze.test.js`
   - [ ] Create pointer snapshot → freeze → validate frozen index roots succeed.
   - [ ] Ensure freeze is atomic (simulate failure mid-copy → no partial frozen dir is considered valid).
   - [ ] Ensure frozen snapshot remains usable after deleting the original build root.
+  - [ ] Validate checksum mismatch fails freeze and leaves no finalized frozen dir.
+  - [ ] Hardlink vs copy behavior (same filesystem vs cross-device).
 
 
 ### 14.4 Deterministic diff computation (bounded, machine-readable)
@@ -263,12 +306,13 @@ Touchpoints:
     - [ ] If `configHash` differs, require `--allow-mismatch` or mark output as “non-comparable”.
     - [ ] If `toolVersion` differs, annotate (diff still possible but less trustworthy).
 
-- [ ] Define diff output formats:
-  - [ ] Always write `diffs/<diffId>/summary.json` (bounded):
+  - [ ] Define diff output formats:
+    - [ ] Always write `diffs/<diffId>/inputs.json` (canonical input identity + mode selection).
+    - [ ] Always write `diffs/<diffId>/summary.json` (bounded):
     - [ ] counts of adds/removes/changes by category
     - [ ] `truncated` boolean + reason
     - [ ] `from`/`to` metadata (snapshot IDs, build IDs, createdAt)
-  - [ ] Optionally write `diffs/<diffId>/index_diff.jsonl` (bounded stream):
+  - [ ] Optionally write `diffs/<diffId>/events.jsonl` (bounded stream):
     - [ ] `file_added | file_removed | file_changed` (path + old/new hash)
     - [ ] `chunk_added | chunk_removed | chunk_changed`:
       - [ ] stable `chunkId` from `metaV2.chunkId`
@@ -277,8 +321,9 @@ Touchpoints:
     - [ ] Allow future event types (symbols/contracts/risk) without breaking old readers.
 
 - [ ] Implement deterministic diffing rules:
-  - [ ] Stable identity:
-    - [ ] Files keyed by repo-relative path.
+    - [ ] Define canonical event taxonomy + ordering key in the roadmap (type order + stable key fields).
+    - [ ] Stable identity:
+      - [ ] Files keyed by repo-relative path.
     - [ ] Chunks keyed by `metaV2.chunkId` (do **not** rely on numeric `chunk_meta.id`).
     - [ ] Graph edges keyed by `(graph, fromId, toId)`.
   - [ ] Stable ordering:
@@ -296,6 +341,7 @@ Touchpoints:
 - [ ] Sweep-driven hardening for incremental reuse/diff correctness (because this phase touches incremental state):
   - [ ] Before reusing an “unchanged” incremental build, verify required artifacts exist (use `pieces/manifest.json` as the authoritative inventory).
     - [ ] If any required piece is missing/corrupt, disable reuse and force rebuild.
+  - [ ] Fast-path diff only when all `pieces/manifest.json` checksums and shard counts match (shard-aware; sum per-piece counts).
   - [ ] Ensure incremental cache invalidation is tied to a complete signature:
     - [ ] Include artifact schema hash + tool version + key feature flags in the incremental signature.
     - [ ] Include diff/snapshot emission toggles so changing these settings invalidates reuse.
@@ -307,15 +353,21 @@ Touchpoints:
 - `src/index/diffs/registry.js` (new)
 - `src/index/build/incremental.js` (reuse validation + signature binding improvements)
 - `src/index/build/indexer/steps/incremental.js` (optional: emit diffs post-build)
+- `src/index/index-ref.js` (IndexRef parsing + resolution for diff inputs)
+- `src/shared/json-stream.js` (events.jsonl writing + truncation bounds)
+- `src/shared/stable-json.js` + `src/shared/hash.js` (diffId stability)
 
 #### Tests
-- [ ] `tests/services/index-diff.services.js`
+  - [ ] `tests/services/index-diff.test.js`
   - [ ] Build snapshot A; modify repo; build snapshot B; compute diff A→B.
   - [ ] Assert file_changed appears for modified file.
   - [ ] Assert chunk changes use `metaV2.chunkId` and are stable across runs.
-  - [ ] Assert ordering is deterministic (byte-identical `index_diff.jsonl`).
+  - [ ] Assert ordering is deterministic (byte-identical `events.jsonl`).
   - [ ] Assert truncation behavior when `maxEvents` is set low.
-- [ ] `tests/storage/sqlite/incremental/index-reuse-validation.services.js`
+  - [ ] Assert diffId deterministic for identical inputs (same IDs + same mode selection).
+  - [ ] Assert configHash mismatch requires explicit allow/flag and is annotated.
+  - [ ] Assert toolVersion mismatch is annotated (diff still produced).
+  - [ ] `tests/indexer/incremental/index-reuse-validation.test.js`
   - [ ] Corrupt/remove a required artifact and verify incremental reuse is refused.
 
 
@@ -343,8 +395,8 @@ Touchpoints:
   - [ ] `GET /search?snapshotId=...` (search “as-of” a snapshot)
 
 - [ ] Sweep-driven hardening for retrieval caching (because this phase touches retrieval index selection):
-  - [ ] Ensure query cache keys include the snapshotId (or resolved buildId) so results cannot bleed across snapshots.
-  - [ ] Fix retrieval index signature calculation to account for sharded artifacts (see tests below).
+  - [ ] Ensure query cache keys include `asOf.identityHash` (or resolved buildId) so results cannot bleed across snapshots.
+  - [ ] Fix retrieval index signature calculation to account for sharded artifacts (see tests below) and include snapshot identity.
 
 Touchpoints:
 - `src/retrieval/cli-args.js` (add `--snapshot/--as-of`)
@@ -354,34 +406,40 @@ Touchpoints:
 - `bin/pairofcleats.js` (CLI wiring)
 - `tools/build-sqlite-index/cli.js` + `tools/build-sqlite-index/run.js` (add `--snapshot/--as-of`)
 - `tools/api/**` (if API endpoints added)
+- `src/retrieval/query-cache.js` + `src/retrieval/cli/run-search-session.js` (cache key composition + persistence)
+- `src/retrieval/index-cache.js` (index signature + snapshot awareness)
+- `src/retrieval/output/explain.js` (optional: surface as-of identity in explain)
+- `docs/guides/commands.md` (CLI docs)
 
 #### Tests
-- [ ] `tests/services/snapshot-query.services.js`
+  - [ ] `tests/services/snapshot-query.test.js`
   - [ ] Build snapshot A; modify repo; build snapshot B.
   - [ ] Run the same query against `--snapshot A` and `--snapshot B`; assert results differ as expected.
   - [ ] Assert “latest” continues to resolve to the current build when no snapshot is provided.
 - [ ] `tests/unit/retrieval-index-signature-shards.unit.js`
   - [ ] Create a fake index dir with `chunk_meta.meta.json` + `chunk_meta.parts/*`.
   - [ ] Assert the index signature changes when any shard changes.
-- [ ] `tests/services/sqlite-build-snapshot.services.js`
+  - [ ] `tests/services/sqlite-build-snapshot.test.js`
   - [ ] Build snapshot A.
   - [ ] Run `pairofcleats lmdb build` / `pairofcleats sqlite build` equivalents with `--snapshot A`.
   - [ ] Assert output DB is produced and corresponds to that snapshot’s artifacts.
+  - [ ] `tests/unit/retrieval-cache-key-asof.unit.js`
+    - [ ] Cache key includes `asOf.identityHash` or resolved buildId.
 
 ---
 
 ## Phase 14 Augmentations (authoritative alignment + implementation breakdown)
 
-This section augments the copied roadmap above to align it with the Phase 14 rewrite pack in `future/14/` and the authoritative specs that will live under `docs/phases/phase-14/`. Where items conflict, the guidance here takes precedence.
+This section augments the copied roadmap above to align it with the Phase 14 rewrite pack in `future/14/` and the authoritative specs that will live under `docs/specs/`. Where items conflict, the guidance here takes precedence.
 
 ### Canonical specs and no-drift rule
 
 Phase 14 MUST follow these docs as the source of truth for formats and semantics:
 
-- `docs/phases/phase-14/index-refs-and-snapshots.md`
-- `docs/phases/phase-14/index-diffs.md`
-- `docs/phases/phase-14/as-of-retrieval-integration.md`
-- `docs/phases/phase-14/implementation-checklist.md`
+- `docs/specs/index-refs-and-snapshots.md`
+- `docs/specs/index-diffs.md`
+- `docs/specs/as-of-retrieval-integration.md`
+- `docs/specs/implementation-checklist.md`
 
 Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats. It should only add task decomposition, touchpoints, and tests.
 
@@ -431,6 +489,12 @@ Tests:
   - [ ] `diffs/<diffId>/inputs.json`
   - [ ] `diffs/<diffId>/summary.json`
   - [ ] `diffs/<diffId>/events.jsonl`
+- [ ] Define `inputs.json` schema fields explicitly (canonical refs, mode list, allowMismatch, identityHash).
+- [ ] Update public docs to match schema:
+  - [ ] `docs/contracts/indexing.md`
+  - [ ] `docs/contracts/artifact-contract.md`
+  - [ ] `docs/specs/index-refs-and-snapshots.md`
+  - [ ] `docs/specs/index-diffs.md`
 
 Touchpoints:
 - `src/contracts/schemas/*` (new snapshot/diff schemas)
@@ -459,6 +523,12 @@ Tests:
 - [ ] Persist only repo-cache-relative paths.
 - [ ] Reject absolute paths or traversal (`..`).
 - [ ] Persisted artifacts must not leak absolute paths.
+- [ ] Define redaction behavior for `path:` refs and any persisted output fields (hash + placeholder; no raw absolute paths).
+
+Touchpoints:
+- `src/index/validate/paths.js#isManifestPathSafe`
+- `src/shared/files.js#toPosix`
+- `src/index/index-ref.js` (path: refs redaction)
 
 Tests:
 - [ ] `tests/unit/no-path-leak.unit.js`
@@ -470,9 +540,11 @@ Tests:
   - [ ] `indexing.diffs.keep`, `maxAgeDays`
   - [ ] `indexing.diffs.compute.*` (modes, bounds, persist)
 
-Touchpoints:
-- `docs/config/schema.json`
-- `tools/dict-utils/config.js#normalizeUserConfig`
+  Touchpoints:
+  - `docs/config/schema.json`
+  - `docs/config/contract.md`
+  - `docs/config/inventory.md`
+  - `tools/dict-utils/config.js#normalizeUserConfig`
 
 ---
 
@@ -482,6 +554,7 @@ Touchpoints:
   - [ ] Acquire index lock.
   - [ ] Resolve `latest` via IndexRef resolver.
   - [ ] Require `build_state.json.validation.ok === true` for all selected modes.
+  - [ ] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
   - [ ] Write `snapshot.json` atomically, then update manifest with tag index.
 - [ ] Implement `snapshot list/show/prune`.
 - [ ] Ensure tag reverse index is deterministic.
@@ -493,10 +566,10 @@ Touchpoints:
 - `bin/pairofcleats.js` (CLI wiring)
 
 Tests:
-- [ ] `tests/services/snapshot-create.services.js`
+- [ ] `tests/services/snapshot-create.test.js`
 
 Optional API:
-- [ ] `tools/api/router/*` plus `docs/phases/phase-14/http-api.md` if API endpoints are implemented.
+- [ ] `tools/api/router/*` plus `docs/specs/http-api.md` if API endpoints are implemented.
 
 ---
 
@@ -514,7 +587,7 @@ Touchpoints:
 - `src/shared/hash.js` (checksum)
 
 Tests:
-- [ ] `tests/services/snapshot-freeze.services.js`
+- [ ] `tests/services/snapshot-freeze.test.js`
 
 ---
 
@@ -523,7 +596,8 @@ Tests:
 - [ ] Implement `pairofcleats index diff compute/show/list/prune`.
 - [ ] Deterministic diffId from canonical inputs.
 - [ ] Persist `inputs.json`, `summary.json`, and bounded `events.jsonl`.
-- [ ] Fast-path if pieces manifests match; otherwise file diff + bounded chunk diff.
+- [ ] Define canonical event taxonomy + ordering key (type order + stable key fields).
+- [ ] Fast-path only if pieces manifests match in a shard-aware way (all checksums + summed counts).
 - [ ] Deterministic ordering (mode order + per-mode sort).
 - [ ] Truncation behavior deterministic and documented in summary.
 
@@ -535,8 +609,8 @@ Touchpoints:
 - `src/index/build/incremental.js` (reuse validation + signature binding)
 
 Tests:
-- [ ] `tests/services/index-diff.services.js`
-- [ ] `tests/storage/incremental/index-reuse-validation.services.js`
+- [ ] `tests/services/index-diff.test.js`
+- [ ] `tests/indexer/incremental/index-reuse-validation.test.js`
 
 ---
 
@@ -545,7 +619,7 @@ Tests:
 - [ ] Add `--as-of <IndexRef>` to search CLI args.
 - [ ] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
 - [ ] Include `asOf.identityHash` in query cache keys.
-- [ ] Unify retrieval index signature computation to be shard-aware.
+- [ ] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
 - [ ] Enforce single-root policy for sqlite/lmdb as-of selection.
 
 Touchpoints:
@@ -555,7 +629,7 @@ Touchpoints:
 - `src/retrieval/index-cache.js#buildIndexSignature`
 
 Tests:
-- [ ] `tests/services/snapshot-query.services.js`
+- [ ] `tests/services/snapshot-query.test.js`
 - [ ] `tests/unit/retrieval-cache-key-asof.unit.js`
 - [ ] `tests/unit/retrieval-index-signature-shards.unit.js`
 
@@ -570,6 +644,8 @@ Touchpoints:
 - `tools/api/router/search.js`
 - `tools/api/router/index-snapshots.js` (new)
 - `tools/api/router/index-diffs.js` (new)
+- `tools/api/validation.js` (schema updates for new params)
+- `docs/specs/http-api.md`
 
 Tests:
-- [ ] `tests/services/api-search-asof.services.js` (if API is added)
+- [ ] `tests/services/api-search-asof.test.js` (if API is added)

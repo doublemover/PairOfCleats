@@ -1,13 +1,18 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 4 Distillation -- Runtime Envelope, Concurrency, and Safety Guardrails
 
 ## Reference specs (Phase 4)
 These documents define the "best version" design details:
-- `docs/phases/phase-4/runtime-envelope.md`
-- `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
-- `docs/phases/phase-4/subprocess-helper.md`
-- `docs/phases/phase-4/json-stream-atomic-replace.md`
-- `docs/phases/phase-4/large-file-caps-strategy.md`
-- `docs/phases/phase-4/safe-regex-hardening.md`
+- `docs/specs/runtime-envelope.md`
+- `docs/specs/concurrency-abort-runwithqueue.md`
+- `docs/specs/subprocess-helper.md`
+- `docs/specs/json-stream-atomic-replace.md`
+- `docs/specs/large-file-caps-strategy.md`
+- `docs/specs/safe-regex-hardening.md`
 
 ---
 
@@ -139,7 +144,7 @@ These documents define the "best version" design details:
   - supports best-effort and fail-fast modes
 
 ### Tasks
-- [x] Implement abortable queue primitive per `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
+- [x] Implement abortable queue primitive per `docs/specs/concurrency-abort-runwithqueue.md`
   - [x] `src/shared/concurrency.js`
     - [x] `runWithQueue(items, worker, options)` additions:
       - [x] `signal?: AbortSignal`
@@ -182,7 +187,7 @@ These documents define the "best version" design details:
   - [x] runWithQueue workers
   - [x] embedding/vector generation
 - [x] Ensure subprocess spawning is abortable
-  - [x] Integrate with `docs/phases/phase-4/subprocess-helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
+  - [x] Integrate with `docs/specs/subprocess-helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
 
 #### Tests / Verification
 - [x] `tests/shared/abort/abort-propagates-to-queues.test.js`
@@ -227,7 +232,7 @@ These documents define the "best version" design details:
 
 ## 4.6 JSON streaming writer correctness + gzip forwarding
 
-(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
+(See `docs/specs/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - JSON streaming writer honors gzip options and max bytes
@@ -253,7 +258,7 @@ These documents define the "best version" design details:
 
 ## 4.7 Large-file strategy and cap correctness
 
-(See `docs/phases/phase-4/large-file-caps-strategy.md`.)
+(See `docs/specs/large-file-caps-strategy.md`.)
 
 ### Deliverables
 - language-aware (and optionally mode-aware) cap resolution at every skip/reuse decision point
@@ -283,7 +288,7 @@ These documents define the "best version" design details:
 
 ## 4.8 Safe regex hardening
 
-(See `docs/phases/phase-4/safe-regex-hardening.md`.)
+(See `docs/specs/safe-regex-hardening.md`.)
 
 ### Deliverables
 - no post-hoc timeouts
@@ -317,7 +322,7 @@ These documents define the "best version" design details:
 
 ## 4.9 Subprocess helper (consolidate spawn semantics)
 
-(See `docs/phases/phase-4/subprocess-helper.md`.)
+(See `docs/specs/subprocess-helper.md`.)
 
 ### Deliverables
 - one subprocess helper that:
@@ -379,7 +384,7 @@ These documents define the "best version" design details:
 
 ## 4.11 Atomic file replace and `.bak` hygiene
 
-(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
+(See `docs/specs/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - atomic replace works consistently across platforms
@@ -413,6 +418,13 @@ These documents define the "best version" design details:
 - [x] 7) 4.7 Large-file caps (touches build/watch/discover; best after queue+abort are stable)
 - [x] 8) 4.8 Safe regex (touches shared + risk rules + retrieval)
 - [x] 9) 4.10 Embedding/encoding guardrails
+
+
+
+
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-DEPRECATED: Replaced by docs/specs/risk-callsite-id-and-stats.md; docs/specs/risk-interprocedural-stats.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: 5965fcc # CallSiteId and Risk Interprocedural Stats
+DEPRECATED: Replaced by docs/specs/risk-callsite-id-and-stats.md; docs/specs/risk-interprocedural-stats.md Reason: Consolidated into canonical Phase 10 specs Date: 2026-01-31 Commit: (this move)
 
 **Status:** Improved spec for PairOfCleats (Phase 10).
 
@@ -117,5 +117,9 @@ type RiskInterproceduralStatsV1_1 = {
 - Stats production:
   - `state.riskInterprocedural.stats` (see `spec_risk-interprocedural-state-and-pipeline_DRAFT.md`)
   - Writer: `src/index/build/artifacts/writers/risk-interprocedural.js`
+
+
+
+
 
 

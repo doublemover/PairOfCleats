@@ -96,4 +96,6 @@ When graph ranking is enabled:
 ## References
 - `docs/contracts/search-contract.md`
 - `docs/contracts/search-cli.md`
-- `docs/phases/phase-11/spec.md`
+- `docs/specs/graph-product-surfaces.md`
+
+
