@@ -8,8 +8,43 @@ const binaryCache = new Map();
 const quoteCmdArg = (value) => {
   const text = String(value);
   if (!text) return '""';
+  // If the argument contains no spaces, special cmd.exe metacharacters, or quotes,
+  // we can safely return it as-is.
   if (!/[\\s&|^()<>]/.test(text) && !text.includes('"')) return text;
-  return `"${text.replace(/"/g, '""')}"`;
+
+  // Windows cmd.exe/C runtime style quoting:
+  // - Wrap the argument in double quotes.
+  // - Double internal quotes.
+  // - Carefully handle sequences of backslashes before quotes and at the end.
+  let quoted = '"';
+  let backslashes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '\\') {
+      backslashes++;
+      continue;
+    }
+    if (ch === '"') {
+      // Escape all accumulated backslashes, then escape the quote.
+      quoted += '\\'.repeat(backslashes * 2 + 1);
+      quoted += '"';
+      backslashes = 0;
+      continue;
+    }
+    // Normal character: keep accumulated backslashes, then the character.
+    if (backslashes > 0) {
+      quoted += '\\'.repeat(backslashes);
+      backslashes = 0;
+    }
+    quoted += ch;
+  }
+  // At the end, any remaining backslashes must be doubled to ensure the
+  // closing quote is not escaped.
+  if (backslashes > 0) {
+    quoted += '\\'.repeat(backslashes * 2);
+  }
+  quoted += '"';
+  return quoted;
 };
 
 const buildCmdLine = (command, args) => [
