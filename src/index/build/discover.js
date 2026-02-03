@@ -187,6 +187,7 @@ export async function discoverEntries({
       crawler = crawler.exclude((entryPath) => {
         const relPosix = toPosix(path.relative(root, entryPath));
         if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+        if (path.isAbsolute(relPosix)) return false;
         return ignoreMatcher.ignores(relPosix);
       });
     }
@@ -234,6 +235,10 @@ export async function discoverEntries({
     const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
     if (minifiedNameRegex.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
+      return;
+    }
+    if (path.isAbsolute(relPosix)) {
+      recordSkip(absPath, 'ignored', { reason: 'absolute-rel-path' });
       return;
     }
     if (ignoreMatcher.ignores(relPosix)) {
