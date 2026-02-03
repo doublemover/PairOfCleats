@@ -5,7 +5,7 @@ import seedrandom from 'seedrandom';
 import { createCli } from '../../src/shared/cli.js';
 import { loadChunkMeta } from '../../src/shared/artifact-io.js';
 import { sha1 } from '../../src/shared/hash.js';
-import { getIndexDir, loadUserConfig } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'bench-query-generator',
@@ -20,8 +20,7 @@ const argv = createCli({
   }
 }).parse();
 
-const root = argv.repo ? path.resolve(argv.repo) : process.cwd();
-const userConfig = loadUserConfig(root);
+const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const mode = String(argv.mode || 'code').toLowerCase();
 const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
 const indexDir = getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {});

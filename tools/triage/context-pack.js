@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
-import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -18,14 +18,13 @@ const argv = createCli({
 const rawArgs = process.argv.slice(2);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const recordId = String(argv.record || '').trim();
 if (!recordId) {
   console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--no-ann] [--stub-embeddings]');
   process.exit(1);
 }
 
-const userConfig = loadUserConfig(repoRoot);
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const triageConfig = getTriageConfig(repoRoot, userConfig);

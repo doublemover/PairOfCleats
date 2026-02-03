@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { assembleIndexPieces } from '../../src/index/build/piece-assembly.js';
-import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'assemble-pieces',
@@ -56,8 +56,7 @@ if (fsSync.existsSync(outDir) && argv.force) {
 }
 await fs.mkdir(outDir, { recursive: true });
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = argv.mode || 'code';
 const strict = argv['non-strict'] !== true;
 

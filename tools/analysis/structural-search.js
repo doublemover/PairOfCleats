@@ -7,7 +7,7 @@ import { loadRegistry, resolvePacks } from '../../src/experimental/structural/re
 import { runStructuralSearch } from '../../src/experimental/structural/runner.js';
 import { writeJson, writeJsonl } from '../../src/experimental/structural/io.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
-import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'structural-search',
@@ -25,8 +25,7 @@ const argv = createCli({
 }).parse();
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-loadUserConfig(repoRoot);
+const { repoRoot } = resolveRepoConfig(argv.repo);
 const registryPath = (() => {
   if (argv.registry) return path.resolve(argv.registry);
   const candidates = [

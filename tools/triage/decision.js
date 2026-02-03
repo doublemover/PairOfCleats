@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getTriageConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildRecordId } from '../../src/integrations/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/integrations/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
@@ -24,7 +24,7 @@ const argv = createCli({
   aliases: { r: 'repo' }
 }).parse();
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const findingId = argv.finding || argv.record;
 const status = argv.status ? String(argv.status).toLowerCase() : '';
 
@@ -39,7 +39,6 @@ if (!allowedStatuses.has(status)) {
   process.exit(1);
 }
 
-const userConfig = loadUserConfig(repoRoot);
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const findingPath = path.join(triageConfig.recordsDir, `${findingId}.json`);
 

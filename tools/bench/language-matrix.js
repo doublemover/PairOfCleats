@@ -6,8 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../src/shared/cli-options.js';
 import {
   getRuntimeConfig,
-  loadUserConfig,
-  resolveRepoRoot,
+  resolveRepoConfig,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
@@ -44,8 +43,7 @@ const argv = createCli({
 validateBenchArgs(argv, { allowedOptions: benchOptions });
 
 const scriptRoot = resolveToolRoot();
-const repoRoot = argv.root ? path.resolve(argv.root) : resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.root);
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
 const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const benchScript = path.join(scriptRoot, 'tools', 'bench', 'language-repos.js');

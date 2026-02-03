@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
-import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'ctags-ingest',
@@ -23,8 +23,7 @@ const argv = createCli({
   }
 }).parse();
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const cacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const outputPath = argv.out
   ? path.resolve(argv.out)
