@@ -55,8 +55,9 @@ const withLock = async (lockPath, worker) => {
       if (err?.code !== 'EEXIST') throw err;
       const info = await readLockInfo(lockPath);
       const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
+      const pidAlive = pid ? isProcessAlive(pid) : false;
       const stale = await isLockStale(lockPath, DEFAULT_LOCK_STALE_MS);
-      if (stale || (pid && !isProcessAlive(pid))) {
+      if ((pid && !pidAlive) || (stale && !pid)) {
         try {
           await fs.rm(lockPath, { force: true });
           continue;
