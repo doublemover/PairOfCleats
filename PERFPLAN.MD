@@ -532,10 +532,10 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [x] `tests/indexing/runtime/vfs-checkpoint-stats.test.js` (new)
 - [x] `tests/indexing/vfs/vfs-idx-lookup-roundtrip.test.js` (new)
 - [x] `tests/indexing/vfs/vfs-path-map-roundtrip.test.js` (new)
-- [.] `tests/tooling/vfs/vfs-hash-routing-contract.test.js` — skipped (missing `src/index/tooling/vfs-hash-routing.js`).
-- [.] `tests/tooling/vfs/vfs-idx-contract.test.js` — skipped (missing `src/index/tooling/vfs-index.js`).
+- [x] `tests/tooling/vfs/vfs-hash-routing-contract.test.js`
+- [x] `tests/tooling/vfs/vfs-idx-contract.test.js`
 - [x] `tests/tooling/vfs/vfs-token-uri-contract.test.js`
-- [.] `tests/indexing/vfs/vfs-segment-hash-cache-contract.test.js` — skipped (missing `src/index/build/vfs-segment-hash-cache.js`).
+- [x] `tests/indexing/vfs/vfs-segment-hash-cache-contract.test.js`
 - [x] `tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js`
 
 ### Sub-agent Work (Parallelizable)
