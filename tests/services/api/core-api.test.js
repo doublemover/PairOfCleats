@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildIndex, search, status } from '../../../src/integrations/core/index.js';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');

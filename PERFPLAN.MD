@@ -738,7 +738,7 @@ Reduce search CLI startup time by eliminating unnecessary work on cold start and
 - `src/shared/cli/display/text.js`
 - `src/shared/runtime-envelope.js`
 - `src/shared/env.js`
-- `tools/dict-utils.js`
+- `tools/shared/dict-utils.js`
 - `docs/contracts/search-cli.md`
 - `docs/guides/commands.md`
 - `tests/cli/search/search-help-fastpath.test.js` (new)

@@ -477,7 +477,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] `tools/config/inventory.js` delegates to `tools/config/inventory/*`
 
 #### R.6.6 dict-utils split
-- [x] `tools/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
+- [x] `tools/shared/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
 
 ---
 

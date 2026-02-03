@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createCli } from '../../../src/shared/cli.js';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'parity',

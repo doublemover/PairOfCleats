@@ -71,14 +71,14 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 - `tools/config/dump.js` (dump minimal config + derived policy; optional but recommended)
 
 ### 1.2 Minimal config load path
-- [ ] Update `tools/dict-utils.js:loadUserConfig()`:
+- [ ] Update `tools/shared/dict-utils.js:loadUserConfig()`:
   - load `.pairofcleats.json`
   - validate against minimal schema
   - return minimal config only
   - remove fallback-to-tool-root config unless you explicitly want it
 
 **Where**
-- `tools/dict-utils.js`
+- `tools/shared/dict-utils.js`
 - `src/shared/jsonc.js` (no change expected)
 
 ### 1.3 AutoPolicy (resource-derived decisions)
@@ -90,7 +90,7 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 
 **Where**
 - `src/shared/auto-policy.js` (new)
-- `tools/dict-utils.js` (export `getAutoPolicy(repoRoot, config)` or similar)
+- `tools/shared/dict-utils.js` (export `getAutoPolicy(repoRoot, config)` or similar)
 - `bin/pairofcleats.js` (optional: pass policy into child scripts via args rather than env)
 
 ### 1.4 Contract tests
@@ -125,7 +125,7 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 - [ ] Remove profile references in docs (`docs/guides/commands.md` currently states "Experimental commands require profile=full").
 
 ### 2.2 Remove profile logic from code
-- [ ] In `tools/dict-utils.js`:
+- [ ] In `tools/shared/dict-utils.js`:
   - delete `PROFILES_DIR`, `loadProfileConfig`, `applyProfileConfig`
   - remove env/config/cli profile selection logic
 - [ ] In `src/shared/cli.js`:
@@ -190,7 +190,7 @@ Replacement strategy:
 - [ ] Remove mentions of env-driven profiles, embeddings toggles, thread knobs, etc.
 
 ### 3.4 Update config hash behavior
-`tools/dict-utils.js:getEffectiveConfigHash()` currently includes env in the hash.
+`tools/shared/dict-utils.js:getEffectiveConfigHash()` currently includes env in the hash.
 - [ ] Remove env from the effective config hash (or include only secrets-free stable env inputs if you truly need them).
 - [ ] Goal: artifact identity is driven by config + repo content + tool version, not hidden envs.
 
@@ -404,8 +404,8 @@ Delete or rewrite:
 - `docs/guides/external-backends.md` (rewrite or delete)
 - any "profile=full required" sections in `docs/guides/commands.md`
 
-### 8.2 Remove unused helper APIs from `tools/dict-utils.js`
-After the hard cut, `tools/dict-utils.js` likely still contains:
+### 8.2 Remove unused helper APIs from `tools/shared/dict-utils.js`
+After the hard cut, `tools/shared/dict-utils.js` likely still contains:
 - paths and resolvers for removed backends
 - config accessors for deleted namespaces (`getRuntimeConfig`, `getModelConfig`, etc.)
 

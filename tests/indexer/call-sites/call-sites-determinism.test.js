@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { loadUserConfig, getIndexDir } from '../../../tools/dict-utils.js';
+import { loadUserConfig, getIndexDir } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';

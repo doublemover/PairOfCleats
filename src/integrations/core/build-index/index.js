@@ -20,7 +20,7 @@ import {
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
-} from '../../../../tools/dict-utils.js';
+} from '../../../../tools/shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';

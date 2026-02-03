@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
-import { loadUserConfig, resolveLmdbPaths } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 
 let open = null;
 try {

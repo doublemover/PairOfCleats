@@ -24,7 +24,7 @@ import {
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
-import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/dict-utils.js';
+import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../tools/shared/dict-utils.js';
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 

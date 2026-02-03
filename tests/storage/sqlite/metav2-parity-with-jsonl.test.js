@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex, ensureFixtureSqlite, loadFixtureIndexMeta } from '../../helpers/fixture-index.js';
-import { resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { validateSqliteMetaV2Parity } from '../../../src/index/validate/checks.js';
 
 let Database;

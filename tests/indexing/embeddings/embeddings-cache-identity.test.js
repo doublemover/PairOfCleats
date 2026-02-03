@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 
 const root = process.cwd();

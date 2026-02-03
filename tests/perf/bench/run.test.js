@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
-import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import os from 'node:os';

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getRepoCacheRoot } from '../../../../tools/dict-utils.js';
+import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
 import { getCombinedOutput } from '../../../helpers/stdio.js';
 

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot } from '../../../../tools/dict-utils.js';
+import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-identity.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 

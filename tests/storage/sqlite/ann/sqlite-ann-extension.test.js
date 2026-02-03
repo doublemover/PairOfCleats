@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/dict-utils.js';
+import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/shared/dict-utils.js';
 import { requireSqliteVec } from '../../../helpers/optional-deps.js';
 
 const root = process.cwd();

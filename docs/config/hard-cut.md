@@ -194,7 +194,7 @@ Remove:
 - any "experimental commands require profile=full" behavior
 
 Primary references to remove/update:
-- `tools/dict-utils.js` (`PROFILES_DIR`, `loadProfileConfig`, `applyProfileConfig`)
+- `tools/shared/dict-utils.js` (`PROFILES_DIR`, `loadProfileConfig`, `applyProfileConfig`)
 - `src/shared/cli.js` (profile injection)
 - docs: `docs/guides/commands.md` and any profile gating notes
 
@@ -264,7 +264,7 @@ Enforcement:
 - Any scripts that exist solely to support removed knobs/backends
 
 ### Core rewrite targets
-- `tools/dict-utils.js` (config load + cache root + remove profile/env override behavior)
+- `tools/shared/dict-utils.js` (config load + cache root + remove profile/env override behavior)
 - `src/shared/env.js` (secrets only or delete)
 - `src/shared/cli.js` (remove profile; strict flag parsing)
 - `bin/pairofcleats.js` (tight command surface; remove flag sprawl)

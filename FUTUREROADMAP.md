@@ -84,7 +84,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Ensure the repo cache root naming stays stable even when users provide different-but-equivalent paths.
 
 **Touchpoints:**
-- `tools/dict-utils.js` (repo root resolution, `getRepoId`, cacheRoot overrides)
+- `tools/shared/dict-utils.js` (repo root resolution, `getRepoId`, cacheRoot overrides)
 - `src/shared/stable-json.js` (stable serialization for hashing)
 - New: `src/retrieval/federation/workspace.js` — loader + validator + `repoSetId`
 - `docs/specs/workspace-config.md` (schema/normalization rules)
@@ -136,7 +136,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - (future) content-addressed bundles (see 15.5)
 
 **Touchpoints:**
-- `tools/dict-utils.js` (cache root resolution, build pointer paths)
+- `tools/shared/dict-utils.js` (cache root resolution, build pointer paths)
 - `build_index.js` (add `--workspace` or create `workspace_build.js`)
 - New: `src/retrieval/federation/catalog.js` (cacheRoot scanning)
 - New: `src/retrieval/federation/manifest.js` (manifest writer/reader)
@@ -302,7 +302,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/retrieval/query-cache.js` (federation namespace support and eviction policy if implemented here)
 - `tools/api/router.js` (repo cache key normalization; federation cache integration)
 - `tools/mcp/repo.js` (repo root canonicalization; build pointer parse error handling)
-- `tools/dict-utils.js` (repoId generation stability across realpath/subdir)
+- `tools/shared/dict-utils.js` (repoId generation stability across realpath/subdir)
 
 #### Tests
 
@@ -350,7 +350,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Evaluate repo-specific dictionaries without breaking workspace determinism (pin by dictionary key/version).
 
 **Touchpoints:**
-- `tools/dict-utils.js` (global cache dirs: models/tooling/dictionaries; cacheRoot override)
+- `tools/shared/dict-utils.js` (global cache dirs: models/tooling/dictionaries; cacheRoot override)
 - `src/shared/cache.js` (cache stats, eviction, size tracking; potential reuse)
 - `src/index/build/file-processor/cached-bundle.js` (bundle caching)
 - `src/index/build/file-processor/embeddings.js` (embedding caching/service integration)
@@ -416,7 +416,7 @@ Required spec patches/drafts (from `future/15/`):
 - [ ] Centralize identity helpers across CLI/API/MCP to ensure path-equivalent inputs share cache keys.
 
 Touchpoints:
-- `tools/dict-utils.js` (resolveRepoRoot, getRepoId, cache roots)
+- `tools/shared/dict-utils.js` (resolveRepoRoot, getRepoId, cache roots)
 - `src/shared/jsonc.js`, `src/shared/stable-json.js`, `src/shared/hash.js`
 - New: `src/workspace/config.js`
 
@@ -450,7 +450,7 @@ Tests:
   - [ ] Regenerate manifest after builds
 
 Touchpoints:
-- `tools/dict-utils.js` (cache roots, build pointer resolution)
+- `tools/shared/dict-utils.js` (cache roots, build pointer resolution)
 - `src/retrieval/index-cache.js#buildIndexSignature`
 - New: `src/workspace/manifest.js`
 - `build_index.js` or new `tools/workspace-build.js`
@@ -565,7 +565,7 @@ Tests:
 - [ ] Concurrency limits for workspace indexing and federated fanout
 
 Touchpoints:
-- `tools/dict-utils.js` (global cache dirs)
+- `tools/shared/dict-utils.js` (global cache dirs)
 - `src/shared/cache.js`
 - `src/index/build/file-processor/cached-bundle.js`
 - New: `src/shared/cas.js`, `tools/index/cache-gc.js`

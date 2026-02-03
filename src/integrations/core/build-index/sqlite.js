@@ -1,4 +1,4 @@
-import { getRepoRoot } from '../../../../tools/dict-utils.js';
+import { getRepoRoot } from '../../../../tools/shared/dict-utils.js';
 import { runBuildSqliteIndex } from '../../../../tools/build/sqlite-index.js';
 
 /**

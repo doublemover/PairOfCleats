@@ -4,7 +4,7 @@ This document maps user-visible behavior to implementation, configuration switch
 
 ## Build modes and stages
 - Claim: `build_index.js --mode code|prose|records|extracted-prose|all` builds mode-specific indexes under the repo cache; `all` expands to `code`, `prose`, `extracted-prose`, and `records`.
-  - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
+  - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/shared/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
   - Config: CLI `--mode`, `--repo`, `--index-root`; environment `PAIROFCLEATS_CACHE_ROOT`.
   - Tests: `tests/indexing/fixtures/build-and-artifacts.test.js`, `tests/indexing/extracted-prose/extracted-prose.test.js`, `tests/tooling/triage/records-index-and-search.test.js`, `tests/cli/build-index/build-index-all.test.js`.
   - Limitations: `records` requires triage record inputs.

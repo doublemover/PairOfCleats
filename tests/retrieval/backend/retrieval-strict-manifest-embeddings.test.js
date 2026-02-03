@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { syncProcessEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();

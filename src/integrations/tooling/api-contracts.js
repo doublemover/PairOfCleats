@@ -13,7 +13,7 @@ import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
 
 const normalizeOptionalNumber = (value) => {

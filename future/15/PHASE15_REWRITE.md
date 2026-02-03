@@ -78,7 +78,7 @@ Enable first-class **workspace** workflows: index and query across **multiple re
   - [ ] API server routing (`tools/api/router.js`), MCP repo resolution (`tools/mcp/repo.js`), CLI, and workspace loader MUST share the same canonicalization semantics.
 
 **Touchpoints:**
-- `tools/dict-utils.js` (repo root resolution, `getRepoId`, cache root helpers)
+- `tools/shared/dict-utils.js` (repo root resolution, `getRepoId`, cache root helpers)
 - `src/shared/jsonc.js`, `src/shared/stable-json.js`, `src/shared/hash.js`
 - New (preferred, consistent with spec): `src/workspace/config.js`
 
@@ -137,7 +137,7 @@ Enable first-class **workspace** workflows: index and query across **multiple re
   - [ ] If implemented, treat as debug tooling only; do not make federation correctness depend on scanning `<cacheRoot>/repos/*`.
 
 **Touchpoints:**
-- `tools/dict-utils.js` (cache roots, build pointer resolution, sqlite path helpers)
+- `tools/shared/dict-utils.js` (cache roots, build pointer resolution, sqlite path helpers)
 - `src/retrieval/index-cache.js` (`buildIndexSignature`)
 - New (preferred): `src/workspace/manifest.js`
 

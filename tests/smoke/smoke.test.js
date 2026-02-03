@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { normalizePostingsConfig } from '../../src/shared/postings-config.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../tools/sqlite/vector-extension.js';
 

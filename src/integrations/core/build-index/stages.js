@@ -17,7 +17,7 @@ import {
   getIndexDir,
   getMetricsDir,
   getToolVersion
-} from '../../../../tools/dict-utils.js';
+} from '../../../../tools/shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';

@@ -3,12 +3,12 @@
 This file complements `docs/config/inventory.md` with manual analysis and ownership hints.
 
 ## Ownership map (primary modules)
-- cache: `tools/dict-utils.js`, `src/shared/cache.js`
-- dictionary: `tools/dict-utils.js`, `src/index/build/runtime.js`, `src/index/build/tokenization.js`
+- cache: `tools/shared/dict-utils.js`, `src/shared/cache.js`
+- dictionary: `tools/shared/dict-utils.js`, `src/index/build/runtime.js`, `src/index/build/tokenization.js`
 - extensions: `tools/download/extensions.js`, `tools/sqlite/verify-extensions.js`, `tools/sqlite/vector-extension.js`
 - indexing: `src/index/build/runtime.js`, `src/index/build/indexer.js`, `src/index/build/file-processor.js`
-- models: `tools/dict-utils.js`, `src/shared/embedding.js`, `src/index/build/runtime.js`
-- runtime: `tools/dict-utils.js`, `src/shared/cli.js`
+- models: `tools/shared/dict-utils.js`, `src/shared/embedding.js`, `src/index/build/runtime.js`
+- runtime: `tools/shared/dict-utils.js`, `src/shared/cli.js`
 - search: `src/retrieval/cli.js`, `src/retrieval/pipeline.js`, `src/retrieval/sqlite-helpers.js`
 - sql: `src/index/build/runtime.js`, `src/lang/sql.js`
 - sqlite: `src/storage/sqlite/*`, `tools/build/sqlite-index.js`, `tools/build/compact-sqlite-index.js`

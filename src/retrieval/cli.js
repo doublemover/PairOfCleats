@@ -14,7 +14,7 @@ import {
   loadUserConfig,
   resolveLmdbPaths,
   resolveSqlitePaths
-} from '../../tools/dict-utils.js';
+} from '../../tools/shared/dict-utils.js';
 import { queryVectorAnn } from '../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';

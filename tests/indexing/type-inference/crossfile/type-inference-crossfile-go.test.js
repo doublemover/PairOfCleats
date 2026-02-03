@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig, resolveToolRoot } from '../../../../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveToolRoot } from '../../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
