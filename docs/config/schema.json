@@ -297,6 +297,16 @@
           "additionalProperties": true,
           "properties": {
             "concurrency": { "type": "number" },
+            "cache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scope": { "type": "string", "enum": ["global", "repo", "local"] },
+                "dir": { "type": "string" },
+                "maxGb": { "type": "number" },
+                "maxAgeDays": { "type": "number" }
+              }
+            },
             "provider": { "type": "string" },
             "onnx": {
               "type": "object",

@@ -86,6 +86,21 @@ const cached = {
 };
 assert.equal(isCacheValid({ cached, signature, identityKey: base.key }), true, 'expected cache to be valid for matching identity');
 assert.equal(isCacheValid({ cached, signature, identityKey: dimsChanged.key }), false, 'expected cache to be invalid for mismatched identity');
+const cachedWithHash = {
+  chunkSignature: signature,
+  hash: 'hash-1',
+  cacheMeta: { identityKey: base.key }
+};
+assert.equal(
+  isCacheValid({ cached: cachedWithHash, signature, identityKey: base.key, hash: 'hash-1' }),
+  true,
+  'expected cache to be valid for matching hash'
+);
+assert.equal(
+  isCacheValid({ cached: cachedWithHash, signature, identityKey: base.key, hash: 'hash-2' }),
+  false,
+  'expected cache to be invalid for mismatched hash'
+);
 
 const cacheKey = buildCacheKey({
   file: 'src/index.js',

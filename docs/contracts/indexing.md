@@ -3,7 +3,7 @@
 ## Stages and modes
 - Stage1 (sparse): discovery + chunking + token postings for each mode.
 - Stage2 (enrich): file metadata, repo maps, relations, and filter indexes.
-- Stage3 (embeddings): dense vectors + HNSW + LanceDB artifacts, index state updates.
+- Stage3 (embeddings): dense vectors + HNSW + LanceDB artifacts, index state updates, and an out-of-band embeddings cache (see `docs/specs/embeddings-cache.md`).
 - Stage4 (sqlite): sqlite index build plus optional ANN tables.
 - Modes: `code`, `prose`, `extracted-prose`, `records`. Mode `all` builds the enabled set.
 

@@ -3,22 +3,19 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-identity.js';
-import { applyTestEnv } from '../../../helpers/test-env.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'build-embeddings-cache');
+const tempRoot = path.join(root, '.testCache', 'embeddings-cache-append');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const srcDir = path.join(repoRoot, 'src');
+const srcPath = path.join(srcDir, 'alpha.js');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-await fsPromises.writeFile(
-  path.join(repoRoot, 'src', 'alpha.js'),
-  'export const alpha = () => 1;\n'
-);
+await fsPromises.writeFile(srcPath, 'export const alpha = () => 1;\n');
 
 const env = applyTestEnv({
   cacheRoot,
@@ -39,9 +36,6 @@ const runNode = (label, args) => {
   if (result.status !== 0) {
     const exitLabel = result.status ?? 'unknown';
     console.error(`Failed: ${label} (exit ${exitLabel})`);
-    if (result.error) {
-      console.error(result.error.message || result.error);
-    }
     process.exit(result.status ?? 1);
   }
 };
@@ -73,7 +67,7 @@ const findCacheIndexPaths = async (rootDir) => {
 const loadCacheIndex = async (rootDir) => {
   const paths = await findCacheIndexPaths(rootDir);
   if (!paths.length) {
-    console.error('Expected embedding cache index to be created');
+    console.error('Expected cache index to be created');
     process.exit(1);
   }
   const indexPath = paths[0];
@@ -85,68 +79,38 @@ const loadCacheIndex = async (rootDir) => {
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
-const { cacheDir, index } = await loadCacheIndex(cacheRoot);
-const entryKeys = Object.keys(index.entries || {});
-if (!entryKeys.length) {
-  console.error('Expected embedding cache index to contain entries');
+const first = await loadCacheIndex(cacheRoot);
+const firstKeys = Object.keys(first.index.entries || {});
+if (!firstKeys.length) {
+  console.error('Expected cache index entries after first build');
   process.exit(1);
 }
-const entry = index.entries[entryKeys[0]];
-if (!entry?.shard) {
-  console.error('Expected embedding cache index to point at a shard entry');
+const firstEntry = first.index.entries[firstKeys[0]];
+if (!firstEntry?.shard) {
+  console.error('Expected cache index entries to point at a shard');
   process.exit(1);
 }
-const shardPath = path.join(cacheDir, 'shards', entry.shard);
+const shardPath = path.join(first.cacheDir, 'shards', firstEntry.shard);
 if (!fs.existsSync(shardPath)) {
-  console.error('Expected embedding cache shard to exist');
+  console.error('Expected cache shard file to exist');
   process.exit(1);
 }
 const before = await fsPromises.stat(shardPath);
 
-runNode('build_embeddings cached', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+await fsPromises.appendFile(srcPath, 'export const beta = () => 2;\n');
+runNode('build_index changed', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
+runNode('build_embeddings changed', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
+const second = await loadCacheIndex(cacheRoot);
+const secondKeys = Object.keys(second.index.entries || {});
+if (secondKeys.length <= firstKeys.length) {
+  console.error('Expected cache index to append a new entry after file change');
+  process.exit(1);
+}
 const after = await fsPromises.stat(shardPath);
-if (after.mtimeMs !== before.mtimeMs) {
-  console.error('Expected embedding cache file to be reused without rewrite');
+if (after.size <= before.size) {
+  console.error('Expected cache shard to grow after appending entry');
   process.exit(1);
 }
 
-const onnxBase = buildEmbeddingIdentity({
-  modelId: 'onnx-model',
-  provider: 'onnx',
-  mode: 'inline',
-  stub: false,
-  dims: 384,
-  scale: 0.5,
-  pooling: 'mean',
-  normalize: true,
-  truncation: 'truncate',
-  maxLength: 128,
-  onnx: {
-    modelPath: 'models/onnx/model.onnx',
-    tokenizerId: 'tokenizer-id'
-  }
-});
-const onnxVariant = buildEmbeddingIdentity({
-  modelId: 'onnx-model',
-  provider: 'onnx',
-  mode: 'inline',
-  stub: false,
-  dims: 384,
-  scale: 0.5,
-  pooling: 'mean',
-  normalize: true,
-  truncation: 'truncate',
-  maxLength: 128,
-  onnx: {
-    modelPath: 'models/onnx/other.onnx',
-    tokenizerId: 'tokenizer-id'
-  }
-});
-if (buildEmbeddingIdentityKey(onnxBase) === buildEmbeddingIdentityKey(onnxVariant)) {
-  console.error('Expected embedding cache identity to change with ONNX modelPath');
-  process.exit(1);
-}
-
-console.log('embedding cache reuse test passed');
-
+console.log('embeddings cache index append-only test passed');

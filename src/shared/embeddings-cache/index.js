@@ -9,3 +9,5 @@ export {
   encodeEmbeddingsCache,
   getEmbeddingsCacheSuffix
 } from './format.js';
+
+export { planEmbeddingsCachePrune } from './lru.js';

@@ -62,6 +62,7 @@ Each `index-<mode>/` directory contains:
 - `dense_vectors_doc.lancedb/` + `dense_vectors_doc.lancedb.meta.json` (optional)
 - `dense_vectors_code.lancedb/` + `dense_vectors_code.lancedb.meta.json` (optional)
   - LanceDB vector indexes with `dims`, `count`, `metric`, and table/column metadata.
+- Embeddings cache entries are stored out-of-band under the OS cache root and are not part of the build artifact surface. They are safe to delete and are rebuilt on demand.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
 - `.filelists.json`

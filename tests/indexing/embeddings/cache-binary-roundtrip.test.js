@@ -7,6 +7,7 @@ const payload = {
   file: 'src/alpha.js',
   hash: 'abc123',
   chunkSignature: 'sig-1',
+  chunkHashes: ['h1', 'h2'],
   cacheMeta: {
     identityKey: 'identity-key',
     identity: { provider: 'stub', modelId: 'model', dims: 3 }
@@ -31,6 +32,7 @@ const decoded = await decodeEmbeddingsCache(encoded);
 assert.equal(decoded.file, payload.file);
 assert.equal(decoded.hash, payload.hash);
 assert.equal(decoded.chunkSignature, payload.chunkSignature);
+assert.deepEqual(decoded.chunkHashes, payload.chunkHashes);
 assert.equal(decoded.cacheMeta.identityKey, payload.cacheMeta.identityKey);
 assert.equal(decoded.codeVectors.length, 2);
 assert.equal(decoded.docVectors.length, 2);

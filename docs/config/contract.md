@@ -25,6 +25,11 @@ cache.root (string)
 indexing (object)
 indexing.concurrency (number)
 indexing.embeddings (object)
+indexing.embeddings.cache (object)
+indexing.embeddings.cache.dir (string)
+indexing.embeddings.cache.maxAgeDays (number)
+indexing.embeddings.cache.maxGb (number)
+indexing.embeddings.cache.scope (string) enum=global|repo|local
 indexing.embeddings.concurrency (number)
 indexing.embeddings.onnx (object)
 indexing.embeddings.onnx.interOpNumThreads (number)
@@ -222,6 +227,9 @@ tooling.vfs.strict (boolean)
 - PAIROFCLEATS_FILE_CACHE_MAX -> fileCacheMax
 - PAIROFCLEATS_HOME -> homeRoot
 - PAIROFCLEATS_IMPORT_GRAPH -> importGraph
+- PAIROFCLEATS_LANCEDB_CHILD -> child
+- PAIROFCLEATS_LANCEDB_ISOLATE -> isolate
+- PAIROFCLEATS_LANCEDB_PAYLOAD -> payload
 - PAIROFCLEATS_LOG_FORMAT -> logFormat
 - PAIROFCLEATS_LOG_LEVEL -> logLevel
 - PAIROFCLEATS_MCP_MAX_BUFFER_BYTES -> mcpMaxBufferBytes

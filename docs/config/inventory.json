@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T12:16:44.371Z",
+  "generatedAt": "2026-02-03T14:11:14.000Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -92,6 +92,10 @@
     "knownConfigKeys": [
       "cache.root",
       "indexing.concurrency",
+      "indexing.embeddings.cache.dir",
+      "indexing.embeddings.cache.maxAgeDays",
+      "indexing.embeddings.cache.maxGb",
+      "indexing.embeddings.cache.scope",
       "indexing.embeddings.concurrency",
       "indexing.embeddings.onnx.interOpNumThreads",
       "indexing.embeddings.onnx.intraOpNumThreads",
@@ -235,8 +239,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 180,
-    "leafKeys": 141,
+    "totalKeys": 185,
+    "leafKeys": 145,
     "topLevel": [
       {
         "key": "cache",
@@ -244,7 +248,7 @@
       },
       {
         "key": "indexing",
-        "count": 65
+        "count": 70
       },
       {
         "key": "mcp",
@@ -301,6 +305,35 @@
       "path": "indexing.embeddings",
       "type": "object",
       "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.maxGb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.scope",
+      "type": "string",
+      "enum": [
+        "global",
+        "repo",
+        "local"
+      ]
     },
     {
       "path": "indexing.embeddings.concurrency",

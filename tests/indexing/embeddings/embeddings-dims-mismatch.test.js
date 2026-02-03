@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { readCacheEntryFile, writeCacheEntry } from '../../../tools/build-embeddings/cache.js';
+import { readCacheEntry, writeCacheEntry } from '../../../tools/build-embeddings/cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -48,8 +48,8 @@ const runEmbeddings = () => spawnSync(
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 
-const loadCacheEntries = async (cacheDir) => {
-  const entries = [];
+const findCacheIndexPaths = async (rootDir) => {
+  const matches = [];
   const walk = async (dir) => {
     let items;
     try {
@@ -63,22 +63,34 @@ const loadCacheEntries = async (cacheDir) => {
         await walk(fullPath);
         continue;
       }
-      if (!item.isFile()) continue;
-      if (item.name === 'cache.meta.json') continue;
-      if (!item.name.endsWith('.json') && !item.name.endsWith('.zst')) continue;
-      try {
-        const cache = await readCacheEntryFile(fullPath);
-        entries.push({ name: item.name, path: fullPath, cache });
-      } catch {}
+      if (item.isFile() && item.name === 'cache.index.json') {
+        matches.push(fullPath);
+      }
     }
   };
-  await walk(cacheDir);
-  return entries.sort((a, b) => a.path.localeCompare(b.path));
+  await walk(rootDir);
+  return matches.sort((a, b) => a.localeCompare(b));
 };
 
-const findCacheEntry = (entries, predicate) => (
-  entries.find((entry) => predicate(entry?.cache?.cacheMeta?.identity || null))
-);
+const loadCacheEntry = async (cacheRootDir, dims) => {
+  const indexPaths = await findCacheIndexPaths(cacheRootDir);
+  if (!indexPaths.length) return null;
+  const expectedSegment = `${path.sep}${dims}d${path.sep}code${path.sep}files${path.sep}cache.index.json`;
+  const indexPath = indexPaths.find((entry) => entry.includes(expectedSegment)) || indexPaths[0];
+  let index;
+  try {
+    index = JSON.parse(await fsPromises.readFile(indexPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const cacheDir = path.dirname(indexPath);
+  const keys = Object.keys(index.entries || {});
+  if (!keys.length) return null;
+  const cacheKey = keys[0];
+  const result = await readCacheEntry(cacheDir, cacheKey, index);
+  if (!result?.entry) return null;
+  return { cacheDir, cacheKey, cache: result.entry, indexPath, index };
+};
 
 const firstRun = runEmbeddings();
 if (firstRun.status !== 0) {
@@ -87,20 +99,11 @@ if (firstRun.status !== 0) {
 }
 
 const cacheRootDir = path.join(cacheRoot, 'embeddings');
-const cacheEntries = await loadCacheEntries(cacheRootDir);
-if (!cacheEntries.length) {
-  console.error('embeddings dims mismatch test failed: no cache files found');
+const targetEntry = await loadCacheEntry(cacheRootDir, 8);
+if (!targetEntry?.cache) {
+  console.error('embeddings dims mismatch test failed: no cache entries found');
   process.exit(1);
 }
-
-const targetEntry = findCacheEntry(cacheEntries, (identity) => (
-  identity?.dims === 8 && identity?.stub === true
-));
-if (!targetEntry) {
-  console.error('embeddings dims mismatch test failed: no cache entry for dims=8 stub=true');
-  process.exit(1);
-}
-const targetPath = targetEntry.path;
 const cached = targetEntry.cache;
 const bumpVector = (vec) => {
   if (!vec) return vec;
@@ -125,9 +128,11 @@ if (Array.isArray(cached?.codeVectors)) {
 if (Array.isArray(cached?.docVectors)) {
   cached.docVectors[0] = bumpVector(cached.docVectors[0]);
 }
-const cacheDir = path.dirname(targetPath);
-const baseName = path.basename(targetPath);
-const cacheKey = baseName.replace(/\\.embcache\\.zst$/i, '').replace(/\\.json$/i, '');
+const cacheDir = targetEntry.cacheDir;
+const cacheKey = targetEntry.cacheKey;
+const index = targetEntry.index;
+delete index.entries[cacheKey];
+await fsPromises.writeFile(targetEntry.indexPath, JSON.stringify(index, null, 2), 'utf8');
 await writeCacheEntry(cacheDir, cacheKey, cached);
 
 const secondRun = runEmbeddings();

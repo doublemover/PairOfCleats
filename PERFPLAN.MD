@@ -303,6 +303,8 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 ### Files to modify (exhaustive for this phase)
 - `tools/build-embeddings/runner.js`
 - `tools/build-embeddings/cache.js`
+- `tools/build-embeddings/backends.js` (new)
+- `tools/build-embeddings/batch.js` (new)
 - `tools/build-embeddings/manifest.js`
 - `src/shared/embeddings-cache/index.js` (new)
 - `src/shared/embeddings-cache/format.js` (new)
@@ -312,6 +314,7 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - `src/shared/embedding-utils.js`
 - `src/shared/env.js`
 - `src/shared/hash.js`
+- `src/shared/json-stream/encode.js`
 - `src/shared/cache-roots.js` (new; OS cache path helper)
 - `docs/specs/embeddings-cache.md` (new)
 - `docs/contracts/indexing.md`
@@ -322,10 +325,13 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - `docs/config/inventory.json`
 - `docs/guides/commands.md`
 - `tests/indexing/embeddings/cache-binary-roundtrip.test.js` (new)
-- `tests/indexing/embeddings/cache-identity-invalidation.test.js` (new)
+- `tests/indexing/embeddings/embeddings-cache-invalidation.test.js`
 - `tests/indexing/embeddings/cache-compression-zstd.test.js` (new)
 - `tests/indexing/embeddings/cache-pruning.test.js` (new)
 - `tests/indexing/embeddings/cache-cross-repo-reuse.test.js` (new)
+- `tests/indexing/embeddings/cache-partial-reuse.test.js` (new)
+- `tests/indexing/embeddings/cache-index-append-only.test.js` (new)
+- `tests/indexing/embeddings/cache-layout-provider-model.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/specs/embeddings-cache.md` (new)
@@ -335,32 +341,32 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - `docs/guides/commands.md`
 
 ### Tasks
-- [@] Implement a global, compressed embeddings cache in OS cache root.
-- [.] Partition cache by provider/model/dims to avoid scanning unrelated entries.
-- [ ] Replace per-file cache entries with append-only shards + index for faster listing.
+- [x] Implement a global, compressed embeddings cache in OS cache root.
+- [x] Partition cache by provider/model/dims to avoid scanning unrelated entries.
+- [x] Replace per-file cache entries with append-only shards + index for faster listing.
 - [x] Cache format: binary + zstd, store quantized vectors and metadata header.
 - [x] Include cache schema/version fields (quantization, normalize flags, model identity) in headers.
 - [x] Use Node zlib Zstd for cache compression.
 - [x] Cache keys include file hash, chunkSignature, identityKey.
-- [ ] Validate cache key inputs cover content; add chunk-content hash guard if needed.
-- [ ] Add LRU metadata and two-phase pruning by size and age.
+- [x] Validate cache key inputs cover content; add chunk-content hash guard if needed.
+- [x] Add LRU metadata and two-phase pruning by size and age.
 - [x] Ensure cache identity mismatch invalidates entries deterministically.
-- [ ] Support partial reuse when only some chunks in a file change.
+- [x] Support partial reuse when only some chunks in a file change.
 - [x] Isolate HNSW writes in tests/Windows to avoid native heap crashes.
 
 ### Tests
 - [x] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
-- [ ] `tests/indexing/embeddings/cache-identity-invalidation.test.js`
-- [ ] `tests/indexing/embeddings/cache-compression-zstd.test.js`
-- [ ] `tests/indexing/embeddings/cache-pruning.test.js`
-- [ ] `tests/indexing/embeddings/cache-cross-repo-reuse.test.js`
-- [ ] `tests/indexing/embeddings/cache-partial-reuse.test.js` (new)
-- [ ] `tests/indexing/embeddings/cache-index-append-only.test.js` (new)
-- [ ] `tests/indexing/embeddings/cache-layout-provider-model.test.js` (new)
+- [x] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js`
+- [x] `tests/indexing/embeddings/cache-compression-zstd.test.js`
+- [x] `tests/indexing/embeddings/cache-pruning.test.js`
+- [x] `tests/indexing/embeddings/cache-cross-repo-reuse.test.js`
+- [x] `tests/indexing/embeddings/cache-partial-reuse.test.js` (new)
+- [x] `tests/indexing/embeddings/cache-index-append-only.test.js` (new)
+- [x] `tests/indexing/embeddings/cache-layout-provider-model.test.js` (new)
 
 ### Acceptance
-- [ ] Cache hits prevent recomputation for unchanged files.
-- [ ] Cache invalidation works for identity/hash/signature changes.
+- [x] Cache hits prevent recomputation for unchanged files.
+- [x] Cache invalidation works for identity/hash/signature changes.
 
 ---
 

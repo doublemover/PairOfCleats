@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readCacheEntryFile } from '../../../tools/build-embeddings/cache.js';
+import { readCacheEntry } from '../../../tools/build-embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 
 const root = process.cwd();
@@ -54,8 +54,8 @@ const runEmbeddings = (dims) => {
   }
 };
 
-const loadCacheEntries = async (cacheDir) => {
-  const entries = [];
+const findCacheIndexPaths = async (rootDir) => {
+  const matches = [];
   const walk = async (dir) => {
     let items;
     try {
@@ -69,17 +69,37 @@ const loadCacheEntries = async (cacheDir) => {
         await walk(fullPath);
         continue;
       }
-      if (!item.isFile()) continue;
-      if (item.name === 'cache.meta.json') continue;
-      if (!item.name.endsWith('.json') && !item.name.endsWith('.zst')) continue;
-      try {
-        const cache = await readCacheEntryFile(fullPath);
-        entries.push({ name: item.name, path: fullPath, cache });
-      } catch {}
+      if (item.isFile() && item.name === 'cache.index.json') {
+        matches.push(fullPath);
+      }
     }
   };
-  await walk(cacheDir);
-  return entries.sort((a, b) => a.path.localeCompare(b.path));
+  await walk(rootDir);
+  return matches.sort((a, b) => a.localeCompare(b));
+};
+
+const loadCacheEntries = async (cacheRootDir) => {
+  const entries = [];
+  const indexPaths = await findCacheIndexPaths(cacheRootDir);
+  for (const indexPath of indexPaths) {
+    let index;
+    try {
+      index = JSON.parse(await fsPromises.readFile(indexPath, 'utf8'));
+    } catch {
+      continue;
+    }
+    const cacheDir = path.dirname(indexPath);
+    const keys = Object.keys(index.entries || {});
+    for (const key of keys) {
+      try {
+        const result = await readCacheEntry(cacheDir, key, index);
+        if (result?.entry) {
+          entries.push({ name: key, path: indexPath, cache: result.entry });
+        }
+      } catch {}
+    }
+  }
+  return entries;
 };
 
 const findCacheEntry = (entries, predicate) => (
@@ -89,6 +109,7 @@ const findCacheEntry = (entries, predicate) => (
 runEmbeddings(8);
 
 const cacheDir = path.join(cacheRoot, 'embeddings');
+const firstIndexPaths = await findCacheIndexPaths(cacheDir);
 const firstEntries = await loadCacheEntries(cacheDir);
 if (!firstEntries.length) {
   console.error('embeddings cache identity test failed: missing cache files');
@@ -147,9 +168,9 @@ if (!onnxIdentity?.onnx?.modelPath || !onnxIdentity?.onnx?.tokenizerId) {
 }
 
 runEmbeddings(12);
-const secondEntries = await loadCacheEntries(cacheDir);
-const firstSet = new Set(firstEntries.map((entry) => entry.path));
-const hasNew = secondEntries.some((entry) => !firstSet.has(entry.path));
+const secondIndexPaths = await findCacheIndexPaths(cacheDir);
+const firstSet = new Set(firstIndexPaths);
+const hasNew = secondIndexPaths.some((entry) => !firstSet.has(entry));
 if (!hasNew) {
   console.error('embeddings cache identity test failed: expected new cache entries after dims change');
   process.exit(1);
