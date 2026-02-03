@@ -50,7 +50,10 @@ const resolveKillGraceMs = (value) => {
 
 const resolveExpectedExitCodes = (value) => {
   if (Array.isArray(value) && value.length) {
-    return value.filter((entry) => Number.isFinite(Number(entry)));
+    const normalized = value
+      .map((entry) => Math.trunc(Number(entry)))
+      .filter(Number.isFinite);
+    return normalized.length ? normalized : [0];
   }
   return [0];
 };
