@@ -53,6 +53,11 @@ const stripDefaultValue = (value) => {
   return idx === -1 ? value : value.slice(0, idx);
 };
 
+const normalizeSwiftType = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.replace(/\bSwift\./g, '');
+};
+
 const parseSwiftParam = (value) => {
   const cleaned = stripDefaultValue(value).trim();
   if (!cleaned) return null;
@@ -67,7 +72,7 @@ const parseSwiftParam = (value) => {
     name = tokens[tokens.length - 2] || null;
   }
   if (!name || name === '_') return null;
-  return { name, type: right };
+  return { name, type: normalizeSwiftType(right) };
 };
 
 export const parseSwiftSignature = (detail) => {
@@ -82,7 +87,7 @@ export const parseSwiftSignature = (detail) => {
   const arrowIndex = after.lastIndexOf('->');
   let returnType = null;
   if (arrowIndex !== -1) {
-    returnType = after.slice(arrowIndex + 2).trim();
+    returnType = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
   } else {
     returnType = 'Void';
   }

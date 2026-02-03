@@ -60,7 +60,7 @@ export function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeE
   }
   runNodeSync(
     repoPath,
-    [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
+    [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
     { env: runtimeEnv }
   );
   if (progress) {

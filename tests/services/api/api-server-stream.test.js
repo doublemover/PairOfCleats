@@ -9,7 +9,7 @@ import { attachSilentLogging } from '../../helpers/test-env.js';
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, '.testCache', 'api-server-stream');
-const serverPath = path.join(root, 'tools', 'api-server.js');
+const serverPath = path.join(root, 'tools', 'api', 'server.js');
 const authToken = 'test-token';
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });

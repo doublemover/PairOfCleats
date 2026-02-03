@@ -132,7 +132,7 @@ function ensureParityIndexes() {
  */
 function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
   const args = [
-    path.join(scriptRoot, 'tools', 'compare-models.js'),
+    path.join(scriptRoot, 'tools', 'reports', 'compare-models.js'),
     '--repo',
     root,
     '--models',

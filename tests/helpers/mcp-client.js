@@ -125,7 +125,7 @@ export const startMcpServer = async ({
 }) => {
   if (!cacheRoot) throw new Error('cacheRoot is required');
   await fsPromises.mkdir(cacheRoot, { recursive: true });
-  const serverPath = path.join(ROOT, 'tools', 'mcp-server.js');
+  const serverPath = path.join(ROOT, 'tools', 'mcp', 'server.js');
   const serverArgs = [serverPath];
   if (mode) {
     serverArgs.push('--mcp-mode', mode);

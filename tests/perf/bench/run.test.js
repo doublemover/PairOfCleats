@@ -47,12 +47,12 @@ if (safeRegex.test('a'.repeat(100))) {
 const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const searchPath = path.join(root, 'search.js');
-const reportPath = path.join(root, 'tools', 'report-artifacts.js');
+const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 
-const defaultQueriesPath = path.join(root, 'tests', 'parity-queries.txt');
+const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
 
 async function loadQueries(filePath) {

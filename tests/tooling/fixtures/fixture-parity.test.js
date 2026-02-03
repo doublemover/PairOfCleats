@@ -91,7 +91,7 @@ for (const fixtureName of fixtures) {
   const queriesPath = path.join(fixtureRoot, 'queries.txt');
   const queryFile = fs.existsSync(queriesPath)
     ? queriesPath
-    : path.join(root, 'tests', 'parity-queries.txt');
+    : path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 
   run([
     path.join(root, 'tests', 'parity.js'),

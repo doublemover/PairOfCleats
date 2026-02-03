@@ -318,9 +318,9 @@ async function loadQueries(filePath) {
 }
 
 const defaultQueryCandidates = [
-  path.join(root, 'tests', 'parity-queries.txt'),
+  path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt'),
   path.join(root, 'queries.txt'),
-  path.join(scriptRoot, 'tests', 'parity-queries.txt')
+  path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt')
 ];
 const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
