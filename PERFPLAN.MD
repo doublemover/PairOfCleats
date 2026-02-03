@@ -357,10 +357,16 @@ Reduce memory and time during SQLite builds and incremental updates.
 ### Goals
 - Reduce peak memory and improve throughput for SQLite builds.
 - Preserve schema and data correctness.
+- Stream compressed JSONL ingestion without full in-memory buffers.
+- Bound WAL/temp file growth and avoid runaway disk usage.
+- Add build telemetry for batch sizing and throughput.
 
 ### Non-goals
 - Changing SQLite schema versions.
 - Changing query semantics.
+- Introducing new SQLite dependencies or native extensions.
+- Disabling integrity checks beyond existing build pragmas.
+- Changing artifact formats (JSON/JSONL) for inputs.
 
 ### Files to modify (exhaustive for this phase)
 - `tools/build/sqlite/runner.js`
@@ -369,24 +375,87 @@ Reduce memory and time during SQLite builds and incremental updates.
 - `src/storage/sqlite/build/incremental-update.js`
 - `src/storage/sqlite/incremental.js`
 - `src/storage/sqlite/utils.js`
+- `src/storage/sqlite/build/pragmas.js`
+- `src/storage/sqlite/build/validate.js`
+- `src/storage/sqlite/build/manifest.js`
+- `docs/perf/sqlite-build.md` (new)
+- `tools/bench/sqlite/build-from-artifacts.js` (new)
+- `tools/bench/sqlite/build-from-bundles.js` (new)
+- `tools/bench/sqlite/incremental-update.js` (new)
+- `tools/bench/sqlite/jsonl-streaming.js` (new)
 - `docs/perf/indexing-stage-audit.md`
 - `tests/storage/sqlite/sqlite-build-memory-guard.test.js` (new)
 - `tests/storage/sqlite/sqlite-incremental-memory-profile.test.js` (new)
+- `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (new)
+- `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (new)
+- `tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` (new)
+- `tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` (new)
+- `tests/storage/sqlite/sqlite-batch-size-adaptive.test.js` (new)
+- `tests/storage/sqlite/sqlite-wal-size-limit.test.js` (new)
+- `tests/storage/sqlite/sqlite-incremental-transaction-boundary.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/indexing-stage-audit.md` (update Stage4 findings)
+- `docs/perf/sqlite-build.md` (new)
 
 ### Tasks
-- [ ] Audit incremental vs artifacts build memory usage.
-- [ ] Optimize batch sizes and streaming inserts.
-- [ ] Ensure WAL checkpointing and temp file cleanup are bounded.
+- [ ] **6.A Build pragmas + transaction strategy**
+- [ ] Task 6.A.1: Make build pragmas adaptive based on input size + available memory (cache_size, mmap_size).
+- [ ] Task 6.A.2: Set `wal_autocheckpoint` and `journal_size_limit` during builds; restore after.
+- [ ] Task 6.A.3: Use `locking_mode=EXCLUSIVE` for build database temp files; restore after finalize.
+- [ ] Task 6.A.4: Add explicit `BEGIN/COMMIT` wrapping per-table inserts to reduce transaction churn.
+- [ ] Task 6.A.5: Run `PRAGMA optimize` (and optional `ANALYZE`) after indexes are created.
+- [ ] Task 6.A.6: Record applied pragmas + batch sizes in build telemetry.
+
+- [ ] **6.B Streaming JSONL ingestion**
+- [ ] Task 6.B.1: Replace `.gz/.zst` JSONL reads that load into memory with streaming decompress + parse.
+- [ ] Task 6.B.2: Ensure `readJsonLinesFile` handles compressed files without `readJsonLinesArray`.
+- [ ] Task 6.B.3: Add guardrails for max JSON bytes during streaming parse.
+
+- [ ] **6.C Batch sizing + throughput**
+- [ ] Task 6.C.1: Tune `resolveSqliteBatchSize` using inputBytes + row counts; add min/max clamps.
+- [ ] Task 6.C.2: Record batch counts per table (token/postings/chargram/minhash).
+- [ ] Task 6.C.3: Add per-table throughput metrics (rows/sec).
+
+- [ ] **6.D Incremental update improvements**
+- [ ] Task 6.D.1: Add transaction boundaries around delete + insert phases to avoid partial WAL growth.
+- [ ] Task 6.D.2: Cap incremental updates by change ratio (already) and log skip reasons to build state.
+- [ ] Task 6.D.3: Add explicit `wal_checkpoint(TRUNCATE)` after incremental updates.
+
+- [ ] **6.E Validation + compaction hooks**
+- [ ] Task 6.E.1: Ensure compact/validate paths use the same adaptive pragma set.
+- [ ] Task 6.E.2: Emit validation timing + row counts to Stage4 audit.
+
+- [ ] **6.F Benchmarks**
+- [ ] Task 6.F.1: Add `tools/bench/sqlite/build-from-artifacts.js` with baseline vs optimized runs.
+- [ ] Task 6.F.2: Add `tools/bench/sqlite/build-from-bundles.js`.
+- [ ] Task 6.F.3: Add `tools/bench/sqlite/incremental-update.js`.
+- [ ] Task 6.F.4: Add `tools/bench/sqlite/jsonl-streaming.js` to compare compressed streaming vs array load.
+- [ ] Task 6.F.5: Document benchmark setup + expected deltas in `docs/perf/sqlite-build.md`.
 
 ### Tests
 - [ ] `tests/storage/sqlite/sqlite-build-memory-guard.test.js`
 - [ ] `tests/storage/sqlite/sqlite-incremental-memory-profile.test.js`
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js`
+  - Success: pragmas are restored to safe defaults after build.
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js`
+  - Success: adaptive pragma values scale with input size.
+- [ ] `tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js`
+  - Success: gzip JSONL is streamed without loading full file.
+- [ ] `tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js`
+  - Success: zstd JSONL is streamed without loading full file.
+- [ ] `tests/storage/sqlite/sqlite-batch-size-adaptive.test.js`
+  - Success: batch size scales with inputBytes and stays within bounds.
+- [ ] `tests/storage/sqlite/sqlite-wal-size-limit.test.js`
+  - Success: WAL is checkpointed/truncated and remains bounded.
+- [ ] `tests/storage/sqlite/sqlite-incremental-transaction-boundary.test.js`
+  - Success: delete+insert phases execute inside explicit transactions.
 
 ### Acceptance
 - [ ] Stage4 peak memory reduced for large indexes.
+- [ ] WAL/SHM sidecars stay bounded after builds and incremental updates.
+- [ ] Compressed JSONL ingestion is streaming and does not allocate large arrays.
+- [ ] Build telemetry captures pragmas, batch sizes, and throughput.
 
 ---
 
@@ -775,10 +844,16 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 ### Goals
 - Stream map build outputs to avoid large in-memory graph payloads.
 - Reduce viewer frame drops via instancing, culling, and LOD.
+- Keep build output deterministic and schema-compatible with existing consumers.
+- Maintain responsive interaction (selection, hover, pan/zoom) on large graphs.
+- Add measurable performance telemetry (build time, peak heap, FPS, dropped frames).
 
 ### Non-goals
 - Changing map output schema or UI layout semantics.
 - Replacing the renderer or UI framework.
+- Changing graph/repo map semantics or ranking.
+- Introducing new runtime dependencies outside existing map stack.
+- Breaking the existing saved map viewer format.
 
 ### Files to modify (exhaustive for this phase)
 - `src/map/build-map.js`
@@ -815,27 +890,98 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 - `src/map/isometric/client/defaults.js`
 - `src/map/isometric/client/utils.js`
 - `src/map/isometric/client/ui.js`
+- `src/map/isometric/client/perf.js` (new)
+- `src/map/isometric/client/telemetry.js` (new)
+- `tools/bench/map/build-map-streaming.js` (new)
+- `tools/bench/map/build-map-memory.js` (new)
+- `tools/bench/map/viewer-fps.js` (new)
+- `tools/bench/map/viewer-lod-stress.js` (new)
 - `docs/perf/map-pipeline.md` (new)
+- `docs/specs/map-artifact.md` (new)
 - `tests/map/map-build-streaming.test.js` (new)
+- `tests/map/map-build-determinism.test.js` (new)
+- `tests/map/map-build-heap-guard.test.js` (new)
+- `tests/map/map-edge-aggregate-stability.test.js` (new)
 - `tests/map/map-viewer-display-limits.test.js` (new)
+- `tests/map/map-viewer-instancing-count.test.js` (new)
+- `tests/map/map-viewer-culling-correctness.test.js` (new)
+- `tests/map/map-viewer-lod-switch.test.js` (new)
+- `tests/map/map-viewer-selection-stability.test.js` (new)
+- `tests/map/map-viewer-telemetry.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/map-pipeline.md` (new)
+- `docs/specs/map-artifact.md` (new; schema + determinism rules)
 
 ### Tasks
-- [ ] Stream map build output and avoid full graph materialization.
-- [ ] Precompute edge aggregates and reduce per-frame allocations.
-- [ ] Use instancing + frustum culling for large node sets.
-- [ ] Add LOD strategy for edges/labels under load.
-- [ ] Add viewer telemetry for dropped frames and memory usage.
+- [ ] **12.A Map build streaming + memory bounds**
+- [ ] Task 12.A.1: Define streaming writer in `src/map/build-map/io.js` that accepts async iterables and writes JSON in chunks without buffering full arrays.
+- [ ] Task 12.A.2: Refactor `build-map.js` pipeline to emit node/edge/symbol iterables and avoid materializing full graph arrays simultaneously.
+- [ ] Task 12.A.3: Add a build “spill” path for large graphs that writes partial node/edge sets to temp files, then merges deterministically.
+- [ ] Task 12.A.4: Add explicit max-bytes guardrails per section (nodes/edges/symbols) with actionable error messages.
+- [ ] Task 12.A.5: Preserve current output schema (same keys/ordering), but stream in a deterministic stable order.
+- [ ] Task 12.A.6: Add per-stage build telemetry (time, peak heap, row counts) and export into `docs/perf/map-pipeline.md`.
+- [ ] **12.B Map build determinism + aggregation**
+- [ ] Task 12.B.1: Define canonical ordering rules for nodes, edges, and symbols (sort keys + tie-breakers).
+- [ ] Task 12.B.2: Precompute and serialize edge aggregates (counts, weights, min/max) so viewer doesn’t recompute per frame.
+- [ ] Task 12.B.3: Avoid duplicate string retention by interning common labels/paths in `normalize.js`.
+- [ ] Task 12.B.4: Ensure `build-map/filters.js` uses shared filters and avoids per-node allocations.
+- [ ] Task 12.B.5: Add deterministic hashing of map sections to detect mismatches between runs.
+- [ ] **12.C Viewer instancing + culling**
+- [ ] Task 12.C.1: Replace per-node mesh creation with instanced meshes in `meshes.js` and `scene.js`.
+- [ ] Task 12.C.2: Add frustum culling of node and edge instances with spatial buckets (grid or quadtree).
+- [ ] Task 12.C.3: Batch edge geometry updates and reuse buffers across frames.
+- [ ] Task 12.C.4: Add configurable max draw counts for nodes/edges/labels under load.
+- [ ] Task 12.C.5: Ensure selection/hover works with instanced IDs (stable mapping).
+- [ ] **12.D LOD + load shedding**
+- [ ] Task 12.D.1: Introduce LOD tiers for edges and labels (full, simplified, hidden).
+- [ ] Task 12.D.2: Switch LOD based on zoom level + frame budget + visible count.
+- [ ] Task 12.D.3: Throttle layout updates during high load and defer non-critical UI.
+- [ ] Task 12.D.4: Keep semantic selection (selected node/edge always visible).
+- [ ] **12.E Telemetry + profiling hooks**
+- [ ] Task 12.E.1: Add viewer FPS + dropped frame counters (`performance.now` + RAF deltas).
+- [ ] Task 12.E.2: Emit memory usage and active instance counts in `viewer-app.js`.
+- [ ] Task 12.E.3: Add a “perf HUD” toggle for debugging (dev only).
+- [ ] Task 12.E.4: Persist build metrics in map artifact metadata (non-breaking optional field).
+- [ ] **12.F Benchmarks + acceptance harness**
+- [ ] Task 12.F.1: Add `tools/bench/map/build-map-streaming.js` (baseline vs streaming).
+- [ ] Task 12.F.2: Add `tools/bench/map/build-map-memory.js` (peak heap, duration).
+- [ ] Task 12.F.3: Add `tools/bench/map/viewer-fps.js` (FPS under fixed scenario).
+- [ ] Task 12.F.4: Add `tools/bench/map/viewer-lod-stress.js` (LOD tiers, draw counts).
+- [ ] Task 12.F.5: Document how to run benchmarks and expected deltas in `docs/perf/map-pipeline.md`.
+- [ ] **12.G Sub-agent work packets**
+- [ ] Task 12.G.1: Sub-agent Packet A — Map build streaming + memory guards (Tasks 12.A.1–12.A.6).
+- [ ] Task 12.G.2: Sub-agent Packet B — Viewer instancing + culling (Tasks 12.C.1–12.C.5).
+- [ ] Task 12.G.3: Sub-agent Packet C — LOD + load shedding + telemetry (Tasks 12.D.1–12.E.4).
+- [ ] Task 12.G.4: Sub-agent Packet D — Benchmarks + docs (Tasks 12.F.1–12.F.5).
 
 ### Tests
 - [ ] `tests/map/map-build-streaming.test.js`
+  - Success: stream writer emits identical JSON to prior build for small graphs.
+- [ ] `tests/map/map-build-determinism.test.js`
+  - Success: identical input yields identical map output hashes across runs.
+- [ ] `tests/map/map-build-heap-guard.test.js`
+  - Success: peak heap stays under threshold for medium fixture.
+- [ ] `tests/map/map-edge-aggregate-stability.test.js`
+  - Success: aggregate counts/weights match pre-aggregate baseline.
 - [ ] `tests/map/map-viewer-display-limits.test.js`
+  - Success: draw count caps engaged and UI remains responsive.
+- [ ] `tests/map/map-viewer-instancing-count.test.js`
+  - Success: instanced meshes used; instance count matches node count.
+- [ ] `tests/map/map-viewer-culling-correctness.test.js`
+  - Success: off-screen elements are culled; visible set is correct.
+- [ ] `tests/map/map-viewer-lod-switch.test.js`
+  - Success: LOD tiers switch deterministically under zoom/load.
+- [ ] `tests/map/map-viewer-selection-stability.test.js`
+  - Success: selected node remains visible and highlighted across LOD transitions.
+- [ ] `tests/map/map-viewer-telemetry.test.js`
+  - Success: FPS/memory metrics emitted and within expected ranges.
 
 ### Acceptance
-- [ ] Map build memory usage reduced for large inputs.
-- [ ] Viewer remains responsive under large graphs.
+- [ ] Map build memory usage reduced for large inputs (documented via benchmark).
+- [ ] Viewer remains responsive under large graphs (FPS + dropped frames within target).
+- [ ] Map output remains deterministic and schema-compatible.
+- [ ] Benchmarks demonstrate improvements and are documented.
 
 ---
 
@@ -847,9 +993,14 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 ### Goals
 - Ensure docs and config inventories reflect new behavior.
 - Require consistent JSDoc for new/shared modules.
+- Comprehensively explain any "tricky" or complicated behaviors.
+- Make docs discoverable and consistent with code contracts.
+- Add explicit examples and invariants for sub-agent execution.
 
 ### Non-goals
 - Writing new features beyond documentation and JSDoc standards.
+- Rewriting unrelated legacy specs.
+- Changing runtime behavior or schema just to align docs.
 
 ### Files to modify (exhaustive for this phase)
 - `docs/perf/indexing-stage-audit.md`
@@ -862,6 +1013,21 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/config/inventory.json`
 - `docs/guides/commands.md`
 - `docs/guides/jsdoc-standards.md` (new)
+- `docs/guides/perfplan-execution.md` (new)
+- `docs/guides/roadmap-checklists.md` (new)
+- `docs/perf/map-pipeline.md`
+- `docs/specs/map-artifact.md`
+- `docs/specs/vfs-manifest-artifact.md`
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-io-batching.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+- `docs/specs/vfs-cdc-segmentation.md`
+- `docs/specs/vfs-cold-start-cache.md`
+- `docs/specs/lsp-provider-hardening.md`
+- `docs/specs/tooling-provider-registry.md`
+- `docs/specs/tooling-vfs-and-segment-routing.md`
 - `tests/docs/embeddings-cache-docs-sync.test.js` (new)
 
 ### Docs/specs to add or update
@@ -872,6 +1038,8 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.*`
 - `docs/guides/commands.md`
 - `docs/guides/jsdoc-standards.md` (new)
+- `docs/guides/perfplan-execution.md` (new)
+- `docs/guides/roadmap-checklists.md` (new)
 
 ### JSDoc requirements
 - New/shared modules must document:
@@ -879,13 +1047,276 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
   - input/output types and invariants
   - error behavior + side effects
   - determinism constraints and edge cases
+  - cross-platform path handling expectations
+  - cache invalidation rules (when applicable)
+  - concurrency assumptions and thread-pool interactions
 
 ### Tests
 - [ ] `tests/docs/embeddings-cache-docs-sync.test.js`
+- [ ] `tests/docs/perfplan-docs-sync.test.js` (new)
+- [ ] `tests/docs/jsdoc-standards-sync.test.js` (new)
+- [ ] `tests/docs/config-inventory-sync.test.js` (new; verifies doc updates when CLI flags change)
+- [ ] `tests/docs/spec-links-valid.test.js` (new; ensures spec references resolve)
+- [ ] `tests/docs/roadmap-checklist-consistency.test.js` (new)
 
 ### Acceptance
 - [ ] Docs updated and referenced in commands/config inventories.
 - [ ] JSDoc standards documented and enforced for new modules.
+- [ ] Perfplan execution guide allows a sub-agent to execute phases without ambiguity.
+- [ ] Spec links and references are valid and consistent.
+
+### Tasks
+- [ ] **13.A Inventory + gap analysis**
+- [ ] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
+- [ ] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
+- [ ] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
+- [ ] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
+
+- [ ] **13.B Embeddings cache spec hardening**
+- [ ] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
+- [ ] Task 13.B.2: Define cache key and invalidation rules (provider/model/dims/quantization/hash).
+- [ ] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
+- [ ] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
+
+- [ ] **13.C VFS + tooling spec alignment**
+- [ ] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
+- [ ] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
+- [ ] Task 13.C.3: Align token URI and hash routing docs with current code paths.
+- [ ] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
+
+- [ ] **13.D CLI + contracts + inventories**
+- [ ] Task 13.D.1: Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts/sidecars.
+- [ ] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
+- [ ] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
+
+- [ ] **13.E JSDoc standards + enforcement**
+- [ ] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
+- [ ] Task 13.E.2: Add rules for tricky behaviors (streaming, caching, determinism, path handling).
+- [ ] Task 13.E.3: Update touched modules with missing JSDoc blocks.
+
+- [ ] **13.F Execution guides**
+- [ ] Task 13.F.1: Add `docs/guides/perfplan-execution.md` describing how to execute phases in order.
+- [ ] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
+
+- [ ] **13.G Docs validation tests**
+- [ ] Task 13.G.1: Implement `tests/docs/embeddings-cache-docs-sync.test.js`.
+- [ ] Task 13.G.2: Add tests for spec link validation and checklist consistency.
+- [ ] Task 13.G.3: Add docs/config inventory sync test.
+
+### Sub-agent work packets
+- [ ] Sub-agent Packet A — Embeddings cache spec + contract updates (Tasks 13.B + 13.D.1).
+- [ ] Sub-agent Packet B — VFS/tooling spec alignment (Tasks 13.C).
+- [ ] Sub-agent Packet C — JSDoc standards + module updates (Tasks 13.E).
+- [ ] Sub-agent Packet D — Docs validation tests + execution guides (Tasks 13.F + 13.G).
 
 ---
 
+## Phase 14 — Index Artifact Pipelines (State, Imports, Symbols, Postings, Relations, Chunk Meta)
+
+### Objective
+Reduce memory and IO overhead for index state writing, import resolution graphs, symbol artifacts, chargram postings, graph relations, and chunk metadata without changing schemas.
+
+### Goals
+- Minimize build_state read/modify/write overhead and avoid redundant writes.
+- Reduce peak memory for import-resolution graphs and relation aggregation.
+- Stream symbol occurrences/edges and chunk metadata without full-array materialization.
+- Bound chargram postings growth and prevent unbounded memory spikes.
+- Preserve deterministic output and schema compatibility for all artifacts.
+- Add targeted microbenchmarks and guards for high‑volume artifacts.
+
+### Non-goals
+- Changing artifact schemas or output formats.
+- Replacing the tokenizer or changing ranking semantics.
+- Introducing new dependencies or native modules.
+- Implementing SPIMI (tracked separately in `spimi_spec.md`).
+
+### Files to modify (exhaustive for this phase)
+- `src/index/build/build-state.js`
+- `src/index/build/stage-checkpoints.js`
+- `src/index/build/import-resolution.js`
+- `src/index/build/indexer/steps/relations.js`
+- `src/index/build/file-processor/relations.js`
+- `src/index/build/graphs.js`
+- `src/index/build/postings.js`
+- `src/index/build/tokenization.js`
+- `src/index/build/artifacts/helpers.js`
+- `src/index/build/artifacts/graph-relations.js`
+- `src/index/build/artifacts/writers/chunk-meta.js`
+- `src/index/build/artifacts/writers/symbol-occurrences.js`
+- `src/index/build/artifacts/writers/symbol-edges.js`
+- `src/index/build/artifacts.js`
+- `src/index/build/piece-assembly/merge.js`
+- `src/index/validate.js`
+- `docs/perf/index-artifact-pipelines.md` (new)
+- `docs/specs/build-state.md` (new or update if exists)
+- `docs/specs/import-resolution.md` (new)
+- `docs/specs/symbol-occurrences.md` (new)
+- `docs/specs/symbol-edges.md` (new)
+- `docs/specs/chargram-postings.md` (new)
+- `docs/specs/graph-relations.md` (new)
+- `docs/specs/chunk-meta.md` (new)
+- `tools/bench/index/build-state-write.js` (new)
+- `tools/bench/index/import-resolution-graph.js` (new)
+- `tools/bench/index/symbol-artifacts.js` (new)
+- `tools/bench/index/chargram-postings.js` (new)
+- `tools/bench/index/graph-relations.js` (new)
+- `tools/bench/index/chunk-meta-stream.js` (new)
+- `tests/indexing/build-state/build-state-debounce.test.js` (new)
+- `tests/indexing/build-state/build-state-merge-consistency.test.js` (new)
+- `tests/indexing/imports/import-resolution-cache.test.js` (new)
+- `tests/indexing/imports/import-resolution-determinism.test.js` (new)
+- `tests/indexing/imports/import-resolution-graph-cap.test.js` (new)
+- `tests/indexing/symbols/symbol-occurrences-streaming.test.js` (new)
+- `tests/indexing/symbols/symbol-edges-streaming.test.js` (new)
+- `tests/indexing/symbols/symbol-artifacts-determinism.test.js` (new)
+- `tests/indexing/postings/chargram-postings-memory-guard.test.js` (new)
+- `tests/indexing/postings/chargram-postings-spill-merge.test.js` (new)
+- `tests/indexing/relations/graph-relations-streaming.test.js` (new)
+- `tests/indexing/relations/graph-relations-determinism.test.js` (new)
+- `tests/indexing/chunk-meta/chunk-meta-streaming.test.js` (new)
+- `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js` (new)
+
+### Docs/specs to add or update
+- `docs/perf/index-artifact-pipelines.md` (new)
+- `docs/specs/build-state.md`
+- `docs/specs/import-resolution.md`
+- `docs/specs/symbol-occurrences.md`
+- `docs/specs/symbol-edges.md`
+- `docs/specs/chargram-postings.md`
+- `docs/specs/graph-relations.md`
+- `docs/specs/chunk-meta.md`
+
+### Tasks
+- [ ] **14.A Build state writing + streaming**
+- [ ] Task 14.A.1: Add an in‑memory state cache with version checks to avoid re-reading `build_state.json` on every update.
+- [ ] Task 14.A.1.a: Cache last‑read state with `mtimeMs` + size fingerprint; invalidate on mismatch.
+- [ ] Task 14.A.1.b: Keep a per‑buildRoot cache object keyed by resolved path.
+- [ ] Task 14.A.2: Add a write debounce/merge window (e.g. 250–500ms) to coalesce bursts of updates.
+- [ ] Task 14.A.2.a: Make debounce window adaptive (short for CLI, longer for batch builds).
+- [ ] Task 14.A.2.b: Expose an explicit “flush now” hook for shutdown paths.
+- [ ] Task 14.A.3: Split large subtrees (e.g. stage checkpoints) into separate optional sidecar JSON files to reduce write volume.
+- [ ] Task 14.A.3.a: Add `build_state.stage-checkpoints.json` (per‑mode) and `build_state.progress.json`.
+- [ ] Task 14.A.3.b: Keep `build_state.json` minimal with references and updatedAt.
+- [ ] Task 14.A.4: Add per‑field “dirty” tracking so unchanged sections are not re‑serialized.
+- [ ] Task 14.A.4.a: Track dirty flags for `phases`, `progress`, `counts`, `signatures`, `stageCheckpoints`.
+- [ ] Task 14.A.4.b: Skip serialization for sections without dirty flag.
+- [ ] Task 14.A.5: Add a best‑effort append‑only event log (`build_state.events.jsonl`) for debugging without expanding the main file.
+- [ ] Task 14.A.5.a: Log `phase` transitions and checkpoint writes only.
+- [ ] Task 14.A.5.b: Cap log size and rotate by date/build id.
+- [ ] Task 14.A.6: Ensure `updateBuildState` remains atomic and safe across concurrent callers.
+- [ ] Task 14.A.6.a: Use the existing queue but ensure coalesced writes apply in order.
+- [ ] Task 14.A.6.b: Validate merged state includes schema + signature versions.
+- [ ] Task 14.A.7: Add a last‑write snapshot hash to skip no‑op writes.
+- [ ] Task 14.A.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
+
+- [ ] **14.B Import resolution graph performance**
+- [ ] Task 14.B.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
+- [ ] Task 14.B.1.a: Cache negative lookups for specifiers that do not resolve.
+- [ ] Task 14.B.1.b: Include `paths`/`baseUrl` fingerprint in cache key.
+- [ ] Task 14.B.2: Add a fast path when `paths`/`baseUrl` are absent (skip tsconfig traversal).
+- [ ] Task 14.B.2.a: Detect “no tsconfig in root” once and reuse.
+- [ ] Task 14.B.3: Replace repeated `fs.existsSync` calls with a directory cache + file lookup map.
+- [ ] Task 14.B.3.a: Build a `Set` of repo‑relative paths from scan to avoid syscalls.
+- [ ] Task 14.B.4: Precompute extension candidates and normalize only once per specifier.
+- [ ] Task 14.B.4.a: Normalize specifiers at parse time and reuse (trim/query/hash removed once).
+- [ ] Task 14.B.5: Keep graph node/edge caps deterministic; record when caps drop edges.
+- [ ] Task 14.B.5.a: Record capped count by edge type (imports/usage/calls).
+- [ ] Task 14.B.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
+- [ ] Task 14.B.6.a: Add telemetry into stage checkpoints for stage2.
+
+- [ ] **14.C Symbol occurrences + edges streaming**
+- [ ] Task 14.C.1: Replace `buildRows` full arrays with streaming iterators over chunks.
+- [ ] Task 14.C.1.a: Emit rows per chunk; avoid storing all rows in memory.
+- [ ] Task 14.C.2: Preserve deterministic ordering by sorting per‑chunk and emitting in chunk order.
+- [ ] Task 14.C.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
+- [ ] Task 14.C.3: Add optional spill files for large symbol artifact sets; merge via heap.
+- [ ] Task 14.C.3.a: Reuse VFS merge‑runs heap implementation.
+- [ ] Task 14.C.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
+- [ ] Task 14.C.4.a: Add per‑artifact meta extension with trim counts.
+- [ ] Task 14.C.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
+- [ ] Task 14.C.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
+
+- [ ] **14.D Chargram postings memory bounds**
+- [ ] Task 14.D.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
+- [ ] Task 14.D.1.a: Maintain a reusable Set and clear it per chunk.
+- [ ] Task 14.D.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
+- [ ] Task 14.D.2.a: Spill vocab fragments to sorted JSONL shards, merge via K‑way heap.
+- [ ] Task 14.D.2.b: Keep deterministic vocab ordering across spills.
+- [ ] Task 14.D.3: Keep output ordering stable (sorted vocab, deterministic postings order).
+- [ ] Task 14.D.4: Add instrumentation: max unique chargrams, dropped tokens, spill count.
+- [ ] Task 14.D.4.a: Emit guard counters into stage checkpoints.
+- [ ] Task 14.D.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
+- [ ] Task 14.D.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
+
+- [ ] **14.E Graph relations streaming + measurement**
+- [ ] Task 14.E.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
+- [ ] Task 14.E.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
+- [ ] Task 14.E.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
+- [ ] Task 14.E.2.a: Track bytes as rows are emitted (no re‑stringify).
+- [ ] Task 14.E.3: Add deterministic ordering for graph sections and keys.
+- [ ] Task 14.E.3.a: Define stable graph name ordering + edge ordering rules.
+- [ ] Task 14.E.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
+- [ ] Task 14.E.4.a: Include dropped edge counts and cap reasons.
+
+- [ ] **14.F Chunk meta streaming**
+- [ ] Task 14.F.1: Move chunk meta emission to a streaming writer fed from the file processor.
+- [ ] Task 14.F.1.a: Emit JSONL rows as chunks are finalized.
+- [ ] Task 14.F.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
+- [ ] Task 14.F.2.a: Track trimmed fields in a per‑artifact stats block.
+- [ ] Task 14.F.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
+- [ ] Task 14.F.3.a: Use external merge sort when chunk IDs are out of order.
+- [ ] Task 14.F.4: Track trimming stats (what fields were dropped) in build state.
+- [ ] Task 14.F.5: Add strict mode test to ensure no trimming occurs on small fixtures.
+
+- [ ] **14.G Benchmarks + acceptance harness**
+- [ ] Task 14.G.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
+- [ ] Task 14.G.1.a: Emit JSON summary with p50/p95 latency and write counts.
+- [ ] Task 14.G.2: Implement `tools/bench/index/import-resolution-graph.js` for nodes/edges throughput.
+- [ ] Task 14.G.2.a: Report node/edge counts and cap triggers; include seed.
+- [ ] Task 14.G.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
+- [ ] Task 14.G.3.a: Include memory watermark and output hash compare.
+- [ ] Task 14.G.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
+- [ ] Task 14.G.4.a: Include spill count and vocab size metrics.
+- [ ] Task 14.G.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
+- [ ] Task 14.G.5.a: Report bytes/sec and shard counts.
+- [ ] Task 14.G.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
+- [ ] Task 14.G.6.a: Include trim stats and output hash.
+- [ ] Task 14.G.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
+
+### Tests
+- [ ] `tests/indexing/build-state/build-state-debounce.test.js`
+  - Success: multiple rapid updates coalesce into a single write.
+- [ ] `tests/indexing/build-state/build-state-merge-consistency.test.js`
+  - Success: concurrent updates do not lose fields or corrupt state.
+- [ ] `tests/indexing/imports/import-resolution-cache.test.js`
+  - Success: cached resolutions match baseline outputs.
+- [ ] `tests/indexing/imports/import-resolution-determinism.test.js`
+  - Success: identical inputs produce identical import graphs.
+- [ ] `tests/indexing/imports/import-resolution-graph-cap.test.js`
+  - Success: cap enforcement is deterministic and logged.
+- [ ] `tests/indexing/symbols/symbol-occurrences-streaming.test.js`
+  - Success: streaming output matches baseline JSONL content.
+- [ ] `tests/indexing/symbols/symbol-edges-streaming.test.js`
+  - Success: streaming output matches baseline JSONL content.
+- [ ] `tests/indexing/symbols/symbol-artifacts-determinism.test.js`
+  - Success: stable ordering and identical hashes across runs.
+- [ ] `tests/indexing/postings/chargram-postings-memory-guard.test.js`
+  - Success: memory guard triggers spill without changing output.
+- [ ] `tests/indexing/postings/chargram-postings-spill-merge.test.js`
+  - Success: spill+merge output equals baseline in deterministic order.
+- [ ] `tests/indexing/relations/graph-relations-streaming.test.js`
+  - Success: streaming JSONL output matches baseline graph_relations.
+- [ ] `tests/indexing/relations/graph-relations-determinism.test.js`
+  - Success: deterministic ordering and stable metadata.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-streaming.test.js`
+  - Success: JSONL output matches baseline for medium fixture.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js`
+  - Success: trimming preserves required fields and order.
+
+### Acceptance
+- [ ] Build state writes are coalesced and deterministic.
+- [ ] Import resolution graphs are faster and use less memory with the same output.
+- [ ] Symbol occurrences/edges and chunk meta stream without large intermediate arrays.
+- [ ] Chargram postings are bounded by memory guards and retain deterministic output.
+- [ ] Graph relations write paths scale to large repos with sharded JSONL.
+- [ ] Benchmarks show measurable gains and are documented.
