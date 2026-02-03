@@ -77,6 +77,7 @@ export const resetTreeSitterStats = () => {
   }
   treeSitterState.loggedMissing?.clear?.();
   treeSitterState.loggedMissingWasm?.clear?.();
+  treeSitterState.loggedQueryFailures?.clear?.();
   treeSitterState.loggedEvictionWarnings?.clear?.();
   treeSitterState.loggedInitFailure?.clear?.();
   treeSitterState.loggedWorkerFailures?.clear?.();
@@ -122,6 +123,7 @@ function removeLanguageCacheEntriesForWasmKey(wasmKey) {
   }
   for (const langId of toDelete) {
     treeSitterState.languageCache.delete(langId);
+    treeSitterState.queryCache?.delete?.(langId);
   }
 }
 

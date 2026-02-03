@@ -536,10 +536,10 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
   - [ ] Include embedded language sets in batch keys when relevant.
   - [ ] Ensure fallback to heuristic chunking uses consistent logs.
   - [ ] Track repeated parse timeouts and disable that language for the current run.
-- [ ] Extract only what we need, with bounded memory.
-  - [ ] Precompile and reuse per-language tree-sitter queries.
-  - [ ] Prefer query-based extraction where supported; fall back to traversal otherwise.
-  - [ ] Stream chunk candidates during traversal to avoid large node arrays.
+- [x] Extract only what we need, with bounded memory.
+  - [x] Precompile and reuse per-language tree-sitter queries.
+  - [x] Prefer query-based extraction where supported; fall back to traversal otherwise.
+  - [x] Stream chunk candidates during traversal to avoid large node arrays.
 - [ ] Add adaptive tuning for heavy grammars.
   - [ ] Track node density metrics per language.
   - [ ] Adjust traversal caps for dense grammars.
@@ -553,7 +553,7 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
 ### Milestones
 - [ ] **Determinism + Observability**: churn metrics, preflight checks, deterministic preload order, shared language discovery helper.
 - [x] **Bounded Caches**: deterministic LRU eviction and worker pruning with strict `maxLoadedLanguages`.
-- [ ] **Extraction Efficiency**: query caching + query-based extraction + streaming chunk emission.
+- [x] **Extraction Efficiency**: query caching + query-based extraction + streaming chunk emission.
 - [ ] **Adaptive + Incremental**: adaptive traversal budgets and parse tree reuse for unchanged files.
 
 ### Tests
@@ -564,8 +564,8 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
 - [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
 - [x] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-vfs-language-routing.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js`
