@@ -119,7 +119,7 @@ if (!argv['skip-tooling']) {
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
   const result = runCommand(
     process.execPath,
-    [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--from', artifactsDir],
+    [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
     { cwd: root, stdio: 'inherit', env: baseEnv }
   );
   restoredArtifacts = result.ok;

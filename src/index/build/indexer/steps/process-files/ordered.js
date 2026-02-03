@@ -34,7 +34,7 @@ export const buildOrderedAppender = (handleFileResult, state) => {
       pending.delete(nextIndex);
       try {
         if (entry?.result) {
-          handleFileResult(entry.result, state, entry.shardMeta);
+          await handleFileResult(entry.result, state, entry.shardMeta);
         }
         entry?.resolve?.();
       } catch (err) {

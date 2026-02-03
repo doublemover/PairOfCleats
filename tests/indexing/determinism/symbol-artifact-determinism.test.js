@@ -46,7 +46,16 @@ const buildIndex = (cacheRoot) => {
   });
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--scm-provider',
+      'none',
+      '--stage',
+      'stage2',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {

@@ -23,6 +23,15 @@ const cases = [
     expected: '.poc-vfs/docs/readme.md#seg:segu:v1:deadbeef.ts'
   },
   {
+    name: 'windows-style container path is normalized to posix separators',
+    input: {
+      containerPath: 'src\\win\\path.js',
+      segmentUid: null,
+      effectiveExt: '.js'
+    },
+    expected: '.poc-vfs/src/win/path.js'
+  },
+  {
     name: 'container path escapes % and # so the segment delimiter remains unambiguous',
     input: {
       containerPath: 'docs/hello%world#v2.md',

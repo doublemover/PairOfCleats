@@ -14,7 +14,7 @@ if (!caps?.mcp?.sdk) {
 const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-sdk-mode');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
-const serverPath = path.join(process.cwd(), 'tools', 'mcp-server.js');
+const serverPath = path.join(process.cwd(), 'tools', 'mcp', 'server.js');
 const server = spawn(process.execPath, [serverPath, '--mcp-mode', 'sdk'], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {

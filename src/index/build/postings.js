@@ -393,9 +393,14 @@ export async function buildPostings(input) {
     if (typeof triPost.clear === 'function') triPost.clear();
   }
 
-  const tokenEntries = Array.from(tokenPostings.entries()).sort((a, b) => sortStrings(a[0], b[0]));
-  const tokenVocab = tokenEntries.map(([token]) => token);
-  const tokenPostingsList = tokenEntries.map(([, posting]) => normalizeTfPostingList(posting));
+  const tokenVocab = Array.from(tokenPostings.keys()).sort(sortStrings);
+  const tokenPostingsList = new Array(tokenVocab.length);
+  for (let i = 0; i < tokenVocab.length; i += 1) {
+    const token = tokenVocab[i];
+    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(token));
+    tokenPostings.delete(token);
+  }
+  if (typeof tokenPostings.clear === 'function') tokenPostings.clear();
   const avgDocLen = normalizedDocLengths.length
     ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
@@ -409,7 +414,13 @@ export async function buildPostings(input) {
     for (const [field, postingsMap] of fieldEntries) {
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
       const vocab = Array.from(postingsMap.keys()).sort(sortStrings);
-      const postings = vocab.map((token) => normalizeTfPostingList(postingsMap.get(token)));
+      const postings = new Array(vocab.length);
+      for (let i = 0; i < vocab.length; i += 1) {
+        const token = vocab[i];
+        postings[i] = normalizeTfPostingList(postingsMap.get(token));
+        postingsMap.delete(token);
+      }
+      if (typeof postingsMap.clear === 'function') postingsMap.clear();
       const lengthsRaw = fieldDocLengths[field] || [];
       const lengths = Array.isArray(lengthsRaw)
         ? lengthsRaw.map((len) => (Number.isFinite(len) ? len : 0))

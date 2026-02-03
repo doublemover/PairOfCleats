@@ -13,9 +13,17 @@ This document refines the previous draft by:
 ## 0. Dependencies
 
 - `docs/specs/identity-and-symbol-contracts.md` (ChunkRef + chunkUid)
+- `docs/specs/vfs-manifest-artifact.md`
 - Effective language contract (container vs effective fields) is aligned with P0-04:
   - `effectiveLanguageId`, `effectiveExt`
   - `containerLanguageId`, `containerExt`
+
+Optional extensions:
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-cdc-segmentation.md`
+- `docs/specs/vfs-cold-start-cache.md`
 
 ---
 
@@ -37,6 +45,8 @@ Therefore each chunk has:
 
 `segmentUid` is derived per the Identity Contract (segment type + languageId + normalized segment text).
 
+Language IDs MUST be normalized to lowercase for routing and provider selection.
+
 Tooling providers MUST route by **effective** language, not container extension.
 
 ### 1.2 Virtual documents
@@ -44,7 +54,7 @@ Tooling providers MUST route by **effective** language, not container extension.
 A **virtual document** is a stable path + text pair that tooling parses.
 
 - For non-segmented files: one virtual document == the real file on disk.
-- For segmented files: each segment becomes a distinct virtual document (one per `{containerPath, segmentUid}`).
+- For segmented files: each segment becomes a distinct virtual document (one per `{containerPath, segmentUid}`), unless `tooling.vfs.coalesceSegments` is enabled to merge adjacent segments with the same language/ext.
 
 This avoids mixing multiple languages into one document and makes tooling behavior predictable.
 
@@ -88,6 +98,17 @@ For non-segmented files, you MAY use the real path instead of `.poc-vfs/...` if:
 - the on-disk file content matches exactly the virtual document content.
 
 To keep the system uniform and reduce provider branching, prefer always using `.poc-vfs/...` paths.
+
+### 2.4 Path encoding
+
+- `containerPath` MUST be derived from `relKey` (repo-relative POSIX).
+- Only `#` and `%` are encoded in `containerPath` before embedding in `.poc-vfs/...`.
+
+### 2.5 Optional routing enhancements (draft)
+
+- Hash routing MAY prepend a hash-derived prefix for disk paths and token URIs; see `docs/specs/vfs-hash-routing.md`.
+- Token URIs MAY use `poc-vfs://` with a token derived from `docHash`; see `docs/specs/vfs-token-uris.md`.
+- These extensions MUST NOT change `virtualPath` in `vfs_manifest`.
 
 ---
 
@@ -207,8 +228,8 @@ Create `src/index/tooling/vfs.js` (or similar) exposing:
 
 1. Group chunks by `{containerPath, segmentUid}`.
 2. For each group:
-   - Determine `effectiveLanguageId`:
-     - `chunk.metaV2.lang` if present, else `chunk.segment.languageId`, else file-level language.
+   - Determine `effectiveLanguageId` (lowercased):
+     - `chunk.lang` or `chunk.metaV2.lang` if present, else `chunk.segment.languageId`, else file-level language.
    - Determine `effectiveExt` from mapping table (Section 4).
    - Determine virtual document `text`:
      - If segment: use segmentText extracted during segmentation.
@@ -228,6 +249,12 @@ If not available, re-slice from container text using segment `{start,end}`:
 - `segmentText = containerText.slice(segment.start, segment.end)`
 
 This must match the chunk offsets after segment adjustment.
+
+### 6.4 Optional lookup accelerators (draft)
+
+- `vfs_index` MAY be used to resolve `virtualPath` without scanning `vfs_manifest` (see `docs/specs/vfs-index.md`).
+- Segment hashing MAY reuse a cache keyed by file hash + segment range (see `docs/specs/vfs-segment-hash-cache.md`).
+- Large files MAY use CDC segmentation when no language-specific segmenter exists (see `docs/specs/vfs-cdc-segmentation.md`).
 
 ---
 
@@ -260,6 +287,11 @@ cacheKey = sha1(
 This ensures:
 - any change in virtual doc content invalidates cache
 - ordering is deterministic
+
+## 8.1 Operational performance extensions (draft)
+
+- Cold-start cache MAY reuse VFS disk docs across runs; see `docs/specs/vfs-cold-start-cache.md`.
+- IO batching MAY reduce disk write churn during VFS materialization; see `docs/specs/vfs-io-batching.md`.
 
 ---
 

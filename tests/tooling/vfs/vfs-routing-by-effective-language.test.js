@@ -45,5 +45,6 @@ const { documents } = await buildToolingVirtualDocuments({
 const tsDocs = documents.filter((doc) => doc.effectiveExt === '.ts');
 assert.equal(tsDocs.length, 1, 'expected exactly one TypeScript virtual document');
 assert.equal(tsDocs[0].languageId, 'typescript');
+assert.ok(tsDocs[0].virtualPath.startsWith('.poc-vfs/'), 'expected .poc-vfs routing for segment docs');
 
 console.log('VFS routing by effective language test passed');

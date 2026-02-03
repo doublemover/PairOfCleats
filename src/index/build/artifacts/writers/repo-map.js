@@ -7,7 +7,7 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
     }
   }
   return function* repoMapIterator() {
-    const entries = [];
+    const grouped = new Map();
     for (const c of chunks) {
       if (!c?.name) continue;
       const exportsSet = fileExportMap.get(c.file) || null;
@@ -21,7 +21,7 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
             || (typeof c.kind === 'string' && c.kind.startsWith('ExportDefault'))
           ))
         : false;
-      entries.push({
+      const entry = {
         file: c.file,
         ext: c.ext,
         name: c.name,
@@ -30,31 +30,43 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         startLine: c.startLine,
         endLine: c.endLine,
         exported
-      });
+      };
+      const fileKey = String(entry.file || '');
+      const nameKey = String(entry.name || '');
+      const kindKey = String(entry.kind || '');
+      const groupKey = `${fileKey}\u0000${nameKey}\u0000${kindKey}`;
+      let group = grouped.get(groupKey);
+      if (!group) {
+        group = {
+          file: fileKey,
+          name: nameKey,
+          kind: kindKey,
+          entries: [],
+          seen: new Set()
+        };
+        grouped.set(groupKey, group);
+      }
+      const dedupeKey = [
+        fileKey,
+        nameKey,
+        kindKey,
+        entry.signature == null ? '' : String(entry.signature),
+        Number.isFinite(entry.startLine) ? entry.startLine : ''
+      ].join('::');
+      if (group.seen.has(dedupeKey)) continue;
+      group.seen.add(dedupeKey);
+      group.entries.push(entry);
     }
-    entries.sort((a, b) => {
-      const fileA = String(a.file || '');
-      const fileB = String(b.file || '');
-      if (fileA !== fileB) return fileA.localeCompare(fileB);
-      const nameA = String(a.name || '');
-      const nameB = String(b.name || '');
-      if (nameA !== nameB) return nameA.localeCompare(nameB);
-      const kindA = String(a.kind || '');
-      const kindB = String(b.kind || '');
-      return kindA.localeCompare(kindB);
+    const groups = Array.from(grouped.values());
+    groups.sort((a, b) => {
+      if (a.file !== b.file) return a.file.localeCompare(b.file);
+      if (a.name !== b.name) return a.name.localeCompare(b.name);
+      return a.kind.localeCompare(b.kind);
     });
-    const seen = new Set();
-    for (const entry of entries) {
-      const key = [
-        entry.file,
-        entry.name,
-        entry.kind,
-        entry.signature,
-        entry.startLine
-      ].map((value) => (value == null ? '' : String(value))).join('::');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      yield entry;
+    for (const group of groups) {
+      for (const entry of group.entries) {
+        yield entry;
+      }
     }
   };
 };

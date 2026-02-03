@@ -1,7 +1,4 @@
-import {
-  preloadTreeSitterLanguages,
-  resolveEnabledTreeSitterLanguages
-} from '../../../lang/tree-sitter.js';
+import { preloadTreeSitterLanguages } from '../../../lang/tree-sitter.js';
 import {
   normalizeLimit,
   normalizeOptionalLimit,
@@ -42,6 +39,17 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterByLanguage = normalizeTreeSitterByLanguage(
     treeSitterConfig.byLanguage || {}
   );
+  const heavyGrammarDefaults = {
+    javascript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null }
+  };
+  const mergedTreeSitterByLanguage = {
+    ...heavyGrammarDefaults,
+    ...treeSitterByLanguage
+  };
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
@@ -80,7 +88,7 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterMaxBytes,
     treeSitterMaxLines,
     treeSitterMaxParseMs,
-    treeSitterByLanguage,
+    treeSitterByLanguage: mergedTreeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
     treeSitterMaxLoadedLanguages,
@@ -95,21 +103,19 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
 
 export const preloadTreeSitterRuntimeLanguages = async ({
   treeSitterEnabled,
-  treeSitterLanguages,
+  treeSitterLanguages: _treeSitterLanguages,
   treeSitterPreload,
   treeSitterPreloadConcurrency,
   treeSitterMaxLoadedLanguages,
+  observedLanguages = null,
   log
 }) => {
-  if (!treeSitterEnabled) return;
-  if (treeSitterPreload === 'none') return;
+  if (!treeSitterEnabled) return 0;
+  if (treeSitterPreload === 'none') return 0;
 
-  const enabledTreeSitterLanguages = resolveEnabledTreeSitterLanguages({
-    enabled: treeSitterEnabled,
-    languages: treeSitterLanguages
-  });
-
-  if (!enabledTreeSitterLanguages.length) return;
+  const observed = Array.isArray(observedLanguages) ? observedLanguages.filter(Boolean) : null;
+  if (!observed || !observed.length) return 0;
+  const enabledTreeSitterLanguages = observed;
 
   await preloadTreeSitterLanguages(enabledTreeSitterLanguages, {
     log,
@@ -117,4 +123,5 @@ export const preloadTreeSitterRuntimeLanguages = async ({
     concurrency: treeSitterPreloadConcurrency,
     maxLoadedLanguages: treeSitterMaxLoadedLanguages
   });
+  return enabledTreeSitterLanguages.length;
 };

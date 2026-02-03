@@ -10,7 +10,7 @@ import { attachSilentLogging } from '../../helpers/test-env.js';
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, '.testCache', 'subprocess-quoting');
-const serverPath = path.join(root, 'tools', 'api-server.js');
+const serverPath = path.join(root, 'tools', 'api', 'server.js');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });

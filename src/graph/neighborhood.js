@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { isAbsolutePathNative, toPosix } from '../shared/files.js';
+import { normalizeCap, normalizeDepth } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
 import {
   compareCandidates,
   compareGraphEdges,
@@ -44,18 +46,6 @@ const normalizeFileRef = (ref, repoRoot) => {
   const normalized = normalizeImportPath(ref.path, repoRoot);
   if (!normalized || normalized === ref.path) return ref;
   return { ...ref, path: normalized };
-};
-
-const normalizeCap = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const normalizeDepth = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
 };
 
 const normalizeCaps = (caps) => ({
@@ -279,17 +269,8 @@ export const buildGraphNeighborhood = ({
   repoRoot = null
 } = {}) => {
   const warnings = [];
-  const truncation = [];
-  const truncationSeen = new Set();
-  const recordTruncation = (cap, detail) => {
-    if (truncationSeen.has(cap)) return;
-    truncationSeen.add(cap);
-    truncation.push({
-      scope: 'graph',
-      cap,
-      ...detail
-    });
-  };
+  const truncation = createTruncationRecorder({ scope: 'graph' });
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
   const missingImportGraphRefs = new Set();
   let importGraphMisses = 0;
   const recordImportGraphMiss = (sourceId) => {
@@ -360,7 +341,7 @@ export const buildGraphNeighborhood = ({
       nodes: [],
       edges: [],
       paths: includePaths ? [] : null,
-      truncation: truncation.length ? truncation : null,
+      truncation: truncation.list.length ? truncation.list : null,
       warnings,
       stats: {
         artifactsUsed: {
@@ -694,7 +675,7 @@ export const buildGraphNeighborhood = ({
     nodes,
     edges,
     paths: includePaths ? paths : null,
-    truncation: truncation.length ? truncation : null,
+    truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null,
     stats: {
       artifactsUsed: {

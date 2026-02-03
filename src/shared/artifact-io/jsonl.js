@@ -23,6 +23,24 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
     'segmentStart',
     'segmentEnd'
   ],
+  vfs_path_map: [
+    'schemaVersion',
+    'virtualPath',
+    'hashVirtualPath',
+    'containerPath',
+    'segmentUid',
+    'segmentStart',
+    'segmentEnd',
+    'effectiveExt',
+    'languageId',
+    'docHash'
+  ],
+  vfs_manifest_index: [
+    'schemaVersion',
+    'virtualPath',
+    'offset',
+    'bytes'
+  ],
   repo_map: ['file', 'name'],
   file_relations: ['file', 'relations'],
   symbols: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],

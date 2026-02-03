@@ -101,6 +101,9 @@ export function createFileProcessor(options) {
   const ioQueue = queues?.io || null;
   const cpuQueue = queues?.cpu || null;
   const embeddingQueue = queues?.embedding || null;
+  const vfsManifestConcurrency = cpuQueue
+    ? Math.min(4, Math.max(1, Math.floor(cpuQueue.concurrency || 1)))
+    : 1;
   const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
@@ -465,6 +468,7 @@ export function createFileProcessor(options) {
       timing,
       languageHint,
       crashLogger,
+      vfsManifestConcurrency,
       complexityCache,
       lintCache,
       buildStage

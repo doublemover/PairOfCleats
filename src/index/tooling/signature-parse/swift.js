@@ -53,6 +53,11 @@ const stripDefaultValue = (value) => {
   return idx === -1 ? value : value.slice(0, idx);
 };
 
+const normalizeSwiftType = (value) => {
+  if (!value || typeof value !== 'string') return value;
+  return value.replace(/\bSwift\./g, '');
+};
+
 const parseSwiftParam = (value) => {
   const cleaned = stripDefaultValue(value).trim();
   if (!cleaned) return null;
@@ -61,13 +66,15 @@ const parseSwiftParam = (value) => {
   const left = cleaned.slice(0, colonIdx).trim();
   const right = cleaned.slice(colonIdx + 1).trim();
   if (!left || !right) return null;
+  if (right.endsWith(':')) return null;
+  if (!/[A-Za-z_]/.test(right)) return null;
   const tokens = left.split(/\s+/).filter(Boolean);
   let name = tokens.length ? tokens[tokens.length - 1] : null;
   if (name === '_' && tokens.length > 1) {
     name = tokens[tokens.length - 2] || null;
   }
   if (!name || name === '_') return null;
-  return { name, type: right };
+  return { name, type: normalizeSwiftType(right) };
 };
 
 export const parseSwiftSignature = (detail) => {
@@ -82,9 +89,7 @@ export const parseSwiftSignature = (detail) => {
   const arrowIndex = after.lastIndexOf('->');
   let returnType = null;
   if (arrowIndex !== -1) {
-    returnType = after.slice(arrowIndex + 2).trim();
-  } else {
-    returnType = 'Void';
+    returnType = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
   }
 
   const paramTypes = {};

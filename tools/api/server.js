@@ -5,8 +5,8 @@ import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { parseCommaList } from '../shared/text-utils.js';
 import { getMetricsRegistry } from '../../src/shared/metrics.js';
-import { createApiRouter } from './api/router.js';
-import { configureServiceLogger } from './service/logger.js';
+import { createApiRouter } from './router.js';
+import { configureServiceLogger } from '../service/logger.js';
 import { getEnvSecrets } from '../../src/shared/env.js';
 
 const argv = createCli({

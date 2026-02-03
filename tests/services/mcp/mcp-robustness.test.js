@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
-const serverPath = path.join(root, 'tools', 'mcp-server.js');
+const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const tempRoot = path.join(root, '.testCache', 'mcp-robustness');
 const queueCache = path.join(tempRoot, 'queue-cache');
 const timeoutCache = path.join(tempRoot, 'timeout-cache');

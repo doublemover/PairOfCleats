@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { readCacheEntry, writeCacheEntry } from '../../../tools/build/embeddings/cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -48,23 +48,49 @@ const runEmbeddings = () => spawnSync(
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 
-const loadCacheEntries = async (cacheDir) => {
-  const files = (await fsPromises.readdir(cacheDir))
-    .filter((name) => name.endsWith('.json'))
-    .sort();
-  const entries = [];
-  for (const name of files) {
+const findCacheIndexPaths = async (rootDir) => {
+  const matches = [];
+  const walk = async (dir) => {
+    let items;
     try {
-      const cache = JSON.parse(await fsPromises.readFile(path.join(cacheDir, name), 'utf8'));
-      entries.push({ name, cache });
-    } catch {}
-  }
-  return entries;
+      items = await fsPromises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const item of items) {
+      const fullPath = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+      if (item.isFile() && item.name === 'cache.index.json') {
+        matches.push(fullPath);
+      }
+    }
+  };
+  await walk(rootDir);
+  return matches.sort((a, b) => a.localeCompare(b));
 };
 
-const findCacheEntry = (entries, predicate) => (
-  entries.find((entry) => predicate(entry?.cache?.cacheMeta?.identity || null))
-);
+const loadCacheEntry = async (cacheRootDir, dims) => {
+  const indexPaths = await findCacheIndexPaths(cacheRootDir);
+  if (!indexPaths.length) return null;
+  const expectedSegment = `${path.sep}${dims}d${path.sep}code${path.sep}files${path.sep}cache.index.json`;
+  const indexPath = indexPaths.find((entry) => entry.includes(expectedSegment)) || indexPaths[0];
+  let index;
+  try {
+    index = JSON.parse(await fsPromises.readFile(indexPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const cacheDir = path.dirname(indexPath);
+  const keys = Object.keys(index.entries || {});
+  if (!keys.length) return null;
+  const cacheKey = keys[0];
+  const result = await readCacheEntry(cacheDir, cacheKey, index);
+  if (!result?.entry) return null;
+  return { cacheDir, cacheKey, cache: result.entry, indexPath, index };
+};
 
 const firstRun = runEmbeddings();
 if (firstRun.status !== 0) {
@@ -72,31 +98,42 @@ if (firstRun.status !== 0) {
   process.exit(firstRun.status ?? 1);
 }
 
-const userConfig = loadUserConfig(repoRoot);
-const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
-const cacheEntries = await loadCacheEntries(cacheDir);
-if (!cacheEntries.length) {
-  console.error('embeddings dims mismatch test failed: no cache files found');
+const cacheRootDir = path.join(cacheRoot, 'embeddings');
+const targetEntry = await loadCacheEntry(cacheRootDir, 8);
+if (!targetEntry?.cache) {
+  console.error('embeddings dims mismatch test failed: no cache entries found');
   process.exit(1);
 }
-
-const targetEntry = findCacheEntry(cacheEntries, (identity) => (
-  identity?.dims === 8 && identity?.stub === true
-));
-if (!targetEntry) {
-  console.error('embeddings dims mismatch test failed: no cache entry for dims=8 stub=true');
-  process.exit(1);
-}
-const targetPath = path.join(cacheDir, targetEntry.name);
 const cached = targetEntry.cache;
 const bumpVector = (vec) => {
-  if (Array.isArray(vec)) vec.push(0);
+  if (!vec) return vec;
+  if (Array.isArray(vec)) {
+    vec.push(0);
+    return vec;
+  }
+  if (ArrayBuffer.isView(vec)) {
+    const out = new Uint8Array(vec.length + 1);
+    out.set(vec, 0);
+    out[vec.length] = 0;
+    return out;
+  }
+  return vec;
 };
-bumpVector(cached?.mergedVectors?.[0]);
-bumpVector(cached?.codeVectors?.[0]);
-bumpVector(cached?.docVectors?.[0]);
-await fsPromises.writeFile(targetPath, JSON.stringify(cached));
+if (Array.isArray(cached?.mergedVectors)) {
+  cached.mergedVectors[0] = bumpVector(cached.mergedVectors[0]);
+}
+if (Array.isArray(cached?.codeVectors)) {
+  cached.codeVectors[0] = bumpVector(cached.codeVectors[0]);
+}
+if (Array.isArray(cached?.docVectors)) {
+  cached.docVectors[0] = bumpVector(cached.docVectors[0]);
+}
+const cacheDir = targetEntry.cacheDir;
+const cacheKey = targetEntry.cacheKey;
+const index = targetEntry.index;
+delete index.entries[cacheKey];
+await fsPromises.writeFile(targetEntry.indexPath, JSON.stringify(index, null, 2), 'utf8');
+await writeCacheEntry(cacheDir, cacheKey, cached);
 
 const secondRun = runEmbeddings();
 if (secondRun.status === 0) {

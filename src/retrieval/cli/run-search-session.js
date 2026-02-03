@@ -65,6 +65,7 @@ export async function runSearchSession({
   maxCandidates,
   filters,
   filtersActive,
+  filterPredicates,
   explain,
   scoreBlend,
   rrf,
@@ -96,7 +97,8 @@ export async function runSearchSession({
   backendLabel,
   resolvedDenseVectorMode,
   intentInfo,
-  signal
+  signal,
+  stageTracker
 }) {
   const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
     ? resolvedDenseVectorMode.trim().toLowerCase()
@@ -140,6 +142,7 @@ export async function runSearchSession({
     maxCandidates,
     filters,
     filtersActive,
+    filterPredicates,
     explain,
     topN,
     annEnabled: annActive,
@@ -147,6 +150,7 @@ export async function runSearchSession({
     scoreBlend,
     rrf,
     graphRankingConfig,
+    stageTracker,
     minhashMaxDocs,
     sparseBackend,
     vectorAnnState,
@@ -496,7 +500,9 @@ export async function runSearchSession({
     }
     const allowedIds = contextExpansionRespectFilters && filtersActive
       ? new Set(
-        filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations)
+        filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations, {
+          compiled: filterPredicates
+        })
           .map((chunk) => chunk.id)
       )
       : null;

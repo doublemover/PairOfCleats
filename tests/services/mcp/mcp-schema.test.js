@@ -7,7 +7,7 @@ import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
-const serverPath = path.join(root, 'tools', 'mcp-server.js');
+const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = path.join(root, '.testCache', 'mcp-schema');
 const cacheRoot = path.join(tempRoot, 'cache');

@@ -2,11 +2,16 @@ import { writeChunk } from './streams.js';
 import { throwIfAborted } from './runtime.js';
 
 export const normalizeJsonValue = (value) => {
-  if (value && typeof value === 'object' && typeof value.toJSON === 'function') {
-    try {
-      return value.toJSON();
-    } catch {
+  if (value && typeof value === 'object') {
+    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
       return value;
+    }
+    if (typeof value.toJSON === 'function') {
+      try {
+        return value.toJSON();
+      } catch {
+        return value;
+      }
     }
   }
   return value;

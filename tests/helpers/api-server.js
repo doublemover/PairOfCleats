@@ -17,7 +17,7 @@ export const startApiServer = async ({
   corsAllowedOrigins = [],
   corsAllowAny = false
 }) => {
-  const serverPath = path.join(ROOT, 'tools', 'api-server.js');
+  const serverPath = path.join(ROOT, 'tools', 'api', 'server.js');
   const args = [
     serverPath,
     '--port',

@@ -22,7 +22,7 @@ const env = {
 const result = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'compare-models.js'),
+    path.join(root, 'tools', 'reports', 'compare-models.js'),
     '--repo',
     repoRoot,
     '--models',

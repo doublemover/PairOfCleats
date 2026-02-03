@@ -5,7 +5,8 @@ export const createCandidateSetBuilder = ({
   postingsConfig,
   buildCandidateSetSqlite,
   chargramMaxTokenLength,
-  maxCandidates
+  maxCandidates,
+  candidatePool
 }) => {
   const candidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
     ? Math.floor(Number(maxCandidates))
@@ -15,7 +16,7 @@ export const createCandidateSetBuilder = ({
       return buildCandidateSetSqlite(mode, tokens);
     }
 
-    const candidates = new Set();
+    const candidates = candidatePool?.acquire ? candidatePool.acquire() : new Set();
     let matched = false;
     const addCandidate = (id) => {
       candidates.add(id);
@@ -31,7 +32,10 @@ export const createCandidateSetBuilder = ({
         if (hit === undefined) continue;
         const posting = idx.phraseNgrams.postings[hit] || [];
         for (const id of posting) {
-          if (addCandidate(id)) return null;
+          if (addCandidate(id)) {
+            if (candidatePool?.release) candidatePool.release(candidates);
+            return null;
+          }
         }
         matched = matched || posting.length > 0;
       }
@@ -48,7 +52,10 @@ export const createCandidateSetBuilder = ({
             if (hit === undefined) continue;
             const posting = idx.chargrams.postings[hit] || [];
             for (const id of posting) {
-              if (addCandidate(id)) return null;
+              if (addCandidate(id)) {
+                if (candidatePool?.release) candidatePool.release(candidates);
+                return null;
+              }
             }
             matched = matched || posting.length > 0;
           }
@@ -56,7 +63,11 @@ export const createCandidateSetBuilder = ({
       }
     }
 
-    return matched ? candidates : null;
+    if (!matched) {
+      if (candidatePool?.release) candidatePool.release(candidates);
+      return null;
+    }
+    return candidates;
   };
 };
 

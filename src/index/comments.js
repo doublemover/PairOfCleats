@@ -3,6 +3,7 @@ import { parse as parseToml } from 'smol-toml';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { offsetToLine } from '../shared/lines.js';
 import { createSafeRegex } from '../shared/safe-regex.js';
+import { normalizeLimit } from '../shared/limits.js';
 
 const DEFAULT_COMMENT_CONFIG = {
   extract: 'doc',
@@ -194,12 +195,6 @@ const EXT_OVERRIDES = new Map([
   ['.razor', 'razor'],
   ['.cshtml', 'razor']
 ]);
-
-const normalizeLimit = (value, fallback) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(0, Math.floor(num));
-};
 
 const COMMENT_REGEX_CONFIG = { flags: 'i' };
 

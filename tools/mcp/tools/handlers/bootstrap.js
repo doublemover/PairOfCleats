@@ -12,7 +12,7 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
 export async function runBootstrap(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
-  const scriptArgs = [path.join(toolRoot, 'tools', 'bootstrap.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'setup', 'bootstrap.js'), '--repo', repoPath];
   if (args.skipInstall === true) scriptArgs.push('--skip-install');
   if (args.skipDicts === true) scriptArgs.push('--skip-dicts');
   if (args.skipIndex === true) scriptArgs.push('--skip-index');

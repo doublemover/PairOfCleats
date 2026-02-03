@@ -11,7 +11,8 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 
 const mode = 'code';
-const missing = readCacheMeta(tempRoot, mode);
+const identity = { provider: 'test', modelId: 'model', dims: 256 };
+const missing = readCacheMeta(tempRoot, identity, mode);
 assert.equal(missing, null, 'expected missing cache meta to return null');
 
 const meta = {
@@ -21,9 +22,9 @@ const meta = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
 };
-await writeCacheMeta(tempRoot, mode, meta);
+await writeCacheMeta(tempRoot, identity, mode, meta);
 
-const loaded = readCacheMeta(tempRoot, mode);
+const loaded = readCacheMeta(tempRoot, identity, mode);
 assert.ok(loaded, 'expected cache meta to be readable');
 assert.equal(loaded.identityKey, meta.identityKey);
 assert.equal(loaded.dims, meta.dims);

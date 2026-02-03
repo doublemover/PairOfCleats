@@ -1,5 +1,6 @@
 import { createRe2Backend } from './safe-regex/backends/re2.js';
 import { checkProgramSize, createRe2jsBackend } from './safe-regex/backends/re2js.js';
+import { normalizeCapNullOnZero } from './limits.js';
 
 export const DEFAULT_SAFE_REGEX_CONFIG = {
   maxPatternLength: 512,
@@ -9,12 +10,9 @@ export const DEFAULT_SAFE_REGEX_CONFIG = {
   flags: ''
 };
 
-const normalizeLimit = (value, fallback) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
+const normalizeLimit = (value, fallback) => (
+  normalizeCapNullOnZero(value, fallback)
+);
 
 const FLAG_ORDER = ['g', 'i', 'm', 's'];
 const FLAG_SET = new Set(FLAG_ORDER);

@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { isAbsolutePathNative, toPosix } from '../shared/files.js';
+import { normalizeCap } from '../shared/limits.js';
+import { normalizePathForRepo } from '../shared/path-normalize.js';
+import { resolveProvenance } from '../shared/provenance.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
+import { toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
@@ -17,60 +21,6 @@ const DEFAULT_EXCLUDED_DIRS = new Set([
 ]);
 
 const TEST_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx']);
-
-const normalizeCap = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const normalizePath = (value, repoRoot) => {
-  if (!value) return null;
-  const raw = String(value);
-  let normalized = raw;
-  if (repoRoot && isAbsolutePathNative(raw)) {
-    const rel = path.relative(repoRoot, raw);
-    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
-      normalized = rel;
-    }
-  }
-  normalized = toPosix(normalized);
-  if (normalized.startsWith('./')) normalized = normalized.slice(2);
-  return normalized;
-};
-
-const resolveProvenance = ({
-  provenance,
-  indexSignature,
-  indexCompatKey,
-  capsUsed,
-  repo,
-  indexDir,
-  now
-}) => {
-  const timestamp = typeof now === 'function' ? now() : new Date().toISOString();
-  if (provenance && typeof provenance === 'object') {
-    const merged = { ...provenance };
-    if (!merged.generatedAt) merged.generatedAt = timestamp;
-    if (!merged.capsUsed) merged.capsUsed = capsUsed || {};
-    if (!merged.indexSignature && !merged.indexCompatKey) {
-      throw new Error('Provenance must include indexSignature or indexCompatKey.');
-    }
-    return merged;
-  }
-  if (!indexSignature && !indexCompatKey) {
-    throw new Error('Suggest-tests report requires indexSignature or indexCompatKey.');
-  }
-  const base = {
-    generatedAt: timestamp,
-    capsUsed: capsUsed || {}
-  };
-  if (indexSignature) base.indexSignature = indexSignature;
-  if (indexCompatKey) base.indexCompatKey = indexCompatKey;
-  if (repo) base.repo = repo;
-  if (indexDir) base.indexDir = indexDir;
-  return base;
-};
 
 const isTestFileName = (relPath) => {
   const normalized = toPosix(relPath || '');
@@ -158,11 +108,11 @@ const buildImportGraphIndex = (graphRelations, repoRoot) => {
     incoming.set(toPath, inc);
   };
   for (const node of nodes) {
-    const fromPath = normalizePath(node.file || node.id, repoRoot);
+    const fromPath = normalizePathForRepo(node.file || node.id, repoRoot);
     const out = Array.isArray(node?.out) ? node.out : [];
     for (const toId of out) {
       const toNode = index.get(toId);
-      const toPath = normalizePath(toNode?.file || toId, repoRoot);
+      const toPath = normalizePathForRepo(toNode?.file || toId, repoRoot);
       addEdge(fromPath, toPath);
     }
   }
@@ -229,18 +179,9 @@ export const buildSuggestTestsReport = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
-  const truncation = [];
+  const truncation = createTruncationRecorder({ scope: 'suggestTests' });
   const warnings = [];
-  const truncationSeen = new Set();
-  const recordTruncation = (cap, detail) => {
-    if (truncationSeen.has(cap)) return;
-    truncationSeen.add(cap);
-    truncation.push({
-      scope: 'suggestTests',
-      cap,
-      ...detail
-    });
-  };
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const capsNormalized = {
     maxDepth: normalizeCap(caps.maxDepth),
@@ -265,7 +206,7 @@ export const buildSuggestTestsReport = ({
   };
 
   const normalizedChanged = Array.from(new Set(
-    (Array.isArray(changed) ? changed : []).map((entry) => normalizePath(entry, repoRoot)).filter(Boolean)
+    (Array.isArray(changed) ? changed : []).map((entry) => normalizePathForRepo(entry, repoRoot)).filter(Boolean)
   ));
   normalizedChanged.sort(compareStrings);
   let seeds = normalizedChanged;
@@ -283,7 +224,7 @@ export const buildSuggestTestsReport = ({
     throw new Error('Suggest-tests requires repoRoot when tests are not provided.');
   }
   const testList = Array.isArray(tests)
-    ? tests.map((entry) => normalizePath(entry, repoRoot)).filter(Boolean)
+    ? tests.map((entry) => normalizePathForRepo(entry, repoRoot)).filter(Boolean)
     : discoverCandidateTests({
       repoRoot,
       maxCandidates: capsNormalized.maxCandidates,
@@ -412,7 +353,8 @@ export const buildSuggestTestsReport = ({
     capsUsed,
     repo,
     indexDir,
-    now
+    now,
+    label: 'Suggest-tests report'
   });
 
   return {
@@ -420,7 +362,7 @@ export const buildSuggestTestsReport = ({
     provenance: resolvedProvenance,
     changed: changedEntries,
     suggestions,
-    truncation: truncation.length ? truncation : null,
+    truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };
 };

@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { normalizeCap } from '../../shared/limits.js';
 import { compareStrings } from '../../shared/sort.js';
 import { resolveChunkId } from '../chunk-id.js';
 import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relative-import.js';
@@ -6,12 +7,6 @@ import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relat
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
-
-const normalizeCap = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
-};
 
 const resolveCaps = (caps) => ({
   maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),
@@ -145,25 +140,6 @@ export function buildRelationGraphs({
     mergeNode(usageGraph, chunkUid, attrs, usageGuard, context);
   }
 
-  const callSiteEdges = [];
-  if (Array.isArray(callSites) && callSites.length) {
-    for (const site of callSites) {
-      if (!site?.callerChunkUid || !site?.targetChunkUid) continue;
-      callSiteEdges.push({ source: site.callerChunkUid, target: site.targetChunkUid });
-    }
-  } else {
-    for (const chunk of chunks) {
-      const callerUid = resolveChunkUid(chunk);
-      if (!callerUid) continue;
-      const relations = chunk.codeRelations || {};
-      if (!Array.isArray(relations.callDetails)) continue;
-      for (const detail of relations.callDetails) {
-        if (!detail?.targetChunkUid) continue;
-        callSiteEdges.push({ source: callerUid, target: detail.targetChunkUid });
-      }
-    }
-  }
-
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
     const sourceKey = resolveChunkUid(chunk);
@@ -192,22 +168,44 @@ export function buildRelationGraphs({
     }
   }
 
-  if (callSiteEdges.length) {
-    for (const edge of callSiteEdges) {
-      const sourceKey = edge.source;
-      const targetKey = edge.target;
-      if (!sourceKey || !targetKey) continue;
-      if (!chunkByUid.has(sourceKey) || !chunkByUid.has(targetKey)) continue;
-      const sourceChunk = chunkByUid.get(edge.source) || null;
+  const appendCallSiteEdges = () => {
+    if (Array.isArray(callSites) && callSites.length) {
+      for (const site of callSites) {
+        const sourceKey = site?.callerChunkUid;
+        const targetKey = site?.targetChunkUid;
+        if (!sourceKey || !targetKey) continue;
+        if (!chunkByUid.has(sourceKey) || !chunkByUid.has(targetKey)) continue;
+        const sourceChunk = chunkByUid.get(sourceKey) || null;
+        const context = {
+          file: sourceChunk?.file || null,
+          chunkId: resolveChunkId(sourceChunk) || null,
+          chunkUid: sourceKey
+        };
+        addDirectedEdge(callGraph, sourceKey, targetKey, callGuard, context);
+        if (callGuard.disabled) break;
+      }
+      return;
+    }
+    for (const chunk of chunks) {
+      const callerUid = resolveChunkUid(chunk);
+      if (!callerUid) continue;
+      const relations = chunk.codeRelations || {};
+      if (!Array.isArray(relations.callDetails)) continue;
       const context = {
-        file: sourceChunk?.file || null,
-        chunkId: resolveChunkId(sourceChunk) || null,
-        chunkUid: edge.source
+        file: chunk.file,
+        chunkId: resolveChunkId(chunk) || null,
+        chunkUid: callerUid
       };
-      addDirectedEdge(callGraph, sourceKey, targetKey, callGuard, context);
+      for (const detail of relations.callDetails) {
+        const targetUid = detail?.targetChunkUid;
+        if (!targetUid || !chunkByUid.has(targetUid)) continue;
+        addDirectedEdge(callGraph, callerUid, targetUid, callGuard, context);
+        if (callGuard.disabled) break;
+      }
       if (callGuard.disabled) break;
     }
-  }
+  };
+  appendCallSiteEdges();
 
   if (fileRelations && typeof fileRelations.entries === 'function') {
     for (const [file, relations] of fileRelations.entries()) {

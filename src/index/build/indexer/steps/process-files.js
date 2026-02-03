@@ -12,6 +12,7 @@ import { createFileProcessor } from '../../file-processor.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
+import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { createTokenRetentionState } from './postings.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
 import {
@@ -20,10 +21,15 @@ import {
   assignFileIndexes,
   normalizeTreeSitterLanguages,
   preloadTreeSitterBatch,
+  resolveTreeSitterPreloadPlan,
   resolveNextOrderIndex,
   sortEntriesByTreeSitterBatchKey,
   updateEntryTreeSitterBatch
 } from './process-files/tree-sitter.js';
+import {
+  preloadTreeSitterLanguages,
+  preflightTreeSitterWasmLanguages
+} from '../../../../lang/tree-sitter.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 
 const FILE_WATCHDOG_MS = 10000;
@@ -71,7 +77,7 @@ export const processFiles = async ({
   let checkpoint = null;
   let progress = null;
   const orderedAppender = buildOrderedAppender(
-    (result, stateRef, shardMeta) => {
+    async (result, stateRef, shardMeta) => {
       if (!result) return;
       if (result.fileMetrics) {
         recordFileMetric(perfProfile, result.fileMetrics);
@@ -93,8 +99,15 @@ export const processFiles = async ({
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
       if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
-        if (!stateRef.vfsManifestRows) stateRef.vfsManifestRows = [];
-        stateRef.vfsManifestRows.push(...result.vfsManifestRows);
+        if (!stateRef.vfsManifestCollector) {
+          stateRef.vfsManifestCollector = createVfsManifestCollector({
+            buildRoot: runtime.buildRoot || runtime.root,
+            log
+          });
+          stateRef.vfsManifestRows = null;
+          stateRef.vfsManifestStats = stateRef.vfsManifestCollector.stats;
+        }
+        await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
       }
     },
     state
@@ -102,6 +115,19 @@ export const processFiles = async ({
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
     allowReorder: runtime.shards?.enabled !== true
   });
+  const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
+  if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
+    const preloadPlan = resolveTreeSitterPreloadPlan(entries, treeSitterOptions);
+    if (preloadPlan.languages.length) {
+      await preflightTreeSitterWasmLanguages(preloadPlan.languages, { log });
+      await preloadTreeSitterLanguages(preloadPlan.languages, {
+        log,
+        parallel: treeSitterOptions.preload === 'parallel',
+        concurrency: treeSitterOptions.preloadConcurrency,
+        maxLoadedLanguages: treeSitterOptions.maxLoadedLanguages
+      });
+    }
+  }
   assignFileIndexes(entries);
   const orderIndexState = { next: resolveNextOrderIndex(entries) };
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {

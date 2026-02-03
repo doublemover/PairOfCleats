@@ -18,6 +18,7 @@ import {
   padEndRaw,
   padEndVisible,
   resolveSlowestColor,
+  stripAnsi,
   wrapList
 } from './run-formatting.js';
 import { buildOutputSnippet } from './run-logging.js';
@@ -36,14 +37,26 @@ export const createOrderedReporter = ({ size, onReport }) => {
   return { results, report };
 };
 
-const formatInitLine = ({ context, entry }) => {
+const buildInitLine = ({ context, entry, now = Date.now() }) => {
   const { consoleStream, useColor } = context;
-  const label = formatLabel('INIT', { useColor, mode: 'init' });
+  const labelText = entry.label || 'INIT';
+  const labelMode = entry.labelMode || 'init';
+  const label = formatLabel(labelText, { useColor, mode: labelMode });
   const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
-  const elapsedMs = Date.now() - entry.startedAt;
+  const elapsedMs = now - entry.startedAt;
   const duration = formatDurationBadge(elapsedMs, { useColor });
   const line = `${label}${gap}${duration} ${entry.test.id}`;
-  return applyLineBackground(line, { useColor, columns: consoleStream.columns });
+  const rendered = applyLineBackground(line, { useColor, columns: consoleStream.columns });
+  const labelWidth = stripAnsi(label).length;
+  const gapWidth = 1;
+  const durationWidth = stripAnsi(duration).length;
+  const timeStartCol = labelWidth + gapWidth + 1;
+  return {
+    line: rendered,
+    timeStartCol,
+    durationWidth,
+    durationText: duration
+  };
 };
 
 export const createInitReporter = ({ context }) => {
@@ -61,23 +74,97 @@ export const createInitReporter = ({ context }) => {
   let paused = false;
   let renderedLines = 0;
   let lastRenderedAt = 0;
+  let lastRenderedSecond = null;
+  let lastTimePaintAt = 0;
+  let dirty = false;
   const clearBlock = () => {
     if (!renderedLines) return;
-    consoleStream.write(`\x1b[${renderedLines}A`);
-    consoleStream.write('\x1b[0J');
+    const totalLines = renderedLines + 1;
+    const moveUp = Math.max(0, totalLines - 1);
+    if (moveUp) consoleStream.write(`\x1b[${moveUp}F`);
+    for (let i = 0; i < totalLines; i += 1) {
+      consoleStream.write('\x1b[2K');
+      if (i < totalLines - 1) consoleStream.write('\x1b[1E');
+    }
+    if (moveUp) consoleStream.write(`\x1b[${moveUp}F`);
     renderedLines = 0;
   };
-  const render = (force = false) => {
+  const renderFull = ({ append = false } = {}) => {
     if (paused) return;
     const now = Date.now();
-    if (!force && now - lastRenderedAt < 500) return;
-    clearBlock();
-    if (!active.size) return;
-    for (const entry of active.values()) {
-      consoleStream.write(`${formatInitLine({ context, entry })}\n`);
-      renderedLines += 1;
+    const lines = Array.from(active.values());
+    const nextLines = lines.length;
+    if (renderedLines && !append) {
+      const moveUp = Math.max(0, renderedLines);
+      if (moveUp) consoleStream.write(`\x1b[${moveUp}F`);
     }
+    if (!nextLines) {
+      renderedLines = 0;
+      return;
+    }
+    if (append) renderedLines = 0;
+    let output = '';
+    let row = 0;
+    for (const entry of lines) {
+      const { line, timeStartCol, durationWidth, durationText } = buildInitLine({ context, entry, now });
+      entry.timeStartCol = timeStartCol;
+      entry.durationWidth = durationWidth;
+      entry.rowOffset = row;
+      entry.lastDurationText = durationText;
+      output += `\x1b[2K${line}`;
+      if (row < nextLines - 1) output += '\n';
+      row += 1;
+    }
+    output += '\n';
+    output += `\x1b[2K${applyLineBackground('', { useColor, columns: consoleStream.columns })}`;
+    const extra = renderedLines - nextLines;
+    if (!append && extra > 0) {
+      output += '\n';
+      for (let i = 0; i < extra; i += 1) {
+        output += '\x1b[2K';
+        if (i < extra - 1) output += '\n';
+      }
+    }
+    if (!append && extra > 0) {
+      output += `\x1b[${extra}F`;
+    }
+    output += '\x1b[1G';
+    consoleStream.write(output);
+    renderedLines = nextLines;
     lastRenderedAt = now;
+    lastRenderedSecond = Math.floor(now / 1000);
+    lastTimePaintAt = now;
+    dirty = false;
+  };
+  const updateTimes = () => {
+    if (paused || !renderedLines || !active.size) return;
+    const now = Date.now();
+    if (now - lastTimePaintAt < 100) return;
+    lastTimePaintAt = now;
+    lastRenderedSecond = Math.floor(now / 1000);
+    const anchorOffset = Math.max(0, renderedLines);
+    for (const entry of active.values()) {
+      const rowOffset = Number.isFinite(entry.rowOffset) ? entry.rowOffset : 0;
+      const upLines = Math.max(0, anchorOffset - rowOffset);
+      if (upLines) consoleStream.write(`\x1b[${upLines}F`);
+      const timeStartCol = entry.timeStartCol || 1;
+      const elapsedMs = now - entry.startedAt;
+      const duration = formatDurationBadge(elapsedMs, { useColor });
+      if (duration !== entry.lastDurationText) {
+        entry.lastDurationText = duration;
+        consoleStream.write(`\x1b[${timeStartCol}G`);
+        consoleStream.write(duration);
+      }
+      if (upLines) consoleStream.write(`\x1b[${upLines}E`);
+    }
+  };
+  const render = () => {
+    if (paused) return;
+    if (dirty) {
+      renderFull();
+      return;
+    }
+    updateTimes();
   };
   const startTimer = () => {
     if (timer) return;
@@ -97,14 +184,24 @@ export const createInitReporter = ({ context }) => {
     } finally {
       paused = false;
       if (active.size) {
-        render();
+        dirty = true;
+        renderFull({ append: true });
       }
     }
   };
-  const start = (test) => {
-    active.set(test.id, { test, startedAt: Date.now() });
+  const start = (test, options = {}) => {
+    active.set(test.id, {
+      test,
+      startedAt: Date.now(),
+      label: options.label,
+      labelMode: options.labelMode,
+      timeStartCol: 1,
+      durationWidth: 0,
+      rowOffset: 0
+    });
     startTimer();
-    render(true);
+    dirty = true;
+    renderFull();
   };
   const complete = (testId, callback) => {
     active.delete(testId);
@@ -250,6 +347,38 @@ export const reportTestResult = ({ context, result }) => {
     } else {
       render();
     }
+  } else if (result.status === 'redo' && showFailures) {
+    const duration = formatDurationBadge(result.durationMs, { useColor, bg: ANSI.bgBlack });
+    const detail = formatFailure(result);
+    const label = formatLabel('REDO', { useColor, mode: 'redo' });
+    const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+    const redoLine = `${label}${gap}${duration} ${result.id} (${detail}) - redo queued`;
+    const render = () => {
+      consoleStream.write(`${applyLineBackground(redoLine, {
+        useColor,
+        columns: consoleStream.columns
+      })}\n`);
+      let wroteLog = false;
+      if (result.logs && result.logs.length) {
+        const logLine = formatLogLine(result.logs[result.logs.length - 1], { useColor, root });
+        consoleStream.write(`${applyLineBackground(logLine, {
+          useColor,
+          columns: consoleStream.columns,
+          bg: ANSI.bgLogLine
+        })}\n`);
+        wroteLog = true;
+      }
+      if (captureOutput && !context.argv.json) {
+        renderCapturedOutput({ context, result, mode: 'failure' });
+      } else if (wroteLog) {
+        consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
+      }
+    };
+    if (initReporter) {
+      initReporter.complete(result.id, render);
+    } else {
+      render();
+    }
   } else if (result.status === 'failed' && showFailures) {
     const duration = formatDurationBadge(result.durationMs, { useColor, bg: ANSI.bgFailLine });
     const detail = formatFailure(result);
@@ -356,7 +485,7 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
   const passedText = colorize('Passed', ANSI.fgGreen, useColor);
   const passedValue = colorize(String(summary.passed), ANSI.fgBrightWhite, useColor);
   const timeouts = results.filter((result) => result.timedOut);
-  const failedOnly = results.filter((result) => result.status === 'failed' && !result.timedOut);
+  const failedOnly = results.filter((result) => (result.status === 'failed' || result.status === 'redo') && !result.timedOut);
   const excludedSkips = results.filter((result) => result.status === 'skipped'
     && String(result.skipReason || '').toLowerCase().startsWith('excluded tag:'));
   const skippedOnly = results.filter((result) => result.status === 'skipped'

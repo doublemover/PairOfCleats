@@ -1,9 +1,8 @@
-const normalizeLimit = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  if (parsed <= 0) return 0;
-  return Math.floor(parsed);
-};
+import { normalizeOptionalNonNegativeInt } from '../shared/limits.js';
+
+const normalizeLimit = (value) => (
+  normalizeOptionalNonNegativeInt(value)
+);
 
 const normalizeCadence = (value, fallback) => {
   const parsed = Number(value);

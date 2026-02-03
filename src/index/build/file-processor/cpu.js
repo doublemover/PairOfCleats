@@ -78,6 +78,7 @@ export const processFileCpu = async (context) => {
     timing,
     languageHint,
     crashLogger,
+    vfsManifestConcurrency,
     complexityCache,
     lintCache,
     buildStage
@@ -186,9 +187,10 @@ export const processFileCpu = async (context) => {
       }
     }
   }
+  const treeSitterCacheKey = treeSitterConfig?.cacheKey ?? fileHash ?? null;
   const treeSitterConfigForMode = treeSitterEnabled
-    ? treeSitterConfig
-    : { ...(treeSitterConfig || {}), enabled: false };
+    ? { ...(treeSitterConfig || {}), cacheKey: treeSitterCacheKey }
+    : { ...(treeSitterConfig || {}), enabled: false, cacheKey: treeSitterCacheKey };
   const contextTreeSitterConfig = treeSitterLanguagePasses
     ? { ...(treeSitterConfigForMode || {}), enabled: false }
     : treeSitterConfigForMode;
@@ -551,6 +553,7 @@ export const processFileCpu = async (context) => {
     lineIndex,
     lineAuthors,
     fileGitMeta,
+    vfsManifestConcurrency,
     addLineSpan,
     addSettingMetric,
     addEnrichDuration,

@@ -8,7 +8,8 @@ export const fuseRankedHits = ({
   blendEnabled,
   blendSparseWeight,
   blendAnnWeight,
-  fieldWeightsEnabled
+  fieldWeightsEnabled,
+  scoreBuffer = null
 }) => {
   const useRrf = rrfEnabled && !blendEnabled && bmHits.length && annHits.length;
   const sparseRanks = new Map();
@@ -33,7 +34,8 @@ export const fuseRankedHits = ({
   const sparseMaxScore = bmHits.length
     ? Math.max(...bmHits.map((hit) => (hit.score ?? hit.sim ?? 0)))
     : null;
-  const scored = [...allHits.entries()].map(([idxVal, scores]) => {
+  const scored = scoreBuffer?.reset ? scoreBuffer.reset() : [];
+  for (const [idxVal, scores] of allHits.entries()) {
     const sparseScore = scores.fts ?? scores.bm25 ?? null;
     const annScore = scores.ann ?? null;
     const sparseTypeValue = scores.fts != null
@@ -94,7 +96,7 @@ export const fuseRankedHits = ({
       score = 0;
     }
 
-    return {
+    const entry = {
       idx: idxVal,
       score,
       scoreType,
@@ -104,7 +106,12 @@ export const fuseRankedHits = ({
       sparseType: sparseTypeValue,
       blendInfo
     };
-  });
+    if (scoreBuffer?.push) {
+      scoreBuffer.push(entry);
+    } else {
+      scored.push(entry);
+    }
+  }
 
-  return { scored, useRrf };
+  return { scored: scoreBuffer?.push ? scoreBuffer : scored, useRrf };
 };

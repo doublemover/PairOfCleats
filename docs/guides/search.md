@@ -8,6 +8,22 @@ Search uses manifest-first artifact discovery in strict mode (default). If a leg
 `pieces/manifest.json`, strict search fails closed. Use `--non-strict` to allow legacy filename
 guessing; non-strict mode should emit a warning because it bypasses the manifest contract.
 
+## Startup checkpoints
+
+When `--stats` or `--explain` is enabled, search emits timing + memory checkpoints in
+`stats.pipeline`. Startup stages are prefixed with `startup.` to distinguish them from the core
+query pipeline:
+
+- `startup.backend` (backend resolution + sqlite/lmdb checks)
+- `startup.dictionary` (dictionary load)
+- `startup.query-plan` (query parsing + plan assembly)
+- `startup.indexes` (index + artifact load)
+- `startup.search` (end-to-end search session)
+
+Core pipeline stages still include `parse`, `filter`, `candidates`, `ann`, `fusion`, `rank`, and
+`output`. Each entry includes elapsed time and memory deltas so cold-start regressions can be
+triaged quickly.
+
 ## Tokenization
 
 - Code search keeps punctuation tokens (examples: `&&`, `=>`, `::`).

@@ -27,6 +27,20 @@ let summaryCache = createLruCache({
   sizeCalculation: estimateStringBytes,
   reporter: outputCacheReporter
 });
+let formatFullCache = createLruCache({
+  name: 'formatFull',
+  maxMb: DEFAULT_CACHE_MB.formatFull,
+  ttlMs: DEFAULT_CACHE_TTL_MS.formatFull,
+  sizeCalculation: estimateStringBytes,
+  reporter: outputCacheReporter
+});
+let formatShortCache = createLruCache({
+  name: 'formatShort',
+  maxMb: DEFAULT_CACHE_MB.formatShort,
+  ttlMs: DEFAULT_CACHE_TTL_MS.formatShort,
+  sizeCalculation: estimateStringBytes,
+  reporter: outputCacheReporter
+});
 
 export function configureOutputCaches({ cacheConfig = null, verbose = false, log = null } = {}) {
   const envConfig = getEnvConfig();
@@ -37,6 +51,8 @@ export function configureOutputCaches({ cacheConfig = null, verbose = false, log
   outputCacheReporter = createCacheReporter({ enabled: verbose, log });
   const fileTextConfig = cacheConfig?.fileText || {};
   const summaryConfig = cacheConfig?.summary || {};
+  const formatFullConfig = cacheConfig?.formatFull || {};
+  const formatShortConfig = cacheConfig?.formatShort || {};
   fileTextCache = createLruCache({
     name: 'fileText',
     maxMb: Number.isFinite(Number(fileTextConfig.maxMb))
@@ -61,6 +77,28 @@ export function configureOutputCaches({ cacheConfig = null, verbose = false, log
     sizeCalculation: estimateStringBytes,
     reporter: outputCacheReporter
   });
+  formatFullCache = createLruCache({
+    name: 'formatFull',
+    maxMb: Number.isFinite(Number(formatFullConfig.maxMb))
+      ? Number(formatFullConfig.maxMb)
+      : DEFAULT_CACHE_MB.formatFull,
+    ttlMs: Number.isFinite(Number(formatFullConfig.ttlMs))
+      ? Number(formatFullConfig.ttlMs)
+      : DEFAULT_CACHE_TTL_MS.formatFull,
+    sizeCalculation: estimateStringBytes,
+    reporter: outputCacheReporter
+  });
+  formatShortCache = createLruCache({
+    name: 'formatShort',
+    maxMb: Number.isFinite(Number(formatShortConfig.maxMb))
+      ? Number(formatShortConfig.maxMb)
+      : DEFAULT_CACHE_MB.formatShort,
+    ttlMs: Number.isFinite(Number(formatShortConfig.ttlMs))
+      ? Number(formatShortConfig.ttlMs)
+      : DEFAULT_CACHE_TTL_MS.formatShort,
+    sizeCalculation: estimateStringBytes,
+    reporter: outputCacheReporter
+  });
   return outputCacheReporter;
 }
 
@@ -74,4 +112,12 @@ export function getFileTextCache() {
 
 export function getSummaryCache() {
   return summaryCache;
+}
+
+export function getFormatFullCache() {
+  return formatFullCache;
+}
+
+export function getFormatShortCache() {
+  return formatShortCache;
 }

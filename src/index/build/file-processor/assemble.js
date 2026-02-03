@@ -49,46 +49,52 @@ export function buildChunkPayload({
   const wantsFieldTokens = fieldedEnabled
     || postingsConfig?.chargramSource === 'fields'
     || postingsConfig?.phraseSource === 'fields';
-  const docTokens = tokenMode !== 'code'
-    ? (docText
-      ? buildTokenSequence({
-        text: docText,
+  let fieldTokens = null;
+  if (wantsFieldTokens) {
+    const docTokens = tokenMode !== 'code'
+      ? (docText
+        ? buildTokenSequence({
+          text: docText,
+          mode: tokenMode,
+          ext: resolvedExt,
+          dictWords,
+          dictConfig,
+          includeSeq: false
+        }).tokens
+        : tokens)
+      : [];
+    const resolvedBodyTokens = tokenClassificationEnabled && Array.isArray(identifierTokens)
+      ? identifierTokens
+      : tokens;
+    fieldTokens = {
+      name: chunk.name ? buildTokenSequence({
+        text: chunk.name,
         mode: tokenMode,
         ext: resolvedExt,
         dictWords,
-        dictConfig
-      }).tokens
-      : tokens)
-    : [];
-  const resolvedBodyTokens = tokenClassificationEnabled && Array.isArray(identifierTokens)
-    ? identifierTokens
-    : tokens;
-  const fieldTokens = wantsFieldTokens ? {
-    name: chunk.name ? buildTokenSequence({
-      text: chunk.name,
-      mode: tokenMode,
-      ext: resolvedExt,
-      dictWords,
-      dictConfig
-    }).tokens : [],
-    signature: docmeta?.signature
-      ? buildTokenSequence({
-        text: docmeta.signature,
-        mode: tokenMode,
-        ext: resolvedExt,
-        dictWords,
-        dictConfig
-      }).tokens
-      : [],
-    doc: docTokens,
-    comment: commentFieldTokens,
-    body: fieldedEnabled ? resolvedBodyTokens : [],
-    ...(tokenClassificationEnabled ? {
-      keyword: Array.isArray(keywordTokens) ? keywordTokens : [],
-      operator: Array.isArray(operatorTokens) ? operatorTokens : [],
-      literal: Array.isArray(literalTokens) ? literalTokens : []
-    } : {})
-  } : null;
+        dictConfig,
+        includeSeq: false
+      }).tokens : [],
+      signature: docmeta?.signature
+        ? buildTokenSequence({
+          text: docmeta.signature,
+          mode: tokenMode,
+          ext: resolvedExt,
+          dictWords,
+          dictConfig,
+          includeSeq: false
+        }).tokens
+        : [],
+      doc: docTokens,
+      comment: Array.isArray(commentFieldTokens) ? commentFieldTokens : [],
+      body: fieldedEnabled ? resolvedBodyTokens : [],
+      ...(tokenClassificationEnabled ? {
+        keyword: Array.isArray(keywordTokens) ? keywordTokens : [],
+        operator: Array.isArray(operatorTokens) ? operatorTokens : [],
+        literal: Array.isArray(literalTokens) ? literalTokens : []
+      } : {})
+    };
+  }
   const headline = getHeadline(chunk, tokens);
   const externalDocs = relationsEnabled
     ? buildExternalDocs(resolvedExt, fileRelations?.imports)

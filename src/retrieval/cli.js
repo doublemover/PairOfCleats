@@ -19,7 +19,7 @@ import { queryVectorAnn } from '../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
-import { resolveIndexDir } from './cli-index.js';
+import { getIndexSignature, resolveIndexDir } from './cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from './cli/index-state.js';
 import { configureOutputCaches } from './output.js';
 import { createSearchTelemetry } from './cli/telemetry.js';
@@ -34,12 +34,21 @@ import { normalizeSearchOptions } from './cli/normalize-options.js';
 import { buildQueryPlan } from './cli/query-plan.js';
 import { createRunnerHelpers, inferJsonOutputFromArgs } from './cli/runner.js';
 import { resolveRunConfig } from './cli/resolve-run-config.js';
+import { resolveRequiredArtifacts } from './cli/required-artifacts.js';
 import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
-
+import { compileFilterPredicates } from './output/filters.js';
+import {
+  buildQueryPlanCacheKey,
+  buildQueryPlanConfigSignature,
+  buildQueryPlanIndexSignature,
+  createQueryPlanDiskCache,
+  createQueryPlanEntry
+} from './query-plan-cache.js';
+import { createRetrievalStageTracker } from './pipeline/stage-checkpoints.js';
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
@@ -51,6 +60,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
+  let queryPlanCache = options.queryPlanCache ?? null;
 
   if (signal?.aborted) {
     const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
@@ -113,6 +123,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
+    if (!queryPlanCache) {
+      const queryPlanCachePath = path.join(
+        queryCacheDir || metricsDir,
+        'queryPlanCache.json'
+      );
+      queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
+      if (typeof queryPlanCache?.load === 'function') {
+        queryPlanCache.load();
+      }
+    }
     let normalized;
     try {
       normalized = normalizeSearchOptions({
@@ -220,6 +240,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const topN = argv.n;
     const showStats = argv.stats === true;
     const showMatched = argv.matched === true;
+    const stageTracker = createRetrievalStageTracker({ enabled: showStats || explain });
 
     const needsCode = runCode;
     const needsProse = runProse;
@@ -322,6 +343,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
+    const backendStart = stageTracker.mark();
     const backendContext = await createBackendContext({
       backendPolicy,
       useSqlite: useSqliteSelection,
@@ -358,6 +380,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       root: rootDir,
       userConfig
     });
+    stageTracker.record('startup.backend', backendStart, { mode: 'all' });
 
     const {
       useSqlite,
@@ -416,13 +439,79 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
     }
     const includeCodeDicts = runCode && codeDictLanguages.size > 0;
+    const dictStart = stageTracker.mark();
     const { dict } = await loadDictionary(rootDir, dictConfig, {
       includeCode: includeCodeDicts,
       codeDictLanguages: Array.from(codeDictLanguages)
     });
+    stageTracker.record('startup.dictionary', dictStart, { mode: 'all' });
     throwIfAborted();
 
-    const queryPlan = buildQueryPlan({
+    const joinComments = commentsEnabled && runCode;
+    const planStart = stageTracker.mark();
+    const planConfigSignature = queryPlanCache?.enabled !== false
+      ? buildQueryPlanConfigSignature({
+        dictConfig,
+        dictSize: dict?.size ?? null,
+        postingsConfig,
+        caseTokens,
+        fileFilter,
+        caseFile,
+        searchRegexConfig,
+        filePrefilterEnabled,
+        fileChargramN,
+        searchType,
+        searchAuthor,
+        searchImport,
+        chunkAuthorFilter,
+        branchesMin,
+        loopsMin,
+        breaksMin,
+        continuesMin,
+        churnMin,
+        extFilter,
+        langFilter,
+        extImpossible,
+        langImpossible,
+        metaFilters,
+        modifiedAfter,
+        modifiedSinceDays,
+        fieldWeightsConfig,
+        denseVectorMode,
+        branchFilter
+      })
+      : null;
+    if (planConfigSignature) {
+      queryPlanCache.resetIfConfigChanged(planConfigSignature);
+    }
+    const planIndexSignature = planConfigSignature
+      ? buildQueryPlanIndexSignature(getIndexSignature({
+        useSqlite,
+        backendLabel,
+        sqliteCodePath,
+        sqliteProsePath,
+        runRecords,
+        runExtractedProse: runExtractedProseRaw,
+        includeExtractedProse: runExtractedProseRaw || joinComments,
+        root: rootDir,
+        userConfig
+      }))
+      : null;
+    const planCacheKeyInfo = planConfigSignature
+      ? buildQueryPlanCacheKey({
+        query,
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const cachedPlanEntry = planCacheKeyInfo
+      ? queryPlanCache.get(planCacheKeyInfo.key, {
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const parseStart = stageTracker.mark();
+    const queryPlan = cachedPlanEntry?.plan || buildQueryPlan({
       query,
       argv,
       dict,
@@ -454,8 +543,34 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       branchFilter
     });
+    if (!queryPlan.filterPredicates) {
+      queryPlan.filterPredicates = compileFilterPredicates(queryPlan.filters, { fileChargramN });
+    }
+    stageTracker.record('parse', parseStart, { mode: 'all' });
+    if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
+      queryPlanCache.set(
+        planCacheKeyInfo.key,
+        createQueryPlanEntry({
+          plan: queryPlan,
+          configSignature: planConfigSignature,
+          indexSignature: planIndexSignature,
+          keyPayload: planCacheKeyInfo.payload
+        })
+      );
+    }
+    stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
     const annActive = annEnabled && queryPlan.queryTokens.length > 0;
+    const graphRankingEnabled = graphRankingConfig?.enabled === true;
+    const requiredArtifacts = resolveRequiredArtifacts({
+      queryPlan,
+      contextExpansionEnabled,
+      contextExpansionOptions,
+      contextExpansionRespectFilters,
+      graphRankingEnabled,
+      annActive
+    });
+    queryPlan.requiredArtifacts = requiredArtifacts;
 
     const {
       loadIndexFromSqlite,
@@ -466,8 +581,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
-    const joinComments = commentsEnabled && runCode;
-
+    const indexesStart = stageTracker.mark();
     const {
       idxProse,
       idxExtractedProse,
@@ -498,7 +612,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annActive,
       filtersActive: queryPlan.filtersActive,
       contextExpansionEnabled,
-      graphRankingEnabled: graphRankingConfig?.enabled === true,
+      graphRankingEnabled,
       sqliteFtsRequested: sqliteFtsEnabled,
       backendLabel,
       backendForcedTantivy,
@@ -516,8 +630,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      loadExtractedProse: joinComments
+      loadExtractedProse: joinComments,
+      requiredArtifacts
     });
+    stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
 
     const modelIds = {
@@ -527,6 +643,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       records: modelIdForRecords
     };
 
+    const searchStart = stageTracker.mark();
     const searchResult = await runSearchSession({
       rootDir,
       userConfig,
@@ -577,6 +694,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       maxCandidates,
       filters: queryPlan.filters,
       filtersActive: queryPlan.filtersActive,
+      filterPredicates: queryPlan.filterPredicates,
       explain,
       scoreBlend: {
         enabled: scoreBlendEnabled,
@@ -615,8 +733,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       backendLabel,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       intentInfo: queryPlan.intentInfo,
-      signal
+      signal,
+      stageTracker
     });
+    stageTracker.record('startup.search', searchStart, { mode: 'all' });
 
     const elapsedMs = Date.now() - t0;
 
@@ -674,7 +794,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       showStats,
       showMatched,
       verboseCache,
-      elapsedMs
+      elapsedMs,
+      stageTracker
     });
 
     await recordSearchArtifacts({
@@ -706,6 +827,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       if (err) err.emitted = true;
     }
     throw err;
+  } finally {
+    if (typeof queryPlanCache?.persist === 'function') {
+      try {
+        await queryPlanCache.persist();
+      } catch {}
+    }
   }
 }
 

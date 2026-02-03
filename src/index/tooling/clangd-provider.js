@@ -190,7 +190,11 @@ export const createClangdProvider = () => ({
       breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
       parseSignature,
       strict: ctx?.strict !== false,
-      vfsRoot: ctx?.buildRoot || ctx.repoRoot
+      vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+      indexDir: ctx?.buildRoot || null
     });
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },

@@ -68,7 +68,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -95,6 +95,14 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const vfsStrict = typeof vfsConfig.strict === 'boolean' ? vfsConfig.strict : undefined;
   const vfsMaxBytesRaw = Number(vfsConfig.maxVirtualFileBytes);
   const vfsMaxBytes = Number.isFinite(vfsMaxBytesRaw) ? Math.max(0, Math.floor(vfsMaxBytesRaw)) : null;
+  const vfsHashRouting = vfsConfig.hashRouting === true;
+  const vfsCoalesceSegments = vfsConfig.coalesceSegments === true;
+  const vfsTokenMode = typeof vfsConfig.tokenMode === 'string' && vfsConfig.tokenMode.trim()
+    ? vfsConfig.tokenMode.trim()
+    : null;
+  const vfsIoBatching = vfsConfig.ioBatching && typeof vfsConfig.ioBatching === 'object'
+    ? vfsConfig.ioBatching
+    : null;
   const normalizeToolList = (value) => {
     if (Array.isArray(value)) {
       return value.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean);
@@ -130,7 +138,11 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     providerOrder,
     vfs: {
       ...(typeof vfsStrict === 'boolean' ? { strict: vfsStrict } : {}),
-      ...(Number.isFinite(vfsMaxBytes) ? { maxVirtualFileBytes: vfsMaxBytes } : {})
+      ...(Number.isFinite(vfsMaxBytes) ? { maxVirtualFileBytes: vfsMaxBytes } : {}),
+      ...(vfsHashRouting ? { hashRouting: true } : {}),
+      ...(vfsCoalesceSegments ? { coalesceSegments: true } : {}),
+      ...(vfsTokenMode ? { tokenMode: vfsTokenMode } : {}),
+      ...(vfsIoBatching ? { ioBatching: vfsIoBatching } : {})
     },
     lsp: {
       enabled: lspConfig.enabled !== false,

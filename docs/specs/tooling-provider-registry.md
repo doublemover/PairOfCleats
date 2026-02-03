@@ -65,6 +65,7 @@ Filtering rules:
 - Skip providers with `provider.enabled === false`.
 - If `kinds` filter is supplied, require overlap with `provider.kinds`.
 - If `provider.languages` is set, only include documents/targets matching those languageIds.
+- Language IDs are normalized to lowercase before matching.
 
 ## 4) Orchestrator: runToolingProviders
 

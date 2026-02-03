@@ -230,7 +230,15 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
-  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}`;
+  const includeKey = [
+    options?.includeDense !== false ? 'dense' : 'no-dense',
+    options?.includeMinhash !== false ? 'minhash' : 'no-minhash',
+    options?.includeFilterIndex !== false ? 'filter' : 'no-filter',
+    options?.includeFileRelations !== false ? 'file-rel' : 'no-file-rel',
+    options?.includeRepoMap !== false ? 'repo-map' : 'no-repo-map',
+    options?.includeTokenIndex !== false ? 'token' : 'no-token'
+  ].join(',');
+  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
   const signature = buildIndexSignature(dir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {

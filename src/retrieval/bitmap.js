@@ -56,7 +56,7 @@ const cloneBitmap = (bitmap) => {
   return createBitmapFromIds(ids, { force: true });
 };
 
-const bitmapHas = (bitmap, value) => {
+export const bitmapHas = (bitmap, value) => {
   if (!bitmap) return false;
   if (typeof bitmap.has === 'function') return bitmap.has(value);
   if (typeof bitmap.contains === 'function') return bitmap.contains(value);
@@ -64,7 +64,7 @@ const bitmapHas = (bitmap, value) => {
   return false;
 };
 
-const getBitmapSize = (bitmap) => {
+export const getBitmapSize = (bitmap) => {
   if (!bitmap) return 0;
   if (Number.isFinite(bitmap.size)) return bitmap.size;
   if (typeof bitmap.size === 'function') return bitmap.size();
@@ -79,6 +79,11 @@ export const isRoaringAvailable = () => Boolean(resolveBitmapClass());
 export const shouldUseBitmap = (size, minSize = DEFAULT_MIN_SIZE) => (
   Number.isFinite(size) && size >= minSize
 );
+
+export const createEmptyBitmap = () => {
+  const Bitmap = resolveBitmapClass();
+  return Bitmap ? new Bitmap() : null;
+};
 
 export const bitmapToArray = (bitmap) => {
   if (!bitmap) return [];

@@ -1,4 +1,6 @@
 import { sha1 } from '../../shared/hash.js';
+import { normalizeLimit } from '../../shared/limits.js';
+import { normalizeCdcOptions } from './cdc.js';
 
 const CONFIG_EXTS = new Set([
   '.json',
@@ -158,22 +160,20 @@ export const normalizeFenceLanguage = (raw) => {
   return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized;
 };
 
-const normalizeLimit = (value, fallback) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(0, Math.floor(num));
-};
-
 export function normalizeSegmentsConfig(input = {}) {
   const cfg = input && typeof input === 'object' ? input : {};
   const inlineCodeSpans = cfg.inlineCodeSpans === true;
+  const cdcEnabled = cfg.cdc && typeof cfg.cdc === 'object' && cfg.cdc.enabled === true;
   return {
     inlineCodeSpans,
     inlineCodeMinChars: normalizeLimit(cfg.inlineCodeMinChars, 8),
     inlineCodeMaxSpans: normalizeLimit(cfg.inlineCodeMaxSpans, 200),
     inlineCodeMaxBytes: normalizeLimit(cfg.inlineCodeMaxBytes, 64 * 1024),
     frontmatterProse: cfg.frontmatterProse === true,
-    onlyExtras: cfg.onlyExtras === true
+    onlyExtras: cfg.onlyExtras === true,
+    cdc: cdcEnabled
+      ? { enabled: true, ...normalizeCdcOptions(cfg.cdc || {}) }
+      : { enabled: false, ...normalizeCdcOptions(cfg.cdc || {}) }
   };
 }
 

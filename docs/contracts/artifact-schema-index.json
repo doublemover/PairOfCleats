@@ -899,6 +899,61 @@
       ]
     },
     {
+      "artifact": "vfs_path_map",
+      "schemaVersion": {
+        "type": "string"
+      },
+      "requiredFields": [
+        "containerPath",
+        "docHash",
+        "effectiveExt",
+        "hashVirtualPath",
+        "languageId",
+        "schemaVersion",
+        "segmentEnd",
+        "segmentStart",
+        "segmentUid",
+        "virtualPath"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "vfs_manifest_index",
+      "schemaVersion": {
+        "type": "string"
+      },
+      "requiredFields": [
+        "bytes",
+        "offset",
+        "schemaVersion",
+        "virtualPath"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "vfs_path_map_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
       "artifact": "vfs_manifest_meta",
       "schemaVersion": {
         "type": "string",

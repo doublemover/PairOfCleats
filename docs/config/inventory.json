@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T14:28:13.924Z",
+  "generatedAt": "2026-02-03T20:37:09.549Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -92,6 +92,10 @@
     "knownConfigKeys": [
       "cache.root",
       "indexing.concurrency",
+      "indexing.embeddings.cache.dir",
+      "indexing.embeddings.cache.maxAgeDays",
+      "indexing.embeddings.cache.maxGb",
+      "indexing.embeddings.cache.scope",
       "indexing.embeddings.concurrency",
       "indexing.embeddings.onnx.interOpNumThreads",
       "indexing.embeddings.onnx.intraOpNumThreads",
@@ -229,14 +233,27 @@
       "tooling.typescript.resolveOrder",
       "tooling.typescript.tsconfigPath",
       "tooling.typescript.useTsconfig",
+      "tooling.vfs.coalesceSegments",
+      "tooling.vfs.coldStartCache.cacheRoot",
+      "tooling.vfs.coldStartCache.enabled",
+      "tooling.vfs.coldStartCache.maxAgeDays",
+      "tooling.vfs.coldStartCache.maxBytes",
+      "tooling.vfs.hashRouting",
+      "tooling.vfs.ioBatching.enabled",
+      "tooling.vfs.ioBatching.flushIntervalMs",
+      "tooling.vfs.ioBatching.maxBatchBytes",
+      "tooling.vfs.ioBatching.maxInflight",
+      "tooling.vfs.ioBatching.maxQueueEntries",
+      "tooling.vfs.ioBatching.writeMode",
       "tooling.vfs.maxVirtualFileBytes",
-      "tooling.vfs.strict"
+      "tooling.vfs.strict",
+      "tooling.vfs.tokenMode"
     ]
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 180,
-    "leafKeys": 141,
+    "totalKeys": 200,
+    "leafKeys": 158,
     "topLevel": [
       {
         "key": "cache",
@@ -244,7 +261,7 @@
       },
       {
         "key": "indexing",
-        "count": 65
+        "count": 70
       },
       {
         "key": "mcp",
@@ -272,7 +289,7 @@
       },
       {
         "key": "tooling",
-        "count": 50
+        "count": 65
       }
     ]
   },
@@ -301,6 +318,35 @@
       "path": "indexing.embeddings",
       "type": "object",
       "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.maxGb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.scope",
+      "type": "string",
+      "enum": [
+        "global",
+        "repo",
+        "local"
+      ]
     },
     {
       "path": "indexing.embeddings.concurrency",
@@ -1200,6 +1246,79 @@
       "enum": null
     },
     {
+      "path": "tooling.vfs.coalesceSegments",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.cacheRoot",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.coldStartCache.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.hashRouting",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.flushIntervalMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxBatchBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxInflight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.maxQueueEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.ioBatching.writeMode",
+      "type": "string",
+      "enum": [
+        "atomic",
+        "direct"
+      ]
+    },
+    {
       "path": "tooling.vfs.maxVirtualFileBytes",
       "type": "number",
       "enum": null
@@ -1207,6 +1326,11 @@
     {
       "path": "tooling.vfs.strict",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.tokenMode",
+      "type": "string",
       "enum": null
     }
   ],
@@ -1840,6 +1964,7 @@
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/risk-explain.test.js",
+        "tests/cli/search/search-startup-checkpoints-order.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
         "tests/helpers/test-env.js",
@@ -1880,6 +2005,35 @@
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/parity/parity.test.js",
+        "tests/retrieval/pipeline/ann-lazy-import.test.js",
+        "tests/retrieval/pipeline/ann-optional-skip.test.js",
+        "tests/retrieval/pipeline/ann-preflight.test.js",
+        "tests/retrieval/pipeline/artifact-gating-deps.test.js",
+        "tests/retrieval/pipeline/artifact-gating.test.js",
+        "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
+        "tests/retrieval/pipeline/context-skips.test.js",
+        "tests/retrieval/pipeline/filter-bitmap-equivalence.test.js",
+        "tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js",
+        "tests/retrieval/pipeline/filter-bitmap-threshold.test.js",
+        "tests/retrieval/pipeline/filter-compiled-reuse.test.js",
+        "tests/retrieval/pipeline/index-loader-lazy.test.js",
+        "tests/retrieval/pipeline/json-streaming.test.js",
+        "tests/retrieval/pipeline/object-pool-leak.test.js",
+        "tests/retrieval/pipeline/output-cache-hit.test.js",
+        "tests/retrieval/pipeline/query-cache-hit.test.js",
+        "tests/retrieval/pipeline/query-plan-cache-key.test.js",
+        "tests/retrieval/pipeline/query-plan-disk-cache-size-cap.test.js",
+        "tests/retrieval/pipeline/query-plan-disk-cache.test.js",
+        "tests/retrieval/pipeline/query-plan-eviction.test.js",
+        "tests/retrieval/pipeline/query-plan-invalidates-config.test.js",
+        "tests/retrieval/pipeline/query-plan-invalidates-index.test.js",
+        "tests/retrieval/pipeline/query-plan-requirements.test.js",
+        "tests/retrieval/pipeline/query-plan-schema-version.test.js",
+        "tests/retrieval/pipeline/ranking-fastpath.test.js",
+        "tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js",
+        "tests/retrieval/pipeline/search-startup-fastpath.test.js",
+        "tests/retrieval/pipeline/topk-equivalence.test.js",
+        "tests/retrieval/pipeline/topk-tie-break.test.js",
         "tests/run.js",
         "tests/runner/all.js",
         "tests/services/mcp/mcp-robustness.test.js",
@@ -2002,7 +2156,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 252,
+    "totalFlags": 280,
     "publicFlags": [
       "backend",
       "host",
@@ -2025,11 +2179,14 @@
       "args",
       "artifactDir",
       "auth-token",
+      "avg",
+      "avgBytes",
       "backends",
       "backup",
       "baseline",
       "batch",
       "bench",
+      "bits",
       "build",
       "build-index",
       "build-sqlite",
@@ -2062,9 +2219,12 @@
       "dims",
       "dir",
       "direction",
+      "docBytes",
+      "docs",
       "dp-max",
       "dry-run",
       "edgeTypes",
+      "edits",
       "emitArtifact",
       "encoding",
       "enforce",
@@ -2078,6 +2238,7 @@
       "failOnViolation",
       "failOnWarn",
       "fields",
+      "files",
       "finding",
       "fixture",
       "fixtures",
@@ -2089,6 +2250,7 @@
       "global",
       "graphFixture",
       "graphs",
+      "hashes",
       "hops",
       "in",
       "include",
@@ -2109,7 +2271,9 @@
       "interactive",
       "interval",
       "justification",
+      "keep",
       "keep-backup",
+      "keys",
       "lang",
       "languages",
       "limit",
@@ -2117,6 +2281,8 @@
       "load",
       "log",
       "log-dir",
+      "lookups",
+      "maskBits",
       "match-mode",
       "max",
       "max-age-days",
@@ -2147,11 +2313,14 @@
       "maxWarnings",
       "maxWorkUnits",
       "mcp-mode",
+      "mergeProb",
       "meta",
+      "min",
       "min-count",
       "min-overlap",
       "min-overlap-single",
       "min-rank-corr",
+      "minBytes",
       "minConfidence",
       "model",
       "model-out",
@@ -2201,17 +2370,25 @@
       "retries",
       "reviewer",
       "root",
+      "rows",
       "rule",
       "rules",
       "run",
+      "runSize",
+      "runs",
       "sample",
+      "samples",
       "schema",
+      "scheme",
       "scip",
       "scope",
       "search",
       "seed",
+      "segmentBytes",
+      "segments",
       "sha256",
       "sink-rule",
+      "size",
       "skip-artifacts",
       "skip-bench",
       "skip-build",
@@ -2233,10 +2410,12 @@
       "strict",
       "stub-embeddings",
       "table",
+      "targets",
       "testPattern",
       "three-url",
       "timeout-ms",
       "token-postings-size",
+      "tokenSize",
       "tokens",
       "tooling-scope",
       "tools",
@@ -2244,7 +2423,9 @@
       "topKByDegree",
       "translateTime",
       "treeSitter",
+      "treeSitterMissingLanguages",
       "type",
+      "unique",
       "update",
       "url",
       "validate",
@@ -2254,6 +2435,7 @@
       "wasd-drag",
       "wasd-max-speed",
       "wasd-sensitivity",
+      "windowBytes",
       "with-sqlite",
       "write-report",
       "yes",
@@ -2462,10 +2644,42 @@
         ]
       },
       {
+        "file": "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
         "flags": [
           "log",
           "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+        "flags": [
+          "log",
+          "treeSitter",
+          "treeSitterMissingLanguages"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js",
+        "flags": [
+          "avgBytes",
+          "maskBits",
+          "maxBytes",
+          "minBytes",
+          "windowBytes"
         ]
       },
       {
@@ -2667,6 +2881,154 @@
           "mode",
           "out",
           "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/bloom-negative-lookup.js",
+        "flags": [
+          "bits",
+          "hashes",
+          "json",
+          "keys",
+          "lookups",
+          "out",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/cdc-segmentation.js",
+        "flags": [
+          "avg",
+          "chunk",
+          "edits",
+          "json",
+          "max",
+          "min",
+          "out",
+          "seed",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/coalesce-docs.js",
+        "flags": [
+          "files",
+          "json",
+          "languages",
+          "mergeProb",
+          "out",
+          "samples",
+          "seed",
+          "segments"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/cold-start-cache.js",
+        "flags": [
+          "docBytes",
+          "docs",
+          "json",
+          "mode",
+          "out",
+          "root",
+          "samples"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/hash-routing-lookup.js",
+        "flags": [
+          "docs",
+          "input",
+          "json",
+          "lookups",
+          "out",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/io-batching.js",
+        "flags": [
+          "batch",
+          "files",
+          "json",
+          "keep",
+          "mode",
+          "out",
+          "outDir",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/merge-runs-heap.js",
+        "flags": [
+          "json",
+          "out",
+          "runs",
+          "runSize",
+          "samples",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/parallel-manifest-build.js",
+        "flags": [
+          "concurrency",
+          "json",
+          "out",
+          "samples",
+          "segmentBytes",
+          "segments"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/partial-lsp-open.js",
+        "flags": [
+          "docs",
+          "json",
+          "keep",
+          "mode",
+          "out",
+          "samples",
+          "scheme",
+          "targets"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/segment-hash-cache.js",
+        "flags": [
+          "json",
+          "out",
+          "samples",
+          "seed",
+          "segments",
+          "size",
+          "unique"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/token-uri-encode.js",
+        "flags": [
+          "docs",
+          "json",
+          "lookups",
+          "out",
+          "samples",
+          "seed",
+          "tokenSize"
+        ]
+      },
+      {
+        "file": "tools/bench/vfs/vfsidx-lookup.js",
+        "flags": [
+          "input",
+          "json",
+          "lookups",
+          "out",
+          "rows",
+          "samples",
           "seed"
         ]
       },
@@ -3289,7 +3651,7 @@
       },
       {
         "flag": "json",
-        "count": 31,
+        "count": 43,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3303,6 +3665,18 @@
           "tools/api/server.js",
           "tools/bench/dict-seg.js",
           "tools/bench/query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
           "tools/config/dump.js",
           "tools/config/reset.js",
           "tools/config/validate.js",
@@ -3326,7 +3700,7 @@
       },
       {
         "flag": "out",
-        "count": 23,
+        "count": 35,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -3335,6 +3709,18 @@
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
           "tools/bench/query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
           "tools/build/sqlite/cli.js",
           "tools/ci/build-artifacts.js",
           "tools/config/generate-demo-config.js",
@@ -3355,9 +3741,12 @@
       },
       {
         "flag": "mode",
-        "count": 13,
+        "count": 16,
         "files": [
           "tools/bench/query-generator.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/partial-lsp-open.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
@@ -3370,6 +3759,41 @@
           "tools/reports/compare-models.js",
           "tools/reports/report-code-map.js",
           "tools/service/indexer-service.js"
+        ]
+      },
+      {
+        "flag": "seed",
+        "count": 13,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tests/fixtures/medium/generate.js",
+          "tools/bench/query-generator.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
+        ]
+      },
+      {
+        "flag": "samples",
+        "count": 10,
+        "files": [
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3469,6 +3893,19 @@
         ]
       },
       {
+        "flag": "input",
+        "count": 7,
+        "files": [
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/index/assemble-pieces.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/lsif.js",
+          "tools/ingest/scip.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 7,
         "files": [
@@ -3479,6 +3916,30 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "log",
+        "count": 6,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
+        ]
+      },
+      {
+        "flag": "treeSitter",
+        "count": 6,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
         ]
       },
       {
@@ -3515,17 +3976,6 @@
         ]
       },
       {
-        "flag": "input",
-        "count": 5,
-        "files": [
-          "tools/index/assemble-pieces.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/lsif.js",
-          "tools/ingest/scip.js"
-        ]
-      },
-      {
         "flag": "maxPerHit",
         "count": 5,
         "files": [
@@ -3559,17 +4009,6 @@
         ]
       },
       {
-        "flag": "seed",
-        "count": 5,
-        "files": [
-          "src/integrations/tooling/context-pack.js",
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tests/fixtures/medium/generate.js",
-          "tools/bench/query-generator.js"
-        ]
-      },
-      {
         "flag": "backend",
         "count": 4,
         "files": [
@@ -3590,6 +4029,16 @@
         ]
       },
       {
+        "flag": "docs",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/token-uri-encode.js"
+        ]
+      },
+      {
         "flag": "include",
         "count": 4,
         "files": [
@@ -3607,6 +4056,16 @@
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
           "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "lookups",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js"
         ]
       },
       {
@@ -3680,6 +4139,16 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 4,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "strict",
         "count": 4,
         "files": [
@@ -3745,12 +4214,21 @@
         ]
       },
       {
-        "flag": "log",
+        "flag": "languages",
         "count": 3,
         "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
+        "flag": "max",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/suggest-tests.js",
+          "tools/analysis/explain-risk.js",
+          "tools/bench/vfs/cdc-segmentation.js"
         ]
       },
       {
@@ -3772,15 +4250,6 @@
         ]
       },
       {
-        "flag": "root",
-        "count": 3,
-        "files": [
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
-        ]
-      },
-      {
         "flag": "run",
         "count": 3,
         "files": [
@@ -3790,12 +4259,21 @@
         ]
       },
       {
-        "flag": "treeSitter",
+        "flag": "segments",
         "count": 3,
         "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
+        "flag": "size",
+        "count": 3,
+        "files": [
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
       {
@@ -3812,6 +4290,14 @@
         "files": [
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
+        ]
+      },
+      {
+        "flag": "batch",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/io-batching.js",
+          "tools/build/embeddings/cli.js"
         ]
       },
       {
@@ -3863,11 +4349,27 @@
         ]
       },
       {
+        "flag": "chunk",
+        "count": 2,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/vfs/cdc-segmentation.js"
+        ]
+      },
+      {
         "flag": "collapse",
         "count": 2,
         "files": [
           "src/map/build-map.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "concurrency",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/service/indexer-service.js"
         ]
       },
       {
@@ -3900,6 +4402,14 @@
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "tests/shared/contracts/phase11-schemas-validate.test.js"
+        ]
+      },
+      {
+        "flag": "files",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/io-batching.js"
         ]
       },
       {
@@ -3951,11 +4461,11 @@
         ]
       },
       {
-        "flag": "languages",
+        "flag": "keep",
         "count": 2,
         "files": [
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/partial-lsp-open.js"
         ]
       },
       {
@@ -3967,11 +4477,11 @@
         ]
       },
       {
-        "flag": "max",
+        "flag": "maxBytes",
         "count": 2,
         "files": [
-          "src/integrations/tooling/suggest-tests.js",
-          "tools/analysis/explain-risk.js"
+          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -4020,6 +4530,14 @@
         "files": [
           "tools/analysis/map-iso-serve.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "outDir",
+        "count": 2,
+        "files": [
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/vfs/io-batching.js"
         ]
       },
       {
@@ -4217,6 +4735,7 @@
     ],
     "dynamicOptionFiles": [
       "bin/pairofcleats.js",
+      "search.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
       "src/index/build/file-processor/cpu.js",
@@ -4227,6 +4746,7 @@
       "src/index/chunking/formats/markdown.js",
       "src/index/chunking/formats/yaml.js",
       "src/index/language-registry/registry.js",
+      "src/index/segments.js",
       "src/index/tooling/typescript-provider.js",
       "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",

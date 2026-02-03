@@ -7,21 +7,35 @@ export const createBodyParser = ({ maxBodyBytes }) => {
   const parseBody = (req) => new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
+    let done = false;
     req.on('data', (chunk) => {
+      if (done) return;
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       total += buffer.length;
       if (maxBodyBytes && total > maxBodyBytes) {
         const err = new Error('Request body too large.');
         err.code = 'ERR_BODY_TOO_LARGE';
+        done = true;
         reject(err);
-        req.destroy();
         return;
       }
       chunks.push(buffer);
     });
-    req.on('aborted', () => reject(new Error('Request aborted.')));
-    req.on('end', () => resolve(Buffer.concat(chunks, total)));
-    req.on('error', reject);
+    req.on('aborted', () => {
+      if (done) return;
+      done = true;
+      reject(new Error('Request aborted.'));
+    });
+    req.on('end', () => {
+      if (done) return;
+      done = true;
+      resolve(Buffer.concat(chunks, total));
+    });
+    req.on('error', (err) => {
+      if (done) return;
+      done = true;
+      reject(err);
+    });
   });
 
   const parseJsonBody = async (req) => {

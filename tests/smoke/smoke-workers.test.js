@@ -7,7 +7,7 @@ const cacheRoots = [path.join(root, '.testCache', 'type-inference-crossfile-stat
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('worker-pool', path.join(root, 'tests', 'worker-pool.js'));
+  runNode('worker-pool', path.join(root, 'tests', 'indexing', 'workers', 'worker-pool.test.js'));
   runNode('crossfile-stats', path.join(root, 'tests', 'tooling', 'type-inference', 'crossfile-stats.unit.test.js'));
 } catch (err) {
   console.error(err?.message || err);

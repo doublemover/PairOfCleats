@@ -2,9 +2,9 @@
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
-import { getMcpServerConfig } from './mcp/server-config.js';
-import { handleToolCall } from './mcp/tools.js';
-import { createMcpTransport } from './mcp/transport.js';
+import { getMcpServerConfig } from './server-config.js';
+import { handleToolCall } from './tools.js';
+import { createMcpTransport } from './transport.js';
 
 const argv = createCli({
   scriptName: 'mcp-server',
@@ -38,7 +38,7 @@ if (resolvedMode === 'sdk') {
     console.error('[mcp] MCP SDK mode requested but @modelcontextprotocol/sdk is not available.');
     process.exit(1);
   }
-  const { startMcpSdkServer } = await import('./mcp-server-sdk.js');
+  const { startMcpSdkServer } = await import('./server-sdk.js');
   await startMcpSdkServer({
     toolDefs,
     schemaVersion,

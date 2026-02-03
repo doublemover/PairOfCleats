@@ -141,6 +141,24 @@ const generatedAtEquivalent = (left, right) => (
   stableStringify(normalizeGeneratedAt(left)) === stableStringify(normalizeGeneratedAt(right))
 );
 
+const normalizeRiskInterproceduralStats = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const copy = normalizeGeneratedAt(value);
+  if (copy && typeof copy === 'object' && copy.timingMs && typeof copy.timingMs === 'object') {
+    const timing = { ...copy.timingMs };
+    for (const key of Object.keys(timing)) {
+      timing[key] = '__normalized__';
+    }
+    copy.timingMs = timing;
+  }
+  return copy;
+};
+
+const riskInterproceduralEquivalent = (left, right) => (
+  stableStringify(normalizeRiskInterproceduralStats(left))
+    === stableStringify(normalizeRiskInterproceduralStats(right))
+);
+
 const normalizeIndexState = (value) => {
   if (!value || typeof value !== 'object') return value;
   const copy = JSON.parse(JSON.stringify(value));
@@ -249,6 +267,9 @@ runBuild(cacheRootA, 'baseline build', {
     fileListSampleSize: 10,
     shards: { enabled: false },
     treeSitter: { enabled: false }
+  },
+  tooling: {
+    autoEnableOnDetect: false
   }
 });
 const baseline = await readIndex(cacheRootA);
@@ -263,6 +284,9 @@ runBuild(cacheRootB, 'sharded build', {
       minFiles: 1
     },
     treeSitter: { enabled: false }
+  },
+  tooling: {
+    autoEnableOnDetect: false
   }
 });
 const sharded = await readIndex(cacheRootB);
@@ -335,6 +359,13 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
       const base = await loadPieceJson(cacheRootA, piecePath);
       const shard = await loadPieceJson(cacheRootB, piecePath);
       if (base.json && shard.json && indexStateEquivalent(base.json, shard.json)) {
+        continue;
+      }
+    }
+    if (piecePath === 'risk_interprocedural_stats.json') {
+      const base = await loadPieceJson(cacheRootA, piecePath);
+      const shard = await loadPieceJson(cacheRootB, piecePath);
+      if (base.json && shard.json && riskInterproceduralEquivalent(base.json, shard.json)) {
         continue;
       }
     }

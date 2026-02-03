@@ -8,6 +8,13 @@ This spec aligns with:
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/identity-contract.md` (segmentUid source)
 
+Related extension specs:
+- `docs/specs/vfs-index.md`
+- `docs/specs/vfs-segment-hash-cache.md`
+- `docs/specs/vfs-hash-routing.md`
+- `docs/specs/vfs-token-uris.md`
+- `docs/specs/vfs-cold-start-cache.md`
+
 ---
 
 ## 1) Artifact name and format (normative)
@@ -20,6 +27,21 @@ Emission forms (MUST support one of):
 
 Manifest inventory:
 - The artifact and its meta/parts MUST be listed in `pieces/manifest.json` (manifest-first).
+
+---
+
+### 1.1 Optional derived artifacts
+
+When `tooling.vfs.hashRouting` is enabled, producers SHOULD emit:
+- `vfs_path_map.jsonl` (or sharded `vfs_path_map.parts/*`) mapping legacy `virtualPath` → hash-routed path.
+- `vfs_path_map.meta.json` when sharded.
+
+When emitting uncompressed JSONL (`.jsonl`), producers MAY emit:
+- `vfs_manifest.vfsidx` (or `vfs_manifest.part-00000.vfsidx` for sharded parts), a sparse index for fast lookups.
+- `vfs_manifest.vfsbloom.json` (or `vfs_manifest.part-00000.vfsbloom.json` for sharded parts), a Bloom filter keyed by `virtualPath` to skip negative lookups.
+
+All derived artifacts MUST be listed in `pieces/manifest.json` with the appropriate logical names
+(`vfs_path_map`, `vfs_path_map_meta`, `vfs_manifest_index`, `vfs_manifest_bloom`).
 
 ---
 
@@ -62,8 +84,9 @@ type VfsManifestRowV1 = {
 
 - `containerPath` MUST be POSIX, repo-relative, and normalized (no `..`, no absolute paths, no backslashes).
 - Producers MUST emit `containerPath` via `toPosix()` and resolve it with `fromPosix()` at IO boundaries.
+- `containerPath` MUST be derived from the repo-relative `relKey` (not absolute paths).
 - `containerExt` MUST match the extension in `containerPath` when present; otherwise `null`.
-- `languageId`/`effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
+- `languageId` MUST be normalized to lowercase and `effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
 - `segmentStart`/`segmentEnd` MUST satisfy `0 <= segmentStart <= segmentEnd` and must refer to the container text.
 - For unsegmented files: `segmentUid = null`, `segmentStart = 0`, `segmentEnd = containerText.length`.
 - `extensions` is the only permitted location for producer-specific extra fields when strict schema validation is enabled.
@@ -102,6 +125,7 @@ For an unsegmented document (`segmentUid == null`), `virtualPath` MUST be:
 
 - `containerPath` MUST be POSIX-normalized before embedding.
 - If `containerPath` contains `#` or `%`, it MUST be percent-encoded (`# -> %23`, `% -> %25`) before embedding.
+- No other characters are encoded in `containerPath`; the VFS path remains human-readable.
 
 ### 3.5 Relationship to identity-contract `virtualPath`
 
@@ -159,7 +183,7 @@ For sharded output:
 
 ## 6) Size limits
 
-- No row may exceed 32KB UTF-8.
+- No row may exceed 32KB UTF-8 (`VFS_MANIFEST_MAX_ROW_BYTES`).
 - If a row would exceed the limit, the producer trims optional fields in this order:
   1. drop `extensions`
   2. null out `segmentId`

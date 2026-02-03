@@ -108,7 +108,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'report-artifacts',
-    run: () => runNode('report-artifacts', path.join(root, 'tools', 'report-artifacts.js'), ['--json', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('report-artifacts', path.join(root, 'tools', 'index', 'report-artifacts.js'), ['--json', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['report-artifacts']
   },
   {
@@ -148,24 +148,24 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'generate-repo-dict',
-    run: () => runNode('generate-repo-dict', path.join(root, 'tools', 'generate-repo-dict.js'), ['--min-count', '1', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('generate-repo-dict', path.join(root, 'tools', 'dicts', 'generate-repo-dict.js'), ['--min-count', '1', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['generate-repo-dict']
   },
   {
     label: 'ci-build',
-    run: () => runNode('ci-build', path.join(root, 'tools', 'ci-build-artifacts.js'), ['--out', ciOutDir || path.join(baseCacheRoot, 'ci-artifacts'), '--skip-build', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('ci-build', path.join(root, 'tools', 'ci', 'build-artifacts.js'), ['--out', ciOutDir || path.join(baseCacheRoot, 'ci-artifacts'), '--skip-build', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['ci-build']
   },
   {
     label: 'ci-restore',
-    run: () => runNode('ci-restore', path.join(root, 'tools', 'ci-restore-artifacts.js'), ['--from', ciOutDir || path.join(baseCacheRoot, 'ci-artifacts'), '--force', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('ci-restore', path.join(root, 'tools', 'ci', 'restore-artifacts.js'), ['--from', ciOutDir || path.join(baseCacheRoot, 'ci-artifacts'), '--force', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['ci-restore']
   },
   {
     label: 'bootstrap',
     run: () => runNode(
       'bootstrap',
-      path.join(root, 'tools', 'bootstrap.js'),
+      path.join(root, 'tools', 'setup', 'bootstrap.js'),
       ['--skip-install', '--skip-dicts', '--skip-index', '--skip-artifacts', '--skip-tooling', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),

@@ -1,15 +1,24 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const tempRoot = path.join(root, '.testCache', 'clangd-provider-output-shape');
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+await fs.writeFile(path.join(tempRoot, 'src', 'one.c'), 'int alpha(void) { return 1; }\n', 'utf8');
 
 registerDefaultToolingProviders();
 const provider = getToolingProvider('clangd');
 assert.ok(provider, 'expected clangd provider');
 
 const ctx = {
-  repoRoot: process.cwd(),
-  buildRoot: process.cwd(),
+  repoRoot: tempRoot,
+  buildRoot: tempRoot,
   toolingConfig: {},
   logger: () => {},
   strict: true

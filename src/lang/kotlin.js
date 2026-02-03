@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { normalizeCapNullOnZero } from '../shared/limits.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
@@ -113,12 +114,9 @@ const DEFAULT_KOTLIN_LIMITS = {
   relationsMaxLines: 2000
 };
 
-const normalizeLimit = (value, fallback) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
+const normalizeLimit = (value, fallback) => (
+  normalizeCapNullOnZero(value, fallback)
+);
 
 const resolveKotlinLimits = (options = {}) => {
   const config = options.kotlin || {};

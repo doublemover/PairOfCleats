@@ -124,6 +124,10 @@ export const createPyrightProvider = () => ({
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+      indexDir: ctx?.buildRoot || null,
       captureDiagnostics: true
     });
     return {

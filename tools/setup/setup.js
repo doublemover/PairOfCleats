@@ -352,7 +352,7 @@ if (!argv['skip-artifacts']) {
   if (fs.existsSync(manifestPath)) {
     const shouldRestore = await promptYesNo('Restore CI artifacts from ci-artifacts?', true);
     if (shouldRestore) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--from', artifactsDir]);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir]);
       restoredArtifacts = result.ok;
       if (!result.ok) {
         warn('CI artifact restore failed.');

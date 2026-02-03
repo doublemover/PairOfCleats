@@ -5,6 +5,8 @@ const BYTES_PER_MB = 1024 * 1024;
 export const DEFAULT_CACHE_MB = {
   fileText: 64,
   summary: 32,
+  formatFull: 16,
+  formatShort: 16,
   lint: 16,
   complexity: 16,
   gitMeta: 16
@@ -13,6 +15,8 @@ export const DEFAULT_CACHE_MB = {
 export const DEFAULT_CACHE_TTL_MS = {
   fileText: 0,
   summary: 0,
+  formatFull: 0,
+  formatShort: 0,
   lint: 0,
   complexity: 0,
   gitMeta: 0

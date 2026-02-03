@@ -20,7 +20,8 @@ export const tokenizeComments = ({
         mode: 'prose',
         ext,
         dictWords: tokenDictWords,
-        dictConfig
+        dictConfig,
+        includeSeq: false
       }).tokens;
       if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
       const entry = { ...comment, tokens: commentTokens };

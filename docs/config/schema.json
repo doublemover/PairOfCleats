@@ -64,8 +64,33 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "coalesceSegments": { "type": "boolean" },
+            "hashRouting": { "type": "boolean" },
             "strict": { "type": "boolean" },
-            "maxVirtualFileBytes": { "type": "number" }
+            "maxVirtualFileBytes": { "type": "number" },
+            "tokenMode": { "type": "string" },
+            "ioBatching": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxInflight": { "type": "number" },
+                "maxQueueEntries": { "type": "number" },
+                "maxBatchBytes": { "type": "number" },
+                "flushIntervalMs": { "type": "number" },
+                "writeMode": { "type": "string", "enum": ["atomic", "direct"] }
+              }
+            },
+            "coldStartCache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxBytes": { "type": "number" },
+                "maxAgeDays": { "type": "number" },
+                "cacheRoot": { "type": "string" }
+              }
+            }
           }
         },
         "lsp": {
@@ -297,6 +322,16 @@
           "additionalProperties": true,
           "properties": {
             "concurrency": { "type": "number" },
+            "cache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "scope": { "type": "string", "enum": ["global", "repo", "local"] },
+                "dir": { "type": "string" },
+                "maxGb": { "type": "number" },
+                "maxAgeDays": { "type": "number" }
+              }
+            },
             "provider": { "type": "string" },
             "onnx": {
               "type": "object",

@@ -9,7 +9,7 @@ import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getIndexDir, resolveRepoRootArg, resolveToolRoot } from '../../shared/dict-utils.js';
-import { writeJsonWithDir } from './utils.js';
+import { formatMs, writeJsonWithDir } from './utils.js';
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
@@ -354,11 +354,6 @@ function compareBaseline(current, baselineFile) {
 function deltaPct(current, baseline) {
   if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return null;
   return ((current - baseline) / baseline) * 100;
-}
-
-function formatMs(value) {
-  if (!Number.isFinite(value)) return 'n/a';
-  return `${value.toFixed(1)}ms`;
 }
 
 function formatDelta(value) {

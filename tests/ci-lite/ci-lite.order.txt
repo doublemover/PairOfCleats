@@ -114,6 +114,8 @@ shared/path-handling
 tooling/architecture/forbidden-call-edge
 indexing/runtime/stage-overrides
 indexing/vfs/virtual-path-stability
+indexing/vfs/vfs-idx-lookup-roundtrip
+indexing/vfs/vfs-path-map-roundtrip
 retrieval/filters/active-filters
 retrieval/graph/context-pack-determinism
 indexing/artifacts/call-sites-manifest
@@ -156,6 +158,11 @@ indexing/artifacts/symbol-artifacts-smoke
 indexing/risk/interprocedural/flows-timeout
 shared/async/runwithqueue-failfast
 tooling/vfs/vfs-virtualpath-deterministic
+tooling/vfs/vfs-hash-routing-roundtrip
+tooling/vfs/vfs-token-uri-roundtrip
+tooling/vfs/vfs-segment-coalesce
+tooling/vfs/vfs-cdc-segmentation-stability
+tooling/vfs/vfs-partial-lsp-open
 indexing/embeddings/merge-vectors-no-nan
 retrieval/ranking/keyword-downweighting
 indexing/contracts/index-compatibility-key-generation
@@ -194,6 +201,10 @@ shared/cache/cache-preflight-meta
 smoke/tantivy-smoke
 indexing/artifacts/file-meta
 tooling/vfs/vfs-maps-segment-offsets
+tooling/vfs/vfs-row-trim-order
+tooling/vfs/vfs-disk-path-safety
+tooling/vfs/vfs-collector-cleanup-on-error
+tooling/vfs/vfs-doc-hash-skip-rewrite
 indexing/postings/postings-doc-only-missing-doc-is-zero
 indexing/file-caps/doc-mode-large-markdown-not-skipped
 shared/subprocess/capture-bounds

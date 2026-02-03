@@ -17,6 +17,15 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
 const loggedTraversalBudget = new Set();
+const MAX_TIMEOUTS_PER_RUN = 3;
+
+const bumpMetric = (key, amount = 1) => {
+  if (!key) return;
+  const metrics = treeSitterState.metrics;
+  if (!metrics || typeof metrics !== 'object') return;
+  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
+  metrics[key] = current + amount;
+};
 
 // Guardrails: keep tree traversal and chunk extraction bounded even on pathological inputs.
 // These caps are intentionally conservative for JS/TS where nested lambdas/callbacks can be dense.
@@ -25,6 +34,150 @@ const DEFAULT_MAX_AST_STACK = 250_000;
 const DEFAULT_MAX_CHUNK_NODES = 5_000;
 
 const JS_TS_LANGUAGE_IDS = new Set(['javascript', 'typescript', 'tsx', 'jsx']);
+const QUERY_CAPTURE_NAME = 'chunk';
+const QUERY_MATCH_LIMIT_BUFFER = 32;
+const DEFAULT_DENSE_NODE_THRESHOLD = 250;
+const DEFAULT_DENSER_NODE_THRESHOLD = 600;
+const DEFAULT_DENSE_SCALE = 0.5;
+const DEFAULT_DENSER_SCALE = 0.25;
+const MIN_ADAPTIVE_AST_NODES = 10_000;
+const MIN_ADAPTIVE_AST_STACK = 10_000;
+const MIN_ADAPTIVE_CHUNK_NODES = 200;
+
+const buildChunkQueryPattern = (language, config) => {
+  if (!config) return null;
+  const types = new Set();
+  for (const entry of config.typeNodes || []) types.add(entry);
+  for (const entry of config.memberNodes || []) types.add(entry);
+  if (!types.size) return null;
+
+  const filtered = [];
+  const hasLookup = language && typeof language.idForNodeType === 'function';
+  for (const type of types) {
+    if (!hasLookup) {
+      filtered.push(type);
+      continue;
+    }
+    const typeId = language.idForNodeType(type, true);
+    if (typeId !== null && typeId !== undefined) filtered.push(type);
+  }
+
+  if (!filtered.length) return null;
+  return filtered.map((type) => `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
+};
+
+const getTreeSitterChunkQuery = (languageId, config, options) => {
+  if (!languageId || !config) return null;
+  if (options?.treeSitter?.useQueries === false) return null;
+
+  const cache = treeSitterState.queryCache;
+  if (cache?.has?.(languageId)) {
+    bumpMetric('queryHits', 1);
+    return cache.get(languageId);
+  }
+
+  bumpMetric('queryMisses', 1);
+
+  const languageEntry = treeSitterState.languageCache.get(languageId);
+  const language = languageEntry?.language || null;
+  if (!language || typeof language.query !== 'function') {
+    cache?.set?.(languageId, null);
+    return null;
+  }
+
+  const pattern = buildChunkQueryPattern(language, config);
+  if (!pattern) {
+    cache?.set?.(languageId, null);
+    return null;
+  }
+
+  try {
+    const query = language.query(pattern);
+    cache?.set?.(languageId, query);
+    bumpMetric('queryBuilds', 1);
+    return query;
+  } catch (err) {
+    cache?.set?.(languageId, null);
+    bumpMetric('queryFailures', 1);
+    if (options?.log && !treeSitterState.loggedQueryFailures?.has?.(languageId)) {
+      options.log(`[tree-sitter] Query compile failed for ${languageId}: ${err?.message || err}.`);
+      treeSitterState.loggedQueryFailures?.add?.(languageId);
+    }
+    return null;
+  }
+};
+
+const resolveAdaptiveBudgetScale = (options, resolvedId) => {
+  const adaptive = options?.treeSitter?.adaptive;
+  if (adaptive === false || adaptive?.enabled === false) return { scale: 1, density: null };
+  const entry = treeSitterState.nodeDensity?.get?.(resolvedId);
+  const density = entry && typeof entry === 'object' ? entry.density : entry;
+  if (!Number.isFinite(density) || density <= 0) return { scale: 1, density: null };
+
+  const denseThreshold = Number.isFinite(adaptive?.denseThreshold)
+    ? adaptive.denseThreshold
+    : DEFAULT_DENSE_NODE_THRESHOLD;
+  const denserThreshold = Number.isFinite(adaptive?.denserThreshold)
+    ? adaptive.denserThreshold
+    : DEFAULT_DENSER_NODE_THRESHOLD;
+  const denseScale = Number.isFinite(adaptive?.denseScale)
+    ? adaptive.denseScale
+    : DEFAULT_DENSE_SCALE;
+  const denserScale = Number.isFinite(adaptive?.denserScale)
+    ? adaptive.denserScale
+    : DEFAULT_DENSER_SCALE;
+
+  let scale = 1;
+  if (Number.isFinite(denserThreshold) && density >= denserThreshold) {
+    scale = denserScale;
+  } else if (Number.isFinite(denseThreshold) && density >= denseThreshold) {
+    scale = denseScale;
+  }
+
+  if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+  if (scale < 1 && options?.log && !treeSitterState.loggedAdaptiveBudgets?.has?.(resolvedId)) {
+    options.log(
+      `[tree-sitter] Dense AST for ${resolvedId} (${density.toFixed(1)} nodes/line); ` +
+      `scaling traversal budgets by ${scale}.`
+    );
+    treeSitterState.loggedAdaptiveBudgets?.add?.(resolvedId);
+  }
+
+  return { scale, density };
+};
+
+const applyAdaptiveBudget = (budget, options, resolvedId) => {
+  const { scale } = resolveAdaptiveBudgetScale(options, resolvedId);
+  if (!Number.isFinite(scale) || scale >= 1) return budget;
+  bumpMetric('adaptiveBudgetCuts', 1);
+  const clamp = (value, min) => {
+    const base = Number.isFinite(value) ? value : min;
+    const scaled = Math.floor(base * scale);
+    const floor = Math.min(base, min);
+    return Math.max(floor, scaled);
+  };
+  return {
+    maxAstNodes: clamp(budget.maxAstNodes, MIN_ADAPTIVE_AST_NODES),
+    maxAstStack: clamp(budget.maxAstStack, MIN_ADAPTIVE_AST_STACK),
+    maxChunkNodes: clamp(budget.maxChunkNodes, MIN_ADAPTIVE_CHUNK_NODES)
+  };
+};
+
+const recordNodeDensity = (languageId, visited, lineCount) => {
+  if (!languageId) return null;
+  if (!Number.isFinite(visited) || visited <= 0) return null;
+  if (!Number.isFinite(lineCount) || lineCount <= 0) return null;
+  const density = visited / Math.max(1, lineCount);
+  const prev = treeSitterState.nodeDensity?.get?.(languageId);
+  const prevDensity = prev && typeof prev === 'object' ? prev.density : prev;
+  const prevSamples = prev && typeof prev === 'object' ? prev.samples : 0;
+  const nextDensity = Number.isFinite(prevDensity)
+    ? (prevDensity * 0.7) + (density * 0.3)
+    : density;
+  const next = { density: nextDensity, samples: prevSamples + 1 };
+  treeSitterState.nodeDensity?.set?.(languageId, next);
+  return next;
+};
 
 function resolveTraversalBudget(options, resolvedId) {
   const config = options?.treeSitter || {};
@@ -34,12 +187,72 @@ function resolveTraversalBudget(options, resolvedId) {
   const maxAstNodes = perLanguage.maxAstNodes ?? config.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
   const maxAstStack = perLanguage.maxAstStack ?? config.maxAstStack ?? DEFAULT_MAX_AST_STACK;
   const maxChunkNodes = perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? defaultMaxChunkNodes;
-  return {
+  const budget = {
     maxAstNodes: Number.isFinite(maxAstNodes) && maxAstNodes > 0 ? Math.floor(maxAstNodes) : DEFAULT_MAX_AST_NODES,
     maxAstStack: Number.isFinite(maxAstStack) && maxAstStack > 0 ? Math.floor(maxAstStack) : DEFAULT_MAX_AST_STACK,
     maxChunkNodes: Number.isFinite(maxChunkNodes) && maxChunkNodes > 0 ? Math.floor(maxChunkNodes) : defaultMaxChunkNodes
   };
+  return applyAdaptiveBudget(budget, options, resolvedId);
 }
+
+const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
+
+const resolveChunkCacheKey = (options, resolvedId) => {
+  if (options?.treeSitter?.chunkCache === false) return null;
+  const rawKey = options?.treeSitterCacheKey ?? options?.treeSitter?.cacheKey ?? null;
+  if (rawKey == null || rawKey === '') return null;
+  const base = typeof rawKey === 'string' ? rawKey : String(rawKey);
+  if (!base) return null;
+  return `${resolvedId}:${base}`;
+};
+
+const resolveChunkCacheMaxEntries = (options) => {
+  const raw = options?.treeSitter?.chunkCacheMaxEntries
+    ?? options?.treeSitter?.chunkCache?.maxEntries
+    ?? DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const ensureChunkCache = (options) => {
+  const maxEntries = resolveChunkCacheMaxEntries(options);
+  if (!treeSitterState.chunkCache) treeSitterState.chunkCache = new Map();
+  if (treeSitterState.chunkCacheMaxEntries !== maxEntries) {
+    treeSitterState.chunkCache.clear();
+    treeSitterState.chunkCacheMaxEntries = maxEntries;
+  }
+  return { cache: treeSitterState.chunkCache, maxEntries };
+};
+
+const cloneChunkList = (chunks) => chunks.map((chunk) => ({
+  ...chunk,
+  ...(chunk?.meta ? { meta: { ...chunk.meta } } : {})
+}));
+
+const getCachedChunks = (cache, key) => {
+  if (!cache?.has?.(key)) {
+    bumpMetric('chunkCacheMisses', 1);
+    return null;
+  }
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  bumpMetric('chunkCacheHits', 1);
+  return Array.isArray(value) ? cloneChunkList(value) : null;
+};
+
+const setCachedChunks = (cache, key, chunks, maxEntries) => {
+  if (!Array.isArray(chunks) || !chunks.length) return;
+  bumpMetric('chunkCacheSets', 1);
+  cache.set(key, cloneChunkList(chunks));
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value;
+    if (!oldest) break;
+    cache.delete(oldest);
+    bumpMetric('chunkCacheEvictions', 1);
+  }
+};
 
 function countLines(text) {
   if (!text) return 0;
@@ -221,37 +434,109 @@ function findNearestType(node, config) {
   return null;
 }
 
-function gatherChunkNodes(root, config, budget) {
-  const nodes = [];
+function gatherChunkNodes(root, text, config, budget) {
+  const chunks = [];
   const stack = [root];
   let visited = 0;
+  let matched = 0;
+  let lineIndex = null;
+  let lineAccessor = null;
   const maxAstNodes = budget?.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
   const maxAstStack = budget?.maxAstStack ?? DEFAULT_MAX_AST_STACK;
   const maxChunkNodes = budget?.maxChunkNodes ?? DEFAULT_MAX_CHUNK_NODES;
+
+  const ensureLineAccessors = () => {
+    if (!lineIndex) {
+      lineIndex = buildLineIndex(text);
+      lineAccessor = createLineAccessor(text, lineIndex);
+    }
+    return { lineIndex, lineAccessor };
+  };
+
   while (stack.length) {
     if (stack.length > maxAstStack) {
-      return { nodes: null, reason: 'maxAstStack', visited, matched: nodes.length };
+      return { chunks: null, reason: 'maxAstStack', visited, matched };
     }
     const node = stack.pop();
     if (!node) continue;
     visited += 1;
     if (visited > maxAstNodes) {
-      return { nodes: null, reason: 'maxAstNodes', visited, matched: nodes.length };
+      return { chunks: null, reason: 'maxAstNodes', visited, matched };
     }
     const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
     if (missing) continue;
     if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
-      nodes.push(node);
-      if (nodes.length > maxChunkNodes) {
-        return { nodes: null, reason: 'maxChunkNodes', visited, matched: nodes.length };
+      matched += 1;
+      if (matched > maxChunkNodes) {
+        return { chunks: null, reason: 'maxChunkNodes', visited, matched };
       }
+      const { lineIndex: li, lineAccessor: la } = ensureLineAccessors();
+      const chunk = toChunk(node, text, config, li, la);
+      if (chunk) chunks.push(chunk);
     }
     const count = getNamedChildCount(node);
     for (let i = count - 1; i >= 0; i -= 1) {
       stack.push(getNamedChild(node, i));
     }
   }
-  return { nodes, reason: null, visited, matched: nodes.length };
+  if (!chunks.length) return { chunks: [], reason: null, visited, matched };
+  chunks.sort((a, b) => a.start - b.start);
+  return { chunks, reason: null, visited, matched };
+}
+
+function gatherChunksWithQuery(root, text, config, budget, resolvedId, options) {
+  const query = getTreeSitterChunkQuery(resolvedId, config, options);
+  if (!query) return null;
+
+  const maxChunkNodes = budget?.maxChunkNodes ?? DEFAULT_MAX_CHUNK_NODES;
+  const matchLimit = Math.max(1, maxChunkNodes + QUERY_MATCH_LIMIT_BUFFER);
+  let captures;
+  try {
+    captures = query.captures(root, undefined, undefined, { matchLimit });
+  } catch (err) {
+    bumpMetric('queryFailures', 1);
+    if (options?.log && !treeSitterState.loggedQueryFailures?.has?.(resolvedId)) {
+      options.log(`[tree-sitter] Query execution failed for ${resolvedId}: ${err?.message || err}.`);
+      treeSitterState.loggedQueryFailures?.add?.(resolvedId);
+    }
+    return { chunks: null, reason: 'queryError', visited: 0, matched: 0, usedQuery: true, shouldFallback: true };
+  }
+
+  const exceeded = typeof query.didExceedMatchLimit === 'function' && query.didExceedMatchLimit();
+  if (!Array.isArray(captures) || exceeded) {
+    return { chunks: null, reason: 'maxChunkNodes', visited: 0, matched: 0, usedQuery: true, shouldFallback: true };
+  }
+
+  let lineIndex = null;
+  let lineAccessor = null;
+  const ensureLineAccessors = () => {
+    if (!lineIndex) {
+      lineIndex = buildLineIndex(text);
+      lineAccessor = createLineAccessor(text, lineIndex);
+    }
+    return { lineIndex, lineAccessor };
+  };
+
+  const chunks = [];
+  let matched = 0;
+  for (const capture of captures) {
+    if (!capture || capture.name !== QUERY_CAPTURE_NAME) continue;
+    const node = capture.node;
+    if (!node) continue;
+    matched += 1;
+    if (matched > maxChunkNodes) {
+      return { chunks: null, reason: 'maxChunkNodes', visited: captures.length, matched, usedQuery: true, shouldFallback: true };
+    }
+    const { lineIndex: li, lineAccessor: la } = ensureLineAccessors();
+    const chunk = toChunk(node, text, config, li, la);
+    if (chunk) chunks.push(chunk);
+  }
+
+  if (!chunks.length) {
+    return { chunks: [], reason: null, visited: captures.length, matched, usedQuery: true, shouldFallback: false };
+  }
+  chunks.sort((a, b) => a.start - b.start);
+  return { chunks, reason: null, visited: captures.length, matched, usedQuery: true, shouldFallback: false };
 }
 
 function toChunk(node, text, config, lineIndex, lineAccessor) {
@@ -326,22 +611,37 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (treeSitterState.disabledLanguages?.has(resolvedId)) {
+    bumpMetric('fallbacks', 1);
+    return null;
+  }
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
-  const lineCount = shouldRecordMetrics ? countLines(text) : 0;
+  const shouldTrackDensity = options?.treeSitter?.adaptive !== false;
+  const lineCount = (shouldRecordMetrics || shouldTrackDensity) ? countLines(text) : 0;
   const metricsStart = shouldRecordMetrics ? Date.now() : 0;
   const recordMetrics = () => {
     if (!shouldRecordMetrics) return;
     const durationMs = Date.now() - metricsStart;
     metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
   };
+  const cacheKey = resolveChunkCacheKey(options, resolvedId);
+  const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  if (cacheKey && cacheRef) {
+    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    if (cached) {
+      recordMetrics();
+      return cached;
+    }
+  }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
   const parser = getTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (shouldDeferMissing) {
       options.treeSitterMissingLanguages.add(resolvedId);
+      bumpMetric('fallbacks', 1);
       return null;
     }
     if (options?.treeSitterMissingLanguages) {
@@ -351,6 +651,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
       loggedUnavailable.add(resolvedId);
     }
+    bumpMetric('fallbacks', 1);
     return null;
   }
   const config = LANG_CONFIG[resolvedId];
@@ -372,8 +673,27 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
           options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
           loggedParseTimeouts.add(resolvedId);
         }
+        const counts = treeSitterState.timeoutCounts;
+        if (counts) {
+          const nextCount = (counts.get(resolvedId) || 0) + 1;
+          counts.set(resolvedId, nextCount);
+          if (nextCount >= MAX_TIMEOUTS_PER_RUN && treeSitterState.disabledLanguages) {
+            treeSitterState.disabledLanguages.add(resolvedId);
+            if (options?.log && !treeSitterState.loggedTimeoutDisable?.has(resolvedId)) {
+              options.log(
+                `Tree-sitter disabled for ${resolvedId} after ${nextCount} timeouts; ` +
+                'using heuristic chunking for the remainder of this run.'
+              );
+              treeSitterState.loggedTimeoutDisable?.add?.(resolvedId);
+            }
+          }
+        }
+        bumpMetric('parseTimeouts', 1);
+        bumpMetric('fallbacks', 1);
         return null;
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -386,54 +706,86 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
-    let nodes = [];
+    let queryResult = null;
     try {
-      const result = gatherChunkNodes(rootNode, config, traversalBudget);
-      if (!result?.nodes) {
+      queryResult = gatherChunksWithQuery(rootNode, text, config, traversalBudget, resolvedId, options);
+    } catch {
+      queryResult = null;
+    }
+
+    if (queryResult?.usedQuery) {
+      if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
+        if (cacheKey && cacheRef) {
+          setCachedChunks(cacheRef.cache, cacheKey, queryResult.chunks, cacheRef.maxEntries);
+        }
         recordMetrics();
-        const key = `${resolvedId}:${result?.reason || 'budget'}`;
+        return queryResult.chunks;
+      }
+      if (!queryResult.shouldFallback) {
+        recordMetrics();
+        bumpMetric('fallbacks', 1);
+        return null;
+      }
+      if (queryResult.reason && options?.log) {
+        const key = `query:${resolvedId}:${queryResult.reason}`;
+        if (!loggedTraversalBudget.has(key)) {
+          options.log(
+            `Tree-sitter query aborted for ${resolvedId} (${queryResult.reason}); ` +
+            `visited=${queryResult.visited ?? 'n/a'} matched=${queryResult.matched ?? 'n/a'}. ` +
+            'Falling back to heuristic chunking.'
+          );
+          loggedTraversalBudget.add(key);
+        }
+      }
+    }
+
+    let traversalResult = null;
+    try {
+      traversalResult = gatherChunkNodes(rootNode, text, config, traversalBudget);
+      if (shouldTrackDensity && traversalResult?.visited) {
+        recordNodeDensity(resolvedId, traversalResult.visited, lineCount);
+      }
+      if (!traversalResult?.chunks) {
+        recordMetrics();
+        const key = `${resolvedId}:${traversalResult?.reason || 'budget'}`;
         if (options?.log && !loggedTraversalBudget.has(key)) {
           options.log(
-            `Tree-sitter traversal aborted for ${resolvedId} (${result?.reason}); `
-              + `visited=${result?.visited ?? 'n/a'} matched=${result?.matched ?? 'n/a'}. `
+            `Tree-sitter traversal aborted for ${resolvedId} (${traversalResult?.reason}); `
+              + `visited=${traversalResult?.visited ?? 'n/a'} matched=${traversalResult?.matched ?? 'n/a'}. `
               + 'Falling back to heuristic chunking.'
           );
           loggedTraversalBudget.add(key);
         }
+        bumpMetric('fallbacks', 1);
         return null;
       }
-      nodes = result.nodes;
     } catch {
       recordMetrics();
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
-    if (!nodes.length) {
+    if (!traversalResult.chunks.length) {
       recordMetrics();
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
-    const lineIndex = buildLineIndex(text);
-    const lineAccessor = createLineAccessor(text, lineIndex);
-    const chunks = [];
-    for (const node of nodes) {
-      const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
-      if (chunk) chunks.push(chunk);
+    if (cacheKey && cacheRef) {
+      setCachedChunks(cacheRef.cache, cacheKey, traversalResult.chunks, cacheRef.maxEntries);
     }
-    if (!chunks.length) {
-      recordMetrics();
-      return null;
-    }
-    chunks.sort((a, b) => a.start - b.start);
     recordMetrics();
-    return chunks;
+    return traversalResult.chunks;
   } finally {
     // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
     try {
@@ -463,8 +815,16 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   // Avoid spinning up / dispatching to workers when we already know we will skip tree-sitter.
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (treeSitterState.disabledLanguages?.has(resolvedId)) return null;
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   if (!LANG_CONFIG[resolvedId]) return null;
+
+  const cacheKey = resolveChunkCacheKey(options, resolvedId);
+  const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  if (cacheKey && cacheRef) {
+    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    if (cached) return cached;
+  }
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
@@ -498,9 +858,15 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   try {
     const result = await pool.run(payload, { name: 'parseTreeSitter' });
-    if (Array.isArray(result)) return result;
+    if (Array.isArray(result) && result.length) {
+      if (cacheKey && cacheRef) {
+        setCachedChunks(cacheRef.cache, cacheKey, result, cacheRef.maxEntries);
+      }
+      return result;
+    }
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
+    bumpMetric('workerFallbacks', 1);
     try {
       await preloadTreeSitterLanguages([resolvedId], {
         log: options?.log,
@@ -515,6 +881,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');
     }
+    bumpMetric('workerFallbacks', 1);
     try {
       await preloadTreeSitterLanguages([resolvedId], {
         log: options?.log,

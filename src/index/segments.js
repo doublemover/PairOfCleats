@@ -12,6 +12,7 @@ import {
 import { segmentMarkdown } from './segments/markdown.js';
 import { segmentJsx } from './segments/jsx.js';
 import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
+import { buildCdcSegments } from './segments/cdc.js';
 
 export { normalizeSegmentsConfig } from './segments/config.js';
 export { detectFrontmatter } from './segments/frontmatter.js';
@@ -91,6 +92,18 @@ export function discoverSegments({
       return extraSegments && extraSegments.length
         ? finalizeSegments([...segments, ...extraSegments], relPath)
         : segments;
+    }
+  }
+  if (config.cdc?.enabled && text.length >= (config.cdc.minFileBytes || 0)) {
+    const cdcSegments = buildCdcSegments({
+      text,
+      languageId,
+      options: config.cdc
+    });
+    if (cdcSegments.length) {
+      return extraSegments && extraSegments.length
+        ? finalizeSegments([...cdcSegments, ...extraSegments], relPath)
+        : finalizeSegments(cdcSegments, relPath);
     }
   }
   const baseSegment = {

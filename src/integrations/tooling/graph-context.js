@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/files.js';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { parseSeedRef } from '../../shared/seed-ref.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import { renderGraphContextPack } from '../../retrieval/output/graph-context-pack.js';
 import { validateGraphContextPack } from '../../contracts/validators/analysis.js';
@@ -27,40 +29,11 @@ const parseList = (value) => {
     .filter(Boolean);
 };
 
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
-};
-
 const resolveFormat = (argv) => {
   const formatRaw = argv.format || (argv.json ? 'json' : 'json');
   const format = String(formatRaw).trim().toLowerCase();
   if (format === 'md' || format === 'markdown') return 'md';
   return 'json';
-};
-
-const parseSeedRef = (raw, repoRoot) => {
-  const value = String(raw || '').trim();
-  if (!value) throw new Error('Missing --seed value.');
-  const match = /^(chunk|symbol|file):(.+)$/.exec(value);
-  if (!match) {
-    throw new Error('Invalid --seed value. Use chunk:<id>, symbol:<id>, or file:<path>.');
-  }
-  const type = match[1];
-  const suffix = match[2].trim();
-  if (!suffix) throw new Error('Invalid --seed value.');
-  if (type === 'chunk') return { type: 'chunk', chunkUid: suffix };
-  if (type === 'symbol') return { type: 'symbol', symbolId: suffix };
-  if (type === 'file') {
-    const abs = isAbsolutePathNative(suffix) ? suffix : path.resolve(repoRoot, suffix);
-    const rel = path.relative(repoRoot, abs);
-    if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
-      throw new Error('file: seeds must resolve to a repo-relative path.');
-    }
-    return { type: 'file', path: toPosix(rel) };
-  }
-  throw new Error('Unsupported --seed type.');
 };
 
 const mergeCaps = (baseCaps, overrides) => {

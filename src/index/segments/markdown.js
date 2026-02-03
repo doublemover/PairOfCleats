@@ -1,13 +1,8 @@
 import { parse, postprocess, preprocess } from 'micromark';
+import { normalizeLimit } from '../../shared/limits.js';
 import { CONFIG_LANGS, hasMeaningfulText, normalizeFenceLanguage, normalizeSegmentsConfig } from './config.js';
 import { detectFrontmatter } from './frontmatter.js';
 import { finalizeSegments } from './finalize.js';
-
-const normalizeLimit = (value, fallback) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(0, Math.floor(num));
-};
 
 const collectMarkdownSegments = (text, config) => {
   const spans = [];

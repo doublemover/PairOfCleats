@@ -1,12 +1,9 @@
 import { compareStrings } from '../shared/sort.js';
+import { normalizeDepth } from '../shared/limits.js';
+import { resolveProvenance } from '../shared/provenance.js';
+import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
-
-const normalizeDepth = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.floor(parsed));
-};
 
 const normalizeDirection = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -20,39 +17,6 @@ const normalizePaths = (paths) => {
   const unique = Array.from(new Set(list.map((entry) => String(entry || '').trim()).filter(Boolean)));
   unique.sort(compareStrings);
   return unique;
-};
-
-const resolveProvenance = ({
-  provenance,
-  indexSignature,
-  indexCompatKey,
-  capsUsed,
-  repo,
-  indexDir,
-  now
-}) => {
-  const timestamp = typeof now === 'function' ? now() : new Date().toISOString();
-  if (provenance && typeof provenance === 'object') {
-    const merged = { ...provenance };
-    if (!merged.generatedAt) merged.generatedAt = timestamp;
-    if (!merged.capsUsed) merged.capsUsed = capsUsed || {};
-    if (!merged.indexSignature && !merged.indexCompatKey) {
-      throw new Error('Provenance must include indexSignature or indexCompatKey.');
-    }
-    return merged;
-  }
-  if (!indexSignature && !indexCompatKey) {
-    throw new Error('GraphImpact requires indexSignature or indexCompatKey.');
-  }
-  const base = {
-    generatedAt: timestamp,
-    capsUsed: capsUsed || {}
-  };
-  if (indexSignature) base.indexSignature = indexSignature;
-  if (indexCompatKey) base.indexCompatKey = indexCompatKey;
-  if (repo) base.repo = repo;
-  if (indexDir) base.indexDir = indexDir;
-  return base;
 };
 
 const buildSeedEnvelope = ({ paths, maxCandidates, recordTruncation }) => {
@@ -167,17 +131,9 @@ export const buildImpactAnalysis = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
-  const truncation = { list: [], seen: new Set() };
+  const truncation = createTruncationRecorder({ scope: 'impact' });
   const warnings = { list: [], seen: new Set() };
-  const recordTruncation = (cap, detail) => {
-    if (truncation.seen.has(`impact:${cap}`)) return;
-    truncation.seen.add(`impact:${cap}`);
-    truncation.list.push({
-      scope: 'impact',
-      cap,
-      ...detail
-    });
-  };
+  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const resolvedSeeds = resolveSeeds({
     seed,
@@ -202,7 +158,8 @@ export const buildImpactAnalysis = ({
         capsUsed: { graph: { ...caps } },
         repo,
         indexDir,
-        now
+        now,
+        label: 'GraphImpact'
       }),
       stats: {
         counts: {
@@ -323,7 +280,8 @@ export const buildImpactAnalysis = ({
       capsUsed,
       repo,
       indexDir,
-      now
+      now,
+      label: 'GraphImpact'
     }),
     stats: {
       artifactsUsed: {

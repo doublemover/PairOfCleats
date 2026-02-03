@@ -1,41 +1,9 @@
+import { resolveProvenance } from '../shared/provenance.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
 
 const resolveCapsUsed = (caps) => {
   if (caps && typeof caps === 'object') return { graph: { ...caps } };
   return { graph: {} };
-};
-
-const resolveProvenance = ({
-  provenance,
-  indexSignature,
-  indexCompatKey,
-  capsUsed,
-  repo,
-  indexDir,
-  now
-}) => {
-  const timestamp = typeof now === 'function' ? now() : new Date().toISOString();
-  if (provenance && typeof provenance === 'object') {
-    const merged = { ...provenance };
-    if (!merged.generatedAt) merged.generatedAt = timestamp;
-    if (!merged.capsUsed) merged.capsUsed = capsUsed || {};
-    if (!merged.indexSignature && !merged.indexCompatKey) {
-      throw new Error('Provenance must include indexSignature or indexCompatKey.');
-    }
-    return merged;
-  }
-  if (!indexSignature && !indexCompatKey) {
-    throw new Error('GraphContextPack requires indexSignature or indexCompatKey.');
-  }
-  const base = {
-    generatedAt: timestamp,
-    capsUsed: capsUsed || {}
-  };
-  if (indexSignature) base.indexSignature = indexSignature;
-  if (indexCompatKey) base.indexCompatKey = indexCompatKey;
-  if (repo) base.repo = repo;
-  if (indexDir) base.indexDir = indexDir;
-  return base;
 };
 
 export const buildGraphContextPack = ({
@@ -63,7 +31,8 @@ export const buildGraphContextPack = ({
     capsUsed,
     repo,
     indexDir,
-    now
+    now,
+    label: 'GraphContextPack'
   });
   const neighborhood = buildGraphNeighborhood({
     seed,

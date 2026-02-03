@@ -1,6 +1,8 @@
 import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
 import { formatScoreBreakdown } from './explain.js';
 import { getBodySummary } from './summary.js';
+import { getFormatFullCache, getFormatShortCache } from './cache.js';
+import { sha1 } from '../../shared/hash.js';
 import { ANSI, applyLineBackground, stripAnsi as stripAnsiShared } from '../../shared/cli/ansi-utils.js';
 
 const formatInferredEntry = (entry) => {
@@ -72,6 +74,23 @@ const BG_EXPORTS = '\x1b[48;5;23m';
 const BG_CALLS = '\x1b[48;5;17m';
 const BG_CALL_SUMMARY = '\x1b[48;5;17m';
 const BG_IMPORT_LINKS = '\x1b[48;5;22m';
+
+const buildQueryHash = (queryTokens, rx) => {
+  const tokens = Array.isArray(queryTokens) ? queryTokens.join('|') : '';
+  const rxSig = rx ? `${rx.source}/${rx.flags}` : '';
+  return sha1(`${tokens}:${rxSig}`);
+};
+
+const buildFormatCacheKey = ({
+  chunk,
+  index,
+  mode,
+  queryHash,
+  matched,
+  explain
+}) => sha1(
+  `${mode}:${index}:${chunk.file}:${chunk.start}:${chunk.end}:${matched ? 1 : 0}:${explain ? 1 : 0}:${queryHash}`
+);
 
 const buildWrappedLines = (label, items, { indent = INDENT, maxWidth = 110 } = {}) => {
   if (!Array.isArray(items) || !items.length) return [];
@@ -187,10 +206,21 @@ export function formatFullChunk({
   rx,
   matched = false,
   rootDir,
-  summaryState
+  summaryState,
+  allowSummary = true,
+  _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
+  }
+  const canCache = !_skipCache && !explain && (!summaryState || !allowSummary);
+  const formatCache = canCache ? getFormatFullCache() : null;
+  const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
+  let cacheKey = null;
+  if (canCache && formatCache) {
+    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain });
+    const cached = formatCache.get(cacheKey);
+    if (cached) return cached;
   }
   const c = color;
   let out = '';
@@ -570,7 +600,7 @@ export function formatFullChunk({
     out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), chunk.externalDocs);
   }
 
-  if (summaryState && rootDir && !chunk.docmeta?.record) {
+  if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary) {
     if (index === 0) summaryState.lastCount = 0;
     if (index < 5) {
       let maxWords = 10;
@@ -593,6 +623,9 @@ export function formatFullChunk({
     }
   }
   out += '\n';
+  if (canCache && formatCache && cacheKey) {
+    formatCache.set(cacheKey, out);
+  }
   return out;
 }
 
@@ -611,10 +644,20 @@ export function formatShortChunk({
   color,
   queryTokens = [],
   rx,
-  matched = false
+  matched = false,
+  _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
+  }
+  const canCache = !_skipCache && !explain;
+  const formatCache = canCache ? getFormatShortCache() : null;
+  const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
+  let cacheKey = null;
+  if (canCache && formatCache) {
+    cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain });
+    const cached = formatCache.get(cacheKey);
+    if (cached) return cached;
   }
   let out = '';
   const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
@@ -678,5 +721,8 @@ export function formatShortChunk({
   }
 
   out += '\n';
+  if (canCache && formatCache && cacheKey) {
+    formatCache.set(cacheKey, out);
+  }
   return out;
 }

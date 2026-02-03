@@ -44,6 +44,7 @@ const TESTS_DIR = path.join(ROOT, 'tests');
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const SKIP_EXIT_CODE = 77;
+const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 
@@ -404,6 +405,7 @@ const main = async () => {
     failFast: argv['fail-fast'],
     timeoutGraceMs: DEFAULT_TIMEOUT_GRACE_MS,
     skipExitCode: SKIP_EXIT_CODE,
+    redoExitCodes: REDO_EXIT_CODES,
     maxOutputBytes: MAX_OUTPUT_BYTES,
     borderPattern: BORDER_PATTERN
   };
@@ -424,11 +426,15 @@ const main = async () => {
   const reportResult = ordered
     ? ordered.report
     : ((result) => reportTestResult({ context, result }));
+  const reportDirect = ordered
+    ? ((result) => reportTestResult({ context, result }))
+    : null;
 
   const results = await runTests({
     selection,
     context,
-    reportResult
+    reportResult,
+    reportDirect
   });
 
   const finalResults = ordered ? ordered.results : results;

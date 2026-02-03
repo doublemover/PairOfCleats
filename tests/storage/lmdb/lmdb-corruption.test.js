@@ -70,7 +70,7 @@ if (typeof db.removeSync === 'function') {
 db.close();
 
 const report = run(
-  [path.join(root, 'tools', 'report-artifacts.js'), '--json', '--repo', repoRoot],
+  [path.join(root, 'tools', 'index', 'report-artifacts.js'), '--json', '--repo', repoRoot],
   'report artifacts',
   { encoding: 'utf8' }
 );

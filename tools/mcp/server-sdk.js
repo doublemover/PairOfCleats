@@ -5,9 +5,9 @@ import { buildInitializeResult, formatToolError } from '../../src/integrations/m
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { tryImport } from '../../src/shared/optional-deps.js';
-import { withTimeout } from './mcp/runner.js';
-import { handleToolCall } from './mcp/tools.js';
-import { getMcpServerConfig } from './mcp/server-config.js';
+import { withTimeout } from './runner.js';
+import { handleToolCall } from './tools.js';
+import { getMcpServerConfig } from './server-config.js';
 
 const importFirst = async (candidates) => {
   let lastError = null;

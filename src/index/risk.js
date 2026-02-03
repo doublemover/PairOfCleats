@@ -1,3 +1,4 @@
+import { normalizeCapNullOnZero } from '../shared/limits.js';
 import { normalizeRiskRules } from './risk-rules.js';
 
 const DEFAULT_CAPS = {
@@ -11,12 +12,9 @@ const DEFAULT_CAPS = {
 
 const SEVERITY_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 
-const normalizeCap = (value, fallback) => {
-  if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
+const normalizeCap = (value, fallback) => (
+  normalizeCapNullOnZero(value, fallback)
+);
 
 export function normalizeRiskConfig(raw = {}, { rootDir } = {}) {
   const input = raw && typeof raw === 'object' ? raw : {};

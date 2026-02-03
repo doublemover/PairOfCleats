@@ -124,6 +124,7 @@ export function resolveEncodedVectorBytes(encoded) {
  * @returns {boolean}
  */
 export function isVectorEncodingCompatible({ encoded, dims, encoding }) {
+  if (!encoding) return true;
   const expected = resolveVectorEncodingBytes(dims, encoding);
   if (expected == null) return true;
   const actual = resolveEncodedVectorBytes(encoded);

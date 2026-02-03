@@ -65,7 +65,7 @@ run(
 );
 
 const report = run(
-  [path.join(root, 'tools', 'report-artifacts.js'), '--json', '--repo', repoRoot],
+  [path.join(root, 'tools', 'index', 'report-artifacts.js'), '--json', '--repo', repoRoot],
   'report artifacts',
   { encoding: 'utf8' }
 );
@@ -104,7 +104,7 @@ lmdbDb.putSync(LMDB_META_KEYS.artifacts, packr.pack(filtered));
 lmdbDb.close();
 
 const reportMissing = run(
-  [path.join(root, 'tools', 'report-artifacts.js'), '--json', '--repo', repoRoot],
+  [path.join(root, 'tools', 'index', 'report-artifacts.js'), '--json', '--repo', repoRoot],
   'report artifacts (missing lmdb key)',
   { encoding: 'utf8' }
 );

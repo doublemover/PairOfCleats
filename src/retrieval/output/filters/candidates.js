@@ -31,8 +31,19 @@ export const createCandidateHelpers = (deps) => {
     unionBitmaps,
     intersectBitmaps,
     intersectSetWithBitmap,
-    isBitmapEmpty
+    isBitmapEmpty,
+    getBitmapSize,
+    preferBitmap = false,
+    bitmapMinSize = null
   } = deps;
+  const resolvedBitmapMinSize = Number.isFinite(Number(bitmapMinSize))
+    ? Math.max(1, Math.floor(Number(bitmapMinSize)))
+    : null;
+  const shouldKeepBitmap = (bitmap) => {
+    if (!preferBitmap || !roaringAvailable || !bitmap) return false;
+    if (!resolvedBitmapMinSize) return true;
+    return getBitmapSize(bitmap) >= resolvedBitmapMinSize;
+  };
 
   const buildCandidate = (sets, bitmaps) => {
     const setList = Array.isArray(sets) ? sets.filter(Boolean) : [];
@@ -45,7 +56,10 @@ export const createCandidateHelpers = (deps) => {
         for (const set of setList) {
           for (const id of set) ids.push(id);
         }
-        const extraBitmap = createBitmapFromIds(ids, { force: true });
+        const extraBitmap = createBitmapFromIds(ids, {
+          force: preferBitmap === true,
+          minSize: resolvedBitmapMinSize ?? undefined
+        });
         if (extraBitmap) {
           bitmap = bitmap ? unionBitmaps([bitmap, extraBitmap]) : extraBitmap;
         }
@@ -159,18 +173,28 @@ export const createCandidateHelpers = (deps) => {
     }
     if (bitmaps.length) {
       let bitmap = intersectBitmaps(bitmaps);
-      if (!bitmap || isBitmapEmpty(bitmap)) return new Set();
+      if (!bitmap || isBitmapEmpty(bitmap)) {
+        return new Set();
+      }
       if (sets.length) {
         const setIntersection = intersectSets(sets);
-        if (!setIntersection || !setIntersection.size) return new Set();
-        const setBitmap = createBitmapFromIds(setIntersection, { force: true });
+        if (!setIntersection || !setIntersection.size) {
+          return new Set();
+        }
+        const setBitmap = createBitmapFromIds(setIntersection, {
+          force: true,
+          minSize: resolvedBitmapMinSize ?? undefined
+        });
         if (setBitmap) {
           bitmap = intersectBitmaps([bitmap, setBitmap]);
-          return bitmap ? bitmapToSet(bitmap) : new Set();
+          if (!bitmap || isBitmapEmpty(bitmap)) {
+            return new Set();
+          }
+          return shouldKeepBitmap(bitmap) ? bitmap : bitmapToSet(bitmap);
         }
         return intersectSetWithBitmap(setIntersection, bitmap);
       }
-      return bitmapToSet(bitmap);
+      return shouldKeepBitmap(bitmap) ? bitmap : bitmapToSet(bitmap);
     }
     return intersectSets(sets);
   };

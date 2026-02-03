@@ -1,13 +1,8 @@
 import { createWorkBudget } from '../../graph/work-budget.js';
+import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { compareStrings } from '../../shared/sort.js';
 
 const DEFAULT_MAX_WORK_UNITS = 500;
-
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return parsed;
-};
 
 const normalizeSeedSelection = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';

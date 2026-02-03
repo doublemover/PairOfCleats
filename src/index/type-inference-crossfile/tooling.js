@@ -144,6 +144,8 @@ export const runToolingPass = async ({
   const maxVirtualFileBytes = Number.isFinite(maxVirtualFileBytesRaw)
     ? Math.max(0, Math.floor(maxVirtualFileBytesRaw))
     : null;
+  const hashRouting = vfsConfig.hashRouting === true;
+  const coalesceSegments = vfsConfig.coalesceSegments === true;
   const logger = (evt) => {
     if (!evt) return;
     if (typeof evt === 'string') {
@@ -157,6 +159,8 @@ export const runToolingPass = async ({
     fileTextByPath: fileTextByFile,
     strict: vfsStrict,
     maxVirtualFileBytes,
+    hashRouting,
+    coalesceSegments,
     log
   });
   if (!documents.length || !targets.length) return { inferredReturns: 0 };

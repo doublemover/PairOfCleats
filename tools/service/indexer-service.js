@@ -4,10 +4,28 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { formatDurationMs } from '../../src/shared/time-format.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { resolveRepoRootArg, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import {
+  resolveRepoRootArg,
+  getCacheRoot,
+  getRepoCacheRoot,
+  getRuntimeConfig,
+  loadUserConfig,
+  resolveRuntimeEnv,
+  resolveToolRoot
+} from '../shared/dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
-import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './queue.js';
+import {
+  ensureQueueDir,
+  enqueueJob,
+  claimNextJob,
+  completeJob,
+  queueSummary,
+  resolveQueueName,
+  requeueStaleJobs,
+  touchJobHeartbeat
+} from './queue.js';
 import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from './indexer-service-helpers.js';
 
@@ -124,15 +142,7 @@ const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
   return null;
 };
 
-const formatDuration = (ms) => {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-};
+const formatDuration = (ms) => formatDurationMs(ms);
 
 const formatProgressLine = ({ jobId, stage, state }) => {
   if (!state) return null;

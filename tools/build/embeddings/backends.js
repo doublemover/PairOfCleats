@@ -1,0 +1,150 @@
+import { writeHnswIndex } from './hnsw.js';
+import { writeLanceDbIndex } from './lancedb.js';
+
+export const writeHnswBackends = async ({
+  mode,
+  hnswConfig,
+  hnswIsolate,
+  hnswBuilders,
+  hnswPaths,
+  vectors,
+  vectorsPaths,
+  modelId,
+  dims,
+  quantization,
+  scale,
+  normalize,
+  logger,
+  log,
+  warn
+} = {}) => {
+  const results = {
+    merged: null,
+    doc: null,
+    code: null
+  };
+  if (!hnswConfig?.enabled) return results;
+
+  const entries = [
+    {
+      target: 'merged',
+      label: `${mode}/merged`,
+      paths: hnswPaths?.merged,
+      vectors: vectors?.merged,
+      vectorsPath: vectorsPaths?.merged
+    },
+    {
+      target: 'doc',
+      label: `${mode}/doc`,
+      paths: hnswPaths?.doc,
+      vectors: vectors?.doc,
+      vectorsPath: vectorsPaths?.doc
+    },
+    {
+      target: 'code',
+      label: `${mode}/code`,
+      paths: hnswPaths?.code,
+      vectors: vectors?.code,
+      vectorsPath: vectorsPaths?.code
+    }
+  ];
+
+  for (const entry of entries) {
+    if (!entry.paths) continue;
+    try {
+      if (hnswIsolate) {
+        results[entry.target] = await writeHnswIndex({
+          indexPath: entry.paths.indexPath,
+          metaPath: entry.paths.metaPath,
+          modelId,
+          dims,
+          quantization,
+          scale,
+          vectors: entry.vectors,
+          vectorsPath: entry.vectorsPath,
+          normalize,
+          config: hnswConfig,
+          isolate: true,
+          logger
+        });
+      } else {
+        const builder = hnswBuilders?.[entry.target];
+        if (!builder) continue;
+        results[entry.target] = await builder.writeIndex({
+          indexPath: entry.paths.indexPath,
+          metaPath: entry.paths.metaPath,
+          modelId,
+          dims,
+          quantization,
+          scale
+        });
+      }
+      if (results[entry.target] && !results[entry.target].skipped) {
+        log(`[embeddings] ${entry.label}: wrote HNSW index (${results[entry.target].count} vectors).`);
+      }
+    } catch (err) {
+      warn(`[embeddings] ${entry.label}: failed to write HNSW index: ${err?.message || err}`);
+    }
+  }
+
+  return results;
+};
+
+export const writeLanceDbBackends = async ({
+  mode,
+  indexDir,
+  lanceConfig,
+  vectors,
+  vectorsPaths,
+  dims,
+  modelId,
+  quantization,
+  scale,
+  normalize,
+  logger,
+  warn
+} = {}) => {
+  if (!lanceConfig?.enabled) return;
+  const entries = [
+    {
+      variant: 'merged',
+      label: `${mode}/merged`,
+      vectors: vectors?.merged,
+      vectorsPath: vectorsPaths?.merged
+    },
+    {
+      variant: 'doc',
+      label: `${mode}/doc`,
+      vectors: vectors?.doc,
+      vectorsPath: vectorsPaths?.doc
+    },
+    {
+      variant: 'code',
+      label: `${mode}/code`,
+      vectors: vectors?.code,
+      vectorsPath: vectorsPaths?.code
+    }
+  ];
+
+  try {
+    for (const entry of entries) {
+      await writeLanceDbIndex({
+        indexDir,
+        variant: entry.variant,
+        vectors: entry.vectors,
+        vectorsPath: entry.vectorsPath,
+        dims,
+        modelId,
+        quantization,
+        scale,
+        normalize,
+        config: lanceConfig,
+        emitOutput: true,
+        label: entry.label,
+        logger
+      });
+    }
+  } catch (err) {
+    warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
+  }
+};

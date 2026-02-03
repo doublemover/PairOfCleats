@@ -25,6 +25,11 @@ cache.root (string)
 indexing (object)
 indexing.concurrency (number)
 indexing.embeddings (object)
+indexing.embeddings.cache (object)
+indexing.embeddings.cache.dir (string)
+indexing.embeddings.cache.maxAgeDays (number)
+indexing.embeddings.cache.maxGb (number)
+indexing.embeddings.cache.scope (string) enum=global|repo|local
 indexing.embeddings.concurrency (number)
 indexing.embeddings.onnx (object)
 indexing.embeddings.onnx.interOpNumThreads (number)
@@ -198,8 +203,23 @@ tooling.typescript.resolveOrder
 tooling.typescript.tsconfigPath (string)
 tooling.typescript.useTsconfig (boolean)
 tooling.vfs (object)
+tooling.vfs.coalesceSegments (boolean)
+tooling.vfs.coldStartCache (object)
+tooling.vfs.coldStartCache.cacheRoot (string)
+tooling.vfs.coldStartCache.enabled (boolean)
+tooling.vfs.coldStartCache.maxAgeDays (number)
+tooling.vfs.coldStartCache.maxBytes (number)
+tooling.vfs.hashRouting (boolean)
+tooling.vfs.ioBatching (object)
+tooling.vfs.ioBatching.enabled (boolean)
+tooling.vfs.ioBatching.flushIntervalMs (number)
+tooling.vfs.ioBatching.maxBatchBytes (number)
+tooling.vfs.ioBatching.maxInflight (number)
+tooling.vfs.ioBatching.maxQueueEntries (number)
+tooling.vfs.ioBatching.writeMode (string) enum=atomic|direct
 tooling.vfs.maxVirtualFileBytes (number)
 tooling.vfs.strict (boolean)
+tooling.vfs.tokenMode (string)
 ```
 
 ## Defaults
@@ -222,6 +242,9 @@ tooling.vfs.strict (boolean)
 - PAIROFCLEATS_FILE_CACHE_MAX -> fileCacheMax
 - PAIROFCLEATS_HOME -> homeRoot
 - PAIROFCLEATS_IMPORT_GRAPH -> importGraph
+- PAIROFCLEATS_LANCEDB_CHILD -> child
+- PAIROFCLEATS_LANCEDB_ISOLATE -> isolate
+- PAIROFCLEATS_LANCEDB_PAYLOAD -> payload
 - PAIROFCLEATS_LOG_FORMAT -> logFormat
 - PAIROFCLEATS_LOG_LEVEL -> logLevel
 - PAIROFCLEATS_MCP_MAX_BUFFER_BYTES -> mcpMaxBufferBytes
