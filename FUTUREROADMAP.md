@@ -60,9 +60,11 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] Resolve `root` to a **repo root** (not a subdirectory), using existing repo-root detection (`resolveRepoRoot` behavior) even when the user points at a subdir.
     - [ ] Canonicalize to **realpath** (symlink-resolved) where possible; normalize Windows casing consistently.
     - [ ] Compute `repoId` using the canonicalized root (and keep `repoRoot` as canonical path).
+    - [ ] Resolve and persist `workspaceRoot` (the config file directory) and use it explicitly for relative repo roots.
   - [ ] Enforce deterministic ordering for all “identity-bearing” operations:
     - [ ] Sort by `repoId` for hashing and cache keys.
     - [ ] Preserve `alias` (and original list position) only for display ordering when desired.
+  - [ ] Hard-fail on duplicate repo entries (same canonical root or repoId) to prevent ambiguous cache keys.
 
 - [ ] Introduce a stable **repo-set identity** (`repoSetId`) for federation.
   - [ ] Compute as a stable hash over:
@@ -115,10 +117,12 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Include:
     - [ ] `schemaVersion`, `generatedAt`, `repoSetId`
     - [ ] `manifestHash` over search-relevant state (stable serialization; exclude display-only fields)
+    - [ ] `manifestBasis` (hash of per-repo build pointers and index signatures that drive cache invalidation)
     - [ ] `repos[]` with `repoId`, `repoRoot`, `alias?`, `tags?`
     - [ ] For each repo: `buildId`, per-mode `indexDir`, per-mode `indexSignature` (or a compact signature hash), `sqlitePaths`, and `compatibilityKey`
     - [ ] Diagnostics: missing indexes, excluded modes, policy overrides applied
   - [ ] Ensure manifest generation is deterministic (stable ordering, stable serialization).
+  - [ ] Write manifests atomically (temp + rename) to avoid partially-written state.
 
 - [ ] Add workspace-aware build orchestration (multi-repo indexing) that can produce/refresh the workspace manifest.
   - [ ] Add `--workspace <path>` support to the build entrypoint (or add a dedicated `workspace build` command):
@@ -161,13 +165,16 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] Add `pairofcleats search --workspace <path>` to query all repos in a workspace.
     - [ ] Support repeated `--repo <id|alias|path>` to target a subset.
     - [ ] Support `--repo-filter <glob|regex>` and/or `--tag <tag>` to select repos by metadata.
+    - [ ] Add `--federation-mode <fail|best-effort>` (default: `fail`) to control partial-failure handling.
   - [ ] API server:
     - [ ] Add a federated endpoint or extend the existing search endpoint to accept:
       - [ ] `workspace` (workspace file path or logical id)
       - [ ] `repos` selection (ids/aliases/roots)
+      - [ ] `federationMode` (`fail` | `best_effort`) to control partial-failure handling.
     - [ ] Apply the same repo-root allowlist enforcement as single-repo mode.
   - [ ] MCP:
     - [ ] Add workspace-aware search inputs (workspace + repo selection).
+    - [ ] Add a `federationMode` input (`fail` | `best_effort`) to control partial failures.
     - [ ] Ensure MCP search results include repo attribution (see below).
 
 - [ ] Implement a federation coordinator (single orchestration layer) used by CLI/API/MCP.
@@ -235,6 +242,8 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] Search only within a single cohort (or return per-cohort result sets explicitly).
     - [ ] If multiple cohorts exist, return a warning explaining the mismatch and how to resolve (rebuild or select a cohort).
   - [ ] Provide an explicit override (CLI/API) to allow “unsafe mixing” if ever required, but keep it opt-in and loud.
+  - [ ] Compute and persist cohort summaries at **manifest generation time** so mismatches are detected early.
+    - [ ] If requested modes span multiple cohorts, refuse to federate by default unless an explicit `allowIncompatible` override is provided.
 
 - [ ] Ensure compatibility gating also applies at the single-repo boundary when multiple modes/backends are requested.
   - [ ] Avoid mixing incompatible code/prose/records indexes when the query expects unified ranking.
@@ -324,6 +333,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] cached bundles from file processing
     - [ ] extracted prose artifacts (where applicable)
     - [ ] tool outputs that are content-addressable
+  - [ ] Define the CAS layout (hash algorithm, directory sharding, metadata) and GC policy (LRU + max age).
   - [ ] Add a cache GC command (`pairofcleats cache gc`) driven by manifests/snapshots.
 
 - [ ] Scale-out and throughput controls for workspace operations.
@@ -600,6 +610,7 @@ Additional docs that MUST be updated if Phase 16 adds new behavior or config:
     - [ ] normalize newlines to `\n`
     - [ ] collapse excessive whitespace but preserve paragraph boundaries
     - [ ] preserve deterministic ordering (page order, paragraph order)
+  - [ ] Record extractor version, source checksum (bytes hash), and page/paragraph counts in build-state/extraction report.
 
 - [ ] Implement optional-dep loading via `tryImport` (preferred) with conservative fallbacks:
   - [ ] PDF: try `pdfjs-dist/legacy/build/pdf.js|pdf.mjs`, then `pdfjs-dist/build/pdf.js`, then `pdfjs-dist`.
@@ -634,6 +645,8 @@ Touchpoints:
   - [ ] Extract a fixture DOCX and assert known phrase is present.
  - [ ] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
    - [ ] Build-state records extractor version/capability info when extraction is enabled.
+ - [ ] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
+   - [ ] Build-state/extraction report records source checksum and page/paragraph counts.
 
 ### 16.2 Deterministic doc chunking (page/paragraph aware) + doc-mode limits that scale to large files
 
@@ -644,8 +657,10 @@ Touchpoints:
     - [ ] Each chunk carries provenance: `{ type:'pdf', pageStart, pageEnd, anchor }`.
   - [ ] `src/index/chunking/formats/docx.js` (new)
     - [ ] Group paragraphs into chunks by max character/token budget.
+    - [ ] Merge tiny paragraphs into neighbors up to a minimum size threshold (deterministic).
     - [ ] Preserve heading boundaries when style information is available.
     - [ ] Each chunk carries provenance: `{ type:'docx', paragraphStart, paragraphEnd, headingPath?, anchor }`.
+    - [ ] If multiple paragraph boundaries are merged, include explicit boundary labels so chunk provenance is unambiguous.
 
 - [ ] Support adaptive splitting for “hot” or unexpectedly large segments without breaking stability:
   - [ ] If a page/section/window exceeds caps, split into deterministic subsegments with stable sub-anchors (no run-to-run drift).
@@ -673,6 +688,10 @@ Touchpoints:
 - [ ] Discovery gating:
   - [ ] Update `src/index/build/discover.js` so `.pdf`/`.docx` are only considered when `indexing.documentExtraction.enabled === true`.
   - [ ] If enabled but deps missing: record explicit “skipped due to capability” diagnostics (do not silently ignore).
+
+- [ ] Treat extraction as a **pre-index stage** with an explicit error policy:
+  - [ ] Produce per-file extraction results before chunking.
+  - [ ] Fail/skip decisions must be deterministic and recorded in diagnostics.
 
 - [ ] Binary skip exceptions:
   - [ ] Update `src/index/build/file-processor/skip.js` to treat `.pdf`/`.docx` as extractable binaries when extraction is enabled, routing them to extractors instead of skipping.
@@ -733,6 +752,7 @@ Touchpoints:
     - optional `headingPath`, `windowIndex`, and a stable `anchor` for citation.
 - [ ] Ensure `chunk_meta.jsonl` includes these fields and that output is backend-independent (artifact vs SQLite).
 - [ ] If metaV2 is versioned, bump schema version (or add one) and provide backward-compatible normalization.
+- [ ] Guard new fields behind a schema version and require forward-compat behavior (unknown fields ignored by readers).
 
 Touchpoints:
 - `src/index/metadata-v2.js`
@@ -745,6 +765,8 @@ Touchpoints:
 #### Tests
 - [ ] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
   - [ ] Verify extracted-doc schema fields are present, typed, and deterministic.
+- [ ] `tests/indexing/metav2/metaV2-unknown-fields-ignored.test.js`
+  - [ ] Readers ignore unknown fields and still parse required fields deterministically.
 - [ ] `tests/services/sqlite-hydration-metaV2-parity.test.js`
   - [ ] Build an index; load hits via artifact-backed and SQLite-backed paths; assert canonical metaV2 fields match for extracted docs.
 
@@ -754,6 +776,8 @@ Touchpoints:
   - [ ] `prose` / `extracted-prose` → SQLite FTS by default.
   - [ ] `code` → sparse/postings by default.
   - [ ] Overrides select requested providers and are reflected in `--explain` output.
+  - [ ] Publish a routing decision table (query type × provider availability × override) in `docs/specs/prose-routing.md`.
+  - [ ] `--explain` must log the chosen provider and the decision path (default vs override vs fallback).
   - [ ] Separate routing policy (desired provider) from availability (actual provider); define deterministic fallback order.
 
 - [ ] Make FTS query compilation AST-driven for prose routes:
@@ -791,6 +815,8 @@ Touchpoints:
 
 ### 16.6 Sweep-driven correctness fixes in retrieval helpers touched by prose FTS routing
 
+- [ ] Every fix in this sweep must ship with a regression test (no fix-only changes).
+
 - [ ] Fix `rankSqliteFts()` correctness for `allowedIds`:
   - [ ] When `allowedIds` is too large for a single `IN (...)`, implement adaptive overfetch (or chunked pushdown) until:
     - [ ] `topN` hits remain after filtering, or
@@ -825,6 +851,8 @@ Touchpoints:
     - [ ] require path-like segments (multiple separators, dot-extensions, `./` / `../`, drive roots), and
     - [ ] treat URLs separately so prose queries containing `https://...` do not get path-biased.
   - [ ] Keep intent scoring explainable and stable.
+  - [ ] Prefer grammar-first parsing; only fall back to heuristic tokenization on parse failure.
+  - [ ] Emit the final intent classification (and any fallback reason) in `--explain`.
 
 - [ ] Harden boolean parsing semantics to support FTS compilation and future strict evaluation:
   - [ ] Treat unary `-` as NOT even with whitespace (e.g., `- foo`, `- "phrase"`), or reject standalone `-` with a parse error.
@@ -846,6 +874,7 @@ Touchpoints:
 - [ ] Resolve `scoreBreakdown` contract inconsistencies:
   - [ ] Standardize field names and nesting across providers (SQLite FTS, postings, vector) so consumers do not need provider-specific logic.
   - [ ] Ensure verbosity/output size is governed by a single budget policy (max bytes/fields/explain items).
+  - [ ] Add a schema version for `scoreBreakdown` and require all providers to emit it.
 
 - [ ] Ensure `--explain` is complete and deterministic:
   - [ ] Explain must include:
@@ -866,6 +895,8 @@ Touchpoints:
 
 #### Tests
 - [ ] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
+- [ ] `tests/retrieval/contracts/score-breakdown-snapshots.test.js`
+  - [ ] Snapshot `scoreBreakdown` for each backend to lock the schema shape.
 - [ ] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
 - [ ] `tests/tooling/script-coverage/harness-parity.test.js`
  - [ ] `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`
@@ -928,6 +959,7 @@ Additional docs that MUST be updated if Phase 17 adds new behavior or config:
   - [ ] Add a `profile` block (versioned):
     - [ ] `profile.id: "default" | "vector_only"`
     - [ ] `profile.schemaVersion: 1`
+  - [ ] Record the same profile block in build-state/build reports for traceability.
 - [ ] Add an `artifacts` presence block (versioned) so loaders can reason about what exists:
     - [ ] `artifacts.schemaVersion: 1`
     - [ ] `artifacts.present: { [artifactName]: true }` (only list artifacts that exist)
@@ -940,7 +972,7 @@ Additional docs that MUST be updated if Phase 17 adds new behavior or config:
 
 - [ ] Ensure build signatures include profile:
   - [ ] signature/caching keys must incorporate `profile.id` so switching profiles forces a rebuild.
-  - [ ] compatibilityKey (and/or cohortKey) must include `profile.id` to prevent mixing vector_only and default indexes.
+  - [ ] compatibilityKey (and/or cohortKey) must include `profile.id` and `profile.schemaVersion` to prevent mixing vector_only and default indexes.
 
 Touchpoints:
 - `docs/config/schema.json`
@@ -973,6 +1005,7 @@ Touchpoints:
 - [ ] Skip sparse stages when `vector_only`:
   - [ ] Do not run `buildIndexPostings()` (or make it a no-op) when tokenize=false.
   - [ ] Do not write sparse artifacts in `writeIndexArtifactsForMode()` / `src/index/build/artifacts.js`.
+  - [ ] Hard-fail the build if any forbidden sparse artifacts are detected in the output directory.
 
 - [ ] Cleanup/consistency when switching profiles:
   - [ ] When building `vector_only`, proactively remove any prior sparse artifacts in the target output dir so stale files cannot be accidentally loaded.
@@ -1012,6 +1045,7 @@ Touchpoints:
   - [ ] If a query requests phrase/boolean constraints that require token inventory:
     - [ ] either (a) reject with error, or (b) degrade with a warning and set `explain.warnings[]` (pick one policy and make it part of the contract)
   - [ ] Choose and document the policy (reject vs warn) and make it consistent across CLI/API/MCP.
+  - [ ] Default policy should be **reject**; allow fallback only with an explicit `--allow-sparse-fallback` / `allowSparseFallback` override.
 
 - [ ] SQLite helper hardening for profile-aware operation:
   - [ ] Add a lightweight `requireTables(db, names[])` helper used at provider boundaries.
@@ -1046,6 +1080,7 @@ This is explicitly optional, but worth considering because it is where most buil
   - [ ] expensive cross-file passes
   - [ ] (optionally) lint/complexity stages
 - [ ] Make these *opt-outable* (users can re-enable per setting).
+  - [ ] Record any disabled analysis features in the build report for transparency.
 
 Touchpoints:
 - `src/index/build/indexer/pipeline.js` (feature flags)
@@ -1101,6 +1136,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
     - Must set explicit `cwd` and avoid fragile `process.cwd()` assumptions (derive repo root from `import.meta.url` or accept `--repo-root`).
     - Must support bounded timeouts and produce actionable failures (which step failed, stdout/stderr excerpt).
     - Should support `--json` output with a stable envelope for CI automation (step list + pass/fail + durations).
+    - Produce a reproducible `release-manifest.json` with artifact checksums (sha256) and an SBOM reference, and sign it (with CI verification).
   - Smoke steps (minimum):
     - Verify Node version compatibility (per the target matrix).
     - Run `pairofcleats --version`.
@@ -1156,12 +1192,15 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
     - Create a temp repo directory whose absolute path includes spaces.
     - Run build + validate + search using explicit `cwd` and temp cacheRoot.
     - Ensure the artifacts still store repo-relative paths with `/` separators.
+    - Add property-based or table-driven cases for edge paths: drive-letter prefixes (including `C:/` on POSIX), NFC/NFD normalization, and trailing dots/spaces.
 
 #### Tests / Verification
 - [ ] `tests/tooling/platform/paths-with-spaces.test.js`
   - Creates `repo with spaces/` under a temp dir; runs build + search; asserts success.
 - [ ] `tests/tooling/platform/windows-paths-smoke.test.js`
   - On Windows CI, verifies key commands succeed and produce valid outputs.
+- [ ] `tests/tooling/platform/path-edge-cases.test.js`
+  - Exercises drive-letter-like paths on POSIX, NFC/NFD normalization, and trailing dots/spaces.
 - [ ] Extend `tools/release-check.js` to include a `--paths` step that runs the above regression checks in quick mode.
 
 ---
@@ -1209,6 +1248,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
       - exit using the project’s standard “skip” mechanism (see below)
     - When Python is available:
       - the test must still fail for real syntax errors (no silent skips).
+    - Centralize Python detection in a shared helper (e.g., `tests/helpers/python.js`) used by all Python-dependent tests/tooling.
 - [x] JS test harness recognizes “skipped” tests via exit code 77.
   - Touchpoints:
     - `tests/run.js` (treat a dedicated exit code, e.g. `77`, as `skipped`)
@@ -1244,6 +1284,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
     - Use a pinned packaging toolchain (recommended: `@vscode/vsce` as a devDependency).
     - Output path must be deterministic and placed under a temp/artifacts directory suitable for CI.
     - Packaging must not depend on repo-root `process.cwd()` assumptions; set explicit cwd.
+    - Validate `engines.vscode` compatibility against the documented release matrix and fail if mismatched.
 - [ ] Ensure the extension consumes the **public artifact surface** via manifest discovery and respects user-configured `cacheRoot`.
   - Touchpoints:
     - `extensions/vscode/extension.js`
@@ -1260,6 +1301,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
   - Packages a VSIX and asserts the output exists (skips if packaging toolchain is unavailable).
 - [ ] Extend `tests/tooling/vscode/vscode-extension.test.js`
   - Validate required activation events/commands and required configuration keys (and add any cacheRoot-related keys if the contract requires them).
+  - Validate `engines.vscode` compatibility constraints.
 
 ---
 
@@ -1279,6 +1321,8 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
     - Ensure the bundle uses explicit args and deterministic logging conventions (stdout vs stderr).
 - [ ] Add an end-to-end smoke test for the service-mode bundle wiring.
   - Use stub embeddings or other deterministic modes where possible; do not require external services.
+  - Include a readiness probe and bounded timeout to avoid hangs.
+  - Ensure clean shutdown of API server + worker (no leaked processes).
 
 #### Tests / Verification
 - [ ] `tests/services/service-mode-smoke.test.js`
