@@ -47,6 +47,7 @@ export const formatLabel = (label, { useColor = false, mode = 'plain' } = {}) =>
   if (!useColor) return label;
   if (mode === 'pass') return `${ANSI.bgBlack}${ANSI.fgGreen}${label}${ANSI.reset}`;
   if (mode === 'fail') return `${ANSI.fgRed}${label}${ANSI.reset}`;
+  if (mode === 'redo') return `${ANSI.fgOrangeDeep}${label}${ANSI.reset}`;
   if (mode === 'warn') return `${ANSI.fgYellow}${label}${ANSI.reset}`;
   if (mode === 'log') return `${ANSI.fgLightBlue}${label}${ANSI.reset}`;
   if (mode === 'skip') return `${ANSI.bgBlack}${ANSI.fgPink}${label}${ANSI.reset}`;

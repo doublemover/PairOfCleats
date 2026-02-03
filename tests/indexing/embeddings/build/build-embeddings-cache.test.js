@@ -99,6 +99,18 @@ if (!entry?.shard) {
 const shardPath = path.join(cacheDir, 'shards', entry.shard);
 if (!fs.existsSync(shardPath)) {
   console.error('Expected embedding cache shard to exist');
+  console.error(`Cache root: ${cacheRoot}`);
+  console.error(`Cache dir: ${cacheDir}`);
+  console.error(`Index path: ${path.join(cacheDir, 'cache.index.json')}`);
+  console.error(`Shard path: ${shardPath}`);
+  console.error(`Shard entry: ${JSON.stringify(entry)}`);
+  try {
+    const shardDir = path.join(cacheDir, 'shards');
+    const shardList = await fsPromises.readdir(shardDir);
+    console.error(`Shard dir contents: ${JSON.stringify(shardList)}`);
+  } catch (err) {
+    console.error(`Failed to read shard dir: ${err?.message || err}`);
+  }
   process.exit(1);
 }
 const before = await fsPromises.stat(shardPath);

@@ -8,6 +8,24 @@ import { collectOutput, extractSkipReason } from './run-logging.js';
 import { normalizeResult } from './run-results.js';
 
 const sanitizeId = (value) => value.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120) || 'test';
+const normalizeRedoExitCodes = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry));
+  }
+  const single = Number(value);
+  return Number.isFinite(single) ? [single] : [];
+};
+
+const isRedoExit = (result, redoExitCodes) => {
+  const codes = normalizeRedoExitCodes(redoExitCodes);
+  if (!codes.length) return false;
+  return result.status === 'failed'
+    && !result.timedOut
+    && codes.includes(result.exitCode);
+};
 
 const resolveTimeoutOverride = (value) => {
   if (value == null) return null;
@@ -124,11 +142,26 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
   });
 });
 
-const runTestWithRetries = async ({ test, passThrough, env, cwd, timeoutMs, captureOutput, retries, logDir, timeoutGraceMs, skipExitCode, maxOutputBytes }) => {
+const runTestWithRetries = async ({
+  test,
+  passThrough,
+  env,
+  cwd,
+  timeoutMs,
+  captureOutput,
+  retries,
+  logDir,
+  timeoutGraceMs,
+  skipExitCode,
+  maxOutputBytes,
+  redoExitCodes,
+  attemptOffset = 0
+}) => {
   const maxAttempts = retries + 1;
   const logs = [];
   let lastResult = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptNumber = attemptOffset + attempt;
     const result = await runTestOnce({
       test,
       passThrough,
@@ -144,7 +177,7 @@ const runTestWithRetries = async ({ test, passThrough, env, cwd, timeoutMs, capt
     const logPath = await writeLogFile({
       logDir,
       test,
-      attempt,
+      attempt: attemptNumber,
       stdout: result.stdout,
       stderr: result.stderr,
       status: result.status,
@@ -156,15 +189,19 @@ const runTestWithRetries = async ({ test, passThrough, env, cwd, timeoutMs, capt
     });
     if (logPath) logs.push(logPath);
     if (result.status === 'passed' || result.status === 'skipped') {
-      return normalizeResult({ ...result, attempts: attempt, logs });
+      return normalizeResult({ ...result, attempts: attemptNumber, logs });
+    }
+    if (isRedoExit(result, redoExitCodes)) {
+      return normalizeResult({ ...result, status: 'redo', attempts: attemptNumber, logs });
     }
   }
-  return normalizeResult({ ...(lastResult || { status: 'failed' }), attempts: maxAttempts, logs });
+  return normalizeResult({ ...(lastResult || { status: 'failed' }), attempts: attemptOffset + maxAttempts, logs });
 };
 
-export const runTests = async ({ selection, context, reportResult }) => {
+export const runTests = async ({ selection, context, reportResult, reportDirect }) => {
   const results = new Array(selection.length);
   let failFastTriggered = false;
+  const redoQueue = [];
   const queue = new PQueue({ concurrency: context.jobs });
   selection.forEach((test, index) => {
     queue.add(async () => {
@@ -192,10 +229,14 @@ export const runTests = async ({ selection, context, reportResult }) => {
           logDir: context.runLogDir,
           timeoutGraceMs: context.timeoutGraceMs,
           skipExitCode: context.skipExitCode,
-          maxOutputBytes: context.maxOutputBytes
+          maxOutputBytes: context.maxOutputBytes,
+          redoExitCodes: context.redoExitCodes
         });
       }
       const fullResult = { ...test, ...normalizeResult(result) };
+      if (fullResult.status === 'redo') {
+        redoQueue.push({ test, index, prior: fullResult });
+      }
       if (context.failFast && fullResult.status === 'failed') {
         failFastTriggered = true;
       }
@@ -204,5 +245,43 @@ export const runTests = async ({ selection, context, reportResult }) => {
     });
   });
   await queue.onIdle();
+  if (redoQueue.length) {
+    const redoRunner = new PQueue({ concurrency: context.jobs });
+    redoQueue.forEach(({ test, index, prior }) => {
+      redoRunner.add(async () => {
+        if (context.initReporter?.start) {
+          context.initReporter.start(test, { label: 'REDO', labelMode: 'redo' });
+        }
+        const result = await runTestWithRetries({
+          test,
+          passThrough: context.passThrough,
+          env: context.baseEnv,
+          cwd: context.root,
+          timeoutMs: resolveTestTimeout({
+            test,
+            defaultTimeoutMs: context.timeoutMs,
+            overrides: context.timeoutOverrides
+          }),
+          captureOutput: context.captureOutput,
+          retries: context.retries,
+          logDir: context.runLogDir,
+          timeoutGraceMs: context.timeoutGraceMs,
+          skipExitCode: context.skipExitCode,
+          maxOutputBytes: context.maxOutputBytes,
+          redoExitCodes: null,
+          attemptOffset: prior.attempts
+        });
+        const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
+        const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
+        results[index] = finalResult;
+        if (reportDirect) {
+          reportDirect(finalResult);
+        } else if (reportResult) {
+          reportResult(finalResult, index);
+        }
+      });
+    });
+    await redoRunner.onIdle();
+  }
   return results;
 };

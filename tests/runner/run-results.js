@@ -1,4 +1,4 @@
-const VALID_STATUSES = new Set(['passed', 'failed', 'skipped']);
+const VALID_STATUSES = new Set(['passed', 'failed', 'skipped', 'redo']);
 
 export const normalizeResult = (input = {}) => {
   const status = VALID_STATUSES.has(input.status) ? input.status : 'failed';
@@ -32,7 +32,7 @@ export const summarizeResults = (results, totalMs) => {
   };
   for (const result of results) {
     if (result.status === 'passed') summary.passed += 1;
-    else if (result.status === 'failed') summary.failed += 1;
+    else if (result.status === 'failed' || result.status === 'redo') summary.failed += 1;
     else summary.skipped += 1;
   }
   return summary;

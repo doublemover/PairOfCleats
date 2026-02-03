@@ -66,6 +66,8 @@ const parseSwiftParam = (value) => {
   const left = cleaned.slice(0, colonIdx).trim();
   const right = cleaned.slice(colonIdx + 1).trim();
   if (!left || !right) return null;
+  if (right.endsWith(':')) return null;
+  if (!/[A-Za-z_]/.test(right)) return null;
   const tokens = left.split(/\s+/).filter(Boolean);
   let name = tokens.length ? tokens[tokens.length - 1] : null;
   if (name === '_' && tokens.length > 1) {
@@ -88,8 +90,6 @@ export const parseSwiftSignature = (detail) => {
   let returnType = null;
   if (arrowIndex !== -1) {
     returnType = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
-  } else {
-    returnType = 'Void';
   }
 
   const paramTypes = {};

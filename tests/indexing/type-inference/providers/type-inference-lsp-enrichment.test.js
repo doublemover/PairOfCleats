@@ -89,6 +89,20 @@ const ensureChunkUid = (chunk, label) => {
   }
 };
 
+const logChunkDiagnostics = (chunk, label) => {
+  const docmeta = chunk?.docmeta || {};
+  const inferred = docmeta?.inferredTypes || {};
+  console.error(`LSP enrichment debug (${label}):`);
+  console.error(`  returnType=${docmeta.returnType || ''}`);
+  console.error(`  signature=${docmeta.signature || ''}`);
+  console.error(`  paramTypes=${JSON.stringify(docmeta.paramTypes || {})}`);
+  console.error(`  inferredReturns=${JSON.stringify(inferred.returns || [])}`);
+  console.error(`  inferredParams=${JSON.stringify(inferred.params || {})}`);
+  if (docmeta.tooling?.sources?.length) {
+    console.error(`  toolingSources=${JSON.stringify(docmeta.tooling.sources)}`);
+  }
+};
+
 const hasToolingReturn = (chunk, type) => {
   const returns = chunk?.docmeta?.inferredTypes?.returns || [];
   return returns.some((entry) => entry?.source === 'tooling' && (!type || entry?.type === type));
@@ -116,26 +130,32 @@ ensureChunkUid(swiftChunk, 'Swift');
 ensureChunkUid(pythonChunk, 'Python');
 
 if (!hasToolingReturn(cppChunk, 'int')) {
+  logChunkDiagnostics(cppChunk, 'C++');
   console.error('LSP enrichment test failed: missing tooling return type for C++.');
   process.exit(1);
 }
 if (!hasToolingParam(cppChunk, 'a', 'int') || !hasToolingParam(cppChunk, 'b', 'int')) {
+  logChunkDiagnostics(cppChunk, 'C++');
   console.error('LSP enrichment test failed: missing tooling param types for C++.');
   process.exit(1);
 }
 if (!hasToolingReturn(swiftChunk, 'String')) {
+  logChunkDiagnostics(swiftChunk, 'Swift');
   console.error('LSP enrichment test failed: missing tooling return type for Swift.');
   process.exit(1);
 }
 if (!hasToolingParam(swiftChunk, 'name', 'String') || !hasToolingParam(swiftChunk, 'count', 'Int')) {
+  logChunkDiagnostics(swiftChunk, 'Swift');
   console.error('LSP enrichment test failed: missing tooling param types for Swift.');
   process.exit(1);
 }
 if (!hasToolingReturn(pythonChunk, 'str')) {
+  logChunkDiagnostics(pythonChunk, 'Python');
   console.error('LSP enrichment test failed: missing tooling return type for Python.');
   process.exit(1);
 }
 if (!hasToolingParam(pythonChunk, 'name', 'str')) {
+  logChunkDiagnostics(pythonChunk, 'Python');
   console.error('LSP enrichment test failed: missing tooling param types for Python.');
   process.exit(1);
 }
