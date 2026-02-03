@@ -36,10 +36,14 @@ const parseArgs = () => {
 const args = parseArgs();
 const fileCount = Number(args.files) || 12;
 const chunksPerFile = Number(args.chunks) || 6;
+const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
+  ? String(args.mode).toLowerCase()
+  : 'compare';
 
 const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-incremental-update');
 const bundleDir = path.join(tempRoot, 'bundles');
-const outPath = path.join(tempRoot, 'index-code.db');
+const outPathBaseline = path.join(tempRoot, 'index-code-baseline.db');
+const outPathCurrent = path.join(tempRoot, 'index-code-current.db');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });
@@ -80,23 +84,6 @@ for (let i = 0; i < fileCount; i += 1) {
 
 const envConfig = { bundleThreads: 1 };
 const threadLimits = { fileConcurrency: 1 };
-await buildDatabaseFromBundles({
-  Database,
-  outPath,
-  mode: 'code',
-  incrementalData: { manifest, bundleDir },
-  envConfig,
-  threadLimits,
-  emitOutput: false,
-  validateMode: 'off',
-  vectorConfig: { enabled: false },
-  modelConfig: { id: null }
-});
-
-if (!fsSync.existsSync(outPath)) {
-  console.error('Expected sqlite DB to be created before incremental update.');
-  process.exit(1);
-}
 
 const updatedManifest = { files: { ...manifest.files } };
 const changedFile = `src/file-${Math.min(2, fileCount - 1)}.js`;
@@ -113,27 +100,77 @@ updatedManifest.files[changedFile] = {
   bundle: changedBundleName
 };
 
-const stats = {};
-const start = performance.now();
-const updateResult = await incrementalUpdateDatabase({
-  Database,
-  outPath,
-  mode: 'code',
-  incrementalData: { manifest: updatedManifest, bundleDir },
-  modelConfig: { id: null },
-  vectorConfig: { enabled: false },
-  emitOutput: false,
-  validateMode: 'off',
-  stats
-});
-const durationMs = performance.now() - start;
+const runUpdate = async ({ label, outPath, buildPragmas, optimize }) => {
+  await buildDatabaseFromBundles({
+    Database,
+    outPath,
+    mode: 'code',
+    incrementalData: { manifest, bundleDir },
+    envConfig,
+    threadLimits,
+    emitOutput: false,
+    validateMode: 'off',
+    vectorConfig: { enabled: false },
+    modelConfig: { id: null },
+    buildPragmas,
+    optimize
+  });
 
-if (!updateResult.used) {
-  console.error(`Incremental update skipped: ${updateResult.reason || 'unknown reason'}`);
-  process.exit(1);
+  if (!fsSync.existsSync(outPath)) {
+    console.error('Expected sqlite DB to be created before incremental update.');
+    process.exit(1);
+  }
+
+  const stats = {};
+  const start = performance.now();
+  const updateResult = await incrementalUpdateDatabase({
+    Database,
+    outPath,
+    mode: 'code',
+    incrementalData: { manifest: updatedManifest, bundleDir },
+    modelConfig: { id: null },
+    vectorConfig: { enabled: false },
+    emitOutput: false,
+    validateMode: 'off',
+    buildPragmas,
+    stats
+  });
+  const durationMs = performance.now() - start;
+
+  if (!updateResult.used) {
+    console.error(`Incremental update skipped: ${updateResult.reason || 'unknown reason'}`);
+    process.exit(1);
+  }
+
+  console.log(`[bench] incremental-update ${label} files=${fileCount} chunks=${updateResult.insertedChunks} ms=${durationMs.toFixed(1)}`);
+  if (stats.tables) {
+    console.log(`[bench] ${label} tables`, stats.tables);
+  }
+  return { durationMs, insertedChunks: updateResult.insertedChunks };
+};
+
+let baselineResult = null;
+let currentResult = null;
+if (mode !== 'current') {
+  baselineResult = await runUpdate({
+    label: 'baseline',
+    outPath: outPathBaseline,
+    buildPragmas: false,
+    optimize: false
+  });
 }
-
-console.log(`[bench] incremental-update files=${fileCount} chunks=${updateResult.insertedChunks} ms=${durationMs.toFixed(1)}`);
-if (stats.tables) {
-  console.log('[bench] tables', stats.tables);
+if (mode !== 'baseline') {
+  currentResult = await runUpdate({
+    label: 'current',
+    outPath: outPathCurrent,
+    buildPragmas: true,
+    optimize: true
+  });
+}
+if (baselineResult && currentResult) {
+  const deltaMs = currentResult.durationMs - baselineResult.durationMs;
+  const deltaPct = baselineResult.durationMs > 0
+    ? (deltaMs / baselineResult.durationMs) * 100
+    : null;
+  console.log(`[bench] delta ms=${deltaMs.toFixed(1)} (${deltaPct?.toFixed(1)}%)`);
 }

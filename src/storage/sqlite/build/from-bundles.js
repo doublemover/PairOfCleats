@@ -42,6 +42,8 @@ import { createBundleLoader } from './bundle-loader.js';
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {boolean} [params.buildPragmas]
+ * @param {boolean} [params.optimize]
  * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
@@ -60,6 +62,8 @@ export async function buildDatabaseFromBundles({
   logger,
   inputBytes,
   batchSize,
+  buildPragmas,
+  optimize,
   stats
 }) {
   const log = (message) => {
@@ -140,7 +144,9 @@ export async function buildDatabaseFromBundles({
   }
 
   const db = new Database(outPath);
-  const pragmaState = applyBuildPragmas(db, { inputBytes, stats: batchStats });
+  const useBuildPragmas = buildPragmas !== false;
+  const useOptimize = optimize !== false;
+  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
   db.exec(CREATE_TABLES_BASE_SQL);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   let succeeded = false;
@@ -505,7 +511,9 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
-    optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    if (useOptimize) {
+      optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    }
     const validationStart = performance.now();
     validateSqliteDatabase(db, mode, {
       validateMode,
@@ -530,7 +538,9 @@ export async function buildDatabaseFromBundles({
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-    restoreBuildPragmas(db, pragmaState);
+    if (pragmaState) {
+      restoreBuildPragmas(db, pragmaState);
+    }
     db.close();
     if (!succeeded) {
       try {

@@ -184,6 +184,8 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {boolean} [params.buildPragmas]
+ * @param {boolean} [params.optimize]
  * @param {object} [params.stats]
  * @returns {Promise<number>}
  */
@@ -203,6 +205,8 @@ export async function buildDatabaseFromArtifacts({
   logger,
   inputBytes,
   batchSize,
+  buildPragmas,
+  optimize,
   stats
 }) {
   const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
@@ -264,7 +268,9 @@ export async function buildDatabaseFromArtifacts({
   let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
-  const pragmaState = applyBuildPragmas(db, { inputBytes, stats: batchStats });
+  const useBuildPragmas = buildPragmas !== false;
+  const useOptimize = optimize !== false;
+  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
 
   let count = 0;
   let succeeded = false;
@@ -882,7 +888,9 @@ export async function buildDatabaseFromArtifacts({
     count = await ingestIndex(index, mode, indexDir);
     validationStats.chunks = count;
     db.exec(CREATE_INDEXES_SQL);
-    optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    if (useOptimize) {
+      optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    }
     const validationStart = performance.now();
     validateSqliteDatabase(db, mode, {
       validateMode,
@@ -906,7 +914,9 @@ export async function buildDatabaseFromArtifacts({
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-    restoreBuildPragmas(db, pragmaState);
+    if (pragmaState) {
+      restoreBuildPragmas(db, pragmaState);
+    }
     db.close();
     if (!succeeded) {
       try {

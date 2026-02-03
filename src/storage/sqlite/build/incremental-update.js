@@ -63,6 +63,7 @@ class IncrementalSkipError extends Error {
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {boolean} [params.buildPragmas]
  * @param {object} [params.stats]
  * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number}>}
  */
@@ -79,6 +80,7 @@ export async function incrementalUpdateDatabase({
   logger,
   inputBytes,
   batchSize,
+  buildPragmas,
   stats
 }) {
   const warn = (message) => {
@@ -122,8 +124,9 @@ export async function incrementalUpdateDatabase({
   const expectedModel = expectedDense?.model || modelConfig.id || null;
   const expectedDims = Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
+  const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
-  const pragmaState = applyBuildPragmas(db, { inputBytes, stats: batchStats });
+  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
   let dbClosed = false;
   const finalize = async () => {
     if (dbClosed) return;
@@ -131,9 +134,11 @@ export async function incrementalUpdateDatabase({
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch {}
-    try {
-      restoreBuildPragmas(db, pragmaState);
-    } catch {}
+    if (pragmaState) {
+      try {
+        restoreBuildPragmas(db, pragmaState);
+      } catch {}
+    }
     try {
       db.close();
     } catch {}

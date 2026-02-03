@@ -54,6 +54,11 @@ The following scripts are used to compare baseline vs optimized behavior:
 - `tools/bench/sqlite/incremental-update.js`
 - `tools/bench/sqlite/jsonl-streaming.js`
 
+Each script accepts `--mode` with one of:
+- `compare` (default) runs baseline + current and prints a delta
+- `baseline` runs the legacy path only (no build pragmas / no optimize)
+- `current` runs the optimized path only
+
 Each benchmark should report:
 - Input bytes, wall-clock time, and rows/sec per table
 - Peak RSS when available

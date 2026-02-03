@@ -25,6 +25,9 @@ const parseArgs = () => {
 
 const args = parseArgs();
 const count = Number(args.count) || 10000;
+const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
+  ? String(args.mode).toLowerCase()
+  : 'compare';
 const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-jsonl-streaming');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
@@ -35,16 +38,35 @@ const benchFile = async (label, compression) => {
   const filePath = path.join(tempRoot, `sample.jsonl${compression === 'gzip' ? '.gz' : compression === 'zstd' ? '.zst' : ''}`);
   await writeJsonLinesFile(filePath, entries, { compression, atomic: true });
 
-  const startArray = performance.now();
-  const arr = await readJsonLinesArray(filePath);
-  const arrayMs = performance.now() - startArray;
+  let arrayMs = null;
+  let eachMs = null;
+  let arrayCount = null;
+  let eachCount = null;
+  if (mode !== 'current') {
+    const startArray = performance.now();
+    const arr = await readJsonLinesArray(filePath);
+    arrayMs = performance.now() - startArray;
+    arrayCount = arr.length;
+  }
 
-  let countEach = 0;
-  const startEach = performance.now();
-  await readJsonLinesEach(filePath, () => { countEach += 1; });
-  const eachMs = performance.now() - startEach;
+  if (mode !== 'baseline') {
+    let countEach = 0;
+    const startEach = performance.now();
+    await readJsonLinesEach(filePath, () => { countEach += 1; });
+    eachMs = performance.now() - startEach;
+    eachCount = countEach;
+  }
 
-  console.log(`[bench] ${label} array=${arrayMs.toFixed(1)}ms each=${eachMs.toFixed(1)}ms count=${arr.length}/${countEach}`);
+  const parts = [];
+  if (arrayMs !== null) parts.push(`array=${arrayMs.toFixed(1)}ms`);
+  if (eachMs !== null) parts.push(`each=${eachMs.toFixed(1)}ms`);
+  if (arrayMs !== null && eachMs !== null) {
+    const deltaMs = eachMs - arrayMs;
+    const deltaPct = arrayMs > 0 ? (deltaMs / arrayMs) * 100 : null;
+    parts.push(`delta=${deltaMs.toFixed(1)}ms (${deltaPct?.toFixed(1)}%)`);
+  }
+  const counts = [arrayCount, eachCount].filter((value) => value !== null).join('/');
+  console.log(`[bench] ${label} ${parts.join(' ')} count=${counts}`);
 };
 
 await benchFile('gzip', 'gzip');
