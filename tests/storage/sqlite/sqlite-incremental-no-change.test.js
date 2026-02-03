@@ -87,7 +87,7 @@ function runCapture(args, label) {
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
 const initialSqlite = runCapture(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
   'build sqlite index'
 );
 getCombinedOutput(initialSqlite);
@@ -116,7 +116,7 @@ const statePath = path.join(codeIndexDir, 'index_state.json');
 const stateBefore = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 
 const noChangeResult = runCapture(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (no change)'
 );
 const noChangeOutput = getCombinedOutput(noChangeResult);

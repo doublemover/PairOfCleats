@@ -4,7 +4,7 @@ import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
+import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
 import { runIndexBuildBenchmark } from './index-build.js';
 import { runSearchBenchmark } from './search.js';

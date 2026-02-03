@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadUserConfig } from '../../../dict-utils.js';
+import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { runToolWithProgress } from '../../runner.js';
 import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';

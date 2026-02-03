@@ -188,7 +188,7 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - `src/retrieval/cli.js`, `src/retrieval/cli-args.js`
 - `src/integrations/core/index.js` (reuse per-repo search)
 - `tools/api/router.js` (endpoint + allowlist enforcement)
-- `tools/mcp-server.js` / `tools/mcp/repo.js`
+- `tools/mcp/server.js` / `tools/mcp/repo.js`
 - New (per spec): `src/retrieval/federation/{coordinator,select,merge,args}.js`
 
 ### Tests

@@ -6,16 +6,16 @@ Use the GTAGS ingest tool to convert `global -x` output into normalized JSONL.
 
 ```bash
 # Run global -x inside the repo
-node tools/gtags-ingest.js --repo . --run
+node tools/ingest/gtags.js --repo . --run
 
 # Or via npm
 npm run gtags-ingest -- --repo . --run
 
 # Ingest from a file
-node tools/gtags-ingest.js --repo . --input gtags.txt --out ./gtags.jsonl
+node tools/ingest/gtags.js --repo . --input gtags.txt --out ./gtags.jsonl
 
 # Read from stdin (default when --run is not used)
-global -x | node tools/gtags-ingest.js --repo . --input -
+global -x | node tools/ingest/gtags.js --repo . --input -
 ```
 
 ## Options

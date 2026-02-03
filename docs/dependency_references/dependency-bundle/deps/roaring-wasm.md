@@ -20,6 +20,6 @@ Represent large sets of doc/chunk IDs compactly and support fast union/intersect
 ## Suggested extraction checklist
 - [x] Define artifact formats and version them (Planned: declare bitmap serialization format + version in `docs/contracts/artifact-contract.md`).
 - [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs. (Planned: sort doc IDs before bitmap build; serialize with explicit format ID.)
-- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: compare bitmap size vs JSON postings in `tools/report-artifacts.js`.)
+- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: compare bitmap size vs JSON postings in `tools/index/report-artifacts.js`.)
 - [x] Plan for corruption detection (hashes) and safe partial rebuilds. (Planned: store bitmap checksums alongside postings; validate via `src/index/validate.js`.)
 

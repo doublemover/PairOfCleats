@@ -36,7 +36,7 @@ if (buildIndex.status !== 0) {
 const runEmbeddings = () => spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'build-embeddings.js'),
+    path.join(root, 'tools', 'build/embeddings.js'),
     '--stub-embeddings',
     '--mode',
     'code',

@@ -391,7 +391,7 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
 - Goal: add CLI wrappers in `bin/pairofcleats.js`.
 - Touchpoints:
   - `bin/pairofcleats.js`
-  - `tools/ctags-ingest.js`, `tools/gtags-ingest.js`, `tools/lsif-ingest.js`, `tools/scip-ingest.js`
+  - `tools/ingest/ctags.js`, `tools/ingest/gtags.js`, `tools/ingest/lsif.js`, `tools/ingest/scip.js`
   - Docs: `docs/tooling/ctags.md`, `docs/tooling/gtags.md`, `docs/tooling/lsif.md`, `docs/tooling/scip.md`, `docs/guides/commands.md`
 - Tasks:
   - [ ] Add `pairofcleats ingest <ctags|gtags|lsif|scip>` routes.

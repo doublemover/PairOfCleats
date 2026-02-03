@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig } from '../../../dict-utils.js';
+import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
 import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';

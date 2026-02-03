@@ -93,7 +93,7 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       REPO_ROOT
     ]);
     runBuild('build sqlite (repo cache)', repoEnv, [
-      path.join(ROOT, 'tools', 'build-sqlite-index.js'),
+      path.join(ROOT, 'tools', 'build/sqlite-index.js'),
       '--repo',
       REPO_ROOT
     ]);
@@ -110,7 +110,7 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       REPO_ROOT
     ]);
     runBuild('build sqlite (model cache)', modelEnv, [
-      path.join(ROOT, 'tools', 'build-sqlite-index.js'),
+      path.join(ROOT, 'tools', 'build/sqlite-index.js'),
       '--repo',
       REPO_ROOT
     ]);

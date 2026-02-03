@@ -101,7 +101,7 @@ function ensureParityIndexes() {
 
   const sqliteResult = spawnSync(
     process.execPath,
-    [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', root],
+    [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', root],
     { env, cwd: root, stdio: 'inherit' }
   );
   if (sqliteResult.status !== 0) {

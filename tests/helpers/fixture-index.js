@@ -172,7 +172,7 @@ export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
   const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
     run(
-      [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', fixtureRoot],
+      [path.join(ROOT, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot],
       'build sqlite index',
       { cwd: fixtureRoot, env, stdio: 'inherit' }
     );

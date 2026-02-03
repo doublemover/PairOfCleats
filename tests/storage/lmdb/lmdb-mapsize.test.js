@@ -41,7 +41,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_lmdb_index', [path.join(root, 'tools', 'build-lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
+runNode('build_lmdb_index', [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'code', '--repo', repoRoot]);
 
 const lmdbPaths = resolveLmdbPaths(repoRoot, {});
 const dbPath = lmdbPaths.codePath;

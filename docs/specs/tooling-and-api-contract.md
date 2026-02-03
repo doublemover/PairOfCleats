@@ -8,7 +8,7 @@
 
 Phase 12 standardizes and hardens the **public contracts** for PairOfCleats tooling surfaces:
 
-1. **HTTP API server** (`tools/api-server.js`)
+1. **HTTP API server** (`tools/api/server.js`)
 2. **MCP server** (stdio transport via the **official** MCP SDK)
 
 The goals are:

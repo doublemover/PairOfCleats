@@ -8,7 +8,7 @@ import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'empty');
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildSqlitePath = path.join(root, 'tools', 'build-sqlite-index.js');
+const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 
 if (!fs.existsSync(fixtureRoot)) {
   console.error(`Missing empty fixture at ${fixtureRoot}`);

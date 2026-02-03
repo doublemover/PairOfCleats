@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { formatShardFileProgress } from '../../../src/shared/bench-progress.js';
 
 const root = process.cwd();
-const scriptPath = path.join(root, 'tools', 'bench-language-repos.js');
+const scriptPath = path.join(root, 'tools', 'bench/language-repos.js');
 const result = spawnSync(process.execPath, [scriptPath, '--list', '--json', '--tier', 'typical'], { encoding: 'utf8' });
 if (result.status !== 0) {
   console.error(result.stderr || 'bench-language-repos failed');

@@ -28,7 +28,7 @@ import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 
 const toolRoot = resolveToolRoot();
-const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
+const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
 
 /**
  * Build file-backed indexes for a repo.

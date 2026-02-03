@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
-import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',

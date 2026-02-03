@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
-import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
+import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';

@@ -56,7 +56,7 @@ function run(args, label) {
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -132,7 +132,7 @@ if (!stats.annExtension?.available?.code) {
 
 await fsPromises.rm(deletableFile, { force: true });
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
 
 const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);
 const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });

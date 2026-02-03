@@ -43,7 +43,7 @@ Completed phase snapshots are archived here after being removed from GIGAROADMAP
 
 **Spec conflict (resolved):** The original Phase R.1 demanded `package.json` scripts be reduced to <10.  
 The current repo has already adopted a **policy-based approach** instead:
-- `tools/script-inventory.js` generates `docs/tooling/script-inventory.json` and `docs/guides/commands.md`.
+- `tools/docs/script-inventory.js` generates `docs/tooling/script-inventory.json` and `docs/guides/commands.md`.
 - `tests/indexing/policy/script-surface-policy.test.js` enforces that the inventory matches `package.json`.
 
 This is a better trade-off than “<10 scripts” because:
@@ -51,18 +51,18 @@ This is a better trade-off than “<10 scripts” because:
 - The repo has explicit policy + inventory tooling already; rewriting the entire script surface would be noisy and high-churn.
 
 #### R.1.1 Script inventory + policy enforcement
-- [x] Keep `tools/script-inventory.js` as the single generator for:
+- [x] Keep `tools/docs/script-inventory.js` as the single generator for:
   - `docs/tooling/script-inventory.json`
   - `docs/guides/commands.md`
 - [x] Keep `tests/indexing/policy/script-surface-policy.test.js` enforcing inventory ↔ package parity.
 
 **Callouts**
-- Generator: `tools/script-inventory.js`
+- Generator: `tools/docs/script-inventory.js`
 - Inventory: `docs/tooling/script-inventory.json`
 - Policy test: `tests/indexing/policy/script-surface-policy.test.js`
 
 #### R.1.2 Fix doc drift: commands.md must be reproducible
-- [x] Resolve the current mismatch where `docs/guides/commands.md` contains a “Phase 3 specs” section that **is not emitted** by `tools/script-inventory.js`.
+- [x] Resolve the current mismatch where `docs/guides/commands.md` contains a “Phase 3 specs” section that **is not emitted** by `tools/docs/script-inventory.js`.
   - **Best choice:** make `commands.md` purely generated; either:
     1) Update generator to also emit a “Phase specs” section (recommended), or  
     2) Remove the non-generated section from `commands.md` and move it to a separate doc (less ideal; increases doc surface).
@@ -103,7 +103,7 @@ The repo already treats `commands.md` as generated. Making the generator respons
   - orphan docs (not referenced by any “Docs to read” list)
   - orphan tools (not referenced by any script/CLI)
   - orphan scripts (not referenced by docs/CI/tests)
-- Suggested location: `tools/repo-inventory.js`
+- Suggested location: `tools/docs/repo-inventory.js`
 - Output: `docs/tooling/repo-inventory.json`
 - [x] Add a policy test that only checks the file exists + JSON schema sanity (don’t gate PRs on the contents yet).
 
@@ -265,7 +265,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] Keep `assembleIndexPieces(...)` in `piece-assembly.js` as orchestrator (or move to `piece-assembly/index.js` with a facade).
 
 **Callers**
-- `tools/assemble-pieces.js` (CLI tool)
+- `tools/index/assemble-pieces.js` (CLI tool)
 - `tests/indexing/contracts/index-compatibility-key-federation-block.test.js`
 
 **Tests to run**
@@ -474,7 +474,7 @@ In the current codebase, `src/integrations/core/index.js` is a tiny re-export fa
 - [x] `tools/build-sqlite-index/run.js` delegates to `tools/build-sqlite-index/*`
 
 #### R.6.5 config-inventory split
-- [x] `tools/config-inventory.js` delegates to `tools/config-inventory/*`
+- [x] `tools/config/inventory.js` delegates to `tools/config/inventory/*`
 
 #### R.6.6 dict-utils split
 - [x] `tools/dict-utils.js` is the public facade; internal helpers live in `tools/dict-utils/*`
@@ -1138,7 +1138,7 @@ Unify embeddings and ANN artifacts across all build paths (inline indexing, buil
 All items must be satisfied:
 
 - ✅ **Embedding jobs are build-scoped**
-  - `tools/indexer-service.js` uses the job payload to run build-embeddings **against the correct build root** even if builds/current.json changes.
+  - `tools/service/indexer-service.js` uses the job payload to run build-embeddings **against the correct build root** even if builds/current.json changes.
   - Queue payload format is versioned and validated (`embeddingPayloadFormatVersion`).
 
 - ✅ **No quantization overflow / wrap**
@@ -1241,7 +1241,7 @@ All new Phase 7 tests must land in the intended CI lane.
 ### Why this exists
 
 Current embedding service flow is not fully build-scoped:
-- `src/index/build/indexer/pipeline.js` enqueues an embedding job, but the worker (`tools/indexer-service.js`) ignores job buildRoot/indexRoot and calls `tools/build-embeddings.js` without `--index-root`.
+- `src/index/build/indexer/pipeline.js` enqueues an embedding job, but the worker (`tools/service/indexer-service.js`) ignores job buildRoot/indexRoot and calls `tools/build/embeddings.js` without `--index-root`.
 - Queue tests currently allow inconsistent `buildRoot` vs `indexRoot` values, which hides real scoping bugs.
 
 ### 7.1.1 Define the embedding job payload schema (versioned)
@@ -1249,7 +1249,7 @@ Current embedding service flow is not fully build-scoped:
 **Touchpoints**
 - `src/index/build/indexer/embedding-queue.js` (~L1–L49)
 - `tools/service/queue.js` (~L1–L270)
-- `tools/indexer-service.js` (~L1–L441)
+- `tools/service/indexer-service.js` (~L1–L441)
 - Tests: `tests/indexing/embeddings/embedding-queue.test.js` (~L1–L51), `tests/indexing/embeddings/embedding-queue-defaults.test.js` (~L1–L37)
 
 **New canonical job payload fields** (JSON):
@@ -1316,7 +1316,7 @@ Current embedding service flow is not fully build-scoped:
 ### 7.1.3 Worker must run build-embeddings against the correct build root
 
 **Touchpoints**
-- `tools/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
+- `tools/service/indexer-service.js` (~L1–L441) (function `runBuildEmbeddings`)
 - `tools/build-embeddings/cli.js` (~L1–L95) (already supports `--index-root`)
 - `tools/build-embeddings/runner.js` (~L1–L763) (already expects indexRoot base)
 
@@ -1380,7 +1380,7 @@ Current embedding service flow is not fully build-scoped:
   - Create two builds (b1 and b2) under a temp repo
   - Create a job targeting buildRoot=b1
   - Simulate builds/current.json pointing at b2
-  - Run `tools/indexer-service.js --once --queue embeddings` (or equivalent)
+  - Run `tools/service/indexer-service.js --once --queue embeddings` (or equivalent)
   - Assert embeddings artifacts were written under build b1 (not b2)
   - Assert job is marked completed and `index_state.json` under b1 indicates `ready=true`.
 
@@ -1500,7 +1500,7 @@ SQLite vector extension ANN presence:
 **Touchpoints**
 - `src/index/build/indexer/steps/write.js` (~L1–L101) (stage2)
 - `tools/build-embeddings/runner.js` (~L1–L763) (stage3)
-- Tests: `tests/indexing/embeddings/embeddings-validate.test.js` (~L1–L82), `tools/index-validate.js` (~L1–L130) output
+- Tests: `tests/indexing/embeddings/embeddings-validate.test.js` (~L1–L82), `tools/index/validate.js` (~L1–L130) output
 
 **Required new fields**
 - `index_state.embeddings.embeddingIdentity` (object)
@@ -1941,7 +1941,7 @@ We need a single coherent way to:
 - HNSW:
   - `src/shared/hnsw.js` (~L1–L160) path resolver must support variants.
 - SQLite-vec:
-  - `tools/build-embeddings/sqlite-dense.js` (~L1–L209) and `tools/vector-extension.js` (~L1–L393)
+  - `tools/build-embeddings/sqlite-dense.js` (~L1–L209) and `tools/sqlite/vector-extension.js` (~L1–L393)
   - If SQLite-vec is kept as merged-only, it must be documented and enforced.
 
 **Required behavior**
@@ -2006,7 +2006,7 @@ Add/Update tests:
 ### 7.8.1 LMDB mapSize planning
 
 **Touchpoints**
-- `tools/build-lmdb-index.js` (~L1–L311)
+- `tools/build/lmdb-index.js` (~L1–L311)
 - `src/storage/lmdb/schema.js` (~L1–L49) (meta keys)
 - Tests: `tests/storage/lmdb/lmdb-backend.test.js` (~L1–L122), `tests/storage/lmdb/lmdb-corruption.test.js` (~L1–L105), `tests/storage/lmdb/lmdb-report-artifacts.test.js` (~L1–L125)
 
@@ -2033,7 +2033,7 @@ Choose one (documented) approach:
 - Alternative: add `mode` column to vector table and delete by mode (if supported by extension).
 
 Update all query code accordingly:
-- `tools/vector-extension.js` query table name must match.
+- `tools/sqlite/vector-extension.js` query table name must match.
 
 ### 7.8.3 Embedding cache preflight metadata
 
@@ -2065,7 +2065,7 @@ Update all query code accordingly:
 ### 7.8.5 Acceptance criteria
 
 - LMDB build is resilient:
-  - `tools/build-lmdb-index.js` chooses a mapSize that prevents MapFull errors on Phase 7 fixtures.
+  - `tools/build/lmdb-index.js` chooses a mapSize that prevents MapFull errors on Phase 7 fixtures.
   - The chosen mapSize is recorded in LMDB metadata for debugging.
 - SQLite ANN tables are mode-safe:
   - If code and prose share a DB file, running embeddings build for one mode does not delete the other mode’s ANN data.
@@ -2125,7 +2125,7 @@ Add/Update tests:
   - Runtime: `src/shared/hnsw.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/cli-index.js`
 - SQLite vector extension:
   - Build: `tools/build-embeddings/sqlite-dense.js`
-  - Runtime: `tools/vector-extension.js`, `src/retrieval/sqlite-helpers.js`
+  - Runtime: `tools/sqlite/vector-extension.js`, `src/retrieval/sqlite-helpers.js`
 
 ### Artifact contract / manifest
 - Contract docs:
@@ -4477,10 +4477,10 @@ Add command:
 - [x] `risk explain`
 
 Map to new tool:
-- [x] `tools/explain-risk.js`
+- [x] `tools/analysis/explain-risk.js`
 
 ### 10.8.2 Implement explain tool
-**New file:** `tools/explain-risk.js`
+**New file:** `tools/analysis/explain-risk.js`
 
 Requirements:
 - [x] Inputs:
@@ -4649,7 +4649,7 @@ These appendices are generated to remove scavenger-hunts:
 - `src/storage/sqlite/vector.js` (~L1-L71)  -  exports/anchors: `quantizeVec`, `resolveQuantizationParams`, `dequantizeUint8ToFloat32`, `toSqliteRowId`, `packUint32`
 
 ### Existing tools/ files referenced (edit candidates)
-- `tools/build-embeddings.js` (~L1-L12)
+- `tools/build/embeddings.js` (~L1-L12)
 - `tools/build-embeddings/cache.js` (~L1-L26)  -  exports/anchors: `buildCacheIdentity`, `resolveCacheRoot`, `resolveCacheDir`, `buildCacheKey`, `isCacheValid`
 - `tools/build-embeddings/cli.js` (~L1-L95)  -  exports/anchors: `parseBuildEmbeddingsArgs`
 - `tools/build-embeddings/embed.js` (~L1-L119)  -  exports/anchors: `assertVectorArrays`, `runBatched`, `ensureVectorArrays`, `createDimsValidator`, `isDimsMismatch`
@@ -4658,12 +4658,12 @@ These appendices are generated to remove scavenger-hunts:
 - `tools/build-embeddings/manifest.js` (~L1-L111)  -  exports/anchors: `updatePieceManifest`
 - `tools/build-embeddings/runner.js` (~L1-L763)
 - `tools/build-embeddings/sqlite-dense.js` (~L1-L209)  -  exports/anchors: `updateSqliteDense`
-- `tools/build-lmdb-index.js` (~L1-L311)
+- `tools/build/lmdb-index.js` (~L1-L311)
 - `tools/dict-utils/paths/db.js` (~L1-L62)  -  exports/anchors: `resolveLmdbPaths`, `resolveSqlitePaths`
-- `tools/index-validate.js` (~L1-L130)
-- `tools/indexer-service.js` (~L1-L441)
+- `tools/index/validate.js` (~L1-L130)
+- `tools/service/indexer-service.js` (~L1-L441)
 - `tools/service/queue.js` (~L1-L270)  -  exports/anchors: `resolveQueueName`, `getQueuePaths`
-- `tools/vector-extension.js` (~L1-L393)  -  exports/anchors: `getBinarySuffix`, `getPlatformKey`, `getVectorExtensionConfig`, `resolveVectorExtensionPath`, `loadVectorExtension`
+- `tools/sqlite/vector-extension.js` (~L1-L393)  -  exports/anchors: `getBinarySuffix`, `getPlatformKey`, `getVectorExtensionConfig`, `resolveVectorExtensionPath`, `loadVectorExtension`
 
 ### Existing docs/ files referenced (edit candidates)
 - `docs/contracts/artifact-schemas.md` (~L1-L67)
@@ -4876,7 +4876,7 @@ These appendices are generated to remove scavenger-hunts:
   - `src/index/risk-interprocedural/summaries.js` (NEW  -  create as part of this phase)
   - `src/index/validate/risk-interprocedural.js` (NEW  -  create as part of this phase)
 - **tools/**
-  - `tools/explain-risk.js` (NEW  -  create as part of this phase)
+  - `tools/analysis/explain-risk.js` (NEW  -  create as part of this phase)
 - **docs/**
   - `docs/archived` (NEW  -  create as part of this phase)
   - `docs/archived/README.md` (NEW doc/spec  -  create as part of this phase)
@@ -4966,7 +4966,7 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
   - Touchpoints:
     - `docs/config/schema.json`
     - `tools/dict-utils/config.js`
-    - `tools/validate-config.js`
+    - `tools/config/validate.js`
     - `src/config/validate.js`
 
 - [x] Standardize module home for new graph tooling commands.
@@ -5497,7 +5497,7 @@ Touchpoints (test selection):
 ### Objective
 Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP serving to the **official MCP SDK** (with a safe compatibility window), (2) formalizing MCP tool schemas, version negotiation, and error codes across legacy and SDK transports, and (3) hardening cancellation/timeouts so MCP requests cannot leak work or hang.
 
-- Current grounding: MCP entrypoint is `tools/mcp-server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
+- Current grounding: MCP entrypoint is `tools/mcp/server.js` (custom JSON-RPC framing via `tools/mcp/transport.js`), with tool defs in `src/integrations/mcp/defs.js` and protocol helpers in `src/integrations/mcp/protocol.js`.
 - This phase must keep existing tools functioning while adding SDK mode, and it must not silently accept inputs that do nothing.
 
 ---
@@ -5517,18 +5517,18 @@ Modernize and stabilize PairOfCleats’ integration surface by (1) migrating MCP
 
 - [x] Ensure MCP server mode selection is observable and capability-gated.
   - Touchpoints:
-    - [x] `tools/mcp-server.js` — entrypoint dispatch
-    - [x] `tools/config-dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
+    - [x] `tools/mcp/server.js` — entrypoint dispatch
+    - [x] `tools/config/dump.js` (or MCP status tool) — report effective MCP mode + SDK availability
     - [x] `docs/config/schema.json` — add `mcp.mode` (legacy|sdk|auto) and `mcp.sdk` capability note
   - [x] Define precedence for MCP mode per `docs/config/surface-directives.md` (CLI > config; env vars only if explicitly allowed as exceptions).
     - [x] If an env override is retained (e.g., `MCP_MODE`), document the exception in `docs/config/contract.md` and surface it in config inventory.
 
 Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
+- `tools/mcp/server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`, ~L31 `mcpConfig`)
 - `src/shared/capabilities.js` (~L7 `getCapabilities`, ~L38 `mcp.sdk`)
 - `src/shared/optional-deps.js` (~L22 `tryRequire`, ~L33 `tryImport`)
 - `tools/mcp/repo.js` (~L7 `parseTimeoutMs`)
-- `tools/config-dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
+- `tools/config/dump.js` (if used; otherwise define a new MCP status tool under `tools/mcp/`)
   - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
 
 #### Tests / Verification
@@ -5542,8 +5542,8 @@ Touchpoints (anchors; approximate):
 
 - [x] Implement an SDK-backed server alongside the legacy transport.
   - Touchpoints:
-    - [x] `tools/mcp-server-sdk.js` (new) — SDK-backed server implementation
-    - [x] `tools/mcp-server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
+    - [x] `tools/mcp/server-sdk.js` (new) — SDK-backed server implementation
+    - [x] `tools/mcp/server.js` — dispatch `--mcp-mode legacy|sdk` (or env var), defaulting to legacy until parity is proven
       - [x] Add `--mcp-mode` (and `MCP_MODE`) parsing here; bind to `mcp.mode` config.
   - [x] Requirements for SDK server:
     - [x] Register tools from `src/integrations/mcp/defs.js` as the source of truth.
@@ -5557,8 +5557,8 @@ Touchpoints (anchors; approximate):
   - [x] Keep legacy transport only until SDK parity tests are green, then remove or hard-deprecate with warnings.
 
 Touchpoints (anchors; approximate):
-- `tools/mcp-server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
-- `tools/mcp-server-sdk.js` (new; SDK wiring)
+- `tools/mcp/server.js` (~L4 `getToolDefs`, ~L8 `handleToolCall`; add SDK dispatch flag)
+- `tools/mcp/server-sdk.js` (new; SDK wiring)
 - `tools/mcp/tools.js` (tool execution entrypoint)
 - `src/integrations/mcp/defs.js` (tool definitions + schemaVersion)
   - Reference docs: `docs/api/mcp-server.md`, `docs/phases/phase-12/tooling-and-api-contract.md`
@@ -5567,7 +5567,7 @@ Touchpoints (anchors; approximate):
 
 - [x] Services: `tests/services/mcp/sdk-mode.test.js` (new)
   - Skip if SDK is not installed.
-  - Start `tools/mcp-server-sdk.js` and run at least:
+  - Start `tools/mcp/server-sdk.js` and run at least:
     - `tools/list`
     - one representative `tools/call` (e.g., `index_status`)
   - Assert: response shape is valid, errors have stable codes, and server exits cleanly.
@@ -5632,7 +5632,7 @@ Touchpoints (anchors; approximate):
   - Touchpoints:
     - [x] `src/integrations/mcp/protocol.js` — legacy transport formatting helpers
     - [x] `tools/mcp/transport.js` — legacy transport handler
-    - [x] `tools/mcp-server-sdk.js` — SDK error mapping
+    - [x] `tools/mcp/server-sdk.js` — SDK error mapping
     - [x] `src/shared/error-codes.js` — canonical internal codes
   - [x] Define stable, client-facing codes (examples):
     - [x] invalid args
@@ -5659,7 +5659,7 @@ Touchpoints (anchors; approximate):
 Touchpoints (anchors; approximate):
 - `src/integrations/mcp/protocol.js` (error payload shaping + initialize response)
 - `tools/mcp/transport.js` (legacy transport)
-- `tools/mcp-server-sdk.js` (SDK error mapping)
+- `tools/mcp/server-sdk.js` (SDK error mapping)
 - `src/shared/error-codes.js` (canonical internal codes)
 
 ---
@@ -5741,17 +5741,17 @@ Make sure the repo’s declared entrypoints (npm scripts + CI workflows) actuall
     - [x] Add `test:ci-long` script **or** update workflow to use `node tools/ci/run-suite.js ...`.
 
 - [x] Fix release-check script failing in clean checkout.
-  - Symptom: `tools/release-check.js` requires `CHANGELOG.md` which is not present.
+  - Symptom: `tools/release/check.js` requires `CHANGELOG.md` which is not present.
   - Touchpoints:
-    - `tools/release-check.js`
+    - `tools/release/check.js`
     - `docs/guides/release-discipline.md`
   - Action:
     - [x] Add `CHANGELOG.md` **or** relax/check conditionally.
 
 - [x] Fix critical-deps validator pointing at the wrong docs directory.
-  - Symptom: `tools/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
+  - Symptom: `tools/ci/validate-critical-deps.js` expects `docs/references/dependency-bundle/*` but repo uses `docs/dependency_references/dependency-bundle/*`.
   - Touchpoints:
-    - `tools/validate-critical-deps.js`
+    - `tools/ci/validate-critical-deps.js`
     - `docs/dependency_references/dependency-coverage.md`
   - Action:
     - [x] Update expected paths or move docs folder (prefer updating script).
@@ -5771,7 +5771,7 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
     - `docs/guides/metrics-dashboard.md` (`pairofcleats report metrics`)
   - Reality:
     - `bin/pairofcleats.js` does **not** implement `report`.
-    - Some underlying tools exist (e.g., `tools/report-code-map.js`) but are not routed.
+    - Some underlying tools exist (e.g., `tools/reports/report-code-map.js`) but are not routed.
   - Action:
     - [x] Either wire these into `bin/pairofcleats.js` (`report` dispatch) **or**
     - [x] Update docs to use `node tools/...` or `npm run ...`.
@@ -5783,7 +5783,7 @@ Stop shipping docs that describe commands, endpoints, and flags that don’t exi
 
 - [x] Implement or de-document `pairofcleats service indexer ...`.
   - Docs reference: `docs/guides/service-mode.md` (`service indexer start/status/stop`)
-  - Reality: CLI only supports `pairofcleats service api`. `tools/indexer-service.js` exists but is not routed.
+  - Reality: CLI only supports `pairofcleats service api`. `tools/service/indexer-service.js` exists but is not routed.
   - Action: route `service indexer` or change docs to `npm run indexer-service`.
 
 - [x] Fix broken doc links and API surface claims.
@@ -5827,7 +5827,7 @@ Ensure the config file (`.pairofcleats.json`) is:
   - Issues observed:
     - Schema uses `anyOf` and union types (e.g., `"type": ["number","null"]`) but validator ignores `anyOf` and mishandles array-`type`.
     - Root `additionalProperties:false` rejects many keys the code expects/normalizes (`sqlite`, `lmdb`, etc.) unless schema is expanded.
-    - `tools/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
+    - `tools/config/generate-demo-config.js` assumes `anyOf/oneOf` exists, reinforcing that the schema is “real JSON Schema”.
   - Action (recommended):
     - [x] Switch to Ajv (or equivalent) and treat `docs/config/schema.json` as authoritative.
     - [x] Add tests for `anyOf` + union types + unknown top-level keys.
@@ -5859,7 +5859,7 @@ Manifest-driven and output-driven filesystem reads must be safe **regardless of 
   - Findings:
     - `src/index/validate/manifest.js` only validates entry paths when `strict===true`, but still `existsSync()` / hashes resolved paths when non-strict.
     - `src/shared/artifact-io/manifest.js` similarly only enforces safety when strict.
-    - `tools/ci-restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
+    - `tools/ci/restore-artifacts.js` joins `piece.path` under indexDir without containment checks.
   - Risk: path traversal (`../`) can read outside indexDir if manifest is corrupted/untrusted.
   - Action:
     - [x] Always enforce: no absolute paths, no `..` segments, and resolved path must remain under root.
@@ -5938,7 +5938,7 @@ Remove dead code paths, misleading cleanup, and brittle precondition assumptions
   - Action: make return types explicit, remove dead cleanup, fix warnings.
 
 - [x] Improve Tantivy build error messaging and prerequisite checks.
-  - `tools/build-tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
+  - `tools/build/tantivy-index.js` assumes artifacts exist and can fail with low-signal errors.
   - Action: explicitly detect required artifacts and print remediation steps.
 
 - [x] Optional doc extraction deps are capability-probed but not declared.
@@ -6024,31 +6024,31 @@ Turn current failures/drifts into permanent guardrails.
 ### Objective
 Reduce “mystery behavior” and make internal tooling more robust.
 
-- [x] Improve `tools/check-env-usage.js` detection patterns.
+- [x] Improve `tools/ci/check-env-usage.js` detection patterns.
   - Currently misses bracket access, destructuring, and other env read patterns.
   - Consider AST-based linting.
 
-- [x] Fix `tools/download-extensions.js` chmod contradiction and improve download safety.
+- [x] Fix `tools/download/extensions.js` chmod contradiction and improve download safety.
   - `chmod 0755` is immediately overwritten by `chmod 0644`.
   - Archive downloads are buffered in memory without size caps.
   - Consider forcing HTTPS or requiring hashes for HTTP.
 
-- [x] Fix `tools/download-models.js` ONNX copy logic.
+- [x] Fix `tools/download/models.js` ONNX copy logic.
   - Current logic checks `!existsSync(onnxTarget)` then calls `statSync(onnxTarget)`, making directory handling dead.
   - Also doesn’t copy when target dir already exists.
 
-- [x] Fix `tools/compare-models.js` index existence probe.
+- [x] Fix `tools/reports/compare-models.js` index existence probe.
   - Checks only for `chunk_meta.json` and may miss valid indexes in other shapes.
 
 - [x] Tool detection should verify executability, not just filename presence.
-  - `tools/tooling-detect.js` should run `--version` before claiming “found”.
+  - `tools/tooling/detect.js` should run `--version` before claiming “found”.
 
 - [x] Fix `src/integrations/core/status.js` payload naming ambiguity.
   - `repo.root` appears to report cache root, not repository root.
 
 - [x] Compact/shard tooling scalability:
-  - `tools/compact-pieces.js` now streams gzip + zstd JSONL shards.
-  - `tools/ctags-ingest.js` backpressure handled.
+  - `tools/index/compact-pieces.js` now streams gzip + zstd JSONL shards.
+  - `tools/ingest/ctags.js` backpressure handled.
 
 ---
 
@@ -6398,12 +6398,12 @@ Touchpoints (anchors; approximate):
 Touchpoints:
 - `bin/pairofcleats.js` (flag plumbing)
 - `src/shared/cli-options.js` (new flags)
-- `tools/tooling-doctor.js` (report SCM provider)
+- `tools/tooling/doctor.js` (report SCM provider)
 
 Touchpoints (anchors; approximate):
 - `bin/pairofcleats.js` (~L509 `tooling doctor` dispatch, ~L692 `index build` help)
 - `src/shared/cli-options.js` (~L4 `INDEX_BUILD_OPTIONS`)
-- `tools/tooling-doctor.js` (~L33 `runToolingDoctor`)
+- `tools/tooling/doctor.js` (~L33 `runToolingDoctor`)
 - `src/index/tooling/doctor.js` (~L139 `runToolingDoctor`)
 
 ---
@@ -6617,7 +6617,7 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/contracts/schemas/artifacts.js` ~L1101 (`riskInterprocedural`)
 [x] [CODE] Export `docs/contracts/artifact-schema-index.json` (schema registry → required fields + version).
     - Touchpoints:
-      - `tools/export-artifact-schema-index.js` (new)
+      - `tools/docs/export-artifact-schema-index.js` (new)
       - `src/contracts/schemas/artifacts.js`
     - Tests:
       - `tests/tooling/docs/artifact-schema-index.test.js` (new)
@@ -6717,28 +6717,28 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `src/storage/backend-policy.js` L8‑138
 
 ### 2.3 docs/guides/mcp.md
-[x] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp-server.js`.
+[x] [DOC] Replace `pairofcleats service mcp` with `node tools/mcp/server.js`.
     - Touchpoints:
       - `bin/pairofcleats.js` L266‑285 (service subcommands exclude mcp)
-      - `tools/mcp-server.js` L10‑41 (actual entrypoint + mode selection)
+      - `tools/mcp/server.js` L10‑41 (actual entrypoint + mode selection)
 
 ### 2.4 docs/guides/metrics-dashboard.md
 [x] [DOC] Remove unsupported fields or implement them (cache hit rate, BM25 params, timings).
 [x] [DOC] Add `--top` flag to usage.
     - Touchpoints:
-      - `tools/metrics-dashboard.js` L9‑118 (current output fields)
+      - `tools/reports/metrics-dashboard.js` L9‑118 (current output fields)
       - `tools/dict-utils/paths/cache.js` L178‑184 (metrics dir)
 
 ### 2.5 docs/guides/rule-packs.md
-[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/analysis/structural-search.js`.
     - Touchpoints:
-      - `tools/structural-search.js` L6‑13
+      - `tools/analysis/structural-search.js` L6‑13
       - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.6 docs/guides/structural-search.md
-[x] [DOC] Replace `pairofcleats structural search` with `node tools/structural-search.js`.
+[x] [DOC] Replace `pairofcleats structural search` with `node tools/analysis/structural-search.js`.
     - Touchpoints:
-      - `tools/structural-search.js` L6‑13
+      - `tools/analysis/structural-search.js` L6‑13
       - `bin/pairofcleats.js` L684 (no structural command)
 
 ### 2.7 docs/guides/triage-records.md
@@ -6767,22 +6767,22 @@ Defaults below are recommendations to keep scope controlled. If you prefer diffe
       - `bin/pairofcleats.js` L704‑727 (help list)
 [x] [DOC] Add short “how to run” sections or per-command mini guides for the same tools (or add new guide pages and link from commands).
     - Touchpoints:
-      - `tools/graph-context.js` L1‑4
-      - `tools/context-pack.js` L1‑4
-      - `tools/impact.js` L1‑4
-      - `tools/suggest-tests.js` L1‑4
-      - `tools/api-contracts.js` L1‑4
-      - `tools/architecture-check.js` L1‑4
-      - `tools/explain-risk.js` L1‑4
-      - `tools/tooling-doctor.js` L14
-      - `tools/compare-models.js` L28
+      - `tools/analysis/graph-context.js` L1‑4
+      - `tools/analysis/context-pack.js` L1‑4
+      - `tools/analysis/impact.js` L1‑4
+      - `tools/analysis/suggest-tests.js` L1‑4
+      - `tools/api/contracts.js` L1‑4
+      - `tools/analysis/architecture-check.js` L1‑4
+      - `tools/analysis/explain-risk.js` L1‑4
+      - `tools/tooling/doctor.js` L14
+      - `tools/reports/compare-models.js` L28
       - `tools/eval/run.js` L11
 
 ### 2.10 docs/guides/service-mode.md
 [x] [DOC] Remove or correct `indexModes` example; indexer service ignores repo-level indexModes.
     - Touchpoints:
-      - `tools/indexer-service.js` L19‑44 (argv → mode)
-      - `tools/indexer-service.js` L297‑381 (job mode handling)
+      - `tools/service/indexer-service.js` L19‑44 (argv → mode)
+      - `tools/service/indexer-service.js` L297‑381 (job mode handling)
 
 ---
 
@@ -6841,48 +6841,48 @@ Note: timing ledger/watchdog and coverage-merge documentation is tracked in `NIK
 ## 4) Tooling docs (docs/tooling)
 
 ### 4.1 docs/tooling/ctags.md
-[x] [DOC] Update CLI examples to `node tools/ctags-ingest.js` or npm script.
-    - Source of truth: `tools/ctags-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/ctags.js` or npm script.
+    - Source of truth: `tools/ingest/ctags.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--ctags`, `--args`, stdin behavior, and default `--run` when no input.
     - Touchpoints:
-      - `tools/ctags-ingest.js` L12‑22 (options)
-      - `tools/ctags-ingest.js` L150‑163 (stdin/run behavior)
+      - `tools/ingest/ctags.js` L12‑22 (options)
+      - `tools/ingest/ctags.js` L150‑163 (stdin/run behavior)
 
 ### 4.2 docs/tooling/gtags.md
-[x] [DOC] Update CLI examples to `node tools/gtags-ingest.js` or npm script.
-    - Source of truth: `tools/gtags-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/gtags.js` or npm script.
+    - Source of truth: `tools/ingest/gtags.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--global`, `--args`, stdin behavior, and default stdin when no input.
     - Touchpoints:
-      - `tools/gtags-ingest.js` L13‑20 (options)
-      - `tools/gtags-ingest.js` L110‑115 (stdin/run behavior)
+      - `tools/ingest/gtags.js` L13‑20 (options)
+      - `tools/ingest/gtags.js` L110‑115 (stdin/run behavior)
 
 ### 4.3 docs/tooling/lsif.md
-[x] [DOC] Update CLI examples to `node tools/lsif-ingest.js` or npm script.
-    - Source of truth: `tools/lsif-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/lsif.js` or npm script.
+    - Source of truth: `tools/ingest/lsif.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, stdin behavior when `--input -`.
     - Touchpoints:
-      - `tools/lsif-ingest.js` L12‑16 (options)
-      - `tools/lsif-ingest.js` L165‑168 (stdin behavior)
+      - `tools/ingest/lsif.js` L12‑16 (options)
+      - `tools/ingest/lsif.js` L165‑168 (stdin behavior)
 
 ### 4.4 docs/tooling/scip.md
-[x] [DOC] Update CLI examples to `node tools/scip-ingest.js` or npm script.
-    - Source of truth: `tools/scip-ingest.js`, `package.json` scripts
+[x] [DOC] Update CLI examples to `node tools/ingest/scip.js` or npm script.
+    - Source of truth: `tools/ingest/scip.js`, `package.json` scripts
 [x] [DOC] Document options and defaults: `--out`, `--json`, `--scip`, `--args`, stdin behavior, and JSON (non‑JSONL) file parsing path.
     - Touchpoints:
-      - `tools/scip-ingest.js` L13‑20 (options)
-      - `tools/scip-ingest.js` L214‑218 (JSON file handling)
+      - `tools/ingest/scip.js` L13‑20 (options)
+      - `tools/ingest/scip.js` L214‑218 (JSON file handling)
 
 ### 4.5 docs/tooling/repo-inventory.json
-[x] [DOC] Ensure `tools/mcp-server-sdk.js` appears in `tools.entrypoints`.
+[x] [DOC] Ensure `tools/mcp/server-sdk.js` appears in `tools.entrypoints`.
     - Touchpoints:
-      - `tools/mcp-server-sdk.js` (shebang)
-      - `tools/repo-inventory.js` (generator)
+      - `tools/mcp/server-sdk.js` (shebang)
+      - `tools/docs/repo-inventory.js` (generator)
 Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` (Phase 5).
 
 ### 4.6 docs/tooling/repo-inventory.md (new)
 [x] [DOC] Add a short guide for `pairofcleats repo-inventory` and the JSON output format.
     - Touchpoints:
-      - `tools/repo-inventory.js` L9‑232
+      - `tools/docs/repo-inventory.js` L9‑232
 
 ---
 
@@ -6903,12 +6903,12 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 [x] [DOC] Note default MCP mode is legacy unless `auto` explicitly requested.
     - Source of truth:
       - `tools/mcp/server-config.js` (default mode)
-      - `tools/mcp-server.js` (arg handling)
+      - `tools/mcp/server.js` (arg handling)
 
 ### 5.3 docs/api/server.md
 [x] [DOC] Confirm auth behavior note (localhost auth optional unless token set).
     - Touchpoints:
-      - `tools/api-server.js` L47‑59 (authRequired logic)
+      - `tools/api/server.js` L47‑59 (authRequired logic)
 [x] [DOC] Document that API server runs in-process (no CLI shell-out).
     - Touchpoints:
       - `tools/api/router.js` L1 (imports core search/status)
@@ -6939,7 +6939,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 [x] [DOC] Update CLI flags list to current CLI options.
 [x] [CODE] Generate `docs/config/contract.md` from `docs/config/schema.json` + `src/shared/env.js` (deterministic output).
     - Touchpoints:
-      - `tools/config-contract-doc.js` (new)
+      - `tools/config/contract-doc.js` (new)
       - `docs/config/contract.md`
     - Tests:
       - `tests/tooling/docs/config-contract-doc.test.js` (new)
@@ -6947,7 +6947,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - Parse schema at `docs/config/schema.json` (include descriptions, defaults, enums).
       - Pull env var metadata from `src/shared/env.js` (source of truth).
       - Emit sections: Overview, Schema keys, Defaults, Env overrides, CLI flags (if applicable).
-      - Preserve line endings/BOM on regeneration (match `tools/config-inventory.js` behavior).
+      - Preserve line endings/BOM on regeneration (match `tools/config/inventory.js` behavior).
     - Source line anchors:
       - `docs/config/schema.json` L18‑396 (namespace keys)
       - `src/shared/env.js` L32‑58 (env surface)
@@ -7016,13 +7016,13 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - `tools/bench/micro/tinybench.js` L18‑60
 [x] [DOC] Document query generator flags: `--repo`, `--out`, `--json`, `--index-root`, and default JSON output path.
     - Touchpoints:
-      - `tools/bench-query-generator.js` L13‑19, L90‑99
+      - `tools/bench/query-generator.js` L13‑19, L90‑99
 [x] [DOC] Document bench harness `--query-concurrency` (and where it applies).
     - Touchpoints:
       - `src/shared/cli-options.js` L50
 [x] [DOC] Add bench matrix runner flags (`--ann-modes`, `--backends`, `--out-dir`, `--log-dir`, `--fail-fast`) or link to language benchmarks doc.
     - Touchpoints:
-      - `tools/bench-language-matrix.js` L20‑38, L54‑96
+      - `tools/bench/language-matrix.js` L20‑38, L54‑96
 
 ### 8.2 docs/benchmarks/evaluation.md
 [x] [DOC] Confirm evaluation options + output formats match `tools/eval/run.js` (update if drift is found).
@@ -7030,9 +7030,9 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
       - `tools/eval/run.js` L11‑180 (metrics schema + output)
 
 ### 8.3 docs/benchmarks/model-comparison.md
-[x] [DOC] Confirm model comparison CLI flags and outputs match `tools/compare-models.js`.
+[x] [DOC] Confirm model comparison CLI flags and outputs match `tools/reports/compare-models.js`.
     - Touchpoints:
-      - `tools/compare-models.js` L28‑120 (CLI args + output)
+      - `tools/reports/compare-models.js` L28‑120 (CLI args + output)
 
 ---
 
@@ -7041,14 +7041,14 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 ### 9.1 docs/language/benchmarks.md
 [x] [DOC] Document that `--stub-embeddings/--real-embeddings` are forwarded to the runner (not ignored).
     - Touchpoints:
-      - `tools/bench-language-repos.js` L653‑657
+      - `tools/bench/language-repos.js` L653‑657
 [x] [DOC] Update tier definitions to include `small`/`tiny` (positional filters allowed).
     - Touchpoints:
-      - `tools/bench-language-repos.js` L290‑296
+      - `tools/bench/language-repos.js` L290‑296
 [x] [DOC] Document language bench CLI flags (`--dry-run`, `--results`, `--repos`, `--only`, `--languages`, `--queries`, `--heap-mb`, `--cache-run`).
     - Touchpoints:
       - `tools/bench/language/cli.js` L53‑96
-      - `tools/bench-language-repos.js` L302‑305, L533‑568, L647‑680
+      - `tools/bench/language-repos.js` L302‑305, L533‑568, L647‑680
 
 ### 9.2 docs/language/lang-sql.md
 [x] [DOC] Update default mode to `--mode all` (no lang-sql doc present; no update needed).
@@ -7213,7 +7213,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
     - Test lanes vs docs
     - Output fields vs docs (initially `scoreBreakdown` keys)
     - Touchpoints:
-      - `tools/doc-contract-drift.js`
+      - `tools/docs/contract-drift.js`
       - `docs/testing/` for policy
     - Note:
       - Entry point vs docs remains covered by `tests/indexing/policy/script-surface-policy.test.js`.
@@ -7276,10 +7276,10 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 - **Severity:** Medium
 - **Files:**
   - `tools/api/router.js`
-  - `tools/api-server.js`
+  - `tools/api/server.js`
 - **Where:**
   - `tools/api/router.js`: `new URL(req.url..., \`http://${host}\`)` (~L63)
-  - `tools/api-server.js`: `baseUrl = \`http://${host}:${actualPort}\`` (~L94)
+  - `tools/api/server.js`: `baseUrl = \`http://${host}:${actualPort}\`` (~L94)
 - **Problem:** IPv6 literals must be bracketed in URLs (`http://[::1]:7345`). As written, `http://::1` is invalid.
 - **Impact:** API becomes unusable under IPv6 host settings (invalid URL / 500s).
 - **Fix:** Bracket IPv6 in URL contexts or avoid interpolating host into the parsing base (use a fixed base like `http://localhost` for request URL parsing).
@@ -7444,7 +7444,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 
 ### 19) Zip extraction can still be vulnerable to zip-bomb style memory spikes
 - **Severity:** Medium–High (resource exhaustion)
-- **File:** `tools/download-extensions.js` (~L266–L296)
+- **File:** `tools/download/extensions.js` (~L266–L296)
 - **Problem:** `entry.getData()` decompresses entries fully into memory. Declared-size limit checks don’t prevent decompression allocation spikes.
 - **Impact:** Potential OOM / severe slowdown if extension zips are untrusted or compromised.
 - **Fix:** Use a streaming zip reader and enforce decompressed-byte limits while streaming (plus compression ratio heuristics).
@@ -7647,7 +7647,7 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 
 ### 9) SQLite compaction disk-space estimate is likely too low for `VACUUM` in worst cases
 
-- **File:** `tools/compact-sqlite-index.js`
+- **File:** `tools/build/compact-sqlite-index.js`
 - **Locations:**
   - required bytes computation (L87–93)
   - `outDb.exec('VACUUM')` (L444)

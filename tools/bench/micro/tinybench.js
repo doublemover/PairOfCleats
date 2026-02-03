@@ -8,7 +8,7 @@ import { Bench } from 'tinybench';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
+import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 import { writeJsonWithDir } from './utils.js';
 
 const toolRoot = resolveToolRoot();

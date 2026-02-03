@@ -206,7 +206,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/integrations/core/index.js` (add `searchFederated()`; reuse `runSearchCli` per repo)
 - `src/retrieval/cli.js`, `src/retrieval/cli-args.js` (workspace/repo selection flags and normalization)
 - `tools/api/router.js` (federated endpoint plumbing)
-- `tools/mcp/repo.js` / `tools/mcp-server.js` (workspace-aware tool inputs)
+- `tools/mcp/repo.js` / `tools/mcp/server.js` (workspace-aware tool inputs)
 - New: `src/retrieval/federation/coordinator.js`
 - New: `src/retrieval/federation/merge.js` (RRF + deterministic tie-breakers)
 - `docs/specs/federated-search.md` (request/response contract + merge policy)
@@ -354,7 +354,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/shared/cache.js` (cache stats, eviction, size tracking; potential reuse)
 - `src/index/build/file-processor/cached-bundle.js` (bundle caching)
 - `src/index/build/file-processor/embeddings.js` (embedding caching/service integration)
-- New: `src/shared/cas.js` (content-addressed storage helpers) and `tools/cache-gc.js`
+- New: `src/shared/cas.js` (content-addressed storage helpers) and `tools/index/cache-gc.js`
 
 #### Tests
 
@@ -489,7 +489,7 @@ Touchpoints:
 - `src/retrieval/cli.js`, `src/retrieval/cli-args.js`
 - `src/integrations/core/index.js`
 - `tools/api/router.js`
-- `tools/mcp/repo.js`, `tools/mcp-server.js`
+- `tools/mcp/repo.js`, `tools/mcp/server.js`
 - New: `src/retrieval/federation/{coordinator,select,merge,args}.js`
 
 Tests:
@@ -568,7 +568,7 @@ Touchpoints:
 - `tools/dict-utils.js` (global cache dirs)
 - `src/shared/cache.js`
 - `src/index/build/file-processor/cached-bundle.js`
-- New: `src/shared/cas.js`, `tools/cache-gc.js`
+- New: `src/shared/cas.js`, `tools/index/cache-gc.js`
 
 Tests:
 - [ ] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
@@ -1126,9 +1126,9 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
       - Editor integrations (Sublime + VS Code)
       - Any “bring-your-own” optional deps used elsewhere (e.g., extraction/SDK/tooling)
     - “Fail vs degrade” posture for each optional capability (what is allowed to skip, and what must hard-fail).
-- [ ] Expand the existing `tools/release-check.js` from “changelog-only” into a **deterministic release smoke-check runner**.
+- [ ] Expand the existing `tools/release/check.js` from “changelog-only” into a **deterministic release smoke-check runner**.
   - Touchpoints:
-    - `tools/release-check.js` (extend; keep it dependency-light)
+    - `tools/release/check.js` (extend; keep it dependency-light)
     - `bin/pairofcleats.js` (invoked by the smoke check; no behavioral changes expected here)
     - `src/shared/subprocess.js` (shared spawn/timeout helpers)
   - Requirements:
@@ -1159,7 +1159,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
 
 #### Tests / Verification
 - [ ] `tests/tooling/release/release-check-smoke.test.js`
-  - Runs `node tools/release-check.js` in a temp environment and asserts it succeeds on a healthy checkout.
+  - Runs `node tools/release/check.js` in a temp environment and asserts it succeeds on a healthy checkout.
 - [ ] `tests/tooling/release/release-check-json.test.js`
   - Runs `release-check --json` and asserts stable JSON envelope fields (schemaVersion, steps[], status).
 - [ ] `tests/tooling/release/release-check-exit-codes.test.js`
@@ -1176,7 +1176,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
   - consistent repo-relative path normalization for public artifacts (canonical `/` separators)
 - [ ] Fix issues discovered during the audit in the “release-critical surface”.
   - Minimum scope for this phase:
-    - `tools/release-check.js` (must behave correctly on all supported OSes)
+    - `tools/release/check.js` (must behave correctly on all supported OSes)
     - packaging scripts added in Phase 18.3/18.5
     - tests added by this phase (must be runnable on CI runners and locally)
   - Broader issues discovered outside this scope should either:
@@ -1201,7 +1201,7 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
   - On Windows CI, verifies key commands succeed and produce valid outputs.
 - [ ] `tests/tooling/platform/path-edge-cases.test.js`
   - Exercises drive-letter-like paths on POSIX, NFC/NFD normalization, and trailing dots/spaces.
-- [ ] Extend `tools/release-check.js` to include a `--paths` step that runs the above regression checks in quick mode.
+- [ ] Extend `tools/release/check.js` to include a `--paths` step that runs the above regression checks in quick mode.
 
 ---
 
@@ -1308,8 +1308,8 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
 ### Phase 18.6 — Service-mode bundle + distribution documentation (API server + embedding worker)
 - [ ] Ship a service-mode “bundle” (one-command entrypoint) and documentation.
   - Touchpoints:
-    - `tools/api-server.js`
-    - `tools/indexer-service.js`
+    - `tools/api/server.js`
+    - `tools/service/indexer-service.js`
     - `tools/service/**` (queue + worker)
     - `docs/guides/service-mode.md` (add bundle section) or a section in `docs/guides/commands.md`
   - Requirements:
@@ -1327,6 +1327,6 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
 #### Tests / Verification
 - [ ] `tests/services/service-mode-smoke.test.js`
   - Starts API server + worker in a temp environment; enqueues a small job; asserts it is processed and the API responds.
-- [ ] Extend `tools/release-check.js` to optionally run a bounded-time service-mode smoke step (`--service-mode`).
+- [ ] Extend `tools/release/check.js` to optionally run a bounded-time service-mode smoke step (`--service-mode`).
 
 ---

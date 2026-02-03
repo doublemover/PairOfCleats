@@ -107,7 +107,7 @@ export async function loadSearchIndexes({
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
-    const scriptPath = path.join(toolRoot, 'tools', 'build-tantivy-index.js');
+    const scriptPath = path.join(toolRoot, 'tools', 'build/tantivy-index.js');
     const result = spawnSubprocessSync(
       process.execPath,
       [scriptPath, '--mode', mode, '--repo', rootDir],

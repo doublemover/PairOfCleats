@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../../../tools/indexer-service-helpers.js';
+import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../../../tools/service/indexer-service-helpers.js';
 
 const repoRoot = path.join(process.cwd(), '.testCache', 'indexer-service-embedding-job');
 const buildRoot = path.join(repoRoot, 'builds', 'b1');
@@ -18,7 +18,7 @@ const normalized = normalizeEmbeddingJob({
 assert.equal(normalized.buildRoot, path.resolve(buildRoot));
 assert.equal(normalized.indexDir, path.resolve(indexDir));
 
-const buildPath = path.join(process.cwd(), 'tools', 'build-embeddings.js');
+const buildPath = path.join(process.cwd(), 'tools', 'build/embeddings.js');
 const args = buildEmbeddingsArgs({
   buildPath,
   repoPath: repoRoot,

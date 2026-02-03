@@ -15,7 +15,7 @@ run(
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 run(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
   'build sqlite index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
@@ -38,7 +38,7 @@ delete manifest.files['src/index.js'];
 await fsPromises.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 
 const normalizedResult = runCapture(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (normalized manifest)'
 );
 const normalizedOutput = getCombinedOutput(normalizedResult);

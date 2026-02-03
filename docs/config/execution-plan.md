@@ -36,13 +36,13 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 - New file: `docs/config/budgets.md` (numeric budgets + rationale)
 
 ### 0.2 Make the inventory actionable in CI
-- [ ] Extend `tools/config-inventory.js` to output:
+- [ ] Extend `tools/config/inventory.js` to output:
   - totals (already)
   - "public" vs "internal/dev-only" flags (new)
 - [ ] Add a CI check script (or npm script) that fails when budgets are exceeded.
 
 **Where**
-- `tools/config-inventory.js` (classification hooks)
+- `tools/config/inventory.js` (classification hooks)
 - `package.json` (add `npm run config:budget`)
 
 **Exit criteria**
@@ -66,9 +66,9 @@ It assumes the end-state described in `docs/config/hard-cut.md` (minimal config,
 
 **Where**
 - `docs/config/schema.json`
-- `tools/validate-config.js` (validate only minimal shape)
+- `tools/config/validate.js` (validate only minimal shape)
 - `tools/config-reset.js` (emit minimal config only; remove anything else)
-- `tools/config-dump.js` (dump minimal config + derived policy; optional but recommended)
+- `tools/config/dump.js` (dump minimal config + derived policy; optional but recommended)
 
 ### 1.2 Minimal config load path
 - [ ] Update `tools/dict-utils.js:loadUserConfig()`:
@@ -363,7 +363,7 @@ No user knobs.
 
 ### 7.1 Remove LMDB support
 - [ ] Delete:
-  - `tools/build-lmdb-index.js`
+  - `tools/build/lmdb-index.js`
   - LMDB-related runtime modules (if any)
   - `lmdb.*` config namespace (already removed by schema)
   - `pairofcleats lmdb build` dispatch from `bin/pairofcleats.js`
@@ -374,13 +374,13 @@ No user knobs.
   - env `PAIROFCLEATS_VECTOR_EXTENSION`
   - config `sqlite.vectorExtension.*`
 - [ ] Make extension lookup fixed to tool-managed directory:
-  - `tools/download-extensions.js` installs into a known location
+  - `tools/download/extensions.js` installs into a known location
   - runtime checks presence and enables if available
   - never require user path overrides
 
 **Where**
-- `tools/vector-extension.js`
-- `tools/download-extensions.js`
+- `tools/sqlite/vector-extension.js`
+- `tools/download/extensions.js`
 - `docs/sqlite/ann-extension.md` (rewrite to "auto")
 
 **Exit criteria**
@@ -414,7 +414,7 @@ Action:
 - [ ] Anything else is deleted or moved to internal modules.
 
 ### 8.3 Re-run and commit inventory
-- [ ] Run `node tools/config-inventory.js` and commit the new `docs/config/inventory.*`
+- [ ] Run `node tools/config/inventory.js` and commit the new `docs/config/inventory.*`
 - [ ] Confirm budgets and enforce.
 
 ### 8.4 Add a "no new knobs" guard
@@ -451,7 +451,7 @@ After Phase 8, the following should be true:
 1. `pairofcleats index build` works on a representative repo with zero config.
 2. `pairofcleats search "foo"` works and returns results.
 3. `pairofcleats search --explain "foo"` prints derived policy decisions (quality, backend mode, etc.).
-4. `node tools/config-inventory.js` outputs:
+4. `node tools/config/inventory.js` outputs:
    - config keys <= 5
    - env vars == 1
    - CLI flags <= 25 for public commands

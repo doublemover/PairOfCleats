@@ -88,7 +88,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'repo-build-sqlite-index',
-    run: () => runNode('build-sqlite-index', path.join(root, 'tools', 'build-sqlite-index.js'), ['--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('build-sqlite-index', path.join(root, 'tools', 'build/sqlite-index.js'), ['--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-sqlite-index']
   },
   {

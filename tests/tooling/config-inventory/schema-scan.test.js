@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { collectSchemaEntries, getLeafEntries } from '../../../tools/config-inventory.js';
+import { collectSchemaEntries, getLeafEntries } from '../../../tools/config/inventory.js';
 
 const root = process.cwd();
 const schemaPath = path.join(root, 'docs', 'config', 'schema.json');

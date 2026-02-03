@@ -22,7 +22,7 @@ This spec governs the stable contract of:
 - and progress notification semantics.
 
 It applies to both:
-- the **legacy** stdio JSON-RPC transport (`tools/mcp-server.js` + `tools/mcp/transport.js`), and
+- the **legacy** stdio JSON-RPC transport (`tools/mcp/server.js` + `tools/mcp/transport.js`), and
 - an eventual **SDK-backed** server mode.
 
 ---

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { status as coreStatus } from '../../../../src/integrations/core/index.js';
-import { loadUserConfig } from '../../../dict-utils.js';
+import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { runNodeSync, runToolWithProgress } from '../../runner.js';
 import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';

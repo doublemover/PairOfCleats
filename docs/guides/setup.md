@@ -7,9 +7,9 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - Interactive (recommended):
   - `pairofcleats setup`
 - Non-interactive (CI):
-  - `node tools/setup.js --non-interactive`
+  - `node tools/setup/setup.js --non-interactive`
 - Non-interactive with JSON summary:
-  - `node tools/setup.js --non-interactive --json`
+  - `node tools/setup/setup.js --non-interactive --json`
 
 ## What it can do
 
@@ -24,7 +24,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 
 ## Flags
 
-- Flags below apply to the direct script (`node tools/setup.js`):
+- Flags below apply to the direct script (`node tools/setup/setup.js`):
   - `--non-interactive` / `--ci`: Skip prompts and use defaults.
   - `--json`: Emit a summary report to stdout (logs go to stderr).
   - `--with-sqlite`: Force SQLite build on (default behavior).
@@ -51,7 +51,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - Default ignore patterns can be overridden by adding negated entries (e.g. `!dist/allow.js`) in `extraIgnore`.
 - Ignore files configured via `ignoreFiles` must resolve inside the repo root; outside paths are skipped with a warning.
 - Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
-- Use `node tools/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
-- Use `node tools/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
+- Use `node tools/index/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
+- Use `node tools/index/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
 - After setup, run `pairofcleats index validate` to confirm index artifacts are healthy.
 - If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.

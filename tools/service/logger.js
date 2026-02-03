@@ -1,6 +1,6 @@
 import { getEnvConfig } from '../../src/shared/env.js';
 import { configureLogger, log, logError, logLine, updateLogContext } from '../../src/shared/progress.js';
-import { loadUserConfig } from '../dict-utils.js';
+import { loadUserConfig } from '../shared/dict-utils.js';
 
 const normalizeLevel = (value) => {
   if (typeof value === 'string' && value.trim()) return value.trim().toLowerCase();

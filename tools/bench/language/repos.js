@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
 
 const canRun = (cmd, args) => {
   try {

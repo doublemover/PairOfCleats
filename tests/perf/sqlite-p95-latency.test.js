@@ -35,7 +35,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const queriesPath = path.join(repoRoot, 'queries.txt');
 const rawQueries = await fsPromises.readFile(queriesPath, 'utf8');

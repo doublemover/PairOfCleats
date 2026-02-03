@@ -14,10 +14,10 @@ not stable across runs.
 - `updatedAt` (top-level). Written with `new Date().toISOString()` in:
   - `tools/build-embeddings/runner.js`
   - `tools/build-sqlite-index/index-state.js`
-  - `tools/build-lmdb-index.js`
+  - `tools/build/lmdb-index.js`
 - `embeddings.updatedAt` (set per embeddings run in `tools/build-embeddings/runner.js`)
 - `sqlite.updatedAt` (set in `tools/build-sqlite-index/index-state.js`)
-- `lmdb.updatedAt` (set in `tools/build-lmdb-index.js`)
+- `lmdb.updatedAt` (set in `tools/build/lmdb-index.js`)
 
 ## Build/run identity and stage fields (run invocation dependent)
 - `buildId` (timestamp + git short SHA + config hash). Computed in:
@@ -34,7 +34,7 @@ not stable across runs.
 - `sqlite.path` (absolute db path) set in:
   - `tools/build-sqlite-index/runner.js` -> `tools/build-sqlite-index/index-state.js`
 - `lmdb.path` (absolute db path) set in:
-  - `tools/build-lmdb-index.js`
+  - `tools/build/lmdb-index.js`
 
 ## Runtime status, availability, and error fields (run outcome dependent)
 - `embeddings.enabled`, `embeddings.ready`, `embeddings.pending`, `embeddings.service`:
@@ -50,7 +50,7 @@ not stable across runs.
   - `threadLimits` depends on runtime envelope (CPU count and concurrency settings).
 - `lmdb.pending`, `lmdb.ready`, `lmdb.buildMode`, `lmdb.mapSizeBytes`,
   `lmdb.mapSizeEstimatedBytes`:
-  - Written in `tools/build-lmdb-index.js`
+  - Written in `tools/build/lmdb-index.js`
   - Map sizing is derived from a runtime estimate and may vary with library/version changes.
 
 ## Shard plan timing fields (performance dependent)

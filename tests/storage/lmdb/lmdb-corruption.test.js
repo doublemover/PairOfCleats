@@ -54,7 +54,7 @@ run(
   { stdio: 'inherit' }
 );
 run(
-  [path.join(root, 'tools', 'build-lmdb-index.js'), '--mode', 'all', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/lmdb-index.js'), '--mode', 'all', '--repo', repoRoot],
   'build lmdb index',
   { stdio: 'inherit' }
 );

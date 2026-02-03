@@ -47,7 +47,7 @@ await fsPromises.writeFile(hnswMetaPath, JSON.stringify({ version: 1, dims: 1, c
 
 const buildEmbeddings = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildEmbeddings.status !== 0) {

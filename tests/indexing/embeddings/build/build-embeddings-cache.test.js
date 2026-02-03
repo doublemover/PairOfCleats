@@ -48,7 +48,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, null);
 const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
@@ -62,7 +62,7 @@ if (!cacheFiles.length) {
 const cachePath = path.join(cacheDir, cacheFiles[0]);
 const before = await fsPromises.stat(cachePath);
 
-runNode('build_embeddings cached', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings cached', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const after = await fsPromises.stat(cachePath);
 if (after.mtimeMs !== before.mtimeMs) {

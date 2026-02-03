@@ -20,6 +20,6 @@ Compact, fast serialization for per-file caches and durable index artifacts (fas
 ## Suggested extraction checklist
 - [x] Define artifact formats and version them (Planned: add a versioned MsgPack envelope aligned with `docs/contracts/artifact-contract.md`).
 - [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs. (Planned: canonical key ordering + typed array encoding; avoid non-deterministic float handling.)
-- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: compare JSON vs MsgPack sizes in `tools/report-artifacts.js`.)
+- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Planned: compare JSON vs MsgPack sizes in `tools/index/report-artifacts.js`.)
 - [x] Plan for corruption detection (hashes) and safe partial rebuilds. (Planned: store checksums next to bundles; align with `src/shared/hash.js` + `src/index/validate.js` checksum handling.)
 

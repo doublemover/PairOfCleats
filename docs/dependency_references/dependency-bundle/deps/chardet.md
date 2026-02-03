@@ -18,4 +18,4 @@ Guess file encodings with confidence scores to choose decoding strategy and redu
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: run chardet.detect() on raw bytes when UTF-8 decode fails; feed encoding to iconv-lite.)
 - [x] Record configuration knobs that meaningfully change output/performance. (Planned knobs: sample size, minimum confidence threshold.)
-- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/encoding/ (latin1/shift-jis). Planned benchmark: tools/bench-language-repos.js (encoding fallback pass).)
+- [x] Add at least one representative test fixture and a regression benchmark. (Planned fixture: tests/fixtures/encoding/ (latin1/shift-jis). Planned benchmark: tools/bench/language-repos.js (encoding fallback pass).)

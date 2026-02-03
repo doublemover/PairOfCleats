@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
+import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
 import { buildRecordId } from '../../src/integrations/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/integrations/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';

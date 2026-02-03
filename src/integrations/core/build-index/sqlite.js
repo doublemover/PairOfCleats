@@ -1,5 +1,5 @@
 import { getRepoRoot } from '../../../../tools/dict-utils.js';
-import { runBuildSqliteIndex } from '../../../../tools/build-sqlite-index.js';
+import { runBuildSqliteIndex } from '../../../../tools/build/sqlite-index.js';
 
 /**
  * Build or update SQLite indexes for a repo.

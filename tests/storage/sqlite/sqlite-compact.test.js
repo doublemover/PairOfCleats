@@ -47,15 +47,15 @@ function run(args, label) {
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const renamedFile = path.join(repoRoot, 'src', 'renamed.js');
 await fsPromises.rm(deletableFile, { force: true });
 await fsPromises.rename(renameFile, renamedFile);
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot], 'build sqlite index (incremental)');
-run([path.join(root, 'tools', 'compact-sqlite-index.js'), '--repo', repoRoot], 'compact sqlite index');
+run([path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot], 'build sqlite index (incremental)');
+run([path.join(root, 'tools', 'build', 'compact-sqlite-index.js'), '--repo', repoRoot], 'compact sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);

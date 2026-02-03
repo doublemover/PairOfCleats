@@ -17,7 +17,7 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const buildPath = path.join(root, 'build_index.js');
-const embeddingsPath = path.join(root, 'tools', 'build-embeddings.js');
+const embeddingsPath = path.join(root, 'tools', 'build/embeddings.js');
 const validatePath = path.join(root, 'tools', 'index-validate.js');
 
 const run = (args, label) => {

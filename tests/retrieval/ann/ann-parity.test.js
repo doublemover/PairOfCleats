@@ -41,11 +41,11 @@ function runNode(args, label) {
 
 runNode([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
 runNode(
-  [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
   'build embeddings (code)'
 );
 runNode(
-  [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot],
+  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot],
   'build embeddings (prose)'
 );
 

@@ -41,7 +41,7 @@ await fsPromises.writeFile(
   JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })
 );
 
-const scriptPath = path.join(root, 'tools', 'bench-language-repos.js');
+const scriptPath = path.join(root, 'tools', 'bench/language-repos.js');
 const result = spawnSync(
   process.execPath,
   [

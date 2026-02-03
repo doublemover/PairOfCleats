@@ -32,7 +32,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build index');
-run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
+run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
 
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);

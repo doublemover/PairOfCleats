@@ -4,7 +4,7 @@ import {
   getRuntimeConfig,
   resolveRuntimeEnv,
   resolveToolRoot
-} from '../../dict-utils.js';
+} from '../../shared/dict-utils.js';
 import { runNodeSync } from '../runner.js';
 
 export const toolRoot = resolveToolRoot();

@@ -80,7 +80,7 @@ await fsPromises.rm(bundlePath, { force: true });
 const sqliteBuild = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tools', 'build-sqlite-index.js'),
+    path.join(root, 'tools', 'build/sqlite-index.js'),
     '--mode',
     'code',
     '--repo',

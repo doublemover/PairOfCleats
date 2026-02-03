@@ -240,7 +240,7 @@ Touchpoints:
 - `src/index/build/build-state.js` (read validation flags + build metadata)
 - `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
 - `src/index/validate.js` + `src/index/validate/*` (on-demand validation)
-- `tools/index-validate.js` (if snapshot create invokes CLI validation)
+- `tools/index/validate.js` (if snapshot create invokes CLI validation)
 - `docs/guides/commands.md` (CLI surface)
 - `tools/api/**` (if API endpoints added)
 

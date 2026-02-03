@@ -47,7 +47,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-tantivy-index.js'), '--mode', 'code', '--repo', repoRoot], 'build tantivy index');
+run([path.join(root, 'tools', 'build/tantivy-index.js'), '--mode', 'code', '--repo', repoRoot], 'build tantivy index');
 
 const searchResult = spawnSync(
   process.execPath,
