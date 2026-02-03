@@ -597,25 +597,25 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 #### Tasks
 - [x] **Spec + baseline tests first (blocker for stretch work).**
 - [x] Content-addressed virtual docs:
-  - [ ] Touchpoints: `src/index/tooling/vfs.js:24`, `src/index/build/file-processor.js:207`, `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/integrations/tooling/providers/lsp.js:87`, `src/index/tooling/provider-registry.js:60`.
-  - [ ] Introduce `.poc-vfs/by-hash/<docHash>.ext` or `.poc-vfs/by-id/<docId>.ext`.
-  - [ ] Add a sidecar map `virtualPath ↔ containerPath + segmentUid + range`.
-  - [ ] Keep existing virtualPath for compatibility; add config flag to opt into hash routing.
+  - [x] Touchpoints: `src/index/tooling/vfs.js:24`, `src/index/build/file-processor.js:207`, `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/integrations/tooling/providers/lsp.js:87`, `src/index/tooling/provider-registry.js:60`.
+  - [x] Introduce `.poc-vfs/by-hash/<docHash>.ext` or `.poc-vfs/by-id/<docId>.ext`.
+  - [x] Add a sidecar map `virtualPath ↔ containerPath + segmentUid + range`.
+  - [x] Keep existing virtualPath for compatibility; add config flag to opt into hash routing.
   - [x] Benchmark: `tools/bench/vfs/hash-routing-lookup.js` (compare path encode vs hash lookup).
 - [x] Sparse VFS manifest index (`.vfsidx`):
-  - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:138/286`, `src/index/build/vfs-manifest-collector.js:54`.
-  - [ ] Write a compact index of `virtualPath → byte offset` for each shard.
-  - [ ] Add a lookup helper that reads only the needed row (no full scan).
+  - [x] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:138/286`, `src/index/build/vfs-manifest-collector.js:54`.
+  - [x] Write a compact index of `virtualPath → byte offset` for each shard.
+  - [x] Add a lookup helper that reads only the needed row (no full scan).
   - [x] Benchmark: `tools/bench/vfs/vfsidx-lookup.js` (random lookup vs full scan).
 - [x] Segment hash cache:
-  - [ ] Touchpoints: `src/index/tooling/vfs.js:139/235`, `src/index/build/file-processor.js:207`, `src/shared/hash.js`.
-  - [ ] Cache segment hashes keyed by `fileHash + range + ext + languageId`.
-  - [ ] Reuse cached hashes during manifest creation to avoid re-hashing text.
+  - [x] Touchpoints: `src/index/tooling/vfs.js:139/235`, `src/index/build/file-processor.js:207`, `src/shared/hash.js`.
+  - [x] Cache segment hashes keyed by `fileHash + range + ext + languageId`.
+  - [x] Reuse cached hashes during manifest creation to avoid re-hashing text.
   - [x] Benchmark: `tools/bench/vfs/segment-hash-cache.js` (hash time with/without cache).
 - [x] Heap-based merge for many runs:
-  - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:74`.
-  - [ ] Replace `mergeSortedRuns` linear scan with a binary heap priority queue.
-  - [ ] Keep deterministic ordering via `compareVfsManifestRows`.
+  - [x] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:74`.
+  - [x] Replace `mergeSortedRuns` linear scan with a binary heap priority queue.
+  - [x] Keep deterministic ordering via `compareVfsManifestRows`.
   - [x] Benchmark: `tools/bench/vfs/merge-runs-heap.js` (runs=10/50/200).
 - [x] Canonical path tokens for LSP URIs:
   - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:87/95/101/174`, `src/index/tooling/vfs.js:270`.
