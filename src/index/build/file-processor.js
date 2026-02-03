@@ -3,7 +3,7 @@ import path from 'node:path';
 import { normalizeSegmentsConfig } from '../segments.js';
 import { normalizeCommentConfig } from '../comments.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
-import { toPosix } from '../../shared/files.js';
+import { fromPosix, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { readTextFileWithHash } from '../../shared/encoding.js';
@@ -208,7 +208,7 @@ export function createFileProcessor(options) {
       ? fileEntry.rel
       : toPosix(path.relative(root, abs));
     const rel = typeof fileEntry === 'object' && fileEntry.rel
-      ? fileEntry.rel.split('/').join(path.sep)
+      ? fromPosix(fileEntry.rel)
       : path.relative(root, abs);
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);

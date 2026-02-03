@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
+import { fromPosix } from '../../../../src/shared/files.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'sharded-meta-bytes');
@@ -59,7 +60,7 @@ let totalBytes = 0;
 for (const part of parts) {
   const relPath = part?.path;
   assert.ok(relPath, 'expected meta parts to include path');
-  const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+  const absPath = path.join(outDir, fromPosix(relPath));
   const stat = await fs.stat(absPath);
   assert.equal(part.bytes, stat.size, `expected bytes to match stat for ${relPath}`);
   totalBytes += stat.size;

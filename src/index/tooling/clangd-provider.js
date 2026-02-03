@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { isAbsolutePath } from '../../shared/files.js';
 
 export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
 
@@ -39,7 +40,7 @@ const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   const candidates = [];
   if (clangdConfig?.compileCommandsDir) {
     const value = clangdConfig.compileCommandsDir;
-    candidates.push(path.isAbsolute(value) ? value : path.join(rootDir, value));
+    candidates.push(isAbsolutePath(value) ? value : path.join(rootDir, value));
   } else {
     candidates.push(rootDir);
     candidates.push(path.join(rootDir, 'build'));

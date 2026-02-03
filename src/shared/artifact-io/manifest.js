@@ -4,6 +4,7 @@ import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
 import { readJsonFile } from './json.js';
 import { getTestEnvConfig } from '../env.js';
+import { fromPosix, isAbsolutePath, toPosix } from '../files.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
@@ -27,8 +28,8 @@ const normalizeCompatibilityKey = (value) => {
 const isSafeManifestPath = (value) => {
   if (typeof value !== 'string') return false;
   if (!value) return false;
-  if (path.isAbsolute(value)) return false;
-  const normalized = value.split('\\').join('/');
+  if (isAbsolutePath(value)) return false;
+  const normalized = toPosix(value);
   if (normalized.startsWith('/')) return false;
   const segments = normalized.split('/');
   if (segments.some((segment) => segment === '..')) return false;
@@ -59,10 +60,10 @@ export const resolveManifestPath = (dir, relPath, strict) => {
     warnUnsafePath(dir, relPath, 'invalid');
     return null;
   }
-  const resolved = path.resolve(dir, relPath.split('/').join(path.sep));
+  const resolved = path.resolve(dir, fromPosix(relPath));
   const root = path.resolve(dir);
   const relative = path.relative(root, resolved);
-  const escapes = relative.startsWith('..') || path.isAbsolute(relative);
+  const escapes = relative.startsWith('..') || isAbsolutePath(relative);
   if (escapes) {
     if (strict) {
       const err = new Error(`Manifest path escapes index root: ${relPath}`);

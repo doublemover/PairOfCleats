@@ -18,6 +18,7 @@ import {
   normalizeEmbeddingVectorInPlace
 } from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
+import { fromPosix } from '../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../src/shared/env.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig, resolveSqlitePaths } from '../dict-utils.js';
 import {
@@ -609,12 +610,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const absPath = mode === 'records'
             ? path.resolve(
               recordsDir,
-              (normalizedRel.startsWith('triage/records/')
-                ? normalizedRel.slice('triage/records/'.length)
-                : normalizedRel
-              ).split('/').join(path.sep)
+              fromPosix(
+                normalizedRel.startsWith('triage/records/')
+                  ? normalizedRel.slice('triage/records/'.length)
+                  : normalizedRel
+              )
             )
-            : path.resolve(root, normalizedRel.split('/').join(path.sep));
+            : path.resolve(root, fromPosix(normalizedRel));
           let textInfo;
           try {
             textInfo = await readTextFileWithHash(absPath);

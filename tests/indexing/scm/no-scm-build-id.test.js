@@ -21,7 +21,9 @@ try {
   const env = {
     ...process.env,
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
+    PAIROFCLEATS_EMBEDDINGS: 'stub',
+    PAIROFCLEATS_THREADS: '1',
+    PAIROFCLEATS_WORKER_POOL: 'auto'
   };
   const runBuild = async () => {
     const buildResult = spawnSync(

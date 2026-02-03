@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { toPosix } from '../../shared/files.js';
+import { isAbsolutePath, toPosix } from '../../shared/files.js';
 import { assembleCompositeContextPack } from '../../context-pack/assemble.js';
 import { renderCompositeContextPack } from '../../retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../contracts/validators/analysis.js';
@@ -43,9 +43,9 @@ const parseSeedRef = (raw, repoRoot) => {
   if (type === 'chunk') return { type: 'chunk', chunkUid: suffix };
   if (type === 'symbol') return { type: 'symbol', symbolId: suffix };
   if (type === 'file') {
-    const abs = path.isAbsolute(suffix) ? suffix : path.resolve(repoRoot, suffix);
+    const abs = isAbsolutePath(suffix) ? suffix : path.resolve(repoRoot, suffix);
     const rel = path.relative(repoRoot, abs);
-    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) {
       throw new Error('file: seeds must resolve to a repo-relative path.');
     }
     return { type: 'file', path: toPosix(rel) };

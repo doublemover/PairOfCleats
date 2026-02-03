@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { pipeline, env } from '@xenova/transformers';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../src/shared/onnx-embeddings.js';
+import { isAbsolutePath } from '../src/shared/files.js';
 import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -47,7 +48,7 @@ if (wantsOnnx) {
   });
   const onnxTargetRaw = onnxPathOverride || (embeddingProvider === 'onnx' ? embeddingOnnx.modelPath : null);
   const onnxTarget = onnxTargetRaw
-    ? (path.isAbsolute(onnxTargetRaw) ? onnxTargetRaw : path.resolve(root, onnxTargetRaw))
+    ? (isAbsolutePath(onnxTargetRaw) ? onnxTargetRaw : path.resolve(root, onnxTargetRaw))
     : null;
   if (onnxResolvedPath && onnxTarget) {
     const targetStat = (() => {

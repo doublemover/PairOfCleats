@@ -21,6 +21,7 @@ import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
+import { isAbsolutePath } from '../../../shared/files.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -164,7 +165,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
   const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
   const logDestination = logFileRaw
-    ? (path.isAbsolute(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
+    ? (isAbsolutePath(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
     : null;
   if (logDestination) {
     try {

@@ -6,6 +6,7 @@ import {
   DEFAULT_CACHE_TTL_MS,
   estimateJsonBytes
 } from '../shared/cache.js';
+import { isAbsolutePath, toPosix } from '../shared/files.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
 let gitMetaCache = createLruCache({
@@ -71,9 +72,9 @@ export async function getGitMetaForFile(file, options = {}) {
   const blameEnabled = options.blame !== false;
   const baseDir = options.baseDir
     ? path.resolve(options.baseDir)
-    : (path.isAbsolute(file) ? path.dirname(file) : process.cwd());
-  const relFile = path.isAbsolute(file) ? path.relative(baseDir, file) : file;
-  const fileArg = relFile.split(path.sep).join('/');
+    : (isAbsolutePath(file) ? path.dirname(file) : process.cwd());
+  const relFile = isAbsolutePath(file) ? path.relative(baseDir, file) : file;
+  const fileArg = toPosix(relFile);
   const cacheKey = `${baseDir}::${fileArg}`;
 
   const cached = gitMetaCache.get(cacheKey);

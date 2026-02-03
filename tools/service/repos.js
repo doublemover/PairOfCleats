@@ -2,12 +2,13 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { isAbsolutePath } from '../../src/shared/files.js';
 
 const runGit = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
 
 export function resolveRepoPath(entry, baseDir) {
   if (!entry?.path) return null;
-  return path.isAbsolute(entry.path) ? entry.path : path.join(baseDir, entry.path);
+  return isAbsolutePath(entry.path) ? entry.path : path.join(baseDir, entry.path);
 }
 
 export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {

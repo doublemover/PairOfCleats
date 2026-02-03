@@ -5,7 +5,7 @@ Lightweight status tracker for Phase 0 tasks. Update with PR links and status as
 | Area | Status | Notes | PR |
 | --- | --- | --- | --- |
 | Node 24.13.0 baseline | In progress | `.nvmrc`, `package.json` engines, README updated | |
-| CI suite runner | In progress | `tools/ci/run-suite.js --mode pr` / `--mode nightly` | |
+| CI suite runner | In progress | `tools/ci/run-suite.js --mode ci` / `--mode nightly` | |
 | CI workflows | In progress | Node 24.13.0, artifacts, nightly matrix | |
 | Capability gate | In progress | `tools/ci/capability-gate.js` + smoke test | |
 | Test runner hardening | In progress | skip semantics, kill-tree, logs, timings | |
@@ -20,7 +20,7 @@ Lightweight status tracker for Phase 0 tasks. Update with PR links and status as
 - Baseline determinism test: `tests/perf/baseline-artifacts.test.js`
 
 ## Definition of done
-- `node tools/ci/run-suite.js --mode pr` matches CI behavior and is documented.
+- `node tools/ci/run-suite.js --mode ci` matches CI behavior and is documented.
 - CI uses Node 24.13.0 LTS and uploads logs/JUnit/diagnostics artifacts.
 - Test runner supports skip semantics, timeouts kill process trees, and per-run log dirs.
 - Script surface inventory is up to date and enforced in tests.

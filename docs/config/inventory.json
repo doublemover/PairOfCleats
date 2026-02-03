@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-02T21:10:51.033Z",
+  "generatedAt": "2026-02-03T00:18:39.756Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1896,6 +1896,8 @@
         "src/shared/env.js",
         "src/shared/runtime-envelope.js",
         "src/shared/threads.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/run.js",
@@ -1942,6 +1944,7 @@
         "tests/cli/search/search-explain-symbol.test.js",
         "tests/cli/search/search-windows-path-filter.test.js",
         "tests/helpers/fixture-index.js",
+        "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
@@ -1952,6 +1955,7 @@
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",

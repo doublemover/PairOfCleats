@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, readJsonLinesArray } from '../shared/artifact-io.js';
-import { toPosix } from '../shared/files.js';
+import { isAbsolutePath, toPosix } from '../shared/files.js';
 
 const normalizePath = (repoRoot, rawPath) => {
   if (!rawPath) return null;
   const raw = String(rawPath);
-  const resolved = path.isAbsolute(raw) ? raw : path.resolve(repoRoot, raw);
+  const resolved = isAbsolutePath(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
   if (!rel || rel.startsWith('..')) return toPosix(raw);
   return toPosix(rel);

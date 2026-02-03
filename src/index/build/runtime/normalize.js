@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { toPosix } from '../../../shared/files.js';
 
 export const normalizeParser = (raw, fallback, allowed) => {
   const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -17,12 +18,12 @@ export const normalizeDictSignaturePath = ({ dictFile, dictDir, repoRoot }) => {
   if (dictDir) {
     const normalizedDictDir = path.resolve(dictDir);
     if (normalized === normalizedDictDir || normalized.startsWith(normalizedDictDir + path.sep)) {
-      return path.relative(normalizedDictDir, normalized).split(path.sep).join('/');
+      return toPosix(path.relative(normalizedDictDir, normalized));
     }
   }
   const normalizedRepoRoot = path.resolve(repoRoot);
   if (normalized === normalizedRepoRoot || normalized.startsWith(normalizedRepoRoot + path.sep)) {
-    return path.relative(normalizedRepoRoot, normalized).split(path.sep).join('/');
+    return toPosix(path.relative(normalizedRepoRoot, normalized));
   }
   return normalized;
 };

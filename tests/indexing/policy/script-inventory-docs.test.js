@@ -81,7 +81,7 @@ assertSameList('Phase 3 specs', actualPhaseSpecs, expectedPhaseSpecs);
 
 const expectedStableEntrypoints = [
   '- `node tests/run.js` (repo-local test runner)',
-  '- `node tools/ci/run-suite.js --mode pr` (PR suite)',
+  '- `node tools/ci/run-suite.js --mode ci` (CI suite)',
   '- `node tools/ci/run-suite.js --mode nightly` (nightly suite)',
   '- `npm run lint`',
   '- `npm run format`',
