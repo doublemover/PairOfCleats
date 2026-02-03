@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../../src/shared/hash.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../src/shared/embedding-identity.js';
+import { resolveEmbeddingsCacheRoot } from '../../src/shared/embeddings-cache/index.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 
 export const buildCacheIdentity = (input = {}) => {
@@ -11,10 +12,9 @@ export const buildCacheIdentity = (input = {}) => {
   return { identity, key };
 };
 
-export const resolveCacheRoot = ({ repoCacheRoot, cacheDirConfig }) => {
-  if (cacheDirConfig) return path.resolve(cacheDirConfig);
-  return path.join(repoCacheRoot, 'embeddings');
-};
+export const resolveCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope }) => (
+  resolveEmbeddingsCacheRoot({ repoCacheRoot, cacheDirConfig, scope })
+);
 
 export const resolveCacheDir = (cacheRoot, mode) => path.join(cacheRoot, mode, 'files');
 export const resolveCacheMetaPath = (cacheRoot, mode) => path.join(cacheRoot, mode, 'cache.meta.json');
