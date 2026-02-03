@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot } from '../../../../tools/dict-utils.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-identity.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
@@ -50,16 +49,32 @@ const runNode = (label, args) => {
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
-const repoCacheRoot = getRepoCacheRoot(repoRoot, null);
-const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
-const cacheFiles = fs.existsSync(cacheDir)
-  ? fs.readdirSync(cacheDir).filter((name) => name.endsWith('.json'))
-  : [];
+const cacheDir = path.join(cacheRoot, 'embeddings');
+const cacheFiles = [];
+const walk = (dir) => {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(fullPath);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    if (entry.name === 'cache.meta.json') continue;
+    cacheFiles.push(fullPath);
+  }
+};
+walk(cacheDir);
 if (!cacheFiles.length) {
   console.error('Expected embedding cache files to be created');
   process.exit(1);
 }
-const cachePath = path.join(cacheDir, cacheFiles[0]);
+const cachePath = cacheFiles[0];
 const before = await fsPromises.stat(cachePath);
 
 runNode('build_embeddings cached', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);

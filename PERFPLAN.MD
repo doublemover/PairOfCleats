@@ -335,8 +335,8 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - `docs/guides/commands.md`
 
 ### Tasks
-- [ ] Implement a global, compressed embeddings cache in OS cache root.
-- [ ] Partition cache by provider/model/dims to avoid scanning unrelated entries.
+- [@] Implement a global, compressed embeddings cache in OS cache root.
+- [.] Partition cache by provider/model/dims to avoid scanning unrelated entries.
 - [ ] Replace per-file cache entries with append-only shards + index for faster listing.
 - [ ] Cache format: binary + zstd, store quantized vectors and metadata header.
 - [ ] Include cache schema/version fields (quantization, normalize flags, model identity) in headers.

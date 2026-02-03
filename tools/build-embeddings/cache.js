@@ -3,7 +3,11 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../../src/shared/hash.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../src/shared/embedding-identity.js';
-import { resolveEmbeddingsCacheRoot } from '../../src/shared/embeddings-cache/index.js';
+import {
+  resolveEmbeddingsCacheBase,
+  resolveEmbeddingsCacheModeDir,
+  resolveEmbeddingsCacheRoot
+} from '../../src/shared/embeddings-cache/index.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 
 export const buildCacheIdentity = (input = {}) => {
@@ -16,8 +20,23 @@ export const resolveCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope }) => (
   resolveEmbeddingsCacheRoot({ repoCacheRoot, cacheDirConfig, scope })
 );
 
-export const resolveCacheDir = (cacheRoot, mode) => path.join(cacheRoot, mode, 'files');
-export const resolveCacheMetaPath = (cacheRoot, mode) => path.join(cacheRoot, mode, 'cache.meta.json');
+export const resolveCacheBase = (cacheRoot, identity) => resolveEmbeddingsCacheBase({
+  cacheRoot,
+  provider: identity?.provider,
+  modelId: identity?.modelId,
+  dims: identity?.dims
+});
+
+export const resolveCacheModeDir = (cacheRoot, identity, mode) => (
+  resolveEmbeddingsCacheModeDir(resolveCacheBase(cacheRoot, identity), mode)
+);
+
+export const resolveCacheDir = (cacheRoot, identity, mode) => (
+  path.join(resolveCacheModeDir(cacheRoot, identity, mode), 'files')
+);
+export const resolveCacheMetaPath = (cacheRoot, identity, mode) => (
+  path.join(resolveCacheModeDir(cacheRoot, identity, mode), 'cache.meta.json')
+);
 
 export const buildCacheKey = ({ file, hash, signature, identityKey }) => {
   if (!hash) return null;
@@ -29,8 +48,8 @@ export const isCacheValid = ({ cached, signature, identityKey }) => {
   return cached.cacheMeta?.identityKey === identityKey;
 };
 
-export const readCacheMeta = (cacheRoot, mode) => {
-  const metaPath = resolveCacheMetaPath(cacheRoot, mode);
+export const readCacheMeta = (cacheRoot, identity, mode) => {
+  const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
   if (!metaPath || !fsSync.existsSync(metaPath)) return null;
   try {
     const raw = fsSync.readFileSync(metaPath, 'utf8');
@@ -40,8 +59,8 @@ export const readCacheMeta = (cacheRoot, mode) => {
   }
 };
 
-export const writeCacheMeta = async (cacheRoot, mode, meta) => {
-  const metaPath = resolveCacheMetaPath(cacheRoot, mode);
+export const writeCacheMeta = async (cacheRoot, identity, mode, meta) => {
+  const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
   if (!metaPath) return;
   await fs.mkdir(path.dirname(metaPath), { recursive: true });
   await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });

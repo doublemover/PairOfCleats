@@ -203,9 +203,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
   setHeartbeat(hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {});
 
+  const cacheScopeRaw = embeddingsConfig.cache?.scope;
+  const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
+  const resolvedCacheScope = (cacheScope === 'repo' || cacheScope === 'local') ? 'repo' : 'global';
   const cacheRoot = resolveCacheRoot({
     repoCacheRoot,
-    cacheDirConfig: embeddingsConfig.cache?.dir
+    cacheDirConfig: embeddingsConfig.cache?.dir,
+    scope: resolvedCacheScope
   });
   const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
   const sqliteSharedDb = sqlitePaths?.codePath
@@ -416,9 +420,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           code: null
         };
 
-        const cacheDir = resolveCacheDir(cacheRoot, mode);
+        const cacheDir = resolveCacheDir(cacheRoot, cacheIdentity, mode);
         await fs.mkdir(cacheDir, { recursive: true });
-        const cacheMeta = readCacheMeta(cacheRoot, mode);
+        const cacheMeta = readCacheMeta(cacheRoot, cacheIdentity, mode);
         const cacheMetaMatches = cacheMeta?.identityKey === cacheIdentityKey;
         let cacheEligible = true;
         if (cacheMeta?.identityKey && !cacheMetaMatches) {
@@ -1118,7 +1122,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           updatedAt: cacheMetaNow
         };
         try {
-          await writeCacheMeta(cacheRoot, mode, cacheMetaPayload);
+          await writeCacheMeta(cacheRoot, cacheIdentity, mode, cacheMetaPayload);
         } catch {
         // Ignore cache meta write failures.
         }

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { getDefaultCacheRoot } from '../cache-roots.js';
+import { getCacheRoot } from '../cache-roots.js';
 
 const sanitizeSegment = (value, fallback) => {
   const raw = typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -12,7 +12,7 @@ export const resolveEmbeddingsCacheRoot = ({ repoCacheRoot, cacheDirConfig, scop
   if (cacheDirConfig) return path.resolve(cacheDirConfig);
   const resolvedScope = typeof scope === 'string' ? scope.trim().toLowerCase() : '';
   if (resolvedScope === 'global') {
-    return path.join(getDefaultCacheRoot(), 'embeddings');
+    return path.join(getCacheRoot(), 'embeddings');
   }
   return path.join(repoCacheRoot || '', 'embeddings');
 };
