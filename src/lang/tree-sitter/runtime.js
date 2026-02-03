@@ -60,6 +60,40 @@ function resolveMaxLoadedLanguages(options = {}) {
   return parsed || DEFAULT_MAX_WASM_LANGUAGE_CACHE;
 }
 
+const bumpMetric = (key, amount = 1) => {
+  if (!key) return;
+  const metrics = treeSitterState.metrics;
+  if (!metrics || typeof metrics !== 'object') return;
+  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
+  metrics[key] = current + amount;
+};
+
+export const resetTreeSitterStats = () => {
+  const metrics = treeSitterState.metrics;
+  if (metrics && typeof metrics === 'object') {
+    for (const key of Object.keys(metrics)) {
+      metrics[key] = 0;
+    }
+  }
+  treeSitterState.loggedMissing?.clear?.();
+  treeSitterState.loggedMissingWasm?.clear?.();
+  treeSitterState.loggedEvictionWarnings?.clear?.();
+  treeSitterState.loggedInitFailure?.clear?.();
+  treeSitterState.loggedWorkerFailures?.clear?.();
+};
+
+export const getTreeSitterStats = () => {
+  const metrics = treeSitterState.metrics || {};
+  return {
+    ...metrics,
+    cache: {
+      wasmLanguages: treeSitterState.wasmLanguageCache?.size || 0,
+      languageEntries: treeSitterState.languageCache?.size || 0,
+      activeLanguageId: treeSitterState.sharedParserLanguageId || null
+    }
+  };
+};
+
 function touchWasmLanguageCacheEntry(wasmKey) {
   if (!wasmKey || !treeSitterState.wasmLanguageCache.has(wasmKey)) return;
   const value = treeSitterState.wasmLanguageCache.get(wasmKey);
@@ -113,6 +147,7 @@ function evictOldWasmLanguages(maxSize, options = {}) {
     treeSitterState.wasmLanguageCache.delete(oldestKey);
     removeLanguageCacheEntriesForWasmKey(oldestKey);
     disposeWasmLanguageEntry(entry);
+    bumpMetric('wasmEvictions', 1);
   }
 
   if (guard >= 1024 && options?.log) {
@@ -148,6 +183,49 @@ function resolveRuntimePath() {
   throw new Error('web-tree-sitter WASM runtime not found');
 }
 
+export async function preflightTreeSitterWasmLanguages(languageIds = [], options = {}) {
+  const unique = Array.from(new Set(languageIds || []));
+  if (!unique.length) return { missing: [] };
+  let wasmRoot = null;
+  try {
+    wasmRoot = resolveWasmRoot();
+  } catch (err) {
+    if (options?.log && !treeSitterState.loggedMissingWasm.has('wasm-root')) {
+      options.log(`[tree-sitter] WASM root unavailable (${err?.message || err}).`);
+      treeSitterState.loggedMissingWasm.add('wasm-root');
+    }
+    bumpMetric('wasmMissing', unique.length);
+    return { missing: unique.slice() };
+  }
+  const missing = [];
+  for (const id of unique) {
+    const resolvedId = resolveLanguageId(id);
+    if (!resolvedId) continue;
+    const wasmFile = LANGUAGE_WASM_FILES[resolvedId];
+    if (!wasmFile) {
+      bumpMetric('wasmMissing', 1);
+      if (options?.log && !treeSitterState.loggedMissingWasm.has(resolvedId)) {
+        options.log(`[tree-sitter] Missing WASM mapping for ${resolvedId}.`);
+        treeSitterState.loggedMissingWasm.add(resolvedId);
+      }
+      missing.push(resolvedId);
+      continue;
+    }
+    const wasmPath = path.join(wasmRoot, wasmFile);
+    try {
+      await fs.access(wasmPath);
+    } catch {
+      bumpMetric('wasmMissing', 1);
+      if (options?.log && !treeSitterState.loggedMissingWasm.has(resolvedId)) {
+        options.log(`[tree-sitter] Missing WASM file for ${resolvedId} (${wasmFile}).`);
+        treeSitterState.loggedMissingWasm.add(resolvedId);
+      }
+      missing.push(resolvedId);
+    }
+  }
+  return { missing };
+}
+
 export async function initTreeSitterWasm(options = {}) {
   if (treeSitterState.TreeSitter || treeSitterState.treeSitterInitError) {
     return Boolean(treeSitterState.TreeSitter);
@@ -172,6 +250,7 @@ export async function initTreeSitterWasm(options = {}) {
       treeSitterState.treeSitterInitError = err;
       treeSitterState.TreeSitter = null;
       treeSitterState.TreeSitterLanguage = null;
+      bumpMetric('wasmLoadFailures', 1);
       if (options?.log) {
         options.log(`[tree-sitter] WASM init failed: ${err?.message || err}.`);
       }
@@ -199,6 +278,7 @@ async function loadWasmLanguage(languageId, options = {}) {
   if (!wasmFile) {
     const entry = { language: null, error: new Error(`Missing WASM file for ${resolvedId}`) };
     treeSitterState.languageCache.set(resolvedId, entry);
+    bumpMetric('wasmMissing', 1);
     return entry;
   }
 
@@ -232,6 +312,7 @@ async function loadWasmLanguage(languageId, options = {}) {
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
       touchWasmLanguageCacheEntry(wasmKey);
       evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
+      bumpMetric('wasmLoadFailures', 1);
       return entry;
     }
 
@@ -251,6 +332,7 @@ async function loadWasmLanguage(languageId, options = {}) {
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
       touchWasmLanguageCacheEntry(wasmKey);
       evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
+      bumpMetric('wasmLoads', 1);
       return entry;
     } catch (err) {
       const entry = { language: null, error: err };
@@ -258,6 +340,11 @@ async function loadWasmLanguage(languageId, options = {}) {
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
       touchWasmLanguageCacheEntry(wasmKey);
       evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
+      if (err?.code === 'ENOENT') {
+        bumpMetric('wasmMissing', 1);
+      } else {
+        bumpMetric('wasmLoadFailures', 1);
+      }
       return entry;
     } finally {
       treeSitterState.languageLoadPromises.delete(wasmKey);
@@ -463,6 +550,7 @@ export function getTreeSitterParser(languageId, options = {}) {
       }
       treeSitterState.sharedParser.setLanguage(language);
       treeSitterState.sharedParserLanguageId = resolvedId;
+      bumpMetric('parserActivations', 1);
     }
 
     return treeSitterState.sharedParser;

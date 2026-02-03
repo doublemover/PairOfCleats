@@ -19,12 +19,14 @@ import {
   applyTreeSitterBatching,
   buildTreeSitterEntryBatches,
   assignFileIndexes,
+  collectTreeSitterBatchLanguages,
   normalizeTreeSitterLanguages,
   preloadTreeSitterBatch,
   resolveNextOrderIndex,
   sortEntriesByTreeSitterBatchKey,
   updateEntryTreeSitterBatch
 } from './process-files/tree-sitter.js';
+import { preflightTreeSitterWasmLanguages } from '../../../../lang/tree-sitter.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 
 const FILE_WATCHDOG_MS = 10000;
@@ -109,6 +111,12 @@ export const processFiles = async ({
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
     allowReorder: runtime.shards?.enabled !== true
   });
+  if (runtime.languageOptions?.treeSitter?.enabled !== false) {
+    const preflightLanguages = collectTreeSitterBatchLanguages(entries);
+    if (preflightLanguages.length) {
+      await preflightTreeSitterWasmLanguages(preflightLanguages, { log });
+    }
+  }
   assignFileIndexes(entries);
   const orderIndexState = { next: resolveNextOrderIndex(entries) };
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {

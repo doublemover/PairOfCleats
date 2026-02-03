@@ -18,6 +18,14 @@ const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
 const loggedTraversalBudget = new Set();
 
+const bumpMetric = (key, amount = 1) => {
+  if (!key) return;
+  const metrics = treeSitterState.metrics;
+  if (!metrics || typeof metrics !== 'object') return;
+  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
+  metrics[key] = current + amount;
+};
+
 // Guardrails: keep tree traversal and chunk extraction bounded even on pathological inputs.
 // These caps are intentionally conservative for JS/TS where nested lambdas/callbacks can be dense.
 const DEFAULT_MAX_AST_NODES = 250_000;
@@ -342,6 +350,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!parser) {
     if (shouldDeferMissing) {
       options.treeSitterMissingLanguages.add(resolvedId);
+      bumpMetric('fallbacks', 1);
       return null;
     }
     if (options?.treeSitterMissingLanguages) {
@@ -351,6 +360,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
       loggedUnavailable.add(resolvedId);
     }
+    bumpMetric('fallbacks', 1);
     return null;
   }
   const config = LANG_CONFIG[resolvedId];
@@ -372,8 +382,12 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
           options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
           loggedParseTimeouts.add(resolvedId);
         }
+        bumpMetric('parseTimeouts', 1);
+        bumpMetric('fallbacks', 1);
         return null;
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -386,6 +400,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -403,6 +419,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
           );
           loggedTraversalBudget.add(key);
         }
+        bumpMetric('fallbacks', 1);
         return null;
       }
       nodes = result.nodes;
@@ -412,11 +429,14 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
     if (!nodes.length) {
       recordMetrics();
+      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -429,6 +449,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
     if (!chunks.length) {
       recordMetrics();
+      bumpMetric('fallbacks', 1);
       return null;
     }
     chunks.sort((a, b) => a.start - b.start);
@@ -501,6 +522,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     if (Array.isArray(result) && result.length) return result;
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
+    bumpMetric('workerFallbacks', 1);
     try {
       await preloadTreeSitterLanguages([resolvedId], {
         log: options?.log,
@@ -515,6 +537,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');
     }
+    bumpMetric('workerFallbacks', 1);
     try {
       await preloadTreeSitterLanguages([resolvedId], {
         log: options?.log,

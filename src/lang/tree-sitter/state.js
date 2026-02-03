@@ -21,9 +21,21 @@ export const treeSitterState = {
   wasmLanguageCache: new Map(),
   languageLoadPromises: new Map(),
   loggedMissing: new Set(),
+  loggedMissingWasm: new Set(),
   loggedEvictionWarnings: new Set(),
   loggedInitFailure: new Set(),
   loggedWorkerFailures: new Set(),
+  metrics: {
+    wasmLoads: 0,
+    wasmLoadFailures: 0,
+    wasmMissing: 0,
+    wasmEvictions: 0,
+    parserActivations: 0,
+    parseFailures: 0,
+    parseTimeouts: 0,
+    workerFallbacks: 0,
+    fallbacks: 0
+  },
   treeSitterWorkerPool: null,
   treeSitterWorkerConfigSignature: null
 };

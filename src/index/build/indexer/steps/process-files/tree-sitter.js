@@ -176,6 +176,19 @@ export const buildTreeSitterEntryBatches = (entries) => {
   return batches;
 };
 
+export const collectTreeSitterBatchLanguages = (entries) => {
+  const languages = new Set();
+  for (const entry of entries || []) {
+    const batchLanguages = Array.isArray(entry?.treeSitterBatchLanguages)
+      ? entry.treeSitterBatchLanguages
+      : [];
+    for (const language of batchLanguages) {
+      if (TREE_SITTER_LANG_IDS.has(language)) languages.add(language);
+    }
+  }
+  return Array.from(languages).sort();
+};
+
 export const preloadTreeSitterBatch = async ({ languages, treeSitter, log: logFn }) => {
   if (!treeSitter || treeSitter.enabled === false) return;
   if (!Array.isArray(languages) || !languages.length) return;

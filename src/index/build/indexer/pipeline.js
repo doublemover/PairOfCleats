@@ -12,6 +12,7 @@ import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
+import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -137,6 +138,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     mode,
     buildId: runtime.buildId
   });
+  if (runtime.languageOptions?.treeSitter?.enabled !== false) {
+    resetTreeSitterStats();
+  }
   const featureMetrics = runtime.featureMetrics || null;
   if (featureMetrics?.registerSettings) {
     featureMetrics.registerSettings(mode, buildFeatureSettings(runtime, mode));
@@ -317,7 +321,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       phrasePostings: state.phrasePost?.size || 0,
       chargramPostings: state.triPost?.size || 0,
       fieldPostings: countFieldEntries(state.fieldPostings),
-      fieldDocLengths: countFieldArrayEntries(state.fieldDocLengths)
+      fieldDocLengths: countFieldArrayEntries(state.fieldDocLengths),
+      treeSitter: getTreeSitterStats()
     }
   });
   await updateBuildState(runtimeRef.buildRoot, {
