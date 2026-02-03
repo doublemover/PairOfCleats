@@ -1130,11 +1130,13 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 ### Goals
 - Ensure docs and config inventories reflect new behavior.
 - Require consistent JSDoc for new/shared modules.
+- Comprehensively explain any "tricky" or complicated behaviors
 
 ### Non-goals
 - Writing new features beyond documentation and JSDoc standards.
 
 ### Files to modify (exhaustive for this phase)
+- any files modified by previous phases in this branch
 - `docs/perf/indexing-stage-audit.md`
 - `docs/specs/embeddings-cache.md`
 - `docs/contracts/indexing.md`

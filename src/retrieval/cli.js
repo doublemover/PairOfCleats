@@ -46,6 +46,7 @@ import {
   createQueryPlanCache,
   createQueryPlanEntry
 } from './query-plan-cache.js';
+import { createRetrievalStageTracker } from './pipeline/stage-checkpoints.js';
 
 const defaultQueryPlanCache = createQueryPlanCache();
 
@@ -230,6 +231,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const topN = argv.n;
     const showStats = argv.stats === true;
     const showMatched = argv.matched === true;
+    const stageTracker = createRetrievalStageTracker({ enabled: showStats || explain });
 
     const needsCode = runCode;
     const needsProse = runProse;
@@ -494,6 +496,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         indexSignature: planIndexSignature
       })
       : null;
+    const parseStart = stageTracker.mark();
     const queryPlan = cachedPlanEntry?.plan || buildQueryPlan({
       query,
       argv,
@@ -526,6 +529,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       branchFilter
     });
+    stageTracker.record('parse', parseStart, { mode: 'all' });
     if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
       queryPlanCache.set(
         planCacheKeyInfo.key,
@@ -696,7 +700,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       backendLabel,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       intentInfo: queryPlan.intentInfo,
-      signal
+      signal,
+      stageTracker
     });
 
     const elapsedMs = Date.now() - t0;
@@ -755,7 +760,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       showStats,
       showMatched,
       verboseCache,
-      elapsedMs
+      elapsedMs,
+      stageTracker
     });
 
     await recordSearchArtifacts({

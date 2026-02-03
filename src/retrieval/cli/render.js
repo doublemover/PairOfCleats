@@ -45,28 +45,36 @@ export function renderSearchOutput({
   showStats,
   showMatched,
   verboseCache,
-  elapsedMs
+  elapsedMs,
+  stageTracker,
+  streamJson = false
 }) {
+  const outputStart = stageTracker?.mark?.();
   const proseHitsFinal = expandedHits.prose.hits;
   const extractedProseHitsFinal = expandedHits.extractedProse.hits;
   const codeHitsFinal = expandedHits.code.hits;
   const recordHitsFinal = expandedHits.records.hits;
 
-  const stripTokens = (hit) => {
+  const stripTokensInPlace = (hit) => {
     if (!hit || typeof hit !== 'object') return hit;
-    const { tokens, ...rest } = hit;
-    if (Array.isArray(rest.context)) {
-      rest.context = rest.context.map(stripTokens);
+    if ('tokens' in hit) delete hit.tokens;
+    if (Array.isArray(hit.context)) {
+      hit.context.forEach(stripTokensInPlace);
     }
-    if (Array.isArray(rest.contextHits)) {
-      rest.contextHits = rest.contextHits.map(stripTokens);
+    if (Array.isArray(hit.contextHits)) {
+      hit.contextHits.forEach(stripTokensInPlace);
     }
-    return rest;
+    return hit;
   };
-  const sanitize = (hits) => (jsonOutput && !jsonCompact ? hits.map(stripTokens) : hits);
+  const sanitize = (hits) => {
+    if (!jsonOutput || jsonCompact) return hits;
+    hits.forEach(stripTokensInPlace);
+    return hits;
+  };
 
   const includeStats = showStats || explain;
   const memory = includeStats ? process.memoryUsage() : null;
+  const allowSummary = !jsonOutput && (contextExpansionEnabled || showMatched || explain || showStats);
   const payload = {
     backend: backendLabel,
     prose: jsonCompact ? proseHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(proseHitsFinal),
@@ -77,6 +85,9 @@ export function renderSearchOutput({
     records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(recordHitsFinal)
   };
 
+  if (outputStart) {
+    stageTracker?.record?.('output', outputStart, { mode: 'all' });
+  }
   if (includeStats) {
     const vectorAnnActive = vectorAnnEnabled
       && (vectorAnnUsed.code
@@ -145,6 +156,9 @@ export function renderSearchOutput({
         }
         : null
     };
+    if (stageTracker?.stages?.length) {
+      payload.stats.pipeline = stageTracker.stages;
+    }
   }
 
   if (explain) {
@@ -158,7 +172,39 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && jsonOutput) {
-    console.log(JSON.stringify(payload));
+    const totalHits = payload.prose.length
+      + payload.extractedProse.length
+      + payload.code.length
+      + payload.records.length;
+    const shouldStream = streamJson || totalHits >= 500;
+    if (shouldStream) {
+      const out = process.stdout;
+      const writeArray = (arr) => {
+        out.write('[');
+        arr.forEach((item, index) => {
+          if (index > 0) out.write(',');
+          out.write(JSON.stringify(item));
+        });
+        out.write(']');
+      };
+      out.write('{');
+      out.write(`\"backend\":${JSON.stringify(payload.backend)}`);
+      out.write(',\"prose\":');
+      writeArray(payload.prose);
+      out.write(',\"extractedProse\":');
+      writeArray(payload.extractedProse);
+      out.write(',\"code\":');
+      writeArray(payload.code);
+      out.write(',\"records\":');
+      writeArray(payload.records);
+      if (payload.stats) {
+        out.write(',\"stats\":');
+        out.write(JSON.stringify(payload.stats));
+      }
+      out.write('}\n');
+    } else {
+      console.log(JSON.stringify(payload));
+    }
   }
 
   if (emitOutput && !jsonOutput) {
@@ -208,7 +254,8 @@ export function renderSearchOutput({
             rx: highlightRegex,
             matched: showMatched,
             rootDir,
-            summaryState
+            summaryState,
+            allowSummary
           }));
         } else {
           process.stderr.write(formatShortChunk({
@@ -246,7 +293,8 @@ export function renderSearchOutput({
             rx: highlightRegex,
             matched: showMatched,
             rootDir,
-            summaryState
+            summaryState,
+            allowSummary
           }));
         } else {
           process.stderr.write(formatShortChunk({
@@ -284,7 +332,8 @@ export function renderSearchOutput({
             rx: highlightRegex,
             matched: showMatched,
             rootDir,
-            summaryState
+            summaryState,
+            allowSummary
           }));
         } else {
           process.stderr.write(formatShortChunk({

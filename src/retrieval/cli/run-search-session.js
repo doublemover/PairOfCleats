@@ -96,7 +96,8 @@ export async function runSearchSession({
   backendLabel,
   resolvedDenseVectorMode,
   intentInfo,
-  signal
+  signal,
+  stageTracker
 }) {
   const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
     ? resolvedDenseVectorMode.trim().toLowerCase()
@@ -147,6 +148,7 @@ export async function runSearchSession({
     scoreBlend,
     rrf,
     graphRankingConfig,
+    stageTracker,
     minhashMaxDocs,
     sparseBackend,
     vectorAnnState,
