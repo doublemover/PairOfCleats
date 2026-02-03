@@ -1,5 +1,9 @@
 # SPEC -- Phase 14: Implementation Checklist (Codex‑Ready) (Refreshed)
 
+> STATUS (2026-02-03): Draft checklist only. Phase 14 is not implemented in the repo.
+> Treat `GIGAROADMAP_2.md` (Phase 14) and `docs/specs/implementation-checklist.md`
+> as authoritative. Update those first, then refresh this draft.
+
 This document is an execution checklist to minimize ambiguity while implementing Phase 14:
 - IndexRefs + snapshot registry + freeze
 - Index diffs

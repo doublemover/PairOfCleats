@@ -1,5 +1,10 @@
 # SPEC -- Phase 14: HTTP API Surface for Snapshots, Diffs, and As‑Of Search (Draft)
 
+> STATUS (2026-02-03): Draft spec only. Phase 14 is not implemented in the repo.
+> Treat `GIGAROADMAP_2.md` (Phase 14) as authoritative. There is no
+> `docs/specs/http-api.md` yet; if HTTP endpoints are required, create that
+> spec first and update this draft after.
+
 > **Scope**: Optional HTTP endpoints to expose Phase 14 snapshot/diff/time-travel functionality.
 > This is intended for parity with UI/MCP use cases.
 >

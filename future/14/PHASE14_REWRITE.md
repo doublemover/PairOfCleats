@@ -1,5 +1,9 @@
 ## Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
 
+> STATUS (2026-02-03): Draft roadmap only. Phase 14 is not implemented in the repo.
+> Treat `GIGAROADMAP_2.md` (Phase 14) and `docs/specs/*` (Phase 14 specs) as
+> authoritative. Update those first, then refresh this draft.
+
 ### Objective
 
 Introduce **first-class snapshot and diff artifacts** to enable:

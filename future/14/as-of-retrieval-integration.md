@@ -1,5 +1,9 @@
 # SPEC -- Phase 14: As‑Of Retrieval Integration (Time‑Travel Search) (Refined)
 
+> STATUS (2026-02-03): Draft spec only. Phase 14 is not implemented in the repo.
+> Treat `GIGAROADMAP_2.md` (Phase 14) and `docs/specs/as-of-retrieval-integration.md`
+> as authoritative. Update those first, then refresh this draft.
+
 > **Scope**: Extend `pairofcleats search` to query historical index versions via `--as-of <IndexRef>`, leveraging the Phase 14 IndexRef + snapshot registry.
 >
 > **Goal**: Make time‑travel retrieval deterministic, cache-safe, and minimally invasive to existing retrieval code.

@@ -1,5 +1,10 @@
 # SPEC -- Phase 14: Config Defaults for Snapshots, Diffs, and Retention (Draft)
 
+> STATUS (2026-02-03): Draft spec only. Phase 14 is not implemented in the repo.
+> Treat `GIGAROADMAP_2.md` (Phase 14) as authoritative. There is no
+> `docs/specs/config-defaults.md` yet; if these defaults are implemented,
+> create that spec first and update this draft after.
+
 > **Scope**: Optional (but recommended) configuration keys that provide repo-level defaults for:
 > - snapshot retention and pruning
 > - diff retention and pruning
