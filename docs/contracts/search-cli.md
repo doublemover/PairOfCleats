@@ -16,7 +16,7 @@ This document defines the CLI interface and output contract for **search**.
 ### Common flags
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
-- `--top <n>` (alias: `-n`): number of results
+- `--top <n>` (alias: `-n`, `--n`): number of results
 - `--json`: emit JSON output
 - `--compact`: compact JSON output
 - `--stats`: include stats payload

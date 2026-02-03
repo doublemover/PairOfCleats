@@ -1,11 +1,11 @@
 # Doc Contract Drift
 
-Status: DRIFT
+Status: OK
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
 - source: src/retrieval/cli-args.js
-- missing in docs (1): --n
+- missing in docs: none
 - extra in docs: none
 
 ## searchContractFlags

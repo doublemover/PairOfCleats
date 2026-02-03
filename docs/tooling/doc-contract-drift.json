@@ -1,15 +1,13 @@
 {
-  "generatedAt": "2026-02-03T07:27:17.523Z",
-  "ok": false,
+  "generatedAt": "2026-02-03T07:30:21.433Z",
+  "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
       "sourceCount": 77,
-      "docCount": 76,
-      "missingInDocs": [
-        "--n"
-      ],
+      "docCount": 77,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "searchContractFlags": {
