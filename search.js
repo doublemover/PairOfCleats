@@ -18,13 +18,13 @@ await search(null, { args, emitOutput: true, exitOnError: true });
 
 function hasHelpArg(values) {
   return Array.isArray(values) && values.some((value) => (
-    value === '--help' || value === '-h' || value === 'help'
+    value === '--help' || value === '-h'
   ));
 }
 
 function hasVersionArg(values) {
   return Array.isArray(values) && values.some((value) => (
-    value === '--version' || value === '-v' || value === 'version'
+    value === '--version' || value === '-v'
   ));
 }
 
