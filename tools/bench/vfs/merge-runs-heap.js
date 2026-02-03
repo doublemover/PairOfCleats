@@ -4,60 +4,6 @@ import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
 
-const rawArgs = process.argv.slice(2);
-const cli = createCli({
-  scriptName: 'merge-runs-heap',
-  argv: ['node', 'merge-runs-heap', ...rawArgs],
-  options: {
-    runs: { type: 'string', default: '10,50,200', describe: 'Run counts (comma-separated)' },
-    runSize: { type: 'number', default: 2000, describe: 'Entries per run' },
-    samples: { type: 'number', default: 3, describe: 'Repeat count for timing stats' },
-    seed: { type: 'number', default: 1 },
-    json: { type: 'boolean', default: false },
-    out: { type: 'string', describe: 'Write JSON results to a file' }
-  }
-});
-const argv = cli.parse();
-
-const runSizes = parseRunCounts(argv.runs);
-const runSize = clampInt(argv.runSize, 1, 2000);
-const samples = clampInt(argv.samples, 1, 3);
-const seed = Number.isFinite(argv.seed) ? Number(argv.seed) : 1;
-
-const scenarios = [];
-for (const runCount of runSizes) {
-  const runs = buildRuns({ runCount, runSize, seed: seed + runCount });
-  const linear = runMergeBench({ runs, samples, fn: mergeLinear });
-  const heap = runMergeBench({ runs, samples, fn: mergeHeap });
-  scenarios.push({
-    runs: runCount,
-    runSize,
-    items: runCount * runSize,
-    linear,
-    heap
-  });
-}
-
-const results = {
-  generatedAt: new Date().toISOString(),
-  scenarios
-};
-
-if (argv.out) {
-  const outPath = path.resolve(String(argv.out));
-  writeJsonWithDir(outPath, results);
-}
-
-if (argv.json) {
-  console.log(JSON.stringify(results, null, 2));
-} else {
-  for (const scenario of scenarios) {
-    console.error(`[merge-runs] runs=${scenario.runs} runSize=${scenario.runSize}`);
-    printBench('linear', scenario.linear, scenario.items);
-    printBench('heap', scenario.heap, scenario.items);
-  }
-}
-
 function clampInt(value, min, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -95,56 +41,6 @@ function buildRuns({ runCount, runSize, seed }) {
     runs[i] = run;
   }
   return runs;
-}
-
-function mergeLinear(runs) {
-  const pointers = new Array(runs.length).fill(0);
-  let checksum = 0;
-  let last = -Infinity;
-  const totalItems = runs.reduce((sum, run) => sum + run.length, 0);
-  for (let out = 0; out < totalItems; out += 1) {
-    let minIndex = -1;
-    let minValue = 0;
-    for (let i = 0; i < runs.length; i += 1) {
-      const idx = pointers[i];
-      if (idx >= runs[i].length) continue;
-      const value = runs[i][idx];
-      if (minIndex === -1 || value < minValue) {
-        minIndex = i;
-        minValue = value;
-      }
-    }
-    pointers[minIndex] += 1;
-    last = minValue;
-    checksum = (checksum + minValue) % 1000000007;
-  }
-  return { count: totalItems, checksum, last };
-}
-
-function mergeHeap(runs) {
-  const heap = new MinHeap();
-  const positions = new Array(runs.length).fill(0);
-  for (let i = 0; i < runs.length; i += 1) {
-    if (runs[i].length) {
-      heap.push({ value: runs[i][0], runIndex: i });
-    }
-  }
-  let checksum = 0;
-  let last = -Infinity;
-  let count = 0;
-  while (heap.size() > 0) {
-    const next = heap.pop();
-    count += 1;
-    last = next.value;
-    checksum = (checksum + next.value) % 1000000007;
-    const runIndex = next.runIndex;
-    positions[runIndex] += 1;
-    const nextPos = positions[runIndex];
-    if (nextPos < runs[runIndex].length) {
-      heap.push({ value: runs[runIndex][nextPos], runIndex });
-    }
-  }
-  return { count, checksum, last };
 }
 
 class MinHeap {
@@ -212,6 +108,56 @@ class MinHeap {
   }
 }
 
+function mergeLinear(runs) {
+  const pointers = new Array(runs.length).fill(0);
+  let checksum = 0;
+  let last = -Infinity;
+  const totalItems = runs.reduce((sum, run) => sum + run.length, 0);
+  for (let out = 0; out < totalItems; out += 1) {
+    let minIndex = -1;
+    let minValue = 0;
+    for (let i = 0; i < runs.length; i += 1) {
+      const idx = pointers[i];
+      if (idx >= runs[i].length) continue;
+      const value = runs[i][idx];
+      if (minIndex === -1 || value < minValue) {
+        minIndex = i;
+        minValue = value;
+      }
+    }
+    pointers[minIndex] += 1;
+    last = minValue;
+    checksum = (checksum + minValue) % 1000000007;
+  }
+  return { count: totalItems, checksum, last };
+}
+
+function mergeHeap(runs) {
+  const heap = new MinHeap();
+  const positions = new Array(runs.length).fill(0);
+  for (let i = 0; i < runs.length; i += 1) {
+    if (runs[i].length) {
+      heap.push({ value: runs[i][0], runIndex: i });
+    }
+  }
+  let checksum = 0;
+  let last = -Infinity;
+  let count = 0;
+  while (heap.size() > 0) {
+    const next = heap.pop();
+    count += 1;
+    last = next.value;
+    checksum = (checksum + next.value) % 1000000007;
+    const runIndex = next.runIndex;
+    positions[runIndex] += 1;
+    const nextPos = positions[runIndex];
+    if (nextPos < runs[runIndex].length) {
+      heap.push({ value: runs[runIndex][nextPos], runIndex });
+    }
+  }
+  return { count, checksum, last };
+}
+
 function runMergeBench({ runs, samples, fn }) {
   const timings = [];
   let totalMs = 0;
@@ -235,3 +181,61 @@ function printBench(label, bench, items) {
   const rate = Number.isFinite(bench.itemsPerSec) ? bench.itemsPerSec.toFixed(1) : 'n/a';
   console.error(`- ${label}: ${stats} | items=${items} | items/sec ${rate}`);
 }
+
+function main() {
+  const rawArgs = process.argv.slice(2);
+  const cli = createCli({
+    scriptName: 'merge-runs-heap',
+    argv: ['node', 'merge-runs-heap', ...rawArgs],
+    options: {
+      runs: { type: 'string', default: '10,50,200', describe: 'Run counts (comma-separated)' },
+      runSize: { type: 'number', default: 2000, describe: 'Entries per run' },
+      samples: { type: 'number', default: 3, describe: 'Repeat count for timing stats' },
+      seed: { type: 'number', default: 1 },
+      json: { type: 'boolean', default: false },
+      out: { type: 'string', describe: 'Write JSON results to a file' }
+    }
+  });
+  const argv = cli.parse();
+
+  const runSizes = parseRunCounts(argv.runs);
+  const runSize = clampInt(argv.runSize, 1, 2000);
+  const samples = clampInt(argv.samples, 1, 3);
+  const seed = Number.isFinite(argv.seed) ? Number(argv.seed) : 1;
+
+  const scenarios = [];
+  for (const runCount of runSizes) {
+    const runs = buildRuns({ runCount, runSize, seed: seed + runCount });
+    const linear = runMergeBench({ runs, samples, fn: mergeLinear });
+    const heap = runMergeBench({ runs, samples, fn: mergeHeap });
+    scenarios.push({
+      runs: runCount,
+      runSize,
+      items: runCount * runSize,
+      linear,
+      heap
+    });
+  }
+
+  const results = {
+    generatedAt: new Date().toISOString(),
+    scenarios
+  };
+
+  if (argv.out) {
+    const outPath = path.resolve(String(argv.out));
+    writeJsonWithDir(outPath, results);
+  }
+
+  if (argv.json) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    for (const scenario of scenarios) {
+      console.error(`[merge-runs] runs=${scenario.runs} runSize=${scenario.runSize}`);
+      printBench('linear', scenario.linear, scenario.items);
+      printBench('heap', scenario.heap, scenario.items);
+    }
+  }
+}
+
+main();
