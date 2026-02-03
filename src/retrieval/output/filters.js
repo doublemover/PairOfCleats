@@ -315,10 +315,7 @@ const matchChunkFilters = (c, state) => {
     extends: extendsFilter,
     async: asyncOnly,
     generator: generatorOnly,
-    returns: returnsOnly,
-    structPack,
-    structRule,
-    structTag
+    returns: returnsOnly
   } = filters;
 
   if (!matchFileFilters({ chunk: c, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize })) {
@@ -454,10 +451,6 @@ const matchChunkFilters = (c, state) => {
   }
   if (filters.awaits && (!Array.isArray(c.docmeta?.awaits) || !c.docmeta.awaits.length)) return false;
   if (decorator && (!Array.isArray(c.docmeta?.decorators) || !c.docmeta.decorators.length)) return false;
-  if (structPack && !matchList(c.struct?.pack, structPack, normalize)) return false;
-  if (structRule && !matchList(c.struct?.rule, structRule, normalize)) return false;
-  if (structTag && !matchList(c.struct?.tag, structTag, normalize)) return false;
-
   return true;
 };
 

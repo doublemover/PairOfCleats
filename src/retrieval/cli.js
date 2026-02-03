@@ -60,6 +60,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
+  let queryPlanCache = options.queryPlanCache ?? null;
 
   if (signal?.aborted) {
     const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
@@ -103,15 +104,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
 
   configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
-  const queryPlanCachePath = path.join(
-    queryCacheDir || metricsDir,
-    'queryPlanCache.json'
-  );
-  const queryPlanCache = options.queryPlanCache
-    ?? createQueryPlanDiskCache({ path: queryPlanCachePath });
-  if (typeof queryPlanCache?.load === 'function') {
-    queryPlanCache.load();
-  }
 
   const { bail, throwIfAborted } = createRunnerHelpers({
     emitOutput,
@@ -131,6 +123,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
+    if (!queryPlanCache) {
+      const queryPlanCachePath = path.join(
+        queryCacheDir || metricsDir,
+        'queryPlanCache.json'
+      );
+      queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
+      if (typeof queryPlanCache?.load === 'function') {
+        queryPlanCache.load();
+      }
+    }
     let normalized;
     try {
       normalized = normalizeSearchOptions({
