@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T03:12:05.994Z",
+  "generatedAt": "2026-02-03T09:31:35.251Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2000,7 +2000,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 252,
+    "totalFlags": 253,
     "publicFlags": [
       "backend",
       "host",
@@ -2242,6 +2242,7 @@
       "topKByDegree",
       "translateTime",
       "treeSitter",
+      "treeSitterMissingLanguages",
       "type",
       "update",
       "url",
@@ -2460,7 +2461,29 @@
         ]
       },
       {
+        "file": "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+        "flags": [
+          "log",
+          "treeSitter",
+          "treeSitterMissingLanguages"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
         "flags": [
           "log",
           "treeSitter"
@@ -3480,6 +3503,30 @@
         ]
       },
       {
+        "flag": "log",
+        "count": 6,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
+        ]
+      },
+      {
+        "flag": "treeSitter",
+        "count": 6,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
+        ]
+      },
+      {
         "flag": "ann",
         "count": 5,
         "files": [
@@ -3743,15 +3790,6 @@
         ]
       },
       {
-        "flag": "log",
-        "count": 3,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
-        ]
-      },
-      {
         "flag": "maxFanoutPerNode",
         "count": 3,
         "files": [
@@ -3785,15 +3823,6 @@
           "tools/ctags-ingest.js",
           "tools/gtags-ingest.js",
           "tools/scip-ingest.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 3,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js"
         ]
       },
       {

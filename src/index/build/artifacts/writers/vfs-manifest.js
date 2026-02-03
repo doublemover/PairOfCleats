@@ -229,7 +229,6 @@ const writeJsonLinesShardedAsync = async (input) => {
       }
       if (resolvedMaxBytes && partLogicalBytes >= resolvedMaxBytes) {
         await closePart();
-        openPart();
       }
     }
     await closePart();
@@ -308,6 +307,7 @@ export const enqueueVfsManifestArtifacts = async ({
     return;
   }
   if (maxJsonBytes && measurement.maxLineBytes > maxJsonBytes) {
+    await resolved.cleanup();
     throw new Error(`vfs_manifest row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
   const useShards = maxJsonBytes && measurement.totalBytes > maxJsonBytes;

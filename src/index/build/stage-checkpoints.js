@@ -29,6 +29,7 @@ const captureMemorySnapshot = () => {
 const updateHighWater = (target, source) => {
   if (!isObject(target) || !isObject(source)) return;
   for (const [key, value] of Object.entries(source)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     if (Number.isFinite(value)) {
       const current = target[key];
       if (!Number.isFinite(current) || value > current) target[key] = value;
