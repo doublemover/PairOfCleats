@@ -1,4 +1,8 @@
-import { buildFilterIndex, serializeFilterIndex } from '../../../retrieval/filter-index.js';
+import {
+  buildFilterIndex,
+  releaseFilterIndexMemory,
+  serializeFilterIndex
+} from '../../../retrieval/filter-index.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { buildContentConfigHash } from '../runtime/hash.js';
 
@@ -20,10 +24,12 @@ export const buildSerializedFilterIndex = ({ chunks, resolvedConfig, userConfig,
   const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : resolvedConfig.chargramMinN;
-  const serialized = serializeFilterIndex(buildFilterIndex(chunks, {
+  const index = buildFilterIndex(chunks, {
     fileChargramN,
     includeBitmaps: false
-  }));
+  });
+  const serialized = serializeFilterIndex(index);
+  releaseFilterIndexMemory(index);
   return {
     ...serialized,
     schemaVersion: FILTER_INDEX_SCHEMA_VERSION,

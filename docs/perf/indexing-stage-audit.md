@@ -49,3 +49,8 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Token sequences share the token array when no synonyms are present to reduce duplicate retention.
 - Field/comment tokens are only materialized when fielded/phrase/chargram sources require them.
 - Postings maps are cleared as soon as dense arrays are materialized to keep peak heap lower.
+
+## Stage2 Memory Notes
+- Call-site edges are added directly during graph construction to avoid buffering large edge lists.
+- Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention.
+- Filter index maps/sets are released after serialization to reduce retention during artifact writes.

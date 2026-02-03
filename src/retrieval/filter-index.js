@@ -108,6 +108,22 @@ const serializeMap = (map) => {
   return out;
 };
 
+const clearMapSets = (map) => {
+  if (!map || typeof map.values !== 'function') return;
+  for (const value of map.values()) {
+    if (value && typeof value.clear === 'function') value.clear();
+  }
+  if (typeof map.clear === 'function') map.clear();
+};
+
+const clearSetArray = (list) => {
+  if (!Array.isArray(list)) return;
+  for (const entry of list) {
+    if (entry && typeof entry.clear === 'function') entry.clear();
+  }
+  list.length = 0;
+};
+
 const hydrateMap = (value) => {
   const map = new Map();
   if (!value || typeof value !== 'object') return map;
@@ -133,6 +149,23 @@ export function serializeFilterIndex(index) {
       : [],
     fileChargrams: serializeMap(index.fileChargrams)
   };
+}
+
+export function releaseFilterIndexMemory(index) {
+  if (!index || typeof index !== 'object') return;
+  clearMapSets(index.byExt);
+  clearMapSets(index.byLang);
+  clearMapSets(index.byKind);
+  clearMapSets(index.byAuthor);
+  clearMapSets(index.byChunkAuthor);
+  clearMapSets(index.byVisibility);
+  clearMapSets(index.fileChargrams);
+  clearSetArray(index.fileChunksById);
+  if (Array.isArray(index.fileById)) index.fileById.length = 0;
+  if (index.fileIdByPath && typeof index.fileIdByPath.clear === 'function') {
+    index.fileIdByPath.clear();
+  }
+  index.bitmap = null;
 }
 
 export function hydrateFilterIndex(raw) {

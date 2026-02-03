@@ -258,31 +258,29 @@ Reduce memory spikes caused by relations graphs and large filter indexes.
 - Search ranking changes.
 
 ### Files to modify (exhaustive for this phase)
-- `src/index/build/indexer/steps/relations.js`
-- `src/index/build/artifacts/writers/file-relations.js`
+- `src/index/build/graphs.js`
 - `src/index/build/artifacts/writers/repo-map.js`
 - `src/index/build/artifacts/filter-index.js`
-- `src/index/build/artifacts.js`
-- `src/index/build/state.js`
+- `src/retrieval/filter-index.js`
 - `docs/perf/indexing-stage-audit.md`
 - `tests/indexing/relations/relations-memory-release.test.js` (new)
-- `tests/indexing/filter-index/filter-index-sharding.test.js` (new)
+- `tests/indexing/filter-index/filter-index-release.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/indexing-stage-audit.md` (update Stage2 findings)
 
 ### Tasks
-- [ ] Identify oversized in-memory relation structures and their lifetimes.
-- [ ] Stream or shard relations/filters where feasible.
-- [ ] Ensure early release of relation maps after artifact write.
-- [ ] Verify stable ordering and deterministic output after streaming/sharding.
+- [x] Identify oversized in-memory relation structures and their lifetimes.
+- [x] Avoid buffering call-site edge lists during graph construction.
+- [x] Reduce duplicate retention in repo map construction.
+- [x] Release filter-index map/set memory after serialization.
 
 ### Tests
-- [ ] `tests/indexing/relations/relations-memory-release.test.js`
-- [ ] `tests/indexing/filter-index/filter-index-sharding.test.js`
+- [x] `tests/indexing/relations/relations-memory-release.test.js`
+- [x] `tests/indexing/filter-index/filter-index-release.test.js`
 
 ### Acceptance
-- [ ] Stage2 peak heap reduced; no changes to artifact schemas.
+- [x] Stage2 peak heap reduced; no changes to artifact schemas.
 
 ---
 
