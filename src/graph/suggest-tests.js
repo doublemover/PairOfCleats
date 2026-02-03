@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { isAbsolutePath, toPosix } from '../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
@@ -28,9 +28,9 @@ const normalizePath = (value, repoRoot) => {
   if (!value) return null;
   const raw = String(value);
   let normalized = raw;
-  if (repoRoot && isAbsolutePath(raw)) {
+  if (repoRoot && isAbsolutePathNative(raw)) {
     const rel = path.relative(repoRoot, raw);
-    if (rel && !rel.startsWith('..') && !isAbsolutePath(rel)) {
+    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
       normalized = rel;
     }
   }

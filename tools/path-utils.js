@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative } from '../src/shared/files.js';
 
 /**
  * Check if a path is contained within another path.
@@ -9,7 +9,7 @@ import { isAbsolutePath } from '../src/shared/files.js';
  */
 export function isInside(parent, child) {
   const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolutePath(rel));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
 }
 
 /**

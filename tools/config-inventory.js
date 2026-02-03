@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveToolRoot } from './dict-utils.js';
+import { toPosix } from '../src/shared/files.js';
 import { collectSchemaEntries, getLeafEntries, mergeEntry } from './config-inventory/schema.js';
 import { listSourceFiles, scanSourceFiles } from './config-inventory/scan.js';
 import { buildInventoryReportMarkdown } from './config-inventory/report.js';
@@ -213,7 +214,7 @@ export const buildInventory = async (options = {}) => {
       knownConfigKeys: Array.from(knownConfigLeafKeys).sort()
     },
     configSchema: {
-      path: path.relative(root, schemaPath).replace(/\\/g, '/'),
+      path: toPosix(path.relative(root, schemaPath)),
       totalKeys: configEntries.length,
       leafKeys: configLeafEntries.length,
       topLevel: Array.from(topLevel.entries())

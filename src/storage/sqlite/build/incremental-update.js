@@ -7,8 +7,11 @@ import { hasRequiredTables, normalizeFilePath, removeSqliteSidecars } from '../u
 import {
   packUint32,
   packUint8,
+  isVectorEncodingCompatible,
   quantizeVec,
+  resolveEncodedVectorBytes,
   resolveQuantizationParams,
+  resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
 import { deleteDocIds, updateTokenStats } from './delete.js';
@@ -36,6 +39,21 @@ class IncrementalSkipError extends Error {
   }
 }
 
+/**
+ * Apply an incremental update to a sqlite index using bundle deltas.
+ * @param {object} params
+ * @param {import('better-sqlite3').Database} params.Database
+ * @param {string} params.outPath
+ * @param {'code'|'prose'|'extracted-prose'|'records'} params.mode
+ * @param {object} params.incrementalData
+ * @param {object} params.modelConfig
+ * @param {object} params.vectorConfig
+ * @param {boolean} params.emitOutput
+ * @param {string} params.validateMode
+ * @param {object} [params.expectedDense]
+ * @param {object} [params.logger]
+ * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number}>}
+ */
 export async function incrementalUpdateDatabase({
   Database,
   outPath,
@@ -332,6 +350,7 @@ export async function incrementalUpdateDatabase({
   let denseMetaSet = false;
   let denseDims = null;
   let vectorAnnWarned = false;
+  let vectorAnnInsertWarned = false;
   let vectorAnn = null;
   if (vectorAnnEnabled) {
     vectorAnn = prepareVectorAnnInsert({ db, mode, vectorConfig });
@@ -514,7 +533,27 @@ export async function incrementalUpdateDatabase({
             }
             if (vectorAnn.ready && vectorAnn.insert && encodeVector) {
               const encoded = encodeVector(chunk.embedding, vectorExtension);
-              if (encoded) vectorAnn.insert.run(toSqliteRowId(docId), encoded);
+              if (encoded) {
+                const compatible = isVectorEncodingCompatible({
+                  encoded,
+                  dims,
+                  encoding: vectorExtension.encoding
+                });
+                if (!compatible) {
+                  if (!vectorAnnInsertWarned && emitOutput) {
+                    const expectedBytes = resolveVectorEncodingBytes(dims, vectorExtension.encoding);
+                    const actualBytes = resolveEncodedVectorBytes(encoded);
+                    warn(
+                      `[sqlite] Vector extension insert skipped for ${mode}: ` +
+                      `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
+                      `(dims=${dims}, encoding=${vectorExtension.encoding || 'float32'}).`
+                    );
+                    vectorAnnInsertWarned = true;
+                  }
+                } else {
+                  vectorAnn.insert.run(toSqliteRowId(docId), encoded);
+                }
+              }
             }
           }
         }

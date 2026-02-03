@@ -3,6 +3,10 @@
 This document holds detailed system diagrams. The README only keeps a simplified, high-level explainer.
 Update these diagrams when the pipeline changes.
 
+## Path handling
+
+See `docs/guides/path-handling.md` for the canonical path policy used across indexing and tooling.
+
 ## Indexing (build)
 
 ### 0) Runtime + config resolution

@@ -3,9 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fdir } from 'fdir';
 import { resolveToolRoot } from './dict-utils.js';
+import { toPosix } from '../src/shared/files.js';
 
 const root = resolveToolRoot();
-const allowedFile = path.join(root, 'src', 'shared', 'env.js').replace(/\\/g, '/');
+const allowedFile = toPosix(path.join(root, 'src', 'shared', 'env.js'));
 const envNameRegex = /PAIROFCLEATS_[A-Z0-9_]+/g;
 const envRegexes = [
   /process\.env\s*\??\.\s*PAIROFCLEATS_[A-Z0-9_]+/g,
@@ -17,7 +18,7 @@ const listSourceFiles = async () => {
   const files = await new fdir().withFullPaths().crawl(root).withPromise();
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = toPosix(filePath);
     if (normalized.includes('/node_modules/')) return false;
     if (normalized.includes('/.git/')) return false;
     if (normalized.includes('/tests/')) return false;
@@ -33,7 +34,7 @@ const run = async () => {
   const violations = [];
 
   for (const filePath of files) {
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = toPosix(filePath);
     if (normalized === allowedFile) continue;
     const source = await fs.readFile(filePath, 'utf8');
     const matches = new Set();
@@ -47,7 +48,7 @@ const run = async () => {
     }
     if (matches.size) {
       violations.push({
-        file: path.relative(root, filePath).replace(/\\/g, '/'),
+        file: toPosix(path.relative(root, filePath)),
         vars: Array.from(matches).sort()
       });
     }

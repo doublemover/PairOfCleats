@@ -13,7 +13,10 @@ import {
   packUint32,
   packUint8,
   dequantizeUint8ToFloat32,
+  isVectorEncodingCompatible,
   resolveQuantizationParams,
+  resolveEncodedVectorBytes,
+  resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
@@ -177,6 +180,24 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
   };
 };
 
+/**
+ * Build a sqlite database from artifact files.
+ * @param {object} params
+ * @param {import('better-sqlite3').Database} params.Database
+ * @param {string} [params.outPath]
+ * @param {string} [params.outputPath]
+ * @param {object} [params.index]
+ * @param {string} [params.indexDir]
+ * @param {object} [params.pieces]
+ * @param {'code'|'prose'|'extracted-prose'|'records'} params.mode
+ * @param {object} [params.manifestFiles]
+ * @param {boolean} params.emitOutput
+ * @param {string} params.validateMode
+ * @param {object} params.vectorConfig
+ * @param {object} params.modelConfig
+ * @param {object} [params.logger]
+ * @returns {Promise<{count:number,denseCount:number}>}
+ */
 export async function buildDatabaseFromArtifacts({
   Database,
   outPath,
@@ -229,6 +250,7 @@ export async function buildDatabaseFromArtifacts({
   const vectorExtension = vectorConfig?.extension || {};
   const encodeVector = vectorConfig?.encodeVector;
   const quantization = resolveQuantizationParams(vectorConfig?.quantization);
+  let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
   applyBuildPragmas(db);
@@ -432,10 +454,13 @@ export async function buildDatabaseFromArtifacts({
 
     function ingestDense(dense, targetMode) {
       if (!dense?.vectors || !dense.vectors.length) return;
+      const denseDims = Number.isFinite(dense?.dims)
+        ? Number(dense.dims)
+        : (dense.vectors.find((vec) => vec && vec.length)?.length || 0);
       const insertTx = db.transaction(() => {
         insertDenseMeta.run(
           targetMode,
-          dense.dims || null,
+          denseDims || null,
           typeof dense.scale === 'number' ? dense.scale : 1.0,
           dense.model || modelConfig.id || null,
           quantization.minVal,
@@ -455,7 +480,27 @@ export async function buildDatabaseFromArtifacts({
               quantization.levels
             );
             const encoded = encodeVector(floatVec, vectorExtension);
-            if (encoded) vectorAnn.insert.run(toSqliteRowId(docId), encoded);
+            if (encoded) {
+              const compatible = isVectorEncodingCompatible({
+                encoded,
+                dims: denseDims,
+                encoding: vectorExtension.encoding
+              });
+              if (!compatible) {
+                if (!vectorAnnInsertWarned) {
+                  const expectedBytes = resolveVectorEncodingBytes(denseDims, vectorExtension.encoding);
+                  const actualBytes = resolveEncodedVectorBytes(encoded);
+                  warn(
+                    `[sqlite] Vector extension insert skipped for ${targetMode}: ` +
+                    `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
+                    `(dims=${denseDims}, encoding=${vectorExtension.encoding || 'float32'}).`
+                  );
+                  vectorAnnInsertWarned = true;
+                }
+              } else {
+                vectorAnn.insert.run(toSqliteRowId(docId), encoded);
+              }
+            }
           }
         }
       });

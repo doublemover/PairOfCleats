@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
+import { toPosix } from '../src/shared/files.js';
 
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
@@ -14,8 +15,6 @@ const parseArgs = () => {
     .strictOptions();
   return parser.parse();
 };
-
-const toPosix = (value) => (value == null ? '' : String(value).replace(/\\/g, '/'));
 
 const listFiles = async (dir) => {
   const entries = await fsPromises.readdir(dir, { withFileTypes: true });
@@ -94,7 +93,7 @@ const collectScriptCommands = async (root) => {
   const scripts = pkg.scripts || {};
   return {
     names: Object.keys(scripts).sort(),
-    commands: Object.values(scripts).map((cmd) => String(cmd).replace(/\\/g, '/'))
+    commands: Object.values(scripts).map((cmd) => toPosix(String(cmd)))
   };
 };
 
@@ -103,7 +102,7 @@ const collectCliScriptPaths = async (root) => {
   try {
     const contents = await fsPromises.readFile(cliPath, 'utf8');
     const matches = contents.match(/['"]((?:tools|build_index)[^'"]+?\.js)['"]/g) || [];
-    return matches.map((match) => match.slice(1, -1).replace(/\\/g, '/'));
+    return matches.map((match) => toPosix(match.slice(1, -1)));
   } catch {
     return [];
   }

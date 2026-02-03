@@ -4,7 +4,7 @@ import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
 import { readJsonFile } from './json.js';
 import { getTestEnvConfig } from '../env.js';
-import { fromPosix, isAbsolutePath, toPosix } from '../files.js';
+import { fromPosix, isAbsolutePathNative, toPosix } from '../files.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
@@ -28,7 +28,7 @@ const normalizeCompatibilityKey = (value) => {
 const isSafeManifestPath = (value) => {
   if (typeof value !== 'string') return false;
   if (!value) return false;
-  if (isAbsolutePath(value)) return false;
+  if (isAbsolutePathNative(value)) return false;
   const normalized = toPosix(value);
   if (normalized.startsWith('/')) return false;
   const segments = normalized.split('/');
@@ -63,7 +63,7 @@ export const resolveManifestPath = (dir, relPath, strict) => {
   const resolved = path.resolve(dir, fromPosix(relPath));
   const root = path.resolve(dir);
   const relative = path.relative(root, resolved);
-  const escapes = relative.startsWith('..') || isAbsolutePath(relative);
+  const escapes = relative.startsWith('..') || isAbsolutePathNative(relative);
   if (escapes) {
     if (strict) {
       const err = new Error(`Manifest path escapes index root: ${relPath}`);

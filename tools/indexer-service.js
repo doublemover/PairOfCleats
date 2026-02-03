@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative } from '../src/shared/files.js';
 import { spawnSubprocess } from '../src/shared/subprocess.js';
 import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
@@ -366,7 +366,7 @@ const processQueueOnce = async (metrics) => {
       }
       if (normalized.indexDir) {
         const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-        if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) {
+        if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
           console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
         }
       }

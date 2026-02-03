@@ -1,12 +1,18 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { tryImport } from '../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../src/shared/lancedb.js';
+import { readJsonFile } from '../../src/shared/artifact-io.js';
+import { isTestingEnv } from '../../src/shared/env.js';
+import { runIsolatedNodeScriptSync } from '../../src/shared/subprocess.js';
 
 let warnedMissing = false;
+const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
+const PAYLOAD_ENV = 'PAIROFCLEATS_LANCEDB_PAYLOAD';
 
 const loadLanceDb = async (logger) => {
   const result = await tryImport('@lancedb/lancedb');
@@ -18,6 +24,22 @@ const loadLanceDb = async (logger) => {
     return null;
   }
   return result.mod?.default || result.mod;
+};
+
+const resolveVectorsFromFile = (vectorsPath) => {
+  if (!vectorsPath) return null;
+  const data = readJsonFile(vectorsPath);
+  if (!data) return null;
+  if (Array.isArray(data?.arrays?.vectors)) return data.arrays.vectors;
+  if (Array.isArray(data?.vectors)) return data.vectors;
+  return null;
+};
+
+const shouldIsolateLanceDb = (config) => {
+  if (process.env[CHILD_ENV]) return false;
+  if (config?.isolate === true) return true;
+  if (process.env.PAIROFCLEATS_LANCEDB_ISOLATE === '1') return true;
+  return isTestingEnv();
 };
 
 const createTable = async (db, tableName, rows) => {
@@ -63,10 +85,29 @@ const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization
   return rows;
 };
 
+/**
+ * Write a LanceDB index for a vector variant.
+ * @param {object} params
+ * @param {string} params.indexDir
+ * @param {'merged'|'doc'|'code'} params.variant
+ * @param {Array<ArrayLike<number>>} [params.vectors]
+ * @param {string} [params.vectorsPath]
+ * @param {number} params.dims
+ * @param {string} params.modelId
+ * @param {object} params.quantization
+ * @param {number} params.scale
+ * @param {boolean} params.normalize
+ * @param {object} params.config
+ * @param {boolean} [params.emitOutput]
+ * @param {string|null} [params.label]
+ * @param {object} [params.logger]
+ * @returns {Promise<{skipped:boolean,reason?:string,count?:number}>}
+ */
 export async function writeLanceDbIndex({
   indexDir,
   variant,
   vectors,
+  vectorsPath = null,
   dims,
   modelId,
   quantization,
@@ -79,9 +120,76 @@ export async function writeLanceDbIndex({
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
-  if (!Array.isArray(vectors) || !vectors.length) {
+  const resolvedVectors = Array.isArray(vectors) && vectors.length
+    ? vectors
+    : resolveVectorsFromFile(vectorsPath);
+  if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
     return { skipped: true, reason: 'empty' };
   }
+  if (shouldIsolateLanceDb(resolvedConfig)) {
+    if (!vectorsPath) {
+      return { skipped: true, reason: 'missing vectors path for isolate' };
+    }
+    const moduleUrl = pathToFileURL(new URL('./lancedb.js', import.meta.url)).href;
+    const payload = {
+      indexDir,
+      variant,
+      vectorsPath,
+      dims,
+      modelId,
+      quantization,
+      scale,
+      normalize,
+      config: resolvedConfig,
+      emitOutput: false,
+      label
+    };
+    const script = `
+      const payload = JSON.parse(process.env.${PAYLOAD_ENV} || '{}');
+      const moduleUrl = payload.moduleUrl;
+      const run = async () => {
+        const mod = await import(moduleUrl);
+        const result = await mod.writeLanceDbIndex(payload);
+        process.stdout.write(JSON.stringify(result || {}));
+      };
+      run().catch((err) => {
+        console.error(err && err.message ? err.message : String(err));
+        process.exit(2);
+      });
+    `;
+    payload.moduleUrl = moduleUrl;
+    const result = runIsolatedNodeScriptSync({
+      script,
+      env: {
+        ...process.env,
+        [CHILD_ENV]: '1',
+        [PAYLOAD_ENV]: JSON.stringify(payload)
+      },
+      maxOutputBytes: 1024 * 1024,
+      outputMode: 'string',
+      captureStdout: true,
+      captureStderr: true,
+      rejectOnNonZeroExit: false,
+      name: 'lancedb'
+    });
+    if (result.exitCode !== 0) {
+      const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+      if (emitOutput && detail) {
+        logger.warn(`[embeddings] ${label || variant}: LanceDB isolate failed: ${detail}`);
+      }
+      return { skipped: true, reason: 'isolate failed' };
+    }
+    let parsed = {};
+    try {
+      parsed = typeof result.stdout === 'string' ? JSON.parse(result.stdout) : {};
+    } catch {}
+    if (emitOutput && parsed && parsed.count) {
+      const targetLabel = label || variant;
+      logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${parsed.count} vectors).`);
+    }
+    return parsed || { skipped: false };
+  }
+
   const lancedb = await loadLanceDb(logger);
   if (!lancedb) return { skipped: true, reason: 'missing dependency' };
 
@@ -111,9 +219,9 @@ export async function writeLanceDbIndex({
   let table = null;
   try {
     const firstBatch = buildBatch(
-      vectors,
+      resolvedVectors,
       0,
-      Math.min(batchSize, vectors.length),
+      Math.min(batchSize, resolvedVectors.length),
       idColumn,
       embeddingColumn,
       quantization,
@@ -124,11 +232,11 @@ export async function writeLanceDbIndex({
       table = await db.openTable(tableName);
       if (firstBatch.length) await addRows(table, firstBatch);
     }
-    for (let start = batchSize; start < vectors.length; start += batchSize) {
+    for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
       const rows = buildBatch(
-        vectors,
+        resolvedVectors,
         start,
-        Math.min(start + batchSize, vectors.length),
+        Math.min(start + batchSize, resolvedVectors.length),
         idColumn,
         embeddingColumn,
         quantization,
@@ -149,7 +257,7 @@ export async function writeLanceDbIndex({
     generatedAt: new Date().toISOString(),
     model: modelId || null,
     dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
-    count: vectors.length,
+    count: resolvedVectors.length,
     metric: resolvedConfig.metric,
     table: tableName,
     embeddingColumn,
@@ -163,7 +271,7 @@ export async function writeLanceDbIndex({
 
   if (emitOutput) {
     const targetLabel = label || variant;
-    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectors.length} vectors).`);
+    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${resolvedVectors.length} vectors).`);
   }
-  return { skipped: false, count: vectors.length };
+  return { skipped: false, count: resolvedVectors.length };
 }

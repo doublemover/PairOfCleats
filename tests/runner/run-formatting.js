@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePath } from '../../src/shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
 import {
   ANSI,
   applyLineBackground as applyLineBackgroundRaw,
@@ -118,8 +118,8 @@ export const resolveSlowestColor = (durationMs, timeoutMs) => {
 export const formatLogPath = (value, root) => {
   if (!value) return '';
   const baseRoot = root || process.cwd();
-  const relative = isAbsolutePath(value) ? path.relative(baseRoot, value) : value;
-  const normalized = String(relative || '').replace(/\\/g, '/');
+  const relative = isAbsolutePathNative(value) ? path.relative(baseRoot, value) : value;
+  const normalized = toPosix(String(relative || ''));
   if (!normalized) return './';
   if (normalized.startsWith('./') || normalized.startsWith('../')) return normalized;
   return `./${normalized}`;
@@ -155,7 +155,7 @@ export const formatSkipReason = (reason, { useColor = false } = {}) => {
 export const formatTestId = (id, { useColor = false } = {}) => {
   const raw = String(id || '');
   if (!useColor) return raw;
-  const normalized = raw.replace(/\\/g, '/');
+  const normalized = toPosix(raw);
   const parts = normalized.split('/');
   if (parts.length <= 1) {
     return `${ANSI.dim}${ANSI.fgLight}${normalized}${ANSI.reset}`;

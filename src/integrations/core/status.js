@@ -4,7 +4,7 @@ import path from 'node:path';
 import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { isAbsolutePath } from '../../shared/files.js';
+import { isAbsolutePathNative } from '../../shared/files.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -40,7 +40,7 @@ async function sizeOfPath(targetPath) {
  */
 function isInside(parent, child) {
   const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolutePath(rel));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
 }
 
 /**

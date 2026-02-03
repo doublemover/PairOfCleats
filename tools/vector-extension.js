@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from './dict-utils.js';
 import { incFallback } from '../src/shared/metrics.js';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../src/shared/files.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -35,7 +35,7 @@ function isSafeIdentifier(value) {
 }
 
 function normalizeOptionValue(value) {
-  return String(value || '').replace(/\\/g, '/').trim();
+  return toPosix(String(value || '')).trim();
 }
 
 function parseVectorOptions(raw) {
@@ -85,7 +85,7 @@ function sanitizeVectorExtensionConfig(config) {
  */
 function resolvePath(repoRoot, value) {
   if (!value) return null;
-  if (isAbsolutePath(value)) return value;
+  if (isAbsolutePathNative(value)) return value;
   return path.join(repoRoot, value);
 }
 

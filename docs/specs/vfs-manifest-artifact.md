@@ -61,6 +61,7 @@ type VfsManifestRowV1 = {
 ### 2.1 Required invariants
 
 - `containerPath` MUST be POSIX, repo-relative, and normalized (no `..`, no absolute paths, no backslashes).
+- Producers MUST emit `containerPath` via `toPosix()` and resolve it with `fromPosix()` at IO boundaries.
 - `containerExt` MUST match the extension in `containerPath` when present; otherwise `null`.
 - `languageId`/`effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
 - `segmentStart`/`segmentEnd` MUST satisfy `0 <= segmentStart <= segmentEnd` and must refer to the container text.

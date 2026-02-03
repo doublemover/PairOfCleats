@@ -174,7 +174,8 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     log: sharedLog,
     workerPool: runtime.workerPool,
     quantizePool: runtime.quantizePool,
-    embeddingsEnabled: runtime.embeddingEnabled
+    embeddingsEnabled: runtime.embeddingEnabled,
+    buildStage: runtime.stage
   });
 
   // Reduce peak memory before artifact writing.
