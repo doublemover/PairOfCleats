@@ -101,6 +101,12 @@ export const getTreeSitterStats = () => {
   };
 };
 
+export const getTreeSitterCacheSnapshot = () => ({
+  wasmKeys: Array.from(treeSitterState.wasmLanguageCache?.keys?.() || []),
+  languageIds: Array.from(treeSitterState.languageCache?.keys?.() || []),
+  activeLanguageId: treeSitterState.sharedParserLanguageId || null
+});
+
 function touchWasmLanguageCacheEntry(wasmKey) {
   if (!wasmKey || !treeSitterState.wasmLanguageCache.has(wasmKey)) return;
   const value = treeSitterState.wasmLanguageCache.get(wasmKey);
@@ -119,7 +125,8 @@ function removeLanguageCacheEntriesForWasmKey(wasmKey) {
   }
 }
 
-function disposeWasmLanguageEntry(entry) {
+function disposeWasmLanguageEntry(entry, skipDispose = false) {
+  if (skipDispose) return;
   const language = entry?.language;
   if (language && typeof language.delete === 'function') {
     try {
@@ -153,7 +160,7 @@ function evictOldWasmLanguages(maxSize, options = {}) {
     const entry = treeSitterState.wasmLanguageCache.get(oldestKey);
     treeSitterState.wasmLanguageCache.delete(oldestKey);
     removeLanguageCacheEntriesForWasmKey(oldestKey);
-    disposeWasmLanguageEntry(entry);
+    disposeWasmLanguageEntry(entry, options?.skipDispose === true);
     bumpMetric('wasmEvictions', 1);
   }
 
@@ -439,7 +446,7 @@ export function pruneTreeSitterLanguages(keepLanguages = [], options = {}) {
     if (keepWasmKeys.has(wasmKey)) continue;
     treeSitterState.wasmLanguageCache.delete(wasmKey);
     removeLanguageCacheEntriesForWasmKey(wasmKey);
-    disposeWasmLanguageEntry(entry);
+    disposeWasmLanguageEntry(entry, options?.skipDispose === true);
     removed += 1;
   }
 

@@ -527,10 +527,10 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
   - [ ] Skip init entirely when tree-sitter is disabled.
   - [ ] Cache resolved WASM runtime/grammar paths in build state/runtime cache.
   - [ ] Add per-language maxBytes overrides for expensive grammars (TS/JS/HTML).
-- [ ] Enforce bounded caches in main thread and workers.
-  - [ ] Improve LRU eviction rules (never evict active grammar).
-  - [ ] Keep eviction deterministic under the same inputs.
-  - [ ] Prune worker caches to `maxLoadedLanguages` after each batch.
+- [x] Enforce bounded caches in main thread and workers.
+  - [x] Improve LRU eviction rules (never evict active grammar).
+  - [x] Keep eviction deterministic under the same inputs.
+  - [x] Prune worker caches to `maxLoadedLanguages` after each batch.
 - [ ] Make batching and fallback behavior deterministic.
   - [ ] Batch parses by language with stable batch keys.
   - [ ] Include embedded language sets in batch keys when relevant.
@@ -552,17 +552,17 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
 
 ### Milestones
 - [ ] **Determinism + Observability**: churn metrics, preflight checks, deterministic preload order, shared language discovery helper.
-- [ ] **Bounded Caches**: deterministic LRU eviction and worker pruning with strict `maxLoadedLanguages`.
+- [x] **Bounded Caches**: deterministic LRU eviction and worker pruning with strict `maxLoadedLanguages`.
 - [ ] **Extraction Efficiency**: query caching + query-based extraction + streaming chunk emission.
 - [ ] **Adaptive + Incremental**: adaptive traversal budgets and parse tree reuse for unchanged files.
 
 ### Tests
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-vfs-language-routing.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js`
 - [ ] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js`

@@ -6,6 +6,7 @@ export {
   pruneTreeSitterLanguages,
   resetTreeSitterParser,
   getTreeSitterParser,
+  getTreeSitterCacheSnapshot,
   getTreeSitterStats,
   resetTreeSitterStats
 } from './tree-sitter/runtime.js';
