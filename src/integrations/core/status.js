@@ -71,7 +71,8 @@ export async function getStatus(input = {}) {
     indexProse: indexProseDir,
     indexExtractedProse: indexExtractedProseDir,
     indexRecords: indexRecordsDir,
-    repometrics: path.join(repoCacheRoot, 'repometrics'),
+    metrics: path.join(repoCacheRoot, 'metrics'),
+    queryCache: path.join(repoCacheRoot, 'query-cache'),
     incremental: path.join(repoCacheRoot, 'incremental')
   };
 

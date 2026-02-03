@@ -376,7 +376,7 @@ indexing/validate/index-validate-unknown-mode
 tooling/doctor/doctor-detects-missing-typescript
 tooling/install/download-dicts
 tooling/structural/structural-search
-tooling/reports/repometrics-dashboard
+tooling/reports/metrics-dashboard
 indexing/workers/worker-pool
 indexing/ignore/ignore-overrides
 indexing/imports/imports-options-forwarding-flowmode

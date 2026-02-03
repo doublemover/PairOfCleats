@@ -1,16 +1,18 @@
 # CI Capability Policy
 
-This policy defines how optional capabilities are treated in CI and nightly runs.
+This policy defines how optional capabilities are handled by the test runner (`node tests/run.js`).
 
-## CI (run-suite --mode ci)
-- Required: core CI-lite lane (`tests/run.js --lane ci-lite`).
-- Optional capabilities (SQLite, LMDB, HNSW, LanceDB, Tantivy) should **skip with a reason** if unavailable.
+## CI (ci-lite lane)
+- Required: `node tests/run.js --lane ci-lite` using `tests/ci-lite/ci-lite.order.txt`.
+- The runner ignores `tests/run.config.jsonc` excludes for `ci-lite`, so the order file must list only core tests.
+- Optional capability tests that are included must self-skip with exit code 77 (use `tests/helpers/skip.js`) and print a reason.
 - Missing optional capabilities must not fail CI.
 
-## Nightly (run-suite --mode ci --lane ci)
-- Required: core CI lane (`tests/run.js --lane ci`).
-- Optional capabilities are exercised when available; missing capabilities are logged as warnings.
+## Nightly or extended runs (ci / ci-long lanes)
+- `--lane ci` uses `tests/ci/ci.order.txt` when it is the only lane and applies `tests/run.config.jsonc` excludes unless overridden.
+- `--lane ci-long` auto-includes the `long` tag; when it is the only lane, it requires `tests/ci-long/ci-long.order.txt`.
+- Optional capability tests should be tagged (for example: `sqlite`, `lmdb`, `embeddings`, `bench`) and self-skip when dependencies are missing.
 
 ## Reporting
-- `tools/ci/capability-gate.js` writes `.diagnostics/capabilities.json` and prints a summary.
-- Exit code is non-zero only if explicitly required capabilities are missing.
+- The runner writes per-test logs under `.testLogs/run-<epoch>-<rand>/` by default (override with `--log-dir` or `PAIROFCLEATS_TEST_LOG_DIR`).
+- Use `--json` or `--junit <path>` for machine-readable summaries.

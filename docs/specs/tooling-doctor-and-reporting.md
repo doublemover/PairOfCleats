@@ -1,25 +1,10 @@
-# Phase 8 -- Tooling Doctor + Reporting (Refined)
+# Spec: Tooling doctor (current)
 
-> **Purpose:** Provide a single, actionable health report for tooling providers (TypeScript, LSP) and identity prerequisites (chunkUid readiness), so failures are diagnosable without reading raw logs.
+> Purpose: emit a single, actionable tooling health report (TypeScript/LSP providers + chunkUid prerequisites) without forcing users to read raw logs. This doc reflects current behavior in `src/index/tooling/doctor.js`.
 
-This refinement adds:
-- explicit checks for **identity prerequisites** (chunkUid hashing backend availability)
-- explicit reporting of **virtual document routing support** per provider
+## 1) Report artifact
 
----
-
-## 1. Goals
-
-1. Detect missing / misconfigured tooling dependencies before expensive runs.
-2. Emit a machine-readable report artifact (`tooling_report.json`) plus human-readable summary.
-3. Provide provider-specific configuration hints and remediation steps.
-4. Fail closed in strict mode when core tooling prerequisites are absent.
-
----
-
-## 2. Report artifact format
-
-Write: `<buildRoot>/tooling_report.json`
+Written to `<buildRoot>/tooling_report.json`.
 
 ```ts
 export type ToolingReport = {
@@ -27,30 +12,47 @@ export type ToolingReport = {
   repoRoot: string;
   buildRoot: string;
 
+  config: {
+    enabledTools: string[];
+    disabledTools: string[];
+  };
+
+  xxhash: {
+    backend: 'native'|'wasm'|'none';
+    module: 'xxhash-native'|'xxhash-wasm'|'none';
+    ok: boolean;
+  };
+
   identity: {
     chunkUid: {
       required: boolean;
       available: boolean;
       backend: 'native'|'wasm'|'none';
-      notes?: string[];
+      notes: string[];
     };
   };
 
-  providers: Record<string, {
+  scm: {
+    provider: 'git'|'jj'|'none';
+    repoRoot: string | null;
+    detectedBy: string | null;
+    head: object | null;
+    dirty: boolean | null;
+    annotateEnabled: boolean;
+    error: string | null;
+  } | null;
+
+  providers: Array<{
     id: string;
     version: string | null;
     enabled: boolean;
-
-    capabilities: {
-      supportsVirtualDocuments: boolean;
-      supportsSegmentRouting: boolean;
-      supportsJavaScript?: boolean;
-      supportsTypeScript?: boolean;
-      supportsSymbolRef?: boolean;
-    };
-
+    available: boolean;
+    reasonsDisabled: string[];
+    requires: { cmd?: string } | null;
+    languages: string[];
+    capabilities: Record<string, any>;
     status: 'ok'|'warn'|'error';
-    checks: { name: string; status: 'ok'|'warn'|'error'; message: string; details?: any }[];
+    checks: Array<{ name: string; status: 'ok'|'warn'|'error'; message: string; details?: any }>;
   }>;
 
   summary: {
@@ -61,119 +63,73 @@ export type ToolingReport = {
 };
 ```
 
----
+Notes:
+- `providers[]` is sorted by `id` at the end of the run.
+- `scm.annotateEnabled=false` when `provider=none`.
 
-## 3. Identity prerequisite checks
+## 2) Identity prerequisite checks
 
-### 3.1 chunkUid hashing backend
+- `chunkUid` requires an xxhash backend.
+- `getXxhashBackend()` sets:
+  - `identity.chunkUid.available` and `identity.chunkUid.backend`
+  - `xxhash.backend`, `xxhash.module`, `xxhash.ok`
+- If backend is missing:
+  - `identity.chunkUid.notes` includes a failure note
+  - `summary.errors += 1`
+  - **strict mode** throws after report write
 
-chunkUid (v1) relies on xxhash64.
+## 3) SCM provenance snapshot
 
-Check:
-- `src/shared/hash.js` can resolve backend:
-  - native preferred
-  - wasm acceptable
-  - none is an error if chunkUid required
+The doctor uses `resolveScmConfig` + `getScmProviderAndRoot` and then attempts `getRepoProvenance`.
 
-Report:
-- backend type and any warnings (e.g., "native backend not available; using wasm (slower)").
+- On errors, `scm.error` is populated and provider falls back to `none`.
+- `scm.head` and `scm.dirty` are best-effort fields from the provider.
+- `annotateEnabled` is false when provider is none (or annotate disabled in config).
 
-Strict mode:
-- if chunkUid required and backend is none → report error and fail build step that depends on tooling/graphs.
+## 4) Provider checks (current)
 
----
+Provider selection is driven by `listToolingProviders(toolingConfig)` and optional `providerIds` filter.
 
-## 4. TypeScript provider checks
+### 4.1 Disabled/Enabled gating
 
-### 4.1 Presence and version
+Reasons in `reasonsDisabled`:
+- `disabled-by-config` (in `disabledTools`)
+- `not-in-enabled-tools` (when `enabledTools` is set and provider not listed)
 
-- Resolve `typescript` module import.
-- Record `ts.version`.
+### 4.2 TypeScript
 
-Warn if:
-- version is below minimum supported (define in provider; e.g., `<4.8`).
+- Resolve TypeScript module via `toolingConfig.typescript.resolveOrder` (repo/cache/tooling/global).
+- Warn when `ts.version < 4.8.0`.
+- If `useTsconfig !== false` and `tsconfigPath` is set, ensure it exists.
+- If `allowJs`, `checkJs`, or `includeJsx` are disabled, emit a warning for JS parity.
 
-### 4.2 Configuration sanity
+### 4.3 clangd
 
-- If a `tsconfigPath` is configured:
-  - ensure file exists
-  - ensure JSON parses
-- Validate compilerOptions relevant to parity:
-  - allowJs
-  - checkJs
-  - jsx mode
+- If `clangd.requireCompilationDatabase` is true, check for `compile_commands.json` in:
+  - explicit `compileCommandsDir` or common fallbacks (`repo`, `build/`, `out/`, `cmake-build-*`).
+- Verify `clangd` binary is runnable.
 
-### 4.3 VFS support
+### 4.4 pyright
 
-- Ensure provider is configured to accept virtual documents.
-- If provider requires temp on-disk mapping, ensure temp dir is writable.
+- Resolve `pyright-langserver` (repo/tooling/global) and verify it is runnable.
 
----
+### 4.5 sourcekit
 
-## 5. LSP provider checks
+- Verify `sourcekit-lsp` binary is runnable.
 
-### 5.1 Server binary resolution
+### 4.6 Generic providers
 
-For each configured language server:
-- ensure command exists on PATH or at configured absolute path
+- If provider declares `requires.cmd`, check that binary is runnable.
 
-### 5.2 Initialization smoke test (optional but recommended)
+## 5) Human-readable summary
 
-If safe to run:
-- start server
-- send initialize
-- shutdown/exit
+The doctor logs one summary line:
+- `[tooling] doctor: ok.`
+- `[tooling] doctor: <N> warning(s).`
+- `[tooling] doctor: <N> error(s), <M> warning(s).`
 
-Timeout fast (e.g., 2s). Record stderr on failure (truncated).
+## 6) Tests
 
-### 5.3 VFS routing capability
-
-Report whether the server supports:
-- file:// URIs pointing to temp-mapped VFS paths
-- or custom URI schemes (if configured)
-
----
-
-## 6. Human-readable summary output
-
-Emit a short summary at the end of the indexing run, e.g.:
-
-- overall: OK/WARN/ERROR
-- key errors with remediation bullets
-- path to `tooling_report.json`
-
----
-
-## 7. Implementation plan
-
-1. Create `src/index/tooling/doctor.js` exporting:
-   - `runToolingDoctor(ctx, providerIds, options) -> ToolingReport`
-2. Add identity checks (xxhash backend detection)
-3. Add provider checks:
-   - TypeScript provider check function
-   - LSP provider check function
-4. Write artifact and print summary
-5. Integrate into CLI / runtime (where tooling is invoked)
-
----
-
-## 8. Acceptance criteria
-
-- [ ] `tooling_report.json` is emitted for runs that attempt tooling providers.
-- [ ] Report includes identity.chunkUid backend status.
-- [ ] Report includes provider capabilities (virtual docs, segment routing).
-- [ ] Strict mode fails early on missing required tooling.
-
----
-
-## 9. Tests (exact)
-
-1. `tests/tooling/doctor/doctor-emits-report.test.js`
-   - Assert artifact file exists and matches schema.
-
-2. `tests/tooling/doctor/doctor-detects-missing-typescript.test.js`
-   - Simulate missing typescript module; report error.
-
-3. `tests/tooling/doctor/doctor-reports-xxhash-backend.test.js`
-   - Force backend selection; report correct backend field.
-
+- `tests/tooling/doctor/doctor-emits-report.test.js`
+- `tests/tooling/doctor/doctor-detects-missing-typescript.test.js`
+- `tests/tooling/doctor/doctor-reports-xxhash-backend.test.js`

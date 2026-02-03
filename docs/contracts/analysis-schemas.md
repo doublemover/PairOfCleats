@@ -33,6 +33,8 @@ Schema: `RISK_RULES_BUNDLE_SCHEMA` in `src/contracts/schemas/analysis.js`.
   - `maxPatternLength`, `maxInputLength`, `maxProgramSize`, `timeoutMs`, `flags`, `engine`.
 - Optional `provenance`:
   - `defaults` (bool), `sourcePath` (string|null).
+- Optional `diagnostics`:
+  - `warnings` (array of objects), `errors` (array of objects).
 
 ## Analysis policy
 
@@ -124,10 +126,16 @@ Purpose:
 
 Minimum fields:
 - `version`
+- `options`
 - `provenance`
 - `symbols[]` (bounded)
 - optional `truncation[]`
 - optional `warnings[]`
+
+Options fields:
+- `onlyExports` (bool)
+- `failOnWarn` (bool)
+- `caps.maxSymbols`, `caps.maxCallsPerSymbol`, `caps.maxWarnings`
 
 ### Architecture report
 

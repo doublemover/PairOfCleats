@@ -3,10 +3,10 @@
 PairOfCleats ships an MCP server that exposes indexing, search, and maintenance tools over JSON-RPC.
 
 ## Run
-- `pairofcleats service mcp`
 - `node tools/mcp-server.js --mcp-mode <legacy|sdk|auto>`
 
-Mode selection order: CLI `--mcp-mode` → env (`MCP_MODE`/`PAIROFCLEATS_MCP_MODE`) → config `mcp.mode`.
+Mode selection order: CLI `--mcp-mode` → env (`PAIROFCLEATS_MCP_MODE`) → config `mcp.mode`.
+Default mode is `legacy` unless `auto` is explicitly requested.
 `auto` selects SDK mode when `@modelcontextprotocol/sdk` is available, otherwise legacy.
 
 ## Transport
@@ -48,6 +48,13 @@ Mode selection order: CLI `--mcp-mode` → env (`MCP_MODE`/`PAIROFCLEATS_MCP_MOD
 - `$/cancelRequest` aborts in-flight calls by id.
 - Tool timeouts default to 120s (longer for index/build/download tools). Configure via
   `mcp.toolTimeoutMs`, `mcp.toolTimeouts.<tool>`, or `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`.
+
+## Error codes and troubleshooting
+PairOfCleats uses the shared error code registry in `docs/contracts/mcp-error-codes.md`.
+Common cases:
+- `QUEUE_OVERLOADED`: tool queue is full; raise `mcp.queueMax` or retry later.
+- `INVALID_REQUEST`: payload validation failed; check required fields and types.
+- `INTERNAL`: unexpected failure; check server logs for details.
 
 ## Notes
 - Cache location defaults to the PairOfCleats cache root; override with `cache.root` or `PAIROFCLEATS_CACHE_ROOT`.

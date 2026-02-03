@@ -51,7 +51,7 @@ type CallSiteEntrySubset = {
 ```
 
 ### 1.4 Stability + determinism requirements
-- `callSiteId` must be computed per `spec_risk-callsite-id-and-stats_IMPROVED.md`.
+- `callSiteId` must be computed per `risk-callsite-id-and-stats_IMPROVED.md`.
 - If call-sites are sampled/capped, selection must be deterministic (sort by `callSiteId` then take first N).
 
 ---

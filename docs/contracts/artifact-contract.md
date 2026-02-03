@@ -31,7 +31,10 @@ Each `index-<mode>/` directory contains:
 - `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`)
   - Array/JSONL of chunk metadata entries.
   - Each entry includes `id`, `fileId`, `start`, `end`, `startLine`, `endLine`, `kind`, `name`, plus optional metadata.
-  - Sharded meta (`chunk_meta.meta.json`) fields: `format`, `shardSize`, `totalChunks`, `parts` (relative paths).
+  - Sharded JSONL meta (`chunk_meta.meta.json`) uses the jsonl-sharded schema:
+    - `schemaVersion`, `artifact`, `format: jsonl-sharded`, `generatedAt`, `compression`
+    - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
+    - `parts[]` with `{ path, records, bytes, checksum? }`
 - `file_meta.json`
   - Array of `{ id, file, ext, size, hash, hashAlgo, ... }` describing files referenced by `chunk_meta`.
 - `token_postings.json` (or sharded `token_postings.shards/` + `token_postings.meta.json`)
@@ -69,9 +72,9 @@ Each `index-<mode>/` directory contains:
 Compressed artifacts may appear as `.json.gz` or `.json.zst` sidecars. The JSON payload itself is unchanged (no embedded `compression` field); compression uses fflate (gzip) or @mongodb-js/zstd (zstd).
 
 ### Loader precedence (chunk/meta artifacts)
-- `chunk_meta.meta.json` + `chunk_meta.parts/` (sharded JSONL) are preferred unless a newer `chunk_meta.jsonl` exists (e.g., after switching formats).
-- `chunk_meta.jsonl` supersedes `chunk_meta.json`.
-- For `.json` or `.jsonl` artifacts, prefer `.json.zst`/`.json.gz` sidecars over the raw JSON when present.
+- If both sharded JSONL (`chunk_meta.meta.json` + `chunk_meta.parts/`) and `chunk_meta.jsonl` exist, the newer mtime wins.
+- `chunk_meta.jsonl` supersedes `chunk_meta.json` when present.
+- For `.json`/`.jsonl` artifacts, loaders read the raw file first; `.json.zst`/`.json.gz` sidecars are only used when the raw file is missing.
 
 ## Incremental bundles
 
@@ -88,12 +91,19 @@ MsgPack bundles use stable key ordering before encoding, and the checksum covers
 Chunk metadata shards:
 ```json
 {
-  "format": "jsonl",
-  "shardSize": 100000,
-  "totalChunks": 250000,
+  "schemaVersion": "0.0.1",
+  "artifact": "chunk_meta",
+  "format": "jsonl-sharded",
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "compression": "none",
+  "totalRecords": 250000,
+  "totalBytes": 987654321,
+  "maxPartRecords": 100000,
+  "maxPartBytes": 104857600,
+  "targetMaxBytes": 104857600,
   "parts": [
-    "chunk_meta.parts/chunk_meta.part-00000.jsonl",
-    "chunk_meta.parts/chunk_meta.part-00001.jsonl"
+    { "path": "chunk_meta.parts/chunk_meta.part-00000.jsonl", "records": 100000, "bytes": 40000000 },
+    { "path": "chunk_meta.parts/chunk_meta.part-00001.jsonl", "records": 100000, "bytes": 40000000 }
   ]
 }
 ```

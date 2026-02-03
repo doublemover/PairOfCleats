@@ -1,15 +1,12 @@
 # Config Deprecations
 
-This document tracks deprecated config keys and their replacements.
+The config schema (`docs/config/schema.json`) is authoritative. It does not
+carry deprecated-but-accepted keys; unknown keys are rejected.
 
-## Removed deprecations
-- `sqlite.dbPath` -> `sqlite.dbDir` or `sqlite.codeDbPath`/`sqlite.proseDbPath`
-  - Single database paths are legacy; split DBs are the default.
-- `sqlite.annMode` -> `sqlite.vectorExtension.annMode`
-- `indexing.fileCaps.defaults` -> `indexing.fileCaps.default`
-- `indexing.fileCaps.byExtension` -> `indexing.fileCaps.byExt`
-- `indexing.fileCaps.byLang` -> `indexing.fileCaps.byLanguage`
-- `cache.runtime.*.maxMB` -> `cache.runtime.*.maxMb`
-- `cache.runtime.*.ttlMS` -> `cache.runtime.*.ttlMs`
+## Active deprecations
+- (none)
 
-These keys are no longer accepted. Update configs to the replacement keys.
+## Removed keys
+If you are migrating a legacy config, compare it against the current schema
+and update keys accordingly. Legacy renames are no longer tracked here to
+avoid drifting out of sync with the validated surface.

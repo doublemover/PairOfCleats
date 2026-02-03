@@ -351,14 +351,23 @@ Legend:
 
 ## 5. CI lane placement and performance targets
 
-- All MCP SDK server tests should run in the **services** lane.
+Lane taxonomy (see `tests/run.rules.jsonc`):
+- **ci-lite**: fastest, deterministic unit/contract checks (short timeout).
+- **ci**: core baseline lane (moderate timeout).
+- **ci-long**: slow or heavyweight checks (extended timeout).
+- **api**: API server contract/parity tests.
+- **mcp**: MCP SDK/tooling contract/parity tests.
+
+Placement guidance:
+- MCP SDK server tests should run in **mcp** (or **services** if explicitly grouped there).
+- API contract tests should run in **api**.
 - Parity tests should be written to run in under ~30s total:
   - minimal fixture repo
   - stub embeddings
   - worker pool off
 - If parity tests become slow, split:
-  - fast contract tests always on
-  - heavier parity tests behind a lane or tag (only if necessary)
+  - fast contract tests always on (ci/ci-lite)
+  - heavier parity tests in ci-long/api/mcp as appropriate
 
 ---
 

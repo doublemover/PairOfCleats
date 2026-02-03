@@ -465,13 +465,13 @@ cert-dir, dir, open, open-uri-template, out, port, repo, three-url
 
 mcp-mode, repo
 
+### tools/metrics-dashboard.js
+
+json, out, repo, top
+
 ### tools/parity-matrix.js
 
 ann-modes, backend, backends, dry-run, fail-fast, limit, out-dir, queries, queries-dir, results, search, top
-
-### tools/repometrics-dashboard.js
-
-json, out, repo, top
 
 ### tools/report-artifacts.js
 

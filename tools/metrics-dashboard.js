@@ -6,7 +6,7 @@ import { createCli } from '../src/shared/cli.js';
 import { getMetricsDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
-  scriptName: 'repometrics-dashboard',
+  scriptName: 'metrics-dashboard',
   options: {
     json: { type: 'boolean', default: false },
     out: { type: 'string' },
@@ -115,7 +115,7 @@ const dashboard = {
   }
 };
 
-console.error(`Repometrics dashboard (${path.resolve(metricsDir)})`);
+console.error(`Metrics dashboard (${path.resolve(metricsDir)})`);
 console.error(`- Queries: ${dashboard.search.totalQueries} (avg ${avgMs.toFixed(1)} ms)`);
 console.error(`- No-result queries: ${dashboard.search.noResultCount}`);
 if (indexMetrics.code) {

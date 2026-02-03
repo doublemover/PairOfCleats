@@ -80,7 +80,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'report') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('report requires a subcommand: map, eval, compare-models, repometrics');
+      console.error('report requires a subcommand: map, eval, compare-models, metrics');
       printHelp();
       process.exit(1);
     }
@@ -209,9 +209,9 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/compare-models.js', extraArgs: [], args: rest };
     }
-    if (sub === 'repometrics') {
+    if (sub === 'metrics') {
       validateArgs(rest, ['json', 'out', 'repo', 'top'], ['out', 'repo', 'top']);
-      return { script: 'tools/repometrics-dashboard.js', extraArgs: [], args: rest };
+      return { script: 'tools/metrics-dashboard.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown report subcommand: ${sub}`);
     printHelp();
@@ -713,7 +713,7 @@ Report:
   report map              Generate code map artifacts
   report eval             Run evaluation suites
   report compare-models   Compare embedding models
-  report repometrics      Summarize repometrics dashboard
+  report metrics          Summarize metrics dashboard
 
 Graph:
   graph-context          Build a graph context pack for a seed

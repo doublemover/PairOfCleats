@@ -4,6 +4,7 @@
 
 - **Spec version:** 1 (schemaVersion = 1)
 - **Audience:** PairOfCleats contributors implementing workspace catalog/manifest generation used by federated search and federated caching.
+- **Implementation status:** planned (no generator in repo yet).
 
 This spec is intended to be *implementation-ready* and consistent with existing build pointer and cache conventions in `tools/dict-utils.js`.
 
@@ -41,6 +42,12 @@ The manifest is the single authoritative input for:
    - `repoSetId` = membership identity (path-based).
    - `manifestHash` = index-state identity (signatures + build pointers).
    - Display metadata (alias/tags/priority) is included for diagnostics but excluded from `manifestHash`.
+
+### 2.1 manifestHash computation (deterministic)
+
+- Build a copy of the manifest with `generatedAt` removed.
+- Remove display-only metadata from each `repos[]` entry (`alias`, `tags`, `enabled`, `priority`).
+- Serialize with `stableStringify` and hash (sha1) to form `manifestHash`.
 
 ---
 
@@ -429,4 +436,3 @@ Examples:
 5. SQLite signature changes invalidate `manifestHash`.
 6. Compatibility key propagation:
    - if index_state.json includes compatibilityKey, manifest contains it.
-

@@ -191,7 +191,7 @@
 - 2026-01-18 07:49:39 | `tests\indexing\file-processor\read-failure-skip.test.js` | 1.02s | timeout
 - 2026-01-18 07:49:40 | `tests\indexing\records\records-exclusion.test.js` | 1.02s | timeout
 - 2026-01-18 07:49:41 | `tests\cli\general\repo-root.test.js` | 1.03s | timeout
-- 2026-01-18 07:49:41 | `tests\tooling\reports\repometrics-dashboard.test.js` | 0.28s | exit 0
+- 2026-01-18 07:49:41 | `tests\tooling\reports\metrics-dashboard.test.js` | 0.28s | exit 0
 - 2026-01-18 07:49:41 | `tests\retrieval\backend\retrieval-auto-sqlite-thresholds.test.js` | 0.07s | exit 1
 - 2026-01-18 07:49:41 | `tests\retrieval\backend\retrieval-backend-policy.test.js` | 0.06s | exit 0
 - 2026-01-18 07:49:42 | `tests\retrieval\filters\retrieval-branch-filter.test.js` | 0.09s | exit 0

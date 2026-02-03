@@ -28,9 +28,9 @@ This document identifies the **largest / most multi-responsibility test scripts*
 
 ## Proposed grouping (manageable "chunks")
 
-Introduce a small set of top-level test groups (these become runner lanes/tags and folder names over time):
+Introduce a small set of top-level test groups (these map to folder structure and tags; lanes are defined separately in `tests/run.rules.jsonc`):
 
-1. **`runner/`** -- meta-tests and suite controllers
+1. **`runner/`** (tagged `harness` for `runner/harness/`) -- meta-tests and suite controllers
    - script-coverage harness, discovery checks, suite sanity
 
 2. **`unit/`** -- pure logic (no indexing, no servers)
@@ -55,6 +55,9 @@ Introduce a small set of top-level test groups (these become runner lanes/tags a
    - benches, perf regressions, throughput/heap checks
 
 These eight groups are few enough to be learnable and broad enough to cover the repo.
+
+**Current lanes (runner):** `smoke`, `unit`, `ci-lite`, `ci-long`, `integration`, `services`, `api`, `storage`, `perf`, `mcp`, `ci`.  
+**Note:** `indexing/`, `retrieval/`, `tooling/`, `lang/`, and `runner/harness/` are path groups/tags (see `tests/run.rules.jsonc`), not lanes.
 
 ## Inventory: largest multi-responsibility suites (and what to do about them)
 
@@ -122,7 +125,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 
 **Regrouping:**
 - Most of these belong to `integration` lane, but they can also be tagged for selective runs:
-  - tags: `lang`, `filters`, `risk`, `indexing-artifacts`
+  - tags: `lang`, `indexing`, `retrieval`
 
 ---
 
@@ -228,7 +231,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 - `retrieval/filters/file-and-token/punctuation-tokenization.test.js`
 
 **Regrouping:**
-- These are integration tests (need git + indexing) but can be tagged `git` and excluded where git is unavailable.
+- These are integration tests (need git + indexing); tag `indexing`/`retrieval` and treat as git-dependent in CI filtering.
 
 ---
 
@@ -256,7 +259,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 - `services/mcp/mcp-runner-abort-kills-child.test.js`
 
 **Regrouping:**
-- `services` lane; tag `mcp`.
+- `mcp` lane; tag `mcp`.
 
 ---
 
@@ -282,7 +285,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 - `services/api/no-index.test.js`
 
 **Regrouping:**
-- `services` lane; tag `api`.
+- `api` lane; tag `api`.
 
 ---
 
@@ -330,7 +333,7 @@ The remainder of the suite can be regrouped largely by path/tagging without spli
 - `tooling/triage/context-pack.test.js`
 
 **Regrouping:**
-- `tooling` lane (or `integration` if you keep tooling under integration). Tag `triage`.
+- `tooling` tests land in the `unit` lane by default (per lane rules). Tag `tooling`.
 
 ---
 
@@ -361,7 +364,7 @@ Benchmarks should generally be excluded from default CI; include in a `perf` lan
 Once the large scripts above are decomposed, the remainder of the test suite can be made manageable primarily by **re-homing files into the group folders** and tagging them. A pragmatic migration approach:
 
 ### Phase 1 -- Tag-and-lane only (no file moves)
-- Establish lane membership using a small mapping (runner manifest).
+- Establish lane membership using a small mapping (runner manifest or `tests/run.rules.jsonc`).
 - Keep files in place but expose only a few lanes.
 
 ### Phase 2 -- Move tests into group folders (mechanical)
@@ -373,7 +376,7 @@ Once the large scripts above are decomposed, the remainder of the test suite can
 
 ## Success criteria
 
-- A developer can answer "what should I run?" with one of ~6 lanes.
+- A developer can answer "what should I run?" with a small set of lanes (smoke/unit/integration/ci-lite).
 - The largest multi-domain scripts are split so failures point to a subsystem.
-- CI can run the `ci` lane deterministically with clear logs and minimal flake.
+- CI can run `ci-lite` for PRs and `ci` (+ storage/perf) for nightly with clear logs and minimal flake.
 - The test tree communicates intent through folder structure and ids.

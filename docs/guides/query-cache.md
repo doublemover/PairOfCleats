@@ -25,4 +25,4 @@ Enable via `.pairofcleats.json`:
 - Payloads include `code`, `prose`, `extractedProse`, and `records` arrays for the active modes.
 
 ## Storage
-- Cache file: `<cache>/repos/<repoId>/repometrics/queryCache.json`.
+- Cache file: `<cache>/repos/<repoId>/query-cache/queryCache.json`.

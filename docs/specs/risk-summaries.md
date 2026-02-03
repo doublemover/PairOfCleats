@@ -29,12 +29,10 @@ An implementation MUST emit either:
   * `risk_summaries.part00001.jsonl`
   * ...
 
-The meta sidecar MUST follow the same shape used by existing sharded JSONL artifacts (e.g., `chunk_meta.meta.json`):
-* `format: "jsonl"`
-* `shardSize` (bytes)
-* `partsDir`, `partPrefix`, `parts[]`, `counts[]`
-* `totalEntries`, `totalBytes`
-* `schemaVersion` (for the rows, i.e., this spec's versioning)
+The meta sidecar MUST follow the JSONL sharded meta schema:
+* `schemaVersion` (SemVer), `artifact` (const), `format: "jsonl-sharded"`, `generatedAt`, `compression`
+* `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
+* `parts`: `{ path, records, bytes, checksum? }[]`
 
 ## 3) Identity model
 Each row is keyed by `chunkUid` (Identity Contract v1):
@@ -49,7 +47,8 @@ Each row is keyed by `chunkUid` (Identity Contract v1):
 * No header row
 * Each JSON line MUST be <= **32KB** UTF-8 (hard limit for v1.1)
 
-If a record cannot be truncated to fit 32KB using Section 9, it MUST be dropped and recorded in the stats artifact as `summariesDroppedBySize`.
+If a record cannot be truncated to fit 32KB using Section 9, it MUST be dropped. Dropped rows are recorded
+in `risk_interprocedural_stats.droppedRecords` (artifact `risk_summaries`) when interprocedural stats are written.
 
 ## 5) Which chunks produce rows
 A row MUST be emitted for each chunk that satisfies all of:
@@ -221,7 +220,7 @@ Deterministic trimming steps:
 1. Drop `tags` arrays from all signals.
 2. Reduce evidence per signal to 1.
 3. Drop all evidence arrays.
-4. If still too large: drop the entire summary row and record in stats (`summariesDroppedBySize++`).
+4. If still too large: drop the entire summary row and record in stats (artifact `risk_summaries`, reason `rowTooLarge`).
 
 ## 10) Compact summary in chunk_meta
 If and only if a chunk has local risk (any of sources/sinks/sanitizers/localFlows non-empty), attach:

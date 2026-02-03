@@ -16,11 +16,11 @@ The repository includes a machine-generated inventory:
 
 Current surface area (from `docs/config/inventory.md`):
 
-- **Config keys:** 427  
-- **Env vars:** 52  
-- **CLI flags:** 251  
+- **Config keys:** 180  
+- **Env vars:** 58  
+- **CLI flags:** 252  
 
-Config keys are concentrated in `indexing.*` (**241 keys**) and `search.*` (**55 keys**), and many concepts have multiple overlapping control surfaces (profile vs config vs env vs CLI).
+Config keys are concentrated in `indexing.*` (**65 keys**) and `search.*` (**15 keys**), and many concepts have multiple overlapping control surfaces (profile vs config vs env vs CLI).
 
 ---
 
@@ -68,6 +68,7 @@ Replace the schema with **only two** keys.
 
 Rules:
 - Unknown keys are **errors** (fail fast).
+- Do not add removed keys such as `output.logPath` or `indexing.skipImportResolution`.
 - No profile support.
 - No hidden env overrides for normal behavior.
 

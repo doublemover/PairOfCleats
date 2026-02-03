@@ -30,7 +30,8 @@ Each MUST be emitted in either single-file or sharded form as described in the s
 * no header row
 * each line MUST be <= **32KB** UTF-8
 
-If a record cannot be truncated to fit 32KB deterministically, it MUST be dropped and recorded in the stats artifact.
+If a record cannot be truncated to fit 32KB deterministically, it MUST be dropped.
+Currently, dropped `risk_flows` rows are recorded in the stats artifact; dropped `call_sites` rows are not tracked.
 
 ## 4) `call_sites` schema (normative)
 
@@ -50,6 +51,9 @@ type CallSiteEntrySubset = {
   callSiteId: string;           // "sha1:..."
   callerChunkUid: string | null;
   file: string;
+  languageId: string | null;
+  start: number;                // byte offset (inclusive)
+  end: number;                  // byte offset (exclusive)
   startLine: number;            // 1-based
   startCol: number;             // 1-based
   endLine: number;              // 1-based
@@ -57,7 +61,7 @@ type CallSiteEntrySubset = {
   calleeRaw: string;            // raw callee expression string
   calleeNormalized: string;     // normalized callee string
   args: string[];               // truncated stringified args
-  snippetHash: string | null;   // "sha1:..." (hash of normalized snippet or fallback)
+  snippetHash?: string | null;  // optional hash of normalized snippet
 
   // When resolved by cross-file inference:
   targetChunkUid?: string | null;
@@ -70,18 +74,31 @@ type CallSiteEntrySubset = {
 
 * `docs/specs/risk-callsite-id-and-stats.md`
 
-### 4.4 Sampling per resolved edge (required)
-`call_sites` MUST be bounded by sampling:
+### 4.4 Call site emission (current behavior)
+`call_sites` includes all call details that satisfy the required fields above and can be
+serialized within the row-size limit. There is no per-edge sampling applied to the artifact.
 
-For each resolved call edge `(callerChunkUid, calleeChunkUid)`, keep at most:
-* `caps.maxCallSitesPerEdge` call sites
+Deterministic ordering in the writer:
+* `(file, callerChunkUid, start, end, calleeNormalized, calleeRaw)`
 
-Deterministic sampling order:
-* Sort candidate call sites by `(file, startLine, startCol, endLine, endCol, calleeNormalized, calleeRaw, callSiteId)`.
-* Take the first `maxCallSitesPerEdge`.
+### 4.5 Sampling for flow paths (required)
+Interprocedural propagation samples call-site identifiers per resolved edge to populate
+`risk_flows.path.callSiteIdsByStep`.
 
-Only call sites for edges that appear in at least one emitted `risk_flows` row MUST be written.
-(Edges never used in any emitted flow should not inflate artifacts.)
+Sampling behavior:
+* Limit: `caps.maxCallSitesPerEdge` (default 3, from config normalization).
+* Order: `(file, startLine, startCol, endLine, endCol, calleeNormalized, calleeRaw, callSiteId)`.
+* Sampled values are **callSiteIds only** (the `call_sites` artifact may include more rows).
+
+The sampling order is reflected in `risk_interprocedural_stats.callSiteSampling.order`.
+
+### 4.6 Row size cap enforcement (required)
+Hard limit: **<= 32KB** per JSONL row.
+
+Deterministic trimming steps (current writer):
+1. Drop `args` and `evidence` arrays.
+2. Clear `kwargs` and `snippetHash`.
+3. If still too large, drop the row (no stats entry today).
 
 ## 5) `risk_flows` schema (normative)
 

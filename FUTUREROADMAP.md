@@ -1330,3 +1330,239 @@ Additional docs that MUST be updated if Phase 18 adds new behavior or config:
 - [ ] Extend `tools/release-check.js` to optionally run a bounded-time service-mode smoke step (`--service-mode`).
 
 ---
+
+## WHAT IF WE DIDNT NEED SHOES
+
+This is an optional, high-impact exploration track that assumes we can add native or WASM-accelerated components to substantially improve retrieval and indexing performance beyond what is feasible in JS alone. Everything here must have clean fallbacks and must never change functional semantics.
+
+### Objective
+
+Identify and integrate optional native/WASM accelerators for the heaviest hot paths (bitmap filtering, top-K ranking, ANN scoring, and search pipeline orchestration) with strict correctness parity and deterministic behavior.
+
+### Goals
+
+- Reduce query latency by offloading hot loops to native/WASM implementations.
+- Reduce GC pressure by using typed buffers and shared memory arenas.
+- Preserve identical results vs. JS baseline (deterministic ordering and tie-breaking).
+- Provide clean capability detection and full JS fallback paths.
+
+### Non-goals
+
+- Making native/WASM dependencies mandatory.
+- Changing ranking, filtering, or ANN semantics.
+- Replacing existing on-disk index formats.
+
+### Files to modify (exhaustive for this section)
+
+- `src/retrieval/bitmap.js`
+- `src/retrieval/filters.js`
+- `src/retrieval/filter-index.js`
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `src/retrieval/rankers.js`
+- `src/retrieval/ann/providers/*`
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js` (new or extend)
+- `tools/build-native.js` (new)
+- `package.json` (optional deps + build scripts)
+- `docs/perf/native-accel.md` (new)
+- `docs/specs/native-accel.md` (new)
+- `tests/retrieval/native/bitmap-equivalence.test.js` (new)
+- `tests/retrieval/native/topk-equivalence.test.js` (new)
+- `tests/retrieval/native/ann-equivalence.test.js` (new)
+- `tests/retrieval/native/capability-fallback.test.js` (new)
+- `tests/retrieval/native/perf-baseline.test.js` (new, opt-in)
+
+### Docs/specs to add or update
+
+- `docs/perf/native-accel.md` (new; performance goals, measurement harness, rollout policy)
+- `docs/specs/native-accel.md` (new; interfaces, ABI, fallback behavior, capability detection)
+- `docs/guides/commands.md` (add optional build steps for native accel)
+
+### Subphase A — Native Bitmap Engine (Roaring/Bitset)
+
+#### Goals
+
+- Replace large `Set`-based allowlists with roaring bitmap or bitset operations.
+- Keep JS bitmap code path as the default fallback.
+
+#### Non-goals
+
+- Changing filter semantics or storage format.
+
+#### Touchpoints
+
+- `src/retrieval/bitmap.js`
+- `src/retrieval/filters.js`
+- `src/retrieval/filter-index.js`
+- `src/shared/native-accel.js` (new)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add optional native bitmap module (Node-API addon or WASM) with `and/or/andNot` operations.
+- [ ] Implement capability detection and a stable JS fallback shim.
+- [ ] Ensure deterministic iteration order when converting back to arrays.
+- [ ] Add large-scale bitmap microbenchmarks and memory usage comparisons.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/bitmap-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] Bitmap operations match JS results exactly.
+- [ ] Large filter queries show measurable speedup without semantic changes.
+
+---
+
+### Subphase B — Native Top‑K Selection + Score Accumulation
+
+#### Goals
+
+- Replace full-array sorts with native top‑K selection.
+- Accumulate scores in native buffers to reduce GC pressure.
+
+#### Non-goals
+
+- Changing ranking behavior or ordering rules.
+
+#### Touchpoints
+
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/rankers.js`
+- `src/shared/native-accel.js` (new)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add a native top‑K selection module with stable tie‑breaking.
+- [ ] Add native score accumulation for BM25 + ANN fusion.
+- [ ] Implement typed array exchange or shared memory blocks for scores and ids.
+- [ ] Provide a pure JS fallback with identical semantics.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/topk-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] Top‑K selection matches JS ordering within deterministic tie rules.
+- [ ] Reduced memory overhead vs. full sorting for large candidate sets.
+
+---
+
+### Subphase C — ANN Acceleration + Preflight
+
+#### Goals
+
+- Accelerate ANN scoring and filtering using native/WASM backends.
+- Avoid slow failure paths with explicit preflight checks.
+
+#### Non-goals
+
+- Replacing existing ANN index formats or configurations.
+
+#### Touchpoints
+
+- `src/retrieval/ann/providers/*`
+- `src/retrieval/pipeline/ann-backends.js`
+- `src/shared/native-accel.js`
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add optional ANN scoring backend with feature flags and compatibility checks.
+- [ ] Implement preflight capability checks (dims, space, index metadata).
+- [ ] Add JS fallback with identical retrieval semantics.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/ann-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] ANN output parity with JS baseline.
+- [ ] Preflight avoids slow retries and confusing failures.
+
+---
+
+### Subphase D — Worker‑Thread Pipeline Offload
+
+#### Goals
+
+- Move heavy query stages to worker threads with shared buffers.
+- Keep main thread responsive for CLI output and cancellation.
+
+#### Non-goals
+
+- Changing CLI UX or query semantics.
+
+#### Touchpoints
+
+- `src/retrieval/pipeline.js`
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `src/retrieval/output/format.js`
+- `src/shared/worker-pool.js` (new or extend)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Introduce a worker-pool for retrieval compute stages.
+- [ ] Use shared memory arenas for candidates and scores when safe.
+- [ ] Add cancellation and timeout propagation.
+- [ ] Keep output formatting on main thread with streaming results.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/worker-cancel.test.js` (new)
+
+#### Acceptance
+
+- [ ] Worker-offloaded pipeline matches results and ordering.
+- [ ] Main-thread responsiveness improves under heavy queries.
+
+---
+
+### Subphase E — Build + Release Strategy for Native/WASM
+
+#### Goals
+
+- Provide reproducible builds for native/WASM components.
+- Ensure opt-in installation with clear diagnostics.
+
+#### Non-goals
+
+- Mandatory native dependencies in all environments.
+
+#### Touchpoints
+
+- `tools/build-native.js` (new)
+- `package.json`
+- `docs/perf/native-accel.md`
+- `docs/specs/native-accel.md`
+- CI pipelines (add optional native build step)
+
+#### Tasks
+
+- [ ] Add optional build step that produces platform-specific artifacts.
+- [ ] Add capability detection and explicit logging for native availability.
+- [ ] Document troubleshooting and fallback rules.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `tests/retrieval/native/perf-baseline.test.js` (opt-in)
+
+#### Acceptance
+
+- [ ] Native/WASM acceleration is optional, deterministic, and easy to diagnose.
+- [ ] JS fallbacks always function without feature loss.

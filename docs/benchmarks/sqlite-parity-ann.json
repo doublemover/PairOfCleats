@@ -1191,7 +1191,7 @@
       }
     },
     {
-      "query": "repometrics",
+      "query": "metrics",
       "memory": {
         "stats": {
           "elapsedMs": 254,

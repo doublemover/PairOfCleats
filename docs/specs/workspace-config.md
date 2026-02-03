@@ -33,6 +33,21 @@ This spec is written to be *implementation-ready* in the existing PairOfCleats N
 - Automatically finding a workspace file by walking up directories (workspace path is supplied explicitly).
 - Cross-machine stable repo identity (e.g., Git remote-based identity). Identity is **path-based**.
 
+### 1.3 External config dependencies (not in this file)
+
+Workspace config does **not** carry SCM provider settings; those live in the main config surface:
+
+- `indexing.scm.provider`
+- `indexing.scm.timeoutMs`
+- `indexing.scm.maxConcurrentProcesses`
+- `indexing.scm.churnWindowCommits`
+- `indexing.scm.annotate.enabled`
+- `indexing.scm.annotate.maxFileSizeBytes`
+- `indexing.scm.annotate.timeoutMs`
+- `indexing.scm.jj.snapshotWorkingCopy`
+
+See `docs/config/contract.md` for authoritative config descriptions.
+
 ---
 
 ## 2. Canonical terms

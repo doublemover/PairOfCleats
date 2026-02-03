@@ -23,7 +23,8 @@ export {
   getToolingDir,
   getToolingConfig,
   getExtensionsDir,
-  getMetricsDir
+  getMetricsDir,
+  getQueryCacheDir
 } from './paths/cache.js';
 
 export {
