@@ -61,6 +61,14 @@ const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
     return { key: primary, languages: [primary] };
   }
   const languages = new Set([primary]);
+  const explicit = Array.isArray(entry?.treeSitterBatchLanguages) ? entry.treeSitterBatchLanguages : null;
+  const embedded = Array.isArray(entry?.treeSitterEmbeddedLanguages) ? entry.treeSitterEmbeddedLanguages : null;
+  for (const list of [explicit, embedded]) {
+    if (!Array.isArray(list)) continue;
+    for (const lang of list) {
+      if (TREE_SITTER_LANG_IDS.has(lang)) languages.add(lang);
+    }
+  }
   if (treeSitterOptions?.batchEmbeddedLanguages !== false && primary === 'html') {
     const maxLoaded = Number.isFinite(treeSitterOptions?.maxLoadedLanguages)
       ? Math.max(1, Math.floor(treeSitterOptions.maxLoadedLanguages))

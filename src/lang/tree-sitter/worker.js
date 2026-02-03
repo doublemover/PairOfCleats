@@ -41,6 +41,10 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
     maxAstStack: config.maxAstStack ?? null,
     maxChunkNodes: config.maxChunkNodes ?? null,
     useQueries: config.useQueries ?? null,
+    adaptive: config.adaptive ?? null,
+    cacheKey: config.cacheKey ?? null,
+    chunkCache: config.chunkCache ?? null,
+    chunkCacheMaxEntries: config.chunkCacheMaxEntries ?? null,
     allowedLanguages: Array.isArray(config.allowedLanguages) ? config.allowedLanguages : null,
     byLanguage: config.byLanguage || {},
     configChunking: config.configChunking === true

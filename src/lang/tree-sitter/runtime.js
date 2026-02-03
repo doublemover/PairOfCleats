@@ -84,6 +84,8 @@ export const resetTreeSitterStats = () => {
   treeSitterState.loggedTimeoutDisable?.clear?.();
   treeSitterState.timeoutCounts?.clear?.();
   treeSitterState.disabledLanguages?.clear?.();
+  treeSitterState.nodeDensity?.clear?.();
+  treeSitterState.loggedAdaptiveBudgets?.clear?.();
 };
 
 export const getTreeSitterStats = () => {

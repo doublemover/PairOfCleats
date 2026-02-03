@@ -512,73 +512,73 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
 - `docs/specs/segmentation-perf.md`
 
 ### Tasks
-- [ ] Add grammar churn observability and preflight guards.
-  - [ ] Record load/eviction/fallback counts in stage audit output.
-  - [ ] Validate WASM file presence for observed languages once per run.
-  - [ ] Emit one deterministic warning per missing grammar id.
-  - [ ] Add a summary of grammar cache size at the end of the stage.
-- [ ] Centralize language discovery + deterministic inputs.
-  - [ ] Build observed language set from VFS segment metadata (embedded languages).
-  - [ ] Normalize and de-duplicate language IDs in one helper used by preload + batching.
-  - [ ] Preload grammars in deterministic order (frequency desc, then languageId).
-  - [ ] Ensure `.poc-vfs` routing is the source of truth for embedded languages.
-- [ ] Ensure lazy initialization and stable configuration.
-  - [ ] Move `initTreeSitterWasm` behind first parse/preload call.
-  - [ ] Skip init entirely when tree-sitter is disabled.
-  - [ ] Cache resolved WASM runtime/grammar paths in build state/runtime cache.
-  - [ ] Add per-language maxBytes overrides for expensive grammars (TS/JS/HTML).
+- [x] Add grammar churn observability and preflight guards.
+  - [x] Record load/eviction/fallback counts in stage audit output.
+  - [x] Validate WASM file presence for observed languages once per run.
+  - [x] Emit one deterministic warning per missing grammar id.
+  - [x] Add a summary of grammar cache size at the end of the stage.
+- [x] Centralize language discovery + deterministic inputs.
+  - [x] Build observed language set from VFS segment metadata (embedded languages).
+  - [x] Normalize and de-duplicate language IDs in one helper used by preload + batching.
+  - [x] Preload grammars in deterministic order (frequency desc, then languageId).
+  - [x] Ensure `.poc-vfs` routing is the source of truth for embedded languages.
+- [x] Ensure lazy initialization and stable configuration.
+  - [x] Move `initTreeSitterWasm` behind first parse/preload call.
+  - [x] Skip init entirely when tree-sitter is disabled.
+  - [x] Cache resolved WASM runtime/grammar paths in build state/runtime cache.
+  - [x] Add per-language maxBytes overrides for expensive grammars (TS/JS/HTML).
 - [x] Enforce bounded caches in main thread and workers.
   - [x] Improve LRU eviction rules (never evict active grammar).
   - [x] Keep eviction deterministic under the same inputs.
   - [x] Prune worker caches to `maxLoadedLanguages` after each batch.
-- [ ] Make batching and fallback behavior deterministic.
-  - [ ] Batch parses by language with stable batch keys.
-  - [ ] Include embedded language sets in batch keys when relevant.
-  - [ ] Ensure fallback to heuristic chunking uses consistent logs.
-  - [ ] Track repeated parse timeouts and disable that language for the current run.
+- [x] Make batching and fallback behavior deterministic.
+  - [x] Batch parses by language with stable batch keys.
+  - [x] Include embedded language sets in batch keys when relevant.
+  - [x] Ensure fallback to heuristic chunking uses consistent logs.
+  - [x] Track repeated parse timeouts and disable that language for the current run.
 - [x] Extract only what we need, with bounded memory.
   - [x] Precompile and reuse per-language tree-sitter queries.
   - [x] Prefer query-based extraction where supported; fall back to traversal otherwise.
   - [x] Stream chunk candidates during traversal to avoid large node arrays.
-- [ ] Add adaptive tuning for heavy grammars.
-  - [ ] Track node density metrics per language.
-  - [ ] Adjust traversal caps for dense grammars.
-- [ ] Reuse parse work across incremental runs.
-  - [ ] Cache parse trees by file hash/mtime in watch/incremental mode.
-  - [ ] Invalidate cache on content changes.
-- [ ] Parallelize worker parsing by language batches.
-  - [ ] Group worker tasks by language id for batch execution.
-  - [ ] Ensure worker pruning between batches.
+- [x] Add adaptive tuning for heavy grammars.
+  - [x] Track node density metrics per language.
+  - [x] Adjust traversal caps for dense grammars.
+- [x] Reuse parse work across incremental runs.
+  - [x] Cache parse trees by file hash/mtime in watch/incremental mode.
+  - [x] Invalidate cache on content changes.
+- [x] Parallelize worker parsing by language batches.
+  - [x] Group worker tasks by language id for batch execution.
+  - [x] Ensure worker pruning between batches.
 
 ### Milestones
-- [ ] **Determinism + Observability**: churn metrics, preflight checks, deterministic preload order, shared language discovery helper.
+- [x] **Determinism + Observability**: churn metrics, preflight checks, deterministic preload order, shared language discovery helper.
 - [x] **Bounded Caches**: deterministic LRU eviction and worker pruning with strict `maxLoadedLanguages`.
 - [x] **Extraction Efficiency**: query caching + query-based extraction + streaming chunk emission.
-- [ ] **Adaptive + Incremental**: adaptive traversal budgets and parse tree reuse for unchanged files.
+- [x] **Adaptive + Incremental**: adaptive traversal budgets and parse tree reuse for unchanged files.
 
 ### Tests
 - [x] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js`
 - [x] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
 - [x] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-vfs-language-routing.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-vfs-language-routing.test.js`
 - [x] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js`
 - [x] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js`
-- [ ] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js`
+- [x] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js`
 
 ### Acceptance
-- [ ] WASM grammar count stays within configured bounds.
-- [ ] Tree-sitter load failures do not crash indexing.
-- [ ] Language preloading is limited to observed repo languages.
-- [ ] Preload/eviction order is deterministic across runs with the same inputs.
-- [ ] Worker pool cache stays within configured bounds.
-- [ ] Query compilation overhead is amortized across files.
-- [ ] Chunking uses bounded memory even on large trees.
-- [ ] Repeated timeouts degrade gracefully without reattempt storms.
+- [x] WASM grammar count stays within configured bounds.
+- [x] Tree-sitter load failures do not crash indexing.
+- [x] Language preloading is limited to observed repo languages.
+- [x] Preload/eviction order is deterministic across runs with the same inputs.
+- [x] Worker pool cache stays within configured bounds.
+- [x] Query compilation overhead is amortized across files.
+- [x] Chunking uses bounded memory even on large trees.
+- [x] Repeated timeouts degrade gracefully without reattempt storms.
 
 ---
 

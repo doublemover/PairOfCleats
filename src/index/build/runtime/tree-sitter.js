@@ -39,6 +39,17 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterByLanguage = normalizeTreeSitterByLanguage(
     treeSitterConfig.byLanguage || {}
   );
+  const heavyGrammarDefaults = {
+    javascript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null }
+  };
+  const mergedTreeSitterByLanguage = {
+    ...heavyGrammarDefaults,
+    ...treeSitterByLanguage
+  };
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
@@ -77,7 +88,7 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterMaxBytes,
     treeSitterMaxLines,
     treeSitterMaxParseMs,
-    treeSitterByLanguage,
+    treeSitterByLanguage: mergedTreeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
     treeSitterMaxLoadedLanguages,

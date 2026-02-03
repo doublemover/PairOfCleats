@@ -13,14 +13,14 @@ const entries = [
 const plan = resolveTreeSitterPreloadPlan(entries, { maxLoadedLanguages: 3 });
 assert.deepStrictEqual(
   plan.languages,
-  ['javascript', 'html', 'python'],
+  ['html', 'javascript', 'python'],
   'preload order should sort by frequency desc, then language id'
 );
 
 const limited = resolveTreeSitterPreloadPlan(entries, { maxLoadedLanguages: 2 });
 assert.deepStrictEqual(
   limited.languages,
-  ['javascript', 'html'],
+  ['html', 'javascript'],
   'preload plan should respect maxLoadedLanguages'
 );
 

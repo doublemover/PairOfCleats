@@ -36,6 +36,13 @@ const DEFAULT_MAX_CHUNK_NODES = 5_000;
 const JS_TS_LANGUAGE_IDS = new Set(['javascript', 'typescript', 'tsx', 'jsx']);
 const QUERY_CAPTURE_NAME = 'chunk';
 const QUERY_MATCH_LIMIT_BUFFER = 32;
+const DEFAULT_DENSE_NODE_THRESHOLD = 250;
+const DEFAULT_DENSER_NODE_THRESHOLD = 600;
+const DEFAULT_DENSE_SCALE = 0.5;
+const DEFAULT_DENSER_SCALE = 0.25;
+const MIN_ADAPTIVE_AST_NODES = 10_000;
+const MIN_ADAPTIVE_AST_STACK = 10_000;
+const MIN_ADAPTIVE_CHUNK_NODES = 200;
 
 const buildChunkQueryPattern = (language, config) => {
   if (!config) return null;
@@ -100,6 +107,78 @@ const getTreeSitterChunkQuery = (languageId, config, options) => {
   }
 };
 
+const resolveAdaptiveBudgetScale = (options, resolvedId) => {
+  const adaptive = options?.treeSitter?.adaptive;
+  if (adaptive === false || adaptive?.enabled === false) return { scale: 1, density: null };
+  const entry = treeSitterState.nodeDensity?.get?.(resolvedId);
+  const density = entry && typeof entry === 'object' ? entry.density : entry;
+  if (!Number.isFinite(density) || density <= 0) return { scale: 1, density: null };
+
+  const denseThreshold = Number.isFinite(adaptive?.denseThreshold)
+    ? adaptive.denseThreshold
+    : DEFAULT_DENSE_NODE_THRESHOLD;
+  const denserThreshold = Number.isFinite(adaptive?.denserThreshold)
+    ? adaptive.denserThreshold
+    : DEFAULT_DENSER_NODE_THRESHOLD;
+  const denseScale = Number.isFinite(adaptive?.denseScale)
+    ? adaptive.denseScale
+    : DEFAULT_DENSE_SCALE;
+  const denserScale = Number.isFinite(adaptive?.denserScale)
+    ? adaptive.denserScale
+    : DEFAULT_DENSER_SCALE;
+
+  let scale = 1;
+  if (Number.isFinite(denserThreshold) && density >= denserThreshold) {
+    scale = denserScale;
+  } else if (Number.isFinite(denseThreshold) && density >= denseThreshold) {
+    scale = denseScale;
+  }
+
+  if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+  if (scale < 1 && options?.log && !treeSitterState.loggedAdaptiveBudgets?.has?.(resolvedId)) {
+    options.log(
+      `[tree-sitter] Dense AST for ${resolvedId} (${density.toFixed(1)} nodes/line); ` +
+      `scaling traversal budgets by ${scale}.`
+    );
+    treeSitterState.loggedAdaptiveBudgets?.add?.(resolvedId);
+  }
+
+  return { scale, density };
+};
+
+const applyAdaptiveBudget = (budget, options, resolvedId) => {
+  const { scale } = resolveAdaptiveBudgetScale(options, resolvedId);
+  if (!Number.isFinite(scale) || scale >= 1) return budget;
+  bumpMetric('adaptiveBudgetCuts', 1);
+  const clamp = (value, min) => {
+    const base = Number.isFinite(value) ? value : min;
+    const scaled = Math.floor(base * scale);
+    const floor = Math.min(base, min);
+    return Math.max(floor, scaled);
+  };
+  return {
+    maxAstNodes: clamp(budget.maxAstNodes, MIN_ADAPTIVE_AST_NODES),
+    maxAstStack: clamp(budget.maxAstStack, MIN_ADAPTIVE_AST_STACK),
+    maxChunkNodes: clamp(budget.maxChunkNodes, MIN_ADAPTIVE_CHUNK_NODES)
+  };
+};
+
+const recordNodeDensity = (languageId, visited, lineCount) => {
+  if (!languageId) return null;
+  if (!Number.isFinite(visited) || visited <= 0) return null;
+  if (!Number.isFinite(lineCount) || lineCount <= 0) return null;
+  const density = visited / Math.max(1, lineCount);
+  const prev = treeSitterState.nodeDensity?.get?.(languageId);
+  const prevDensity = prev && typeof prev === 'object' ? prev.density : prev;
+  const prevSamples = prev && typeof prev === 'object' ? prev.samples : 0;
+  const nextDensity = Number.isFinite(prevDensity)
+    ? (prevDensity * 0.7) + (density * 0.3)
+    : density;
+  const next = { density: nextDensity, samples: prevSamples + 1 };
+  treeSitterState.nodeDensity?.set?.(languageId, next);
+  return next;
+};
+
 function resolveTraversalBudget(options, resolvedId) {
   const config = options?.treeSitter || {};
   const perLanguage = config.byLanguage?.[resolvedId] || {};
@@ -108,12 +187,72 @@ function resolveTraversalBudget(options, resolvedId) {
   const maxAstNodes = perLanguage.maxAstNodes ?? config.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
   const maxAstStack = perLanguage.maxAstStack ?? config.maxAstStack ?? DEFAULT_MAX_AST_STACK;
   const maxChunkNodes = perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? defaultMaxChunkNodes;
-  return {
+  const budget = {
     maxAstNodes: Number.isFinite(maxAstNodes) && maxAstNodes > 0 ? Math.floor(maxAstNodes) : DEFAULT_MAX_AST_NODES,
     maxAstStack: Number.isFinite(maxAstStack) && maxAstStack > 0 ? Math.floor(maxAstStack) : DEFAULT_MAX_AST_STACK,
     maxChunkNodes: Number.isFinite(maxChunkNodes) && maxChunkNodes > 0 ? Math.floor(maxChunkNodes) : defaultMaxChunkNodes
   };
+  return applyAdaptiveBudget(budget, options, resolvedId);
 }
+
+const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
+
+const resolveChunkCacheKey = (options, resolvedId) => {
+  if (options?.treeSitter?.chunkCache === false) return null;
+  const rawKey = options?.treeSitterCacheKey ?? options?.treeSitter?.cacheKey ?? null;
+  if (rawKey == null || rawKey === '') return null;
+  const base = typeof rawKey === 'string' ? rawKey : String(rawKey);
+  if (!base) return null;
+  return `${resolvedId}:${base}`;
+};
+
+const resolveChunkCacheMaxEntries = (options) => {
+  const raw = options?.treeSitter?.chunkCacheMaxEntries
+    ?? options?.treeSitter?.chunkCache?.maxEntries
+    ?? DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const ensureChunkCache = (options) => {
+  const maxEntries = resolveChunkCacheMaxEntries(options);
+  if (!treeSitterState.chunkCache) treeSitterState.chunkCache = new Map();
+  if (treeSitterState.chunkCacheMaxEntries !== maxEntries) {
+    treeSitterState.chunkCache.clear();
+    treeSitterState.chunkCacheMaxEntries = maxEntries;
+  }
+  return { cache: treeSitterState.chunkCache, maxEntries };
+};
+
+const cloneChunkList = (chunks) => chunks.map((chunk) => ({
+  ...chunk,
+  ...(chunk?.meta ? { meta: { ...chunk.meta } } : {})
+}));
+
+const getCachedChunks = (cache, key) => {
+  if (!cache?.has?.(key)) {
+    bumpMetric('chunkCacheMisses', 1);
+    return null;
+  }
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  bumpMetric('chunkCacheHits', 1);
+  return Array.isArray(value) ? cloneChunkList(value) : null;
+};
+
+const setCachedChunks = (cache, key, chunks, maxEntries) => {
+  if (!Array.isArray(chunks) || !chunks.length) return;
+  bumpMetric('chunkCacheSets', 1);
+  cache.set(key, cloneChunkList(chunks));
+  while (cache.size > maxEntries) {
+    const oldest = cache.keys().next().value;
+    if (!oldest) break;
+    cache.delete(oldest);
+    bumpMetric('chunkCacheEvictions', 1);
+  }
+};
 
 function countLines(text) {
   if (!text) return 0;
@@ -479,13 +618,23 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
-  const lineCount = shouldRecordMetrics ? countLines(text) : 0;
+  const shouldTrackDensity = options?.treeSitter?.adaptive !== false;
+  const lineCount = (shouldRecordMetrics || shouldTrackDensity) ? countLines(text) : 0;
   const metricsStart = shouldRecordMetrics ? Date.now() : 0;
   const recordMetrics = () => {
     if (!shouldRecordMetrics) return;
     const durationMs = Date.now() - metricsStart;
     metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
   };
+  const cacheKey = resolveChunkCacheKey(options, resolvedId);
+  const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  if (cacheKey && cacheRef) {
+    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    if (cached) {
+      recordMetrics();
+      return cached;
+    }
+  }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
   const parser = getTreeSitterParser(resolvedId, options);
@@ -571,6 +720,9 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
+        if (cacheKey && cacheRef) {
+          setCachedChunks(cacheRef.cache, cacheKey, queryResult.chunks, cacheRef.maxEntries);
+        }
         recordMetrics();
         return queryResult.chunks;
       }
@@ -595,6 +747,9 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     let traversalResult = null;
     try {
       traversalResult = gatherChunkNodes(rootNode, text, config, traversalBudget);
+      if (shouldTrackDensity && traversalResult?.visited) {
+        recordNodeDensity(resolvedId, traversalResult.visited, lineCount);
+      }
       if (!traversalResult?.chunks) {
         recordMetrics();
         const key = `${resolvedId}:${traversalResult?.reason || 'budget'}`;
@@ -626,6 +781,9 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       return null;
     }
 
+    if (cacheKey && cacheRef) {
+      setCachedChunks(cacheRef.cache, cacheKey, traversalResult.chunks, cacheRef.maxEntries);
+    }
     recordMetrics();
     return traversalResult.chunks;
   } finally {
@@ -661,6 +819,13 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   if (!LANG_CONFIG[resolvedId]) return null;
 
+  const cacheKey = resolveChunkCacheKey(options, resolvedId);
+  const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  if (cacheKey && cacheRef) {
+    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    if (cached) return cached;
+  }
+
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
     try {
@@ -693,7 +858,12 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   try {
     const result = await pool.run(payload, { name: 'parseTreeSitter' });
-    if (Array.isArray(result) && result.length) return result;
+    if (Array.isArray(result) && result.length) {
+      if (cacheKey && cacheRef) {
+        setCachedChunks(cacheRef.cache, cacheKey, result, cacheRef.maxEntries);
+      }
+      return result;
+    }
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
     bumpMetric('workerFallbacks', 1);
