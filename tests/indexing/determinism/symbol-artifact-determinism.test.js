@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'symbol-artifact-determinism');
@@ -38,25 +39,36 @@ const testConfig = {
 const testConfigJson = JSON.stringify(testConfig);
 
 const buildIndex = (cacheRoot) => {
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_TEST_CONFIG: testConfigJson,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
-  return spawnSync(
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig
+  });
+  const result = spawnSync(
     process.execPath,
     [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
+  if (result.status !== 0) {
+    if (result.error) {
+      console.error('build_index spawn error:', result.error);
+    }
+    const crashLogPath = path.join(repoRoot, 'logs', 'index-crash.log');
+    if (fs.existsSync(crashLogPath)) {
+      const crashLog = fs.readFileSync(crashLogPath, 'utf8');
+      const tail = crashLog.length > 2000 ? crashLog.slice(-2000) : crashLog;
+      console.error('build_index crash log (tail):\n' + tail);
+    }
+  }
+  return result;
 };
 
 const loadArtifacts = (cacheRoot) => {
-  process.env.PAIROFCLEATS_TESTING = '1';
-  process.env.PAIROFCLEATS_TEST_CONFIG = testConfigJson;
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig
+  });
 
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);

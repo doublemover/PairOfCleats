@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T01:40:25.359Z",
+  "generatedAt": "2026-02-03T02:11:30.349Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1265,7 +1265,6 @@
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",
@@ -1405,7 +1404,6 @@
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
         "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
@@ -1708,7 +1706,6 @@
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
@@ -1830,7 +1827,6 @@
         "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
         "tests/indexing/contracts/loader-matrix-parity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/determinism/symbol-artifact-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",

@@ -20,63 +20,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 
 ---
 
-## Phase 1 — Doc/Config/Schema Foundations
-
-### 1.1 Doc contract checks (CI)
-- Goal: validate doc drift for CLI flags, schema lists, and lane lists; emit diff summary.
-- Touchpoints:
-  - `tools/ci/run-suite.js` (add optional doc-check step or new job)
-  - `tools/ci/*` (runner wiring)
-  - `docs/contracts/*`, `docs/specs/*`, `docs/testing/*` (inputs)
-  - `src/retrieval/cli-args.js` (CLI flags source)
-  - `src/contracts/schemas/*.js` (schema lists)
-  - `tests/run.rules.jsonc`, `tests/run.js` (lane list)
-- Tasks:
-  - [ ] Define `tools/doc-contract-check.js` to compare:
-    - [ ] CLI flags in docs vs `src/retrieval/cli-args.js`.
-    - [ ] Artifact lists in docs vs `src/contracts/schemas/artifacts.js`.
-    - [ ] Lanes in docs vs `tests/run.rules.jsonc`.
-  - [ ] Produce a machine-readable diff and short CI summary.
-  - [ ] Add CI job in workflow (or CI suite script) that fails on drift.
-- Tests:
-  - [ ] `tests/tooling/docs/doc-contract-check.test.js` detects a known mismatch fixture.
-  - [ ] Smoke test returns clean when inputs match.
-- Acceptance:
-  - [ ] CI doc‑check job fails on intentional drift and passes when aligned.
-
-### 1.2 Config surface unification
-- Goal: generate `docs/config/contract.md` from schema + env registry.
-- Touchpoints:
-  - `docs/config/schema.json` (authoritative schema)
-  - `src/shared/env.js` (env registry)
-  - `docs/config/contract.md` (generated)
-  - `tools/config-inventory.js` or new generator
-- Tasks:
-  - [ ] Create generator script (e.g., `tools/config-contract-doc.js`).
-  - [ ] Include schema keys, defaults, descriptions, env overrides.
-  - [ ] Mark `docs/config/contract.md` as generated; guard in doc contract check.
-- Tests:
-  - [ ] Unit test verifies generator output contains key sections and key counts.
-- Acceptance:
-  - [ ] Contract doc rebuild is deterministic and matches schema+env inputs.
-
-### 1.3 Artifact schema registry export
-- Goal: emit machine-readable schema index (name -> version/required fields).
-- Touchpoints:
-  - `src/contracts/schemas/artifacts.js` (`ARTIFACT_SCHEMA_DEFS`)
-  - `docs/contracts/artifact-schemas.md` (reference)
-  - `tools/` (exporter)
-- Tasks:
-  - [ ] Add `tools/export-artifact-schema-index.js` writing JSON to `docs/contracts/artifact-schema-index.json`.
-  - [ ] Include schemaVersion and required fields list per artifact.
-  - [ ] Update doc contract check to compare doc lists with index.
-- Tests:
-  - [ ] Unit test verifies exported JSON includes a known artifact with required fields.
-- Acceptance:
-  - [ ] Exported index matches schema registry and is referenced by docs/CI.
-
----
-
 ## Phase 2 — Index Artifact Robustness
 
 ### 2.1 Deterministic trimming for oversized JSONL rows
@@ -90,7 +33,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
   - [ ] Define a shared trimming helper (e.g., `src/shared/artifact-io/limits.js` or `src/index/build/artifacts/trim.js`).
   - [ ] Trimming order: extensions -> graphs -> optional arrays -> optional strings; never null required objects.
   - [ ] Emit counters for trimmed fields in stats artifacts.
-  - [ ] Update schemas/docs to reflect trimming behavior.
 - Tests:
   - [ ] Unit tests for each writer verify:
     - [ ] Oversized row trimmed deterministically.
@@ -162,7 +104,7 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 - Tasks:
   - [ ] Add modes: compact, symbol-first, context-only (CLI flags + config).
   - [ ] Ensure default JSON excludes heavyweight graph/AST fields unless `--explain`.
-  - [ ] Update docs and schema for output fields.
+  - [ ] Update output schema artifacts (doc updates tracked in DOXFIX).
 - Tests:
   - [ ] Output snapshot tests for each mode.
   - [ ] JSON output shape tests (default vs explain).
@@ -177,7 +119,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
   - `docs/contracts/graph-tools-cli.md`
 - Tasks:
   - [ ] If strict: throw on empty inputs + add structured warning code for legacy callers.
-  - [ ] Update docs accordingly.
 - Tests:
   - [ ] New tests for strict mode (errors) and legacy warning behavior.
 - Acceptance:
@@ -280,7 +221,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
   - `tools/ctags-ingest.js`, `tools/gtags-ingest.js`, `tools/lsif-ingest.js`, `tools/scip-ingest.js`
 - Tasks:
   - [ ] Add `pairofcleats ingest <ctags|gtags|lsif|scip>` routes.
-  - [ ] Update docs and help output.
 - Tests:
   - [ ] CLI routing tests for each tool.
 - Acceptance:
@@ -305,15 +245,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 
 ---
 
-## Phase 7 — Documentation updates (wrap-up)
-
-- [ ] Update `docs/contracts/*`, `docs/specs/*`, `docs/guides/*`, `docs/testing/*`, `docs/tooling/*`, `docs/api/*`, `docs/config/*`, `docs/perf/*`, `docs/benchmarks/*` per Phase 1–6 changes.
-- [ ] Update `COSMIC_DOCS_LEDGER.md` with resolution status per doc.
-- Acceptance:
-  - [ ] All updated docs pass doc-contract check.
-
----
-
 ## Cross-cutting tests to run
 
 - [ ] `node tests/run.js --lane ci-lite`
@@ -330,8 +261,6 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 
 ## Acceptance criteria
 
-- [ ] Doc contract check passes in CI.
-- [ ] `docs/config/contract.md` is generated from schema/env.
 - [ ] Artifact schema index JSON exists and matches schema.
 - [ ] Oversized rows trimmed deterministically with counters.
 - [ ] Explain output schema versioned and stable.
