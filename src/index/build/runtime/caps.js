@@ -1,4 +1,4 @@
-import { normalizeCapNullOnZero } from '../../shared/limits.js';
+import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 
 export const normalizeLimit = (value, fallback) => (
   normalizeCapNullOnZero(value, fallback)
