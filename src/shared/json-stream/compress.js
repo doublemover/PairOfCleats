@@ -31,7 +31,9 @@ export const createFflateGzipStream = (options = {}) => {
   const stream = new Transform({
     transform(chunk, encoding, callback) {
       try {
-        const buffer = typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.from(chunk);
+        const buffer = Buffer.isBuffer(chunk)
+          ? chunk
+          : Buffer.from(chunk, encoding);
         gzip.push(buffer, false);
         callback();
       } catch (err) {
