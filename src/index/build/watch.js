@@ -21,7 +21,7 @@ import {
   setWatchBacklog
 } from '../../shared/metrics.js';
 import { fileExt, toPosix } from '../../shared/files.js';
-import { runWithQueue } from '../../shared/concurrency.js';
+import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
@@ -176,7 +176,13 @@ export async function watchIndex({
       if (beforeTracked > 0 || afterTracked > 0 || changed) scheduleBuild();
     };
     if (!updateQueue) {
-      await Promise.all(absPaths.map((absPath) => handleUpdate(absPath)));
+      const fallbackConcurrency = Number.isFinite(Number(runtimeRef.ioConcurrency))
+        ? Math.max(1, Math.floor(Number(runtimeRef.ioConcurrency)))
+        : 8;
+      await runWithConcurrency(absPaths, fallbackConcurrency, async (absPath) => handleUpdate(absPath), {
+        collectResults: false,
+        signal: abortSignal
+      });
       return;
     }
     await runWithQueue(
