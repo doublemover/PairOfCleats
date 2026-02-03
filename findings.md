@@ -253,27 +253,162 @@
 
 ---
 
-## Files directly inspected in the extended pass
-(Additional files beyond the original broad scan, specifically for the extra findings above.)
 
-- `src/index/build/lock.js`
-- `src/shared/json-stream/streams.js`
-- `src/shared/json-stream/atomic.js`
-- `src/shared/json-stream/compress.js`
-- `tools/download-extensions.js`
-- `src/index/scm/providers/git.js`
-- `src/index/git.js`
-- `src/index/build/incremental.js`
-- `src/shared/bundle-io.js`
-- `src/storage/sqlite/build/bundle-loader.js`
-- `src/retrieval/output/filters.js`
-- `src/index/build/import-resolution.js`
+## Critical / high-severity issues
+
+### 1) Zstd decompression fallback can OOM the process (output limit is not enforced during execution)
+
+- **Files / locations**
+  - `src/shared/artifact-io/json.js`
+    - `readJsonFile()` calls `decompressBuffer(...)` during JSON reads (L16–74; call at L35–39).
+    - `readJsonLinesArray()` falls back to `decompressBuffer(...)` for `.jsonl.zst` if streaming zstd isn’t available (L185–204; fallback at L199–203).
+    - `readJsonLinesArraySync()` also uses `decompressBuffer(...)` for compressed candidates (L279–299).
+  - `src/shared/artifact-io/compression.js`
+    - `zstdDecompressSync()` buffers stdin and decompresses in a child process (L17–58).
+  - `src/shared/subprocess.js`
+    - `spawnSubprocessSync()` uses `spawnSync()` and only trims output *after* completion (L320–395).
+
+- **Root cause**
+  - `.zst` decoding ultimately uses `zstdDecompressSync()`, which runs a child Node process and returns decompressed data via stdout.
+  - In the parent, `spawnSubprocessSync()` relies on `child_process.spawnSync()`, which buffers stdout in memory without a true max-buffer cap.
+  - `maxOutputBytes` is applied after-the-fact via `trimOutput()`, which cannot prevent OOM if stdout was huge.
+
+- **Impact**
+  - A malicious or accidental “decompression bomb” `.zst` artifact can crash the process (or the child) with OOM.
+  - The current safety checks mostly examine **compressed size**, which does not bound decompressed size.
+
+- **Why this is tricky**
+  - The code *looks* like it enforces limits (`MAX_JSON_BYTES`, `maxOutputBytes`), but the limit is not effective for `spawnSync()`-captured output.
+
+- **Recommended fixes**
+  1) Prefer in-process streaming zstd (`createZstdDecompress`) with an inflated-bytes counter that aborts at `maxBytes` (similar to the gzip streaming path).
+  2) If subprocess fallback is required, avoid `spawnSync()`; use the async `spawnSubprocess()` collector so memory is bounded while reading.
+  3) In the child, avoid buffering full stdin/output; stream and enforce an output byte cap in the child too.
 
 ---
 
-## Notes / next steps (optional)
+### 2) `expectedExitCodes` normalization is incorrect (string exit codes never match numeric exit codes)
 
-If you want to convert this into a “fix plan”:
-- I can draft a PR checklist that maps each finding → concrete code change
-- I can also propose minimal test cases for the correctness bugs (regex lastIndex, IPv6 host, maxBytes write stream, lock stealing)
+- **File:** `src/shared/subprocess.js`
+- **Location:** `resolveExpectedExitCodes()` (L45–56), used by `spawnSubprocess()` (L174+) and `spawnSubprocessSync()` (L331+).
 
+- **Problem**
+  - The function filters by `Number.isFinite(Number(entry))` but returns the original entries (potentially strings).
+  - Later comparisons use `expectedExitCodes.includes(exitCode)` where `exitCode` is numeric, so `'0'` will not match `0`.
+
+- **Impact**
+  - Callers that pass exit codes as strings (common if values flow from CLI/env/JSON) will see false failures.
+
+- **Fix**
+  - Normalize to numbers:
+    - `return value.map((v) => Math.trunc(Number(v))).filter(Number.isFinite)`
+
+---
+
+### 3) `spawnSubprocessSync()` drops the real cause for spawn failures (ENOENT, EACCES, etc.)
+
+- **File:** `src/shared/subprocess.js`
+- **Location:** `spawnSubprocessSync()` (L320–395).
+
+- **Problem**
+  - `spawnSync()` sets `result.error` when the process cannot be spawned.
+  - The code does not check `result.error`, and instead throws a generic “exited with code unknown” `SubprocessError`.
+
+- **Impact**
+  - “Missing binary” failures become unnecessarily hard to diagnose (especially in CI).
+
+- **Fix**
+  - If `result.error` exists, throw a `SubprocessError` that wraps it (or rethrow with context), rather than reporting an “unknown exit code”.
+
+---
+
+## Medium-severity correctness / cross-platform reliability issues
+
+### 4) Atomic JSON writes may rename the temp file before the file descriptor is closed (Windows/AV/FS edge cases)
+
+- **File:** `src/shared/json-stream/streams.js`
+- **Locations:**
+  - `waitForFinish()` listens to `finish` (L15–18).
+  - `createJsonWriteStream().done` waits for `finish` then calls `replaceFile()` (L62–69, L85–92, L106–113).
+
+- **Problem**
+  - `finish` means all data has been flushed to the writable stream, but **does not guarantee** the fd is closed.
+  - Renaming an open file is unreliable on Windows and can fail intermittently with `EPERM`/`EBUSY`.
+
+- **Fix**
+  - For the final `fs.createWriteStream(...)`, await `close` (or use `pipeline()` and await its callback), then rename.
+
+---
+
+### 5) `replaceSqliteDatabase()` deletes WAL/SHM sidecars unconditionally (risky if WAL still contains needed pages)
+
+- **File:** `src/storage/sqlite/utils.js`
+- **Location:** `replaceSqliteDatabase()` (L146–206); sidecar cleanup at L166–168.
+
+- **Risk**
+  - If WAL contains committed-but-not-checkpointed data (or another process has an open connection), deleting WAL/SHM can corrupt or lose data.
+
+- **Mitigation / fix ideas**
+  - Ensure all writers checkpoint and close before replacement.
+  - Consider moving sidecar cleanup until after successful replacement (or skipping it unless explicitly requested).
+
+---
+
+## Performance / memory issues that become big in real workloads
+
+### 6) `createFflateGzipStream()` needlessly copies every incoming Buffer chunk
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `createFflateGzipStream()` transform (L28–55); `Buffer.from(chunk)` copy at L34–35.
+
+- **Impact**
+  - For large JSON streams, this doubles memory traffic and increases GC pressure.
+
+- **Fix**
+  - Use `Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding)`.
+
+---
+
+### 7) `createZstdStream()` repeatedly `Buffer.concat()`s pending data (can approach quadratic copying with many small writes)
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `pending = Buffer.concat([pending, buffer])` (L99).
+
+- **Impact**
+  - Many small writes → repeated copies of the pending buffer.
+
+- **Fix**
+  - Accumulate chunks in an array and concat only when you have ≥ `chunkSize` (or use a small ring buffer).
+
+---
+
+### 8) JSONL sync reader cache never hits when only the compressed form exists
+
+- **File:** `src/shared/artifact-io/json.js`
+- **Location:** `readJsonLinesArraySync()` (L262–349)
+  - Cache lookup uses `readCache(filePath)` (L266–270).
+  - Cache write uses `writeCache(targetPath, parsed)` (L296–297).
+
+- **Problem**
+  - If `filePath` doesn’t exist and only `filePath.gz` / `filePath.zst` exists, `readCache(filePath)` always misses because it stats `filePath`.
+  - The parsed result is cached under the candidate path, but never consulted on subsequent calls.
+
+- **Fix**
+  - Cache using the resolved candidate path (or cache under both keys).
+
+---
+
+### 9) SQLite compaction disk-space estimate is likely too low for `VACUUM` in worst cases
+
+- **File:** `tools/compact-sqlite-index.js`
+- **Locations:**
+  - required bytes computation (L87–93)
+  - `outDb.exec('VACUUM')` (L444)
+
+- **Risk**
+  - `VACUUM` often needs temporary space roughly comparable to the DB size (sometimes more), depending on SQLite and temp-store configuration.
+
+- **Fix**
+  - Increase the estimate (often ~2× DB size worst-case), or make it configurable and document the requirement.
+
+---
