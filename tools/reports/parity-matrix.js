@@ -6,11 +6,11 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import {
   getRuntimeConfig,
-  loadUserConfig,
-  resolveRepoRoot,
+  resolveRepoConfig,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
+import { parseCommaList } from '../shared/text-utils.js';
 
 const argv = createCli({
   scriptName: 'parity-matrix',
@@ -31,8 +31,7 @@ const argv = createCli({
 }).parse();
 
 const scriptRoot = resolveToolRoot();
-const repoRoot = resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot);
+const { repoRoot, userConfig } = resolveRepoConfig(null);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
 const parityScript = path.join(scriptRoot, 'tests', 'parity.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -49,14 +48,6 @@ const DEFAULT_BACKENDS = ['sqlite', 'sqlite-fts'];
 const DEFAULT_ANN_MODES = ['on', 'off'];
 const DEFAULT_TOP = 10;
 
-const parseList = (value) => {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
-
 const normalizeBackend = (raw) => {
   const value = String(raw || '').toLowerCase();
   if (value === 'fts') return 'sqlite-fts';
@@ -65,7 +56,7 @@ const normalizeBackend = (raw) => {
 
 const resolveBackends = () => {
   const raw = argv.backends || argv.backend || '';
-  const list = parseList(raw).map(normalizeBackend).filter(Boolean);
+  const list = parseCommaList(raw).map(normalizeBackend).filter(Boolean);
   if (!list.length || list.includes('all')) return DEFAULT_BACKENDS.slice();
   return Array.from(new Set(list));
 };
@@ -82,7 +73,7 @@ const normalizeAnnMode = (raw) => {
 };
 
 const resolveAnnModes = () => {
-  const raw = parseList(argv['ann-modes']);
+  const raw = parseCommaList(argv['ann-modes']);
   const modes = raw.map(normalizeAnnMode).filter(Boolean);
   return modes.length ? Array.from(new Set(modes)) : DEFAULT_ANN_MODES.slice();
 };

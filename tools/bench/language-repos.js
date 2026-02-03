@@ -26,14 +26,7 @@ import {
 } from './language/metrics.js';
 import { buildReportOutput, printSummary } from './language/report.js';
 import { createToolDisplay } from '../shared/cli-display.js';
-
-const parseList = (value) => {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
+import { parseCommaList } from '../shared/text-utils.js';
 
 const ensureBenchConfig = async (repoPath, cacheRoot) => {
   const configPath = path.join(repoPath, '.pairofcleats.json');
@@ -287,9 +280,9 @@ process.on('unhandledRejection', (err) => {
 
 const config = loadBenchConfig(configPath);
 await validateEncodingFixtures(scriptRoot);
-const languageFilter = parseList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
-let tierFilter = parseList(argv.tier).map((entry) => entry.toLowerCase());
-const repoFilter = parseList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
+const languageFilter = parseCommaList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
+let tierFilter = parseCommaList(argv.tier).map((entry) => entry.toLowerCase());
+const repoFilter = parseCommaList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
 if (!tierFilter.length && Array.isArray(argv._) && argv._.length) {
   const positionalTiers = argv._
     .map((entry) => String(entry).toLowerCase())

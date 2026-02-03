@@ -5,6 +5,7 @@ import { hideBin } from 'yargs/helpers';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
+import { parseCommaList } from '../../shared/text-utils.js';
 import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
 import { runIndexBuildBenchmark } from './index-build.js';
 import { runSearchBenchmark } from './search.js';
@@ -105,7 +106,7 @@ const warmupRuns = Math.max(0, Math.floor(argv.warmup));
 const threads = Number(argv.threads) > 0 ? Math.floor(argv.threads) : undefined;
 const mode = argv.mode === 'prose' ? 'prose' : 'code';
 const components = parseComponents(argv.components);
-const annBackends = parseList(argv['ann-backends']);
+const annBackends = parseCommaList(argv['ann-backends']).map((entry) => entry.toLowerCase());
 const annBackendList = annBackends.length
   ? Array.from(new Set(annBackends))
   : ['sqlite-vector', 'lancedb'];
@@ -287,14 +288,6 @@ function hasChunkMeta(indexDir) {
 function parseComponents(value) {
   if (!value) return [];
   return value
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function parseList(value) {
-  if (!value) return [];
-  return String(value)
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);

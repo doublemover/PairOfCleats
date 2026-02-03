@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoRoot } from '../shared/dict-utils.js';
+import { parseCommaList } from '../shared/text-utils.js';
 import { getMetricsRegistry } from '../../src/shared/metrics.js';
 import { createApiRouter } from './api/router.js';
 import { configureServiceLogger } from './service/logger.js';
@@ -34,13 +35,6 @@ const jsonOutput = argv.json === true;
 const quiet = argv.quiet === true;
 const metricsRegistry = getMetricsRegistry();
 const { logLine } = configureServiceLogger({ repoRoot: defaultRepo, service: 'api' });
-const parseList = (value) => {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
 const isLocalHost = (value) => {
   if (!value) return false;
   const normalized = String(value).trim().toLowerCase();
@@ -65,9 +59,9 @@ if (!allowUnauthenticated && !hostIsLocal && !authToken) {
   process.exit(1);
 }
 const authRequired = !allowUnauthenticated && (!hostIsLocal || Boolean(authToken));
-const corsAllowedOrigins = parseList(argv['cors-allowed-origins']);
+const corsAllowedOrigins = parseCommaList(argv['cors-allowed-origins']);
 const corsAllowAny = argv['cors-allow-any'] === true;
-const allowedRepoRoots = parseList(argv['allowed-repo-roots']);
+const allowedRepoRoots = parseCommaList(argv['allowed-repo-roots']);
 const maxBodyBytes = Number.isFinite(Number(argv['max-body-bytes']))
   ? Math.max(0, Math.floor(Number(argv['max-body-bytes'])))
   : null;

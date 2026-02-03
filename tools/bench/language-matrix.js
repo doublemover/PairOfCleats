@@ -10,6 +10,7 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
+import { parseCommaList } from '../shared/text-utils.js';
 
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,
@@ -55,13 +56,6 @@ const outRoot = path.join(runRoot, 'runs');
 
 const ALL_BACKENDS = ['sqlite-fts', 'sqlite', 'memory'];
 const DEFAULT_ANN_MODES = ['auto', 'on', 'off'];
-const parseList = (value) => {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
 
 const normalizeBackend = (raw) => {
   const value = String(raw || '').toLowerCase();
@@ -71,13 +65,13 @@ const normalizeBackend = (raw) => {
 
 const resolveBackends = () => {
   const raw = argv.backends || argv.backend || '';
-  const list = parseList(raw).map(normalizeBackend).filter(Boolean);
+  const list = parseCommaList(raw).map(normalizeBackend).filter(Boolean);
   if (!list.length || list.includes('all')) return ALL_BACKENDS.slice();
   return list;
 };
 
 const resolveAnnModes = () => {
-  const list = parseList(argv['ann-modes']).map((entry) => entry.toLowerCase());
+  const list = parseCommaList(argv['ann-modes']).map((entry) => entry.toLowerCase());
   return list.length ? list : DEFAULT_ANN_MODES.slice();
 };
 
