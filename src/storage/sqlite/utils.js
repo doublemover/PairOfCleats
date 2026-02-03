@@ -163,7 +163,6 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   };
 
-  await removeSqliteSidecars(finalDbPath);
   await removeSqliteSidecars(tempDbPath);
 
   let backupAvailable = fs.existsSync(backupPath);
@@ -202,5 +201,6 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       await fsPromises.rm(backupPath, { force: true });
     } catch {}
   }
+  await removeSqliteSidecars(finalDbPath);
   await removeSqliteSidecars(backupPath);
 }
