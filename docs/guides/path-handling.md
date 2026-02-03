@@ -8,6 +8,8 @@ Principles:
 - For security checks, use platform-specific absolute detection plus `path.relative`.
 - Store internal paths in POSIX form and convert at IO boundaries.
 - Use `toPosix()` and `fromPosix()` from `src/shared/files.js` for canonical conversions.
+- Use `normalizeRepoRelativePath()` and `normalizePathForRepo()` from `src/shared/path-normalize.js` when accepting repo-rooted inputs.
+- Use `normalizeFilePath()` from `src/shared/path-normalize.js` for stable comparisons.
 - Prefer `isAbsolutePathNative()` for native checks and reserve `isAbsolutePathAny()` for explicit cross-platform validation.
 
 Examples:
