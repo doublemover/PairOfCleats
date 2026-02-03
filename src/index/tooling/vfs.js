@@ -6,7 +6,7 @@ import { buildChunkRef } from '../../shared/identity.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
 
 const VFS_PREFIX = '.poc-vfs/';
-const MAX_ROW_BYTES = 32 * 1024;
+export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
@@ -45,6 +45,25 @@ const normalizeLanguageId = (value, fallback = null) => {
   return text || fallback;
 };
 
+export const trimVfsManifestRow = (row, { log } = {}) => {
+  if (!row || typeof row !== 'object') return null;
+  const measure = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
+  const baseBytes = measure(row);
+  if (baseBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return row;
+  let trimmed = { ...row };
+  if (trimmed.extensions) delete trimmed.extensions;
+  let trimmedBytes = measure(trimmed);
+  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return trimmed;
+  if (trimmed.segmentId) trimmed.segmentId = null;
+  trimmedBytes = measure(trimmed);
+  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return trimmed;
+  if (log) {
+    const label = trimmed.containerPath || trimmed.virtualPath || 'unknown';
+    log(`[vfs] vfs_manifest row exceeded ${VFS_MANIFEST_MAX_ROW_BYTES} bytes for ${label}`);
+  }
+  return null;
+};
+
 const sortTargets = (a, b) => {
   const keyA = `${a.virtualPath}:${a.chunkRef?.chunkUid || ''}`;
   const keyB = `${b.virtualPath}:${b.chunkRef?.chunkUid || ''}`;
@@ -53,6 +72,18 @@ const sortTargets = (a, b) => {
 
 const sortDocuments = (a, b) => {
   return String(a.virtualPath || '').localeCompare(String(b.virtualPath || ''));
+};
+
+export const compareVfsManifestRows = (a, b) => {
+  if (a.containerPath !== b.containerPath) return a.containerPath.localeCompare(b.containerPath);
+  if (a.segmentStart !== b.segmentStart) return a.segmentStart - b.segmentStart;
+  if (a.segmentEnd !== b.segmentEnd) return a.segmentEnd - b.segmentEnd;
+  if (a.languageId !== b.languageId) return a.languageId.localeCompare(b.languageId);
+  if (a.effectiveExt !== b.effectiveExt) return a.effectiveExt.localeCompare(b.effectiveExt);
+  const segA = a.segmentUid || '';
+  const segB = b.segmentUid || '';
+  if (segA !== segB) return segA.localeCompare(segB);
+  return a.virtualPath.localeCompare(b.virtualPath);
 };
 
 export const buildToolingVirtualDocuments = async ({
@@ -227,25 +258,11 @@ export const buildVfsManifestRowsForFile = async ({
     });
   }
   const rows = Array.from(groupMap.values());
-  rows.sort((a, b) => {
-    if (a.containerPath !== b.containerPath) return a.containerPath.localeCompare(b.containerPath);
-    if (a.segmentStart !== b.segmentStart) return a.segmentStart - b.segmentStart;
-    if (a.segmentEnd !== b.segmentEnd) return a.segmentEnd - b.segmentEnd;
-    if (a.languageId !== b.languageId) return a.languageId.localeCompare(b.languageId);
-    if (a.effectiveExt !== b.effectiveExt) return a.effectiveExt.localeCompare(b.effectiveExt);
-    const segA = a.segmentUid || '';
-    const segB = b.segmentUid || '';
-    if (segA !== segB) return segA.localeCompare(segB);
-    return a.virtualPath.localeCompare(b.virtualPath);
-  });
+  rows.sort(compareVfsManifestRows);
   const filtered = [];
   for (const row of rows) {
-    const bytes = Buffer.byteLength(JSON.stringify(row), 'utf8');
-    if (bytes > MAX_ROW_BYTES) {
-      if (log) log(`[vfs] vfs_manifest row exceeded 32KB for ${row.containerPath}`);
-      continue;
-    }
-    filtered.push(row);
+    const trimmed = trimVfsManifestRow(row, { log });
+    if (trimmed) filtered.push(trimmed);
   }
   return filtered;
 };

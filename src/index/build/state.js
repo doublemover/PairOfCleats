@@ -209,6 +209,7 @@ export function createIndexState() {
     fileRelations: new Map(),
     fileInfoByPath: new Map(),
     vfsManifestRows: [],
+    vfsManifestCollector: null,
     importResolutionGraph: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),

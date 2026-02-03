@@ -343,7 +343,7 @@ export async function writeIndexArtifacts(input) {
   await enqueueVfsManifestArtifacts({
     outDir,
     mode,
-    rows: state.vfsManifestRows,
+    rows: state.vfsManifestCollector || state.vfsManifestRows,
     maxJsonBytes,
     compression: vfsManifestCompression,
     gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,

@@ -12,6 +12,7 @@ import { createFileProcessor } from '../../file-processor.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
+import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { createTokenRetentionState } from './postings.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
 import {
@@ -71,7 +72,7 @@ export const processFiles = async ({
   let checkpoint = null;
   let progress = null;
   const orderedAppender = buildOrderedAppender(
-    (result, stateRef, shardMeta) => {
+    async (result, stateRef, shardMeta) => {
       if (!result) return;
       if (result.fileMetrics) {
         recordFileMetric(perfProfile, result.fileMetrics);
@@ -93,8 +94,14 @@ export const processFiles = async ({
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
       if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
-        if (!stateRef.vfsManifestRows) stateRef.vfsManifestRows = [];
-        stateRef.vfsManifestRows.push(...result.vfsManifestRows);
+        if (!stateRef.vfsManifestCollector) {
+          stateRef.vfsManifestCollector = createVfsManifestCollector({
+            buildRoot: runtime.buildRoot || runtime.root,
+            log
+          });
+          stateRef.vfsManifestRows = null;
+        }
+        await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
       }
     },
     state
