@@ -199,7 +199,8 @@ const buildTokenSetForLeaf = (raw, dictWords, dictConfig, ext) => {
     mode: 'code',
     ext,
     dictWords,
-    dictConfig
+    dictConfig,
+    includeSeq: false
   }).tokens;
 };
 
@@ -467,15 +468,23 @@ const normalizeToken = (value) => {
   return value;
 };
 
-export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig, buffers = null }) {
+export function buildTokenSequence({
+  text,
+  mode,
+  ext,
+  dictWords,
+  dictConfig,
+  buffers = null,
+  includeSeq = true
+}) {
   const useBuffers = !!buffers;
   const tokensOut = useBuffers ? buffers.tokens : [];
-  const seqOut = useBuffers ? buffers.seq : [];
+  const seqOut = includeSeq ? (useBuffers ? buffers.seq : []) : null;
   const scratch = useBuffers ? buffers.scratch : [];
   const scratch2 = useBuffers ? buffers.scratch2 : [];
   if (useBuffers) {
     tokensOut.length = 0;
-    seqOut.length = 0;
+    if (buffers.seq) buffers.seq.length = 0;
     scratch.length = 0;
     scratch2.length = 0;
   }
@@ -510,15 +519,33 @@ export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig, buf
     for (const token of working) tokensOut.push(token);
   }
 
-  for (const w of tokensOut) {
-    seqOut.push(w);
-    if (SYN[w]) seqOut.push(SYN[w]);
+  let hasSynonyms = false;
+  if (includeSeq) {
+    for (const token of tokensOut) {
+      if (SYN[token]) {
+        hasSynonyms = true;
+        break;
+      }
+    }
+    if (hasSynonyms) {
+      for (const token of tokensOut) {
+        seqOut.push(token);
+        if (SYN[token]) seqOut.push(SYN[token]);
+      }
+    }
   }
 
   // When buffers are supplied we still return cloned output arrays so callers
   // can retain per-chunk token lists without being mutated by the next chunk.
+  const tokens = useBuffers ? tokensOut.slice() : tokensOut;
+  if (!includeSeq) {
+    return { tokens, seq: [] };
+  }
+  if (!hasSynonyms) {
+    return { tokens, seq: tokens };
+  }
   return {
-    tokens: useBuffers ? tokensOut.slice() : tokensOut,
+    tokens,
     seq: useBuffers ? seqOut.slice() : seqOut
   };
 }

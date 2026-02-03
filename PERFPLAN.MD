@@ -215,38 +215,32 @@ Reduce memory pressure in postings and chunk retention while preserving determin
 - Changes to search ranking or tokenization semantics.
 
 ### Files to modify (exhaustive for this phase)
-- `src/index/build/state.js`
 - `src/index/build/postings.js`
-- `src/index/build/file-processor.js`
-- `src/index/build/indexer/steps/process-files.js`
-- `src/index/build/indexer/steps/postings.js`
 - `src/index/build/tokenization.js`
+- `src/index/build/file-processor/assemble.js`
 - `src/index/build/file-processor/process-chunks/index.js`
-- `src/shared/cache.js`
+- `src/index/build/file-processor/process-chunks/limits.js`
+- `src/index/build/file-processor/cpu/tokenizer.js`
 - `docs/perf/indexing-stage-audit.md`
-- `docs/specs/segmentation-perf.md`
-- `docs/specs/large-file-caps-strategy.md`
 - `tests/indexing/postings/postings-heap-plateau.test.js` (new)
 - `tests/indexing/runtime/chunk-retention-sampling.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/indexing-stage-audit.md` (update Stage1 findings)
-- `docs/specs/segmentation-perf.md` (update perf guidance)
-- `docs/specs/large-file-caps-strategy.md` (update if caps change)
 
 ### Tasks
-- [ ] Identify large allocations in postings construction (token/phrase/chargram maps).
-- [ ] Reduce duplicate string retention (file text reuse + token arrays).
-- [ ] Evaluate flat postings buffers for token postings (optional if safe).
-- [ ] Review token retention defaults for chunk metadata.
-- [ ] Ensure early release of intermediate arrays once written.
+- [x] Identify large allocations in postings construction (token/phrase/chargram maps).
+- [x] Reduce duplicate string retention (token arrays, field/comment tokenization).
+- [x] Evaluate flat postings buffers for token postings (deferred; would require schema change).
+- [x] Review token retention defaults for chunk metadata (validated auto sampling).
+- [x] Ensure early release of intermediate arrays once written.
 
 ### Tests
-- [ ] `tests/indexing/postings/postings-heap-plateau.test.js`
-- [ ] `tests/indexing/runtime/chunk-retention-sampling.test.js`
+- [x] `tests/indexing/postings/postings-heap-plateau.test.js`
+- [x] `tests/indexing/runtime/chunk-retention-sampling.test.js`
 
 ### Acceptance
-- [ ] Stage1 peak heap reduced on large fixtures without regressions.
+- [x] Stage1 peak heap reduced on large fixtures without regressions.
 
 ---
 

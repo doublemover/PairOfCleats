@@ -125,6 +125,9 @@ export const processChunks = async (context) => {
   const tokenBuffers = createTokenizationBuffers();
   const codeTexts = embeddingEnabled ? [] : null;
   const docTexts = embeddingEnabled ? [] : null;
+  const wantsFieldTokens = postingsConfig?.fielded !== false
+    || postingsConfig?.chargramSource === 'fields'
+    || postingsConfig?.phraseSource === 'fields';
   attachCallDetailsByChunkIndex(callIndex, sc);
   const useWorkerForTokens = tokenMode === 'code'
     && !workerState.tokenWorkerDisabled
@@ -281,7 +284,8 @@ export const processChunks = async (context) => {
           tokenDictWords,
           dictConfig,
           effectiveExt,
-          chunkStart: c.start
+          chunkStart: c.start,
+          includeTokens: wantsFieldTokens
         });
         commentFieldTokens = commentResult.commentFieldTokens;
         assignedRanges = commentResult.assignedRanges;

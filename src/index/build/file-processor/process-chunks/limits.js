@@ -9,7 +9,8 @@ export const collectChunkComments = ({
   tokenDictWords,
   dictConfig,
   effectiveExt,
-  chunkStart
+  chunkStart,
+  includeTokens = true
 }) => {
   const commentFieldTokens = [];
   let docmetaPatch = null;
@@ -24,6 +25,7 @@ export const collectChunkComments = ({
   let totalBytes = 0;
   const metaComments = [];
   const commentRefs = [];
+  const shouldCollectTokens = includeTokens && chunkMode !== 'code';
   for (const comment of sorted) {
     if (maxPerChunk && commentRefs.length >= maxPerChunk) break;
     const ref = {
@@ -37,7 +39,6 @@ export const collectChunkComments = ({
     };
     commentRefs.push(ref);
     if (chunkMode === 'code') continue;
-
     const remaining = maxBytes ? Math.max(0, maxBytes - totalBytes) : 0;
     if (maxBytes && remaining <= 0) break;
     const clipped = maxBytes ? truncateByBytes(comment.text, remaining) : {
@@ -50,23 +51,26 @@ export const collectChunkComments = ({
     const includeInTokens = comment.type === 'inline'
       || comment.type === 'block'
       || (comment.type === 'license' && normalizedCommentsConfig.includeLicense);
-    if (includeInTokens) {
+    const indexed = shouldCollectTokens && includeInTokens;
+    if (indexed) {
       const tokens = buildTokenSequence({
         text: clipped.text,
         mode: 'prose',
         ext: effectiveExt,
         dictWords: tokenDictWords,
-        dictConfig
+        dictConfig,
+        includeSeq: false
       }).tokens;
       if (tokens.length) {
         for (const token of tokens) commentFieldTokens.push(token);
       }
     }
+    if (chunkMode === 'code') continue;
     metaComments.push({
       ...ref,
       text: clipped.text,
       truncated: clipped.truncated || false,
-      indexed: includeInTokens,
+      indexed,
       anchorChunkId: null
     });
   }

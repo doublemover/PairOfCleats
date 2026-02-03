@@ -44,3 +44,8 @@ Stage summary fields:
 - Stage4 counters track input/output sizes and row counts.
 
 Use these reports to prioritize optimization work before implementing algorithmic changes.
+
+## Stage1 Memory Notes
+- Token sequences share the token array when no synonyms are present to reduce duplicate retention.
+- Field/comment tokens are only materialized when fielded/phrase/chargram sources require them.
+- Postings maps are cleared as soon as dense arrays are materialized to keep peak heap lower.
