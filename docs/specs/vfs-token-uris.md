@@ -12,11 +12,11 @@ Non-goals:
 
 ## 1) Token derivation (normative)
 
-Token inputs are controlled by configuration:
+Token inputs are controlled by configuration (`tooling.vfs.tokenMode`):
 
 - `virtualPath`: `tokenSeed = virtualPath`
 - `docHash`: `tokenSeed = docHash`
-- `docHash+virtualPath`: `tokenSeed = docHash + "|" + virtualPath`
+- `docHash+virtualPath`: `tokenSeed = docHash + "|" + virtualPath` (default)
 
 Compute:
 
@@ -25,6 +25,7 @@ token = xxh64(tokenSeed)
 ```
 
 Token MUST be lowercase hex (16 chars for xxh64).
+If a `docHash`-based mode is selected and `docHash` is missing, producers MUST fall back to `virtualPath`.
 
 If hash routing is enabled, the routing token MAY be reused as the URI token.
 

@@ -4,6 +4,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';
+import { buildVfsUri, resolveVfsTokenUri } from '../lsp/uris.js';
 import { createToolingGuard } from './shared.js';
 import { ensureVfsDiskDocument, resolveVfsDiskPath } from '../../../index/tooling/vfs.js';
 
@@ -91,16 +92,15 @@ const ensureVirtualFile = async (rootDir, doc) => {
 
 const normalizeUriScheme = (value) => (value === 'poc-vfs' ? 'poc-vfs' : 'file');
 
-const buildVfsUri = (virtualPath) => {
-  const encoded = String(virtualPath || '')
-    .split('/')
-    .map((part) => encodeURIComponent(part))
-    .join('/');
-  return `poc-vfs:///${encoded}`;
-};
-
-const resolveDocumentUri = async ({ rootDir, doc, uriScheme }) => {
-  if (uriScheme === 'poc-vfs') return buildVfsUri(doc.virtualPath);
+const resolveDocumentUri = async ({ rootDir, doc, uriScheme, tokenMode }) => {
+  if (uriScheme === 'poc-vfs') {
+    const resolved = await resolveVfsTokenUri({
+      virtualPath: doc.virtualPath,
+      docHash: doc.docHash || null,
+      mode: tokenMode
+    });
+    return resolved.uri;
+  }
   const absPath = await ensureVirtualFile(rootDir, doc);
   return pathToFileUri(absPath);
 };
@@ -119,7 +119,8 @@ export async function collectLspTypes({
   strict = true,
   vfsRoot = null,
   uriScheme = 'file',
-  captureDiagnostics = false
+  captureDiagnostics = false,
+  vfsTokenMode = 'docHash+virtualPath'
 }) {
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
@@ -178,7 +179,12 @@ export async function collectLspTypes({
   let enriched = 0;
   const openDocs = new Map();
   for (const doc of docs) {
-    const uri = await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme });
+    const uri = await resolveDocumentUri({
+      rootDir: resolvedRoot,
+      doc,
+      uriScheme: resolvedScheme,
+      tokenMode: vfsTokenMode
+    });
     const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
     if (!openDocs.has(doc.virtualPath)) {
       client.notify('textDocument/didOpen', {
@@ -189,7 +195,11 @@ export async function collectLspTypes({
           text: doc.text || ''
         }
       });
-      openDocs.set(doc.virtualPath, { uri, lineIndex: buildLineIndex(doc.text || '') });
+      openDocs.set(doc.virtualPath, {
+        uri,
+        legacyUri: resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null,
+        lineIndex: buildLineIndex(doc.text || '')
+      });
     }
 
     let symbols = null;
@@ -271,8 +281,11 @@ export async function collectLspTypes({
       const fallbackUri = resolvedScheme === 'poc-vfs'
         ? buildVfsUri(doc.virtualPath)
         : pathToFileUri(resolveVfsDiskPath({ baseDir: resolvedRoot, virtualPath: doc.virtualPath }));
-      const uri = openDocs.get(doc.virtualPath)?.uri || fallbackUri;
-      const diagnostics = diagnosticsByUri.get(uri) || [];
+      const openEntry = openDocs.get(doc.virtualPath) || null;
+      const uri = openEntry?.uri || fallbackUri;
+      const diagnostics = diagnosticsByUri.get(uri)
+        || (openEntry?.legacyUri ? diagnosticsByUri.get(openEntry.legacyUri) : null)
+        || [];
       if (!diagnostics.length) continue;
       const lineIndex = buildLineIndex(doc.text || '');
       const docTargets = targetsByPath.get(doc.virtualPath) || [];

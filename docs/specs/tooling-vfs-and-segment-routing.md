@@ -54,7 +54,7 @@ Tooling providers MUST route by **effective** language, not container extension.
 A **virtual document** is a stable path + text pair that tooling parses.
 
 - For non-segmented files: one virtual document == the real file on disk.
-- For segmented files: each segment becomes a distinct virtual document (one per `{containerPath, segmentUid}`).
+- For segmented files: each segment becomes a distinct virtual document (one per `{containerPath, segmentUid}`), unless `tooling.vfs.coalesceSegments` is enabled to merge adjacent segments with the same language/ext.
 
 This avoids mixing multiple languages into one document and makes tooling behavior predictable.
 

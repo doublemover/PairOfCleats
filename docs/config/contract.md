@@ -203,9 +203,11 @@ tooling.typescript.resolveOrder
 tooling.typescript.tsconfigPath (string)
 tooling.typescript.useTsconfig (boolean)
 tooling.vfs (object)
+tooling.vfs.coalesceSegments (boolean)
 tooling.vfs.hashRouting (boolean)
 tooling.vfs.maxVirtualFileBytes (number)
 tooling.vfs.strict (boolean)
+tooling.vfs.tokenMode (string)
 ```
 
 ## Defaults

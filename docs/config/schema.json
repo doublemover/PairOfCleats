@@ -64,9 +64,11 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "coalesceSegments": { "type": "boolean" },
             "hashRouting": { "type": "boolean" },
             "strict": { "type": "boolean" },
-            "maxVirtualFileBytes": { "type": "number" }
+            "maxVirtualFileBytes": { "type": "number" },
+            "tokenMode": { "type": "string" }
           }
         },
         "lsp": {

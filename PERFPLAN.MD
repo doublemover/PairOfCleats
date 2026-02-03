@@ -617,19 +617,19 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
   - [ ] Replace `mergeSortedRuns` linear scan with a binary heap priority queue.
   - [ ] Keep deterministic ordering via `compareVfsManifestRows`.
   - [x] Benchmark: `tools/bench/vfs/merge-runs-heap.js` (runs=10/50/200).
-- [ ] Canonical path tokens for LSP URIs:
-  - [ ] Touchpoints: `src/integrations/tooling/providers/lsp.js:87/95/101/174`, `src/index/tooling/vfs.js:270`.
-  - [ ] Add a token map (`token → virtualPath`) and use tokens in URIs.
-  - [ ] Keep fallback decoding for existing virtualPath URIs.
+- [x] Canonical path tokens for LSP URIs:
+  - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:87/95/101/174`, `src/index/tooling/vfs.js:270`.
+  - [x] Add a token map (`token → virtualPath`) and use tokens in URIs.
+  - [x] Keep fallback decoding for existing virtualPath URIs.
   - [x] Benchmark: `tools/bench/vfs/token-uri-encode.js` (URI encode/parse cost).
-- [ ] Chunk-range coalescing:
-  - [ ] Touchpoints: `src/index/tooling/vfs.js:89`, `src/index/build/file-processor/process-chunks/ids.js:3`, `src/index/build/file-processor/process-chunks/index.js:24`.
-  - [ ] Merge adjacent segments with same language/ext into one virtual doc.
-  - [ ] Preserve per-target ranges and offsets in the manifest.
+- [x] Chunk-range coalescing:
+  - [x] Touchpoints: `src/index/tooling/vfs.js:89`, `src/index/build/file-processor/process-chunks/ids.js:3`, `src/index/build/file-processor/process-chunks/index.js:24`.
+  - [x] Merge adjacent segments with same language/ext into one virtual doc.
+  - [x] Preserve per-target ranges and offsets in the manifest.
   - [x] Benchmark: `tools/bench/vfs/coalesce-docs.js` (doc count + LSP ops).
-- [ ] Content-defined chunking for segments:
-  - [ ] Touchpoints: `src/index/build/file-processor/cpu/chunking.js`, `src/index/chunking/*`, `src/index/build/file-processor/process-chunks/index.js:24`.
-  - [ ] Use rolling hash boundaries to stabilize segment IDs across edits.
+- [x] Content-defined chunking for segments:
+  - [x] Touchpoints: `src/index/build/file-processor/cpu/chunking.js`, `src/index/chunking/*`, `src/index/build/file-processor/process-chunks/index.js:24`.
+  - [x] Use rolling hash boundaries to stabilize segment IDs across edits.
   - [x] Benchmark: `tools/bench/vfs/cdc-segmentation.js` (segment churn before/after).
 - [ ] Bloom filter for shard existence checks:
   - [ ] Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js:286`, `src/index/validate/manifest.js`.
@@ -663,9 +663,9 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
 - [ ] `tests/tooling/vfs/vfs-index-negative.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-segment-hash-cache.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-token-uri-roundtrip.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-segment-coalesce.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-cdc-segmentation-stability.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-token-uri-roundtrip.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-segment-coalesce.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-cdc-segmentation-stability.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (new)
 - [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (new)

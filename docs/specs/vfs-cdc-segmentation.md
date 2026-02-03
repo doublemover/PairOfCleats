@@ -16,6 +16,26 @@ CDC segmentation is only applied when:
 - No language-specific segmentation exists for the container.
 - File size exceeds a configurable threshold.
 
+Configuration (indexing):
+
+```json
+{
+  "indexing": {
+    "segments": {
+      "cdc": {
+        "enabled": false,
+        "minFileBytes": 262144,
+        "minBytes": 4096,
+        "avgBytes": 16384,
+        "maxBytes": 65536,
+        "windowBytes": 64,
+        "maskBits": 13
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## 2) Algorithm (normative)

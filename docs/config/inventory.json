@@ -233,9 +233,11 @@
       "tooling.typescript.resolveOrder",
       "tooling.typescript.tsconfigPath",
       "tooling.typescript.useTsconfig",
+      "tooling.vfs.coalesceSegments",
       "tooling.vfs.hashRouting",
       "tooling.vfs.maxVirtualFileBytes",
-      "tooling.vfs.strict"
+      "tooling.vfs.strict",
+      "tooling.vfs.tokenMode"
     ]
   },
   "configSchema": {
@@ -1234,6 +1236,11 @@
       "enum": null
     },
     {
+      "path": "tooling.vfs.coalesceSegments",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "tooling.vfs.hashRouting",
       "type": "boolean",
       "enum": null
@@ -1246,6 +1253,11 @@
     {
       "path": "tooling.vfs.strict",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.vfs.tokenMode",
+      "type": "string",
       "enum": null
     }
   ],

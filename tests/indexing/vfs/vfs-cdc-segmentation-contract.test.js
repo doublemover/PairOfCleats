@@ -23,7 +23,7 @@ if (typeof segmentWithCdc !== 'function') {
 assert.equal(mod.CDC_SEGMENTATION_VERSION, '1.0.0', 'Expected CDC segmentation version 1.0.0.');
 
 const text = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega';
-const segments = segmentWithCdc({
+const segments = await segmentWithCdc({
   text,
   options: {
     minBytes: 16,

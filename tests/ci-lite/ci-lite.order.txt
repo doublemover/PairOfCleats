@@ -159,6 +159,9 @@ indexing/risk/interprocedural/flows-timeout
 shared/async/runwithqueue-failfast
 tooling/vfs/vfs-virtualpath-deterministic
 tooling/vfs/vfs-hash-routing-roundtrip
+tooling/vfs/vfs-token-uri-roundtrip
+tooling/vfs/vfs-segment-coalesce
+tooling/vfs/vfs-cdc-segmentation-stability
 indexing/embeddings/merge-vectors-no-nan
 retrieval/ranking/keyword-downweighting
 indexing/contracts/index-compatibility-key-generation
