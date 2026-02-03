@@ -27,8 +27,10 @@ const normalizeGzipOptions = (input) => {
 
 export const createFflateGzipStream = (options = {}) => {
   const gzipOptions = normalizeGzipOptions(options.gzipOptions);
+  const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   const gzip = new Gzip(gzipOptions);
   const stream = new Transform({
+    ...(highWaterMark ? { highWaterMark } : {}),
     transform(chunk, encoding, callback) {
       try {
         const buffer = typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.from(chunk);
@@ -64,10 +66,21 @@ const resolveZstd = (options = {}) => {
   throw new Error(`zstd compression requested but ${message}`);
 };
 
+const normalizeHighWaterMark = (value) => {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) return undefined;
+  const bounded = Math.floor(size);
+  const min = 16 * 1024;
+  const max = 8 * 1024 * 1024;
+  return Math.min(max, Math.max(min, bounded));
+};
+
 const normalizeZstdChunkSize = (value) => {
   const size = Number(value);
   if (!Number.isFinite(size) || size <= 0) return 256 * 1024;
-  return Math.max(64 * 1024, Math.floor(size));
+  const min = 64 * 1024;
+  const max = 4 * 1024 * 1024;
+  return Math.min(max, Math.max(min, Math.floor(size)));
 };
 
 const toBuffer = (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value));
@@ -76,7 +89,11 @@ export const createZstdStream = (options = {}) => {
   const zstd = resolveZstd(options);
   const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 3;
   const chunkSize = normalizeZstdChunkSize(options.chunkSize);
-  let pending = Buffer.alloc(0);
+  const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
+  const pendingChunks = [];
+  let pendingBytes = 0;
+  let pendingIndex = 0;
+  let pendingOffset = 0;
   let stream;
   const compressChunk = async (chunk) => {
     if (!chunk?.length) return;
@@ -85,18 +102,45 @@ export const createZstdStream = (options = {}) => {
       stream.push(toBuffer(compressed));
     }
   };
+  const appendPending = (buffer) => {
+    if (!buffer?.length) return;
+    pendingChunks.push(buffer);
+    pendingBytes += buffer.length;
+  };
+  const consumePending = (size) => {
+    const out = Buffer.allocUnsafe(size);
+    let offset = 0;
+    while (offset < size) {
+      const current = pendingChunks[pendingIndex];
+      const available = current.length - pendingOffset;
+      const take = Math.min(available, size - offset);
+      current.copy(out, offset, pendingOffset, pendingOffset + take);
+      offset += take;
+      pendingOffset += take;
+      if (pendingOffset >= current.length) {
+        pendingIndex += 1;
+        pendingOffset = 0;
+      }
+    }
+    pendingBytes -= size;
+    if (pendingIndex > 0 && pendingIndex >= Math.max(32, pendingChunks.length / 2)) {
+      pendingChunks.splice(0, pendingIndex);
+      pendingIndex = 0;
+    }
+    return out;
+  };
   const drainBuffer = async (flush) => {
-    while (pending.length >= chunkSize || (flush && pending.length)) {
-      const size = flush ? pending.length : chunkSize;
-      const slice = pending.subarray(0, size);
-      pending = pending.subarray(size);
+    while (pendingBytes >= chunkSize || (flush && pendingBytes)) {
+      const size = flush ? pendingBytes : chunkSize;
+      const slice = consumePending(size);
       await compressChunk(slice);
     }
   };
   stream = new Transform({
+    ...(highWaterMark ? { highWaterMark } : {}),
     transform(chunk, encoding, callback) {
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
-      pending = pending.length ? Buffer.concat([pending, buffer]) : buffer;
+      appendPending(buffer);
       (async () => {
         await drainBuffer(false);
       })()
@@ -113,3 +157,5 @@ export const createZstdStream = (options = {}) => {
   });
   return stream;
 };
+
+export { normalizeHighWaterMark };

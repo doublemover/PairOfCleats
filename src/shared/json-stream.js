@@ -11,7 +11,7 @@ export { createTempPath, replaceFile };
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
@@ -19,12 +19,14 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
     compression = null,
     atomic = false,
     gzipOptions = null,
+    highWaterMark = null,
     signal = null
   } = options;
   const { stream, done } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
+    highWaterMark,
     signal
   });
   try {
@@ -44,7 +46,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
 
 /**
  * Stream JSON lines into sharded JSONL files.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,signal?:AbortSignal}} input
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} input
  * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null}>}
  */
 export async function writeJsonLinesSharded(input) {
@@ -58,6 +60,7 @@ export async function writeJsonLinesSharded(input) {
     atomic = false,
     compression = null,
     gzipOptions = null,
+    highWaterMark = null,
     signal = null
   } = input || {};
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
@@ -115,6 +118,7 @@ export async function writeJsonLinesSharded(input) {
       atomic,
       compression,
       gzipOptions,
+      highWaterMark,
       signal
     });
     currentPath = absPath;
@@ -188,7 +192,7 @@ export async function writeJsonLinesSharded(input) {
  * Stream a JSON array to disk without holding the full string in memory.
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonArrayFile(filePath, items, options = {}) {
@@ -197,12 +201,14 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
     compression = null,
     atomic = false,
     gzipOptions = null,
+    highWaterMark = null,
     signal = null
   } = options;
   const { stream, done } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
+    highWaterMark,
     signal
   });
   try {
@@ -222,7 +228,7 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
 /**
  * Stream a JSON object with one or more array fields to disk.
  * @param {string} filePath
- * @param {{fields?:object,arrays?:object,trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,signal?:AbortSignal}} input
+ * @param {{fields?:object,arrays?:object,trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} input
  * @returns {Promise<void>}
  */
 export async function writeJsonObjectFile(filePath, input = {}) {
@@ -233,12 +239,14 @@ export async function writeJsonObjectFile(filePath, input = {}) {
     compression = null,
     atomic = false,
     gzipOptions = null,
+    highWaterMark = null,
     signal = null
   } = input;
   const { stream, done } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
+    highWaterMark,
     signal
   });
   try {

@@ -157,27 +157,11 @@ Optimize shared JSON streaming, artifact IO, and compression paths used across i
 
 ### Files to modify (exhaustive for this phase)
 - `src/shared/json-stream.js`
-- `src/shared/json-stream/encode.js`
 - `src/shared/json-stream/streams.js`
 - `src/shared/json-stream/compress.js`
-- `src/shared/json-stream/atomic.js`
-- `src/shared/json-stream/runtime.js`
 - `src/shared/artifact-io.js`
-- `src/shared/artifact-io/constants.js`
-- `src/shared/artifact-io/limits.js`
-- `src/shared/artifact-io/manifest.js`
-- `src/shared/artifact-io/loaders.js`
 - `src/shared/artifact-io/json.js`
-- `src/shared/artifact-io/jsonl.js`
-- `src/shared/artifact-io/graph.js`
-- `src/shared/artifact-io/compression.js`
-- `src/shared/artifact-io/cache.js`
-- `src/shared/artifact-io/fs.js`
-- `src/shared/bundle-io.js`
-- `src/shared/encoding.js`
-- `src/shared/files.js`
-- `src/shared/file-stats.js`
-- `src/shared/lines.js`
+- `src/shared/artifact-io/telemetry.js` (new)
 - `docs/perf/shared-io-serialization.md` (new)
 - `tests/shared/json-stream/large-array-stream.test.js` (new)
 - `tests/shared/artifact-io/manifest-streaming.test.js` (new)
@@ -187,19 +171,19 @@ Optimize shared JSON streaming, artifact IO, and compression paths used across i
 - `docs/perf/shared-io-serialization.md` (new)
 
 ### Tasks
-- [ ] Enforce streaming decode/encode paths for large arrays and JSONL.
-- [ ] Tune chunk sizes and backpressure handling in json-stream.
-- [ ] Use bounded buffers for atomic writes and compression.
-- [ ] Add shared IO telemetry hooks for large artifact reads.
+- [x] Enforce streaming decode/encode paths for large arrays and JSONL.
+- [x] Tune chunk sizes and backpressure handling in json-stream.
+- [x] Use bounded buffers for atomic writes and compression.
+- [x] Add shared IO telemetry hooks for large artifact reads.
 
 ### Tests
-- [ ] `tests/shared/json-stream/large-array-stream.test.js`
-- [ ] `tests/shared/artifact-io/manifest-streaming.test.js`
-- [ ] `tests/shared/artifact-io/jsonl-stream-roundtrip.test.js`
+- [x] `tests/shared/json-stream/large-array-stream.test.js`
+- [x] `tests/shared/artifact-io/manifest-streaming.test.js`
+- [x] `tests/shared/artifact-io/jsonl-stream-roundtrip.test.js`
 
 ### Acceptance
-- [ ] Large artifact loads stay within memory bounds.
-- [ ] Shared IO paths demonstrate improved throughput.
+- [x] Large artifact loads stay within memory bounds.
+- [x] Shared IO paths demonstrate improved throughput.
 
 ---
 

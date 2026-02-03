@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import { createInterface } from 'node:readline';
 import { createGunzip, createZstdDecompress } from 'node:zlib';
 import { MAX_JSON_BYTES } from './constants.js';
@@ -12,6 +13,7 @@ import {
 } from './compression.js';
 import { parseJsonlLine } from './jsonl.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
+import { hasArtifactReadObserver, recordArtifactRead } from './telemetry.js';
 
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer, sourcePath) => {
@@ -32,12 +34,23 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   };
   const tryRead = (targetPath, options = {}) => {
     const { compression = null, cleanup = false } = options;
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
     const buffer = readBuffer(targetPath, maxBytes);
-    const parsed = parseBuffer(
-      decompressBuffer(buffer, compression || detectCompression(targetPath), maxBytes, targetPath),
-      targetPath
-    );
+    const resolvedCompression = compression || detectCompression(targetPath) || null;
+    const decompressed = decompressBuffer(buffer, resolvedCompression, maxBytes, targetPath);
+    const parsed = parseBuffer(decompressed, targetPath);
     if (cleanup) cleanupBak(targetPath);
+    if (shouldMeasure) {
+      recordArtifactRead({
+        path: targetPath,
+        format: 'json',
+        compression: resolvedCompression,
+        rawBytes: buffer.length,
+        bytes: decompressed.length,
+        durationMs: performance.now() - start
+      });
+    }
     return parsed;
   };
   const bakPath = getBakPath(filePath);
@@ -97,6 +110,8 @@ export const readJsonLinesArray = async (
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
     }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
     const parsed = [];
     const stream = fs.createReadStream(targetPath);
     const gunzip = createGunzip();
@@ -131,6 +146,16 @@ export const readJsonLinesArray = async (
       stream.destroy();
     }
     if (cleanup) cleanupBak(targetPath);
+    if (shouldMeasure) {
+      recordArtifactRead({
+        path: targetPath,
+        format: 'jsonl',
+        compression: 'gzip',
+        rawBytes: stat.size,
+        bytes: inflatedBytes,
+        durationMs: performance.now() - start
+      });
+    }
     return parsed;
   };
 
@@ -139,6 +164,8 @@ export const readJsonLinesArray = async (
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
     }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
     const parsed = [];
     const stream = fs.createReadStream(targetPath);
     let zstd;
@@ -179,6 +206,16 @@ export const readJsonLinesArray = async (
       stream.destroy();
     }
     if (cleanup) cleanupBak(targetPath);
+    if (shouldMeasure) {
+      recordArtifactRead({
+        path: targetPath,
+        format: 'jsonl',
+        compression: 'zstd',
+        rawBytes: stat.size,
+        bytes: inflatedBytes,
+        durationMs: performance.now() - start
+      });
+    }
     return parsed;
   };
 
@@ -196,16 +233,30 @@ export const readJsonLinesArray = async (
           if (!message.includes('zstd') && !message.includes('ZSTD')) throw err;
         }
       }
+      const shouldMeasure = hasArtifactReadObserver();
+      const start = shouldMeasure ? performance.now() : 0;
       const buffer = readBuffer(targetPath, maxBytes);
       const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
       const parsed = readJsonlFromBuffer(decompressed, targetPath);
       if (cleanup) cleanupBak(targetPath);
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: targetPath,
+          format: 'jsonl',
+          compression,
+          rawBytes: buffer.length,
+          bytes: decompressed.length,
+          durationMs: performance.now() - start
+        });
+      }
       return parsed;
     }
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
     }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
     const parsed = [];
     const stream = fs.createReadStream(targetPath, { encoding: 'utf8' });
     const rl = createInterface({ input: stream, crlfDelay: Infinity });
@@ -226,6 +277,16 @@ export const readJsonLinesArray = async (
       stream.destroy();
     }
     if (cleanup) cleanupBak(targetPath);
+    if (shouldMeasure) {
+      recordArtifactRead({
+        path: targetPath,
+        format: 'jsonl',
+        compression: null,
+        rawBytes: stat.size,
+        bytes: stat.size,
+        durationMs: performance.now() - start
+      });
+    }
     return parsed;
   };
   const bakPath = getBakPath(filePath);
@@ -287,6 +348,8 @@ export const readJsonLinesArraySync = (
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
     }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
     const compression = detectCompression(targetPath);
     if (compression) {
       const buffer = readBuffer(targetPath, maxBytes);
@@ -294,6 +357,16 @@ export const readJsonLinesArraySync = (
       const parsed = readJsonlFromBuffer(decompressed, targetPath);
       if (cleanup) cleanupBak(targetPath);
       if (useCache) writeCache(targetPath, parsed);
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: targetPath,
+          format: 'jsonl',
+          compression,
+          rawBytes: buffer.length,
+          bytes: decompressed.length,
+          durationMs: performance.now() - start
+        });
+      }
       return parsed;
     }
     let raw = '';
@@ -315,6 +388,16 @@ export const readJsonLinesArraySync = (
     }
     if (cleanup) cleanupBak(targetPath);
     if (useCache) writeCache(targetPath, parsed);
+    if (shouldMeasure) {
+      recordArtifactRead({
+        path: targetPath,
+        format: 'jsonl',
+        compression: null,
+        rawBytes: stat.size,
+        bytes: stat.size,
+        durationMs: performance.now() - start
+      });
+    }
     return parsed;
   };
   const bakPath = getBakPath(filePath);

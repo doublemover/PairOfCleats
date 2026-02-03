@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
-import { createFflateGzipStream, createZstdStream } from './compress.js';
+import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 
 export const writeChunk = async (stream, chunk) => {
@@ -17,9 +17,10 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('finish', resolve);
 });
 
-const createByteCounter = () => {
+const createByteCounter = (highWaterMark) => {
   let bytes = 0;
   const counter = new Transform({
+    ...(highWaterMark ? { highWaterMark } : {}),
     transform(chunk, _encoding, callback) {
       bytes += chunk.length;
       callback(null, chunk);
@@ -33,12 +34,16 @@ const createByteCounter = () => {
 
 export const createJsonWriteStream = (filePath, options = {}) => {
   const { compression = null, atomic = false, signal = null } = options;
+  const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   if (signal?.aborted) {
     throw createAbortError();
   }
   const targetPath = atomic ? createTempPath(filePath) : filePath;
-  const fileStream = fs.createWriteStream(targetPath);
-  const { counter, getBytes } = createByteCounter();
+  const fileStream = fs.createWriteStream(
+    targetPath,
+    highWaterMark ? { highWaterMark } : undefined
+  );
+  const { counter, getBytes } = createByteCounter(highWaterMark);
   let writer = null;
   const streams = [];
   const attachAbortHandler = () => {
