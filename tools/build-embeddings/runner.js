@@ -507,6 +507,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 hash: entry.fileHash,
                 chunkSignature: entry.chunkSignature,
                 cacheMeta: {
+                  schemaVersion: 1,
                   identityKey: cacheIdentityKey,
                   identity: cacheIdentity,
                   createdAt: new Date().toISOString()

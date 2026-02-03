@@ -339,7 +339,7 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - [.] Partition cache by provider/model/dims to avoid scanning unrelated entries.
 - [ ] Replace per-file cache entries with append-only shards + index for faster listing.
 - [x] Cache format: binary + zstd, store quantized vectors and metadata header.
-- [ ] Include cache schema/version fields (quantization, normalize flags, model identity) in headers.
+- [x] Include cache schema/version fields (quantization, normalize flags, model identity) in headers.
 - [x] Use Node zlib Zstd for cache compression.
 - [x] Cache keys include file hash, chunkSignature, identityKey.
 - [ ] Validate cache key inputs cover content; add chunk-content hash guard if needed.
