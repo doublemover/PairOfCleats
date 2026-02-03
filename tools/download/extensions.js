@@ -13,6 +13,12 @@ import { createDisplay } from '../../src/shared/cli/display.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../src/shared/files.js';
 import { loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import {
+  parseHashOverrides,
+  resolveDownloadPolicy,
+  resolveExpectedHash,
+  verifyDownloadHash
+} from '../shared/download-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 let logger = console;
@@ -92,41 +98,6 @@ const normalizeLimit = (value, fallback) => {
   return fallback;
 };
 
-const normalizeHash = (value) => {
-  if (!value) return null;
-  const trimmed = String(value).trim().toLowerCase();
-  if (!trimmed) return null;
-  const normalized = trimmed.startsWith('sha256:') ? trimmed.slice(7) : trimmed;
-  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
-  return normalized;
-};
-
-const parseHashes = (input) => {
-  if (!input) return {};
-  const items = Array.isArray(input) ? input : [input];
-  const out = {};
-  for (const item of items) {
-    const eq = String(item || '').indexOf('=');
-    if (eq <= 0 || eq >= item.length - 1) continue;
-    const name = item.slice(0, eq);
-    const hash = normalizeHash(item.slice(eq + 1));
-    if (name && hash) out[name] = hash;
-  }
-  return out;
-};
-
-const resolveDownloadPolicy = (cfg) => {
-  const policy = cfg?.security?.downloads || {};
-  const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
-    ? policy.allowlist
-    : {};
-  return {
-    requireHash: policy.requireHash === true,
-    warnUnsigned: policy.warnUnsigned !== false,
-    allowlist
-  };
-};
-
 const resolveArchiveLimits = (cfg) => {
   const archives = cfg?.security?.archives || {};
   return {
@@ -136,43 +107,7 @@ const resolveArchiveLimits = (cfg) => {
   };
 };
 
-const resolveExpectedHash = (source, policy, overrides) => {
-  const explicit = normalizeHash(source?.sha256 || source?.hash);
-  if (explicit) return explicit;
-  const allowlist = policy?.allowlist || {};
-  const fallback = overrides?.[source?.name]
-    || overrides?.[source?.url]
-    || overrides?.[source?.file]
-    || allowlist[source?.name]
-    || allowlist[source?.url]
-    || allowlist[source?.file];
-  return normalizeHash(fallback);
-};
-
-const verifyDownloadHash = (source, buffer, expectedHash, policy) => {
-  if (!expectedHash) {
-    if (policy?.requireHash) {
-      throw createError(
-        ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-        `Download verification requires a sha256 hash (${source?.name || source?.url || 'unknown source'}).`
-      );
-    }
-    if (policy?.warnUnsigned) {
-      logger.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
-    }
-    return null;
-  }
-  const actual = crypto.createHash('sha256').update(buffer).digest('hex');
-  if (actual !== expectedHash) {
-    throw createError(
-      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
-    );
-  }
-  return actual;
-};
-
-const hashOverrides = parseHashes(argv.sha256);
+const hashOverrides = parseHashOverrides(argv.sha256);
 const downloadPolicy = resolveDownloadPolicy(userConfig);
 const archiveLimits = resolveArchiveLimits(userConfig);
 
@@ -689,7 +624,13 @@ async function downloadSource(source, index) {
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
   const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
-  const actualHash = verifyDownloadHash(source, response.body, expectedHash, downloadPolicy);
+  const actualHash = verifyDownloadHash({
+    source,
+    expectedHash,
+    actualHash: crypto.createHash('sha256').update(response.body).digest('hex'),
+    policy: downloadPolicy,
+    warn: (message) => logger.warn(message)
+  });
 
   if (archiveType) {
     await fs.mkdir(tempRoot, { recursive: true });

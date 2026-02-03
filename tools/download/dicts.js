@@ -8,8 +8,13 @@ import https from 'node:https';
 import { URL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { replaceFile } from '../../src/shared/json-stream.js';
-import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import {
+  parseHashOverrides,
+  resolveDownloadPolicy,
+  resolveExpectedHash,
+  verifyDownloadHash
+} from '../shared/download-utils.js';
 
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -44,89 +49,8 @@ try {
   manifest = {};
 }
 
-const normalizeHash = (value) => {
-  if (!value) return null;
-  const trimmed = String(value).trim().toLowerCase();
-  if (!trimmed) return null;
-  const normalized = trimmed.startsWith('sha256:') ? trimmed.slice(7) : trimmed;
-  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
-  return normalized;
-};
-
-const parseHashes = (input) => {
-  if (!input) return {};
-  const items = Array.isArray(input) ? input : [input];
-  const out = {};
-  for (const item of items) {
-    const eq = String(item || '').indexOf('=');
-    if (eq <= 0 || eq >= item.length - 1) continue;
-    const name = item.slice(0, eq);
-    const hash = normalizeHash(item.slice(eq + 1));
-    if (name && hash) out[name] = hash;
-  }
-  return out;
-};
-
-const resolveDownloadPolicy = (cfg) => {
-  const policy = cfg?.security?.downloads || {};
-  const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
-    ? policy.allowlist
-    : {};
-  const maxBytesRaw = Number(policy.maxBytes);
-  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
-    ? Math.floor(maxBytesRaw)
-    : DEFAULT_MAX_DOWNLOAD_BYTES;
-  return {
-    requireHash: policy.requireHash === true,
-    warnUnsigned: policy.warnUnsigned !== false,
-    allowlist,
-    maxBytes
-  };
-};
-
-const resolveExpectedHash = (source, policy, overrides) => {
-  const explicit = normalizeHash(source?.sha256 || source?.hash);
-  if (explicit) return explicit;
-  const allowlist = policy?.allowlist || {};
-  const fallback = overrides?.[source?.name]
-    || overrides?.[source?.url]
-    || overrides?.[source?.file]
-    || allowlist[source?.name]
-    || allowlist[source?.url]
-    || allowlist[source?.file];
-  return normalizeHash(fallback);
-};
-
-const verifyDownloadHash = (source, hashHex, expectedHash, policy) => {
-  if (!expectedHash) {
-    if (policy?.requireHash) {
-      throw createError(
-        ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-        `Download verification requires a sha256 hash (${source?.name || source?.url || 'unknown source'}).`
-      );
-    }
-    if (policy?.warnUnsigned) {
-      console.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
-    }
-    return null;
-  }
-  if (!hashHex) {
-    throw createError(
-      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
-    );
-  }
-  if (hashHex !== expectedHash) {
-    throw createError(
-      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
-    );
-  }
-  return hashHex;
-};
-
-const hashOverrides = parseHashes(argv.sha256);
-const downloadPolicy = resolveDownloadPolicy(userConfig);
+const hashOverrides = parseHashOverrides(argv.sha256);
+const downloadPolicy = resolveDownloadPolicy(userConfig, { defaultMaxBytes: DEFAULT_MAX_DOWNLOAD_BYTES });
 
 const SOURCES = {
   en: {
@@ -269,7 +193,13 @@ async function downloadSource(source) {
   });
   let actualHash = null;
   try {
-    actualHash = verifyDownloadHash(source, hashHex, expectedHash, downloadPolicy);
+    actualHash = verifyDownloadHash({
+      source,
+      expectedHash,
+      actualHash: hashHex,
+      policy: downloadPolicy,
+      warn: (message) => console.warn(message)
+    });
   } catch (err) {
     await fs.rm(tempPath, { force: true });
     throw err;
