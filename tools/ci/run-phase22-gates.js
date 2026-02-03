@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRepoRootArg, resolveRuntimeEnv } from '../shared/dict-utils.js';
 
 const root = process.cwd();
-const repoRoot = resolveRepoRoot(root);
+const repoRoot = resolveRepoRootArg(null, root);
 const userConfig = loadUserConfig(repoRoot);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
 const tests = [

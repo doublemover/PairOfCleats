@@ -14,7 +14,7 @@ import {
   getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
-  resolveRepoRoot,
+  resolveRepoRootArg,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
@@ -46,7 +46,7 @@ const argv = createCli({
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;
-const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
+const root = resolveRepoRootArg(explicitRoot);
 const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 const nonInteractive = argv['non-interactive'] === true;

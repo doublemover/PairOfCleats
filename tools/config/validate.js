@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
-import { resolveRepoRoot, resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { validateConfig } from '../../src/config/validate.js';
 
 const argv = createCli({
@@ -15,8 +15,7 @@ const argv = createCli({
   }
 }).parse();
 
-const repoArg = argv.repo ? path.resolve(argv.repo) : null;
-const repoRoot = repoArg || resolveRepoRoot(process.cwd());
+const repoRoot = resolveRepoRootArg(argv.repo);
 const configPath = argv.config ? path.resolve(argv.config) : path.join(repoRoot, '.pairofcleats.json');
 const toolRoot = resolveToolRoot();
 const schemaPath = path.join(toolRoot, 'docs', 'config', 'schema.json');

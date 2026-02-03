@@ -17,7 +17,7 @@ import {
   getToolVersion,
   loadUserConfig,
   resolveIndexRoot,
-  resolveRepoRoot,
+  resolveRepoRootArg,
   resolveSqlitePaths
 } from '../../shared/dict-utils.js';
 import {
@@ -182,8 +182,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
   try {
-    const rootArg = options.root ? path.resolve(options.root) : (argv.repo ? path.resolve(argv.repo) : null);
-    const root = rootArg || resolveRepoRoot(process.cwd());
+    const root = resolveRepoRootArg(options.root || argv.repo);
     const envConfig = getEnvConfig();
     const userConfig = loadUserConfig(root);
     const indexRoot = argv['index-root']

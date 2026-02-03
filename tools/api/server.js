@@ -2,7 +2,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { parseCommaList } from '../shared/text-utils.js';
 import { getMetricsRegistry } from '../../src/shared/metrics.js';
 import { createApiRouter } from './api/router.js';
@@ -29,7 +29,7 @@ const argv = createCli({
 
 const host = argv.host || '127.0.0.1';
 const port = Number.isFinite(Number(argv.port)) ? Number(argv.port) : 7345;
-const defaultRepo = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+const defaultRepo = resolveRepoRootArg(argv.repo);
 const envSecrets = getEnvSecrets();
 const jsonOutput = argv.json === true;
 const quiet = argv.quiet === true;

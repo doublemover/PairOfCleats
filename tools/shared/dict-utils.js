@@ -54,3 +54,14 @@ export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
   const userConfig = loadUserConfig(repoRoot);
   return { repoRoot, userConfig, rootArg };
 }
+
+/**
+ * Resolve repo root from an optional repo/root argument.
+ * @param {string|undefined|null} repoArg
+ * @param {string} [cwd]
+ * @returns {string}
+ */
+export function resolveRepoRootArg(repoArg, cwd = process.cwd()) {
+  const rootArg = repoArg ? path.resolve(repoArg) : null;
+  return rootArg || resolveRepoRoot(cwd);
+}

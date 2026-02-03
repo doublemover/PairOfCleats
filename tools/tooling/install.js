@@ -3,7 +3,7 @@ import { createCli } from '../../src/shared/cli.js';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
-import { getToolingConfig, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-install',
@@ -20,7 +20,7 @@ const argv = createCli({
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;
-const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
+const root = resolveRepoRootArg(explicitRoot);
 const toolingConfig = getToolingConfig(root);
 const scope = argv.scope || toolingConfig.installScope || 'cache';
 const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;

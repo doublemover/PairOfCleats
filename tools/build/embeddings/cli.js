@@ -4,7 +4,7 @@ import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-bat
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
-import { getModelConfig, loadUserConfig, resolveIndexRoot, resolveRepoRoot } from '../../shared/dict-utils.js';
+import { getModelConfig, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
 
 export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const argv = createCli({
@@ -23,7 +23,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     }
   }).parse();
 
-  const root = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const root = resolveRepoRootArg(argv.repo);
   const userConfig = loadUserConfig(root);
   const envConfig = getEnvConfig();
   const indexingConfig = userConfig.indexing || {};

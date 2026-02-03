@@ -2,7 +2,7 @@
 import { createCli } from '../../src/shared/cli.js';
 import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './utils.js';
-import { resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-detect',
@@ -15,7 +15,7 @@ const argv = createCli({
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;
-const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
+const root = resolveRepoRootArg(explicitRoot);
 const languageOverride = normalizeLanguageList(argv.languages);
 
 const report = await buildToolingReport(root, languageOverride, {

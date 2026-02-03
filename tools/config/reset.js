@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { resolveRepoRoot } from '../shared/dict-utils.js';
+import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
 
 const argv = createCli({
@@ -25,7 +25,7 @@ const isTruthy = (value) => {
 const forceRequested = argv.force
   || isTruthy(process.env.npm_config_force);
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+const repoRoot = resolveRepoRootArg(argv.repo);
 const configPath = argv.config
   ? path.resolve(argv.config)
   : path.join(repoRoot, '.pairofcleats.json');

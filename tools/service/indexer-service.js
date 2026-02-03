@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveRepoRootArg, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './queue.js';
 import { ensureRepo, resolveRepoPath } from './repos.js';
@@ -284,7 +284,7 @@ const handleSync = async () => {
 };
 
 const handleEnqueue = async () => {
-  const target = resolveRepoEntry(argv.repo || resolveRepoRoot(process.cwd()));
+  const target = resolveRepoEntry(resolveRepoRootArg(argv.repo));
   if (!target) {
     console.error('Repo not found for enqueue.');
     process.exit(1);
@@ -450,7 +450,7 @@ const handleWork = async () => {
 
 const handleServe = async () => {
   const apiPath = path.join(toolRoot, 'tools', 'api-server.js');
-  const repoArg = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoArg = resolveRepoRootArg(argv.repo);
   logThreadpoolInfo(repoArg, 'indexer');
   const userConfig = loadUserConfig(repoArg);
   const runtimeConfig = getRuntimeConfig(repoArg, userConfig);
@@ -468,7 +468,7 @@ if (command === 'sync') {
 } else if (command === 'enqueue') {
   await handleEnqueue();
 } else if (command === 'work') {
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = resolveRepoRootArg(argv.repo);
   logThreadpoolInfo(repoRoot, 'indexer');
   await handleWork();
 } else if (command === 'status') {
