@@ -7,8 +7,9 @@ const binaryCache = new Map();
 
 const quoteCmdArg = (value) => {
   const text = String(value);
+  if (!text) return '""';
   if (!/[\\s&|^()<>]/.test(text) && !text.includes('"')) return text;
-  return `"${text.replace(/"/g, '\\"')}"`;
+  return `"${text.replace(/"/g, '""')}"`;
 };
 
 const buildCmdLine = (command, args) => [
@@ -22,7 +23,11 @@ const runCommand = (resolved, args, options = {}) => {
   const effectiveArgs = [...argsPrefix, ...args];
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
     const cmdLine = buildCmdLine(command, effectiveArgs);
-    return spawnSync('cmd.exe', ['/d', '/s', '/c', cmdLine], { ...options, shell: false });
+    return spawnSync('cmd.exe', ['/d', '/s', '/c', cmdLine], {
+      ...options,
+      shell: false,
+      windowsVerbatimArguments: true
+    });
   }
   return spawnSync(command, effectiveArgs, { ...options, shell: false });
 };
