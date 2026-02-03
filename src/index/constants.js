@@ -88,7 +88,6 @@ export const SKIP_FILES = new Set([
   '.jshintignore',
   '.pairofcleats.json',
   '.pairofcleatsignore',
-  '.repometrics',
   '.scannedfiles',
   '.scannedfiles.json',
   '.searchhistory',

@@ -24,20 +24,15 @@ Persistent settings that apply to a repository/workspace.
 Per-invocation overrides, workflow ergonomics, and diagnostics.
 
 ### 1.5 Environment variables
-Secrets and deployment wiring only. Anything else is a second config system and is prohibited.
-
-**Exception:** `PAIROFCLEATS_MCP_MODE` / `MCP_MODE` is allowed for MCP server mode selection during the SDK migration window (CLI > env > config).
+Environment variables are supported for both secrets and selected runtime overrides.
+The authoritative list is in `docs/config/env-overrides.md`, sourced from `src/shared/env.js`.
 
 ---
 
 ## 2) Hard rules (non-negotiable)
 
-### Rule A -- No shadow config via env
-Environment variables **must not** duplicate or override normal product settings already expressible by config file or flags.
-
-Allowed env vars must be limited to:
-- secrets
-- truly process-start-only runtime constraints that cannot be set after process start (rare; prefer standard Node/OS env vars)
+### Rule A -- Env overrides must be explicit
+Environment variables that affect behavior must be explicitly documented in `docs/config/env-overrides.md`.
 
 ### Rule B -- One control plane per concept
 A concept may be configurable via **only one** of:
@@ -47,11 +42,19 @@ A concept may be configurable via **only one** of:
 
 If a concept needs both persistent and per-run control, the persistent control is config, and the per-run control is CLI; env is not allowed.
 
-### Rule C -- No fine-grained performance knobs in user surface
-Anything that is "tuning" (batch sizes, concurrency caps, cache TTLs, scoring weights, backends) is **AutoPolicy**, not a user knob.
+### Rule C -- Prefer AutoPolicy for tuning
+Tuning knobs should default to AutoPolicy. When exposed, they must be documented in the config contract.
 
-### Rule D -- Unknown config keys must fail fast
-If `.pairofcleats.json` contains unknown keys, PairOfCleats must error. Silent ignore is how option sprawl persists.
+### Rule D -- Unknown config keys
+Unknown keys fail fast **except** for schema-defined map/extension areas that
+allow additional properties. Current exceptions include:
+- `indexing` (including `indexing.embeddings` and map-style caps such as
+  `indexing.fileCaps.byExt` / `indexing.fileCaps.byLanguage`)
+- `retrieval.graphRanking.weights`
+- `search.fieldWeights`, `search.sqliteFtsWeights`
+- `mcp.toolTimeouts`
+- `tooling.pyright`, `tooling.sourcekit`
+- `tooling.lsp.servers[]` (server objects allow vendor-specific keys)
 
 ### Rule E -- All configuration IO is centralized
 - Only the config loader reads `.pairofcleats.json`.

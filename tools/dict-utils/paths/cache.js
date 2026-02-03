@@ -175,11 +175,21 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
 }
 
 /**
- * Resolve the repometrics directory for a repo.
+ * Resolve the metrics directory for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
  * @returns {string}
  */
 export function getMetricsDir(repoRoot, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'repometrics');
+  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'metrics');
+}
+
+/**
+ * Resolve the query cache directory for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getQueryCacheDir(repoRoot, userConfig = null) {
+  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'query-cache');
 }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T00:18:13.400Z",
+  "generatedAt": "2026-02-03T03:01:29.085Z",
   "scripts": [
     {
       "name": "api-server",
@@ -230,6 +230,12 @@
       "replacement": null
     },
     {
+      "name": "metrics-dashboard",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "parity:matrix",
       "category": "tooling",
       "ciAllowed": false,
@@ -244,12 +250,6 @@
     {
       "name": "release-check:breaking",
       "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "repometrics-dashboard",
-      "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },

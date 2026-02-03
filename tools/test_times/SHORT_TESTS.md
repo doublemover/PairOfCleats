@@ -103,7 +103,7 @@
 - `tests\lang\python\python-ast-worker.test.js`
 - `tests\lang\python\python-fallback.test.js`
 - `tests\retrieval\query\query-intent.test.js`
-- `tests\tooling\reports\repometrics-dashboard.test.js`
+- `tests\tooling\reports\metrics-dashboard.test.js`
 - `tests\retrieval\backend\retrieval-backend-policy.test.js`
 - `tests\retrieval\filters\retrieval-branch-filter.test.js`
 - `tests\lang\ruby\ruby-end-comment.test.js`

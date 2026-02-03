@@ -41,17 +41,17 @@ Defaults:
 ## Ingest findings
 Dependabot:
 ```
-pairofcleats triage ingest --source dependabot --in dependabot.json --meta service=api --meta env=prod
+node tools/triage/ingest.js --source dependabot --in dependabot.json --meta service=api --meta env=prod
 ```
 
 AWS Inspector:
 ```
-pairofcleats triage ingest --source aws_inspector --in inspector.json --meta service=api --meta env=prod
+node tools/triage/ingest.js --source aws_inspector --in inspector.json --meta service=api --meta env=prod
 ```
 
 Generic (already normalized schema):
 ```
-pairofcleats triage ingest --source generic --in record.json --meta service=api --meta env=prod
+node tools/triage/ingest.js --source generic --in record.json --meta service=api --meta env=prod
 ```
 
 Each ingest writes:
@@ -60,7 +60,7 @@ Each ingest writes:
 
 ## Decisions
 ```
-pairofcleats triage decision --finding <recordId> --status accept --justification "..." --reviewer "..."
+node tools/triage/decision.js --finding <recordId> --status accept --justification "..." --reviewer "..."
 ```
 
 ## Exposure metadata
@@ -91,7 +91,7 @@ Filters:
 
 ## Context packs
 ```
-pairofcleats triage context-pack --record <recordId> --out context.json
+node tools/triage/context-pack.js --record <recordId> --out context.json
 ```
 
 The context pack includes:

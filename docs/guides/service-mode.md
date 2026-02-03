@@ -18,8 +18,7 @@ Example:
       "url": "https://github.com/org/repo.git",
       "path": "example",
       "branch": "main",
-      "syncPolicy": "pull",
-      "indexModes": "both"
+      "syncPolicy": "pull"
     }
   ],
   "queue": { "maxQueued": 20, "maxRetries": 2 },
@@ -27,6 +26,8 @@ Example:
   "sync": { "policy": "pull", "intervalMs": 300000 }
 }
 ```
+
+Repo-level `indexModes` values are ignored by the indexer service; select `--mode` when enqueueing jobs.
 
 Commands
 ```bash

@@ -12,33 +12,35 @@ This spec defines:
 ## Artifacts (public surface)
 
 ### 1) `symbols.jsonl`
-One record per unique `scopedId`.
+One record per unique symbol identity.
 
 **Schema (v1)**
 ```json
 {
-  "scopedId": "scoped:...",
-  "symbolKey": "symk:...",
-  "symbolId": "scip:...|lsif:...|heur:...",
-  "kind": "function|class|...",
-  "languageId": "typescript|javascript|...",
-  "file": "src/foo.ts",
-  "segmentUid": "segu:..." ,
-  "range": { "start": 123, "end": 456, "startLine": 10, "endLine": 20 },
-  "name": "foo",
+  "v": 1,
+  "symbolId": "sym1:heur:...",
+  "scopedId": "sid:v1:...",
+  "symbolKey": "sk:v1:...",
   "qualifiedName": "A.B.foo",
+  "kindGroup": "function|class|...",
+  "file": "src/foo.ts",
+  "virtualPath": "src/foo.ts",
+  "chunkUid": "ck64:...",
+  "scheme": "heur|scip|lsif",
   "signatureKey": "sig:sha1:...",
-  "chunkUid": "chunk:...",
-  "confidence": 0.0,
-  "sources": ["native|tooling|scip|lsif"],
-  "evidence": { "doc": "optional short snippet", "callable": true }
+  "segmentUid": "seg:...",
+  "lang": "typescript|javascript|...",
+  "kind": "Function|Class|...",
+  "name": "foo",
+  "signature": "function foo(...)",
+  "extensions": { "any": "extra fields" }
 }
 ```
 
 **Notes**
-- `range.start/end` are UTF-16 code unit offsets, half-open.
-- `confidence` is required; producers should emit low confidence rather than omit.
-- `chunkUid` is required so symbol → chunk lookup is always possible.
+- `v`, `symbolId`, `scopedId`, `symbolKey`, `qualifiedName`, `kindGroup`, `file`,
+  `virtualPath`, and `chunkUid` are required.
+- Additional fields are optional and may be trimmed when oversized rows are emitted.
 
 ### 2) `symbol_occurrences.jsonl`
 One record per occurrence.
@@ -46,17 +48,27 @@ One record per occurrence.
 **Schema (v1)**
 ```json
 {
-  "occurrenceId": "occ:sha1:...",
-  "scopedId": "scoped:...",
-  "symbolId": "scip:...|lsif:...|heur:...",
-  "file": "src/foo.ts",
-  "segmentUid": "segu:...",
-  "range": { "start": 111, "end": 114, "startLine": 12, "endLine": 12 },
-  "role": "definition|reference|callsite|import",
-  "context": { "containerScopedId": "scoped:...", "importSpec": "./bar" },
-  "evidence": { "snippet": "optional short snippet" }
+  "v": 1,
+  "host": { "file": "src/foo.ts", "chunkUid": "ck64:..." },
+  "role": "definition|reference|call|import|usage",
+  "ref": {
+    "v": 1,
+    "targetName": "Foo.bar",
+    "kindHint": "function",
+    "importHint": { "moduleSpecifier": "./bar", "resolvedFile": "src/bar.ts" },
+    "status": "resolved|ambiguous|unresolved",
+    "resolved": { "symbolId": "sym1:heur:...", "chunkUid": "ck64:..." },
+    "candidates": [
+      { "symbolId": "sym1:heur:...", "chunkUid": "ck64:...", "symbolKey": "sk:v1:...", "kindGroup": "function", "signatureKey": "sig:..." }
+    ]
+  },
+  "range": { "start": 111, "end": 114 }
 }
 ```
+
+**SymbolRef notes**
+- `targetName`, `status`, `resolved`, and `candidates` are required.
+- Each candidate must include `symbolId`, `chunkUid`, `symbolKey`, and `kindGroup`.
 
 ### 3) `symbol_edges.jsonl`
 One record per edge.
@@ -64,24 +76,18 @@ One record per edge.
 **Schema (v1)**
 ```json
 {
-  "edgeId": "edge:sha1:...",
-  "type": "call|usage|import|dataflow",
-  "sourceScopedId": "scoped:...",
-  "targetScopedId": "scoped:...",
-  "status": "resolved|ambiguous|unresolved",
-  "candidates": [
-    { "targetScopedId": "scoped:...", "confidence": 0.0, "reason": "import-context" }
-  ],
-  "evidence": {
-    "callsite": { "file": "src/a.ts", "range": { "start": 1, "end": 2 } },
-    "import": { "specifier": "./x" }
-  }
+  "v": 1,
+  "type": "call|usage|import|dataflow|symbol",
+  "from": { "file": "src/a.ts", "chunkUid": "ck64:..." },
+  "to": { "...": "SymbolRef (see above)" },
+  "confidence": 0.0,
+  "reason": "import-context"
 }
 ```
 
 **Rules**
-- If `status !== "resolved"`, the edge must still be emitted (unless explicitly configured off) so metrics and debugging are possible.
-- If `status === "unresolved"`, `targetScopedId` may be null, but `candidates` may exist.
+- Symbol edges always carry a `SymbolRef` in `to` (including ambiguous/unresolved refs).
+- `confidence` and `reason` are optional but should be provided when available.
 
 ## Build pipeline integration (minimal set)
 Phase 9 should not create a new "parallel pipeline." It should consume existing outputs and upgrade joins.
@@ -110,13 +116,12 @@ Strict validation must verify:
 ## Tests (required)
 ### Unit tests
 - `tests/indexing/identity/identity-symbolkey-scopedid.test.js`
-  - stable output for stable inputs
-  - collision disambiguation is deterministic
+- `tests/indexing/identity/symbol-identity.test.js`
 
 ### Services tests
 - `tests/indexing/artifacts/symbols/symbol-artifacts-emission.test.js`
-  - build fixture index, assert all three artifacts exist and validate
 - `tests/indexing/artifacts/symbols/symbol-edges-ambiguous.test.js`
-  - fixture with two same-named symbols; assert `status: ambiguous` and both candidates present
+- `tests/indexing/artifacts/symbols/symbol-links-by-chunkuid.test.js`
 - `tests/indexing/validate/symbol-integrity-strict.test.js`
-  - tamper symbol edge endpoint; strict validate fails
+- `tests/indexing/determinism/symbol-artifact-order.test.js`
+- `tests/indexing/determinism/symbol-artifact-determinism.test.js`

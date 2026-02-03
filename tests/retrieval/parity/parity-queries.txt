@@ -11,6 +11,6 @@ bm25
 cache
 python
 docstring
-repometrics
+metrics
 fts
 incremental

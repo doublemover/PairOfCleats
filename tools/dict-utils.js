@@ -15,6 +15,7 @@ export {
   getCurrentBuildInfo,
   getIndexDir,
   getMetricsDir,
+  getQueryCacheDir,
   getModelConfig,
   getModelsDir,
   getCodeDictionaryPaths,

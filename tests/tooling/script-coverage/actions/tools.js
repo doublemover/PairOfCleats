@@ -7,9 +7,9 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['summary-report-test', 'summary-report']
   },
   {
-    label: 'repometrics-dashboard-test',
-    run: () => runNode('repometrics-dashboard-test', path.join(root, 'tests', 'tooling', 'reports', 'repometrics-dashboard.test.js')),
-    covers: ['repometrics-dashboard-test', 'repometrics-dashboard']
+    label: 'metrics-dashboard-test',
+    run: () => runNode('metrics-dashboard-test', path.join(root, 'tests', 'tooling', 'reports', 'metrics-dashboard.test.js')),
+    covers: ['metrics-dashboard-test', 'metrics-dashboard']
   },
   {
     label: 'index-validate-test',

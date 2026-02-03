@@ -106,6 +106,11 @@ const main = async () => {
     { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
     { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
     {
+      label: 'Doc contract drift',
+      command: process.execPath,
+      args: ['tools/doc-contract-drift.js', '--fail']
+    },
+    {
       label: 'CI test lane',
       command: process.execPath,
       args: [

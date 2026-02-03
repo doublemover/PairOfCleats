@@ -18,7 +18,7 @@ This document is intentionally separate from the artifact contracts:
 Those are covered by:
 - `spec_risk-summaries_IMPROVED.md`
 - `spec_risk-flows-and-call-sites_RECONCILED.md`
-- `spec_risk-callsite-id-and-stats_IMPROVED.md`
+- `risk-callsite-id-and-stats_IMPROVED.md`
 
 ---
 

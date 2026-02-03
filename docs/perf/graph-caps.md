@@ -4,19 +4,55 @@ This document captures how graph expansion caps are selected and calibrated.
 
 ## Overview
 - The graph caps harness samples bounded neighborhood expansions for representative seeds.
-- Measurements are aggregated to produce defaults per language/tier.
-- Defaults are recorded in `docs/perf/graph-caps-defaults.json`.
+- The harness writes `graph-caps-harness.json` with graph stats, sample counts, and truncation markers.
+- Defaults are curated from those samples and recorded in `docs/perf/graph-caps-defaults.json`.
 
-## Selection Rules (v1)
-1. Use the harness output to compute P95 nodes/edges/workUnits for the typical tier.
-2. Set `maxNodes` to P95(nodes), `maxEdges` to P95(edges), `maxWorkUnits` to P95(workUnits).
-3. Clamp `maxFanoutPerNode` to the P95 fanout seen in the harness samples.
-4. For huge/problematic tiers, apply a 0.5x multiplier to nodes/edges/workUnits.
-5. Record any truncation caps hit during calibration to inform adjustments.
+## Harness usage
+```bash
+node tools/bench/graph-caps-harness.js --index <indexDir> --outDir <dir>
+node tools/bench/graph-caps-harness.js --graphFixture <graph_relations.json> --outDir <dir>
+```
+
+Required:
+- `--outDir <path>`: output directory for `graph-caps-harness.json`.
+- `--index <path>` or `--graphFixture <path>`: supply exactly one source (index directory or
+  a `graph_relations` fixture JSON).
+
+Optional:
+- `--depth <n>`: requested neighborhood depth (default 2).
+
+Notes:
+- The harness calls `buildGraphNeighborhood` with `direction: both` and `includePaths: false`.
+- The CLI run applies sampling caps (`maxFanoutPerNode: 100`, `maxNodes: 200`, `maxEdges: 500`) to bound runtime.
+- If no seeds are provided, the harness samples the first call graph node as a `{ type: "chunk", chunkUid }` seed.
 
 ## Output Layout
 The harness writes `graph-caps-harness.json` with:
-- `graphStats` (node/edge counts by graph)
-- `samples[]` (seed + counts + truncation)
+- `version`: schema version.
+- `generatedAt`: ISO timestamp for the harness run.
+- `graphStats`: node/edge counts by graph (`callGraph`, `usageGraph`, `importGraph`).
+- `samples[]`: one entry per seed with:
+  - `seed`: graph node reference used for expansion.
+  - `counts`: `nodesReturned`, `edgesReturned`, `pathsReturned`, `workUnitsUsed`.
+  - `truncation`: cap hits (`cap`, `limit`, `observed`, `omitted`, `at`) or `null`.
 
-The defaults file contains the canonical caps for each language/tier.
+## Defaults file
+`docs/perf/graph-caps-defaults.json` is produced by running the harness on representative
+indexes or fixtures, reviewing `graph-caps-harness.json`, and manually curating the caps.
+Refresh `generatedAt` when the defaults change.
+
+Top-level fields:
+- `version`: schema version for the defaults file.
+- `generatedAt`: ISO timestamp for the last update.
+- `provenance`: generator/inputs used to produce the samples and a link back to this doc.
+- `defaults.global`: baseline caps (no per-language tiers yet).
+
+Cap fields:
+- `maxDepth`: maximum neighborhood depth applied during expansion.
+- `maxFanoutPerNode`: maximum edge candidates considered per node.
+- `maxNodes`: maximum nodes returned.
+- `maxEdges`: maximum edges returned.
+- `maxPaths`: maximum witness paths captured when paths are enabled.
+- `maxCandidates`: maximum candidate refs per symbol edge.
+- `maxWorkUnits`: traversal work units (edge expansions) before truncation.
+- `maxWallClockMs`: wall-clock budget in milliseconds for traversal work (omit or set to `null` to disable; `0` is a hard cap).

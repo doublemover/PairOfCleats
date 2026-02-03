@@ -35,9 +35,10 @@ Optional (feature/config driven):
 - Embeddings artifacts (`dense_vectors_*`, `dense_vectors_hnsw.*`, `dense_vectors*.lancedb`) when embeddings are enabled.
 
 ## Format precedence
-- `chunk_meta`: prefer `chunk_meta.meta.json` + `chunk_meta.parts/`, then `chunk_meta.jsonl`, then `chunk_meta.json`.
-- `token_postings`: prefer `token_postings.meta.json` + `token_postings.shards/`, then `token_postings.json`.
-- If `*.json` is missing but `*.json.gz` exists, readers load the gzip sidecar; when `keepRaw` is enabled, both may exist and the raw `*.json` takes precedence.
+- If a pieces manifest is present and strict mode is enabled, loaders follow the manifest and treat missing entries as errors.
+- `chunk_meta` (non-strict): if both `chunk_meta.meta.json` + `chunk_meta.parts/` and `chunk_meta.jsonl` exist, the newer mtime wins; otherwise use whichever exists, falling back to `chunk_meta.json`.
+- `token_postings` (non-strict): prefer `token_postings.meta.json` + `token_postings.shards/`, then `token_postings.json`.
+- Raw-first compression: if `.json`/`.jsonl` exists, it is read even if `.json.gz`/`.json.zst` or `.jsonl.gz`/`.jsonl.zst` sidecars exist; sidecars are used only when raw is missing.
 
 ## Build state + provenance
 
@@ -63,9 +64,12 @@ Key requirements:
 - Artifact `configHash` values must not incorporate secrets (e.g., API tokens); only content-relevant config/environment inputs are allowed.
 
 ## Sharded meta schema
-- `chunk_meta.meta.json` contains `{ format: "jsonl", shardSize, totalChunks, parts: [<posix paths>] }`.
-- `token_postings.meta.json` contains `{ format: "sharded", shardSize, vocabCount, parts: [<posix paths>], avgDocLen, totalDocs }` plus `docLengths`.
-- Loader precedence: newest between sharded meta+parts and jsonl wins; jsonl > json (and prefer `.json.zst`/`.json.gz` sidecars when present).
+- JSONL-sharded artifacts (e.g., `chunk_meta`, `graph_relations`, `symbols`, `symbol_edges`) use `*.meta.json` with the jsonl-sharded schema (often nested under `fields`):
+  - `schemaVersion`, `artifact`, `format: "jsonl-sharded"`, `generatedAt`, `compression`, `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`, `parts[]`
+  - `parts[]` entries include `{ path, records, bytes }` plus optional `checksum`/`extensions`.
+- `token_postings.meta.json` uses a sharded JSON schema with fields + arrays:
+  - `fields`: `{ format: "sharded", shardSize, vocabCount, parts, avgDocLen, totalDocs, compression }`
+  - `arrays`: `{ docLengths }`
 
 ## References
 - `docs/contracts/artifact-contract.md`

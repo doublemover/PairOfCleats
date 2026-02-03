@@ -5,7 +5,7 @@
 ## Usage
 
 ```bash
-pairofcleats report eval --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
+node tools/eval/run.js --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
 ```
 
 Options:
@@ -17,6 +17,8 @@ Options:
 - `--match-mode`: `substring` (default) or `exact`
 - `--out`: write JSON report to a file
 - `--pretty`: pretty-print JSON to stdout
+- `--progress`: `auto|off|jsonl` (default `auto`)
+- `--verbose` / `--quiet`: control stderr logging
 
 ## Dataset format
 

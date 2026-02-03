@@ -322,11 +322,14 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
   - `tests/run.js` (runner)
   - `tests/runner/*` (formatting + harness)
   - `.testLogs/*` (output)
+  - Docs: `docs/testing/test-runner-interface.md`, `docs/testing/ci-capability-policy.md`
 - Tasks:
   - [ ] Add `--log-times` emitting JSON/CSV with test name + duration.
   - [ ] Define a versioned schema for the log-times output (fields + ordering).
   - [ ] Add watchdog for hung tests (configurable grace period).
   - [ ] Add ordering hints from ledger (optional).
+  - [ ] Update `docs/testing/test-runner-interface.md` with `--log-times` format + file location.
+  - [ ] Update `docs/testing/ci-capability-policy.md` with watchdog behavior expectations in CI.
 - Tests:
   - [ ] Runner unit tests for log-times output path and format.
   - [ ] Watchdog test with simulated hang.
@@ -339,11 +342,13 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
   - `tests/run.js` (runner flags)
   - `tools/` (coverage merge helper)
   - `.c8/` output
+  - Docs: `docs/testing/test-runner-interface.md`, `docs/testing/ci-capability-policy.md`
 - Tasks:
   - [ ] Add runner flag `--coverage` to wrap lane runs with c8.
   - [ ] Add `--coverage-merge` to merge lane reports into one.
   - [ ] Add `--coverage-changed` using git diff to limit to changed files.
-  - [ ] Define a coverage map contract (path normalization, repo root, rename handling).
+  - [ ] Document coverage flags and output locations in `docs/testing/test-runner-interface.md`.
+  - [ ] Note coverage/merge expectations for CI in `docs/testing/ci-capability-policy.md`.
 - Tests:
   - [ ] CLI parsing tests for new flags.
   - [ ] Coverage merge unit test (mock .c8 input).
@@ -387,9 +392,10 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
 - Touchpoints:
   - `bin/pairofcleats.js`
   - `tools/ctags-ingest.js`, `tools/gtags-ingest.js`, `tools/lsif-ingest.js`, `tools/scip-ingest.js`
+  - Docs: `docs/tooling/ctags.md`, `docs/tooling/gtags.md`, `docs/tooling/lsif.md`, `docs/tooling/scip.md`, `docs/guides/commands.md`
 - Tasks:
   - [ ] Add `pairofcleats ingest <ctags|gtags|lsif|scip>` routes.
-  - [ ] Define exit code + machine-readable output contract for ingest commands.
+  - [ ] Update ingest docs + commands guide with new CLI wrappers.
 - Tests:
   - [ ] CLI routing tests for each tool.
 - Acceptance:

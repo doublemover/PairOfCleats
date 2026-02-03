@@ -1,19 +1,33 @@
-# LSIF ingestion
+# LSIF ingest
 
-Use the LSIF ingestion tool to import offline code intelligence graphs.
+Use the LSIF ingest tool to import LSIF JSONL graphs into normalized symbol occurrences.
 
-## Ingest JSONL
+## CLI
 
 ```bash
-pairofcleats ingest lsif --repo . --input dump.lsif
+node tools/lsif-ingest.js --repo . --input dump.lsif
+
+# Or via npm
+npm run lsif-ingest -- --repo . --input dump.lsif
+
+# Read from stdin
+cat dump.lsif | node tools/lsif-ingest.js --repo . --input -
 ```
 
-## Outputs
+## Options
 
-- `lsif.jsonl`: normalized symbol occurrences under the repo cache root.
-- `lsif.jsonl.meta.json`: summary metadata and per-kind counts.
+- `--repo`: repo root used to resolve paths and the cache root (defaults to auto-detected repo root).
+- `--input`: LSIF JSONL file path or `-` for stdin (stdin is used when omitted).
+- `--out`: output JSONL path (default: `<cacheRoot>/lsif/lsif.jsonl`).
+- `--json`: emit the summary JSON to stdout instead of status lines.
+
+## Output
+
+- JSONL entries include: `file`, `ext`, `name`, `kind`, `startLine`, `endLine`, `startChar`, `endChar`, `role`, `language`.
+- `<output>.meta.json`: summary with `generatedAt`, `repoRoot`, `input`, `output`, and `stats` (vertices, edges, definitions, references, errors, kinds, languages).
 
 ## Notes
 
-- LSIF output is a JSONL graph (vertices + edges).
-- Definitions and references are derived from `definitionResult` and `referenceResult` edges.
+- The ingest expects LSIF JSONL with `vertex` and `edge` records.
+- `item` edges linked to `definitionResult` or `referenceResult` vertices are mapped to `role=definition` or `role=reference`; other items become `role=other`.
+- Document URIs like `/repo/...` are normalized to repo-relative paths.

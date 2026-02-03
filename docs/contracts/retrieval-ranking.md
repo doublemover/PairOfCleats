@@ -34,10 +34,12 @@ Phase 11 adds:
 When graph ranking is enabled and explain is requested, hits SHOULD include:
 
 - `scoreBreakdown.graph`:
-  - `enabled` (boolean)
-  - `delta` (number): score delta applied to reorder within membership set
-  - `features` (object): named feature values
-  - optional `truncation[]` (scope `"ranking"`) when graph caps trigger
+  - `score` (number): additive score applied for graph-aware reordering
+  - `degree` (number): combined in+out degree across call/usage graphs
+  - `proximity` (number): seed proximity (1 for seed hits, 0.5 for neighbors, else 0)
+  - `weights` (object): `{ degree, proximity }` weights used to compute `score`
+  - `seedSelection` (`top1|topK|none`)
+  - `seedK` (number|null)
 
 Graph ranking MUST NOT change membership (see below).
 

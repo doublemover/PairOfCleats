@@ -175,7 +175,7 @@ tests\retrieval\query\query-intent.test.js
 tests\indexing\file-processor\read-failure-skip.test.js
 tests\indexing\records\records-exclusion.test.js
 tests\cli\general\repo-root.test.js
-tests\tooling\reports\repometrics-dashboard.test.js
+tests\tooling\reports\metrics-dashboard.test.js
 tests\retrieval\backend\retrieval-auto-sqlite-thresholds.test.js
 tests\retrieval\backend\retrieval-backend-policy.test.js
 tests\retrieval\filters\retrieval-branch-filter.test.js

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../../../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'repometrics-dashboard');
+const tempRoot = path.join(root, '.testCache', 'metrics-dashboard');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -49,23 +49,23 @@ const outPath = path.join(tempRoot, 'dashboard.json');
 const env = { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot };
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'repometrics-dashboard.js'), '--json', '--out', outPath],
+  [path.join(root, 'tools', 'metrics-dashboard.js'), '--json', '--out', outPath],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (result.status !== 0) {
-  console.error('repometrics dashboard test failed: script error.');
+  console.error('metrics dashboard test failed: script error.');
   if (result.stderr) console.error(result.stderr.trim());
   process.exit(result.status ?? 1);
 }
 if (!fs.existsSync(outPath)) {
-  console.error('repometrics dashboard test failed: output JSON missing.');
+  console.error('metrics dashboard test failed: output JSON missing.');
   process.exit(1);
 }
 const payload = JSON.parse(fs.readFileSync(outPath, 'utf8'));
 if (!payload.search || !payload.files || !payload.index) {
-  console.error('repometrics dashboard test failed: missing fields.');
+  console.error('metrics dashboard test failed: missing fields.');
   process.exit(1);
 }
 
-console.log('repometrics dashboard test passed');
+console.log('metrics dashboard test passed');
 

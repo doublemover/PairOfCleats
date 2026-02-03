@@ -12,6 +12,7 @@ Avoid duplicate Markdown parsing by extracting fenced blocks and inline spans in
 - Fenced blocks and inline code spans are captured in one pass.
 - Output segment ordering is deterministic and consistent with current outputs.
 - Error handling remains best-effort: parse errors must not crash segmentation and must surface as the existing `parse-error` path.
+- Inline code spans are optional and gated by segments config (`inlineCodeSpans: true`).
 
 ## Single-pass traversal (contract)
 - Use a single micromark event stream to collect:
@@ -20,6 +21,16 @@ Avoid duplicate Markdown parsing by extracting fenced blocks and inline spans in
   - Headings/paragraph boundaries as currently used by `segmentMarkdown`.
 - Preserve existing "root chunk" fallback behavior when no segments are produced.
 - Maintain the same `segment.meta` shapes for Markdown outputs.
+- If micromark parsing fails, return no inline spans or fenced blocks and rely on the existing
+  fallback segment behavior (do not throw).
+
+## Inline code span caps (current defaults)
+When `inlineCodeSpans=true`, the following caps apply (see `src/index/segments/markdown.js`):
+- `inlineCodeMinChars` (default **8** non-whitespace chars).
+- `inlineCodeMaxSpans` (default **200** spans per file).
+- `inlineCodeMaxBytes` (default **65536** total UTF-8 bytes across spans).
+
+Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 
 ## Ordering rules
 - Segments are emitted in document order based on start offset.

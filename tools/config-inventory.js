@@ -183,6 +183,13 @@ export const buildInventory = async (options = {}) => {
     .filter((entry) => !KNOWN_ENV_VARS.has(entry.name))
     .map((entry) => entry.name)
     .sort();
+  const unknownEnvVarDetails = envVars
+    .filter((entry) => !KNOWN_ENV_VARS.has(entry.name))
+    .map((entry) => ({
+      name: entry.name,
+      files: entry.files || []
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const publicFlags = cliFlags
     .filter((entry) => PUBLIC_CLI_FLAGS.has(entry.flag))
@@ -295,7 +302,13 @@ export const buildInventory = async (options = {}) => {
       errors.push(`Config keys not in allowlist: ${unknownConfigLeafKeys.join(', ')}`);
     }
     if (unknownEnvVars.length) {
-      errors.push(`Env vars not in allowlist: ${unknownEnvVars.join(', ')}`);
+      const detailLines = unknownEnvVarDetails.map((entry) => {
+        if (!entry.files.length) return entry.name;
+        const files = entry.files.slice(0, 5);
+        const suffix = entry.files.length > files.length ? ' …' : '';
+        return `${entry.name} (${files.join(', ')}${suffix})`;
+      });
+      errors.push(`Env vars not in allowlist: ${detailLines.join(', ')}`);
     }
     if (unknownPublicFlags.length) {
       errors.push(`Public CLI flags not in allowlist: ${unknownPublicFlags.join(', ')}`);

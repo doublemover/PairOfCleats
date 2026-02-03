@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T03:12:05.994Z",
+  "generatedAt": "2026-02-03T03:01:51.488Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1337,7 +1337,7 @@
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/setup.test.js",
         "tests/tooling/install/uninstall.test.js",
-        "tests/tooling/reports/repometrics-dashboard.test.js",
+        "tests/tooling/reports/metrics-dashboard.test.js",
         "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
         "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
@@ -2992,6 +2992,15 @@
         ]
       },
       {
+        "file": "tools/metrics-dashboard.js",
+        "flags": [
+          "json",
+          "out",
+          "repo",
+          "top"
+        ]
+      },
+      {
         "file": "tools/parity-matrix.js",
         "flags": [
           "ann-modes",
@@ -3005,15 +3014,6 @@
           "queries-dir",
           "results",
           "search",
-          "top"
-        ]
-      },
-      {
-        "file": "tools/repometrics-dashboard.js",
-        "flags": [
-          "json",
-          "out",
-          "repo",
           "top"
         ]
       },
@@ -3266,7 +3266,7 @@
           "tools/lsif-ingest.js",
           "tools/map-iso-serve.js",
           "tools/mcp-server.js",
-          "tools/repometrics-dashboard.js",
+          "tools/metrics-dashboard.js",
           "tools/report-artifacts.js",
           "tools/report-code-map.js",
           "tools/reset-config.js",
@@ -3308,7 +3308,7 @@
           "tools/gtags-ingest.js",
           "tools/index-validate.js",
           "tools/lsif-ingest.js",
-          "tools/repometrics-dashboard.js",
+          "tools/metrics-dashboard.js",
           "tools/report-artifacts.js",
           "tools/report-code-map.js",
           "tools/reset-config.js",
@@ -3344,7 +3344,7 @@
           "tools/gtags-ingest.js",
           "tools/lsif-ingest.js",
           "tools/map-iso-serve.js",
-          "tools/repometrics-dashboard.js",
+          "tools/metrics-dashboard.js",
           "tools/report-code-map.js",
           "tools/scip-ingest.js",
           "tools/structural-search.js",
@@ -3475,8 +3475,8 @@
           "tools/combined-summary.js",
           "tools/compare-models.js",
           "tools/eval/run.js",
-          "tools/parity-matrix.js",
-          "tools/repometrics-dashboard.js"
+          "tools/metrics-dashboard.js",
+          "tools/parity-matrix.js"
         ]
       },
       {

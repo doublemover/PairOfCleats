@@ -5,7 +5,7 @@ The compatibility key is a stable, content-addressed fingerprint used to prevent
 ## Where it is computed
 
 - Source: `src/contracts/compatibility.js` (`buildCompatibilityKey`).
-- Called from `src/integrations/core/index.js` after tokenization keys are derived.
+- Called from `src/integrations/core/build-index/compatibility.js` after tokenization keys are derived.
 
 The key is `sha1(stableStringify(payload))` where the payload includes:
 

@@ -35,7 +35,7 @@
     "cache-gc": "node tools/cache-gc.js",
     "clean-artifacts": "node tools/clean-artifacts.js",
     "compact-sqlite-index": "node tools/compact-sqlite-index.js",
-    "repometrics-dashboard": "node tools/repometrics-dashboard.js",
+    "metrics-dashboard": "node tools/metrics-dashboard.js",
     "compare-models": "node tools/compare-models.js",
     "summary-report": "node tools/combined-summary.js",
     "config-validate": "node tools/validate-config.js",
