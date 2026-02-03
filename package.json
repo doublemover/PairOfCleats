@@ -71,7 +71,7 @@
     "@ast-grep/napi": "^0.40.4",
     "@astrojs/compiler": "^2.13.0",
     "@babel/parser": "^7.27.1",
-    "@babel/traverse": "^7.28.5",
+    "@babel/traverse": "^7.29.0",
     "@es-joy/jsdoccomment": "^0.79.0",
     "@handlebars/parser": "^2.2.2",
     "@lancedb/lancedb": "^0.22.3",
