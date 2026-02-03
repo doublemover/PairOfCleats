@@ -85,7 +85,7 @@ export async function compactDatabase(input) {
     return { skipped: true };
   }
   const sourceSize = Number(fs.statSync(dbPath).size) || 0;
-  const requiredBytes = Math.max(sourceSize * 1.2, sourceSize + (96 * 1024 * 1024));
+  const requiredBytes = Math.max(sourceSize * 2, sourceSize + (256 * 1024 * 1024));
   await ensureDiskSpace({
     targetPath: dbPath,
     requiredBytes,
