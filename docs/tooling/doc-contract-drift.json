@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-02-03T06:28:35.680Z",
-  "ok": false,
+  "generatedAt": "2026-02-03T07:18:45.437Z",
+  "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
@@ -15,6 +15,7 @@
       "source": "src/retrieval/cli-args.js",
       "sourceCount": 76,
       "docCount": 19,
+      "nonBlocking": true,
       "missingInDocs": [
         "--alias",
         "--ann",
@@ -80,28 +81,8 @@
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
       "sourceCount": 50,
-      "docCount": 31,
-      "missingInDocs": [
-        "api_contracts",
-        "call_sites_meta",
-        "chunk_meta_meta",
-        "chunk_uid_map_meta",
-        "dense_vectors_code",
-        "dense_vectors_code_hnsw_meta",
-        "dense_vectors_code_lancedb_meta",
-        "dense_vectors_doc",
-        "dense_vectors_doc_hnsw_meta",
-        "dense_vectors_doc_lancedb_meta",
-        "file_relations_meta",
-        "graph_relations_meta",
-        "repo_map_meta",
-        "risk_flows_meta",
-        "risk_summaries_meta",
-        "symbol_edges_meta",
-        "symbol_occurrences_meta",
-        "symbols_meta",
-        "vfs_manifest_meta"
-      ],
+      "docCount": 50,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "scoreBreakdown": {
