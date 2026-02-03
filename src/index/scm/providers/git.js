@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { getGitMetaForFile, getRepoProvenance as getLegacyRepoProvenance } from '../../git.js';
+import { toPosix } from '../../../shared/files.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
 
@@ -20,7 +21,7 @@ const parseLines = (value) => (
 
 const ensurePosixList = (entries) => (
   entries
-    .map((entry) => entry.replace(/\\/g, '/'))
+    .map((entry) => toPosix(entry))
     .filter(Boolean)
 );
 

@@ -22,6 +22,12 @@ export const loadIncrementalPlan = async ({
     bundleFormat: runtime.incrementalBundleFormat,
     log
   });
+  if (incrementalState?.manifest) {
+    incrementalState.manifest.bundleEmbeddings = runtime.embeddingEnabled === true;
+    incrementalState.manifest.bundleEmbeddingMode = runtime.embeddingMode || null;
+    incrementalState.manifest.bundleEmbeddingIdentityKey = runtime.embeddingIdentityKey || null;
+    incrementalState.manifest.bundleEmbeddingStage = runtime.stage || null;
+  }
   configureScmMetaCache({
     provider: runtime.scmProvider,
     cacheConfig: runtime.cacheConfig?.gitMeta,

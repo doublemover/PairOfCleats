@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_EMBEDDING_TRUNCATION, normalizeEmbeddingVectorInPlace } from './embedding-utils.js';
-import { isAbsolutePath } from './files.js';
+import { isAbsolutePathNative } from './files.js';
 
 const GRAPH_LEVELS = new Set(['disabled', 'basic', 'extended', 'all']);
 const PROVIDER_ALIASES = new Map([
@@ -100,7 +100,7 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
     return candidate;
   };
   if (trimmed) {
-    const resolved = isAbsolutePath(trimmed) ? trimmed : path.join(root, trimmed);
+    const resolved = isAbsolutePathNative(trimmed) ? trimmed : path.join(root, trimmed);
     const stat = tryPath(resolved);
     if (stat) return stat;
   }

@@ -1,4 +1,5 @@
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
+import { toPosix } from '../../../shared/files.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
 
@@ -89,7 +90,8 @@ const resolveYamlChunkMode = (text, context) => {
 };
 
 export function chunkYaml(text, relPath, context) {
-  const isWorkflow = relPath ? relPath.replace(/\\/g, '/').includes('.github/workflows/') : false;
+  const relPosix = relPath ? toPosix(relPath) : '';
+  const isWorkflow = relPosix.includes('.github/workflows/');
   if (isWorkflow) return chunkGitHubActions(text);
   if (context?.treeSitter?.configChunking === true) {
     const treeChunks = buildTreeSitterChunks({

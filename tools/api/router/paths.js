@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { resolveRepoRoot } from '../../dict-utils.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
-import { isAbsolutePath } from '../../../src/shared/files.js';
+import { isAbsolutePathNative } from '../../../src/shared/files.js';
 
 const normalizePath = (value) => {
   const resolved = value ? path.resolve(value) : '';
@@ -32,7 +32,7 @@ const isWithinRoot = (candidate, root) => {
   if (!candidate || !root) return false;
   const relative = path.relative(root, candidate);
   if (!relative) return true;
-  return !relative.startsWith('..') && !isAbsolutePath(relative);
+  return !relative.startsWith('..') && !isAbsolutePathNative(relative);
 };
 
 export const createRepoResolver = ({ defaultRepo, allowedRepoRoots = [] }) => {

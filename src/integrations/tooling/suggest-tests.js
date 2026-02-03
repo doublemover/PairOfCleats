@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
-import { isAbsolutePath, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
 import { renderSuggestTestsReport } from '../../retrieval/output/suggest-tests.js';
 import { validateSuggestTests } from '../../contracts/validators/analysis.js';
@@ -44,9 +44,9 @@ const resolveFormat = (argv) => {
 const resolveRepoRelativePath = (raw, repoRoot) => {
   const value = String(raw || '').trim();
   if (!value) return null;
-  const abs = isAbsolutePath(value) ? value : path.resolve(repoRoot, value);
+  const abs = isAbsolutePathNative(value) ? value : path.resolve(repoRoot, value);
   const rel = path.relative(repoRoot, abs);
-  if (!rel || rel.startsWith('..') || isAbsolutePath(rel)) return null;
+  if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
   return toPosix(rel);
 };
 

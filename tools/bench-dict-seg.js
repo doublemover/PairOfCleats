@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative } from '../src/shared/files.js';
 import { splitWordsWithDict } from '../src/shared/tokenize.js';
 
 const argv = createCli({
@@ -22,7 +22,7 @@ const argv = createCli({
 const root = process.cwd();
 const fixtureArg = typeof argv.fixture === 'string' ? argv.fixture.trim() : '';
 const fixtureDir = fixtureArg
-  ? (isAbsolutePath(fixtureArg)
+  ? (isAbsolutePathNative(fixtureArg)
     ? path.resolve(fixtureArg)
     : path.join(root, 'tests', 'fixtures', fixtureArg))
   : null;

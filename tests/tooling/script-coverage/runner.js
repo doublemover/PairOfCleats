@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { toPosix } from '../../../src/shared/files.js';
 
 export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
   if (Number.isFinite(argvRetries)) return Math.max(0, argvRetries);
@@ -101,7 +102,7 @@ export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
   const bashAvailable = bashCheck.status === 0;
   const jqCheck = bashAvailable ? spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf8' }) : null;
   const jqAvailable = jqCheck && jqCheck.status === 0;
-  const toPosixPath = (value) => (process.platform === 'win32' ? value.replace(/\\/g, '/') : value);
+  const toPosixPath = (value) => toPosix(value);
   const bashPathCheck = bashAvailable
     ? spawnSync('bash', ['-c', `cd "${toPosixPath(root)}"`], { encoding: 'utf8' })
     : null;

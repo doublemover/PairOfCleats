@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createCli } from '../src/shared/cli.js';
-import { isAbsolutePath } from '../src/shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../src/shared/files.js';
 import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -26,11 +26,10 @@ const outputPath = argv.out
   : path.join(cacheRoot, 'lsif', 'lsif.jsonl');
 const metaPath = `${outputPath}.meta.json`;
 
-const toPosix = (value) => value.replace(/\\/g, '/');
 const normalizePath = (value) => {
   if (!value) return null;
   let raw = String(value);
-  const posixRaw = raw.replace(/\\/g, '/');
+  const posixRaw = toPosix(raw);
   if (posixRaw === '/repo') return '';
   if (posixRaw.startsWith('/repo/')) {
     return posixRaw.slice('/repo/'.length);
@@ -38,7 +37,7 @@ const normalizePath = (value) => {
   if (posixRaw.startsWith('/') && /^[A-Za-z]:\//.test(posixRaw.slice(1))) {
     raw = posixRaw.slice(1);
   }
-  const resolved = isAbsolutePath(raw) ? raw : path.resolve(repoRoot, raw);
+  const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
   return toPosix(rel || raw);
 };

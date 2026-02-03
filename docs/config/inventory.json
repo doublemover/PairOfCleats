@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T02:11:30.349Z",
+  "generatedAt": "2026-02-03T03:12:05.994Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -42,6 +42,9 @@
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
+      "PAIROFCLEATS_LANCEDB_CHILD",
+      "PAIROFCLEATS_LANCEDB_ISOLATE",
+      "PAIROFCLEATS_LANCEDB_PAYLOAD",
       "PAIROFCLEATS_LOG_FORMAT",
       "PAIROFCLEATS_LOG_LEVEL",
       "PAIROFCLEATS_MAX_OLD_SPACE_MB",
@@ -1510,6 +1513,29 @@
       "name": "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_CHILD",
+      "files": [
+        "src/shared/env.js",
+        "tools/build-embeddings/lancedb.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_ISOLATE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LANCEDB_PAYLOAD",
+      "files": [
+        "src/shared/env.js",
+        "tools/build-embeddings/lancedb.js",
         "tools/config-inventory.js"
       ]
     },
