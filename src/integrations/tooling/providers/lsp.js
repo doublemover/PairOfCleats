@@ -97,7 +97,7 @@ const ensureVirtualFile = async (rootDir, doc, coldStartCache = null) => {
   return result.path;
 };
 
-const resolveVfsIoBatching = (value) => {
+export const resolveVfsIoBatching = (value) => {
   if (!value || typeof value !== 'object') return null;
   if (value.enabled !== true) return null;
   const maxInflightRaw = Number(value.maxInflight);
@@ -107,7 +107,7 @@ const resolveVfsIoBatching = (value) => {
   return { maxInflight, maxQueueEntries };
 };
 
-const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldStartCache }) => {
+export const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldStartCache }) => {
   const results = new Map();
   if (!Array.isArray(docs) || docs.length === 0) return results;
   const maxInflight = batching?.maxInflight ? Math.max(1, batching.maxInflight) : 1;

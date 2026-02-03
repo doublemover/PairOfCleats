@@ -640,7 +640,7 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
   - [x] Touchpoints: `src/index/build/file-processor/process-chunks/ids.js`, `src/index/build/file-processor/process-chunks/index.js`, `src/index/build/file-processor.js`, `src/index/build/file-processor/cpu.js`, `src/index/tooling/vfs.js`.
   - [x] Generate VFS rows in parallel with bounded worker pool.
   - [x] Merge/sort deterministically post-parallelization.
-  - [ ] Benchmark: `tools/bench/vfs/parallel-manifest-build.js` (1/2/4/8 workers).
+  - [x] Benchmark: `tools/bench/vfs/parallel-manifest-build.js` (1/2/4/8 workers).
 - [x] IO batching for VFS writes:
   - [x] Touchpoints: `src/integrations/tooling/providers/lsp.js:78`, `src/shared/artifact-io/fs.js`.
   - [x] Batch virtual doc writes (queue + flush) to reduce tiny writes.
@@ -654,40 +654,40 @@ Note: `docHash` must remain `xxh64` of segment text per the VFS specs; any optim
   - [x] Touchpoints: `src/index/tooling/vfs.js`, `src/integrations/tooling/providers/lsp.js`, `docs/specs/vfs-cold-start-cache.md`, `docs/config/schema.json`.
   - [x] Persist a compact cache of hot virtual docs / tool outputs.
   - [x] Add TTL + size cap and use on next run.
-  - [ ] Benchmark: `tools/bench/vfs/cold-start-cache.js` (cold vs warm).
+  - [x] Benchmark: `tools/bench/vfs/cold-start-cache.js` (cold vs warm).
 
 #### Tests
-- [ ] `tests/tooling/vfs/vfs-hash-routing.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-hash-routing-compat.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-index-lookup.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-index-negative.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-segment-hash-cache.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-hash-routing.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-hash-routing-compat.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-index-lookup.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-index-negative.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-segment-hash-cache.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-token-uri-roundtrip.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-segment-coalesce.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-cdc-segmentation-stability.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (new)
-- [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (new)
+- [x] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-partial-lsp-open.test.js` (new)
 - [x] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (new)
 
 #### Acceptance
-- [ ] Hash/token routing improves URI stability without breaking existing paths.
-- [ ] `.vfsidx` allows O(log n) lookup for individual docs.
-- [ ] Segment hash cache reduces hashing time on repeat runs.
-- [ ] Parallel manifest generation preserves deterministic row ordering.
-- [ ] IO batching reduces write time without changing contents.
-- [ ] Cold-start cache improves repeat-run startup time without stale data.
+- [x] Hash/token routing improves URI stability without breaking existing paths.
+- [x] `.vfsidx` allows O(log n) lookup for individual docs.
+- [x] Segment hash cache reduces hashing time on repeat runs.
+- [x] Parallel manifest generation preserves deterministic row ordering.
+- [x] IO batching reduces write time without changing contents.
+- [x] Cold-start cache improves repeat-run startup time without stale data.
 
 #### Benchmark Harness (Shared)
-- [ ] Add `tools/bench/vfs/README.md` describing:
-  - [ ] Dataset fixtures (small/medium/large repos) and how to generate them.
-  - [ ] Standard bench command format and JSON output schema.
-  - [ ] Required metrics: wall time, CPU time, peak RSS/heap, IO bytes, file count.
-  - [ ] Baseline capture + delta reporting rules (median of 5, ignore first run).
-  - [ ] CI‑safe mode (reduced dataset, no network, fixed seed).
+- [x] Add `tools/bench/vfs/README.md` describing:
+  - [x] Dataset fixtures (small/medium/large repos) and how to generate them.
+  - [x] Standard bench command format and JSON output schema.
+  - [x] Required metrics: wall time, CPU time, peak RSS/heap, IO bytes, file count.
+  - [x] Baseline capture + delta reporting rules (median of 5, ignore first run).
+  - [x] CI‑safe mode (reduced dataset, no network, fixed seed).
 
 ---
 
