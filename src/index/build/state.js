@@ -210,6 +210,7 @@ export function createIndexState() {
     fileInfoByPath: new Map(),
     vfsManifestRows: [],
     vfsManifestCollector: null,
+    vfsManifestStats: null,
     importResolutionGraph: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
@@ -563,6 +564,17 @@ export function mergeIndexState(target, source) {
   if (Array.isArray(source.vfsManifestRows)) {
     if (!Array.isArray(target.vfsManifestRows)) target.vfsManifestRows = [];
     target.vfsManifestRows.push(...source.vfsManifestRows);
+  }
+  if (source.vfsManifestStats && typeof source.vfsManifestStats === 'object') {
+    if (!target.vfsManifestStats || typeof target.vfsManifestStats !== 'object') {
+      target.vfsManifestStats = { ...source.vfsManifestStats };
+    } else {
+      for (const [key, value] of Object.entries(source.vfsManifestStats)) {
+        if (Number.isFinite(value)) {
+          target.vfsManifestStats[key] = (target.vfsManifestStats[key] || 0) + value;
+        }
+      }
+    }
   }
 }
 

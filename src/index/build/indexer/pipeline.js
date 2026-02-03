@@ -429,13 +429,25 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     graphRelations,
     shardSummary
   });
+  const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
+  const vfsExtra = vfsStats
+    ? {
+      rows: vfsStats.totalRecords || 0,
+      bytes: vfsStats.totalBytes || 0,
+      maxLineBytes: vfsStats.maxLineBytes || 0,
+      trimmedRows: vfsStats.trimmedRows || 0,
+      droppedRows: vfsStats.droppedRows || 0,
+      runsSpilled: vfsStats.runsSpilled || 0
+    }
+    : null;
   stageCheckpoints.record({
     stage: 'stage2',
     step: 'write',
     extra: {
       chunks: state.chunks?.length || 0,
       tokens: state.totalTokens || 0,
-      tokenVocab: postings.tokenVocab?.length || 0
+      tokenVocab: postings.tokenVocab?.length || 0,
+      vfsManifest: vfsExtra
     }
   });
   throwIfAborted(abortSignal);

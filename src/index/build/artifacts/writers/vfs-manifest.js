@@ -44,8 +44,8 @@ const measureRows = (rows) => {
   return { totalBytes, maxLineBytes, totalRecords: rows.length };
 };
 
-const trimRows = (rows, { log: logFn } = {}) => rows
-  .map((row) => trimVfsManifestRow(row, { log: logFn }))
+const trimRows = (rows, { log: logFn, stats } = {}) => rows
+  .map((row) => trimVfsManifestRow(row, { log: logFn, stats }))
   .filter(Boolean);
 
 const readJsonlRows = async function* (filePath) {
@@ -71,8 +71,64 @@ const readJsonlRows = async function* (filePath) {
   }
 };
 
+class MinHeap {
+  constructor(compare) {
+    this.compare = compare;
+    this.items = [];
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(value) {
+    this.items.push(value);
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  pop() {
+    if (!this.items.length) return null;
+    const top = this.items[0];
+    const last = this.items.pop();
+    if (this.items.length && last) {
+      this.items[0] = last;
+      this.bubbleDown(0);
+    }
+    return top;
+  }
+
+  bubbleUp(index) {
+    const { items, compare } = this;
+    let i = index;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (compare(items[i], items[parent]) >= 0) break;
+      [items[i], items[parent]] = [items[parent], items[i]];
+      i = parent;
+    }
+  }
+
+  bubbleDown(index) {
+    const { items, compare } = this;
+    let i = index;
+    for (;;) {
+      const left = i * 2 + 1;
+      const right = left + 1;
+      let smallest = i;
+      if (left < items.length && compare(items[left], items[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < items.length && compare(items[right], items[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest === i) break;
+      [items[i], items[smallest]] = [items[smallest], items[i]];
+      i = smallest;
+    }
+  }
+}
+
 const mergeSortedRuns = async function* (runs) {
-  const cursors = [];
   const advance = async (cursor) => {
     const next = await cursor.iterator.next();
     if (next.done) {
@@ -83,26 +139,25 @@ const mergeSortedRuns = async function* (runs) {
     cursor.row = next.value;
     return true;
   };
-  for (const runPath of runs) {
+  const heap = new MinHeap((a, b) => {
+    const cmp = compareVfsManifestRows(a.row, b.row);
+    if (cmp !== 0) return cmp;
+    return a.order - b.order;
+  });
+  for (let i = 0; i < runs.length; i += 1) {
+    const runPath = runs[i];
     const iterator = readJsonlRows(runPath)[Symbol.asyncIterator]();
-    const cursor = { iterator, row: null, done: false };
+    const cursor = { iterator, row: null, done: false, order: i };
     const hasRow = await advance(cursor);
-    if (hasRow) cursors.push(cursor);
+    if (hasRow) heap.push(cursor);
   }
-  while (cursors.length) {
-    let bestIndex = 0;
-    for (let i = 1; i < cursors.length; i += 1) {
-      if (compareVfsManifestRows(cursors[i].row, cursors[bestIndex].row) < 0) {
-        bestIndex = i;
-      }
-    }
-    const best = cursors[bestIndex];
+  while (heap.size) {
+    const best = heap.pop();
+    if (!best) break;
     const row = best.row;
     yield row;
     const hasMore = await advance(best);
-    if (!hasMore) {
-      cursors.splice(bestIndex, 1);
-    }
+    if (hasMore) heap.push(best);
   }
 };
 
@@ -268,17 +323,24 @@ const resolveRowsInput = async ({ rows, log: logFn }) => {
         maxLineBytes: stats.maxLineBytes || 0,
         totalRecords: stats.totalRecords || (Array.isArray(finalized.rows) ? finalized.rows.length : 0)
       },
+      stats,
       cleanup: typeof finalized.cleanup === 'function' ? finalized.cleanup : async () => {}
     };
   }
 
   const vfsRows = Array.isArray(rows) ? rows.slice() : [];
-  const trimmedRows = trimRows(vfsRows, { log: logFn });
+  const stats = { totalBytes: 0, maxLineBytes: 0, totalRecords: 0, trimmedRows: 0, droppedRows: 0 };
+  const trimmedRows = trimRows(vfsRows, { log: logFn, stats });
   sortVfsRows(trimmedRows);
+  const measurement = measureRows(trimmedRows);
+  stats.totalBytes = measurement.totalBytes;
+  stats.maxLineBytes = measurement.maxLineBytes;
+  stats.totalRecords = measurement.totalRecords;
   return {
     rows: trimmedRows,
     runs: null,
-    measurement: measureRows(trimmedRows),
+    measurement,
+    stats,
     cleanup: async () => {}
   };
 };

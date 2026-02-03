@@ -15,7 +15,10 @@ const COLLECTOR_KIND = 'vfs_manifest_collector';
 const createStats = () => ({
   totalBytes: 0,
   maxLineBytes: 0,
-  totalRecords: 0
+  totalRecords: 0,
+  trimmedRows: 0,
+  droppedRows: 0,
+  runsSpilled: 0
 });
 
 const resolveLineBytes = (value) => {
@@ -73,12 +76,13 @@ export const createVfsManifestCollector = ({
     runIndex += 1;
     await writeRunFile(runPath, buffer);
     runs.push(runPath);
+    stats.runsSpilled += 1;
     buffer.length = 0;
     bufferBytes = 0;
   };
 
   const appendRow = async (row, rowLog) => {
-    const trimmed = trimVfsManifestRow(row, { log: rowLog || log });
+    const trimmed = trimVfsManifestRow(row, { log: rowLog || log, stats });
     if (!trimmed) return;
     const lineBytes = resolveLineBytes(trimmed);
     stats.totalBytes += lineBytes;

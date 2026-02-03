@@ -70,6 +70,12 @@ If the server supports in-memory schemes, allow `poc-vfs://...`.
 
 This must be configurable per language server.
 
+#### URI encoding rules
+
+- `poc-vfs://` URIs MUST encode each path segment via `encodeURIComponent`.
+- Disk fallback paths MUST be derived via `resolveVfsDiskPath` to avoid path traversal or unsafe characters.
+- When using disk-backed URIs, reuse existing files when `docHash` is unchanged to avoid unnecessary rewrites.
+
 ---
 
 ## 4. Robust process lifecycle (hardening)

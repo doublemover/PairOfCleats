@@ -5,7 +5,7 @@ import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/cli
 import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';
 import { createToolingGuard } from './shared.js';
-import { resolveVfsDiskPath } from '../../../index/tooling/vfs.js';
+import { ensureVfsDiskDocument, resolveVfsDiskPath } from '../../../index/tooling/vfs.js';
 
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
@@ -75,11 +75,18 @@ const findTargetForOffsets = (targets, offsets, nameHint = null) => {
   return best;
 };
 
+/**
+ * Ensure a VFS document exists on disk for file-based LSP servers.
+ * Uses docHash to avoid unnecessary rewrites.
+ */
 const ensureVirtualFile = async (rootDir, doc) => {
-  const absPath = resolveVfsDiskPath({ baseDir: rootDir, virtualPath: doc.virtualPath });
-  await fs.mkdir(path.dirname(absPath), { recursive: true });
-  await fs.writeFile(absPath, doc.text || '', 'utf8');
-  return absPath;
+  const result = await ensureVfsDiskDocument({
+    baseDir: rootDir,
+    virtualPath: doc.virtualPath,
+    text: doc.text || '',
+    docHash: doc.docHash || null
+  });
+  return result.path;
 };
 
 const normalizeUriScheme = (value) => (value === 'poc-vfs' ? 'poc-vfs' : 'file');

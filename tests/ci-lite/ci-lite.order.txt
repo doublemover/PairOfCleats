@@ -194,6 +194,10 @@ shared/cache/cache-preflight-meta
 smoke/tantivy-smoke
 indexing/artifacts/file-meta
 tooling/vfs/vfs-maps-segment-offsets
+tooling/vfs/vfs-row-trim-order
+tooling/vfs/vfs-disk-path-safety
+tooling/vfs/vfs-collector-cleanup-on-error
+tooling/vfs/vfs-doc-hash-skip-rewrite
 indexing/postings/postings-doc-only-missing-doc-is-zero
 indexing/file-caps/doc-mode-large-markdown-not-skipped
 shared/subprocess/capture-bounds

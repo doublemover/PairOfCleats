@@ -37,6 +37,8 @@ Therefore each chunk has:
 
 `segmentUid` is derived per the Identity Contract (segment type + languageId + normalized segment text).
 
+Language IDs MUST be normalized to lowercase for routing and provider selection.
+
 Tooling providers MUST route by **effective** language, not container extension.
 
 ### 1.2 Virtual documents
@@ -88,6 +90,11 @@ For non-segmented files, you MAY use the real path instead of `.poc-vfs/...` if:
 - the on-disk file content matches exactly the virtual document content.
 
 To keep the system uniform and reduce provider branching, prefer always using `.poc-vfs/...` paths.
+
+### 2.4 Path encoding
+
+- `containerPath` MUST be derived from `relKey` (repo-relative POSIX).
+- Only `#` and `%` are encoded in `containerPath` before embedding in `.poc-vfs/...`.
 
 ---
 
@@ -207,8 +214,8 @@ Create `src/index/tooling/vfs.js` (or similar) exposing:
 
 1. Group chunks by `{containerPath, segmentUid}`.
 2. For each group:
-   - Determine `effectiveLanguageId`:
-     - `chunk.metaV2.lang` if present, else `chunk.segment.languageId`, else file-level language.
+   - Determine `effectiveLanguageId` (lowercased):
+     - `chunk.lang` or `chunk.metaV2.lang` if present, else `chunk.segment.languageId`, else file-level language.
    - Determine `effectiveExt` from mapping table (Section 4).
    - Determine virtual document `text`:
      - If segment: use segmentText extracted during segmentation.

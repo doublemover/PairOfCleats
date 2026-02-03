@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { checksumString } from '../../shared/hash.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
@@ -7,6 +8,7 @@ import { LANGUAGE_ID_EXT } from '../segments/config.js';
 
 const VFS_PREFIX = '.poc-vfs/';
 export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
+const VFS_DISK_CACHE = new Map();
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
@@ -14,6 +16,11 @@ const encodeContainerPath = (value) => {
   return posixPath.replace(/%/g, '%25').replace(/#/g, '%23');
 };
 
+/**
+ * Resolve the effective extension for a virtual document.
+ * @param {{languageId?:string|null,containerExt?:string|null}} input
+ * @returns {string}
+ */
 export const resolveEffectiveExt = ({ languageId, containerExt }) => {
   if (languageId && LANGUAGE_ID_EXT.has(languageId)) {
     return LANGUAGE_ID_EXT.get(languageId);
@@ -21,6 +28,11 @@ export const resolveEffectiveExt = ({ languageId, containerExt }) => {
   return containerExt || '';
 };
 
+/**
+ * Build a deterministic VFS virtual path.
+ * @param {{containerPath:string,segmentUid?:string|null,effectiveExt?:string|null}} input
+ * @returns {string}
+ */
 export const buildVfsVirtualPath = ({ containerPath, segmentUid, effectiveExt }) => {
   const encoded = encodeContainerPath(containerPath);
   if (!segmentUid) return `${VFS_PREFIX}${encoded}`;
@@ -42,24 +54,54 @@ const computeDocHash = async (text) => {
 const normalizeLanguageId = (value, fallback = null) => {
   if (!value) return fallback;
   const text = String(value).trim();
-  return text || fallback;
+  return text ? text.toLowerCase() : fallback;
 };
 
-export const trimVfsManifestRow = (row, { log } = {}) => {
+export const resolveEffectiveLanguageId = ({ chunk, segment, containerLanguageId }) => {
+  const candidate = chunk?.lang
+    || chunk?.metaV2?.lang
+    || segment?.languageId
+    || chunk?.containerLanguageId
+    || containerLanguageId;
+  return normalizeLanguageId(candidate, 'unknown');
+};
+
+/**
+ * Trim oversized VFS manifest rows deterministically.
+ * @param {object} row
+ * @param {{log?:Function,stats?:{trimmedRows?:number,droppedRows?:number}}} options
+ * @returns {object|null}
+ */
+export const trimVfsManifestRow = (row, { log, stats } = {}) => {
   if (!row || typeof row !== 'object') return null;
   const measure = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
   const baseBytes = measure(row);
   if (baseBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return row;
   let trimmed = { ...row };
+  let changed = false;
   if (trimmed.extensions) delete trimmed.extensions;
+  if (!Object.is(trimmed.extensions, row.extensions)) changed = true;
   let trimmedBytes = measure(trimmed);
-  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return trimmed;
-  if (trimmed.segmentId) trimmed.segmentId = null;
+  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) {
+    if (stats) stats.trimmedRows = (stats.trimmedRows || 0) + 1;
+    return trimmed;
+  }
+  if (trimmed.segmentId) {
+    trimmed.segmentId = null;
+    changed = true;
+  }
   trimmedBytes = measure(trimmed);
-  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) return trimmed;
+  if (trimmedBytes <= VFS_MANIFEST_MAX_ROW_BYTES) {
+    if (stats) stats.trimmedRows = (stats.trimmedRows || 0) + 1;
+    return trimmed;
+  }
   if (log) {
     const label = trimmed.containerPath || trimmed.virtualPath || 'unknown';
     log(`[vfs] vfs_manifest row exceeded ${VFS_MANIFEST_MAX_ROW_BYTES} bytes for ${label}`);
+  }
+  if (stats) {
+    if (changed) stats.trimmedRows = (stats.trimmedRows || 0) + 1;
+    stats.droppedRows = (stats.droppedRows || 0) + 1;
   }
   return null;
 };
@@ -74,18 +116,29 @@ const sortDocuments = (a, b) => {
   return String(a.virtualPath || '').localeCompare(String(b.virtualPath || ''));
 };
 
+/**
+ * Deterministic ordering for VFS manifest rows.
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
 export const compareVfsManifestRows = (a, b) => {
-  if (a.containerPath !== b.containerPath) return a.containerPath.localeCompare(b.containerPath);
+  if (a.containerPath !== b.containerPath) return String(a.containerPath).localeCompare(String(b.containerPath));
   if (a.segmentStart !== b.segmentStart) return a.segmentStart - b.segmentStart;
   if (a.segmentEnd !== b.segmentEnd) return a.segmentEnd - b.segmentEnd;
-  if (a.languageId !== b.languageId) return a.languageId.localeCompare(b.languageId);
-  if (a.effectiveExt !== b.effectiveExt) return a.effectiveExt.localeCompare(b.effectiveExt);
+  if (a.languageId !== b.languageId) return String(a.languageId).localeCompare(String(b.languageId));
+  if (a.effectiveExt !== b.effectiveExt) return String(a.effectiveExt).localeCompare(String(b.effectiveExt));
   const segA = a.segmentUid || '';
   const segB = b.segmentUid || '';
   if (segA !== segB) return segA.localeCompare(segB);
-  return a.virtualPath.localeCompare(b.virtualPath);
+  return String(a.virtualPath).localeCompare(String(b.virtualPath));
 };
 
+/**
+ * Build tooling virtual documents + targets from chunks.
+ * @param {object} input
+ * @returns {Promise<{documents:Array,targets:Array}>}
+ */
 export const buildToolingVirtualDocuments = async ({
   chunks,
   fileTextByPath,
@@ -119,10 +172,7 @@ export const buildToolingVirtualDocuments = async ({
     const segmentEnd = segment ? segment.end : fileText.length;
     const segmentKey = `${containerPath}::${segmentUid || ''}`;
     if (!docMap.has(segmentKey)) {
-      const languageId = normalizeLanguageId(
-        chunk.lang || segment?.languageId || containerLanguageId,
-        'unknown'
-      );
+      const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
       const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
       const text = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
       if (Number.isFinite(maxVirtualFileBytes) && maxVirtualFileBytes > 0) {
@@ -228,7 +278,7 @@ export const buildVfsManifestRowsForFile = async ({
     if (groupMap.has(key)) continue;
     const segmentStart = segment ? segment.start : 0;
     const segmentEnd = segment ? segment.end : fileText.length;
-    const languageId = normalizeLanguageId(chunk.lang || segment?.languageId || containerLanguageId, 'unknown');
+    const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
     const segmentText = segment ? fileText.slice(segmentStart, segmentEnd) : fileText;
     const docHash = await computeDocHash(segmentText);
@@ -267,6 +317,32 @@ export const buildVfsManifestRowsForFile = async ({
   return filtered;
 };
 
+/**
+ * Ensure a VFS-backed document exists on disk; avoid rewrites when the doc hash matches.
+ * @param {{baseDir:string,virtualPath:string,text?:string,docHash?:string|null}} input
+ * @returns {Promise<{path:string,cacheHit:boolean}>}
+ */
+export const ensureVfsDiskDocument = async ({ baseDir, virtualPath, text = '', docHash = null }) => {
+  const absPath = resolveVfsDiskPath({ baseDir, virtualPath });
+  const cacheKey = `${baseDir}::${virtualPath}`;
+  const cached = VFS_DISK_CACHE.get(cacheKey);
+  if (cached && cached.docHash === docHash) {
+    try {
+      await fs.access(absPath);
+      return { path: absPath, cacheHit: true };
+    } catch {}
+  }
+  await fs.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.writeFile(absPath, text || '', 'utf8');
+  VFS_DISK_CACHE.set(cacheKey, { path: absPath, docHash });
+  return { path: absPath, cacheHit: false };
+};
+
+/**
+ * Resolve a safe disk path for a virtual path under a base directory.
+ * @param {{baseDir:string,virtualPath:string}} input
+ * @returns {string}
+ */
 export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
   const encodeUnsafeChar = (ch) => {
     const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(2, '0');

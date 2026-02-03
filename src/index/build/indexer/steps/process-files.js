@@ -105,6 +105,7 @@ export const processFiles = async ({
             log
           });
           stateRef.vfsManifestRows = null;
+          stateRef.vfsManifestStats = stateRef.vfsManifestCollector.stats;
         }
         await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
       }

@@ -62,8 +62,9 @@ type VfsManifestRowV1 = {
 
 - `containerPath` MUST be POSIX, repo-relative, and normalized (no `..`, no absolute paths, no backslashes).
 - Producers MUST emit `containerPath` via `toPosix()` and resolve it with `fromPosix()` at IO boundaries.
+- `containerPath` MUST be derived from the repo-relative `relKey` (not absolute paths).
 - `containerExt` MUST match the extension in `containerPath` when present; otherwise `null`.
-- `languageId`/`effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
+- `languageId` MUST be normalized to lowercase and `effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
 - `segmentStart`/`segmentEnd` MUST satisfy `0 <= segmentStart <= segmentEnd` and must refer to the container text.
 - For unsegmented files: `segmentUid = null`, `segmentStart = 0`, `segmentEnd = containerText.length`.
 - `extensions` is the only permitted location for producer-specific extra fields when strict schema validation is enabled.
@@ -102,6 +103,7 @@ For an unsegmented document (`segmentUid == null`), `virtualPath` MUST be:
 
 - `containerPath` MUST be POSIX-normalized before embedding.
 - If `containerPath` contains `#` or `%`, it MUST be percent-encoded (`# -> %23`, `% -> %25`) before embedding.
+- No other characters are encoded in `containerPath`; the VFS path remains human-readable.
 
 ### 3.5 Relationship to identity-contract `virtualPath`
 
@@ -159,7 +161,7 @@ For sharded output:
 
 ## 6) Size limits
 
-- No row may exceed 32KB UTF-8.
+- No row may exceed 32KB UTF-8 (`VFS_MANIFEST_MAX_ROW_BYTES`).
 - If a row would exceed the limit, the producer trims optional fields in this order:
   1. drop `extensions`
   2. null out `segmentId`
