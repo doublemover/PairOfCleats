@@ -306,10 +306,16 @@ async function extractZipNode(archivePath, destDir, limits) {
           return;
         }
         const declaredSize = Number(entry.uncompressedSize);
-        const counted = limiter.checkEntry(
-          entry.fileName,
-          Number.isFinite(declaredSize) ? declaredSize : 0
-        );
+        let counted = 0;
+        try {
+          counted = limiter.checkEntry(
+            entry.fileName,
+            Number.isFinite(declaredSize) ? declaredSize : 0
+          );
+        } catch (err) {
+          fail(err);
+          return;
+        }
         if (isZipDirectory(entry)) {
           fs.mkdir(targetPath, { recursive: true })
             .then(async () => {

@@ -5,18 +5,35 @@ export const writeJsonl = async (items, outPath = null) => {
   const stream = outPath
     ? fs.createWriteStream(outPath, { encoding: 'utf8' })
     : process.stdout;
-  for (const item of items) {
-    const line = JSON.stringify(item);
-    if (!stream.write(`${line}\n`)) {
-      await new Promise((resolve) => stream.once('drain', resolve));
+  if (!outPath) {
+    for (const item of items) {
+      const line = JSON.stringify(item);
+      if (!stream.write(`${line}\n`)) {
+        await new Promise((resolve) => stream.once('drain', resolve));
+      }
     }
+    return;
   }
-  if (outPath) {
-    await new Promise((resolve, reject) => {
-      stream.on('error', reject);
-      stream.end(resolve);
-    });
-  }
+
+  await new Promise((resolve, reject) => {
+    stream.on('error', reject);
+    stream.on('finish', resolve);
+
+    (async () => {
+      try {
+        for (const item of items) {
+          const line = JSON.stringify(item);
+          if (!stream.write(`${line}\n`)) {
+            await new Promise((resolveDrain) => stream.once('drain', resolveDrain));
+          }
+        }
+        stream.end();
+      } catch (err) {
+        stream.destroy(err);
+        reject(err);
+      }
+    })();
+  });
 };
 
 export const writeJson = async (items, outPath = null) => {

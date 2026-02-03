@@ -103,7 +103,10 @@ export const applyScopeFilter = ({ nodes, edges, scope, focus }) => {
 
   const normalizedFocus = normalizePath(focus);
   if (scope === 'dir') {
-    const filteredNodes = nodes.filter((node) => node.path.startsWith(normalizedFocus));
+    const base = normalizedFocus.replace(/\/+$/, '');
+    const filteredNodes = nodes.filter((node) => (
+      node.path === base || node.path.startsWith(`${base}/`)
+    ));
     const fileSet = new Set(filteredNodes.map((node) => node.path));
     const filteredEdges = edges.filter((edge) => {
       const fromFile = edge.from?.file || null;

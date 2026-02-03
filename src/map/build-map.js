@@ -69,6 +69,10 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   const memberByChunkUid = new Map();
   let hasDataflow = false;
   let hasControlFlow = false;
+  const sourceRanks = {
+    repoMap: 1,
+    chunkMeta: 2
+  };
 
   for (const entry of repoMap) {
     if (!entry?.file || !entry?.name) continue;
@@ -88,7 +92,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       range: {
         startLine: Number.isFinite(entry.startLine) ? entry.startLine : null,
         endLine: Number.isFinite(entry.endLine) ? entry.endLine : null
-      }
+      },
+      sourceRank: sourceRanks.repoMap
     });
   }
 
@@ -144,7 +149,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
         endLine: Number.isFinite(meta?.range?.endLine)
           ? meta.range.endLine
           : (Number.isFinite(chunk?.endLine) ? chunk.endLine : null)
-      }
+      },
+      sourceRank: sourceRanks.chunkMeta
     });
   }
 

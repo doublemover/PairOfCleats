@@ -141,10 +141,10 @@ const trimUtf8Buffer = (buffer) => {
   else if ((lead & 0xE0) === 0xC0) needed = 2;
   else if ((lead & 0xF0) === 0xE0) needed = 3;
   else if ((lead & 0xF8) === 0xF0) needed = 4;
-  if (end - 1 + needed > buffer.length) {
-    end -= 1;
+  if (end - 1 + needed <= buffer.length) {
+    return buffer;
   }
-  return buffer.subarray(0, Math.max(0, end));
+  return buffer.subarray(0, Math.max(0, end - 1));
 };
 
 const readFilePrefix = (filePath, maxBytes) => {

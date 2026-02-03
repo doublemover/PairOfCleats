@@ -34,7 +34,12 @@ export const createGraphStore = ({
 
   const loadOnce = async (name, loader) => {
     if (artifactCache.has(name)) return artifactCache.get(name);
-    const promise = loader();
+    const promise = Promise.resolve()
+      .then(loader)
+      .catch((err) => {
+        artifactCache.delete(name);
+        throw err;
+      });
     artifactCache.set(name, promise);
     artifactsUsed.add(name);
     return promise;
