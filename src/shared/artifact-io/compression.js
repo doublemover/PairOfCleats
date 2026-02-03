@@ -1,60 +1,26 @@
 import fs from 'node:fs';
-import { gunzipSync } from 'node:zlib';
-import { spawnSubprocessSync } from '../subprocess.js';
-import { tryRequire } from '../optional-deps.js';
-import { resolveRuntimeEnv } from '../runtime-envelope.js';
+import { gunzipSync, zstdDecompressSync as zstdDecompressSyncNative } from 'node:zlib';
 import { getBakPath } from './cache.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
 
-let cachedZstdAvailable = null;
-
-const hasZstd = () => {
-  if (cachedZstdAvailable != null) return cachedZstdAvailable;
-  cachedZstdAvailable = tryRequire('@mongodb-js/zstd').ok;
-  return cachedZstdAvailable;
-};
-
 const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
-  if (!hasZstd()) {
-    throw new Error('zstd artifacts require @mongodb-js/zstd to be installed.');
+  try {
+    const outputLimit = maxBytes > 0 ? maxBytes + 1024 : 0;
+    const outBuffer = zstdDecompressSyncNative(
+      buffer,
+      outputLimit > 0 ? { maxOutputLength: outputLimit } : undefined
+    );
+    if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
+      throw toJsonTooLargeError(sourcePath, outBuffer.length);
+    }
+    return outBuffer;
+  } catch (err) {
+    if (shouldTreatAsTooLarge(err)) {
+      throw toJsonTooLargeError(sourcePath, maxBytes);
+    }
+    const message = typeof err?.message === 'string' ? err.message : String(err);
+    throw new Error(`zstd decompress failed: ${message}`);
   }
-  const script = [
-    'const zstd = require("@mongodb-js/zstd");',
-    'const chunks = [];',
-    'process.stdin.on("data", (d) => chunks.push(d));',
-    'process.stdin.on("end", async () => {',
-    '  try {',
-    '    const input = Buffer.concat(chunks);',
-    '    const out = await zstd.decompress(input);',
-    '    process.stdout.write(out);',
-    '  } catch (err) {',
-    '    console.error(err && err.message ? err.message : String(err));',
-    '    process.exit(2);',
-    '  }',
-    '});'
-  ].join('');
-  const env = resolveRuntimeEnv(null, process.env);
-  const result = spawnSubprocessSync(process.execPath, ['-e', script], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    input: buffer,
-    maxOutputBytes: maxBytes + 1024,
-    captureStdout: true,
-    captureStderr: true,
-    outputMode: 'string',
-    rejectOnNonZeroExit: false,
-    env
-  });
-  if (result.exitCode !== 0) {
-    const detail = result.stderr ? String(result.stderr).trim() : '';
-    throw new Error(`zstd decompress failed: ${detail || 'unknown error'}`);
-  }
-  const outBuffer = Buffer.isBuffer(result.stdout)
-    ? result.stdout
-    : Buffer.from(result.stdout || '');
-  if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
-    throw toJsonTooLargeError(sourcePath, outBuffer.length);
-  }
-  return outBuffer;
 };
 
 const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {

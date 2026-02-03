@@ -659,8 +659,16 @@ async function runScript(scriptPath, extraArgs, restArgs) {
 }
 
 function extractRepoArg(args) {
-  const idx = args.indexOf('--repo');
-  if (idx >= 0 && args[idx + 1]) return args[idx + 1];
+  const endOfOptions = args.indexOf('--');
+  const scanArgs = endOfOptions === -1 ? args : args.slice(0, endOfOptions);
+  for (let i = 0; i < scanArgs.length; i += 1) {
+    const arg = scanArgs[i];
+    if (arg === '--repo' && scanArgs[i + 1]) return scanArgs[i + 1];
+    if (arg.startsWith('--repo=')) {
+      const value = arg.slice('--repo='.length);
+      if (value) return value;
+    }
+  }
   return null;
 }
 

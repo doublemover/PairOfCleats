@@ -106,7 +106,12 @@ const discoverCandidateTests = ({
   const stack = [{ dir: repoRoot, rel: '' }];
   while (stack.length) {
     const entry = stack.pop();
-    const entries = fs.readdirSync(entry.dir, { withFileTypes: true });
+    let entries = null;
+    try {
+      entries = fs.readdirSync(entry.dir, { withFileTypes: true });
+    } catch (err) {
+      continue;
+    }
     for (const dirent of entries) {
       const relPath = entry.rel ? `${entry.rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {

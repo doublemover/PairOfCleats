@@ -85,5 +85,5 @@ const results = runStructuralSearch({ repoRoot, packsToRun });
 if (format === 'json') {
   await writeJson(results, outputPath);
 } else {
-  writeJsonl(results, outputPath);
+  await writeJsonl(results, outputPath);
 }

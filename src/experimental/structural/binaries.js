@@ -5,11 +5,67 @@ import { spawnSync } from 'node:child_process';
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
 
+const quoteCmdArg = (value) => {
+  const text = String(value);
+  if (!text) return '""';
+  // If the argument contains no spaces, special cmd.exe metacharacters, or quotes,
+  // we can safely return it as-is.
+  if (!/[\\s&|^()<>]/.test(text) && !text.includes('"')) return text;
+
+  // Windows cmd.exe/C runtime style quoting:
+  // - Wrap the argument in double quotes.
+  // - Double internal quotes.
+  // - Carefully handle sequences of backslashes before quotes and at the end.
+  let quoted = '"';
+  let backslashes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '\\') {
+      backslashes++;
+      continue;
+    }
+    if (ch === '"') {
+      // Escape all accumulated backslashes, then escape the quote.
+      quoted += '\\'.repeat(backslashes * 2 + 1);
+      quoted += '"';
+      backslashes = 0;
+      continue;
+    }
+    // Normal character: keep accumulated backslashes, then the character.
+    if (backslashes > 0) {
+      quoted += '\\'.repeat(backslashes);
+      backslashes = 0;
+    }
+    quoted += ch;
+  }
+  // At the end, any remaining backslashes must be doubled to ensure the
+  // closing quote is not escaped.
+  if (backslashes > 0) {
+    quoted += '\\'.repeat(backslashes * 2);
+  }
+  quoted += '"';
+  return quoted;
+};
+
+const buildCmdLine = (command, args) => [
+  quoteCmdArg(command),
+  ...args.map(quoteCmdArg)
+].join(' ');
+
 const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
-  const useShell = isWindows && /\.(cmd|bat)$/i.test(command);
-  return spawnSync(command, [...argsPrefix, ...args], { ...options, shell: useShell });
+  const effectiveArgs = [...argsPrefix, ...args];
+  if (isWindows && /\.(cmd|bat)$/i.test(command)) {
+    const cmdLine = buildCmdLine(command, effectiveArgs);
+    const wrapped = `"${cmdLine}"`;
+    return spawnSync('cmd.exe', ['/d', '/s', '/c', wrapped], {
+      ...options,
+      shell: false,
+      windowsVerbatimArguments: true
+    });
+  }
+  return spawnSync(command, effectiveArgs, { ...options, shell: false });
 };
 
 const findOnPath = (candidate) => {
@@ -56,7 +112,9 @@ const resolvePowerShell = () => {
 };
 
 export const resolveBinary = (engine) => {
-  if (binaryCache.has(engine)) return binaryCache.get(engine);
+  const pathEnv = process.env.PATH || '';
+  const cached = binaryCache.get(engine);
+  if (cached && cached.pathEnv === pathEnv) return cached.value;
   const candidates = {
     semgrep: ['semgrep'],
     'ast-grep': ['sg', 'ast-grep'],
@@ -76,38 +134,38 @@ export const resolveBinary = (engine) => {
           argsPrefix: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolved.path],
           checkedPaths
         };
-        binaryCache.set(engine, output);
+        binaryCache.set(engine, { pathEnv, value: output });
         return output;
       }
       if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
         const output = { command: process.execPath, argsPrefix: [resolved.path], checkedPaths };
-        binaryCache.set(engine, output);
+        binaryCache.set(engine, { pathEnv, value: output });
         return output;
       }
       const output = { command: resolved.path, argsPrefix: [], checkedPaths };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
     const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths };
-    binaryCache.set(engine, output);
+    binaryCache.set(engine, { pathEnv, value: output });
     return output;
   }
   for (const candidate of candidates) {
     const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
     if (!result.error && result.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
     const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
     if (!help.error && help.status === 0) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, output);
+      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
   }
   const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths: [] };
-  binaryCache.set(engine, output);
+  binaryCache.set(engine, { pathEnv, value: output });
   return output;
 };
 

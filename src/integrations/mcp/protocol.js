@@ -57,8 +57,18 @@ export function closeOutput(output = process.stdout) {
   closeJsonRpcWriter(output);
 }
 
+const MAX_HINT_INPUT = 16384;
+
+const capHintInput = (value) => {
+  if (!value) return '';
+  const text = String(value);
+  if (text.length <= MAX_HINT_INPUT) return text;
+  return text.slice(0, MAX_HINT_INPUT);
+};
+
 const getRemediationHint = (error) => {
   const parts = [error?.message, error?.stderr, error?.stdout]
+    .map(capHintInput)
     .filter(Boolean)
     .join('\n')
     .toLowerCase();
@@ -106,7 +116,12 @@ export function formatToolError(error) {
     message: error?.message || String(error)
   };
   if (!isErrorCode(error?.code) && error?.code != null) {
-    payload.exitCode = error.code;
+    const numericCode = Number(error.code);
+    if (Number.isFinite(numericCode)) {
+      payload.exitCode = numericCode;
+    } else {
+      payload.nativeCode = String(error.code);
+    }
   }
   if (error?.stderr) payload.stderr = String(error.stderr).trim();
   if (error?.stdout) payload.stdout = String(error.stdout).trim();

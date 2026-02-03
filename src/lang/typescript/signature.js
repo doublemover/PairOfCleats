@@ -9,18 +9,164 @@ export function extractTypeScriptModifiers(signature) {
   return mods;
 }
 
+function extractParamSection(signature) {
+  const start = signature.indexOf('(');
+  if (start === -1) return null;
+  let depth = 0;
+  let paramStart = -1;
+  let inString = null;
+  let escaped = false;
+  for (let i = start; i < signature.length; i += 1) {
+    const ch = signature[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      inString = ch;
+      continue;
+    }
+    if (ch === '(') {
+      if (depth === 0) paramStart = i + 1;
+      depth += 1;
+      continue;
+    }
+    if (ch === ')') {
+      depth -= 1;
+      if (depth === 0 && paramStart >= 0) {
+        return { text: signature.slice(paramStart, i), endIndex: i };
+      }
+      continue;
+    }
+  }
+  return null;
+}
+
+function splitTopLevel(text, delimiter) {
+  const parts = [];
+  let buf = '';
+  let depthParen = 0;
+  let depthBracket = 0;
+  let depthBrace = 0;
+  let depthAngle = 0;
+  let inString = null;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      buf += ch;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      inString = ch;
+      buf += ch;
+      continue;
+    }
+    if (ch === '(') depthParen += 1;
+    if (ch === ')') depthParen = Math.max(0, depthParen - 1);
+    if (ch === '[') depthBracket += 1;
+    if (ch === ']') depthBracket = Math.max(0, depthBracket - 1);
+    if (ch === '{') depthBrace += 1;
+    if (ch === '}') depthBrace = Math.max(0, depthBrace - 1);
+    if (ch === '<') depthAngle += 1;
+    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
+    if (ch === delimiter && !depthParen && !depthBracket && !depthBrace && !depthAngle) {
+      parts.push(buf);
+      buf = '';
+      continue;
+    }
+    buf += ch;
+  }
+  if (buf.trim().length) parts.push(buf);
+  return parts;
+}
+
+function splitTopLevelOnce(text, delimiter) {
+  let depthParen = 0;
+  let depthBracket = 0;
+  let depthBrace = 0;
+  let depthAngle = 0;
+  let inString = null;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      inString = ch;
+      continue;
+    }
+    if (ch === '(') depthParen += 1;
+    if (ch === ')') depthParen = Math.max(0, depthParen - 1);
+    if (ch === '[') depthBracket += 1;
+    if (ch === ']') depthBracket = Math.max(0, depthBracket - 1);
+    if (ch === '{') depthBrace += 1;
+    if (ch === '}') depthBrace = Math.max(0, depthBrace - 1);
+    if (ch === '<') depthAngle += 1;
+    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
+    if (ch === delimiter && !depthParen && !depthBracket && !depthBrace && !depthAngle) {
+      return [text.slice(0, i), text.slice(i + 1)];
+    }
+  }
+  return [text, null];
+}
+
+function stripModifiers(segment) {
+  return segment.replace(/\b(public|private|protected|readonly|override)\b/g, '').trim();
+}
+
+function stripDefaultValue(segment) {
+  const [before] = splitTopLevelOnce(segment, '=');
+  return (before || '').trim();
+}
+
 export function extractTypeScriptParams(signature) {
-  const match = signature.match(/\(([^)]*)\)/);
-  if (!match) return [];
+  const section = extractParamSection(signature);
+  if (!section) return [];
   const params = [];
-  for (const part of match[1].split(',')) {
+  for (const part of splitTopLevel(section.text, ',')) {
     let seg = part.trim();
     if (!seg) continue;
-    seg = seg.replace(/=.+$/g, '').trim();
-    seg = seg.replace(/:[^,]+/g, '').trim();
-    seg = seg.replace(/\b(public|private|protected|readonly|override)\b/g, '').trim();
-    seg = seg.replace(/\?/g, '').trim();
-    const tokens = seg.split(/\s+/).filter(Boolean);
+    seg = stripDefaultValue(seg);
+    seg = stripModifiers(seg);
+    seg = seg.replace(/^\.\.\./, '').trim();
+    const [rawName] = splitTopLevelOnce(seg, ':');
+    if (!rawName) continue;
+    const nameSeg = rawName.replace(/\?/g, '').trim();
+    const tokens = nameSeg.split(/\s+/).filter(Boolean);
     if (!tokens.length) continue;
     let name = tokens[tokens.length - 1];
     name = name.replace(/[^A-Za-z0-9_$]/g, '');
@@ -31,19 +177,19 @@ export function extractTypeScriptParams(signature) {
 }
 
 export function extractTypeScriptParamTypes(signature) {
-  const match = signature.match(/\(([^)]*)\)/);
-  if (!match) return {};
+  const section = extractParamSection(signature);
+  if (!section) return {};
   const paramTypes = {};
-  for (const part of match[1].split(',')) {
+  for (const part of splitTopLevel(section.text, ',')) {
     let seg = part.trim();
     if (!seg) continue;
-    seg = seg.replace(/=.+$/g, '').trim();
-    seg = seg.replace(/\b(public|private|protected|readonly|override)\b/g, '').trim();
+    seg = stripDefaultValue(seg);
+    seg = stripModifiers(seg);
     seg = seg.replace(/^\.\.\./, '').trim();
-    const [rawName, ...rest] = seg.split(':');
-    if (!rawName || !rest.length) continue;
+    const [rawName, rawType] = splitTopLevelOnce(seg, ':');
+    if (!rawName || !rawType) continue;
     const name = rawName.replace(/\?/g, '').replace(/[^A-Za-z0-9_$]/g, '').trim();
-    const type = rest.join(':').trim();
+    const type = rawType.trim();
     if (!name || !type) continue;
     paramTypes[name] = type;
   }
@@ -51,9 +197,9 @@ export function extractTypeScriptParamTypes(signature) {
 }
 
 export function extractTypeScriptReturns(signature) {
-  const idx = signature.indexOf(')');
-  if (idx === -1) return null;
-  const after = signature.slice(idx + 1);
+  const section = extractParamSection(signature);
+  if (!section) return null;
+  const after = signature.slice(section.endIndex + 1);
   const match = after.match(/:\s*([^=;{]+)/);
   if (!match) return null;
   const ret = match[1].trim();

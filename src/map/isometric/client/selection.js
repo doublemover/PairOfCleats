@@ -579,7 +579,7 @@ const buildOpenUri = (info) => {
   const filePath = resolveFilePath(info.file || '');
   const replacements = {
     file: encodeURIComponent(filePath),
-    fileRaw: filePath,
+    fileRaw: encodeURIComponent(filePath),
     line: encodeURIComponent(range.startLine || 1),
     column: encodeURIComponent(1),
     startLine: encodeURIComponent(range.startLine || 1),

@@ -8,6 +8,10 @@ export function renderSvgHtml({ svg, mapModel, title = 'Code Map' }) {
   const warnings = Array.isArray(mapModel?.warnings) ? mapModel.warnings : [];
   const summary = mapModel?.summary || {};
   const legend = mapModel?.legend || {};
+  const svgPayload = svg ? encodeURIComponent(svg) : '';
+  const svgContent = svgPayload
+    ? `<img alt="Code map" src="data:image/svg+xml;utf8,${svgPayload}" />`
+    : '';
   const badgeList = Object.entries(legend.functionBadges || {})
     .map(([key, label]) => `<span><strong>${escapeHtml(label)}</strong> ${escapeHtml(key)}</span>`)
     .join(' ');
@@ -39,7 +43,7 @@ export function renderSvgHtml({ svg, mapModel, title = 'Code Map' }) {
     <div class="meta">files: ${summary.counts?.files || 0} | members: ${summary.counts?.members || 0} | edges: ${summary.counts?.edges || 0}</div>
   </header>
   <div class="content">
-    <div class="svg-wrap">${svg || ''}</div>
+    <div class="svg-wrap">${svgContent}</div>
     <div class="panel">
       <h3>Legend</h3>
       <div class="legend"><strong>Badges</strong>${badgeList}</div>

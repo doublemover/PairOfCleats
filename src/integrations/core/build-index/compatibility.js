@@ -8,8 +8,14 @@ export const computeCompatibilityKey = ({ runtime, modes, sharedDiscovery }) => 
   for (const modeItem of modes) {
     const entryCount = sharedDiscovery?.[modeItem]?.entries?.length ?? 0;
     const adaptedDictConfig = applyAdaptiveDictConfig(baseDictConfig, entryCount);
-    const runtimeSnapshot = { ...runtime, dictConfig: adaptedDictConfig };
-    tokenizationKeys[modeItem] = buildTokenizationKey(runtimeSnapshot, modeItem);
+    const tokenizationRuntime = {
+      commentsConfig: runtime.commentsConfig,
+      dictConfig: adaptedDictConfig,
+      postingsConfig: runtime.postingsConfig,
+      dictSignature: runtime.dictSignature,
+      segmentsConfig: runtime.segmentsConfig
+    };
+    tokenizationKeys[modeItem] = buildTokenizationKey(tokenizationRuntime, modeItem);
   }
   runtime.tokenizationKeys = tokenizationKeys;
   runtime.compatibilityKey = buildCompatibilityKey({ runtime, modes, tokenizationKeys });

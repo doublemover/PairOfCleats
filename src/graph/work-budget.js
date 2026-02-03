@@ -32,8 +32,9 @@ export const createWorkBudget = ({
 
   const consume = (units = 1) => {
     if (state.stop) return { ...state, used };
-    const increment = Number.isFinite(units) ? units : 1;
-    used += increment;
+    const parsed = Number(units);
+    const increment = Number.isFinite(parsed) ? Math.floor(parsed) : 1;
+    used += Math.max(1, increment);
     if (maxUnits != null && used >= maxUnits) {
       state.stop = true;
       state.reason = 'maxWorkUnits';

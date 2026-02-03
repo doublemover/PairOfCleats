@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 
+const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
+
 const readJson = async (filePath, fallback) => {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
@@ -11,12 +13,39 @@ const readJson = async (filePath, fallback) => {
   }
 };
 
+const isProcessAlive = (pid) => {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err?.code === 'EPERM';
+  }
+};
+
+const readLockInfo = async (lockPath) => readJson(lockPath, null);
+
+const isLockStale = async (lockPath, staleMs) => {
+  try {
+    const info = await readLockInfo(lockPath);
+    if (info?.startedAt) {
+      const startedAt = Date.parse(info.startedAt);
+      if (Number.isFinite(startedAt) && Date.now() - startedAt > staleMs) return true;
+    }
+    const stat = await fs.stat(lockPath);
+    return Date.now() - stat.mtimeMs > staleMs;
+  } catch {
+    return false;
+  }
+};
+
 const withLock = async (lockPath, worker) => {
   const start = Date.now();
   while (true) {
     try {
       const handle = await fs.open(lockPath, 'wx');
       try {
+        await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
         return await worker();
       } finally {
         await handle.close();
@@ -24,6 +53,16 @@ const withLock = async (lockPath, worker) => {
       }
     } catch (err) {
       if (err?.code !== 'EEXIST') throw err;
+      const info = await readLockInfo(lockPath);
+      const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
+      const pidAlive = pid ? isProcessAlive(pid) : false;
+      const stale = await isLockStale(lockPath, DEFAULT_LOCK_STALE_MS);
+      if ((pid && !pidAlive) || (stale && !pid)) {
+        try {
+          await fs.rm(lockPath, { force: true });
+          continue;
+        } catch {}
+      }
       if (Date.now() - start > 5000) throw new Error('Queue lock timeout.');
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

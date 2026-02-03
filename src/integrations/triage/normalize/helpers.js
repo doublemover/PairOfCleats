@@ -99,12 +99,37 @@ export function ensureRecordId(record, source, stableKey, raw, warnings) {
   if (!record || typeof record !== 'object' || record.recordId) return;
   let key = stableKey;
   if (!key) {
-    const fallback = raw && typeof raw === 'object' ? JSON.stringify(raw) : 'unknown';
-    key = fallback;
+    const fallback = raw && typeof raw === 'object' ? safeStringifyFallback(raw) : String(raw ?? 'unknown');
+    key = fallback || 'unknown';
     if (Array.isArray(warnings)) warnings.push('missing stable key; using raw payload hash');
   }
   record.recordId = buildRecordId(source, key);
 }
+
+const MAX_FALLBACK_BYTES = 16384;
+
+const capStringBytes = (value, maxBytes) => {
+  const buffer = Buffer.from(value, 'utf8');
+  if (buffer.length <= maxBytes) return value;
+  return buffer.subarray(0, maxBytes).toString('utf8');
+};
+
+const safeStringifyFallback = (value) => {
+  const seen = new WeakSet();
+  try {
+    const text = JSON.stringify(value, (key, entry) => {
+      if (entry && typeof entry === 'object') {
+        if (seen.has(entry)) return '[Circular]';
+        seen.add(entry);
+      }
+      return entry;
+    });
+    if (!text) return null;
+    return capStringBytes(text, MAX_FALLBACK_BYTES);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Normalize an input into a string array.

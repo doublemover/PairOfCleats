@@ -10,7 +10,8 @@ export const buildSymbolId = ({ symbolId, chunkUid, file, name, kind, startLine,
   const safeName = String(name || '').trim();
   const lowered = safeName.toLowerCase();
   if (safeName && !ANON_NAMES.has(lowered)) {
-    return `${safeFile}::${safeName}`;
+    const lineTag = Number.isFinite(startLine) ? `:${startLine}` : '';
+    return `${safeFile}::${safeName}${lineTag}`;
   }
   if (chunkId) return `${safeFile}::${chunkId}`;
   const suffix = Number.isFinite(startLine) ? startLine : 0;
@@ -30,6 +31,7 @@ const memberTypeFromKind = (kind) => {
 export const upsertMember = (membersByFile, memberById, file, id, base) => {
   const list = membersByFile.get(file) || [];
   let member = memberById.get(id);
+  const incomingRank = Number.isFinite(base?.sourceRank) ? base.sourceRank : 0;
   if (!member) {
     member = {
       id,
@@ -45,26 +47,36 @@ export const upsertMember = (membersByFile, memberById, file, id, base) => {
       controlFlow: base.controlFlow || null,
       exported: base.exported ?? null,
       range: base.range || { startLine: null, endLine: null },
-      port: buildPortId(id)
+      port: buildPortId(id),
+      sourceRank: incomingRank
     };
     list.push(member);
     membersByFile.set(file, list);
     memberById.set(id, member);
   } else {
+    const currentRank = Number.isFinite(member.sourceRank) ? member.sourceRank : 0;
+    const preferIncoming = incomingRank > currentRank;
+    if (preferIncoming) member.sourceRank = incomingRank;
     if (!member.file) member.file = file;
-    if (!member.name && base.name) member.name = base.name;
-    if (!member.kind && base.kind) member.kind = base.kind;
-    if (!member.signature && base.signature) member.signature = base.signature;
-    if (!member.params && base.params) member.params = base.params;
-    if (!member.returns && base.returns) member.returns = base.returns;
-    if (!member.modifiers && base.modifiers) member.modifiers = base.modifiers;
-    if (!member.dataflow && base.dataflow) member.dataflow = base.dataflow;
-    if (!member.controlFlow && base.controlFlow) member.controlFlow = base.controlFlow;
-    if (member.exported == null && base.exported != null) member.exported = base.exported;
+    if ((preferIncoming || !member.name) && base.name) member.name = base.name;
+    if ((preferIncoming || !member.kind) && base.kind) member.kind = base.kind;
+    if ((preferIncoming || !member.signature) && base.signature) member.signature = base.signature;
+    if ((preferIncoming || !member.params) && base.params) member.params = base.params;
+    if ((preferIncoming || !member.returns) && base.returns) member.returns = base.returns;
+    if ((preferIncoming || !member.modifiers) && base.modifiers) member.modifiers = base.modifiers;
+    if ((preferIncoming || !member.dataflow) && base.dataflow) member.dataflow = base.dataflow;
+    if ((preferIncoming || !member.controlFlow) && base.controlFlow) member.controlFlow = base.controlFlow;
+    if ((preferIncoming || member.exported == null) && base.exported != null) member.exported = base.exported;
     if (base.range) {
       const range = member.range || { startLine: null, endLine: null };
-      if (range.startLine == null && base.range.startLine != null) range.startLine = base.range.startLine;
-      if (range.endLine == null && base.range.endLine != null) range.endLine = base.range.endLine;
+      if (preferIncoming && base.range.startLine != null) range.startLine = base.range.startLine;
+      if (preferIncoming && base.range.endLine != null) range.endLine = base.range.endLine;
+      if (!preferIncoming && range.startLine == null && base.range.startLine != null) {
+        range.startLine = base.range.startLine;
+      }
+      if (!preferIncoming && range.endLine == null && base.range.endLine != null) {
+        range.endLine = base.range.endLine;
+      }
       member.range = range;
     }
     member.type = memberTypeFromKind(member.kind);

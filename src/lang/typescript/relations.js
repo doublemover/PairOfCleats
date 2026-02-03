@@ -257,26 +257,47 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     calls.push([callerName, calleeName]);
   };
 
-  const walk = (node, parent = null, seen = new Set()) => {
-    if (!node || typeof node !== 'object') return;
-    if (seen.has(node)) return;
-    seen.add(node);
-    if (Array.isArray(node)) {
-      node.forEach((child) => walk(child, parent, seen));
-      return;
-    }
-    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
-      recordCall(node);
-    }
-    if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
-      usages.add(node.name);
-    }
-    for (const value of Object.values(node)) {
-      if (!value) continue;
-      if (Array.isArray(value)) {
-        for (const entry of value) walk(entry, node, seen);
-      } else if (typeof value === 'object') {
-        walk(value, node, seen);
+  const WALK_SKIP_KEYS = new Set([
+    'loc',
+    'start',
+    'end',
+    'tokens',
+    'comments',
+    'leadingComments',
+    'trailingComments',
+    'innerComments',
+    'extra',
+    'parent'
+  ]);
+
+  const walk = (root) => {
+    const seen = new Set();
+    const stack = [root];
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node || typeof node !== 'object') continue;
+      if (seen.has(node)) continue;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        for (let i = node.length - 1; i >= 0; i -= 1) {
+          stack.push(node[i]);
+        }
+        continue;
+      }
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+        recordCall(node);
+      }
+      if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
+        usages.add(node.name);
+      }
+      const keys = Object.keys(node);
+      for (let i = keys.length - 1; i >= 0; i -= 1) {
+        const key = keys[i];
+        if (WALK_SKIP_KEYS.has(key)) continue;
+        const value = node[key];
+        if (value && typeof value === 'object') {
+          stack.push(value);
+        }
       }
     }
   };

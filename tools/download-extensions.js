@@ -234,10 +234,19 @@ function resolveArchivePath(rootDir, entryName) {
 }
 
 function isZipSymlink(entry) {
-  const attr = entry?.header?.attr;
-  if (typeof attr !== 'number') return false;
+  const attr = Number(entry?.header?.attr ?? entry?.externalFileAttributes);
+  if (!Number.isFinite(attr)) return false;
   const mode = attr >>> 16;
   return (mode & 0o170000) === 0o120000;
+}
+
+function isZipDirectory(entry) {
+  const name = String(entry?.fileName || '');
+  if (name.endsWith('/')) return true;
+  const attr = Number(entry?.header?.attr ?? entry?.externalFileAttributes);
+  if (!Number.isFinite(attr)) return false;
+  const mode = attr >>> 16;
+  return (mode & 0o170000) === 0o040000;
 }
 
 function createArchiveLimiter(limits) {
@@ -274,39 +283,94 @@ function createArchiveLimiter(limits) {
 
 
 async function extractZipNode(archivePath, destDir, limits) {
-  const mod = await import('adm-zip');
-  const AdmZip = mod.default || mod;
-  const zip = new AdmZip(archivePath);
-  const entries = zip.getEntries();
   const limiter = createArchiveLimiter(limits);
   await fs.mkdir(destDir, { recursive: true });
-  for (const entry of entries) {
-    if (isZipSymlink(entry)) {
-      throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.entryName}`);
-    }
-    const targetPath = resolveArchivePath(destDir, entry.entryName);
-    if (!targetPath) {
-      throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.entryName}`);
-    }
-    const declaredSize = Number(entry?.header?.size);
-    const counted = limiter.checkEntry(entry.entryName, Number.isFinite(declaredSize) ? declaredSize : 0);
-    if (entry.isDirectory) {
-      await fs.mkdir(targetPath, { recursive: true });
-      try { await fs.chmod(targetPath, DIR_MODE); } catch {}
-      continue;
-    }
-    const data = entry.getData();
-    if (limits?.maxEntryBytes && data.length > limits.maxEntryBytes) {
-      throw createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${entry.entryName}).`);
-    }
-    if (data.length > counted) {
-      limiter.addBytes(data.length - counted);
-    }
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, data, { mode: FILE_MODE });
-    try { await fs.chmod(targetPath, FILE_MODE); } catch {}
-  }
-  return true;
+  const mod = await import('yauzl');
+  const yauzl = mod.default || mod;
+  return new Promise((resolve, reject) => {
+    yauzl.open(archivePath, { lazyEntries: true }, (err, zipfile) => {
+      if (err || !zipfile) return reject(err);
+      const fail = (error) => {
+        try { zipfile.close(); } catch {}
+        reject(error);
+      };
+      zipfile.readEntry();
+      zipfile.on('entry', (entry) => {
+        if (isZipSymlink(entry)) {
+          fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.fileName}`));
+          return;
+        }
+        const targetPath = resolveArchivePath(destDir, entry.fileName);
+        if (!targetPath) {
+          fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.fileName}`));
+          return;
+        }
+        const declaredSize = Number(entry.uncompressedSize);
+        let counted = 0;
+        try {
+          counted = limiter.checkEntry(
+            entry.fileName,
+            Number.isFinite(declaredSize) ? declaredSize : 0
+          );
+        } catch (err) {
+          fail(err);
+          return;
+        }
+        if (isZipDirectory(entry)) {
+          fs.mkdir(targetPath, { recursive: true })
+            .then(async () => {
+              try { await fs.chmod(targetPath, DIR_MODE); } catch {}
+            })
+            .then(() => zipfile.readEntry())
+            .catch(fail);
+          return;
+        }
+        fs.mkdir(path.dirname(targetPath), { recursive: true })
+          .then(() => new Promise((resolveStream, rejectStream) => {
+            zipfile.openReadStream(entry, (streamErr, readStream) => {
+              if (streamErr || !readStream) return rejectStream(streamErr);
+              const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2, 8)}`;
+              let written = 0;
+              readStream.on('data', (chunk) => {
+                written += chunk.length;
+                if (limits?.maxEntryBytes && written > limits.maxEntryBytes) {
+                  readStream.destroy(
+                    createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${entry.fileName}).`)
+                  );
+                }
+              });
+              const writer = fsSync.createWriteStream(tempPath, { mode: FILE_MODE });
+              pipeline(readStream, writer)
+                .then(async () => {
+                  if (written > counted) {
+                    limiter.addBytes(written - counted);
+                  }
+                  try { await fs.chmod(tempPath, FILE_MODE); } catch {}
+                  if (fsSync.existsSync(targetPath)) {
+                    try { await fs.rm(targetPath, { force: true }); } catch {}
+                  }
+                  await fs.rename(tempPath, targetPath);
+                  try { await fs.chmod(targetPath, FILE_MODE); } catch {}
+                  resolveStream();
+                })
+                .catch(async (err) => {
+                  try { await fs.rm(tempPath, { force: true }); } catch {}
+                  rejectStream(err);
+                });
+            });
+          }))
+          .then(() => zipfile.readEntry())
+          .catch(fail);
+      });
+      zipfile.on('end', () => {
+        try { zipfile.close(); } catch {}
+        resolve(true);
+      });
+      zipfile.on('error', fail);
+    });
+  });
 }
 
 async function extractTarNode(archivePath, destDir, gzip, limits) {

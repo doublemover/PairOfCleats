@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import simpleGit from 'simple-git';
+import { runScmCommand } from './scm/runner.js';
 import {
   createLruCache,
   DEFAULT_CACHE_MB,
@@ -31,6 +33,18 @@ const warnGitUnavailable = (repoRoot, message = 'Git metadata unavailable.') => 
   warnedGitRoots.add(key);
   const suffix = repoRoot ? ` (${repoRoot})` : '';
   console.warn(`[git] ${message}${suffix}`);
+};
+
+const resolveBlameMaxOutputBytes = (absFile) => {
+  const fallback = 32 * 1024 * 1024;
+  try {
+    const size = Number(fs.statSync(absFile).size) || 0;
+    if (size <= 0) return fallback;
+    const estimate = Math.max(8 * 1024 * 1024, size * 6);
+    return Math.min(128 * 1024 * 1024, Math.floor(estimate));
+  } catch {
+    return fallback;
+  }
 };
 
 /**
@@ -74,8 +88,11 @@ export async function getGitMetaForFile(file, options = {}) {
     ? path.resolve(options.baseDir)
     : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
   const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
+  const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
   const fileArg = toPosix(relFile);
   const cacheKey = `${baseDir}::${fileArg}`;
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
+  const signal = options.signal || null;
 
   const cached = gitMetaCache.get(cacheKey);
   if (cached && !blameEnabled) return cached;
@@ -102,7 +119,25 @@ export async function getGitMetaForFile(file, options = {}) {
     const blameKey = `${cacheKey}::blame`;
     let lineAuthors = gitBlameCache.get(blameKey);
     if (!lineAuthors) {
-      const blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+      let blame = null;
+      if (timeoutMs || signal) {
+        try {
+          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+            outputMode: 'string',
+            captureStdout: true,
+            captureStderr: true,
+            rejectOnNonZeroExit: false,
+            maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
+            timeoutMs,
+            signal
+          });
+          blame = result.exitCode === 0 ? result.stdout : null;
+        } catch {
+          blame = null;
+        }
+      } else {
+        blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+      }
       lineAuthors = parseLineAuthors(blame);
       if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
     }

@@ -60,7 +60,7 @@ export const createApiRouter = ({
   const handleRequest = async (req, res) => {
     let corsHeaders = null;
     try {
-      const requestUrl = new URL(req.url || '/', `http://${host}`);
+      const requestUrl = new URL(req.url || '/', 'http://localhost');
       corsHeaders = resolveCorsHeaders(req);
       const origin = req?.headers?.origin ? String(req.headers.origin) : '';
       if (origin && !corsHeaders) {
@@ -157,11 +157,11 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
         const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
-        const abortController = new AbortController();
-        const abort = () => abortController.abort();
-        req.on('aborted', abort);
-        res.on('close', abort);
-        res.on('error', abort);
+        const controller = new AbortController();
+        const abortRequest = () => controller.abort();
+        req.on('aborted', abortRequest);
+        res.on('close', abortRequest);
+        res.on('error', abortRequest);
         let raw;
         try {
           raw = await parseJsonBody(req);
@@ -208,11 +208,6 @@ export const createApiRouter = ({
           );
           return;
         }
-        const controller = new AbortController();
-        const abortRequest = () => controller.abort();
-        req.on('aborted', abortRequest);
-        res.on('close', abortRequest);
-        res.on('error', abortRequest);
         await sse.sendHeaders();
         await sse.sendEvent('start', { ok: true });
         await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Searching.' });
@@ -251,11 +246,11 @@ export const createApiRouter = ({
       }
 
       if (requestUrl.pathname === '/search' && req.method === 'POST') {
-        const abortController = new AbortController();
-        const abort = () => abortController.abort();
-        req.on('aborted', abort);
-        res.on('close', abort);
-        res.on('error', abort);
+        const controller = new AbortController();
+        const abortRequest = () => controller.abort();
+        req.on('aborted', abortRequest);
+        res.on('close', abortRequest);
+        res.on('error', abortRequest);
         let payload = null;
         try {
           payload = await parseJsonBody(req);
@@ -302,11 +297,6 @@ export const createApiRouter = ({
           return;
         }
         try {
-          const controller = new AbortController();
-          const abortRequest = () => controller.abort();
-          req.on('aborted', abortRequest);
-          res.on('close', abortRequest);
-          res.on('error', abortRequest);
           const caches = getRepoCaches(repoPath);
           await refreshBuildPointer(caches);
           const body = await search(repoPath, {

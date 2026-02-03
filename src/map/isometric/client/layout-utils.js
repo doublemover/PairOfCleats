@@ -149,6 +149,11 @@ export const buildSlots = (width, depth, columns, rows, cellSize, gap, memberIns
 export const orderByAdjacency = (items, getKey, adjacency) => {
   if (!items.length) return [];
   if (items.length === 1) return items.slice();
+  if (items.length > 300) {
+    return items
+      .slice()
+      .sort((a, b) => String(getKey(a)).localeCompare(String(getKey(b))));
+  }
   const keys = items.map(getKey);
   const totalWeight = new Map();
   keys.forEach((key) => {

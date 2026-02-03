@@ -10,6 +10,7 @@ const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
 const BUNDLE_VERSION = 1;
 const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
 const MAX_BUNDLE_CHECKSUM_BYTES = 16 * 1024 * 1024;
+const MAX_BUNDLE_BYTES = 256 * 1024 * 1024;
 
 const packr = new Packr({ useRecords: false, structuredClone: true });
 const unpackr = new Unpackr({ useRecords: false });
@@ -77,7 +78,11 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
   return { format: resolvedFormat, checksum: null, checksumAlgo: null };
 }
 
-export async function readBundleFile(bundlePath, { format = null } = {}) {
+export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES } = {}) {
+  const stat = await fs.stat(bundlePath);
+  if (Number.isFinite(maxBytes) && maxBytes > 0 && stat.size > maxBytes) {
+    return { ok: false, reason: 'bundle too large' };
+  }
   const resolvedFormat = format || resolveBundleFormatFromName(bundlePath);
   if (resolvedFormat === 'msgpack') {
     const buffer = await fs.readFile(bundlePath);

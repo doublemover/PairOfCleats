@@ -107,11 +107,13 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
+  const excludeNeedleSet = excludeNeedles.length ? new Set(excludeNeedles) : null;
   const normalizePhraseNeedle = (value) => {
     const normalized = caseTokens ? String(value || '') : normalize(value);
     return normalized.replace(/\s+/g, '_');
   };
   const excludePhraseNeedles = normalizePhraseList(excludePhrases).map(normalizePhraseNeedle);
+  const excludePhraseSet = excludePhraseNeedles.length ? new Set(excludePhraseNeedles) : null;
   const derivedPhraseRange = (() => {
     if (excludePhraseRange?.min && excludePhraseRange?.max) return excludePhraseRange;
     if (!excludePhraseNeedles.length) return null;
@@ -256,11 +258,18 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       if (!ngrams && excludePhraseNeedles.length && tokens.length && derivedPhraseRange?.min && derivedPhraseRange?.max) {
         ngrams = extractNgrams(tokens, derivedPhraseRange.min, derivedPhraseRange.max);
       }
-      const tokenSet = new Set(tokens.map(normalizeToken));
-      const ngramSet = new Set((ngrams || []).map(normalizeToken));
-      const tokenMatch = excludeNeedles.some((needle) => tokenSet.has(needle) || ngramSet.has(needle));
-      if (tokenMatch) return false;
-      if (excludePhraseNeedles.some((needle) => ngramSet.has(needle))) return false;
+      if (excludeNeedleSet && excludeNeedleSet.size) {
+        for (const token of tokens) {
+          if (excludeNeedleSet.has(normalizeToken(token))) return false;
+        }
+      }
+      if ((excludeNeedleSet && excludeNeedleSet.size) || (excludePhraseSet && excludePhraseSet.size)) {
+        for (const ngram of ngrams || []) {
+          const normalized = normalizeToken(ngram);
+          if (excludeNeedleSet && excludeNeedleSet.has(normalized)) return false;
+          if (excludePhraseSet && excludePhraseSet.has(normalized)) return false;
+        }
+      }
     }
     if (modifiedAfter != null) {
       const lastModified = c.last_modified ? Date.parse(c.last_modified) : NaN;

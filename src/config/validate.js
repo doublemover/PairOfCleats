@@ -6,12 +6,23 @@ const ajv = new Ajv({
   allowUnionTypes: true
 });
 
+const validatorCache = new WeakMap();
+const BLOCKED_REQUIRED_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
+const ensureObjectMap = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return Object.create(null);
+  if (Object.getPrototypeOf(value) === null) return value;
+  return Object.assign(Object.create(null), value);
+};
+
 const formatPath = (instancePath) => (instancePath ? `#${instancePath}` : '#');
 
-const ensureRequiredProperties = (schema) => {
+const ensureRequiredProperties = (schema, visited = new WeakSet()) => {
   if (!schema || typeof schema !== 'object') return;
+  if (visited.has(schema)) return;
+  visited.add(schema);
   if (Array.isArray(schema)) {
-    schema.forEach((entry) => ensureRequiredProperties(entry));
+    schema.forEach((entry) => ensureRequiredProperties(entry, visited));
     return;
   }
   const hasObjectType = schema.type === 'object'
@@ -21,11 +32,10 @@ const ensureRequiredProperties = (schema) => {
     || schema.additionalProperties !== undefined
     || schema.patternProperties;
   if (hasObjectType && schema.additionalProperties === false && Array.isArray(schema.required)) {
-    if (!schema.properties || typeof schema.properties !== 'object' || Array.isArray(schema.properties)) {
-      schema.properties = {};
-    }
+    schema.properties = ensureObjectMap(schema.properties);
     for (const key of schema.required) {
       if (typeof key !== 'string') continue;
+      if (BLOCKED_REQUIRED_KEYS.has(key)) continue;
       if (!schema.properties[key]) schema.properties[key] = {};
     }
   }
@@ -33,7 +43,7 @@ const ensureRequiredProperties = (schema) => {
   const visitMap = (map) => {
     if (!map || typeof map !== 'object' || Array.isArray(map)) return;
     for (const value of Object.values(map)) {
-      ensureRequiredProperties(value);
+      ensureRequiredProperties(value, visited);
     }
   };
 
@@ -44,15 +54,14 @@ const ensureRequiredProperties = (schema) => {
   visitMap(schema.dependencies);
   visitMap(schema.dependentSchemas);
 
-  if (schema.items) ensureRequiredProperties(schema.items);
-  if (Array.isArray(schema.items)) schema.items.forEach((item) => ensureRequiredProperties(item));
-  if (schema.anyOf) ensureRequiredProperties(schema.anyOf);
-  if (schema.oneOf) ensureRequiredProperties(schema.oneOf);
-  if (schema.allOf) ensureRequiredProperties(schema.allOf);
-  if (schema.not) ensureRequiredProperties(schema.not);
-  if (schema.if) ensureRequiredProperties(schema.if);
-  if (schema.then) ensureRequiredProperties(schema.then);
-  if (schema.else) ensureRequiredProperties(schema.else);
+  if (schema.items) ensureRequiredProperties(schema.items, visited);
+  if (schema.anyOf) ensureRequiredProperties(schema.anyOf, visited);
+  if (schema.oneOf) ensureRequiredProperties(schema.oneOf, visited);
+  if (schema.allOf) ensureRequiredProperties(schema.allOf, visited);
+  if (schema.not) ensureRequiredProperties(schema.not, visited);
+  if (schema.if) ensureRequiredProperties(schema.if, visited);
+  if (schema.then) ensureRequiredProperties(schema.then, visited);
+  if (schema.else) ensureRequiredProperties(schema.else, visited);
 };
 
 const formatError = (error) => {
@@ -70,9 +79,14 @@ const formatError = (error) => {
 };
 
 export function validateConfig(schema, config) {
-  const normalizedSchema = structuredClone(schema);
-  ensureRequiredProperties(normalizedSchema);
-  const validate = ajv.compile(normalizedSchema);
+  const cacheKey = schema && typeof schema === 'object' ? schema : null;
+  let validate = cacheKey ? validatorCache.get(cacheKey) : null;
+  if (!validate) {
+    const normalizedSchema = structuredClone(schema);
+    ensureRequiredProperties(normalizedSchema);
+    validate = ajv.compile(normalizedSchema);
+    if (cacheKey) validatorCache.set(cacheKey, validate);
+  }
   const ok = validate(config);
   if (ok) return { ok: true, errors: [] };
   const errors = (validate.errors || []).map(formatError);

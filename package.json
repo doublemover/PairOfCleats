@@ -148,6 +148,7 @@
     "xxhash-wasm": "^1.1.0",
     "yaml": "^2.8.2",
     "yargs": "^17.7.2",
+    "yauzl": "^2.10.0",
     "zod": "^3.25.0"
   },
   "optionalDependencies": {

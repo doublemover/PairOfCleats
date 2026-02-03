@@ -14,7 +14,7 @@ const normalizePath = (value, repoRoot) => {
   const raw = String(value);
   let normalized = raw;
   if (repoRoot && isAbsolutePathNative(raw)) {
-    const rel = path.relative(repoRoot, raw);
+    const rel = path.relative(repoRoot, raw) || '.';
     if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
       normalized = rel;
     }
