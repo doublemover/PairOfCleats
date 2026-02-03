@@ -7,7 +7,7 @@ import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
-import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -23,7 +23,7 @@ const argv = createCli({
   }
 }).parse();
 
-const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const toolRoot = resolveToolRoot();
 const repoArg = argv.repo || argv.dir || null;
 const { repoRoot, userConfig } = resolveRepoConfig(repoArg);
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
