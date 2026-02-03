@@ -89,6 +89,7 @@ const main = async () => {
 
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
   const isCiOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci';
+  const isCiLongOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-long';
   if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
     tagInclude.push('long');
   }
@@ -168,8 +169,8 @@ const main = async () => {
 
   let selection = null;
 
-  if (isCiLiteOnly || isCiOnly) {
-    const orderLane = isCiLiteOnly ? 'ci-lite' : 'ci';
+  if (isCiLiteOnly || isCiOnly || isCiLongOnly) {
+    const orderLane = isCiLiteOnly ? 'ci-lite' : (isCiLongOnly ? 'ci-long' : 'ci');
     const orderPath = path.join(TESTS_DIR, orderLane, `${orderLane}.order.txt`);
     let orderRaw = '';
     try {
