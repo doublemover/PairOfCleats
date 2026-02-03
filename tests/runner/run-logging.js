@@ -1,4 +1,13 @@
 const NODE_ERROR_LINE = /(?:AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|Error \[ERR_|node:internal|Error:)/;
+const OUTPUT_SNIPPET_MAX_LINES = 7;
+
+const clampOutputLines = (lines, limit = OUTPUT_SNIPPET_MAX_LINES) => {
+  if (!Array.isArray(lines) || !lines.length) return [];
+  if (!Number.isFinite(limit) || limit <= 0 || lines.length <= limit) return lines;
+  const trimmed = lines.slice(0, limit);
+  trimmed.push(`... trimmed ${lines.length - limit} lines`);
+  return trimmed;
+};
 
 export const extractSkipReason = (stdout, stderr) => {
   const pickLine = (text) => {
@@ -52,10 +61,11 @@ export const selectOutputLines = ({ stdout, stderr, mode, ignorePatterns = [], e
   if (mode === 'failure') {
     if (hasNodeError && expandNodeErrors) {
       const startIndex = Math.max(0, lines.findIndex((line) => NODE_ERROR_LINE.test(line)));
-      return lines.slice(startIndex);
+      return clampOutputLines(lines.slice(startIndex));
     }
     const matches = lines.filter((line) => /\[error\]|Failed\b/i.test(line));
-    return matches.length ? matches : lines.slice(-3);
+    if (matches.length) return clampOutputLines(matches);
+    return lines.length > 3 ? clampOutputLines(lines.slice(-OUTPUT_SNIPPET_MAX_LINES)) : lines.slice(-3);
   }
   return lines.slice(-3);
 };

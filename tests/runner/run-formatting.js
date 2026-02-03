@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isAbsolutePath } from '../../src/shared/files.js';
 import {
   ANSI,
   applyLineBackground as applyLineBackgroundRaw,
@@ -117,7 +118,7 @@ export const resolveSlowestColor = (durationMs, timeoutMs) => {
 export const formatLogPath = (value, root) => {
   if (!value) return '';
   const baseRoot = root || process.cwd();
-  const relative = path.isAbsolute(value) ? path.relative(baseRoot, value) : value;
+  const relative = isAbsolutePath(value) ? path.relative(baseRoot, value) : value;
   const normalized = String(relative || '').replace(/\\/g, '/');
   if (!normalized) return './';
   if (normalized.startsWith('./') || normalized.startsWith('../')) return normalized;

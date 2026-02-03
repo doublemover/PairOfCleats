@@ -15,7 +15,7 @@ const parseArgs = () => {
   return parser.parse();
 };
 
-const toPosix = (value) => value.split(path.sep).join('/');
+const toPosix = (value) => (value == null ? '' : String(value).replace(/\\/g, '/'));
 
 const listFiles = async (dir) => {
   const entries = await fsPromises.readdir(dir, { withFileTypes: true });

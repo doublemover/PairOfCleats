@@ -14,7 +14,7 @@
 
 ## 0. Terms
 
-- **IndexRef**: see `docs/phases/phase-14/index-refs-and-snapshots.md`
+- **IndexRef**: see `docs/specs/index-refs-and-snapshots.md`
 - **Mode index dir**: `<indexBaseRoot>/index-<mode>`
 - **Artifacts**: files listed in `<modeDir>/pieces/manifest.json`
 

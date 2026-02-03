@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 5 -- Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
 
 ## Objective
@@ -78,7 +83,7 @@ Phase 5 implementation MUST align with the following documents in `docs/`:
 - `docs/contracts/artifact-schemas.md` (artifact registry + required fields)
 - `docs/contracts/chunking.md` (chunk identity + offset semantics)
 - `docs/contracts/sqlite.md` (SQLite tables / versioning expectations)
-- `docs/phases/phase-8/tooling-vfs-and-segment-routing.md` (forward compatibility)
+- `docs/specs/tooling-vfs-and-segment-routing.md` (forward compatibility)
 
 If Phase 5 introduces new contract fields (container/effective identity), it MUST update the above specs (and any referenced registry schema in `src/contracts/schemas/*`) in the same change set.
 
@@ -481,7 +486,7 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
 
 ## Files
 
-  - `docs/phases/phase-8/tooling-vfs-and-segment-routing.md`
+  - `docs/specs/tooling-vfs-and-segment-routing.md`
   - `docs/specs/vfs-manifest-artifact.md` (new/updated if missing)
   - `docs/specs/metadata-schema-v2.md`
 
@@ -527,4 +532,11 @@ Phase 5 is complete when:
 ---
 
 #
+
+
+
+
+
+
+
 

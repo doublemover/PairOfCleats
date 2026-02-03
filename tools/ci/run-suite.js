@@ -19,7 +19,7 @@ const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
     .scriptName('pairofcleats ci-suite')
-    .option('mode', { type: 'string', default: 'pr', choices: ['pr', 'nightly'] })
+    .option('mode', { type: 'string', default: 'ci', choices: ['ci', 'nightly'] })
     .option('lane', { type: 'string', default: '' })
     .option('dry-run', { type: 'boolean', default: false })
     .option('junit', { type: 'string', default: DEFAULT_JUNIT })

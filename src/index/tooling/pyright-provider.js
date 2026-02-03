@@ -6,6 +6,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { parsePythonSignature } from './signature-parse/python.js';
+import { isAbsolutePath } from '../../shared/files.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
@@ -47,7 +48,7 @@ const canRunPyright = (cmd) => {
 
 const resolveCommand = (cmd, rootDir, toolingConfig) => {
   if (!cmd) return cmd;
-  if (path.isAbsolute(cmd) || cmd.includes(path.sep)) return cmd;
+  if (isAbsolutePath(cmd) || cmd.includes(path.sep)) return cmd;
   const testing = isTestingEnv();
   if (testing) {
     const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);

@@ -6,6 +6,7 @@ import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../src/sh
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { checksumFile } from '../../src/shared/hash.js';
+import { fromPosix } from '../../src/shared/files.js';
 
 export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
   const piecesDir = path.join(indexDir, 'pieces');
@@ -40,7 +41,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   for (const entry of priorPieces) {
     if (!entry || entry.type === 'embeddings') continue;
     if (entry.path === 'index_state.json') {
-      const absPath = path.join(indexDir, entry.path.split('/').join(path.sep));
+      const absPath = path.join(indexDir, fromPosix(entry.path));
       let bytes = null;
       let checksum = null;
       let checksumAlgo = null;

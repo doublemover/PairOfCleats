@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { isAbsolutePath } from '../../src/shared/files.js';
 import { parse as parseJsonc } from 'jsonc-parser';
 
 const readJsonc = (filePath, fallback = {}) => {
@@ -67,7 +68,7 @@ const compileRules = (raw) => {
 
 export const loadRunConfig = ({ root, configPath } = {}) => {
   const resolved = configPath
-    ? (path.isAbsolute(configPath) ? configPath : path.resolve(root || process.cwd(), configPath))
+    ? (isAbsolutePath(configPath) ? configPath : path.resolve(root || process.cwd(), configPath))
     : path.join(root || process.cwd(), 'tests', 'run.config.jsonc');
   return readJsonc(resolved, {});
 };

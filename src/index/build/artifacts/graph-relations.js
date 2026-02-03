@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
+import { fromPosix } from '../../../shared/files.js';
 import { createGraphRelationsIterator, measureGraphRelations } from './helpers.js';
 
 export async function enqueueGraphRelationsArtifacts({
@@ -78,7 +79,7 @@ export async function enqueueGraphRelationsArtifacts({
         });
         for (let i = 0; i < result.parts.length; i += 1) {
           const relPath = result.parts[i];
-          const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+          const absPath = path.join(outDir, fromPosix(relPath));
           addPieceFile({
             type: 'relations',
             name: 'graph_relations',

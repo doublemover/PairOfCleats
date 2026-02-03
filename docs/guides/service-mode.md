@@ -66,5 +66,6 @@ Notes
 - Stage3 runs the embedding pass (`--stage stage3`), and stage4 builds SQLite/ANN (`--stage stage4`).
 - Use `syncPolicy: "fetch"` for Sourcebot-style fetch-only workflows.
 - Each job runs `build_index.js` for the configured repo/mode.
-- Watch mode uses atomic attempt roots and promotion barriers (see `docs/phases/phase-3/watch-atomicity.md`).
+- Watch mode uses atomic attempt roots and promotion barriers (see `docs/specs/watch-atomicity.md`).
+
 

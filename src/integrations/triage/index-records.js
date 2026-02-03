@@ -11,6 +11,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
+import { toPosix } from '../../shared/files.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -356,6 +357,3 @@ function computeTokenStats(tokens) {
   return { unique, entropy, sum };
 }
 
-function toPosix(value) {
-  return value.split(path.sep).join('/');
-}

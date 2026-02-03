@@ -41,7 +41,7 @@ jobs:
 
       - name: CI Suite
         run: |
-          node tools/ci/run-suite.js --mode pr
+          node tools/ci/run-suite.js --mode ci
 
       - name: Upload test artifacts
         if: always()
@@ -86,7 +86,7 @@ jobs:
 
       - name: CI Suite
         run: |
-          node tools/ci/run-suite.js --mode pr
+          node tools/ci/run-suite.js --mode ci
 
       - name: Upload test artifacts
         if: always()
@@ -131,7 +131,7 @@ jobs:
 
       - name: CI Suite
         run: |
-          node tools/ci/run-suite.js --mode pr
+          node tools/ci/run-suite.js --mode ci
 
       - name: Upload test artifacts
         if: always()

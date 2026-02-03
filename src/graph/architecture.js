@@ -1,6 +1,6 @@
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { toPosix } from '../shared/files.js';
+import { isAbsolutePath, toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
 
 const normalizeCap = (value) => {
@@ -13,9 +13,9 @@ const normalizePath = (value, repoRoot) => {
   if (!value) return null;
   const raw = String(value);
   let normalized = raw;
-  if (repoRoot && path.isAbsolute(raw)) {
+  if (repoRoot && isAbsolutePath(raw)) {
     const rel = path.relative(repoRoot, raw);
-    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+    if (rel && !rel.startsWith('..') && !isAbsolutePath(rel)) {
       normalized = rel;
     }
   }

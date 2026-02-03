@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded } from '../../../src/shared/json-stream.js';
+import { fromPosix } from '../../../src/shared/files.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'json-stream-typedarray-sharded');
@@ -24,7 +25,7 @@ const result = await writeJsonLinesSharded({
 });
 
 assert.ok(result.parts.length >= 1, 'expected at least one sharded output');
-const partPath = path.join(cacheRoot, result.parts[0].split('/').join(path.sep));
+const partPath = path.join(cacheRoot, fromPosix(result.parts[0]));
 const raw = await fs.readFile(partPath, 'utf8');
 const line = raw.trim().split(/\r?\n/)[0];
 const parsed = JSON.parse(line);

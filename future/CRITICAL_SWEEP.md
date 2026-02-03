@@ -106,7 +106,7 @@ This document is a **general static sweep** of the repository for **critical/ser
 - **Evidence:**
   - `README.md` / `AGENTS.md` reference `npm run test:pr` (and similar).
   - `package.json` has no `test`, `test:pr`, `test:nightly`, `verify`, `test:ci-lite`, or `test:ci-long` scripts.
-  - CI runs `node tools/ci/run-suite.js --mode pr` directly.
+  - CI runs `node tools/ci/run-suite.js --mode ci` directly.
 - **Fix:**
   - Add thin npm script aliases that call the existing stable entrypoints (`node tests/run.js` / `node tools/ci/run-suite.js`) **or** update docs to only reference the node entrypoints.
 

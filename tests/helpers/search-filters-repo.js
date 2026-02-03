@@ -152,7 +152,13 @@ export const ensureSearchFiltersRepo = async () => {
           lancedb: { enabled: false }
         }
       }
-    }
+    },
+    extraEnv: process.platform === 'win32'
+      ? {
+        PAIROFCLEATS_THREADS: '1',
+        PAIROFCLEATS_WORKER_POOL: 'auto'
+      }
+      : null
   });
 
   if (!hasChunkMeta(repoRoot)) {

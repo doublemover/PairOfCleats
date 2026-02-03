@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../dict-utils.js';
+import { isAbsolutePath } from '../../src/shared/files.js';
 
 export function getServiceConfigPath(inputPath = null) {
   if (inputPath) return path.resolve(inputPath);
@@ -41,7 +42,7 @@ export function resolveRepoRegistry(config, configPath) {
   const repoFile = config?.reposFile;
   if (!repoFile) return [];
   const baseDir = configPath ? path.dirname(configPath) : process.cwd();
-  const resolved = path.isAbsolute(repoFile) ? repoFile : path.join(baseDir, repoFile);
+  const resolved = isAbsolutePath(repoFile) ? repoFile : path.join(baseDir, repoFile);
   if (!fs.existsSync(resolved)) return [];
   const payload = JSON.parse(fs.readFileSync(resolved, 'utf8'));
   return Array.isArray(payload?.repos) ? payload.repos : [];

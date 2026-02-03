@@ -1,3 +1,8 @@
+DEPRECATED
+- Replacement: GIGAROADMAP_2.md and FUTUREROADMAP.md
+- Reason: Historical phase log; superseded by current roadmap and specs.
+- Date: 2026-02-03
+- Commit: (this move)
 # Phase 8 - Tooling Provider Framework & Type Inference Parity (Segment‑Aware)
 
 ## Status legend
@@ -738,7 +743,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### 8.1 Provider contract + registry
 - Files to change/create:
-  - src/index/tooling/registry.js (new; per docs/phases/phase-8/tooling-provider-registry.md)
+  - src/index/tooling/registry.js (new; per docs/specs/tooling-provider-registry.md)
   - src/index/type-inference-crossfile/tooling.js (replace hardcoded provider fan-out)
   - src/index/type-inference-crossfile/pipeline.js (runToolingPass call at ~99-101)
   - src/index/build/runtime/runtime.js (toolingConfig + toolingEnabled at ~155-176)
@@ -748,11 +753,11 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/build/runtime/runtime.js:155-176, 611-612
 - Gaps/conflicts:
   - Current providers key by `${file}::${name}` (see src/index/tooling/typescript-provider.js:308); spec requires chunkUid-first joins.
-  - docs/phases/phase-8/identity-and-symbol-contracts.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
+  - docs/specs/identity-and-symbol-contracts.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
 
 ### 8.2 Segment/VFS-aware tooling orchestration
 - Files to change/create:
-  - src/index/tooling/vfs.js (new typedefs + helpers per docs/phases/phase-8/tooling-vfs-and-segment-routing.md)
+  - src/index/tooling/vfs.js (new typedefs + helpers per docs/specs/tooling-vfs-and-segment-routing.md)
   - src/index/tooling/vfs-builder.js (new; build ToolingVirtualDocument[] + ToolingTarget[])
   - src/index/segments.js (segmentUid + ranges available at ~90-150)
   - src/index/segments/config.js (resolveSegmentExt at ~56-75 for TSX/JSX)
@@ -774,7 +779,7 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/tooling/typescript-provider.js:253-325
 - Gaps/conflicts:
   - typescript-provider currently keys results by `${chunk.file}::${chunk.name}` (line ~308); must switch to chunkUid.
-  - docs/phases/phase-8/typescript-provider-js-parity.md expects JS/JSX support; current routing uses file ext filtering.
+  - docs/specs/typescript-provider-js-parity.md expects JS/JSX support; current routing uses file ext filtering.
 
 ### 8.4 LSP provider hardening + VFS integration
 - Files to change/create:
@@ -795,15 +800,15 @@ Provide an operator-facing workflow to explain tooling state:
 - Call sites/line refs:
   - src/index/type-inference-crossfile/tooling.js:221-285 (toolingConfig, logging, diagnostics)
 - Gaps/conflicts:
-  - docs/phases/phase-8/tooling-doctor-and-reporting.md expects structured health output; current pipeline only logs to console.
+  - docs/specs/tooling-doctor-and-reporting.md expects structured health output; current pipeline only logs to console.
 
 ### Associated specs reviewed (Phase 8)
-- docs/phases/phase-8/tooling-provider-registry.md
-- docs/phases/phase-8/tooling-vfs-and-segment-routing.md
-- docs/phases/phase-8/typescript-provider-js-parity.md
-- docs/phases/phase-8/lsp-provider-hardening.md
-- docs/phases/phase-8/tooling-doctor-and-reporting.md
-- docs/phases/phase-8/identity-and-symbol-contracts.md
+- docs/specs/tooling-provider-registry.md
+- docs/specs/tooling-vfs-and-segment-routing.md
+- docs/specs/typescript-provider-js-parity.md
+- docs/specs/lsp-provider-hardening.md
+- docs/specs/tooling-doctor-and-reporting.md
+- docs/specs/identity-and-symbol-contracts.md
 - docs/specs/vfs-manifest-artifact.md
 
 ## Phase 8 addendum: dependencies, ordering, artifacts, tests, edge cases
@@ -993,3 +998,10 @@ Provide an operator-facing workflow to explain tooling state:
 - Consider adding validation for `tooling.lsp.servers[]` shape (optional, schema allows it but config normalize is shallow).
 - Reconcile `chunkUid` collision post-docId guidance vs identity-contract spec (8.2.5).
 - Extend/confirm `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` coverage after tooling join changes.
+
+
+
+
+
+
+

@@ -2,7 +2,6 @@ retrieval/ann/hnsw-target-selection
 indexing/chunking/comment-boundary
 retrieval/output/explain-color-fallback
 indexing/identity/join-precedence
-indexing/policy/script-inventory-docs
 retrieval/query/query-intent
 lang/clike/clike-doc-comments
 indexing/identity/identity-symbolkey-scopedid
@@ -270,7 +269,6 @@ shared/abort/abort-propagates-to-subprocess
 tooling/dict-utils/paths-repo-root
 retrieval/backend/sqlite-fts-eligibility
 indexing/artifacts/chunk-meta-jsonl-cleanup
-tooling/script-inventory-sync
 indexing/type-inference/providers/type-inference-clangd-provider-no-clangd
 tooling/dict-utils/paths-builds-root
 cli/search/search-symbol-boost

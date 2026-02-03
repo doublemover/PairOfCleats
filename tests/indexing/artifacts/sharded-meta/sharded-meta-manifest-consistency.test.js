@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
+import { toPosix } from '../../../../src/shared/files.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'sharded-meta-manifest');
@@ -31,7 +32,7 @@ const enqueueWrite = (label, job) => writes.push({ label, job });
 const enqueueJsonArray = () => {
   throw new Error('Unexpected enqueueJsonArray for sharded chunk_meta');
 };
-const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
+const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
 const addPieceFile = (entry, filePath) => {
   pieceEntries.push({ ...entry, path: formatArtifactLabel(filePath) });
 };

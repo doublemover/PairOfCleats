@@ -81,4 +81,6 @@ Context expansion remains post-ranking and may append additional context hits, b
 
 See:
 - `docs/contracts/retrieval-ranking.md` (Phase 11 section)
-- `docs/phases/phase-11/spec.md`
+- `docs/specs/graph-product-surfaces.md`
+
+

@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { getIndexDir, resolveSqlitePaths } from '../../../tools/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { fromPosix } from '../../../src/shared/files.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'chunk-id-backend-parity');
@@ -93,7 +94,7 @@ async function loadChunkMeta(indexDir) {
     for (const relPath of parts) {
       const pathValue = typeof relPath === 'string' ? relPath : relPath?.path;
       if (!pathValue) continue;
-      const absPath = path.join(indexDir, pathValue.split('/').join(path.sep));
+      const absPath = path.join(indexDir, fromPosix(pathValue));
       if (!fs.existsSync(absPath)) continue;
       const raw = await fsPromises.readFile(absPath, 'utf8');
       raw.split(/\r?\n/)

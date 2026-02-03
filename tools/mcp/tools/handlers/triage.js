@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isAbsolutePath } from '../../../../src/shared/files.js';
 import { loadUserConfig } from '../../../dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { runNodeAsync, runNodeSync } from '../../runner.js';
@@ -18,7 +19,7 @@ export async function triageIngest(args = {}, context = {}) {
   if (!source || !inputPath) {
     throw new Error('source and inputPath are required.');
   }
-  const resolvedInput = path.isAbsolute(inputPath) ? inputPath : path.join(repoPath, inputPath);
+  const resolvedInput = isAbsolutePath(inputPath) ? inputPath : path.join(repoPath, inputPath);
   const metaFilters = normalizeMetaFilters(args.meta);
   const ingestArgs = [path.join(toolRoot, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
   ingestArgs.push('--repo', repoPath);

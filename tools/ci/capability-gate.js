@@ -16,7 +16,7 @@ const DEFAULT_JSON_PATH = path.join(ROOT, '.diagnostics', 'capabilities.json');
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
     .scriptName('pairofcleats capability-gate')
-    .option('mode', { type: 'string', default: 'pr', choices: ['pr', 'nightly'] })
+    .option('mode', { type: 'string', default: 'ci', choices: ['ci', 'nightly'] })
     .option('require', { type: 'string', array: true, default: [] })
     .option('json', { type: 'string', default: '' })
     .help()
@@ -125,7 +125,7 @@ const buildReport = async (mode) => {
     hnsw: probeHnsw(),
     lancedb: await probeLanceDb()
   };
-  if (mode !== 'pr') {
+  if (mode !== 'ci') {
     probes.tantivy = probeTantivy();
   }
 

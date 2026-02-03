@@ -6,9 +6,12 @@ const argv = { threads: 4 };
 const rawArgv = ['--threads', '4'];
 const envConfig = {};
 const limits = resolveThreadLimits({ argv, rawArgv, envConfig, configConcurrency: null, importConcurrencyConfig: null });
+const expectedFileConcurrency = Math.min(limits.cpuCount, 4);
 
-if (limits.fileConcurrency !== 4) {
-  console.error(`thread limits test failed: fileConcurrency ${limits.fileConcurrency} !== 4`);
+if (limits.fileConcurrency !== expectedFileConcurrency) {
+  console.error(
+    `thread limits test failed: fileConcurrency ${limits.fileConcurrency} !== ${expectedFileConcurrency}`
+  );
   process.exit(1);
 }
 if (limits.cpuConcurrency !== limits.fileConcurrency) {

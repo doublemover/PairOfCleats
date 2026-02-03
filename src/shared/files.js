@@ -15,5 +15,26 @@ export function fileExt(filePath) {
  * @returns {string}
  */
 export function toPosix(filePath) {
-  return filePath.split(path.sep).join('/');
+  if (filePath == null) return '';
+  return String(filePath).replace(/\\/g, '/');
+}
+
+/**
+ * Convert a path to platform separators (accepts POSIX or Windows input).
+ * @param {string} filePath
+ * @returns {string}
+ */
+export function fromPosix(filePath) {
+  if (filePath == null) return '';
+  return toPosix(filePath).split('/').join(path.sep);
+}
+
+/**
+ * Detect absolute paths for both POSIX and Windows-style inputs.
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isAbsolutePath(value) {
+  if (typeof value !== 'string') return false;
+  return path.isAbsolute(value) || path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
 }

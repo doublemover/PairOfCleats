@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
+import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
@@ -197,7 +198,7 @@ export async function writeIndexArtifacts(input) {
   let lastWriteLabel = '';
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
-  const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
+  const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
   const addPieceFile = (entry, filePath) => {
     pieceEntries.push({ ...entry, path: formatArtifactLabel(filePath) });

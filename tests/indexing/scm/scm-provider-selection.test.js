@@ -6,11 +6,17 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveScmProvider } from '../../../src/index/scm/registry.js';
 
-const fixturesRoot = path.resolve('tests/fixtures/scm');
-const gitRoot = path.join(fixturesRoot, 'git');
-const jjRoot = path.join(fixturesRoot, 'jj');
-const bothRoot = path.join(fixturesRoot, 'both');
-const noneRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-scm-none-'));
+const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-scm-fixtures-'));
+const gitRoot = path.join(tempRoot, 'git');
+const jjRoot = path.join(tempRoot, 'jj');
+const bothRoot = path.join(tempRoot, 'both');
+const noneRoot = path.join(tempRoot, 'none');
+
+await fsPromises.mkdir(path.join(gitRoot, '.git'), { recursive: true });
+await fsPromises.mkdir(path.join(jjRoot, '.jj'), { recursive: true });
+await fsPromises.mkdir(path.join(bothRoot, '.git'), { recursive: true });
+await fsPromises.mkdir(path.join(bothRoot, '.jj'), { recursive: true });
+await fsPromises.mkdir(noneRoot, { recursive: true });
 
 const canRun = (cmd) => {
   try {
@@ -48,4 +54,4 @@ assert.throws(
 );
 
 console.log('scm provider selection ok');
-await fsPromises.rm(noneRoot, { recursive: true, force: true });
+await fsPromises.rm(tempRoot, { recursive: true, force: true });

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runnerPath = path.join(ROOT, 'tools', 'ci', 'run-suite.js');
 
-const result = spawnSync(process.execPath, [runnerPath, '--mode', 'pr', '--dry-run'], {
+const result = spawnSync(process.execPath, [runnerPath, '--mode', 'ci', '--dry-run'], {
   encoding: 'utf8'
 });
 
@@ -22,8 +22,8 @@ const required = [
   /npm(?:\.cmd)? run lint/,
   /npm(?:\.cmd)? run config:budget/,
   /npm(?:\.cmd)? run env:check/,
-  /tests[\\/]run\.js --lane ci/,
-  /tools[\\/]ci[\\/]capability-gate\.js --mode pr/
+  /tests[\\/]run\.js --lane ci-lite/,
+  /tools[\\/]ci[\\/]capability-gate\.js --mode ci/
 ];
 
 const missing = required.filter((regex) => !regex.test(output));

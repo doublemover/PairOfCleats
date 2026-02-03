@@ -7,6 +7,7 @@ import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSq
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
 import { syncProcessEnv } from './test-env.js';
+import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -23,14 +24,41 @@ const resolveCacheName = (baseName) => {
   return `${baseName}-${suffixRaw}`;
 };
 
+const DEFAULT_TEST_CONFIG = {
+  indexing: {
+    embeddings: {
+      enabled: false,
+      mode: 'off',
+      lancedb: { enabled: false },
+      hnsw: { enabled: false }
+    }
+  }
+};
+
+const mergeTestConfig = (rawOverride) => {
+  if (typeof rawOverride !== 'string' || !rawOverride.trim()) {
+    return DEFAULT_TEST_CONFIG;
+  }
+  try {
+    const parsed = JSON.parse(rawOverride);
+    if (!isPlainObject(parsed)) return DEFAULT_TEST_CONFIG;
+    return mergeConfig(DEFAULT_TEST_CONFIG, parsed);
+  } catch {
+    return DEFAULT_TEST_CONFIG;
+  }
+};
+
 const createFixtureEnv = (cacheRoot, overrides = {}) => {
+  const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
+  const mergedTestConfig = mergeTestConfig(testConfigOverride);
   const env = {
     ...process.env,
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off',
-    ...overrides
+    PAIROFCLEATS_WORKER_POOL: 'auto',
+    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
+    ...restOverrides
   };
   const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
   syncProcessEnv(env, syncKeys);

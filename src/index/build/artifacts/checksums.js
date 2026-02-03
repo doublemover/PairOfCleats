@@ -4,6 +4,7 @@ import { log } from '../../../shared/progress.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { checksumFile } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { fromPosix } from '../../../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 
 export const writePiecesManifest = async ({
@@ -23,7 +24,7 @@ export const writePiecesManifest = async ({
     sortedEntries,
     Math.min(4, sortedEntries.length),
     async (entry) => {
-      const absPath = path.join(outDir, entry.path.split('/').join(path.sep));
+      const absPath = path.join(outDir, fromPosix(entry.path));
       let bytes = null;
       let checksum = null;
       let checksumAlgo = null;

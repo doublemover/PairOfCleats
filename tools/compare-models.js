@@ -7,6 +7,7 @@ import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../src/shared/onnx-embeddings.js';
+import { isAbsolutePath } from '../src/shared/files.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
@@ -185,7 +186,7 @@ function indexExists(modelCacheRoot, mode) {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
       const resolveRoot = (value) => {
         if (!value) return null;
-        const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+        const resolved = isAbsolutePath(value) ? value : path.join(repoCacheRoot, value);
         const normalized = path.resolve(resolved);
         const rootResolved = path.resolve(repoCacheRoot);
         if (!normalized.startsWith(rootResolved + path.sep) && normalized !== rootResolved) return null;

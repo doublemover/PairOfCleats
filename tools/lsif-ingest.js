@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createCli } from '../src/shared/cli.js';
+import { isAbsolutePath } from '../src/shared/files.js';
 import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -37,7 +38,7 @@ const normalizePath = (value) => {
   if (posixRaw.startsWith('/') && /^[A-Za-z]:\//.test(posixRaw.slice(1))) {
     raw = posixRaw.slice(1);
   }
-  const resolved = path.isAbsolute(raw) ? raw : path.resolve(repoRoot, raw);
+  const resolved = isAbsolutePath(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
   return toPosix(rel || raw);
 };
