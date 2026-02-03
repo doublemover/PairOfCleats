@@ -7241,5 +7241,1150 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 - If a doc is a contract/spec referenced by validation or build code, treat it as authoritative and fix code unless the contract is obsolete.
 - If a guide/bench doc is inconsistent with current CLI/tools, fix the doc unless you intend to support the documented behavior.
 - If both doc and code are ambiguous, record a decision first and then update both.
+
+---
+
+# Findings 1-4 
+
+---
+
+## Confirmed correctness bugs
+
+### 1) Stateful global RegExp breaks filter parsing across multiple calls
+- **Severity:** High
+- **File:** `src/retrieval/filters.js`
+- **Where:** `FILTER_TOKEN_RE` (~L63) + `splitFilterTokens()` loop (~L74–82)
+- **Problem:** `FILTER_TOKEN_RE` is declared with the global (`g`) flag and reused across calls. Using `.exec()` advances `lastIndex`, so subsequent calls can start scanning mid-string or immediately return `null`, producing empty/partial token lists.
+- **Impact:** In long-running processes (API server / MCP), filters can silently stop working after a previous query.
+- **Fix:** Reset `FILTER_TOKEN_RE.lastIndex = 0` at the start of `splitFilterTokens()`, or instantiate a fresh regex inside the function.
+
+---
+
+### 2) CLI wrapper mis-parses `--repo` (ignores `--repo=...` and can misread query text)
+- **Severity:** Medium
+- **File:** `bin/pairofcleats.js`
+- **Where:** `extractRepoArg()` (~L661–665)
+- **Problems:**
+  1. Only supports `--repo <path>`, not `--repo=<path>`.
+  2. Does not respect the `--` end-of-options sentinel. If a user searches for the literal token `--repo` after `--`, the wrapper can incorrectly treat it as a flag and grab the next token as the repo path.
+- **Impact:** Wrong repo root selection → wrong config/runtime envelope and confusing failures.
+- **Fix:** Only scan args before `--`, and support both `--repo value` and `--repo=value`.
+
+---
+
+### 3) API server breaks for IPv6 hosts (e.g. `--host ::1`)
+- **Severity:** Medium
+- **Files:**
+  - `tools/api/router.js`
+  - `tools/api-server.js`
+- **Where:**
+  - `tools/api/router.js`: `new URL(req.url..., \`http://${host}\`)` (~L63)
+  - `tools/api-server.js`: `baseUrl = \`http://${host}:${actualPort}\`` (~L94)
+- **Problem:** IPv6 literals must be bracketed in URLs (`http://[::1]:7345`). As written, `http://::1` is invalid.
+- **Impact:** API becomes unusable under IPv6 host settings (invalid URL / 500s).
+- **Fix:** Bracket IPv6 in URL contexts or avoid interpolating host into the parsing base (use a fixed base like `http://localhost` for request URL parsing).
+
+---
+
+## Major performance / scalability issues
+
+### 4) Per-chunk duplication of file-level lint/complexity bloats memory & artifacts
+- **Severity:** Medium–High
+- **Files:**
+  - `src/index/build/file-processor/process-chunks/index.js` (~L381–420)
+  - `src/index/build/file-processor/assemble.js` (~L96–130)
+- **Problem:** `processChunks()` computes `fileComplexity` / `fileLint` once per file, but attaches them to **every chunk**. `buildChunkPayload()` stores them verbatim (`complexity`, `lint`).
+- **Impact:** Larger in-memory `chunks[]`, larger serialized artifacts / SQLite rows, slower IO and load/search on large repos.
+- **Fix options:**
+  1. Store lint/complexity once per file (e.g., `file_meta`) and reference by file id.
+  2. If chunk-level details are needed, filter lint/complexity down to the chunk’s line range.
+  3. Gate behind a config flag (default off).
+
+---
+
+### 5) Index cache validation always recomputes a full signature (expensive with sharded artifacts)
+- **Severity:** High (latency)
+- **File:** `src/retrieval/index-cache.js`
+- **Where:**
+  - `buildIndexSignature()` (~L128–142)
+  - `loadIndexWithCache()` (~L200–213), signature computed at ~L205 even on cache hits
+- **Problem:** Every `loadIndexWithCache()` call computes a signature requiring `readdirSync()` + `statSync()` on *many* shard files.
+- **Impact:** Even warm cache searches can do lots of synchronous filesystem work, blocking the Node event loop and dominating request latency on large builds.
+- **Fix options:**
+  1. Use a single build marker / build id file for validation (e.g., `index_state.json` build id).
+  2. Cache signatures with a TTL.
+  3. Avoid per-shard stats if the `.meta.json` reliably changes whenever shards change.
+
+---
+
+### 6) File discovery materializes and sorts full candidate lists; then per-file `lstat` (heavy on huge repos)
+- **Severity:** Medium
+- **Files:** `src/index/build/file-scan.js`, `src/index/build/discover.js`
+- **Problem:** Candidate paths are collected into memory, sorted, then `fs.lstat()` is called per candidate.
+- **Impact:** Big repos → high peak memory, lots of metadata IO, long wall time.
+- **Potential improvements:** Use fdir’s stats mode if possible, apply max-files earlier, and stream candidates rather than fully materializing.
+
+---
+
+### 7) Watch-mode fallback can run unbounded async work (`Promise.all`) if IO queue missing
+- **Severity:** Medium
+- **File:** `src/index/build/watch.js` (~L170–190)
+- **Problem:** If `runtimeRef.queues?.io` is absent, it does `Promise.all(absPaths.map(handleUpdate))`.
+- **Impact:** Large change bursts can spawn thousands of concurrent operations (CPU + IO contention, process instability).
+- **Fix:** Ensure an IO queue always exists in watch mode, or cap concurrency in the fallback.
+
+---
+
+## Reliability / maintainability issues
+
+### 8) Queue lock can become permanently blocking after crashes (no stale-lock recovery)
+- **Severity:** Medium
+- **File:** `tools/service/queue.js`
+- **Where:** `withLock()` (~L9–41)
+- **Problem:** Lock is a simple file created with `open(...,'wx')`. If a process dies while holding it, the lock file remains; others wait 5s then throw `Queue lock timeout`. There is no stale lock cleanup.
+- **Impact:** Queue can deadlock until manual deletion.
+- **Fix:** Add PID/timestamp + stale-lock detection (a similar pattern exists in `src/index/build/lock.js`).
+
+---
+
+### 9) Redundant AbortController + duplicated listeners in API routes
+- **Severity:** Low
+- **File:** `tools/api/router.js`
+- **Where:**
+  - `/search/stream`: unused `abortController` (~L159–164) then separate `controller` used later
+  - `/search`: similar pattern (~L254–258 then ~L305+)
+- **Impact:** Unnecessary complexity/overhead; makes abort logic harder to reason about.
+- **Fix:** Keep one controller per request and wire its `signal` consistently.
+
+---
+
+### 10) SCM annotate timeout wrapper doesn’t cancel underlying work
+- **Severity:** Medium
+- **File:** `src/index/build/file-processor/cpu.js`
+- **Where:** `annotateWithTimeout()` (~L321–339)
+- **Problem:** Uses `Promise.race()`; when the timer wins, underlying annotate work may continue unless the provider truly enforces timeouts.
+- **Impact:** Potential background work continuing past timeouts.
+- **Fix:** Ensure underlying annotate supports cancellation / kill; don’t rely solely on `Promise.race()`.
+
+---
+
+### 11) Sync filesystem usage on request-time paths can block the event loop
+- **Severity:** Medium
+- **Examples:** `src/retrieval/index-cache.js` signature logic; some API server path checks that use sync fs.
+- **Impact:** Head-of-line blocking under concurrent requests.
+- **Fix:** Use async FS on hot paths or move heavy work to workers / background processes.
+
+---
+
+### 12) Streaming JSON-RPC parser does `Buffer.concat()` on every chunk (potential O(n²) copying)
+- **Severity:** Medium
+- **File:** `src/shared/jsonrpc.js`
+- **Where:** `createFramedJsonRpcParser().push()` (~L161–172), esp. ~L170
+- **Problem:** `Buffer.concat([buffer, incoming])` repeatedly copies as payload grows.
+- **Impact:** Lower throughput for many small incoming chunks (stdio pipes/LSP/MCP).
+- **Fix:** Use chunk arrays + offsets (buffer list) and only concatenate when needed.
+
+---
+
+## Additional findings from extended pass
+
+### 13) Index lock can be “stolen” from a still-running build after 30 minutes
+- **Severity:** High
+- **File:** `src/index/build/lock.js` (~L141–L151)
+- **Problem:** If a lock exists and is “stale” by mtime (>30 min), the code can delete it *before* verifying whether the owning PID is still alive. A legitimate long-running build can lose its lock.
+- **Impact:** Two builds can run concurrently against the same output/cache directories → race conditions and inconsistent artifacts.
+- **Fix:** If lock is stale, also check PID liveness before deleting; or have the owner periodically refresh (touch) the lock.
+
+---
+
+### 14) Index lock `release()` can mark “released” even if deletion failed
+- **Severity:** Medium
+- **File:** `src/index/build/lock.js` (~L127–L137)
+- **Problem:** `released = true` is set even if `fs.rm(lockPath)` fails; cleanup handlers are detached.
+- **Impact:** Lock file can remain behind and block future builds until stale cleanup kicks in or manual deletion occurs.
+- **Fix:** Only set `released = true` after successful deletion; keep cleanup active/log hard on failure.
+
+---
+
+### 15) `createJsonWriteStream(maxBytes)` enforces size limit **after** committing the file atomically
+- **Severity:** High
+- **File:** `src/shared/json-stream/streams.js` (~L67–L86)
+- **Problem:** Byte counter sets `overLimit`, but the stream isn’t aborted. `replaceFile(tempPath, finalPath)` is called and then `done()` throws if overLimit.
+- **Impact:** Oversized artifact may already be promoted to its final location even though the function throws (callers may assume nothing was written).
+- **Fix:** Abort the pipeline immediately when maxBytes is exceeded; or at minimum check `overLimit` before `replaceFile()`.
+
+---
+
+### 16) Atomic replace waits for `'finish'`, not `'close'` — rename race risk on Windows
+- **Severity:** Medium
+- **File:** `src/shared/json-stream/streams.js` (`waitForFinish` ~L10–L13)
+- **Problem:** `'finish'` can fire before the fd is closed on `fs.WriteStream`. Renames can fail if the file is still open.
+- **Impact:** Intermittent failures on Windows (`EPERM`/`EBUSY`).
+- **Fix:** Await `'close'` on the write stream (or ensure fd closure) before renaming.
+
+---
+
+### 17) Temp-file cleanup gaps on abort/error paths during JSON streaming writes
+- **Severity:** Low–Medium
+- **File:** `src/shared/json-stream/streams.js`
+- **Problem:** Temp files may be left behind on errors prior to `replaceFile()`.
+- **Impact:** Disk clutter and confusing artifacts over time.
+- **Fix:** Ensure tempPath cleanup in `catch/finally` unless promoted to final.
+
+---
+
+### 18) Zstd stream buffering uses repeated `Buffer.concat()` in hot path
+- **Severity:** Medium (performance)
+- **File:** `src/shared/json-stream/compress.js` (~L88–L124, esp. ~L99)
+- **Problem:** Repeated concatenations can be costly with many small input chunks.
+- **Impact:** Unnecessary CPU/memory churn while compressing.
+- **Fix:** Use a buffer list strategy and concatenate only when flushing.
+
+---
+
+### 19) Zip extraction can still be vulnerable to zip-bomb style memory spikes
+- **Severity:** Medium–High (resource exhaustion)
+- **File:** `tools/download-extensions.js` (~L266–L296)
+- **Problem:** `entry.getData()` decompresses entries fully into memory. Declared-size limit checks don’t prevent decompression allocation spikes.
+- **Impact:** Potential OOM / severe slowdown if extension zips are untrusted or compromised.
+- **Fix:** Use a streaming zip reader and enforce decompressed-byte limits while streaming (plus compression ratio heuristics).
+
+---
+
+### 20) Git SCM annotate ignores `timeoutMs`; outer timeout wrapper can leave `git blame` running
+- **Severity:** Medium–High
+- **File:** `src/index/scm/providers/git.js` (~L112–L119)
+- **Related:** `src/index/build/file-processor/cpu.js` (`annotateWithTimeout`)
+- **Problem:** `timeoutMs` is accepted but not used by the git provider. `Promise.race` timeout doesn’t cancel the underlying blame work.
+- **Impact:** Many concurrent long-running `git blame` processes can keep running after timeouts, causing CPU/disk contention and long tail latency.
+- **Fix:** Use a subprocess runner with timeout + abort support; ensure process-tree kill.
+
+---
+
+### 21) Path-prefix checks using `.startsWith()` without boundary checks can misclassify paths
+- **Severity:** Low–Medium (hardening)
+- **Files:**
+  - `src/index/git.js` (`filePathResolved.startsWith(baseDir)`)
+  - `src/index/build/import-resolution.js` (`dir.startsWith(rootAbs)`)
+- **Problem:** String prefix checks can treat `/repo2` as within `/repo`.
+- **Impact:** Usually limited by call-site constraints, but can lead to incorrect relpaths/caches if a weird path enters.
+- **Fix:** Use `path.relative()` and ensure it doesn’t start with `..` and isn’t absolute.
+
+---
+
+### 22) Incremental caching trusts `(size, mtimeMs)` too much — can miss edits on coarse timestamp FS
+- **Severity:** Medium
+- **File:** `src/index/build/incremental.js` (~L200–L320 range)
+- **Problem:** Unchanged detection often relies on “same size and same `mtimeMs`”.
+- **Impact:** On coarse timestamp filesystems or tooling that preserves timestamps, edits can be missed → cached results reused → stale index.
+- **Fix:** Add content hash checks in more cases; or sample hashes when `(size,mtime)` matches; or detect coarse FS and adjust.
+
+---
+
+### 23) Bundle reads have no max size; corrupted/huge bundle files can OOM
+- **Severity:** Medium
+- **File:** `src/shared/bundle-io.js` (`readBundleFile` ~L80–L124)
+- **Used by:** `src/index/build/incremental.js`, `src/storage/sqlite/build/*`
+- **Problem:** Reads whole bundle into memory (`readFile`) then parses (JSON.parse/msgpack) without size checks.
+- **Impact:** A huge or corrupted bundle can crash the process or cause very high memory usage.
+- **Fix:** `stat()` first; enforce max bundle size; consider streaming parse for JSON if large bundles are expected.
+
+---
+
+### 24) Exclude-filtering builds per-chunk Sets (avoidable allocations/GC)
+- **Severity:** Low
+- **File:** `src/retrieval/output/filters.js` (~L140–L190)
+- **Problem:** For each chunk, builds `Set`s of normalized tokens/ngrams when exclude filters are present.
+- **Impact:** Higher GC pressure for large result sets.
+- **Fix:** Prefer linear scan or cache normalized representations per chunk when reused.
+
+---
+
+
+## Critical / high-severity issues
+
+### 1) Zstd decompression fallback can OOM the process (output limit is not enforced during execution)
+
+- **Files / locations**
+  - `src/shared/artifact-io/json.js`
+    - `readJsonFile()` calls `decompressBuffer(...)` during JSON reads (L16–74; call at L35–39).
+    - `readJsonLinesArray()` falls back to `decompressBuffer(...)` for `.jsonl.zst` if streaming zstd isn’t available (L185–204; fallback at L199–203).
+    - `readJsonLinesArraySync()` also uses `decompressBuffer(...)` for compressed candidates (L279–299).
+  - `src/shared/artifact-io/compression.js`
+    - `zstdDecompressSync()` buffers stdin and decompresses in a child process (L17–58).
+  - `src/shared/subprocess.js`
+    - `spawnSubprocessSync()` uses `spawnSync()` and only trims output *after* completion (L320–395).
+
+- **Root cause**
+  - `.zst` decoding ultimately uses `zstdDecompressSync()`, which runs a child Node process and returns decompressed data via stdout.
+  - In the parent, `spawnSubprocessSync()` relies on `child_process.spawnSync()`, which buffers stdout in memory without a true max-buffer cap.
+  - `maxOutputBytes` is applied after-the-fact via `trimOutput()`, which cannot prevent OOM if stdout was huge.
+
+- **Impact**
+  - A malicious or accidental “decompression bomb” `.zst` artifact can crash the process (or the child) with OOM.
+  - The current safety checks mostly examine **compressed size**, which does not bound decompressed size.
+
+- **Why this is tricky**
+  - The code *looks* like it enforces limits (`MAX_JSON_BYTES`, `maxOutputBytes`), but the limit is not effective for `spawnSync()`-captured output.
+
+- **Recommended fixes**
+  1) Prefer in-process streaming zstd (`createZstdDecompress`) with an inflated-bytes counter that aborts at `maxBytes` (similar to the gzip streaming path).
+  2) If subprocess fallback is required, avoid `spawnSync()`; use the async `spawnSubprocess()` collector so memory is bounded while reading.
+  3) In the child, avoid buffering full stdin/output; stream and enforce an output byte cap in the child too.
+
+---
+
+### 2) `expectedExitCodes` normalization is incorrect (string exit codes never match numeric exit codes)
+
+- **File:** `src/shared/subprocess.js`
+- **Location:** `resolveExpectedExitCodes()` (L45–56), used by `spawnSubprocess()` (L174+) and `spawnSubprocessSync()` (L331+).
+
+- **Problem**
+  - The function filters by `Number.isFinite(Number(entry))` but returns the original entries (potentially strings).
+  - Later comparisons use `expectedExitCodes.includes(exitCode)` where `exitCode` is numeric, so `'0'` will not match `0`.
+
+- **Impact**
+  - Callers that pass exit codes as strings (common if values flow from CLI/env/JSON) will see false failures.
+
+- **Fix**
+  - Normalize to numbers:
+    - `return value.map((v) => Math.trunc(Number(v))).filter(Number.isFinite)`
+
+---
+
+### 3) `spawnSubprocessSync()` drops the real cause for spawn failures (ENOENT, EACCES, etc.)
+
+- **File:** `src/shared/subprocess.js`
+- **Location:** `spawnSubprocessSync()` (L320–395).
+
+- **Problem**
+  - `spawnSync()` sets `result.error` when the process cannot be spawned.
+  - The code does not check `result.error`, and instead throws a generic “exited with code unknown” `SubprocessError`.
+
+- **Impact**
+  - “Missing binary” failures become unnecessarily hard to diagnose (especially in CI).
+
+- **Fix**
+  - If `result.error` exists, throw a `SubprocessError` that wraps it (or rethrow with context), rather than reporting an “unknown exit code”.
+
+---
+
+## Medium-severity correctness / cross-platform reliability issues
+
+### 4) Atomic JSON writes may rename the temp file before the file descriptor is closed (Windows/AV/FS edge cases)
+
+- **File:** `src/shared/json-stream/streams.js`
+- **Locations:**
+  - `waitForFinish()` listens to `finish` (L15–18).
+  - `createJsonWriteStream().done` waits for `finish` then calls `replaceFile()` (L62–69, L85–92, L106–113).
+
+- **Problem**
+  - `finish` means all data has been flushed to the writable stream, but **does not guarantee** the fd is closed.
+  - Renaming an open file is unreliable on Windows and can fail intermittently with `EPERM`/`EBUSY`.
+
+- **Fix**
+  - For the final `fs.createWriteStream(...)`, await `close` (or use `pipeline()` and await its callback), then rename.
+
+---
+
+### 5) `replaceSqliteDatabase()` deletes WAL/SHM sidecars unconditionally (risky if WAL still contains needed pages)
+
+- **File:** `src/storage/sqlite/utils.js`
+- **Location:** `replaceSqliteDatabase()` (L146–206); sidecar cleanup at L166–168.
+
+- **Risk**
+  - If WAL contains committed-but-not-checkpointed data (or another process has an open connection), deleting WAL/SHM can corrupt or lose data.
+
+- **Mitigation / fix ideas**
+  - Ensure all writers checkpoint and close before replacement.
+  - Consider moving sidecar cleanup until after successful replacement (or skipping it unless explicitly requested).
+
+---
+
+## Performance / memory issues that become big in real workloads
+
+### 6) `createFflateGzipStream()` needlessly copies every incoming Buffer chunk
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `createFflateGzipStream()` transform (L28–55); `Buffer.from(chunk)` copy at L34–35.
+
+- **Impact**
+  - For large JSON streams, this doubles memory traffic and increases GC pressure.
+
+- **Fix**
+  - Use `Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding)`.
+
+---
+
+### 7) `createZstdStream()` repeatedly `Buffer.concat()`s pending data (can approach quadratic copying with many small writes)
+
+- **File:** `src/shared/json-stream/compress.js`
+- **Location:** `pending = Buffer.concat([pending, buffer])` (L99).
+
+- **Impact**
+  - Many small writes → repeated copies of the pending buffer.
+
+- **Fix**
+  - Accumulate chunks in an array and concat only when you have ≥ `chunkSize` (or use a small ring buffer).
+
+---
+
+### 8) JSONL sync reader cache never hits when only the compressed form exists
+
+- **File:** `src/shared/artifact-io/json.js`
+- **Location:** `readJsonLinesArraySync()` (L262–349)
+  - Cache lookup uses `readCache(filePath)` (L266–270).
+  - Cache write uses `writeCache(targetPath, parsed)` (L296–297).
+
+- **Problem**
+  - If `filePath` doesn’t exist and only `filePath.gz` / `filePath.zst` exists, `readCache(filePath)` always misses because it stats `filePath`.
+  - The parsed result is cached under the candidate path, but never consulted on subsequent calls.
+
+- **Fix**
+  - Cache using the resolved candidate path (or cache under both keys).
+
+---
+
+### 9) SQLite compaction disk-space estimate is likely too low for `VACUUM` in worst cases
+
+- **File:** `tools/compact-sqlite-index.js`
+- **Locations:**
+  - required bytes computation (L87–93)
+  - `outDb.exec('VACUUM')` (L444)
+
+- **Risk**
+  - `VACUUM` often needs temporary space roughly comparable to the DB size (sometimes more), depending on SQLite and temp-store configuration.
+
+- **Fix**
+  - Increase the estimate (often ~2× DB size worst-case), or make it configurable and document the requirement.
+
+---
+
+
+## Key findings (technical / tricky)
+
+### 1) Validator recompiles schema on every call (can be slow + can leak memory via Ajv schema cache)
+**Severity:** Medium → High (depends on call frequency)  
+**Where:** `validateConfig()` lines **72–79**
+
+- `validateConfig()` does:
+  - `structuredClone(schema)` (line 73)
+  - `ajv.compile(normalizedSchema)` (line 75) **every call**
+- If `validateConfig()` is called repeatedly (e.g., in a long-running server process, or per-request), this is unnecessary work and can become a latency hotspot.
+- Depending on Ajv internals and `$id` usage, repeatedly compiling “equivalent” schemas can also grow internal caches over time (more likely if schemas differ or are dynamically generated).
+
+**Recommendation**
+- Cache compiled validators keyed by schema identity or stable hash:
+  - simplest: `WeakMap<object, ValidateFunction>`
+  - stronger: compute a stable signature for schema content (only if schema objects are not referentially stable).
+- For the canonical config schema (`docs/config/schema.json`), compile once at startup and reuse.
+
+---
+
+### 2) `ensureRequiredProperties()` silently “fixes” unsatisfiable schemas by injecting `{}` property schemas (can hide schema bugs and weaken validation)
+**Severity:** Medium  
+**Where:** `ensureRequiredProperties()` lines **17–31**
+
+When `additionalProperties === false` and `required` contains keys missing from `properties`, the schema is unsatisfiable in vanilla JSON Schema. The code “repairs” that by creating `schema.properties[key] = {}`.
+
+That makes the schema satisfiable, but it also means:
+- the missing property gets an **“always true”** schema (`{}`) → it accepts any value type/shape
+- typos or omissions in the schema (e.g., forgetting to specify `port: {type:"number"}`) are no longer caught early; they become permissive instead of failing fast.
+
+**Recommendation**
+- Consider tightening the behavior:
+  1. Add a **warning** path (dev log) when you have to inject `{}` due to an underspecified schema.
+  2. Prefer injecting a **conservative schema** if possible, or require schema authors to define the property explicitly (and remove this workaround once schemas are cleaned up).
+  3. At minimum, guard with an opt-in flag for “lenient schema repair”.
+
+---
+
+### 3) Prototype pollution / object-shape corruption risk via required keys like `__proto__`
+**Severity:** Low in current usage, but **High** if schema becomes user-controlled  
+**Where:** `ensureRequiredProperties()` lines **27–30**
+
+If `schema.required` contains strings such as `__proto__`, `constructor`, or `prototype`, this line:
+
+```js
+schema.properties[key] = {};
+```
+
+can mutate the prototype of `schema.properties` (because `__proto__` is a special setter on plain objects), leading to hard-to-debug behavior and possible security issues.
+
+Even if your current schemas are trusted, this is the kind of “lurking” issue that bites later when schemas become extensible (plugins/extensions/custom schemas).
+
+**Recommendation**
+- When copying required keys into `properties`, explicitly block or sanitize:
+  - `__proto__`, `prototype`, `constructor`
+- Safer approach: build `properties` as an object with a null prototype:
+  - `schema.properties = Object.create(null)`
+  - (and similarly for other maps if you want a consistent hardening posture)
+
+---
+
+### 4) No cycle detection in schema traversal (possible infinite recursion on cyclic schema graphs)
+**Severity:** Low (most JSON schemas are acyclic), but tricky if schemas are programmatically composed  
+**Where:** `ensureRequiredProperties()` recursive traversal (lines **11–56**)
+
+`ensureRequiredProperties()` assumes the schema is a tree. If the schema object graph contains cycles (possible in JS-built schemas), recursion can become infinite.
+
+**Recommendation**
+- Add a `WeakSet` of visited nodes:
+  - early return when already visited.
+
+---
+
+### 5) Validation strictness is intentionally lowered (`strict:false`) and formats aren’t registered
+**Severity:** Medium (validation strength / correctness)  
+**Where:** Ajv initialization lines **3–7**
+
+- `strict:false` means Ajv will not enforce many schema correctness checks and may ignore unknown keywords; schema typos can slip through.
+- No format plugin (`ajv-formats`) is registered. If schemas use `"format"` in the future, behavior may be “unknown format ignored” under non-strict modes.
+
+**Recommendation**
+- Prefer `strict: true` in dev/test (or at least CI) so schema mistakes are caught early.
+- If you ever introduce `format` usage, explicitly register formats via `ajv-formats`.
+
+---
+
+## Small cleanup / maintainability nits
+
+### 6) Redundant `schema.items` traversal
+**Severity:** Low  
+**Where:** lines **47–48**
+
+Line 47 already handles arrays (`ensureRequiredProperties()` handles arrays at the top), so line 48 is redundant.
+
+---
+
+## Suggested “hard to find” regression tests
+
+1. **Ajv compile caching**: call `validateConfig(sameSchema, config)` in a tight loop and ensure compile count doesn’t grow once caching is added.
+2. **Schema repair warning**: schema with `additionalProperties:false` + `required:["port"]` but missing `properties.port` should emit a warning (or fail, depending on desired policy).
+3. **Prototype pollution hardening**: schema with `required:["__proto__"]` should not mutate prototypes or crash; validate should behave deterministically.
+4. **Cycle detection**: construct a cyclic schema object in JS and ensure `validateConfig()` doesn’t hang.
+
+---
+
+## Proposed patch sketch (non-binding)
+
+- Add:
+
+```js
+const validatorCache = new WeakMap();
+```
+
+- In `validateConfig()`:
+
+```js
+let validate = validatorCache.get(schema);
+if (!validate) {
+  const normalizedSchema = structuredClone(schema);
+  ensureRequiredProperties(normalizedSchema);
+  validate = ajv.compile(normalizedSchema);
+  validatorCache.set(schema, validate);
+}
+```
+
+- In `ensureRequiredProperties()`:
+  - add `visited` (`WeakSet`)
+  - sanitize required keys and/or use `Object.create(null)` for maps
+
+---
+
+
+## Findings (prioritized)
+
+### I1) LSP client shutdown timer can kill a *new* LSP process (cross-generation kill)
+- **Severity:** High (correctness, intermittent)
+- **File:** `src/integrations/tooling/lsp/client.js` — `shutdownAndExit()` (~L292–303)
+- **What’s happening:** `shutdownAndExit()` schedules `setTimeout(() => { if (proc) kill(); }, 2500)`.  
+  If the client is reused and `start()` creates a new LSP process before the timeout fires, the timeout will call `kill()` on the **new** process (because it reads the current `proc` variable at firing time).
+- **Why it’s hard to find:** Only manifests when callers reuse a client after shutdown or when teardown overlaps with reconnection/backoff flows.
+- **Fix:** Capture the current process or generation when scheduling:
+  - `const current = proc; setTimeout(() => { if (proc === current) kill(); }, 2500)`
+  - or capture `childGen` and check it’s unchanged.
+
+### I2) LSP stderr handler ignores generation checks (noise + potential confusion during restarts)
+- **Severity:** Low–Medium
+- **File:** `src/integrations/tooling/lsp/client.js` — stderr handler (~L213–216)
+- **What’s happening:** Unlike stdout handlers, stderr logging has no `(proc !== child || childGen !== generation)` guard. After restarts, logs from an old process can appear “current”.
+- **Fix:** Add the same guard used elsewhere.
+
+### I3) LSP VFS write path can escape the VFS root if `virtualPath` is absolute
+- **Severity:** High (security / correctness hardening)
+- **File:** `src/integrations/tooling/providers/lsp.js` — `ensureVirtualFile()` (~L87–91)
+- **What’s happening:** `ensureVirtualFile()` writes to disk using `resolveVfsDiskPath({ baseDir, virtualPath })`.  
+  If a caller supplies a document with `virtualPath` that begins with `/` (POSIX absolute), the derived “relative” path can become absolute and `path.join(baseDir, absolute)` will ignore `baseDir` → writing outside the intended sandbox.
+- **Why it’s tricky:** In normal flows, virtual paths are generated internally and are safe; this appears only if documents are accepted from external callers.
+- **Fix (in integrations):** Validate `doc.virtualPath` before writing:
+  - reject if `path.isAbsolute(doc.virtualPath)` or it starts with `/` / `\\`
+  - optionally also reject `..` segments even if later-encoded.
+
+### I4) LSP position conversion doesn’t clamp negative values
+- **Severity:** Low–Medium (hardening)
+- **File:** `src/integrations/tooling/lsp/positions.js` — `positionToOffset()` (~L9–16)
+- **What’s happening:** `col = Number(position.character) || 0` preserves negative values (because `-1 || 0` yields `-1`).
+- **Impact:** If a server ever emits a negative `character`/`line` (buggy server / malformed diagnostics), offsets can go negative and break range matching.
+- **Fix:** Clamp: `Math.max(0, Number(position.character) || 0)` and `Math.max(0, Number(position.line) || 0)`.
+
+---
+
+### I5) MCP error formatting mislabels non-numeric `error.code` as an “exitCode”
+- **Severity:** Medium (client compatibility)
+- **File:** `src/integrations/mcp/protocol.js` — `formatToolError()` (~L102–116), especially (~L108–110)
+- **What’s happening:** If `error.code` exists but is not a known MCP error code, it is emitted as `payload.exitCode = error.code`.  
+  For many Node/system errors, `error.code` is a **string** like `"ENOENT"` or `"EACCES"`, not a numeric exit code.
+- **Impact:** Clients expecting `exitCode:number` may mis-handle failures.
+- **Fix:** Emit separate fields:
+  - `nativeCode` for string codes (`ENOENT`, etc.)
+  - `exitCode` only when it’s a finite integer.
+
+### I6) MCP remediation hint builder can do large lowercasing/joins of stdout+stderr
+- **Severity:** Medium (performance/memory)
+- **File:** `src/integrations/mcp/protocol.js` — `getRemediationHint()` (~L60–92)
+- **What’s happening:** Concatenates `message`, `stderr`, and `stdout`, then lowercases the entire result. If stdout/stderr are large, this is expensive and memory-hungry.
+- **Fix:** Truncate inputs before joining/lowercasing (e.g., first 8–32KB of each), or scan in a streaming/capped way.
+
+---
+
+### I7) `updateEnrichmentState()` is non-atomic, racy, and swallows all IO errors
+- **Severity:** Medium (reliability)
+- **File:** `src/integrations/core/enrichment-state.js` (~L6–21)
+- **What’s happening:**
+  - read/parse errors are ignored → state silently resets to `{}`.
+  - updates are read-modify-write without a lock → concurrent writers lose fields.
+  - writes are not atomic → partial/corrupted JSON possible on crash/interruption.
+  - write errors are swallowed → callers assume state updated when it may not be.
+- **Fix:** Use an atomic write (temp + rename) and a lock (or a single-writer discipline). At least log errors.
+
+### I8) Records indexing uses `startsWith()` for directory containment checks (prefix bug)
+- **Severity:** Medium (correctness hardening)
+- **File:** `src/integrations/triage/index-records.js` (~L85–88)
+- **What’s happening:** `absPath.startsWith(recordsDir)` is used to decide whether a record is under the triage directory.
+- **Why it’s tricky:** String prefixes can misclassify paths (e.g., `/repo/triage` vs `/repo/triage-old`).
+- **Fix:** Use `path.relative(recordsDir, absPath)` and validate it doesn’t start with `..` and isn’t absolute (pattern used elsewhere in the codebase).
+
+### I9) Triage `ensureRecordId()` fallback can be huge and can throw
+- **Severity:** Medium (robustness)
+- **File:** `src/integrations/triage/normalize/helpers.js` (~L98–107), especially (~L101–104)
+- **What’s happening:** If no stable key exists, it uses `JSON.stringify(raw)` as the “key” input.
+- **Impact:**
+  - Very large payloads → large allocations and slow hashing.
+  - Cyclic structures → `JSON.stringify` throws.
+- **Fix:** Use a capped stable stringify/hashing approach:
+  - stable stringify with key ordering + size cap, or
+  - hash a selected stable subset of fields, or
+  - compute a content hash of the input file/record id.
+
+### I10) Generic triage normalizer can undo routing meta and produce non-ISO timestamps
+- **Severity:** Medium (data integrity)
+- **File:** `src/integrations/triage/normalize/generic.js` (~L17–83), especially `Object.assign(record, raw)` (~L33)
+- **What’s happening:**
+  - `buildBaseRecord()` applies meta routing and default timestamps, then `Object.assign(record, raw)` allows the incoming payload to overwrite `service/env/team/owner/repo`, timestamps, `source`, etc.
+  - `createdAt` / `updatedAt` are accepted as-is (not normalized to ISO), which can fail downstream schema expectations.
+- **Fix:** Merge in the opposite direction (raw into a sanitized scaffold) or whitelist the fields that raw is allowed to override. Normalize timestamps via `toIso()`.
+
+---
+
+### I11) Tooling CLIs frequently compute `buildIndexSignature()` (can be very slow on large sharded indexes)
+- **Severity:** Medium–High (performance)
+- **Files:** `src/integrations/tooling/*` (api-contracts, architecture-check, context-pack, graph-context, impact, suggest-tests)
+- **What’s happening:** These commands call `buildIndexSignature(indexDir)` even though they also read `compatibilityKey`.  
+  In this repo, signature building is implemented as lots of synchronous directory listing + `stat` calls across shard files (see earlier findings).
+- **Impact:** “Tooling” commands can become unexpectedly slow on large repos/indexes.
+- **Fix:** Prefer the compatibility key/build id for provenance, or cache signatures, or avoid sharded-per-file stats.
+
+### I12) Some `run*Cli()` functions call `process.exit()` internally
+- **Severity:** Low–Medium (reusability/testing)
+- **Files:** `context-pack.js`, `graph-context.js`, `impact.js`, `suggest-tests.js` (and to a lesser extent the others)
+- **What’s happening:** Errors inside the exported `run*Cli()` functions terminate the process directly.
+- **Impact:** Harder to import and test these as library functions.
+- **Fix:** Return `{ok:false,...}` or throw and let the “bin” wrapper decide the exit code.
+
+### I13) `status()` size computation is purely recursive and sequential
+- **Severity:** Medium (performance on large caches)
+- **File:** `src/integrations/core/status.js` — `sizeOfPath()` (~L17–33)
+- **Impact:** Large cache roots → very slow status calls; also recursion depth could become a problem on pathological trees.
+- **Fix:** Use iterative traversal (stack/queue) and/or bounded concurrency; consider sampling or skipping known-large trees unless requested.
+
+### I14) Embeddings line parsing uses string concatenation on Buffer chunks (UTF-8 boundary edge case)
+- **Severity:** Low–Medium (edge correctness)
+- **File:** `src/integrations/core/embeddings.js` — `createLineEmitter.handleChunk()` (~L11–16)
+- **What’s happening:** `buffer += chunk` coerces Buffers to strings; if multibyte UTF-8 characters are split across chunks, you can get replacement characters or corrupted lines.
+- **Fix:** Use `StringDecoder('utf8')` from `node:string_decoder` to decode chunk boundaries safely.
+
+### I15) Compatibility computation copies the entire runtime object per mode
+- **Severity:** Low (perf/clarity)
+- **File:** `src/integrations/core/build-index/compatibility.js` (~L6–18)
+- **What’s happening:** `const runtimeSnapshot = { ...runtime, dictConfig: adaptedDictConfig }` for each mode.  
+  If runtime carries large structures, this is extra overhead and can make debugging confusing.
+- **Fix:** Pass only the minimal config subset needed by `buildTokenizationKey()`.
+
+---
+
+## Notes
+- A number of integration modules depend on shared utilities (`subprocess`, `json-stream`, `index-cache`) that have separate findings in earlier reports; where that dependency materially affects integrations behavior, I’ve called it out (e.g., signature cost, atomic write behavior).
+
+---
+
+
+---
+
+## Findings (bugs, reliability hazards, performance traps)
+
+### 1) **Non-zero exit codes are treated as “OK” whenever `stdout` is non-empty** (can silently accept corrupted / partial output)
+**Severity:** High (silent correctness failures)  
+**File:** `src/experimental/structural/runner.js`  
+**Where:** lines **22–25**, **40–43**, **67–70**
+
+Pattern:
+
+```js
+if (result.status !== 0 && !result.stdout) throw ...
+return parseX(result.stdout || '', ...)
+```
+
+**Why this is tricky**
+- Many tools write *something* to stdout even on partial failure (or write “best effort” output and then exit non-zero).
+- The current logic treats **any** non-empty `stdout` as a green light, even if the exit code indicates an error.
+- Result: you can ingest incomplete data, miss matches, or misreport findings while losing the real error signal.
+
+**Recommendation**
+- Treat exit codes explicitly per engine:
+  - **semgrep**: exit code 1 often means “findings found”; codes ≥2 are typically errors (exact semantics depend on semgrep version).
+  - **ast-grep / comby**: decide what exit codes mean “findings vs error”; do not assume non-empty stdout implies success.
+- At minimum: if `status !== 0`, still surface stderr (and optionally attach parsed results as “partial”).
+
+---
+
+### 2) **Windows `shell: true` for `.cmd/.bat` can introduce quoting / parsing edge cases** (esp. paths with spaces, special characters)
+**Severity:** Medium (platform-specific correctness, hard to reproduce)  
+**File:** `src/experimental/structural/binaries.js`  
+**Where:** lines **8–13**, esp. **11–12**
+
+```js
+const useShell = isWindows && /\.(cmd|bat)$/i.test(command);
+spawnSync(command, args, { shell: useShell })
+```
+
+**What can go wrong**
+- When `shell:true`, Node routes execution through `cmd.exe` and must stringify/quote the command+args.
+- Edge cases can appear with:
+  - paths containing `&`, `^`, `|`, parentheses, `!` (delayed expansion),
+  - odd quoting when args include JSON or regex-like strings,
+  - command path resolution differences vs non-shell execution.
+
+**Recommendation**
+- Prefer executing `.cmd/.bat` via `cmd.exe /d /s /c` with carefully controlled quoting *or* avoid shell execution by resolving to an `.exe` where possible.
+- If you keep `shell:true`, add regression tests for:
+  - rule paths with spaces,
+  - repo roots with parentheses,
+  - patterns containing `&` or `|`.
+
+---
+
+### 3) **Resolver cache can become stale if PATH changes** (surprising behavior in long-running sessions)
+**Severity:** Low–Medium  
+**File:** `src/experimental/structural/binaries.js`  
+**Where:** line **6** (global `binaryCache`), usage at **59**
+
+- `resolveBinary(engine)` memoizes the resolution forever for the process lifetime.
+- If a user installs `semgrep`/`sg` after the process starts (or PATH is modified), the resolver can remain stuck pointing to “missing” or an old path.
+
+**Recommendation**
+- Either:
+  - include `process.env.PATH` (or a hash of it) in the cache key, or
+  - allow an explicit “refresh” option.
+
+---
+
+### 4) **JSON-lines parsing silently drops bad lines and can drop valid falsy JSON values**
+**Severity:** Medium (silent data loss)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** `parseJsonLines()` lines **4–15**
+
+Issues:
+- Parse errors return `null` and are then filtered out with `.filter(Boolean)` → parse failures are *silent*.
+- `.filter(Boolean)` also drops valid JSON values like `0`, `false`, and `""` (less likely here, but it’s a lurking footgun).
+
+**Why this is tricky**
+- If tool output changes format, includes prelude logs, or prints a single malformed line, you can end up with “empty results” and no error.
+
+**Recommendation**
+- Track parse failures:
+  - return `{items, parseErrors}` and decide policy (warn/fail-fast).
+- Use a filter that only removes `null/undefined` rather than Boolean coercion:
+  - e.g., `.filter((x) => x != null)`.
+
+---
+
+### 5) **`parseAstGrep()` format assumptions are brittle** (likely to misparse some valid output shapes)
+**Severity:** Medium (silent missed matches)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** `parseAstGrep()` lines **61–97**
+
+- It assumes entries look like `{ matches: [...] }`.
+- If `sg scan --json` emits JSON Lines of *match objects* (or a different schema version), the loop will see `entry.matches` as undefined and produce no results (silently).
+
+**Recommendation**
+- Detect and normalize multiple possible output shapes:
+  - array of `{matches:[...]}`,
+  - JSONL of `{range, text, ...}` matches,
+  - single object with `{matches:[...]}`.
+- Fail loudly if output parses but doesn’t match expected schema (optional strict mode).
+
+---
+
+### 6) **`readCombyRule()` has no validation and uses permissive defaults** (can lead to “do nothing” searches)
+**Severity:** Low–Medium (correctness)  
+**File:** `src/experimental/structural/parsers.js`  
+**Where:** lines **129–137**
+
+- Missing / invalid rule fields are defaulted:
+  - `language: '.'`, `pattern: ''`
+- That can yield confusing behavior:
+  - empty pattern, broad matcher, or tool errors depending on comby semantics.
+
+**Recommendation**
+- Validate required fields:
+  - require `pattern` non-empty,
+  - require `language` to be a known matcher,
+  - surface a clear error pointing to the rule file.
+
+---
+
+### 7) **`writeJsonl()` builds a full in-memory string and writes synchronously** (scales poorly on large outputs)
+**Severity:** Low–Medium (performance/memory)  
+**File:** `src/experimental/structural/io.js`  
+**Where:** lines **4–11**
+
+- `items.map(JSON.stringify).join('\n')` builds one big string.
+- `fs.writeFileSync()` blocks the event loop.
+- For large result sets, this can be a noticeable memory spike.
+
+**Recommendation**
+- Stream JSONL output:
+  - write line-by-line to a write stream
+  - handle backpressure
+- If remaining synchronous, at least document that it’s intended for small result sets.
+
+---
+
+### 8) Minor CLI-arg edge cases in model comparison helper
+**Severity:** Low  
+**File:** `src/experimental/compare/config.js`  
+**Where:** lines **23–28**, **52–56**
+
+- `resolveCompareModels()` dedupes but does not `trim()` config-provided entries (only CLI list gets trim) → `["gpt-4", " gpt-4"]` can survive as distinct until later.
+- `resolveAnnSetting()` only detects `--ann` / `--no-ann` *as exact tokens* (raw string match). Variants like `--ann=false` or `--no-ann=true` could be misclassified depending on the arg parser used upstream.
+
+**Recommendation**
+- Normalize config model IDs with `.trim()`.
+- Detect arg presence in a parser-aware way, or expand detection to include `--ann=` patterns if needed.
+
+---
+
+## “Hard-to-find” regression tests worth adding (if this graduates from experimental)
+
+1. **Non-zero exit + stdout**: simulate a tool that prints partial JSON then exits 2; ensure you don’t silently accept results without reporting error.
+2. **Windows quoting**: run with repo root containing parentheses + rules path containing spaces; ensure the invoked command sees correct argv.
+3. **ast-grep schema variants**: feed JSONL match objects and array-of-results formats; ensure parser returns expected normalized results.
+4. **JSONL parse error visibility**: include one malformed JSONL line; ensure you surface the parse error count and/or fail-fast in strict mode.
+5. **Large output streaming**: 100k results JSONL should not allocate a single huge string or block for long.
+
+---
+
+## Patch sketches (non-binding)
+
+- Make exit-code handling explicit per engine in `runner.js`, e.g.:
+
+```js
+const assertOk = ({ engine, status, stdout, stderr }) => {
+  if (engine === 'semgrep') {
+    if (status === 0 || status === 1) return; // (example semantics)
+    throw new Error(stderr || `semgrep failed (status ${status})`);
+  }
+  if (status !== 0) throw new Error(stderr || `${engine} failed (status ${status})`);
+};
+```
+
+- Improve `parseJsonLines()`:
+
+```js
+const parseJsonLines = (text) => {
+  const items = [];
+  const errors = [];
+  for (const [i, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    try { items.push(JSON.parse(line)); }
+    catch (e) { errors.push({ line: i + 1, error: String(e) }); }
+  }
+  return { items, errors };
+};
+```
+
+- Switch `writeJsonl()` to streaming for large result sets.
+
+---
+
+
+
+### 1) **Prototype pollution / global object corruption** via plain-object “maps” keyed by code identifiers
+
+**Severity:** Critical  
+**Location:** `src/lang/javascript/relations.js` (around L240–L320)
+
+This file uses plain objects as dictionaries keyed by *identifier names from parsed code*:
+
+- `const functionMeta = {};`
+- `const classMeta = {};`
+- later: `const existing = functionMeta[name]; if (!existing) ... else ...`
+
+This is extremely dangerous in JavaScript because names like `__proto__`, `constructor`, `toString`, etc. have special meaning on objects with `Object.prototype` in their prototype chain.
+
+#### Why this is a real exploit path (not theoretical)
+
+If a repo being indexed contains a function named `__proto__` (valid identifier):
+
+```js
+function __proto__() {}
+```
+
+Then:
+
+- `functionMeta["__proto__"]` **does not return** a stored entry.
+- It returns `Object.prototype` (because `__proto__` is an accessor).
+- `existing` becomes `Object.prototype`, which is truthy.
+- The `else` branch mutates `existing.*` → **mutates `Object.prototype` globally**.
+
+That means a single adversarial identifier can:
+- corrupt global prototypes (`Object.prototype.params`, etc.),
+- create unpredictable behavior across the entire process,
+- potentially become a security primitive depending on downstream assumptions.
+
+This is a classic “hard-to-find” bug because normal repos rarely define `__proto__`-named functions/classes.
+
+**Suggestion (strong)**
+- Replace these dictionaries with `Map`, **or** with `Object.create(null)` and strict own-property checks.
+- In particular: never use `if (!existing)` on dictionary lookups; always use an own-key check.
+
+**Example patch shape**
+- `const functionMeta = new Map();`
+- `if (!functionMeta.has(name)) functionMeta.set(name, {...}); else { merge... }`
+
+Or:
+
+- `const functionMeta = Object.create(null);`
+- `if (!Object.prototype.hasOwnProperty.call(functionMeta, name)) { ... }`
+
+---
+
+### 2) Generic AST traversal walks `tokens` (and other heavy fields) → big avoidable CPU cost
+
+**Severity:** Medium (perf)  
+**Locations:**
+- `src/lang/javascript/imports.js` (around L45–L99)
+- `src/lang/javascript/relations.js` (around L660–L820)
+- `src/lang/typescript/relations.js` (generic AST walk)
+
+These modules implement a generic recursive walker that iterates `Object.keys(node)` / `Object.values(node)` and recurses into every object/array field, only skipping `loc`, `start`, `end`.
+
+When Babel parsing is configured to include tokens, the AST includes a large `tokens` array. The generic walkers will recursively traverse **every token object** even though token objects are irrelevant for import/call extraction.
+
+This can become a large runtime tax:
+- O(#tokens) additional traversal work per file
+- extra allocations and GC pressure
+- duplicates work in `relations.js`, which separately processes tokens later
+
+**Suggestion**
+- Explicitly skip well-known non-AST fields: `tokens`, `comments`, `leadingComments`, `trailingComments`, `extra`, etc.
+- Or use a structured AST walker that only follows known AST child fields.
+- Consider an iterative stack to avoid recursion overhead (see next finding).
+
+---
+
+### 3) Recursive AST walking risks call stack overflow on adversarially deep syntax
+
+**Severity:** Medium (stability)  
+**Locations:** same as Finding #2
+
+The walkers are recursive. A deeply nested AST (intentional or accidental) can exceed the JS call stack and crash the indexing run.
+
+This is rare in normal code, but it’s common in “fuzzer / adversarial repo” scenarios and can happen with:
+- very deeply nested expressions / arrays / chained calls
+- huge generated code blobs
+
+**Suggestion**
+- Rewrite walkers to iterative form (explicit stack).
+- Or use a traversal library that is iterative.
+
+---
+
+### 4) TypeScript signature param parsing is regex-based and breaks on nested parentheses (function types, defaults)
+
+**Severity:** Medium (correctness)  
+**Location:** `src/lang/typescript/signature.js` (around L13–L16 and L33–L37)
+
+These helpers extract params using:
+
+- `signature.match(/\(([^)]*)\)/)`
+- and split on commas
+
+This fails when parameter types contain parentheses, e.g.:
+
+```ts
+foo(cb: (x: number) => string, y: string)
+```
+
+The regex stops at the first `)` (end of `(x: number)`), producing truncated parameter lists and wrong type extraction.
+
+**Suggestion**
+- Reuse the more robust delimiter-aware scanning approach used elsewhere (you already have complex parsing logic in `src/integrations/tooling/api-contracts.js`).
+- Or implement a simple parenthesis-depth scanner here as well.
+
+---
+
+### 5) Tree-sitter async chunking treats “no chunks” as a worker failure → double parsing
+
+**Severity:** Low–Medium (perf)  
+**Location:** `src/lang/tree-sitter/chunking.js` (around L501–L513)
+
+In `buildTreeSitterChunksAsync()`:
+
+- If the worker returns an empty array (valid “no chunks” result), the code treats it as failure and falls back to main-thread parsing.
+
+This can cause redundant work (parse twice) on files that legitimately have no chunkable declarations.
+
+**Suggestion**
+- Distinguish “failure” from “valid empty result”:
+  - Worker returns `null` on failure, `[]` on success/no-chunks.
+  - Accept `[]` as a valid result.
+- Or return a `{ok:boolean, chunks:Array}` envelope.
+
+---
+
+### 6) Python executable discovery has no timeout → potential indefinite hang
+
+**Severity:** Low–Medium (stability)  
+**Location:** `src/lang/python/executable.js` (around L25–L73)
+
+`checkPythonCandidate()` spawns a candidate python with `-c` and waits for it to exit, but does not enforce a timeout.
+
+In most environments this is fine, but it becomes a risk if:
+- a “python” candidate is actually a wrapper that blocks,
+- environment hooks cause the process to hang.
+
+**Suggestion**
+- Add a timeout (e.g., 2–5 seconds) and kill the process if it doesn’t exit.
+
+---
+
+### 7) Python AST pool size guard can be bypassed by using `path` instead of inline `text`
+
+**Severity:** Medium (perf/stability)  
+**Location:** `src/lang/python/pool.js` (around L330–L356)
+
+When `text` exceeds `maxTextBytes` **and** `path` is provided, the pool sets `text = null` and sends only `path` to the worker:
+
+- This avoids transferring large text over stdin (good),
+- but it means the *file size* is no longer bounded by `maxTextBytes`.
+- A huge file at `path` can still be read and parsed by the worker, potentially crashing it or triggering repeated pool backoff.
+
+**Suggestion**
+- If `path` is used, add a file-size check (`fs.stat`) and enforce a maximum file size too.
+- Optionally validate that `path` is inside the repo root / expected sandbox.
+
+---
+
+
+---
+
+## Findings
+
+### 1) Potential arbitrary file read / path traversal via `chunk.file`
+
+**Severity:** High  
+**Location:** `src/context-pack/assemble.js` (around L157–L160)
+
+`buildPrimaryExcerpt()` constructs a filesystem path as:
+
+- `filePath = path.resolve(repoRoot, chunk.file)`
+
+There is **no explicit check** that `chunk.file` is:
+- a safe repo-relative path, and
+- still inside `repoRoot` after resolution.
+
+If `chunkMeta` (or anything upstream producing `chunk.file`) is tampered with, a crafted value like `../../../../etc/passwd` (or an absolute path) will resolve outside the repo and the code will attempt to read it.
+
+Even if your current pipeline “should never” produce such values, this is the kind of bug that appears later when:
+- context-pack assembly is used with external indexes/caches,
+- indexes are copied between machines,
+- multi-tenant environments share caches.
+
+**Suggestion**
+- Enforce a containment check before reading:
+  - Resolve the path
+  - Ensure `path.relative(repoRoot, filePath)` does not start with `..` and is not absolute.
+- Consider rejecting absolute `chunk.file` entirely.
+
+---
+
+### 2) Synchronous full-file reads even when only a bounded excerpt is needed
+
+**Severity:** Medium (perf / memory)  
+**Location:** `src/context-pack/assemble.js` (around L152–L173)
+
+`buildPrimaryExcerpt()` does:
+
+- `fs.readFileSync(filePath, 'utf8')`
+- then conditionally truncates with `sliceExcerpt(excerpt, maxBytes, ...)`
+
+For large files, this forces a **full read into memory** even if the final excerpt is capped to (say) 10–50KB.
+
+**Suggestion**
+- When `maxBytes` is set, consider:
+  - reading only the needed region (range reads), or
+  - reading a bounded prefix (streaming) and truncating early.
+
+---
+
+### 3) Byte truncation can cut a multibyte UTF-8 codepoint
+
+**Severity:** Low (correctness)  
+**Location:** `src/context-pack/assemble.js` (around L18–L33)
+
+`sliceExcerpt()` truncates by bytes using:
+
+- `Buffer.from(excerpt, 'utf8').subarray(0, maxBytes).toString('utf8')`
+
+This can split a multi-byte character, producing the replacement character (�) at boundaries.
+
+**Suggestion**
+- If the output is user-visible or diffed, consider truncating on codepoint boundaries (or accept the replacement char as acceptable tradeoff).
+
+---
+
+### 4) Avoidable memory duplication when `maxBytes` is enabled
+
+**Severity:** Low (perf)  
+**Location:** `src/context-pack/assemble.js` (around L18–L33)
+
+`Buffer.from(excerpt, 'utf8')` duplicates memory proportional to excerpt size.
+
+In typical use this is fine, but in worst-case scenarios (many large chunks; high parallelism) it can increase peak RSS.
+
+**Suggestion**
+- Prefer early truncation strategies (see Finding #2), which naturally reduce or eliminate this duplication.
+
+---
+
+## Suggested hardening patch (shape)
+
+- Validate `chunk.file` stays inside repoRoot before reading.
+- If `maxBytes` is set, read only what you need.
+- Treat chunkMeta/index artifacts as semi-trustworthy inputs (because caches can drift/tamper).
+
 ---
 

@@ -58,7 +58,8 @@ const runCommand = (resolved, args, options = {}) => {
   const effectiveArgs = [...argsPrefix, ...args];
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
     const cmdLine = buildCmdLine(command, effectiveArgs);
-    return spawnSync('cmd.exe', ['/d', '/s', '/c', cmdLine], {
+    const wrapped = `"${cmdLine}"`;
+    return spawnSync('cmd.exe', ['/d', '/s', '/c', wrapped], {
       ...options,
       shell: false,
       windowsVerbatimArguments: true
