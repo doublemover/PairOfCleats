@@ -219,7 +219,7 @@ export async function collectLspTypes({
   let coldStartCache = null;
   if (vfsColdStartCache !== false) {
     const resolvedIndexDir = indexDir || resolvedRoot || rootDir;
-    const indexSignature = resolvedIndexDir ? buildIndexSignature(resolvedIndexDir) : null;
+    const indexSignature = resolvedIndexDir ? await buildIndexSignature(resolvedIndexDir) : null;
     const manifestHash = resolvedIndexDir ? await computeVfsManifestHash({ indexDir: resolvedIndexDir }) : null;
     coldStartCache = await createVfsColdStartCache({
       cacheRoot,

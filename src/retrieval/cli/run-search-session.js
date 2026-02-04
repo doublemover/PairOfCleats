@@ -443,7 +443,7 @@ export async function runSearchSession({
     'extracted-prose': { added: 0, workUnitsUsed: 0, truncation: null },
     records: { added: 0, workUnitsUsed: 0, truncation: null }
   };
-  const loadContextIndexCache = (idx) => {
+  const loadContextIndexCache = async (idx) => {
     if (!idx?.indexDir) return null;
     const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
     const dataPath = path.join(idx.indexDir, 'context_index.json');
@@ -455,7 +455,7 @@ export async function runSearchSession({
       return null;
     }
     if (!meta?.signature || meta.version !== 1) return null;
-    const signature = buildIndexSignature(idx.indexDir);
+    const signature = await buildIndexSignature(idx.indexDir);
     if (signature !== meta.signature) return null;
     try {
       const raw = readJsonFile(dataPath, { maxBytes: MAX_JSON_BYTES });
@@ -464,9 +464,9 @@ export async function runSearchSession({
       return null;
     }
   };
-  const persistContextIndexCache = (idx, contextIndex) => {
+  const persistContextIndexCache = async (idx, contextIndex) => {
     if (!idx?.indexDir || !contextIndex) return;
-    const signature = buildIndexSignature(idx.indexDir);
+    const signature = await buildIndexSignature(idx.indexDir);
     const payload = serializeContextIndex(contextIndex);
     if (!signature || !payload) return;
     const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
@@ -476,13 +476,13 @@ export async function runSearchSession({
       fsSync.writeFileSync(metaPath, `${JSON.stringify({ version: 1, signature })}\n`);
     } catch {}
   };
-  const getContextIndex = (idx) => {
+  const getContextIndex = async (idx) => {
     if (!idx?.chunkMeta?.length) return null;
     const cached = idx.contextIndex;
     if (cached && cached.chunkMeta === idx.chunkMeta && cached.repoMap === idx.repoMap) {
       return cached;
     }
-    let next = loadContextIndexCache(idx);
+    let next = await loadContextIndexCache(idx);
     if (next) {
       next.chunkMeta = idx.chunkMeta;
       next.repoMap = idx.repoMap;
@@ -491,10 +491,10 @@ export async function runSearchSession({
     }
     next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
     idx.contextIndex = next;
-    persistContextIndexCache(idx, next);
+    await persistContextIndexCache(idx, next);
     return next;
   };
-  const expandModeHits = (mode, idx, hits) => {
+  const expandModeHits = async (mode, idx, hits) => {
     if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
       return { hits, contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
     }
@@ -517,7 +517,7 @@ export async function runSearchSession({
         explain
       },
       allowedIds,
-      contextIndex: getContextIndex(idx)
+      contextIndex: await getContextIndex(idx)
     });
     contextExpansionStats[mode] = result.stats;
     return {
@@ -527,16 +527,16 @@ export async function runSearchSession({
     };
   };
   const proseExpanded = runProse
-    ? expandModeHits('prose', idxProse, proseHits)
+    ? await expandModeHits('prose', idxProse, proseHits)
     : { hits: proseHits, contextHits: [] };
   const extractedProseExpanded = runExtractedProse
-    ? expandModeHits('extracted-prose', idxExtractedProse, extractedProseHits)
+    ? await expandModeHits('extracted-prose', idxExtractedProse, extractedProseHits)
     : { hits: extractedProseHits, contextHits: [] };
   const codeExpanded = runCode
-    ? expandModeHits('code', idxCode, codeHits)
+    ? await expandModeHits('code', idxCode, codeHits)
     : { hits: codeHits, contextHits: [] };
   const recordExpanded = runRecords
-    ? expandModeHits('records', idxRecords, recordHits)
+    ? await expandModeHits('records', idxRecords, recordHits)
     : { hits: recordHits, contextHits: [] };
 
   attachCommentExcerpts(codeExpanded.hits);

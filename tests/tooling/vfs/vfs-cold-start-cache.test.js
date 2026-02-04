@@ -39,7 +39,7 @@ try {
   await fs.writeFile(diskPath, text, 'utf8');
 
   const manifestHash = await computeVfsManifestHash({ indexDir });
-  const indexSignature = buildIndexSignature(indexDir);
+  const indexSignature = await buildIndexSignature(indexDir);
   assert.ok(manifestHash, 'expected manifest hash to be computed');
   assert.ok(indexSignature, 'expected index signature to be computed');
 
