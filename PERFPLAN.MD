@@ -744,7 +744,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.3.a: Resolve required artifacts from CLI flags (`graphs`, `edgeTypes`, include toggles).
 - [x] Task 10.X.3.b: Load only required artifacts; emit warning when required artifact missing.
 - [x] Task 10.X.3.c: Use `Promise.all` for required loads.
-- [ ] Task 10.X.3.d: Add tests verifying unused artifacts are not loaded.
+- [x] Task 10.X.3.d: Add tests verifying unused artifacts are not loaded.
 - [x] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
 - [x] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
 - [x] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
@@ -808,7 +808,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
 - [ ] `tests/graph/graph-id-remap-roundtrip.test.js`
 - [ ] `tests/graph/graph-edge-bucket-determinism.test.js`
-- [ ] `tests/graph/graph-lazy-edge-load.test.js`
+- [x] `tests/graph/graph-lazy-edge-load.test.js`
 - [ ] `tests/graph/graph-spill-merge-deterministic.test.js`
 - [ ] `tests/context-pack/context-pack-excerpt-dedupe.test.js`
 - [ ] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
