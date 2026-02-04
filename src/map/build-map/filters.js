@@ -23,7 +23,16 @@ export const createScopeFilters = ({
   edgeIteratorFactory,
   normalizeMemberId
 }) => {
-  const normalizedFocus = typeof focus === 'string' ? normalizePath(focus) : '';
+  const hasFocus = typeof focus === 'string' && focus.trim().length > 0;
+  const normalizedFocus = hasFocus ? normalizePath(focus) : '';
+  if (scope === 'repo' || !hasFocus) {
+    return {
+      nodeFilter: (node) => node,
+      edgeFilter: () => true,
+      memberFocusId: null,
+      memberSet: null
+    };
+  }
   if (scope === 'member') {
     const focusId = normalizeMemberId(normalizedFocus || focus);
     if (!focusId) {
