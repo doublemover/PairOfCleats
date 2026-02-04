@@ -3552,7 +3552,6 @@ Create a small table (in whichever canonical spec is most appropriate, or at the
 - [x] Add the status table to the canonical spec (or Phase 10 header).
 - [x] Include schemaVersion and a compatibility note: **no back-compat; old indexes should error with a rebuild instruction**.
 
-
 ### 10.0.3 Archive deprecated specs + codify the process (MANDATORY)
 
 This implements the repo-wide rule:
@@ -4901,17 +4900,6 @@ These appendices are generated to remove scavenger-hunts:
   - `tests/unit` (NEW fixture/dir  -  create as part of this phase)
   - `tests/indexing/validate/validator/risk-interprocedural.test.js` (NEW)  -  intended lane: `integration`; run (once created): `npm run test:integration -- --match risk-interprocedural.test`
 
-
-
-
-
-
-
-
-
-
-
-
 ## Phase 10 — Interprocedural risk propagation + explainability artifacts (Completed)
 - Phase 10 completed on quantum-leviathan-protocol; artifacts, validation, CLI explain, and robustness/test updates finished (see QUANTUM_LEVIATHAN_PROTOCOL.md).
 
@@ -5488,9 +5476,7 @@ Touchpoints (test selection):
 - Suggest-tests:
   - `{ version, changed[], suggestions[], truncation?, warnings? }`
 
-
 ---
-
 
 ## Phase 12 — MCP Migration + API/Tooling Contract Formalization
 
@@ -7500,7 +7486,6 @@ Note: ingest CLI wrapper documentation is tracked in `NIKE_SB_CHUNK_ROADMAP.md` 
 
 ---
 
-
 ## Critical / high-severity issues
 
 ### 1) Zstd decompression fallback can OOM the process (output limit is not enforced during execution)
@@ -7792,7 +7777,6 @@ if (!validate) {
 
 ---
 
-
 ## Findings (prioritized)
 
 ### I1) LSP client shutdown timer can kill a *new* LSP process (cross-generation kill)
@@ -7920,14 +7904,6 @@ if (!validate) {
 - **What’s happening:** `const runtimeSnapshot = { ...runtime, dictConfig: adaptedDictConfig }` for each mode.  
   If runtime carries large structures, this is extra overhead and can make debugging confusing.
 - **Fix:** Pass only the minimal config subset needed by `buildTokenizationKey()`.
-
----
-
-## Notes
-- A number of integration modules depend on shared utilities (`subprocess`, `json-stream`, `index-cache`) that have separate findings in earlier reports; where that dependency materially affects integrations behavior, I’ve called it out (e.g., signature cost, atomic write behavior).
-
----
-
 
 ---
 
@@ -8129,8 +8105,6 @@ const parseJsonLines = (text) => {
 
 ---
 
-
-
 ### 1) **Prototype pollution / global object corruption** via plain-object “maps” keyed by code identifiers
 
 **Severity:** Critical  
@@ -8151,7 +8125,6 @@ If a repo being indexed contains a function named `__proto__` (valid identifier)
 ```js
 function __proto__() {}
 ```
-
 Then:
 
 - `functionMeta["__proto__"]` **does not return** a stored entry.
@@ -8160,6 +8133,7 @@ Then:
 - The `else` branch mutates `existing.*` → **mutates `Object.prototype` globally**.
 
 That means a single adversarial identifier can:
+
 - corrupt global prototypes (`Object.prototype.params`, etc.),
 - create unpredictable behavior across the entire process,
 - potentially become a security primitive depending on downstream assumptions.
