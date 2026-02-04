@@ -299,6 +299,26 @@ export const processFiles = async ({
             }
             return orderedAppender.enqueue(orderIndex, result, shardMeta);
           },
+          onError: async (err, ctx) => {
+            const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+            const entry = batchEntries[entryIndex];
+            const orderIndex = Number.isFinite(entry?.canonicalOrderIndex)
+              ? entry.canonicalOrderIndex
+              : (Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex);
+            const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+            logLine(
+              `[ordered] skipping failed file ${orderIndex} ${rel} (${err?.message || err})`,
+              {
+                kind: 'warning',
+                mode,
+                stage: 'processing',
+                file: rel,
+                fileIndex: entry?.fileIndex || null,
+                shardId: shardMeta?.id || null
+              }
+            );
+            await orderedAppender.skip(orderIndex);
+          },
           retries: 2,
           retryDelayMs: 200
         }

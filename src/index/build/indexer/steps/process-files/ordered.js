@@ -16,6 +16,14 @@ export const buildOrderedAppender = (handleFileResult, state) => {
   let nextIndex = 0;
   let flushing = null;
   let aborted = false;
+  const skipped = new Set();
+
+  const advancePastSkipped = () => {
+    while (skipped.has(nextIndex)) {
+      skipped.delete(nextIndex);
+      nextIndex += 1;
+    }
+  };
 
   const abort = (err) => {
     if (aborted) return;
@@ -29,6 +37,7 @@ export const buildOrderedAppender = (handleFileResult, state) => {
   };
 
   const flush = async () => {
+    advancePastSkipped();
     while (pending.has(nextIndex)) {
       const entry = pending.get(nextIndex);
       pending.delete(nextIndex);
@@ -42,6 +51,7 @@ export const buildOrderedAppender = (handleFileResult, state) => {
         throw err;
       } finally {
         nextIndex += 1;
+        advancePastSkipped();
       }
     }
   };
@@ -66,6 +76,9 @@ export const buildOrderedAppender = (handleFileResult, state) => {
       if (aborted) {
         return Promise.reject(new Error('Ordered appender aborted.'));
       }
+      if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
+        return handleFileResult(result, state, shardMeta);
+      }
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
       let resolve;
       let reject;
@@ -77,6 +90,15 @@ export const buildOrderedAppender = (handleFileResult, state) => {
       // Ensure rejections from the flush loop don't surface as unhandled.
       scheduleFlush().catch(() => {});
       return done;
+    },
+    skip(orderIndex) {
+      if (aborted) return Promise.reject(new Error('Ordered appender aborted.'));
+      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
+      if (index < nextIndex) return Promise.resolve();
+      skipped.add(index);
+      // Ensure we advance if the skipped index is next up.
+      scheduleFlush().catch(() => {});
+      return Promise.resolve();
     },
     abort
   };
