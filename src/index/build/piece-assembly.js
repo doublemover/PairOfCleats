@@ -265,7 +265,8 @@ export async function assembleIndexPieces({
       chunks: state.chunks,
       fileRelations: state.fileRelations,
       callSites: resolvedCallSites.length ? resolvedCallSites : null,
-      caps: userConfig?.indexing?.graph?.caps
+      caps: userConfig?.indexing?.graph?.caps,
+      emitNodes: false
     })
     : null;
   state.fileRelations = state.fileRelations || new Map();

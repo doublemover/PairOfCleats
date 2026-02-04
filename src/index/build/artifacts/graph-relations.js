@@ -2,7 +2,11 @@ import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/files.js';
-import { createGraphRelationsIterator, measureGraphRelations } from './helpers.js';
+import {
+  createGraphRelationsIterator,
+  materializeGraphRelationsPayload,
+  measureGraphRelations
+} from './helpers.js';
 
 export async function enqueueGraphRelationsArtifacts({
   graphRelations,
@@ -29,7 +33,8 @@ export async function enqueueGraphRelationsArtifacts({
         await removeArtifact(graphJsonlPath);
         await removeArtifact(graphMetaPath);
         await removeArtifact(graphPartsDir);
-        await writeJsonObjectFile(graphPath, { fields: graphRelations, atomic: true });
+        const payload = materializeGraphRelationsPayload(graphRelations);
+        await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
       }
     );
     addPieceFile({ type: 'relations', name: 'graph_relations', format: 'json' }, graphPath);

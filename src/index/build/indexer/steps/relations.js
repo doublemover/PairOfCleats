@@ -192,7 +192,8 @@ export const runCrossFileInference = async ({
     ? buildRelationGraphs({
       chunks: state.chunks,
       fileRelations: state.fileRelations,
-      caps: runtime.indexingConfig?.graph?.caps
+      caps: runtime.indexingConfig?.graph?.caps,
+      emitNodes: false
     })
     : null;
   if (graphRelations?.caps) {

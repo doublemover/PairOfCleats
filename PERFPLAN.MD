@@ -1268,14 +1268,14 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
 
 - [ ] **14.F Graph relations streaming + measurement**
-- [ ] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
-- [ ] Task 14.F.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
-- [ ] Task 14.F.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
-- [ ] Task 14.F.2.a: Track bytes as rows are emitted (no re‑stringify).
-- [ ] Task 14.F.3: Add deterministic ordering for graph sections and keys.
-- [ ] Task 14.F.3.a: Define stable graph name ordering + edge ordering rules.
-- [ ] Task 14.F.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
-- [ ] Task 14.F.4.a: Include dropped edge counts and cap reasons.
+- [x] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
+- [x] Task 14.F.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
+- [x] Task 14.F.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
+- [x] Task 14.F.2.a: Track bytes as rows are emitted (no re‑stringify).
+- [x] Task 14.F.3: Add deterministic ordering for graph sections and keys.
+- [x] Task 14.F.3.a: Define stable graph name ordering + edge ordering rules.
+- [x] Task 14.F.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
+- [x] Task 14.F.4.a: Include dropped edge counts and cap reasons.
 
 - [ ] **14.G Chargram postings memory bounds**
 - [x] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
@@ -1298,8 +1298,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.H.3.a: Include memory watermark and output hash compare.
 - [x] Task 14.H.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
 - [x] Task 14.H.4.a: Include spill count and vocab size metrics + baseline delta.
-- [ ] Task 14.H.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
-- [ ] Task 14.H.5.a: Report bytes/sec and shard counts + baseline delta.
+- [x] Task 14.H.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
+- [x] Task 14.H.5.a: Report bytes/sec and shard counts + baseline delta.
 - [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
 - [ ] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
 - [ ] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.

@@ -45,16 +45,23 @@ const createGraphGuard = (label, caps) => ({
   disabled: false,
   reason: null,
   cap: null,
+  droppedNodes: 0,
+  droppedEdges: 0,
   samples: []
 });
 
 const mergeNode = (graph, id, attrs, guard, context) => {
-  if (!id || guard?.disabled) return;
+  if (!id) return;
+  if (guard?.disabled) {
+    if (guard.reason === 'maxNodes') guard.droppedNodes += 1;
+    return;
+  }
   if (!graph.hasNode(id)) {
     if (guard?.maxNodes != null && graph.order >= guard.maxNodes) {
       guard.disabled = true;
       guard.reason = 'maxNodes';
       guard.cap = 'maxNodes';
+      guard.droppedNodes += 1;
       recordGraphSample(guard, context);
       return;
     }
@@ -65,11 +72,16 @@ const mergeNode = (graph, id, attrs, guard, context) => {
 };
 
 const addDirectedEdge = (graph, source, target, guard, context) => {
-  if (!source || !target || guard?.disabled) return;
+  if (!source || !target) return;
+  if (guard?.disabled) {
+    if (guard.reason === 'maxEdges') guard.droppedEdges += 1;
+    return;
+  }
   if (guard?.maxEdges != null && graph.size >= guard.maxEdges) {
     guard.disabled = true;
     guard.reason = 'maxEdges';
     guard.cap = 'maxEdges';
+    guard.droppedEdges += 1;
     recordGraphSample(guard, context);
     return;
   }
@@ -79,9 +91,11 @@ const addDirectedEdge = (graph, source, target, guard, context) => {
   graph.mergeEdge(source, target);
 };
 
-const serializeGraph = (graph) => {
+const serializeGraphNodes = (graph) => {
   const nodes = [];
-  graph.forEachNode((id, attrs) => {
+  const ids = graph.nodes().slice().sort(compareStrings);
+  for (const id of ids) {
+    const attrs = graph.getNodeAttributes(id) || {};
     const out = graph.outNeighbors(id).slice().sort();
     const incoming = graph.inNeighbors(id).slice().sort();
     nodes.push({
@@ -90,8 +104,12 @@ const serializeGraph = (graph) => {
       out,
       in: incoming
     });
-  });
-  nodes.sort((a, b) => compareStrings(a.id, b.id));
+  }
+  return nodes;
+};
+
+const serializeGraph = (graph, { emitNodes = true } = {}) => {
+  const nodes = emitNodes ? serializeGraphNodes(graph) : null;
   return {
     nodeCount: graph.order,
     edgeCount: graph.size,
@@ -103,7 +121,8 @@ export function buildRelationGraphs({
   chunks = [],
   fileRelations = null,
   callSites = null,
-  caps = null
+  caps = null,
+  emitNodes = false
 } = {}) {
   const callGraph = new Graph({ type: 'directed' });
   const usageGraph = new Graph({ type: 'directed' });
@@ -228,16 +247,25 @@ export function buildRelationGraphs({
     }
   }
 
-  return {
+  const payload = {
     version: 2,
     generatedAt: new Date().toISOString(),
-    callGraph: serializeGraph(callGraph),
-    usageGraph: serializeGraph(usageGraph),
-    importGraph: serializeGraph(importGraph),
+    callGraph: serializeGraph(callGraph, { emitNodes }),
+    usageGraph: serializeGraph(usageGraph, { emitNodes }),
+    importGraph: serializeGraph(importGraph, { emitNodes }),
     caps: {
       callGraph: callGuard.reason ? callGuard : null,
       usageGraph: usageGuard.reason ? usageGuard : null,
       importGraph: importGuard.reason ? importGuard : null
     }
   };
+  Object.defineProperty(payload, '__graphs', {
+    value: { callGraph, usageGraph, importGraph },
+    enumerable: false
+  });
+  Object.defineProperty(payload, '__streaming', {
+    value: !emitNodes,
+    enumerable: false
+  });
+  return payload;
 }

@@ -383,9 +383,8 @@ export const summarizeFilterIndex = (value) => {
 export const createGraphRelationsIterator = (relations) => function* graphRelationsIterator() {
   if (!relations || typeof relations !== 'object') return;
   for (const graphName of GRAPH_RELATION_GRAPHS) {
-    const graph = relations[graphName];
-    const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-    for (const node of nodes) {
+    const nodeIterator = iterateGraphNodes(relations, graphName);
+    for (const node of nodeIterator) {
       if (!node || typeof node !== 'object' || Array.isArray(node)) continue;
       yield { graph: graphName, node };
     }
@@ -398,27 +397,39 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
   const graphSizes = {};
   let totalJsonlBytes = 0;
   let totalEntries = 0;
+  let maxRowBytes = 0;
   for (const graphName of GRAPH_RELATION_GRAPHS) {
     const graph = relations[graphName] || {};
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodesIterator = iterateGraphNodes(relations, graphName);
     const graphKey = JSON.stringify(graphName);
-    const nodeCount = Number.isFinite(graph.nodeCount) ? graph.nodeCount : nodes.length;
-    const edgeCount = Number.isFinite(graph.edgeCount)
+    const nodeCount = Number.isFinite(graph.nodeCount)
+      ? graph.nodeCount
+      : (graphObj ? graphObj.order : 0);
+    const hasEdgeCount = Number.isFinite(graph.edgeCount);
+    const hasGraphObj = !!graphObj;
+    let edgeCount = hasEdgeCount
       ? graph.edgeCount
-      : nodes.reduce((sum, node) => sum + (Array.isArray(node?.out) ? node.out.length : 0), 0);
+      : (hasGraphObj ? graphObj.size : 0);
+    const countEdgesFromNodes = !hasEdgeCount && !hasGraphObj;
     graphs[graphName] = { nodeCount, edgeCount };
     let nodesBytes = 0;
-    for (let i = 0; i < nodes.length; i += 1) {
-      const node = nodes[i];
+    let nodeIndex = 0;
+    for (const node of nodesIterator) {
       const nodeJson = JSON.stringify(node);
-      nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (i > 0 ? 1 : 0);
+      nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (nodeIndex > 0 ? 1 : 0);
       const line = `{"graph":${graphKey},"node":${nodeJson}}`;
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
         throw new Error(`graph_relations entry exceeds max JSON size (${lineBytes} bytes).`);
       }
       totalJsonlBytes += lineBytes + 1;
       totalEntries += 1;
+      nodeIndex += 1;
+      if (countEdgesFromNodes) {
+        edgeCount += Array.isArray(node?.out) ? node.out.length : 0;
+      }
     }
     const baseGraphBytes = Buffer.byteLength(
       JSON.stringify({ nodeCount, edgeCount, nodes: [] }),
@@ -443,7 +454,63 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
     + graphSizes.callGraph - 2
     + graphSizes.usageGraph - 2
     + graphSizes.importGraph - 2;
-  return { totalJsonBytes, totalJsonlBytes, totalEntries, graphs, version, generatedAt };
+  return {
+    totalJsonBytes,
+    totalJsonlBytes,
+    totalEntries,
+    graphs,
+    version,
+    generatedAt,
+    maxRowBytes
+  };
+};
+
+export const iterateGraphNodes = (relations, graphName) => {
+  const graph = relations?.[graphName];
+  if (Array.isArray(graph?.nodes)) {
+    return graph.nodes[Symbol.iterator]();
+  }
+  const graphObj = relations?.__graphs?.[graphName];
+  if (!graphObj) {
+    return [][Symbol.iterator]();
+  }
+  const ids = graphObj.nodes().slice().sort(compareStrings);
+  return (function* graphNodeIterator() {
+    for (const id of ids) {
+      const attrs = graphObj.getNodeAttributes(id) || {};
+      const out = graphObj.outNeighbors(id).slice().sort();
+      const incoming = graphObj.inNeighbors(id).slice().sort();
+      yield { id, ...attrs, out, in: incoming };
+    }
+  })();
+};
+
+export const materializeGraphRelationsPayload = (relations) => {
+  if (!relations || typeof relations !== 'object') return relations;
+  const buildGraph = (graphName) => {
+    const graph = relations?.[graphName] || {};
+    if (Array.isArray(graph?.nodes)) return graph;
+    const nodes = [];
+    const nodeIterator = iterateGraphNodes(relations, graphName);
+    for (const node of nodeIterator) nodes.push(node);
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodeCount = Number.isFinite(graph?.nodeCount)
+      ? graph.nodeCount
+      : (graphObj ? graphObj.order : nodes.length);
+    const edgeCount = Number.isFinite(graph?.edgeCount)
+      ? graph.edgeCount
+      : (graphObj ? graphObj.size : 0);
+    return { nodeCount, edgeCount, nodes };
+  };
+  const output = {
+    version: Number.isFinite(relations.version) ? relations.version : 1,
+    generatedAt: typeof relations.generatedAt === 'string' ? relations.generatedAt : new Date().toISOString(),
+    callGraph: buildGraph('callGraph'),
+    usageGraph: buildGraph('usageGraph'),
+    importGraph: buildGraph('importGraph')
+  };
+  if (relations.caps !== undefined) output.caps = relations.caps;
+  return output;
 };
 
 export const estimatePostingsBytes = (vocab, postingsList, sampleLimit = 200) => {
