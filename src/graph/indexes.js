@@ -48,6 +48,38 @@ export const buildIdTable = (nodeIndex) => {
   return { ids, idToIndex };
 };
 
+export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null } = {}) => {
+  const map = new Map();
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  for (const node of nodes) {
+    if (!node || typeof node.id !== 'string' || !node.id) continue;
+    const nodeId = normalizeNodeId ? normalizeNodeId(node.id) : node.id;
+    if (!nodeId) continue;
+    const outRaw = Array.isArray(node.out) ? node.out : [];
+    const inRaw = Array.isArray(node.in) ? node.in : [];
+    const outSet = new Set();
+    const inSet = new Set();
+    for (const neighbor of outRaw) {
+      if (!neighbor) continue;
+      const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
+      if (normalized) outSet.add(normalized);
+    }
+    for (const neighbor of inRaw) {
+      if (!neighbor) continue;
+      const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
+      if (normalized) inSet.add(normalized);
+    }
+    const out = Array.from(outSet);
+    const incoming = Array.from(inSet);
+    out.sort(compareStrings);
+    incoming.sort(compareStrings);
+    const both = Array.from(new Set([...out, ...incoming]));
+    both.sort(compareStrings);
+    map.set(nodeId, { out, in: incoming, both });
+  }
+  return map;
+};
+
 export const buildImportGraphIndex = (graph, repoRoot) => buildGraphNodeIndex(graph, {
   normalizeId: (value) => normalizeImportPath(value, repoRoot)
 });

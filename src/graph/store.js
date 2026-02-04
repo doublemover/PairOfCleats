@@ -3,6 +3,7 @@ import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-
 import { loadGraphRelations, loadJsonArrayArtifact } from '../shared/artifact-io/loaders.js';
 import {
   buildCallSiteIndex,
+  buildAdjacencyIndex,
   buildChunkInfo,
   buildIdTable,
   buildGraphNodeIndex,
@@ -29,6 +30,12 @@ export const buildGraphIndex = ({
   const callGraphIndex = buildGraphNodeIndex(graphRelations?.callGraph);
   const usageGraphIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
   const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
+  const callGraphAdjacency = buildAdjacencyIndex(graphRelations?.callGraph);
+  const usageGraphAdjacency = buildAdjacencyIndex(graphRelations?.usageGraph);
+  const importGraphAdjacency = buildAdjacencyIndex(graphRelations?.importGraph, {
+    normalizeNeighborId: normalizeImportPathCached,
+    normalizeNodeId: normalizeImportPathCached
+  });
   const callGraphIds = buildIdTable(callGraphIndex);
   const usageGraphIds = buildIdTable(usageGraphIndex);
   const importGraphIds = buildIdTable(importGraphIndex);
@@ -42,6 +49,9 @@ export const buildGraphIndex = ({
     callGraphIndex,
     usageGraphIndex,
     importGraphIndex,
+    callGraphAdjacency,
+    usageGraphAdjacency,
+    importGraphAdjacency,
     callGraphIds,
     usageGraphIds,
     importGraphIds,

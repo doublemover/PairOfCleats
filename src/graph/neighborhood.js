@@ -196,6 +196,9 @@ export const buildGraphNeighborhood = ({
   const callGraphIndex = graphIndex?.callGraphIndex ?? buildGraphIndex(graphRelations?.callGraph);
   const usageGraphIndex = graphIndex?.usageGraphIndex ?? buildGraphIndex(graphRelations?.usageGraph);
   const importGraphIndex = graphIndex?.importGraphIndex ?? buildImportGraphIndex(graphRelations?.importGraph, effectiveRepoRoot);
+  const callGraphAdjacency = graphIndex?.callGraphAdjacency ?? null;
+  const usageGraphAdjacency = graphIndex?.usageGraphAdjacency ?? null;
+  const importGraphAdjacency = graphIndex?.importGraphAdjacency ?? null;
   const chunkInfo = graphIndex?.chunkInfo ?? buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = graphIndex?.symbolIndex ?? buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = graphIndex?.callSiteIndex ?? buildCallSiteIndex(callSites);
@@ -348,8 +351,21 @@ export const buildGraphNeighborhood = ({
     return edgeTypeFilter.has(edgeType.toLowerCase());
   };
 
-  const resolveGraphNeighbors = (graphIndex, nodeId, dir, normalizeNeighborId = null) => {
-    const node = graphIndex.get(nodeId);
+  const resolveGraphNeighbors = (
+    graphNodes,
+    nodeId,
+    dir,
+    normalizeNeighborId = null,
+    adjacencyIndex = null
+  ) => {
+    if (adjacencyIndex && adjacencyIndex.has(nodeId)) {
+      const entry = adjacencyIndex.get(nodeId);
+      if (!entry) return [];
+      if (dir === 'out') return entry.out || [];
+      if (dir === 'in') return entry.in || [];
+      return entry.both || [];
+    }
+    const node = graphNodes.get(nodeId);
     if (!node) return [];
     const out = Array.isArray(node.out) ? node.out : [];
     const incoming = Array.isArray(node.in) ? node.in : [];
@@ -433,7 +449,13 @@ export const buildGraphNeighborhood = ({
     const edgeCandidates = [];
 
     if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
-      const neighbors = resolveGraphNeighbors(callGraphIndex, currentRef.chunkUid, normalizedDirection);
+      const neighbors = resolveGraphNeighbors(
+        callGraphIndex,
+        currentRef.chunkUid,
+        normalizedDirection,
+        null,
+        callGraphAdjacency
+      );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
         if (!includeEdgeType(edgeType)) continue;
@@ -455,7 +477,13 @@ export const buildGraphNeighborhood = ({
     }
 
     if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size) {
-      const neighbors = resolveGraphNeighbors(usageGraphIndex, currentRef.chunkUid, normalizedDirection);
+      const neighbors = resolveGraphNeighbors(
+        usageGraphIndex,
+        currentRef.chunkUid,
+        normalizedDirection,
+        null,
+        usageGraphAdjacency
+      );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
         if (!includeEdgeType(edgeType)) continue;
@@ -480,7 +508,13 @@ export const buildGraphNeighborhood = ({
         if (!importGraphIndex.has(sourceId)) {
           recordImportGraphMiss(sourceId);
         }
-        const neighbors = resolveGraphNeighbors(importGraphIndex, sourceId, normalizedDirection, normalizeImportId);
+        const neighbors = resolveGraphNeighbors(
+          importGraphIndex,
+          sourceId,
+          normalizedDirection,
+          normalizeImportId,
+          importGraphAdjacency
+        );
         for (const neighborId of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
           if (!includeEdgeType(edgeType)) continue;
