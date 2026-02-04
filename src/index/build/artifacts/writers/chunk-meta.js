@@ -251,6 +251,36 @@ export const createChunkMetaIterator = ({
   return chunkMetaIterator;
 };
 
+const buildColumnarChunkMeta = (chunkMetaIterator, chunkMetaCount) => {
+  const arrays = new Map();
+  const keys = [];
+  let index = 0;
+  for (const entry of chunkMetaIterator(0, chunkMetaCount, false)) {
+    if (!entry || typeof entry !== 'object') continue;
+    for (const key of Object.keys(entry)) {
+      if (!arrays.has(key)) {
+        arrays.set(key, new Array(index).fill(null));
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      const column = arrays.get(key);
+      column.push(Object.prototype.hasOwnProperty.call(entry, key) ? entry[key] : null);
+    }
+    index += 1;
+  }
+  const outArrays = {};
+  for (const key of keys) {
+    outArrays[key] = arrays.get(key);
+  }
+  return {
+    format: 'columnar',
+    columns: keys,
+    length: index,
+    arrays: outArrays
+  };
+};
+
 export const resolveChunkMetaPlan = ({
   chunks,
   chunkMetaIterator,
@@ -266,8 +296,11 @@ export const resolveChunkMetaPlan = ({
   const chunkMetaCount = chunks.length;
   const chunkMetaFormat = chunkMetaFormatConfig
     || (artifactMode === 'jsonl' ? 'jsonl' : (artifactMode === 'json' ? 'json' : 'auto'));
-  let chunkMetaUseJsonl = chunkMetaFormat === 'jsonl'
-    || (chunkMetaFormat === 'auto' && chunkMetaCount >= chunkMetaJsonlThreshold);
+  let chunkMetaUseColumnar = chunkMetaFormat === 'columnar';
+  let chunkMetaUseJsonl = !chunkMetaUseColumnar && (
+    chunkMetaFormat === 'jsonl'
+      || (chunkMetaFormat === 'auto' && chunkMetaCount >= chunkMetaJsonlThreshold)
+  );
   let resolvedShardSize = chunkMetaShardSize;
   let chunkMetaUseShards = chunkMetaUseJsonl
     && resolvedShardSize > 0
@@ -284,6 +317,9 @@ export const resolveChunkMetaPlan = ({
       const avgBytes = sampledBytes / sampled;
       const estimatedBytes = avgBytes * chunkMetaCount;
       if (estimatedBytes > maxJsonBytesSoft) {
+        if (chunkMetaUseColumnar) {
+          chunkMetaUseColumnar = false;
+        }
         chunkMetaUseJsonl = true;
         const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / avgBytes));
         if (resolvedShardSize > 0) {
@@ -304,6 +340,7 @@ export const resolveChunkMetaPlan = ({
     chunkMetaCount,
     chunkMetaFormat,
     chunkMetaUseJsonl,
+    chunkMetaUseColumnar,
     chunkMetaUseShards,
     chunkMetaShardSize: resolvedShardSize,
     maxJsonBytes: resolvedMaxJsonBytes
@@ -327,6 +364,7 @@ export const enqueueChunkMetaArtifacts = async ({
   const {
     chunkMetaUseJsonl,
     chunkMetaUseShards,
+    chunkMetaUseColumnar,
     chunkMetaShardSize,
     chunkMetaCount,
     maxJsonBytes: plannedMaxJsonBytes
@@ -388,6 +426,7 @@ export const enqueueChunkMetaArtifacts = async ({
 
   let resolvedUseJsonl = chunkMetaUseJsonl;
   let resolvedUseShards = chunkMetaUseShards;
+  let resolvedUseColumnar = chunkMetaUseColumnar;
   let measured = null;
   let collected = null;
   let jsonlScan = null;
@@ -398,6 +437,7 @@ export const enqueueChunkMetaArtifacts = async ({
       ? measureChunkMeta()
       : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
     if (resolvedMaxJsonBytes && measured.totalJsonBytes > resolvedMaxJsonBytes) {
+      resolvedUseColumnar = false;
       resolvedUseJsonl = true;
       resolvedUseShards = true;
       log(
@@ -491,6 +531,7 @@ export const enqueueChunkMetaArtifacts = async ({
   }
   chunkMetaPlan.chunkMetaUseJsonl = resolvedUseJsonl;
   chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;
+  chunkMetaPlan.chunkMetaUseColumnar = resolvedUseColumnar;
   const requiredBytes = resolvedUseJsonl
     ? (jsonlScan?.totalJsonlBytes || 0)
     : (measured?.totalJsonBytes || 0);
@@ -510,6 +551,7 @@ export const enqueueChunkMetaArtifacts = async ({
   const jsonlPath = path.join(outDir, jsonlName);
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${jsonlPath}.${offsetsConfig.suffix}` : null;
+  const columnarPath = path.join(outDir, 'chunk_meta.columnar.json');
   const removeJsonlVariants = async () => {
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.gz'));
@@ -521,6 +563,7 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
+    await removeArtifact(columnarPath);
     if (resolvedUseShards) {
       // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
       await removeJsonlVariants();
@@ -534,6 +577,9 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeJsonlVariants();
     await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+    if (!resolvedUseColumnar) {
+      await removeArtifact(columnarPath);
+    }
   }
 
   if (resolvedUseJsonl) {
@@ -671,6 +717,23 @@ export const enqueueChunkMetaArtifacts = async ({
         }, offsetsPath);
       }
     }
+  } else if (resolvedUseColumnar) {
+    enqueueWrite(
+      formatArtifactLabel(columnarPath),
+      async () => {
+        await removeArtifact(path.join(outDir, 'chunk_meta.json'));
+        await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
+        await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
+        const payload = buildColumnarChunkMeta(chunkMetaIterator, chunkMetaCount);
+        await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
+      }
+    );
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta',
+      format: 'columnar',
+      count: chunkMetaCount
+    }, columnarPath);
   } else {
     enqueueJsonArray('chunk_meta', chunkMetaIterator(), {
       piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }

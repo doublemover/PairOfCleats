@@ -57,6 +57,27 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
   return null;
 };
 
+const inflateChunkMetaColumnar = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
+  if (!arrays) return null;
+  const columns = Array.isArray(payload.columns) ? payload.columns : Object.keys(arrays);
+  if (!columns.length) return [];
+  const length = Number.isFinite(payload.length)
+    ? payload.length
+    : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
+  const rows = new Array(length);
+  for (let i = 0; i < length; i += 1) {
+    const row = {};
+    for (const column of columns) {
+      const values = arrays[column];
+      row[column] = Array.isArray(values) ? (values[i] ?? null) : null;
+    }
+    rows[i] = row;
+  }
+  return rows;
+};
+
 export const loadJsonArrayArtifact = async (
   dir,
   baseName,
@@ -514,6 +535,15 @@ export const loadChunkMeta = async (
         }
         return readJsonFile(sources.paths[0], { maxBytes });
       }
+      if (sources.format === 'columnar') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous columnar sources for chunk_meta');
+        }
+        const payload = readJsonFile(sources.paths[0], { maxBytes });
+        const inflated = inflateChunkMetaColumnar(payload);
+        if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
+        return inflated;
+      }
       const out = [];
       for (const partPath of sources.paths) {
         const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
@@ -538,6 +568,15 @@ export const loadChunkMeta = async (
       }
       return readJsonFile(sources.paths[0], { maxBytes });
     }
+    if (sources.format === 'columnar') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous columnar sources for chunk_meta');
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      const inflated = inflateChunkMetaColumnar(payload);
+      if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
+      return inflated;
+    }
     const out = [];
     for (const partPath of sources.paths) {
       const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
@@ -546,6 +585,14 @@ export const loadChunkMeta = async (
     return out;
   }
 
+  const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
+  if (existsOrBak(columnarPath)) {
+    warnNonStrictJsonFallback(dir, 'chunk_meta');
+    const payload = readJsonFile(columnarPath, { maxBytes });
+    const inflated = inflateChunkMetaColumnar(payload);
+    if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
+    return inflated;
+  }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
     return readJsonFile(jsonPath, { maxBytes });
