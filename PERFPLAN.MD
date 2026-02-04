@@ -796,24 +796,24 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add seed normalization tests (posix/windows mix) for context-pack and impact outputs.
 - [x] Add streaming load path for api-contracts symbols/call-sites to avoid full array materialization.
 - [x] Validate api-contracts call-site grouping keys against symbol ids/chunkUids (add fallback).
-- [ ] Validate `edgeFilters.graphs` values and warn on unknown graphs or all-filtered runs.
-- [ ] Validate `edgeFilters.edgeTypes` values (normalize aliases or warn on no-match).
-- [ ] Make graph selection ignore `edgeTypes` filter when deciding whether to include a graph.
-- [ ] Detect `graphIndex`/`graphRelations` mismatch (signature or identity) and warn or bypass cached index.
-- [ ] Warn when `repoRoot` differs between `graphIndex` and request; ensure consistent normalization.
-- [ ] Add fallback or warning when import graph expansion lacks file mapping for chunk seeds.
-- [ ] Define edge de-dupe policy for confidence/evidence and implement deterministic winner selection.
-- [ ] Clarify `symbolEdges` direction semantics (document or adjust traversal) and add tests.
-- [ ] Validate `nodeCount`/`edgeCount` vs actual nodes/edges with warnings in strict mode.
-- [ ] Reconcile include flags vs `edgeFilters` (warn when a graph is filtered out by flags).
-- [ ] Add tests for unknown `edgeFilters.graphs`/`edgeTypes` warnings and no-match behavior.
-- [ ] Add tests asserting `edgeTypes` does not suppress graph inclusion.
-- [ ] Add tests for graphIndex/graphRelations mismatch and repoRoot mismatch warnings.
-- [ ] Add tests for import-graph expansion missing file mapping (warn or fallback path).
-- [ ] Add tests for edge de-dupe policy (confidence/evidence determinism).
-- [ ] Add tests for symbolEdges direction semantics (`in`/`out`/`both`).
-- [ ] Add tests for nodeCount/edgeCount mismatch warnings in strict mode.
-- [ ] Update `docs/perf/graph-context-pack.md` with filter validation + dedupe policy + warning behaviors.
+- [x] Validate `edgeFilters.graphs` values and warn on unknown graphs or all-filtered runs.
+- [x] Validate `edgeFilters.edgeTypes` values (normalize aliases or warn on no-match).
+- [x] Make graph selection ignore `edgeTypes` filter when deciding whether to include a graph.
+- [x] Detect `graphIndex`/`graphRelations` mismatch (signature or identity) and warn or bypass cached index.
+- [x] Warn when `repoRoot` differs between `graphIndex` and request; ensure consistent normalization.
+- [x] Add fallback or warning when import graph expansion lacks file mapping for chunk seeds.
+- [x] Define edge de-dupe policy for confidence/evidence and implement deterministic winner selection.
+- [x] Clarify `symbolEdges` direction semantics (document or adjust traversal) and add tests.
+- [x] Validate `nodeCount`/`edgeCount` vs actual nodes/edges with warnings in strict mode.
+- [x] Reconcile include flags vs `edgeFilters` (warn when a graph is filtered out by flags).
+- [x] Add tests for unknown `edgeFilters.graphs`/`edgeTypes` warnings and no-match behavior.
+- [x] Add tests asserting `edgeTypes` does not suppress graph inclusion.
+- [x] Add tests for graphIndex/graphRelations mismatch and repoRoot mismatch warnings.
+- [x] Add tests for import-graph expansion missing file mapping (warn or fallback path).
+- [x] Add tests for edge de-dupe policy (confidence/evidence determinism).
+- [x] Add tests for symbolEdges direction semantics (`in`/`out`/`both`).
+- [x] Add tests for nodeCount/edgeCount mismatch warnings in strict mode.
+- [x] Update `docs/perf/graph-context-pack.md` with filter validation + dedupe policy + warning behaviors.
 
 ### Tests
 - [x] `tests/graph/graph-neighborhood-cache.test.js`
@@ -849,6 +849,14 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-filter-predicate-deterministic.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
 - [x] `tests/graph/graph-truncation-order-deterministic.test.js`
+- [x] `tests/graph/graph-filter-warnings.test.js` (new)
+- [x] `tests/graph/graph-edge-type-graph-inclusion.test.js` (new)
+- [x] `tests/graph/graph-index-mismatch-warning.test.js` (new)
+- [x] `tests/graph/graph-reporoot-warning.test.js` (new)
+- [x] `tests/graph/graph-import-missing-file-warning.test.js` (new)
+- [x] `tests/graph/graph-edge-dedupe-policy.test.js` (new)
+- [x] `tests/graph/graph-symbol-direction.test.js` (new)
+- [x] `tests/graph/graph-count-mismatch-warning.test.js` (new)
 - [x] `tools/bench/graph/context-pack-latency.js` (new)
 
 ### Acceptance

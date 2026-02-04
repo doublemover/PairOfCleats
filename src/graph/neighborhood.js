@@ -536,16 +536,13 @@ export const buildGraphNeighborhood = ({
 
   const includeGraph = (graphName) => {
     if (graphFilter && !graphFilter.has(graphName)) return false;
-    if (graphName === 'callGraph' && !includeCallersCallees) return false;
-    if (graphName === 'usageGraph' && !includeUsages) return false;
-    if (graphName === 'importGraph' && !includeImports) return false;
     return true;
   };
   const enabledGraphs = Array.from(GRAPH_NAMES).filter((entry) => includeGraph(entry));
   if (graphFilter && enabledGraphs.length === 0) {
     warnings.push({
-      code: 'GRAPH_EXCLUDED_BY_FLAGS',
-      message: 'Requested graphs were excluded by include flags.'
+      code: 'GRAPH_EXCLUDED_BY_FILTERS',
+      message: 'Requested graphs were excluded by filters.'
     });
   }
 

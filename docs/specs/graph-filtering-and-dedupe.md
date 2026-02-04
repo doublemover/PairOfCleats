@@ -29,8 +29,7 @@ Related docs:
 4. Unknown edgeType values:
    - Emit warning `UNKNOWN_EDGE_TYPE_FILTER` listing unknown values.
    - If no edges match the filter, expansion returns no edges and includes warning.
-5. `includeCallersCallees`, `includeUsages`, `includeImports` may reduce the requested graph set.
-   - If a graph is filtered out by include flags, emit warning `GRAPH_EXCLUDED_BY_FLAGS`.
+5. If the requested graph set is empty after filtering, emit warning `GRAPH_EXCLUDED_BY_FILTERS`.
 
 ## 3. Graph index reuse + consistency
 1. If `graphIndex` is provided and `graphRelations` is also provided:
