@@ -110,7 +110,10 @@ export const processFiles = async ({
         await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
       }
     },
-    state
+    state,
+    {
+      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' })
+    }
   );
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
     allowReorder: runtime.shards?.enabled !== true
@@ -290,12 +293,15 @@ export const processFiles = async ({
                 entry,
                 missingLanguages: Array.isArray(result.missingLanguages) ? result.missingLanguages : []
               });
-              return orderedAppender.enqueue(orderIndex, null, shardMeta);
+              return orderedAppender.skip(orderIndex);
             }
             progress.tick();
             if (shardProgress) {
               shardProgress.count += 1;
               showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
+            }
+            if (!result) {
+              return orderedAppender.skip(orderIndex);
             }
             return orderedAppender.enqueue(orderIndex, result, shardMeta);
           },

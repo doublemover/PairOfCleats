@@ -132,7 +132,8 @@ const resolveCandidate = (relPath, lookup) => {
   if (ext) {
     return resolveFromLookup(trimmed, lookup);
   }
-  if (lookup?.pathTrie && !trieHasPrefix(lookup.pathTrie, trimmed)) {
+  const trieKey = stripImportExtension(trimmed);
+  if (lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
     return null;
   }
   for (const suffix of DEFAULT_IMPORT_SUFFIXES) {

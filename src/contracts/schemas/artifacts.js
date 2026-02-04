@@ -845,7 +845,13 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'dense_vectors_code_hnsw',
   'dense_vectors_lancedb',
   'dense_vectors_doc_lancedb',
-  'dense_vectors_code_lancedb'
+  'dense_vectors_code_lancedb',
+  'call_sites_offsets',
+  'chunk_meta_offsets',
+  'graph_relations_offsets',
+  'symbol_edges_offsets',
+  'symbol_occurrences_offsets',
+  'symbols_offsets'
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
