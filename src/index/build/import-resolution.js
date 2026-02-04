@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -49,6 +50,18 @@ const stripImportExtension = (value) => {
     }
   }
   return value;
+};
+
+const computeFileSetFingerprint = (fileSet) => {
+  if (!fileSet || typeof fileSet.size !== 'number' || fileSet.size === 0) return null;
+  const list = Array.from(fileSet);
+  list.sort(sortStrings);
+  const hash = crypto.createHash('sha1');
+  for (const rel of list) {
+    hash.update(rel);
+    hash.update('\n');
+  }
+  return hash.digest('hex');
 };
 
 const createPathTrie = () => ({ children: new Map() });
@@ -425,6 +438,10 @@ export function resolveImportLinks({
   if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
     cacheState.files = {};
   }
+  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(lookup.fileSet) : null;
+  const fileSetChanged = !!(cacheState
+    && fileSetFingerprint
+    && cacheState.fileSetFingerprint !== fileSetFingerprint);
   const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs) : null;
   if (cacheState && packageFingerprint && cacheState.packageFingerprint
     && cacheState.packageFingerprint !== packageFingerprint) {
@@ -433,6 +450,9 @@ export function resolveImportLinks({
   }
   if (cacheState && packageFingerprint) {
     cacheState.packageFingerprint = packageFingerprint;
+  }
+  if (cacheState && fileSetFingerprint) {
+    cacheState.fileSetFingerprint = fileSetFingerprint;
   }
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
@@ -525,9 +545,12 @@ export function resolveImportLinks({
       let edgeTarget = null;
 
       if (cacheMetrics) cacheMetrics.specs += 1;
-      const cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
+      let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
         ? fileCache.specs[spec]
         : null;
+      if (cachedSpec && fileSetChanged && cachedSpec.resolvedType === 'unresolved') {
+        cachedSpec = null;
+      }
       if (cachedSpec) {
         ({
           resolvedType,
