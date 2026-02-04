@@ -1255,13 +1255,13 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
 - [ ] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
 
-- [ ] **14.E Symbol occurrences + edges streaming**
-- [ ] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
-- [ ] Task 14.E.1.a: Emit rows per chunk; avoid storing all rows in memory.
-- [ ] Task 14.E.2: Preserve deterministic ordering by sorting per‑chunk and emitting in chunk order.
-- [ ] Task 14.E.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
-- [ ] Task 14.E.3: Add optional spill files for large symbol artifact sets; merge via heap.
-- [ ] Task 14.E.3.a: Reuse shared spill/merge helper from 14.A.1.
+- [x] **14.E Symbol occurrences + edges streaming**
+- [x] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
+- [x] Task 14.E.1.a: Emit rows per chunk; avoid storing all rows in memory.
+- [x] Task 14.E.2: Preserve deterministic ordering by sorting per‑chunk and emitting in chunk order.
+- [x] Task 14.E.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
+- [x] Task 14.E.3: Add optional spill files for large symbol artifact sets; merge via heap.
+- [x] Task 14.E.3.a: Reuse shared spill/merge helper from 14.A.1.
 - [ ] Task 14.E.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
 - [ ] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
 - [ ] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).

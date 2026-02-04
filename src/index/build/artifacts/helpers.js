@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { writeJsonLinesFile } from '../../../shared/json-stream.js';
 import { compareStrings } from '../../../shared/sort.js';
@@ -197,6 +198,97 @@ export const recordArtifactTelemetry = (recorder, {
       ...extra
     }
   });
+};
+
+export const createRowSpillCollector = ({
+  outDir,
+  runPrefix,
+  compare,
+  maxBufferBytes = 2 * 1024 * 1024,
+  maxBufferRows = 5000,
+  maxJsonBytes = null,
+  stats = createTrimStats()
+} = {}) => {
+  const buffer = [];
+  let bufferBytes = 0;
+  let runsDir = null;
+  let runIndex = 0;
+  const runs = [];
+  const compareRows = typeof compare === 'function' ? compare : compareStrings;
+  const runDirName = `${runPrefix || 'rows'}.runs`;
+
+  const ensureRunsDir = async () => {
+    if (runsDir) return runsDir;
+    if (!outDir) throw new Error('row spill collector requires outDir');
+    runsDir = path.join(outDir, runDirName);
+    await fs.promises.mkdir(runsDir, { recursive: true });
+    return runsDir;
+  };
+
+  const spill = async () => {
+    if (!buffer.length) return;
+    buffer.sort(compareRows);
+    const dir = await ensureRunsDir();
+    const runName = `${runPrefix || 'rows'}.run-${String(runIndex).padStart(5, '0')}.jsonl`;
+    const runPath = path.join(dir, runName);
+    runIndex += 1;
+    await writeJsonlRunFile(runPath, buffer, { atomic: true });
+    runs.push(runPath);
+    buffer.length = 0;
+    bufferBytes = 0;
+  };
+
+  const append = async (row, { trimmed = false, dropped = false } = {}) => {
+    if (!row || dropped) {
+      recordTrimStats(stats, { dropped: true });
+      return;
+    }
+    const lineBytes = Buffer.byteLength(JSON.stringify(row), 'utf8') + 1;
+    if (maxJsonBytes && lineBytes > maxJsonBytes) {
+      const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${maxJsonBytes}).`);
+      err.code = 'ERR_JSON_TOO_LARGE';
+      throw err;
+    }
+    recordTrimStats(stats, { rowBytes: lineBytes, trimmed });
+    buffer.push(row);
+    bufferBytes += lineBytes;
+    const overflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
+      || (maxBufferRows && buffer.length >= maxBufferRows);
+    if (overflow) {
+      await spill();
+    }
+  };
+
+  const finalize = async () => {
+    if (runs.length) {
+      if (buffer.length) await spill();
+      return {
+        runs: runs.slice(),
+        stats,
+        cleanup: async () => {
+          if (runsDir) {
+            await fs.promises.rm(runsDir, { recursive: true, force: true });
+          }
+        }
+      };
+    }
+    if (buffer.length) buffer.sort(compareRows);
+    return {
+      rows: buffer,
+      stats,
+      cleanup: async () => {
+        if (runsDir) {
+          await fs.promises.rm(runsDir, { recursive: true, force: true });
+        }
+      }
+    };
+  };
+
+  return {
+    append,
+    finalize,
+    stats
+  };
 };
 
 export const compareSymbolOccurrenceRows = (a, b) => {
