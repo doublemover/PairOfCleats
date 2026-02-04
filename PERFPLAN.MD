@@ -1173,6 +1173,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - `tools/bench/index/chargram-postings.js` (new)
 - `tools/bench/index/graph-relations.js` (new)
 - `tools/bench/index/chunk-meta-stream.js` (new)
+- `tools/bench/index/jsonl-offset-index.js` (new)
+- `tools/bench/index/postings-packed.js` (new)
+- `tools/bench/index/jsonl-compression-pipeline.js` (new)
+- `tools/bench/index/import-graph-incremental.js` (new)
 - `tests/indexing/build-state/build-state-debounce.test.js` (new)
 - `tests/indexing/build-state/build-state-merge-consistency.test.js` (new)
 - `tests/indexing/imports/import-resolution-cache.test.js` (new)
@@ -1192,11 +1196,16 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - `docs/perf/index-artifact-pipelines.md` (new)
 - `docs/specs/build-state.md`
 - `docs/specs/import-resolution.md`
+- `docs/specs/import-graph-incremental.md` (new)
 - `docs/specs/symbol-occurrences.md`
 - `docs/specs/symbol-edges.md`
+- `docs/specs/symbol-by-file-index.md` (new)
 - `docs/specs/chargram-postings.md`
+- `docs/specs/postings-packed.md` (new)
 - `docs/specs/graph-relations.md`
 - `docs/specs/chunk-meta.md`
+- `docs/specs/artifact-offset-index.md` (new)
+- `docs/specs/artifact-compression-pipeline.md` (new)
 
 ### Tasks
 - [x] **14.A Foundations: shared streaming + determinism helpers**
@@ -1343,6 +1352,40 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
 - [ ] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
 - [ ] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
+- [ ] Task 14.H.8: Implement `tools/bench/index/jsonl-offset-index.js` for random-access lookups.
+- [ ] Task 14.H.8.a: Compare baseline scan vs offset index (p50/p95 row fetch latency).
+- [ ] Task 14.H.9: Implement `tools/bench/index/postings-packed.js` to compare JSON vs packed postings.
+- [ ] Task 14.H.9.a: Report size ratio + load time delta for token/phrase/chargram postings.
+- [ ] Task 14.H.10: Implement `tools/bench/index/jsonl-compression-pipeline.js` for write throughput.
+- [ ] Task 14.H.10.a: Compare sync write vs worker compression (wall time + CPU).
+- [ ] Task 14.H.11: Implement `tools/bench/index/import-graph-incremental.js` for incremental rebuilds.
+- [ ] Task 14.H.11.a: Report reuse ratio (cached vs recomputed) + total time delta.
+
+- [ ] **14.I Artifact access + write acceleration**
+- [ ] Task 14.I.1: Add byte‑offset indexes for JSONL artifacts (chunk_meta, symbols, symbol_occurrences, symbol_edges, graph_relations, call_sites).
+- [ ] Task 14.I.1.a: Emit offsets during JSONL write (no second pass); store `offsets.bin` (uint64 LE) + `offsets.meta.json`.
+- [ ] Task 14.I.1.b: For compressed shards, either keep raw JSONL alongside compressed or use seekable zstd frames; document fallback.
+- [ ] Task 14.I.1.c: Add loader utilities for fast row fetch by index (single read + JSON.parse).
+- [ ] Task 14.I.1.d: Keep offsets in monotonically increasing order; validate last offset + row length against file size.
+- [ ] Task 14.I.2: Add per‑file symbol row indexes for `symbol_occurrences`/`symbol_edges`.
+- [ ] Task 14.I.2.a: Resolve `fileId` while streaming (via host chunkUid -> chunk_meta -> fileId); accumulate row offsets per file.
+- [ ] Task 14.I.2.b: Store per‑file offset lists in packed varint arrays with a small JSON meta.
+- [ ] Task 14.I.2.c: Add fast path in tooling to load per‑file rows without scanning all parts.
+- [ ] Task 14.I.2.d: Keep per‑file offset lists sorted by row index to preserve deterministic output.
+- [ ] Task 14.I.3: Add write batching + worker thread compression for JSONL artifacts.
+- [ ] Task 14.I.3.a: Buffer rows into fixed-size byte blocks (e.g., 1–4MB) before writing.
+- [ ] Task 14.I.3.b: Compress blocks in a bounded worker pool; preserve output ordering.
+- [ ] Task 14.I.3.c: Backpressure when compression lags to avoid unbounded memory.
+- [ ] Task 14.I.3.d: Prefer zstd (seekable frames) for large shards; fall back to gzip where required.
+- [ ] Task 14.I.4: Add packed postings format (delta+varint) for docId lists.
+- [ ] Task 14.I.4.a: Encode docId deltas + tf counts in a binary blob with offsets per token.
+- [ ] Task 14.I.4.b: Keep JSON as fallback; loader prefers packed when present.
+- [ ] Task 14.I.4.c: Use block-encoded varints (e.g., 128/256 doc blocks) to balance decode speed + compression.
+- [ ] Task 14.I.5: Add incremental import‑graph refresh.
+- [ ] Task 14.I.5.a: Persist per‑file resolution results keyed by file hash + tsconfig fingerprint.
+- [ ] Task 14.I.5.b: Invalidate cache on tsconfig/package.json/paths changes; reuse for unchanged files.
+- [ ] Task 14.I.5.c: Track reuse ratio + invalidations in stage checkpoints for tuning.
+- [ ] Touchpoints 14.I: `src/index/build/artifacts/writers/*.js`, `src/shared/artifact-io/*.js`, `src/index/build/import-resolution-graph.js`, `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/retrieval/*` loaders.
 
 ### Tests
 - [ ] `tests/indexing/build-state/build-state-debounce.test.js`
@@ -1375,6 +1418,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: negative cache expires and detects new files.
 - [ ] `tests/indexing/imports/import-resolution-regex-cache.test.js` (new)
   - Success: precompiled matchers produce identical resolutions.
+- [ ] `tests/indexing/imports/import-graph-incremental-reuse.test.js` (new)
+  - Success: unchanged files reuse cached resolutions; graph output identical.
 - [ ] `tests/indexing/symbols/symbol-occurrences-streaming.test.js`
   - Success: streaming output matches baseline JSONL content.
 - [ ] `tests/indexing/symbols/symbol-edges-streaming.test.js`
@@ -1389,6 +1434,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: columnar symbol rows inflate to baseline row objects.
 - [ ] `tests/indexing/symbols/symbol-string-table.test.js` (new)
   - Success: string table indices resolve to original values.
+- [ ] `tests/indexing/symbols/symbol-by-file-index.test.js` (new)
+  - Success: per-file offset index returns the same rows as full scan.
 - [ ] `tests/indexing/postings/chargram-postings-memory-guard.test.js`
   - Success: memory guard triggers spill without changing output.
 - [ ] `tests/indexing/postings/chargram-postings-spill-merge.test.js`
@@ -1399,6 +1446,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: rolling chargram generator matches baseline tokens.
 - [ ] `tests/indexing/postings/chargram-df-cutoff.test.js` (new)
   - Success: high‑df chargrams are dropped and reported without corrupting postings.
+- [ ] `tests/indexing/postings/postings-packed-roundtrip.test.js` (new)
+  - Success: packed postings decode to the same JSON postings.
+- [ ] `tests/indexing/postings/postings-packed-size.test.js` (new)
+  - Success: packed size is smaller than JSON for large vocab.
 - [ ] `tests/indexing/relations/graph-relations-streaming.test.js`
   - Success: streaming JSONL output matches baseline graph_relations.
 - [ ] `tests/indexing/relations/graph-relations-determinism.test.js`
@@ -1409,6 +1460,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: CSR adjacency loads to equivalent node/edge sets.
 - [ ] `tests/indexing/relations/graph-relations-byte-budget.test.js` (new)
   - Success: caps drop edges deterministically and report counts.
+- [ ] `tests/indexing/relations/jsonl-offset-index.test.js` (new)
+  - Success: row fetch via offsets matches baseline scan.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-streaming.test.js`
   - Success: JSONL output matches baseline for medium fixture.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js`
@@ -1427,12 +1480,17 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: ID‑only spill index produces identical output without re‑stringify.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-columnar-roundtrip.test.js` (new)
   - Success: columnar format inflates to row objects equivalent to baseline.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-offset-index.test.js` (new)
+  - Success: chunk_meta row fetch via offsets matches baseline scan.
+- [ ] `tests/indexing/artifacts/jsonl-compression-pipeline-order.test.js` (new)
+  - Success: worker compression preserves row order and checksums.
 
 ### Acceptance
 - [ ] Build state writes are coalesced and deterministic.
 - [ ] Build state delta logs compact cleanly without blocking writes.
 - [ ] Import resolution graphs are faster and use less memory with the same output.
 - [ ] Import resolution caches (trie + regex + negative TTL) reduce syscalls without changing results.
+- [ ] Incremental import-graph refresh reuses cached resolutions for unchanged files.
 - [ ] Symbol occurrences/edges and chunk meta stream without large intermediate arrays.
 - [ ] Symbol artifacts optionally support columnar output + string tables with identical semantics.
 - [ ] Chunk meta ordering preserves docId alignment regardless of processing order.
@@ -1440,4 +1498,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Chargram postings drop high‑df entries deterministically when configured.
 - [ ] Graph relations write paths scale to large repos with sharded JSONL.
 - [ ] Graph relations CSR format round‑trips to the same node/edge sets.
+- [ ] JSONL offset indexes enable fast random access without full scans.
+- [ ] Packed postings are smaller and load faster than JSON in benchmarks.
+- [ ] Worker compression preserves row order and checksums while reducing wall time.
 - [ ] Benchmarks show measurable gains (baseline vs current deltas captured) and are documented.
