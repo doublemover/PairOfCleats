@@ -292,9 +292,9 @@ export const createRowSpillCollector = ({
       return;
     }
     const resolvedLine = line ?? serializeRow(row);
-    const resolvedBytes = Number.isFinite(Number(lineBytes))
-      ? Math.max(0, Math.floor(Number(lineBytes)))
-      : Buffer.byteLength(resolvedLine, 'utf8') + 1;
+    const resolvedBytes = lineBytes == null
+      ? Buffer.byteLength(resolvedLine, 'utf8') + 1
+      : Math.max(0, Math.floor(Number(lineBytes)));
     if (maxJsonBytes && resolvedBytes > maxJsonBytes) {
       const err = new Error(`JSONL entry exceeds maxBytes (${resolvedBytes} > ${maxJsonBytes}).`);
       err.code = 'ERR_JSON_TOO_LARGE';
