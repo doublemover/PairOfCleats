@@ -969,12 +969,6 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 - [x] `tests/map/map-viewer-telemetry.test.js`
   - Success: FPS/memory metrics emitted and within expected ranges.
 
-### Acceptance
-- [ ] Map build memory usage reduced for large inputs (documented via benchmark).
-- [ ] Viewer remains responsive under large graphs (FPS + dropped frames within target).
-- [ ] Map output remains deterministic and schema-compatible.
-- [ ] Benchmarks demonstrate improvements and are documented.
-
 ---
 
 ## Phase 13 — Documentation + JSDoc
