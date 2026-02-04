@@ -25,6 +25,7 @@ const DEFAULT_IMPORT_SUFFIXES = [
 const MAX_IMPORT_WARNINGS = 200;
 const MAX_GRAPH_EDGES = 200000;
 const MAX_GRAPH_NODES = 100000;
+const NEGATIVE_CACHE_TTL_MS = 60000;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -40,6 +41,42 @@ const normalizeRelPath = (value) => {
   return normalized.replace(/^\.\/?/, '');
 };
 
+const stripImportExtension = (value) => {
+  if (!value) return '';
+  for (const ext of DEFAULT_IMPORT_EXTS) {
+    if (value.endsWith(ext)) {
+      return value.slice(0, -ext.length) || '';
+    }
+  }
+  return value;
+};
+
+const createPathTrie = () => ({ children: new Map() });
+
+const addPathToTrie = (trie, relPath) => {
+  if (!relPath) return;
+  const parts = relPath.split('/').filter(Boolean);
+  let node = trie;
+  for (const part of parts) {
+    if (!node.children.has(part)) {
+      node.children.set(part, { children: new Map() });
+    }
+    node = node.children.get(part);
+  }
+};
+
+const trieHasPrefix = (trie, relPath) => {
+  if (!relPath) return false;
+  const parts = relPath.split('/').filter(Boolean);
+  let node = trie;
+  for (const part of parts) {
+    const next = node.children.get(part);
+    if (!next) return false;
+    node = next;
+  }
+  return true;
+};
+
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
   if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
@@ -50,6 +87,7 @@ const createFileLookup = ({ entries, root }) => {
   const rootAbs = path.resolve(root);
   const fileSet = new Set();
   const fileLower = new Map();
+  const pathTrie = createPathTrie();
   let hasTsconfig = false;
   for (const entry of entries) {
     const abs = typeof entry === 'string' ? entry : entry.abs;
@@ -63,8 +101,10 @@ const createFileLookup = ({ entries, root }) => {
     const lower = relPosix.toLowerCase();
     if (lower.endsWith('tsconfig.json')) hasTsconfig = true;
     if (!fileLower.has(lower)) fileLower.set(lower, relPosix);
+    const basePath = stripImportExtension(relPosix);
+    if (basePath) addPathToTrie(pathTrie, basePath);
   }
-  return { rootAbs, fileSet, fileLower, hasTsconfig };
+  return { rootAbs, fileSet, fileLower, hasTsconfig, pathTrie };
 };
 
 const resolveFromLookup = (relPath, lookup) => {
@@ -80,6 +120,9 @@ const resolveCandidate = (relPath, lookup) => {
   if (!relPath) return null;
   const normalized = normalizeRelPath(relPath);
   const trimmed = normalized.replace(/\/+$/, '');
+  if (lookup?.pathTrie && !trieHasPrefix(lookup.pathTrie, trimmed)) {
+    return null;
+  }
   const ext = path.posix.extname(trimmed);
   if (ext) {
     return resolveFromLookup(trimmed, lookup);
@@ -93,14 +136,21 @@ const resolveCandidate = (relPath, lookup) => {
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const matchTsPattern = (pattern, spec) => {
-  if (!pattern || !spec) return null;
+const compileTsPattern = (pattern) => {
+  if (!pattern) return null;
   const starCount = (pattern.match(/\*/g) || []).length;
   const parts = pattern.split('*').map(escapeRegex);
   const regex = new RegExp(`^${parts.join('(.+?)')}$`);
-  const match = spec.match(regex);
+  return { pattern, regex, starCount };
+};
+
+const matchTsPattern = (pattern, spec) => {
+  if (!pattern || !spec) return null;
+  const compiled = compileTsPattern(pattern);
+  if (!compiled) return null;
+  const match = spec.match(compiled.regex);
   if (!match) return null;
-  return { captures: match.slice(1), starCount };
+  return { captures: match.slice(1), starCount: compiled.starCount };
 };
 
 const applyTsTemplate = (template, captures) => {
@@ -180,6 +230,17 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
       : null;
     const basePaths = baseConfig?.paths || {};
     const paths = rawPaths ? { ...basePaths, ...rawPaths } : basePaths;
+    const compiledPaths = Object.entries(paths).flatMap(([pattern, replacements]) => {
+      const compiled = compileTsPattern(pattern);
+      if (!compiled) return [];
+      const list = Array.isArray(replacements) ? replacements : [replacements];
+      const filtered = list.filter((replacement) => typeof replacement === 'string');
+      if (!filtered.length) return [];
+      return [{
+        ...compiled,
+        replacements: filtered
+      }];
+    });
 
     const fingerprint = sha1(JSON.stringify({
       baseUrlAbs,
@@ -190,6 +251,7 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
       compilerOptions,
       baseUrlAbs,
       paths,
+      compiledPaths,
       fingerprint
     };
     tsconfigCache.set(tsconfigPath, { key: cacheKey, value });
@@ -243,16 +305,34 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
 
 const resolveTsPaths = ({ spec, tsconfig, lookup }) => {
   if (!tsconfig?.paths || !spec) return null;
-  const entries = Object.entries(tsconfig.paths);
+  const compiled = Array.isArray(tsconfig.compiledPaths) ? tsconfig.compiledPaths : null;
+  const entries = compiled || Object.entries(tsconfig.paths);
   if (!entries.length) return null;
   const candidates = [];
-  for (const [pattern, replacements] of entries) {
-    const match = matchTsPattern(pattern, spec);
-    if (!match) continue;
+  for (const entry of entries) {
+    let pattern = null;
+    let replacements = null;
+    let captures = null;
+    let starCount = 0;
+    if (compiled) {
+      pattern = entry.pattern;
+      replacements = entry.replacements;
+      const match = spec.match(entry.regex);
+      if (!match) continue;
+      captures = match.slice(1);
+      starCount = entry.starCount || 0;
+    } else {
+      pattern = entry[0];
+      replacements = entry[1];
+      const match = matchTsPattern(pattern, spec);
+      if (!match) continue;
+      captures = match.captures;
+      starCount = match.starCount;
+    }
     const list = Array.isArray(replacements) ? replacements : [replacements];
     for (const replacement of list) {
       if (typeof replacement !== 'string') continue;
-      const substituted = applyTsTemplate(replacement, match.captures);
+      const substituted = applyTsTemplate(replacement, captures);
       const candidateAbs = path.resolve(tsconfig.baseUrlAbs, substituted);
       const rel = resolveWithinRoot(lookup.rootAbs, candidateAbs);
       if (!rel) continue;
@@ -261,7 +341,7 @@ const resolveTsPaths = ({ spec, tsconfig, lookup }) => {
       candidates.push({
         resolved,
         pattern,
-        starCount: match.starCount,
+        starCount,
         pathLength: resolved.length
       });
     }
@@ -370,7 +450,11 @@ export function resolveImportLinks({
       let edgeTarget = null;
 
       const cacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
-      const cached = resolutionCache.get(cacheKey);
+      let cached = resolutionCache.get(cacheKey);
+      if (cached?.expiresAt && cached.expiresAt < Date.now()) {
+        resolutionCache.delete(cacheKey);
+        cached = null;
+      }
       if (cached) {
         ({
           resolvedType,
@@ -404,12 +488,16 @@ export function resolveImportLinks({
       }
 
       if (!cached) {
+        const expiresAt = resolvedType === 'unresolved'
+          ? Date.now() + NEGATIVE_CACHE_TTL_MS
+          : null;
         resolutionCache.set(cacheKey, {
           resolvedType,
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName
+          packageName,
+          expiresAt
         });
       }
 

@@ -2,17 +2,20 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
+import { createTempPath, replaceFile } from '../../shared/json-stream/atomic.js';
 import { sha1 } from '../../shared/hash.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
 const STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
 const STATE_EVENTS_FILE = 'build_state.events.jsonl';
+const STATE_DELTAS_FILE = 'build_state.deltas.jsonl';
 const STATE_SCHEMA_VERSION = 1;
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
+const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
@@ -24,6 +27,7 @@ const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
 const resolveCheckpointsPath = (buildRoot) => path.join(buildRoot, STATE_CHECKPOINTS_FILE);
 const resolveEventsPath = (buildRoot) => path.join(buildRoot, STATE_EVENTS_FILE);
+const resolveDeltasPath = (buildRoot) => path.join(buildRoot, STATE_DELTAS_FILE);
 
 const resolveDebounceMs = (patch) => {
   if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
@@ -41,9 +45,11 @@ const getCacheEntry = (buildRoot) => {
       progress: null,
       progressFingerprint: null,
       progressHash: null,
+      progressSerialized: null,
       stageCheckpoints: null,
       checkpointsFingerprint: null,
       checkpointsHash: null,
+      checkpointsSerialized: null,
       lastHash: null,
       lastComparableHash: null
     });
@@ -229,6 +235,53 @@ const appendEventLog = async (buildRoot, events) => {
   }
 };
 
+const buildDeltaEntries = ({ main, progress, checkpoints, ts }) => {
+  const entries = [];
+  const now = ts || new Date().toISOString();
+  const push = (pathValue, value) => {
+    entries.push({ op: 'set', path: pathValue, value, ts: now });
+  };
+  if (main && typeof main === 'object') {
+    for (const [key, value] of Object.entries(main)) {
+      push(`/${key}`, value);
+    }
+  }
+  if (progress && typeof progress === 'object') {
+    for (const [mode, value] of Object.entries(progress)) {
+      push(`/progress/${mode}`, value);
+    }
+  }
+  if (checkpoints && typeof checkpoints === 'object') {
+    for (const [mode, value] of Object.entries(checkpoints)) {
+      push(`/stageCheckpoints/${mode}`, value);
+    }
+  }
+  return entries;
+};
+
+const appendDeltaLog = async (buildRoot, deltas, snapshot = null) => {
+  if (!buildRoot || !deltas || !deltas.length) return;
+  const filePath = resolveDeltasPath(buildRoot);
+  try {
+    const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
+    if (stat && stat.size >= DELTA_LOG_MAX_BYTES) {
+      const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
+      try { fsSync.renameSync(filePath, rotated); } catch {}
+      if (snapshot) {
+        const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
+        await fs.writeFile(filePath, snapshotLine, 'utf8');
+      }
+    } else if (!stat && snapshot) {
+      const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
+      await fs.writeFile(filePath, snapshotLine, 'utf8');
+    }
+    const lines = deltas.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
+    await fs.appendFile(filePath, lines, 'utf8');
+  } catch (err) {
+    recordStateError(buildRoot, err);
+  }
+};
+
 const enqueueStateUpdate = (buildRoot, action) => {
   if (!buildRoot) return Promise.resolve(null);
   const key = path.resolve(buildRoot);
@@ -260,6 +313,19 @@ const stripUpdatedAt = (value) => {
 const hashJson = (value) => {
   if (value == null) return null;
   return sha1(JSON.stringify(value));
+};
+
+const hashJsonString = (value) => {
+  if (value == null) return null;
+  return sha1(value);
+};
+
+const writeJsonStringAtomic = async (filePath, jsonString) => {
+  if (!filePath) return null;
+  const tempPath = createTempPath(filePath);
+  await fs.writeFile(tempPath, jsonString, 'utf8');
+  await replaceFile(tempPath, filePath);
+  return filePath;
 };
 
 const loadBuildState = async (buildRoot) => {
@@ -349,24 +415,33 @@ const writeSidecarFile = async (buildRoot, type, payload, cache) => {
   const filePath = type === 'progress'
     ? resolveProgressPath(buildRoot)
     : resolveCheckpointsPath(buildRoot);
-  const nextHash = hashJson(payload);
+  const jsonString = `${JSON.stringify(payload)}\n`;
+  const nextHash = hashJsonString(jsonString);
   const cachedHash = type === 'progress' ? cache.progressHash : cache.checkpointsHash;
   if (nextHash && cachedHash === nextHash) {
-    if (type === 'progress') cache.progress = payload;
-    if (type === 'checkpoints') cache.stageCheckpoints = payload;
+    if (type === 'progress') {
+      cache.progress = payload;
+      cache.progressSerialized = jsonString;
+    }
+    if (type === 'checkpoints') {
+      cache.stageCheckpoints = payload;
+      cache.checkpointsSerialized = jsonString;
+    }
     return payload;
   }
   try {
-    await writeJsonObjectFile(filePath, { fields: payload, atomic: true });
+    await writeJsonStringAtomic(filePath, jsonString);
     const fingerprint = await readFingerprint(filePath);
     if (type === 'progress') {
       cache.progress = payload;
       cache.progressFingerprint = fingerprint;
       cache.progressHash = nextHash;
+      cache.progressSerialized = jsonString;
     } else {
       cache.stageCheckpoints = payload;
       cache.checkpointsFingerprint = fingerprint;
       cache.checkpointsHash = nextHash;
+      cache.checkpointsSerialized = jsonString;
     }
     return payload;
   } catch (err) {
@@ -384,6 +459,7 @@ const applyStatePatch = async (buildRoot, patch, events = []) => {
   const loadedState = await loadBuildState(buildRoot);
   let state = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
   state = await hydrateStateDefaults(state, buildRoot);
+  const deltaEntries = buildDeltaEntries({ main, progress, checkpoints });
 
   let nextProgress = null;
   if (progress) {
@@ -421,6 +497,9 @@ const applyStatePatch = async (buildRoot, patch, events = []) => {
   }
   if (events?.length) {
     await appendEventLog(buildRoot, events);
+  }
+  if (deltaEntries.length) {
+    void appendDeltaLog(buildRoot, deltaEntries, merged);
   }
   return merged;
 };
