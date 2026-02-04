@@ -13,6 +13,55 @@ import {
   normalizeImportPath
 } from './indexes.js';
 
+const GRAPH_INDEX_CACHE_MAX = 3;
+const graphIndexCache = new Map();
+const GRAPH_ARTIFACT_CACHE_MAX = 2;
+const graphArtifactCache = new Map();
+
+const getCachedGraphIndex = (key) => {
+  if (!key) return null;
+  if (!graphIndexCache.has(key)) return null;
+  const value = graphIndexCache.get(key);
+  graphIndexCache.delete(key);
+  graphIndexCache.set(key, value);
+  return value;
+};
+
+const setCachedGraphIndex = (key, value) => {
+  if (!key) return;
+  if (graphIndexCache.has(key)) graphIndexCache.delete(key);
+  graphIndexCache.set(key, value);
+  while (graphIndexCache.size > GRAPH_INDEX_CACHE_MAX) {
+    const oldest = graphIndexCache.keys().next().value;
+    graphIndexCache.delete(oldest);
+  }
+};
+
+const getCachedGraphArtifacts = (key) => {
+  if (!key) return null;
+  if (!graphArtifactCache.has(key)) return null;
+  const value = graphArtifactCache.get(key);
+  graphArtifactCache.delete(key);
+  graphArtifactCache.set(key, value);
+  return value;
+};
+
+const setCachedGraphArtifacts = (key, value) => {
+  if (!key) return;
+  if (graphArtifactCache.has(key)) graphArtifactCache.delete(key);
+  graphArtifactCache.set(key, value);
+  while (graphArtifactCache.size > GRAPH_ARTIFACT_CACHE_MAX) {
+    const oldest = graphArtifactCache.keys().next().value;
+    graphArtifactCache.delete(oldest);
+  }
+};
+
+export const buildGraphIndexCacheKey = ({ indexSignature, repoRoot = null } = {}) => {
+  if (!indexSignature) return null;
+  const repoTag = repoRoot ? `|repo:${repoRoot}` : '';
+  return `graph-index:${indexSignature}${repoTag}`;
+};
+
 export const buildGraphIndex = ({
   graphRelations,
   symbolEdges,
@@ -126,18 +175,27 @@ export const createGraphStore = ({
     strict
   }));
 
-  const loadGraphIndex = async ({ repoRoot = null } = {}) => {
-    const [graphRelations, symbolEdges, callSites] = await Promise.all([
-      loadGraph(),
-      loadSymbolEdges(),
-      loadCallSites()
-    ]);
-    return buildGraphIndex({
-      graphRelations,
-      symbolEdges,
-      callSites,
+  const loadGraphIndex = async ({ repoRoot = null, cacheKey = null } = {}) => {
+    const cached = getCachedGraphIndex(cacheKey);
+    if (cached) return cached;
+    let cachedArtifacts = getCachedGraphArtifacts(cacheKey);
+    if (!cachedArtifacts) {
+      const [graphRelations, symbolEdges, callSites] = await Promise.all([
+        loadGraph(),
+        loadSymbolEdges(),
+        loadCallSites()
+      ]);
+      cachedArtifacts = { graphRelations, symbolEdges, callSites };
+      setCachedGraphArtifacts(cacheKey, cachedArtifacts);
+    }
+    const index = buildGraphIndex({
+      graphRelations: cachedArtifacts.graphRelations,
+      symbolEdges: cachedArtifacts.symbolEdges,
+      callSites: cachedArtifacts.callSites,
       repoRoot
     });
+    setCachedGraphIndex(cacheKey, index);
+    return index;
   };
 
   return {
