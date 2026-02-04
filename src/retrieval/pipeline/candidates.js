@@ -1,5 +1,16 @@
 import { extractNgrams, tri } from '../../shared/tokenize.js';
 
+/**
+ * Create a candidate-set builder for sparse retrieval.
+ * @param {object} input
+ * @param {boolean} input.useSqlite
+ * @param {object} input.postingsConfig
+ * @param {Function} input.buildCandidateSetSqlite
+ * @param {number} input.chargramMaxTokenLength
+ * @param {number} input.maxCandidates
+ * @param {object} [input.candidatePool]
+ * @returns {Function}
+ */
 export const createCandidateSetBuilder = ({
   useSqlite,
   postingsConfig,
@@ -71,6 +82,12 @@ export const createCandidateSetBuilder = ({
   };
 };
 
+/**
+ * Check whether a sorted posting list includes a doc id.
+ * @param {number[]} posting
+ * @param {number} docId
+ * @returns {boolean}
+ */
 export const postingIncludesDocId = (posting, docId) => {
   if (!Array.isArray(posting) || !posting.length) return false;
   let lo = 0;
@@ -85,6 +102,12 @@ export const postingIncludesDocId = (posting, docId) => {
   return false;
 };
 
+/**
+ * Resolve phrase n-gram min/max range for tokenization.
+ * @param {Set<string>|null} phraseSet
+ * @param {{min?:number,max?:number}|null} phraseRange
+ * @returns {{min:number,max:number}|null}
+ */
 export const resolvePhraseRange = (phraseSet, phraseRange) => {
   if (phraseRange?.min && phraseRange?.max) return phraseRange;
   if (!phraseSet || !phraseSet.size) return null;
