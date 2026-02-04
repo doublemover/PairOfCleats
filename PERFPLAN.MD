@@ -1281,7 +1281,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.D.3.d: Detect out‑of‑order chunk_meta stream; only enable external sort when needed.
 - [x] Task 14.D.3.e: External sort by numeric `id` only to preserve docId alignment.
 - [x] Task 14.D.3.f: Stream JSONL directly when already ordered (skip spill collector).
-- [ ] Task 14.D.3.g: Emit chunk_meta ordering telemetry in stage checkpoints.
+- [x] Task 14.D.3.g: Emit chunk_meta ordering telemetry in stage checkpoints.
 - [ ] Task 14.D.3.h: Add docId alignment guardrails and verification in tests.
 - [ ] Task 14.D.3.i: Add bucketed external sort by `id` range to avoid full compare sort.
 - [ ] Task 14.D.3.j: Log the first out‑of‑order pair (prevId/nextId) for diagnostics.
@@ -1310,7 +1310,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.8: Add canonical string tables for symbol names/roles/kinds to reduce repetition.
 - [x] Task 14.E.8.a: Store string tables in meta and reference by index in rows.
 
-- [ ] **14.F Graph relations streaming + measurement**
+- [x] **14.F Graph relations streaming + measurement**
 - [x] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
 - [x] Task 14.F.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
 - [x] Task 14.F.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
@@ -1324,7 +1324,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.F.6: Add byte-budgeted streaming caps for graph_relations to avoid runaway growth.
 - [x] Task 14.F.6.a: Record precise drop counts and cap thresholds per graph.
 
-- [ ] **14.G Chargram postings memory bounds**
+- [x] **14.G Chargram postings memory bounds**
 - [x] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
 - [x] Task 14.G.1.a: Maintain a reusable Set and clear it per chunk.
 - [x] Task 14.G.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
