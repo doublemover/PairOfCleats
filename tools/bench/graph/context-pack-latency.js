@@ -13,6 +13,9 @@ import {
   readCompatibilityKey
 } from '../../../src/shared/artifact-io.js';
 import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
+import { resolveIndexDir } from '../../../src/retrieval/cli-index.js';
+import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
+import { loadUserConfig } from '../../shared/dict-utils.js';
 import { buildGraphIndexCacheKey, createGraphStore } from '../../../src/graph/store.js';
 import { assembleCompositeContextPack, buildChunkIndex } from '../../../src/context-pack/assemble.js';
 
@@ -165,9 +168,16 @@ export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice
   const argv = cli.parse();
 
   const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
-  const indexDir = argv.index ? path.resolve(argv.index) : null;
+  const userConfig = loadUserConfig(repoRoot);
+  let indexDir = argv.index ? path.resolve(argv.index) : null;
+  if (!indexDir) {
+    const resolved = resolveIndexDir(repoRoot, 'code', userConfig);
+    if (resolved && hasIndexMeta(resolved)) {
+      indexDir = resolved;
+    }
+  }
   if (!indexDir || !fs.existsSync(indexDir)) {
-    throw new Error('Missing --index <indexDir>.');
+    throw new Error('Missing --index <indexDir> and no built index found for repo.');
   }
 
   const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
