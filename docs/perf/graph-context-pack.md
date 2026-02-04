@@ -5,6 +5,9 @@ This note documents the graph/context-pack performance work in Phase 10:
 shared graph indexes, deterministic ordering, reduced IO for excerpts, and
 bounded caches to keep long-lived sessions stable.
 
+Spec references:
+- `docs/specs/graph-filtering-and-dedupe.md` (filtering + dedupe + warning semantics)
+
 ## Key Improvements
 - Shared `GraphIndex` with precomputed adjacency and node maps to avoid
   per-request rebuilds.

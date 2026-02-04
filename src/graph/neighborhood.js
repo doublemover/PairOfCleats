@@ -31,6 +31,22 @@ const GRAPH_NODE_TYPES = {
   importGraph: 'file'
 };
 
+const GRAPH_NAMES = new Set(['callGraph', 'usageGraph', 'importGraph', 'symbolEdges']);
+const EDGE_TYPE_ALIASES = new Map([
+  ['calls', 'call'],
+  ['call', 'call'],
+  ['imports', 'import'],
+  ['import', 'import'],
+  ['usages', 'usage'],
+  ['usage', 'usage'],
+  ['exports', 'export'],
+  ['export', 'export'],
+  ['dataflow', 'dataflow'],
+  ['symbols', 'symbol'],
+  ['symbol', 'symbol']
+]);
+const KNOWN_EDGE_TYPES = new Set(['call', 'usage', 'import', 'export', 'dataflow', 'symbol']);
+
 const normalizeCaps = (caps) => ({
   maxDepth: normalizeCap(caps?.maxDepth),
   maxFanoutPerNode: normalizeCap(caps?.maxFanoutPerNode),
@@ -57,17 +73,118 @@ const normalizeFilterList = (value) => {
     .filter(Boolean);
 };
 
+const normalizeEdgeType = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  return EDGE_TYPE_ALIASES.get(raw) || raw;
+};
+
 const normalizeEdgeFilter = (edgeFilters) => {
   const graphs = normalizeFilterList(edgeFilters?.graphs);
-  const edgeTypes = normalizeFilterList(edgeFilters?.edgeTypes);
+  const edgeTypesRaw = normalizeFilterList(edgeFilters?.edgeTypes);
+  const edgeTypes = [];
+  const unknownGraphs = [];
+  const unknownEdgeTypes = [];
+  for (const entry of graphs) {
+    if (!GRAPH_NAMES.has(entry)) unknownGraphs.push(entry);
+  }
+  for (const entry of edgeTypesRaw) {
+    const normalized = normalizeEdgeType(entry);
+    if (!normalized || !KNOWN_EDGE_TYPES.has(normalized)) {
+      unknownEdgeTypes.push(entry);
+      continue;
+    }
+    edgeTypes.push(normalized);
+  }
   const minConfidenceRaw = Number(edgeFilters?.minConfidence);
   const minConfidence = Number.isFinite(minConfidenceRaw) ? minConfidenceRaw : null;
   return {
     graphs: graphs.length ? new Set(graphs) : null,
-    edgeTypes: edgeTypes.length ? new Set(edgeTypes.map((entry) => entry.toLowerCase())) : null,
-    minConfidence
+    edgeTypes: edgeTypes.length ? new Set(edgeTypes) : null,
+    minConfidence,
+    unknownGraphs,
+    unknownEdgeTypes,
+    normalizedEdgeTypes: edgeTypes
   };
 };
+
+const isEdgeBetter = (candidate, current) => {
+  if (!current) return true;
+  const candConf = Number.isFinite(candidate?.confidence) ? candidate.confidence : null;
+  const currConf = Number.isFinite(current?.confidence) ? current.confidence : null;
+  if (candConf != null && currConf != null && candConf !== currConf) {
+    return candConf > currConf;
+  }
+  if (candConf != null && currConf == null) return true;
+  if (candConf == null && currConf != null) return false;
+  const candEvidence = candidate?.evidence && Object.keys(candidate.evidence).length > 0;
+  const currEvidence = current?.evidence && Object.keys(current.evidence).length > 0;
+  if (candEvidence !== currEvidence) return candEvidence;
+  return false;
+};
+
+const dedupeSortedEdges = (sortedEdges) => {
+  if (!Array.isArray(sortedEdges) || sortedEdges.length <= 1) return sortedEdges || [];
+  const deduped = [];
+  let lastKey = null;
+  let best = null;
+  for (const edge of sortedEdges) {
+    const key = edgeKey(edge);
+    if (key !== lastKey) {
+      if (best) deduped.push(best);
+      best = edge;
+      lastKey = key;
+      continue;
+    }
+    if (isEdgeBetter(edge, best)) best = edge;
+  }
+  if (best) deduped.push(best);
+  return deduped;
+};
+
+const validateGraphCounts = (graphRelations, warnings) => {
+  if (!graphRelations || typeof graphRelations !== 'object') return;
+  for (const graphName of ['callGraph', 'usageGraph', 'importGraph']) {
+    const graph = graphRelations[graphName];
+    if (!graph || typeof graph !== 'object') continue;
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    const invalidNodes = [];
+    if (Number.isFinite(graph.nodeCount) && graph.nodeCount !== nodes.length) {
+      warnings.push({
+        code: 'GRAPH_COUNT_MISMATCH',
+        message: `${graphName} nodeCount does not match node list length.`,
+        data: { graph: graphName, expected: graph.nodeCount, actual: nodes.length }
+      });
+    }
+    if (Number.isFinite(graph.edgeCount)) {
+      let actualEdges = 0;
+      for (const node of nodes) {
+        if (!node || typeof node.id !== 'string' || !Array.isArray(node.out) || !Array.isArray(node.in)) {
+          if (invalidNodes.length < 3) {
+            invalidNodes.push({ id: node?.id ?? null });
+          }
+        }
+        const out = Array.isArray(node?.out) ? node.out.length : 0;
+        actualEdges += out;
+      }
+      if (graph.edgeCount !== actualEdges) {
+        warnings.push({
+          code: 'GRAPH_COUNT_MISMATCH',
+          message: `${graphName} edgeCount does not match out-edge totals.`,
+          data: { graph: graphName, expected: graph.edgeCount, actual: actualEdges }
+        });
+      }
+    }
+    if (invalidNodes.length) {
+      warnings.push({
+        code: 'GRAPH_NODE_INVALID',
+        message: `${graphName} nodes missing required id/out/in fields.`,
+        data: { graph: graphName, samples: invalidNodes }
+      });
+    }
+  }
+};
+
 
 const createEdgeFilterPredicate = ({ graphFilter, edgeTypeFilter, minConfidence }) => (
   ({ graph, edgeType, confidence }) => {
@@ -169,6 +286,7 @@ export const buildGraphNeighborhood = ({
   const timingStart = process.hrtime.bigint();
   const memoryStart = process.memoryUsage();
   const warnings = [];
+  if (graphRelations) validateGraphCounts(graphRelations, warnings);
   const truncation = createTruncationRecorder({ scope: 'graph' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
   const missingImportGraphRefs = new Set();
@@ -205,24 +323,60 @@ export const buildGraphNeighborhood = ({
   const minConfidence = filter.minConfidence;
   const allowEdge = createEdgeFilterPredicate({ graphFilter, edgeTypeFilter, minConfidence });
 
-  const effectiveRepoRoot = graphIndex?.repoRoot ?? repoRoot;
-  const callGraphIndex = graphIndex?.callGraphIndex ?? buildGraphIndex(graphRelations?.callGraph);
-  const usageGraphIndex = graphIndex?.usageGraphIndex ?? buildGraphIndex(graphRelations?.usageGraph);
-  const importGraphIndex = graphIndex?.importGraphIndex ?? buildImportGraphIndex(graphRelations?.importGraph, effectiveRepoRoot);
-  const callGraphAdjacency = graphIndex?.callGraphAdjacency ?? null;
-  const usageGraphAdjacency = graphIndex?.usageGraphAdjacency ?? null;
-  const importGraphAdjacency = graphIndex?.importGraphAdjacency ?? null;
-  const chunkInfo = graphIndex?.chunkInfo ?? buildChunkInfo(callGraphIndex, usageGraphIndex);
-  const symbolIndex = graphIndex?.symbolIndex ?? buildSymbolEdgesIndex(symbolEdges);
-  const callSiteIndex = graphIndex?.callSiteIndex ?? buildCallSiteIndex(callSites);
-  const normalizeImport = graphIndex?.normalizeImportPath
-    ? (value) => graphIndex.normalizeImportPath(value)
+  if (filter.unknownGraphs.length) {
+    warnings.push({
+      code: 'UNKNOWN_GRAPH_FILTER',
+      message: 'Unknown graph filters supplied; they will be ignored.',
+      data: { graphs: filter.unknownGraphs }
+    });
+  }
+  if (filter.unknownEdgeTypes.length) {
+    warnings.push({
+      code: 'UNKNOWN_EDGE_TYPE_FILTER',
+      message: 'Unknown edge type filters supplied; they will be ignored.',
+      data: { edgeTypes: filter.unknownEdgeTypes }
+    });
+  }
+
+  const graphIndexMismatch = Boolean(
+    graphIndex && graphRelations && graphIndex.graphRelations && graphIndex.graphRelations !== graphRelations
+  );
+  if (graphIndexMismatch) {
+    warnings.push({
+      code: 'GRAPH_INDEX_MISMATCH',
+      message: 'Graph index does not match provided graph relations; rebuilding indexes from relations.'
+    });
+  }
+  const graphIndexEffective = graphIndexMismatch ? null : graphIndex;
+  if (graphIndexEffective?.repoRoot && repoRoot && graphIndexEffective.repoRoot !== repoRoot) {
+    warnings.push({
+      code: 'GRAPH_INDEX_REPOROOT_MISMATCH',
+      message: 'Graph index repoRoot differs from request repoRoot; using graph index repoRoot for normalization.',
+      data: { graphIndexRepoRoot: graphIndexEffective.repoRoot, repoRoot }
+    });
+  }
+
+  const effectiveRepoRoot = graphIndexEffective?.repoRoot ?? repoRoot;
+  const callGraphIndex = graphIndexEffective?.callGraphIndex ?? buildGraphIndex(graphRelations?.callGraph);
+  const usageGraphIndex = graphIndexEffective?.usageGraphIndex ?? buildGraphIndex(graphRelations?.usageGraph);
+  const importGraphIndex = graphIndexEffective?.importGraphIndex
+    ?? buildImportGraphIndex(graphRelations?.importGraph, effectiveRepoRoot);
+  const callGraphAdjacency = graphIndexEffective?.callGraphAdjacency ?? null;
+  const usageGraphAdjacency = graphIndexEffective?.usageGraphAdjacency ?? null;
+  const importGraphAdjacency = graphIndexEffective?.importGraphAdjacency ?? null;
+  const chunkInfo = graphIndexEffective?.chunkInfo ?? buildChunkInfo(callGraphIndex, usageGraphIndex);
+  const symbolIndex = graphIndexEffective?.symbolIndex ?? buildSymbolEdgesIndex(symbolEdges);
+  const callSiteIndex = graphIndexEffective?.callSiteIndex ?? buildCallSiteIndex(callSites);
+  const normalizeImport = graphIndexEffective?.normalizeImportPath
+    ? (value) => graphIndexEffective.normalizeImportPath(value)
     : (value) => normalizeImportPath(value, effectiveRepoRoot);
   const normalizeImportId = (value) => normalizeImport(value);
 
-  const hasGraphRelations = Boolean(graphIndex?.graphRelations ?? graphRelations ?? graphIndex?.graphRelationsCsr);
-  const hasSymbolEdges = graphIndex?.symbolIndex
-    ? graphIndex.symbolIndex.byChunk.size > 0
+  const hasGraphRelations = Boolean(
+    graphIndexEffective?.graphRelations ?? graphRelations ?? graphIndexEffective?.graphRelationsCsr
+  );
+  const hasSymbolEdges = graphIndexEffective?.symbolIndex
+    ? graphIndexEffective.symbolIndex.byChunk.size > 0
     : (Array.isArray(symbolEdges) && symbolEdges.length > 0);
   if (!hasGraphRelations && (!graphFilter || graphFilter.has('callGraph')
     || graphFilter.has('usageGraph') || graphFilter.has('importGraph'))) {
@@ -279,7 +433,7 @@ export const buildGraphNeighborhood = ({
   });
 
   const nodeMap = new Map();
-  const edgeSet = new Set();
+  const edgeByKey = new Map();
   const edges = [];
   // Windowed spill/merge keeps large edge sets deterministic without holding all edges in one buffer.
   const edgeWindows = [];
@@ -329,20 +483,22 @@ export const buildGraphNeighborhood = ({
   };
 
   const addEdge = (edge) => {
-    const key = graphIndex
-      ? edgeKeyFromIndex(edge, graphIndex)
+    const key = graphIndexEffective
+      ? edgeKeyFromIndex(edge, graphIndexEffective)
       : edgeKey(edge);
     if (!key) return false;
-    if (edgeSet.has(key)) return false;
-    if (normalizedCaps.maxEdges != null && edges.length >= normalizedCaps.maxEdges) {
+    if (!edgeByKey.has(key) && normalizedCaps.maxEdges != null && edgeByKey.size >= normalizedCaps.maxEdges) {
       recordTruncation('maxEdges', {
         limit: normalizedCaps.maxEdges,
-        observed: edges.length,
+        observed: edgeByKey.size,
         omitted: 1
       });
       return false;
     }
-    edgeSet.add(key);
+    const existing = edgeByKey.get(key);
+    if (!existing || isEdgeBetter(edge, existing)) {
+      edgeByKey.set(key, edge);
+    }
     edges.push(edge);
     if (normalizedCaps.maxEdges == null && edges.length >= EDGE_WINDOW_SIZE) {
       edges.sort(compareGraphEdges);
@@ -378,7 +534,20 @@ export const buildGraphNeighborhood = ({
     addNode(resolvedSeed, 0);
   }
 
-  const includeGraph = (graphName) => allowEdge({ graph: graphName, edgeType: null, confidence: null });
+  const includeGraph = (graphName) => {
+    if (graphFilter && !graphFilter.has(graphName)) return false;
+    if (graphName === 'callGraph' && !includeCallersCallees) return false;
+    if (graphName === 'usageGraph' && !includeUsages) return false;
+    if (graphName === 'importGraph' && !includeImports) return false;
+    return true;
+  };
+  const enabledGraphs = Array.from(GRAPH_NAMES).filter((entry) => includeGraph(entry));
+  if (graphFilter && enabledGraphs.length === 0) {
+    warnings.push({
+      code: 'GRAPH_EXCLUDED_BY_FLAGS',
+      message: 'Requested graphs were excluded by include flags.'
+    });
+  }
 
   const resolveGraphNeighbors = (
     graphNodes,
@@ -427,10 +596,21 @@ export const buildGraphNeighborhood = ({
     return [];
   };
 
+  const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
     if (ref.type === 'file') return normalizeImport(ref.path);
     if (ref.type === 'chunk') {
       const meta = chunkInfo.get(ref.chunkUid);
+      if (!meta?.file) {
+        if (!missingImportFiles.has(ref.chunkUid)) {
+          missingImportFiles.add(ref.chunkUid);
+          warnings.push({
+            code: 'IMPORT_GRAPH_MISSING_FILE',
+            message: 'Import graph expansion missing file mapping for chunk seed.',
+            data: { chunkUid: ref.chunkUid }
+          });
+        }
+      }
       return normalizeImport(meta?.file || null);
     }
     return null;
@@ -693,6 +873,14 @@ export const buildGraphNeighborhood = ({
   } else {
     mergedEdges.sort(compareGraphEdges);
   }
+  mergedEdges = dedupeSortedEdges(mergedEdges);
+  if (edgeTypeFilter && mergedEdges.length === 0 && enabledGraphs.length) {
+    warnings.push({
+      code: 'EDGE_TYPE_FILTER_NO_MATCH',
+      message: 'Edge type filter excluded all edges.',
+      data: { edgeTypes: Array.from(edgeTypeFilter) }
+    });
+  }
   if (includePaths) {
     let targets = pathTargets;
     if (normalizedCaps.maxPaths != null && targets.length > normalizedCaps.maxPaths) {
@@ -757,7 +945,7 @@ export const buildGraphNeighborhood = ({
       },
       counts: {
         nodesReturned: nodes.length,
-        edgesReturned: edges.length,
+        edgesReturned: mergedEdges.length,
         pathsReturned: includePaths ? paths.length : 0,
         workUnitsUsed: budget.getUsed()
       }
