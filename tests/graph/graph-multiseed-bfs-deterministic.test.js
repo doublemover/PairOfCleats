@@ -44,7 +44,11 @@ const singleC = buildGraphNeighborhood({
 
 const unionNodes = new Map();
 for (const node of [...singleA.nodes, ...singleC.nodes]) {
-  unionNodes.set(nodeKey(node.ref), node);
+  const key = nodeKey(node.ref);
+  const existing = unionNodes.get(key);
+  if (!existing || node.distance < existing.distance) {
+    unionNodes.set(key, node);
+  }
 }
 const unionEdges = new Map();
 for (const edge of [...singleA.edges, ...singleC.edges]) {
