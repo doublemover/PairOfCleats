@@ -758,7 +758,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Precompute deterministic edge buckets for truncation (priority + stable sort keys) to avoid per-call sort.
 - [x] Add lazy witness-path construction; avoid building paths unless requested and within caps.
 - [x] Add fast edge-filter predicate compiled once per request.
-- [ ] Ensure budget/truncation ordering is deterministic across runs.
+- [x] Ensure budget/truncation ordering is deterministic across runs.
 - [x] Track graph/context-pack timings and memory checkpoints.
 - [x] Track graph/context-pack peak memory and excerpt bytes in stats payload.
 - [x] Use range reads for excerpts instead of full file loads; avoid `fs.readFileSync` for slices.

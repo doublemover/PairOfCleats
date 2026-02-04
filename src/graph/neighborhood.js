@@ -671,12 +671,23 @@ export const buildGraphNeighborhood = ({
   };
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
 
+  const truncationList = truncation.list.slice();
+  truncationList.sort((a, b) => compareStrings(
+    `${a?.scope || ''}:${a?.cap || ''}`,
+    `${b?.scope || ''}:${b?.cap || ''}`
+  ));
+  const warningList = warnings.slice();
+  warningList.sort((a, b) => compareStrings(
+    `${a?.code || ''}:${a?.message || ''}`,
+    `${b?.code || ''}:${b?.message || ''}`
+  ));
+
   return {
     nodes,
     edges,
     paths: includePaths ? paths : null,
-    truncation: truncation.list.length ? truncation.list : null,
-    warnings: warnings.length ? warnings : null,
+    truncation: truncationList.length ? truncationList : null,
+    warnings: warningList.length ? warningList : null,
     stats: {
       sorted: true,
       timing: { elapsedMs },
