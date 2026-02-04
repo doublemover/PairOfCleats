@@ -137,6 +137,32 @@ export const resolveChunkMetaOrder = (chunks) => {
   return null;
 };
 
+export const resolveChunkMetaOrderById = (chunks) => {
+  if (!Array.isArray(chunks) || chunks.length <= 1) return null;
+  let prevId = null;
+  let ordered = true;
+  for (const entry of chunks) {
+    const id = Number.isFinite(entry?.id) ? entry.id : null;
+    if (id == null) return null;
+    if (prevId != null && id < prevId) {
+      ordered = false;
+      break;
+    }
+    prevId = id;
+  }
+  if (ordered) return null;
+  const order = Array.from({ length: chunks.length }, (_, index) => index);
+  order.sort((a, b) => {
+    const idA = Number(chunks[a]?.id);
+    const idB = Number(chunks[b]?.id);
+    if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) return idA - idB;
+    if (Number.isFinite(idA) && !Number.isFinite(idB)) return -1;
+    if (!Number.isFinite(idA) && Number.isFinite(idB)) return 1;
+    return compareChunkMetaChunks(chunks[a], chunks[b]);
+  });
+  return order;
+};
+
 export const createChunkMetaIterator = ({
   chunks,
   fileIdByPath,

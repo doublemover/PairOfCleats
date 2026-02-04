@@ -34,7 +34,7 @@ import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts,
   resolveChunkMetaPlan,
-  resolveChunkMetaOrder
+  resolveChunkMetaOrderById
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
@@ -144,7 +144,7 @@ export async function writeIndexArtifacts(input) {
     );
   }
   const denseScale = 2 / 255;
-  const chunkMetaOrder = resolveChunkMetaOrder(state.chunks);
+  const chunkMetaOrder = resolveChunkMetaOrderById(state.chunks);
   const chunkMetaIterator = createChunkMetaIterator({
     chunks: state.chunks,
     fileIdByPath,
