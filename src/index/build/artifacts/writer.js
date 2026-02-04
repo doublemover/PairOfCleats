@@ -10,7 +10,8 @@ export const createArtifactWriter = ({
   compressionMode,
   compressionKeepRaw,
   compressionGzipOptions,
-  compressibleArtifacts
+  compressibleArtifacts,
+  compressionOverrides
 }) => {
   const compressedSuffix = compressionMode === 'zstd' ? 'json.zst' : 'json.gz';
   const artifactPath = (base, compressed) => path.join(
@@ -18,26 +19,45 @@ export const createArtifactWriter = ({
     compressed ? `${base}.${compressedSuffix}` : `${base}.json`
   );
 
-  const shouldCompress = (base, compressible) => (
-    compressionEnabled && compressible && compressibleArtifacts.has(base)
+  const resolveOverride = (base) => (
+    compressionOverrides && Object.prototype.hasOwnProperty.call(compressionOverrides, base)
+      ? compressionOverrides[base]
+      : null
   );
+  const resolveCompression = (base, compressible) => {
+    const override = resolveOverride(base);
+    if (override) {
+      return override.enabled ? override.mode : null;
+    }
+    return compressionEnabled && compressible && compressibleArtifacts.has(base)
+      ? compressionMode
+      : null;
+  };
+  const resolveKeepRaw = (base) => {
+    const override = resolveOverride(base);
+    return override && typeof override.keepRaw === 'boolean'
+      ? override.keepRaw
+      : compressionKeepRaw;
+  };
 
   const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
-    if (shouldCompress(base, compressible)) {
+    const compression = resolveCompression(base, compressible);
+    const keepRaw = resolveKeepRaw(base);
+    if (compression) {
       const gzPath = artifactPath(base, true);
       enqueueWrite(
         formatArtifactLabel(gzPath),
         () => writeJsonObjectFile(gzPath, {
           ...payload,
-          compression: compressionMode,
+          compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
         })
       );
       if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
+        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
       }
-      if (compressionKeepRaw) {
+      if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
@@ -60,20 +80,22 @@ export const createArtifactWriter = ({
   };
 
   const enqueueJsonArray = (base, items, { compressible = true, piece = null } = {}) => {
-    if (shouldCompress(base, compressible)) {
+    const compression = resolveCompression(base, compressible);
+    const keepRaw = resolveKeepRaw(base);
+    if (compression) {
       const gzPath = artifactPath(base, true);
       enqueueWrite(
         formatArtifactLabel(gzPath),
         () => writeJsonArrayFile(gzPath, items, {
-          compression: compressionMode,
+          compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
         })
       );
       if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
+        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
       }
-      if (compressionKeepRaw) {
+      if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),

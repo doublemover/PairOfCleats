@@ -119,6 +119,35 @@ export const processFiles = async ({
         if (!stateRef.fileInfoByPath) stateRef.fileInfoByPath = new Map();
         stateRef.fileInfoByPath.set(result.relKey, result.fileInfo);
       }
+      if (result.relKey && Array.isArray(result.chunks) && result.chunks.length) {
+        if (!stateRef.fileDetailsByPath) stateRef.fileDetailsByPath = new Map();
+        if (!stateRef.fileDetailsByPath.has(result.relKey)) {
+          const first = result.chunks[0] || {};
+          const info = result.fileInfo || {};
+          stateRef.fileDetailsByPath.set(result.relKey, {
+            file: result.relKey,
+            ext: first.ext || fileExt(result.relKey),
+            size: Number.isFinite(info.size) ? info.size : (Number.isFinite(first.fileSize) ? first.fileSize : null),
+            hash: info.hash || first.fileHash || null,
+            hashAlgo: info.hashAlgo || first.fileHashAlgo || null,
+            externalDocs: first.externalDocs || null,
+            last_modified: first.last_modified || null,
+            last_author: first.last_author || null,
+            churn: first.churn || null,
+            churn_added: first.churn_added || null,
+            churn_deleted: first.churn_deleted || null,
+            churn_commits: first.churn_commits || null
+          });
+        }
+      }
+      if (Array.isArray(result.chunks) && result.chunks.length) {
+        if (!stateRef.chunkUidToFile) stateRef.chunkUidToFile = new Map();
+        for (const chunk of result.chunks) {
+          const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
+          if (!chunkUid || stateRef.chunkUidToFile.has(chunkUid)) continue;
+          stateRef.chunkUidToFile.set(chunkUid, result.relKey);
+        }
+      }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }

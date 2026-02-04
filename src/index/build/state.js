@@ -243,6 +243,8 @@ export function createIndexState() {
     fieldTokens: [],
     triPost: new Map(),
     phrasePost: new Map(),
+    discoveredFiles: [],
+    discoveryHash: null,
     scannedFiles: [],
     scannedFilesTimes: [],
     riskSummaries: [],
@@ -255,6 +257,8 @@ export function createIndexState() {
     totalTokens: 0,
     fileRelations: new Map(),
     fileInfoByPath: new Map(),
+    fileDetailsByPath: new Map(),
+    chunkUidToFile: new Map(),
     vfsManifestRows: [],
     vfsManifestCollector: null,
     vfsManifestStats: null,
@@ -596,6 +600,14 @@ export function mergeIndexState(target, source) {
   if (Array.isArray(source.scannedFiles)) {
     target.scannedFiles.push(...source.scannedFiles);
   }
+  if (Array.isArray(source.discoveredFiles) && source.discoveredFiles.length) {
+    if (!Array.isArray(target.discoveredFiles) || target.discoveredFiles.length === 0) {
+      target.discoveredFiles = source.discoveredFiles.slice();
+    }
+  }
+  if (source.discoveryHash && !target.discoveryHash) {
+    target.discoveryHash = source.discoveryHash;
+  }
   if (Array.isArray(source.scannedFilesTimes)) {
     target.scannedFilesTimes.push(...source.scannedFilesTimes);
   }
@@ -615,6 +627,22 @@ export function mergeIndexState(target, source) {
     for (const [file, info] of source.fileInfoByPath.entries()) {
       if (!target.fileInfoByPath.has(file)) {
         target.fileInfoByPath.set(file, info);
+      }
+    }
+  }
+  if (source.fileDetailsByPath && typeof source.fileDetailsByPath.entries === 'function') {
+    if (!target.fileDetailsByPath) target.fileDetailsByPath = new Map();
+    for (const [file, info] of source.fileDetailsByPath.entries()) {
+      if (!target.fileDetailsByPath.has(file)) {
+        target.fileDetailsByPath.set(file, info);
+      }
+    }
+  }
+  if (source.chunkUidToFile && typeof source.chunkUidToFile.entries === 'function') {
+    if (!target.chunkUidToFile) target.chunkUidToFile = new Map();
+    for (const [chunkUid, file] of source.chunkUidToFile.entries()) {
+      if (!target.chunkUidToFile.has(chunkUid)) {
+        target.chunkUidToFile.set(chunkUid, file);
       }
     }
   }

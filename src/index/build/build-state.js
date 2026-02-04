@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { createTempPath, replaceFile } from '../../shared/json-stream/atomic.js';
 import { sha1 } from '../../shared/hash.js';
+import { estimateJsonBytes } from '../../shared/cache.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
@@ -14,8 +16,10 @@ const STATE_SCHEMA_VERSION = 1;
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
+const VERY_LONG_DEBOUNCE_MS = 1000;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
+const LARGE_PATCH_BYTES = 64 * 1024;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
@@ -31,6 +35,8 @@ const resolveDeltasPath = (buildRoot) => path.join(buildRoot, STATE_DELTAS_FILE)
 
 const resolveDebounceMs = (patch) => {
   if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
+  const patchBytes = estimateJsonBytes(patch);
+  if (patchBytes > LARGE_PATCH_BYTES) return VERY_LONG_DEBOUNCE_MS;
   if (patch.heartbeat) return LONG_DEBOUNCE_MS;
   if (patch.progress || patch.stageCheckpoints) return LONG_DEBOUNCE_MS;
   return DEFAULT_DEBOUNCE_MS;
@@ -219,6 +225,16 @@ const recordStateError = (buildRoot, err) => {
   console.warn(`[build_state] ${message}`);
 };
 
+const compressRotatedLog = async (filePath) => {
+  try {
+    const payload = await fs.readFile(filePath);
+    const gzPath = `${filePath}.gz`;
+    const gzPayload = zlib.gzipSync(payload);
+    await fs.writeFile(gzPath, gzPayload);
+    await fs.unlink(filePath);
+  } catch {}
+};
+
 const appendEventLog = async (buildRoot, events) => {
   if (!buildRoot || !events || !events.length) return;
   const filePath = resolveEventsPath(buildRoot);
@@ -227,6 +243,7 @@ const appendEventLog = async (buildRoot, events) => {
     if (stat && stat.size >= EVENT_LOG_MAX_BYTES) {
       const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
       try { fsSync.renameSync(filePath, rotated); } catch {}
+      await compressRotatedLog(rotated);
     }
     const lines = events.map((event) => JSON.stringify(event)).join('\n') + '\n';
     await fs.appendFile(filePath, lines, 'utf8');
@@ -267,6 +284,7 @@ const appendDeltaLog = async (buildRoot, deltas, snapshot = null) => {
     if (stat && stat.size >= DELTA_LOG_MAX_BYTES) {
       const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
       try { fsSync.renameSync(filePath, rotated); } catch {}
+      await compressRotatedLog(rotated);
       if (snapshot) {
         const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
         await fs.writeFile(filePath, snapshotLine, 'utf8');

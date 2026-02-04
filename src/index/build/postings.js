@@ -66,6 +66,12 @@ export async function buildPostings(input) {
     : [];
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const minhashMaxDocsRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.minhashMaxDocs)
+    : NaN;
+  const minhashMaxDocs = Number.isFinite(minhashMaxDocsRaw)
+    ? Math.max(0, Math.floor(minhashMaxDocsRaw))
+    : 0;
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
@@ -556,7 +562,11 @@ export async function buildPostings(input) {
     ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
 
-  const minhashSigs = chunks.map((c) => c.minhashSig);
+  const allowMinhash = !minhashMaxDocs || chunks.length <= minhashMaxDocs;
+  const minhashSigs = allowMinhash ? chunks.map((c) => c.minhashSig) : [];
+  if (!allowMinhash && typeof log === 'function') {
+    log(`[postings] minhash skipped: ${chunks.length} docs exceeds max ${minhashMaxDocs}.`);
+  }
 
   const buildFieldPostings = () => {
     if (!fieldPostings || !fieldDocLengths) return null;
