@@ -6,6 +6,7 @@ import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync } from './json
 import { resolveJsonlRequiredKeys } from './jsonl.js';
 import { createGraphRelationsShell, appendGraphRelationsEntries, finalizeGraphRelations } from './graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
+import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
 
 const warnedNonStrictJsonFallback = new Set();
 const warnNonStrictJsonFallback = (dir, name) => {
@@ -648,6 +649,47 @@ export const loadTokenPostings = (
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const loadPacked = (packedPath) => {
+    const metaPath = path.join(dir, 'token_postings.packed.meta.json');
+    if (!existsOrBak(packedPath)) {
+      throw new Error('Missing token_postings packed data');
+    }
+    if (!existsOrBak(metaPath)) {
+      throw new Error('Missing token_postings packed meta');
+    }
+    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
+    const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
+    const docLengths = Array.isArray(arrays?.docLengths) ? arrays.docLengths : [];
+    const offsetsName = typeof fields?.offsets === 'string'
+      ? fields.offsets
+      : 'token_postings.packed.offsets.bin';
+    const offsetsPath = path.join(dir, offsetsName);
+    if (!existsOrBak(offsetsPath)) {
+      throw new Error('Missing token_postings packed offsets');
+    }
+    const offsetsBuffer = fs.readFileSync(offsetsPath);
+    const offsets = decodePackedOffsets(offsetsBuffer);
+    const blockSize = Number.isFinite(Number(fields?.blockSize))
+      ? Math.max(1, Math.floor(Number(fields.blockSize)))
+      : DEFAULT_PACKED_BLOCK_SIZE;
+    const buffer = fs.readFileSync(packedPath);
+    const postings = unpackTfPostings(buffer, offsets, { blockSize });
+    const avgDocLen = Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
+      docLengths.length
+        ? docLengths.reduce((sum, len) => sum + (Number(len) || 0), 0) / docLengths.length
+        : 0
+    );
+    return {
+      ...fields,
+      avgDocLen,
+      totalDocs: Number.isFinite(fields?.totalDocs) ? fields.totalDocs : docLengths.length,
+      vocab,
+      postings,
+      docLengths
+    };
+  };
   const loadSharded = (meta, shardPaths, shardsDir) => {
     if (!Array.isArray(shardPaths) || shardPaths.length === 0) {
       throw new Error(`Missing token_postings shard files in ${shardsDir}`);
@@ -696,6 +738,12 @@ export const loadTokenPostings = (
         }
         return readJsonFile(sources.paths[0], { maxBytes });
       }
+      if (sources.format === 'packed') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous packed sources for token_postings');
+        }
+        return loadPacked(sources.paths[0]);
+      }
       if (sources.format === 'sharded') {
         return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
       }
@@ -718,12 +766,23 @@ export const loadTokenPostings = (
       }
       return readJsonFile(sources.paths[0], { maxBytes });
     }
+    if (sources.format === 'packed') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous packed sources for token_postings');
+      }
+      return loadPacked(sources.paths[0]);
+    }
     if (sources.format === 'sharded') {
       return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
     }
     throw new Error(`Unsupported token_postings format: ${sources.format}`);
   }
 
+  const packedPath = path.join(dir, 'token_postings.packed.bin');
+  if (existsOrBak(packedPath)) {
+    warnNonStrictJsonFallback(dir, 'token_postings');
+    return loadPacked(packedPath);
+  }
   const metaPath = path.join(dir, 'token_postings.meta.json');
   const shardsDir = path.join(dir, 'token_postings.shards');
   if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {

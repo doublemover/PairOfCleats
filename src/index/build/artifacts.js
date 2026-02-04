@@ -163,6 +163,7 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes
   });
   const {
+    tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize: resolvedTokenPostingsShardSize,
     tokenPostingsEstimate
@@ -192,6 +193,19 @@ export async function writeIndexArtifacts(input) {
     await removeArtifact(path.join(outDir, `${base}.json.gz`));
     await removeArtifact(path.join(outDir, `${base}.json.zst`));
   };
+  const removePackedPostings = async () => {
+    await removeArtifact(path.join(outDir, 'token_postings.packed.bin'));
+    await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'));
+    await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'));
+  };
+  if (tokenPostingsFormat === 'packed') {
+    await removeArtifact(path.join(outDir, 'token_postings.json'));
+    await removeCompressedArtifact('token_postings');
+    await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
+    await removeArtifact(path.join(outDir, 'token_postings.shards'));
+  } else {
+    await removePackedPostings();
+  }
   if (tokenPostingsUseShards) {
     await removeArtifact(path.join(outDir, 'token_postings.json'));
     await removeCompressedArtifact('token_postings');
@@ -405,6 +419,7 @@ export async function writeIndexArtifacts(input) {
     outDir,
     postings,
     state,
+    tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize,
     tokenPostingsCompression,
