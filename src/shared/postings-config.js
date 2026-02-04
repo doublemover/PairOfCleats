@@ -10,6 +10,7 @@
  *   chargramMaxN:number,
  *   chargramMaxTokenLength:number|null,
  *   chargramSpillMaxUnique:number,
+ *   chargramMaxDf:number,
  *   chargramSource:string,
  *   phraseSource:string,
  *   fielded:boolean,
@@ -81,6 +82,10 @@ export function normalizePostingsConfig(input = {}) {
   const chargramSpillMaxUnique = Number.isFinite(chargramSpillRaw)
     ? Math.max(0, Math.floor(chargramSpillRaw))
     : 500000;
+  const chargramMaxDfRaw = Number(cfg.chargramMaxDf);
+  const chargramMaxDf = Number.isFinite(chargramMaxDfRaw)
+    ? Math.max(0, Math.floor(chargramMaxDfRaw))
+    : 0;
 
   return {
     enablePhraseNgrams,
@@ -92,6 +97,7 @@ export function normalizePostingsConfig(input = {}) {
     chargramMaxN: chargramRange.max,
     chargramMaxTokenLength,
     chargramSpillMaxUnique,
+    chargramMaxDf,
     chargramSource,
     fielded,
     tokenClassification: {

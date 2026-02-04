@@ -122,6 +122,9 @@ export async function buildPostings(input) {
   const chargramSpillMaxUnique = Number.isFinite(resolvedConfig.chargramSpillMaxUnique)
     ? Math.max(0, Math.floor(resolvedConfig.chargramSpillMaxUnique))
     : 0;
+  const chargramMaxDf = Number.isFinite(resolvedConfig.chargramMaxDf)
+    ? Math.max(0, Math.floor(resolvedConfig.chargramMaxDf))
+    : 0;
 
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
@@ -160,6 +163,17 @@ export async function buildPostings(input) {
     return sorted;
   };
   const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  let droppedHighDf = 0;
+  let maxChargramDf = 0;
+  const normalizeChargramPosting = (value) => {
+    const list = normalizeIdList(value);
+    maxChargramDf = Math.max(maxChargramDf, list.length);
+    if (chargramMaxDf && list.length > chargramMaxDf) {
+      droppedHighDf += 1;
+      return null;
+    }
+    return list;
+  };
   const normalizeTfPostingList = (value) => {
     if (!Array.isArray(value)) return [];
     const next = [];
@@ -448,8 +462,11 @@ export async function buildPostings(input) {
               continue;
             }
             if (token !== currentToken) {
-              vocab.push(currentToken);
-              postingsList.push(normalizeIdList(currentPosting));
+              const normalized = normalizeChargramPosting(currentPosting);
+              if (normalized) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
               currentToken = token;
               currentPosting = row.postings;
               continue;
@@ -466,8 +483,11 @@ export async function buildPostings(input) {
               continue;
             }
             if (token !== currentToken) {
-              vocab.push(currentToken);
-              postingsList.push(normalizeIdList(currentPosting));
+              const normalized = normalizeChargramPosting(currentPosting);
+              if (normalized) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
               currentToken = token;
               currentPosting = row.postings;
               continue;
@@ -477,8 +497,11 @@ export async function buildPostings(input) {
         }
       }
       if (currentToken !== null) {
-        vocab.push(currentToken);
-        postingsList.push(normalizeIdList(currentPosting));
+        const normalized = normalizeChargramPosting(currentPosting);
+        if (normalized) {
+          vocab.push(currentToken);
+          postingsList.push(normalized);
+        }
       }
       chargramVocab = vocab;
       chargramPostings = postingsList;
@@ -500,16 +523,21 @@ export async function buildPostings(input) {
         spillBytes: stats?.totalBytes || 0,
         spillMaxRowBytes: stats?.maxRowBytes || 0,
         peakUnique: guard?.peakUnique || triPostSize || 0,
+        droppedHighDf,
+        maxDf: maxChargramDf,
         guard: guardStats
       };
     } else {
       const entries = Array.from(triPost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
-      chargramVocab = new Array(entries.length);
-      chargramPostings = new Array(entries.length);
+      chargramVocab = [];
+      chargramPostings = [];
       for (let i = 0; i < entries.length; i += 1) {
         const [key, posting] = entries[i];
-        chargramVocab[i] = key;
-        chargramPostings[i] = normalizeIdList(posting);
+        const normalized = normalizeChargramPosting(posting);
+        if (normalized) {
+          chargramVocab.push(key);
+          chargramPostings.push(normalized);
+        }
         triPost.delete(key);
       }
       if (typeof triPost.clear === 'function') triPost.clear();
@@ -571,6 +599,8 @@ export async function buildPostings(input) {
       spillBytes: 0,
       spillMaxRowBytes: 0,
       peakUnique: guard?.peakUnique || triPostSize || 0,
+      droppedHighDf,
+      maxDf: maxChargramDf,
       guard: guard
         ? {
           maxUnique: guard.maxUnique,

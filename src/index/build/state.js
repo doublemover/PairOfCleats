@@ -1,4 +1,3 @@
-import { tri } from '../../shared/tokenize.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
@@ -122,6 +121,40 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard =
   }
 }
 
+function appendChargramsToSet(token, minN, maxN, set, maxPerChunk = 0, buffer = null) {
+  if (!token) return;
+  const sentinel = `\u27ec${token}\u27ed`;
+  for (let n = minN; n <= maxN; n += 1) {
+    if (sentinel.length < n) continue;
+    if (buffer && Array.isArray(buffer)) {
+      buffer.length = n;
+      for (let i = 0; i < n; i += 1) buffer[i] = sentinel[i];
+      let window = buffer.join('');
+      set.add(window);
+      if (maxPerChunk && set.size >= maxPerChunk) return;
+      for (let i = n; i < sentinel.length; i += 1) {
+        buffer[i % n] = sentinel[i];
+        const start = (i + 1) % n;
+        window = '';
+        for (let j = 0; j < n; j += 1) {
+          window += buffer[(start + j) % n];
+        }
+        set.add(window);
+        if (maxPerChunk && set.size >= maxPerChunk) return;
+      }
+      continue;
+    }
+    let window = sentinel.slice(0, n);
+    set.add(window);
+    if (maxPerChunk && set.size >= maxPerChunk) return;
+    for (let i = n; i < sentinel.length; i += 1) {
+      window = window.slice(1) + sentinel[i];
+      set.add(window);
+      if (maxPerChunk && set.size >= maxPerChunk) return;
+    }
+  }
+}
+
 function *iteratePostingDocIds(posting) {
   if (posting == null) return;
   if (typeof posting === 'number') {
@@ -217,7 +250,8 @@ export function createIndexState() {
     vfsManifestStats: null,
     importResolutionGraph: null,
     chargramBuffers: {
-      set: new Set()
+      set: new Set(),
+      window: []
     },
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
@@ -275,6 +309,7 @@ export function appendChunk(
   const chargramGuard = state.postingsGuard?.chargram || null;
 
   const reuseSet = state.chargramBuffers?.set || null;
+  const reuseWindow = state.chargramBuffers?.window || null;
   const charSet = reuseSet || new Set();
   if (reuseSet) reuseSet.clear();
   if (chargramEnabled) {
@@ -292,12 +327,15 @@ export function appendChunk(
         if (!Array.isArray(tokenList) || !tokenList.length) return;
         for (const w of tokenList) {
           if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) continue;
-          for (let n = chargramMinN; n <= chargramMaxN; ++n) {
-            for (const g of tri(w, n)) {
-              if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) return;
-              charSet.add(g);
-            }
-          }
+          appendChargramsToSet(
+            w,
+            chargramMinN,
+            chargramMaxN,
+            charSet,
+            maxChargramsPerChunk,
+            reuseWindow
+          );
+          if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) return;
         }
       };
 
