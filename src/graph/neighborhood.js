@@ -661,6 +661,7 @@ export const buildGraphNeighborhood = ({
     truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null,
     stats: {
+      sorted: true,
       artifactsUsed: {
         graphRelations: hasGraphRelations,
         symbolEdges: hasSymbolEdges,

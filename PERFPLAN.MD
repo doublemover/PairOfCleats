@@ -775,9 +775,9 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
 - [x] Task 10.X.1.c: Sort suggest-tests outputs by score desc then path; include truncation + warnings sections.
 - [ ] Task 10.X.1.d: Add renderer tests for deterministic ordering and diagnostics visibility.
-- [ ] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
-- [ ] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
-- [ ] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
+- [x] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
+- [x] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
+- [x] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
 - [ ] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
 - [x] Cache compiled architecture rules + ordered node lists by rules payload hash.
 - [x] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
