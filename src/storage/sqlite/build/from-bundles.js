@@ -1,4 +1,5 @@
 import fsSync from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import {
@@ -18,7 +19,7 @@ import {
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
-import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
+import { applyBuildPragmas, optimizeBuildDatabase, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
@@ -41,6 +42,8 @@ import { createBundleLoader } from './bundle-loader.js';
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {boolean} [params.buildPragmas]
+ * @param {boolean} [params.optimize]
  * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
@@ -59,6 +62,8 @@ export async function buildDatabaseFromBundles({
   logger,
   inputBytes,
   batchSize,
+  buildPragmas,
+  optimize,
   stats
 }) {
   const log = (message) => {
@@ -87,6 +92,22 @@ export async function buildDatabaseFromBundles({
   const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  if (batchStats) {
+    batchStats.batchSize = resolvedBatchSize;
+  }
+  const tableStats = batchStats
+    ? (batchStats.tables || (batchStats.tables = {}))
+    : null;
+  const recordTable = (name, rows, durationMs) => {
+    if (!tableStats || !name) return;
+    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
+    entry.rows += rows;
+    entry.durationMs += durationMs;
+    entry.rowsPerSec = entry.durationMs > 0
+      ? Math.round((entry.rows / entry.durationMs) * 1000)
+      : null;
+    tableStats[name] = entry;
+  };
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   const manifestEntries = manifestLookup.entries;
@@ -123,7 +144,9 @@ export async function buildDatabaseFromBundles({
   }
 
   const db = new Database(outPath);
-  applyBuildPragmas(db);
+  const useBuildPragmas = buildPragmas !== false;
+  const useOptimize = optimize !== false;
+  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
   db.exec(CREATE_TABLES_BASE_SQL);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   let succeeded = false;
@@ -201,7 +224,21 @@ export async function buildDatabaseFromBundles({
 
     let denseFloatChunks = 0;
     let denseU8Chunks = 0;
+    let insertBatchMs = 0;
+    let chunkRows = 0;
+    let ftsRows = 0;
+    let docLengthRows = 0;
+    let tokenVocabRows = 0;
+    let tokenPostingRows = 0;
+    let phraseVocabRows = 0;
+    let phrasePostingRows = 0;
+    let chargramVocabRows = 0;
+    let chargramPostingRows = 0;
+    let minhashRows = 0;
+    let denseRows = 0;
+    let denseMetaRows = 0;
     const insertBundleBatch = db.transaction((chunks, start, end, fileKey, normalizedFile) => {
+      const batchStart = performance.now();
       for (let idx = start; idx < end; idx += 1) {
         const chunk = chunks[idx];
         if (!chunk) continue;
@@ -211,9 +248,12 @@ export async function buildDatabaseFromBundles({
         const row = buildChunkRow({ ...chunk, file: chunk.file || fileKey }, mode, docId);
         insertChunk.run(row);
         insertFts.run(row);
+        chunkRows += 1;
+        ftsRows += 1;
 
         const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
         insertDocLength.run(mode, docId, tokensArray.length);
+        docLengthRows += 1;
         totalDocs += 1;
         totalLen += tokensArray.length;
 
@@ -226,8 +266,10 @@ export async function buildDatabaseFromBundles({
               nextTokenId += 1;
               tokenIdMap.set(token, tokenId);
               insertTokenVocab.run(mode, tokenId, token);
+              tokenVocabRows += 1;
             }
             insertTokenPosting.run(mode, tokenId, docId, tf);
+            tokenPostingRows += 1;
           }
         }
 
@@ -240,8 +282,10 @@ export async function buildDatabaseFromBundles({
               nextPhraseId += 1;
               phraseIdMap.set(ng, phraseId);
               insertPhraseVocab.run(mode, phraseId, ng);
+              phraseVocabRows += 1;
             }
             insertPhrasePosting.run(mode, phraseId, docId);
+            phrasePostingRows += 1;
           }
         }
 
@@ -254,14 +298,17 @@ export async function buildDatabaseFromBundles({
               nextChargramId += 1;
               chargramIdMap.set(gram, gramId);
               insertChargramVocab.run(mode, gramId, gram);
+              chargramVocabRows += 1;
             }
             insertChargramPosting.run(mode, gramId, docId);
+            chargramPostingRows += 1;
           }
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
           validationStats.minhash += 1;
+          minhashRows += 1;
         }
 
         const hasFloatEmbedding = Array.isArray(chunk.embedding) && chunk.embedding.length;
@@ -282,6 +329,7 @@ export async function buildDatabaseFromBundles({
             );
             denseMetaSet = true;
             denseDims = dims;
+            denseMetaRows += 1;
           } else if (denseDims !== null && dims !== denseDims) {
             throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
           }
@@ -295,6 +343,7 @@ export async function buildDatabaseFromBundles({
             : u8Embedding;
           insertDense.run(mode, docId, packUint8(denseVector));
           validationStats.dense += 1;
+          denseRows += 1;
           if (hasFloatEmbedding) denseFloatChunks += 1;
           if (hasU8Embedding) denseU8Chunks += 1;
           if (normalizedFile) {
@@ -339,6 +388,7 @@ export async function buildDatabaseFromBundles({
           }
         }
       }
+      insertBatchMs += performance.now() - batchStart;
     });
 
     const insertBundle = (bundle, fileKey) => {
@@ -427,6 +477,7 @@ export async function buildDatabaseFromBundles({
       return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
+    recordTable('token_stats', 1, 0);
 
     const insertManifestTx = db.transaction(() => {
       for (const [file, chunkCount] of fileCounts.entries()) {
@@ -442,9 +493,28 @@ export async function buildDatabaseFromBundles({
         );
       }
     });
+    const manifestStart = performance.now();
     insertManifestTx();
+    recordTable('file_manifest', fileCounts.size, performance.now() - manifestStart);
+
+    recordTable('chunks', chunkRows, insertBatchMs);
+    recordTable('chunks_fts', ftsRows, insertBatchMs);
+    recordTable('doc_lengths', docLengthRows, insertBatchMs);
+    recordTable('token_vocab', tokenVocabRows, insertBatchMs);
+    recordTable('token_postings', tokenPostingRows, insertBatchMs);
+    recordTable('phrase_vocab', phraseVocabRows, insertBatchMs);
+    recordTable('phrase_postings', phrasePostingRows, insertBatchMs);
+    recordTable('chargram_vocab', chargramVocabRows, insertBatchMs);
+    recordTable('chargram_postings', chargramPostingRows, insertBatchMs);
+    recordTable('minhash_signatures', minhashRows, insertBatchMs);
+    recordTable('dense_vectors', denseRows, insertBatchMs);
+    recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
+    if (useOptimize) {
+      optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
+    }
+    const validationStart = performance.now();
     validateSqliteDatabase(db, mode, {
       validateMode,
       expected: validationStats,
@@ -452,6 +522,9 @@ export async function buildDatabaseFromBundles({
       logger,
       dbPath: outPath
     });
+    if (batchStats) {
+      batchStats.validationMs = performance.now() - validationStart;
+    }
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch {}
@@ -465,7 +538,9 @@ export async function buildDatabaseFromBundles({
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-    restoreBuildPragmas(db);
+    if (pragmaState) {
+      restoreBuildPragmas(db, pragmaState);
+    }
     db.close();
     if (!succeeded) {
       try {

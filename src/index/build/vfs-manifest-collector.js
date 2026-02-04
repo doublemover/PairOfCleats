@@ -50,24 +50,10 @@ const writeRunFile = async (runPath, rows) => {
   }
 };
 
-/**
- * Test if a value is a VFS manifest collector.
- * @param {unknown} value
- * @returns {boolean}
- */
 export const isVfsManifestCollector = (value) => (
   value && typeof value === 'object' && value.kind === COLLECTOR_KIND && typeof value.finalize === 'function'
 );
 
-/**
- * Create a spill-to-disk collector for VFS manifest rows.
- *
- * Deterministic: run files are sorted by row order and merged later.
- * Side effects: writes run files under buildRoot when buffers spill.
- *
- * @param {{ buildRoot?: string|null, maxBufferBytes?: number, maxBufferRows?: number, log?: Function|null }} [options]
- * @returns {{ kind: string, appendRows: Function, finalize: Function, stats: object }}
- */
 export const createVfsManifestCollector = ({
   buildRoot,
   maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES,

@@ -335,29 +335,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         && incrementalBundleCount > 0
         && incrementalBundleDir
       );
-      let missingBundles = null;
-      if (hasIncrementalBundles && incrementalBundleDir && incrementalFiles && typeof incrementalFiles === 'object') {
-        const requiredBundles = new Set();
-        for (const entry of Object.values(incrementalFiles)) {
-          const bundleName = entry?.bundle;
-          if (bundleName) requiredBundles.add(bundleName);
-        }
-        if (requiredBundles.size) {
-          missingBundles = [];
-          for (const bundleName of requiredBundles) {
-            const bundlePath = path.join(incrementalBundleDir, bundleName);
-            if (!fsSync.existsSync(bundlePath)) missingBundles.push(bundleName);
-          }
-          if (missingBundles.length) {
-            hasIncrementalBundles = false;
-          } else {
-            missingBundles = null;
-          }
-        }
-      }
       let resolvedInput = null;
       let tempOutputPath = null;
       let inputBytes = 0;
+      const sqliteStats = {};
       const workTask = taskFactory('Build', { stage: 'sqlite', mode });
       try {
         await fs.mkdir(outDir, { recursive: true });
@@ -377,9 +358,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           bundleSkipReason = `bundles omit embeddings${stageNote}`;
           hasIncrementalBundles = false;
         }
-        if (incrementalRequested && emitOutput && missingBundles?.length) {
-          log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
-        } else if (incrementalRequested && emitOutput && bundleSkipReason) {
+        if (incrementalRequested && emitOutput && bundleSkipReason) {
           log(`[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`);
         } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
           log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
@@ -415,8 +394,20 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             validateMode,
             expectedDense: pieces?.denseVec || null,
             logger: externalLogger || { log, warn, error },
-            inputBytes
+            inputBytes,
+            stats: sqliteStats
           });
+          if (updateResult?.used) {
+            sqliteStats.incrementalUsed = true;
+          } else if (updateResult?.reason) {
+            sqliteStats.incrementalSkipReason = updateResult.reason;
+            sqliteStats.incrementalSummary = {
+              totalFiles: updateResult.totalFiles ?? null,
+              changedFiles: updateResult.changedFiles ?? null,
+              deletedFiles: updateResult.deletedFiles ?? null,
+              manifestUpdates: updateResult.manifestUpdates ?? null
+            };
+          }
           if (updateResult?.used) {
             const counts = readSqliteCounts(outputPath);
             const durationMs = Date.now() - startTs;
@@ -429,6 +420,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               step: 'incremental-update',
               extra: {
                 outputBytes: Number(stat?.size) || 0,
+                batchSize: sqliteStats.batchSize ?? null,
+                validationMs: sqliteStats.validationMs ?? null,
+                pragmas: sqliteStats.pragmas ?? null,
                 rows: {
                   code: counts.code || 0,
                   prose: counts.prose || 0,
@@ -449,7 +443,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               inputBytes: 0,
               elapsedMs: durationMs,
               threadLimits,
-              note: 'incremental update'
+              note: 'incremental update',
+              stats: sqliteStats
             });
             if (emitOutput) {
               log(
@@ -488,7 +483,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             vectorConfig: resolvedVectorConfig,
             modelConfig,
             logger: externalLogger || { log, warn, error },
-            inputBytes
+            inputBytes,
+            stats: sqliteStats
           });
           const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
@@ -511,7 +507,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               emitOutput,
               logger: externalLogger || { log, warn, error },
               task: workTask,
-              inputBytes
+              inputBytes,
+              stats: sqliteStats
             });
           } else {
           }
@@ -533,7 +530,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             emitOutput,
             logger: externalLogger || { log, warn, error },
             task: workTask,
-            inputBytes
+            inputBytes,
+            stats: sqliteStats
           });
         }
         const hadVectorTable = await hasVectorTable(Database, tempOutputPath);
@@ -558,6 +556,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           extra: {
             inputBytes,
             outputBytes: Number(stat?.size) || 0,
+            batchSize: sqliteStats.batchSize ?? null,
+            validationMs: sqliteStats.validationMs ?? null,
+            pragmas: sqliteStats.pragmas ?? null,
             rows: {
               code: counts.code || 0,
               prose: counts.prose || 0,
@@ -579,7 +580,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           inputBytes,
           elapsedMs: durationMs,
           threadLimits,
-          note
+          note,
+          stats: sqliteStats
         });
         if (emitOutput) {
           log(

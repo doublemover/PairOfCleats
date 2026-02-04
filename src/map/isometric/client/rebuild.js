@@ -13,13 +13,20 @@ const resetScene = () => {
   clearGroup(state.edgeGroup);
   clearGroup(state.wireGroup);
   state.fileMeshes = [];
+  state.fileInstancedMeshes = [];
+  state.fileInstancedInnerMeshes = [];
   state.memberMeshes = [];
   state.chunkMeshes = [];
   state.memberInstancedMeshes = [];
   state.memberInnerInstancedMeshes = [];
   state.memberClusters = [];
   state.memberInstanceById = new Map();
+  state.memberClusterByMemberId = new Map();
+  state.fileInstanceByKey = new Map();
+  state.fileBuckets = [];
+  state.fileBucketByKey = new Map();
   state.highlightedMemberIds = new Set();
+  state.highlightedFileKeys = new Set();
   state.pickTargets = [];
   state.instancedMemberMaterials = null;
   state.instancedChunkMaterial = null;
@@ -37,9 +44,11 @@ const resetScene = () => {
   state.edgeSegments = [];
   state.edgeDotMesh = null;
   state.edgeDotMaterial = null;
+  state.edgeCullingTargets = [];
   state.fileMeshByKey = new Map();
   state.memberMeshById = new Map();
   state.wireByMesh = new Map();
+  state.fileWireByKey = new Map();
   state.fileAnchors = new Map();
   state.memberAnchors = new Map();
   state.fileColorByPath = new Map();
@@ -66,10 +75,12 @@ export const scheduleRebuild = (delay = 180) => {
   if (state.rebuildTimer) {
     clearTimeout(state.rebuildTimer);
   }
+  const overBudget = state.perfStats?.overBudget;
+  const adjustedDelay = overBudget ? Math.max(delay, 450) : delay;
   state.rebuildTimer = setTimeout(() => {
     state.rebuildTimer = null;
     rebuildScene();
-  }, delay);
+  }, adjustedDelay);
 };
 
 export const rebuildScene = () => {
@@ -224,7 +235,11 @@ export const rebuildScene = () => {
   buildEdges();
   updateFlowLights();
   if (typeof state.renderEdgeMenu === 'function') {
-    state.renderEdgeMenu();
+    if (state.perfStats?.overBudget) {
+      setTimeout(() => state.renderEdgeMenu(), 120);
+    } else {
+      state.renderEdgeMenu();
+    }
   }
   applyHighlights();
 };

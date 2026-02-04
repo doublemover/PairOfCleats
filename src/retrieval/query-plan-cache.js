@@ -30,11 +30,6 @@ const hashSignature = (value) => {
   return sha1(raw);
 };
 
-/**
- * Serialize a query plan for cache storage (JSON-safe).
- * @param {object} plan
- * @returns {object|null}
- */
 export function serializeQueryPlan(plan) {
   if (!plan || typeof plan !== 'object') return null;
   const payload = { ...plan };
@@ -54,11 +49,6 @@ export function serializeQueryPlan(plan) {
   return payload;
 }
 
-/**
- * Hydrate a cached query plan back into runtime structures.
- * @param {object} raw
- * @returns {object|null}
- */
 export function hydrateQueryPlan(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const plan = { ...raw };
@@ -142,11 +132,6 @@ const trimEntriesBySize = (entries, maxBytes) => {
   return trimmed;
 };
 
-/**
- * Create a query plan cache with optional disk persistence.
- * @param {{ path?: string|null, maxEntries?: number, ttlMs?: number, maxBytes?: number }} [options]
- * @returns {object}
- */
 export function createQueryPlanDiskCache({
   path: cachePath = null,
   maxEntries = DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES,
@@ -246,11 +231,6 @@ export function createQueryPlanDiskCache({
   };
 }
 
-/**
- * Build a config signature for query plan cache invalidation.
- * @param {object} options
- * @returns {string}
- */
 export function buildQueryPlanConfigSignature({
   dictConfig = null,
   postingsConfig = null,
@@ -313,20 +293,10 @@ export function buildQueryPlanConfigSignature({
   });
 }
 
-/**
- * Build an index signature for query plan cache invalidation.
- * @param {string|null} indexSignature
- * @returns {string}
- */
 export function buildQueryPlanIndexSignature(indexSignature) {
   return hashSignature(indexSignature ?? null);
 }
 
-/**
- * Build a cache key and payload for a query plan.
- * @param {{ query: string, configSignature?: string, indexSignature?: string }} options
- * @returns {{ key: string, payload: object }}
- */
 export function buildQueryPlanCacheKey({ query, configSignature, indexSignature }) {
   const payload = {
     query: normalizeQueryText(query),
@@ -339,11 +309,6 @@ export function buildQueryPlanCacheKey({ query, configSignature, indexSignature 
   return { key: hashSignature(payload), payload };
 }
 
-/**
- * Create a cache entry for a query plan.
- * @param {{ plan: object, configSignature?: string, indexSignature?: string, keyPayload?: object|null }} [options]
- * @returns {object}
- */
 export function createQueryPlanEntry({ plan, configSignature, indexSignature, keyPayload = null } = {}) {
   return {
     keyPayload,
@@ -357,12 +322,6 @@ export function createQueryPlanEntry({ plan, configSignature, indexSignature, ke
   };
 }
 
-/**
- * Validate a cached query plan entry against schema + signatures.
- * @param {object} entry
- * @param {{ configSignature?: string, indexSignature?: string }} [options]
- * @returns {boolean}
- */
 export function validateQueryPlanEntry(entry, { configSignature, indexSignature } = {}) {
   if (!entry || typeof entry !== 'object') return false;
   if (entry.schemaVersion !== QUERY_PLAN_SCHEMA_VERSION) return false;
@@ -373,11 +332,6 @@ export function validateQueryPlanEntry(entry, { configSignature, indexSignature 
   return validateQueryPlan(entry.plan);
 }
 
-/**
- * Create an in-memory query plan cache.
- * @param {{ maxEntries?: number, ttlMs?: number, onEvict?: Function }} [options]
- * @returns {object}
- */
 export function createQueryPlanCache({
   maxEntries = DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES,
   ttlMs = DEFAULT_QUERY_PLAN_CACHE_TTL_MS,

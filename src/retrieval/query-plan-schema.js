@@ -1,8 +1,5 @@
-/** Query plan schema version. */
 export const QUERY_PLAN_SCHEMA_VERSION = 1;
-/** Query parser version. */
 export const QUERY_PARSER_VERSION = 1;
-/** Query tokenizer version. */
 export const QUERY_TOKENIZER_VERSION = 1;
 
 const isPlainObject = (value) => (
@@ -19,11 +16,6 @@ const isRange = (value) => (
   && isNumberOrNull(value.max)
 );
 
-/**
- * Validate a query plan shape for cache usage.
- * @param {object} plan
- * @returns {boolean}
- */
 export function validateQueryPlan(plan) {
   if (!plan || typeof plan !== 'object') return false;
   if (!Array.isArray(plan.queryTokens)) return false;

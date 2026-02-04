@@ -47,15 +47,6 @@ const updateHighWater = (target, source) => {
   }
 };
 
-/**
- * Create a stage checkpoint recorder for indexing stages.
- *
- * Determinism: checkpoints are recorded in the order invoked; summaries are stable.
- * Side effects: optional writes to build_state and metrics directory.
- *
- * @param {{ buildRoot?: string|null, metricsDir?: string|null, mode?: string|null, buildId?: string|null }} [options]
- * @returns {{ record: Function, buildSummary: Function, flush: Function, checkpoints: object[] }}
- */
 export const createStageCheckpointRecorder = ({
   buildRoot = null,
   metricsDir = null,

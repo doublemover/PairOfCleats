@@ -147,6 +147,24 @@ export const syncStateFromPanel = () => {
   state.controls.wasd = { ...state.controls.wasd, ...(state.panelState.controls?.wasd || {}) };
   Object.assign(state.visuals, state.panelState.visuals || {});
   state.visuals.glass = { ...state.visuals.glass, ...(state.panelState.visuals?.glass || {}) };
+  if (state.performance && state.panelState.performance) {
+    const perf = state.panelState.performance;
+    state.performance.drawCaps = {
+      ...state.performance.drawCaps,
+      ...(perf.drawCaps || {})
+    };
+    state.performance.lod = {
+      ...state.performance.lod,
+      ...(perf.lod || {})
+    };
+    state.performance.hud = {
+      ...state.performance.hud,
+      ...(perf.hud || {})
+    };
+    if (Number.isFinite(perf.bucketSize)) state.performance.bucketSize = perf.bucketSize;
+    if (Number.isFinite(perf.cullInterval)) state.performance.cullInterval = perf.cullInterval;
+    if (Number.isFinite(perf.frameBudgetMs)) state.performance.frameBudgetMs = perf.frameBudgetMs;
+  }
   if (state.normalMapState?.texture) {
     state.normalMapState.texture.repeat.set(state.visuals.glass.normalRepeat, state.visuals.glass.normalRepeat);
   }
@@ -217,7 +235,13 @@ export const initUi = () => {
         maxFiles: Number(displayLimits.maxFiles ?? displayDefaults.maxFiles),
         maxMembersPerFile: Number(displayLimits.maxMembersPerFile ?? displayDefaults.maxMembersPerFile),
         maxEdges: Number(displayLimits.maxEdges ?? displayDefaults.maxEdges)
-      }
+      },
+      drawCaps: { ...(state.performance?.drawCaps || {}) },
+      lod: { ...(state.performance?.lod || {}) },
+      hud: { ...(state.performance?.hud || {}) },
+      bucketSize: state.performance?.bucketSize,
+      cullInterval: state.performance?.cullInterval,
+      frameBudgetMs: state.performance?.frameBudgetMs
     }
   };
 
@@ -239,6 +263,8 @@ export const initUi = () => {
     checked: false,
     onChange: (value) => {
       labelGroup.visible = value;
+      labelGroup.userData = labelGroup.userData || {};
+      labelGroup.userData.userHidden = !value;
       if (value) {
         scheduleRebuild(0);
       } else {
@@ -248,7 +274,14 @@ export const initUi = () => {
     }
   });
   createToggle(dom.menuView, { label: 'Wireframes', onChange: (value) => { wireGroup.visible = value; } });
-  createToggle(dom.menuView, { label: 'Edges', onChange: (value) => { edgeGroup.visible = value; } });
+  createToggle(dom.menuView, {
+    label: 'Edges',
+    onChange: (value) => {
+      edgeGroup.visible = value;
+      edgeGroup.userData = edgeGroup.userData || {};
+      edgeGroup.userData.userHidden = !value;
+    }
+  });
 
   createSlider(dom.menuControls, { label: 'Pan sensitivity', path: 'controls.panSensitivity', min: 0.2, max: 4, step: 0.1, defaultValue: controlDefaults.panSensitivity, rebuild: false });
   createSlider(dom.menuControls, { label: 'Zoom sensitivity', path: 'controls.zoomSensitivity', min: 0.5, max: 40, step: 0.5, defaultValue: controlDefaults.zoomSensitivity, rebuild: false });
@@ -304,6 +337,51 @@ export const initUi = () => {
       defaultValue: displayDefaults.maxEdges,
       rebuild: false,
       onInput: () => scheduleLimitRefresh()
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Draw cap files',
+      path: 'performance.drawCaps.files',
+      min: 50,
+      max: 2000,
+      step: 25,
+      defaultValue: state.performance?.drawCaps?.files ?? 500,
+      rebuild: true
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Draw cap members',
+      path: 'performance.drawCaps.members',
+      min: 200,
+      max: 40000,
+      step: 200,
+      defaultValue: state.performance?.drawCaps?.members ?? 12000,
+      rebuild: true
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Draw cap edges',
+      path: 'performance.drawCaps.edges',
+      min: 500,
+      max: 80000,
+      step: 500,
+      defaultValue: state.performance?.drawCaps?.edges ?? 16000,
+      rebuild: true
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Draw cap labels',
+      path: 'performance.drawCaps.labels',
+      min: 100,
+      max: 20000,
+      step: 100,
+      defaultValue: state.performance?.drawCaps?.labels ?? 2000,
+      rebuild: true
+    });
+    createToggle(dom.menuPerformance, {
+      label: 'Perf HUD',
+      checked: state.performance?.hud?.enabled === true,
+      onChange: (value) => {
+        setNested(state.panelState, 'performance.hud.enabled', value);
+        if (state.performance?.hud) state.performance.hud.enabled = value;
+        persistPanelState();
+      }
     });
   }
 

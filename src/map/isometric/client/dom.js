@@ -14,6 +14,18 @@ export const mergeConfig = (base, override) => {
     ...(base.performance?.displayLimits || {}),
     ...(override.performance?.displayLimits || {})
   };
+  merged.performance.drawCaps = {
+    ...(base.performance?.drawCaps || {}),
+    ...(override.performance?.drawCaps || {})
+  };
+  merged.performance.lod = {
+    ...(base.performance?.lod || {}),
+    ...(override.performance?.lod || {})
+  };
+  merged.performance.hud = {
+    ...(base.performance?.hud || {}),
+    ...(override.performance?.hud || {})
+  };
   return merged;
 };
 
@@ -34,7 +46,8 @@ export const loadDomConfig = () => {
     menuVisuals: document.getElementById('menu-visuals'),
     menuEffects: document.getElementById('menu-effects'),
     menuPerformance: document.getElementById('menu-performance'),
-    menuActions: document.getElementById('menu-actions')
+    menuActions: document.getElementById('menu-actions'),
+    perfHud: document.getElementById('perf-hud')
   };
 
   try {

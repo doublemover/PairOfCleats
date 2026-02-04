@@ -1,20 +1,7 @@
 import { normalizeRepoRelativePath } from './path-normalize.js';
 
-/**
- * Seed reference regex (type:suffix).
- */
 const SEED_REGEX = /^(chunk|symbol|file):(.+)$/;
 
-/**
- * Parse a seed reference string.
- *
- * Path handling: file seeds must resolve to repo-relative paths.
- *
- * @param {string} raw
- * @param {string} repoRoot
- * @returns {{ type: 'chunk', chunkUid: string } | { type: 'symbol', symbolId: string } | { type: 'file', path: string }}
- * @throws {Error} on invalid seed format
- */
 export const parseSeedRef = (raw, repoRoot) => {
   const value = String(raw || '').trim();
   if (!value) throw new Error('Missing --seed value.');

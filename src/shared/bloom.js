@@ -2,12 +2,6 @@ const BLOOM_SCHEMA_VERSION = '1.0.0';
 const DEFAULT_FALSE_POSITIVE_RATE = 0.01;
 const MIN_BLOOM_BITS = 1024;
 
-/**
- * FNV-1a 32-bit hash.
- * @param {string} value
- * @param {number} seed
- * @returns {number}
- */
 const fnv1a32 = (value, seed) => {
   let hash = seed >>> 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -17,11 +11,6 @@ const fnv1a32 = (value, seed) => {
   return hash >>> 0;
 };
 
-/**
- * Derive a pair of hashes for Bloom filter use.
- * @param {unknown} value
- * @returns {{ h1: number, h2: number }}
- */
 const hashPair = (value) => {
   const text = value == null ? '' : String(value);
   const h1 = fnv1a32(text, 2166136261);
@@ -29,11 +18,6 @@ const hashPair = (value) => {
   return { h1, h2 };
 };
 
-/**
- * Resolve Bloom filter parameters from target entry count and false-positive rate.
- * @param {{ expectedEntries?: number, falsePositiveRate?: number, minBits?: number }} [options]
- * @returns {{ bits: number, hashes: number }}
- */
 const resolveBloomParams = ({ expectedEntries, falsePositiveRate, minBits } = {}) => {
   const entries = Number.isFinite(Number(expectedEntries)) ? Math.max(1, Math.floor(Number(expectedEntries))) : 1;
   const fpRate = Number.isFinite(Number(falsePositiveRate))
@@ -46,9 +30,6 @@ const resolveBloomParams = ({ expectedEntries, falsePositiveRate, minBits } = {}
   return { bits, hashes };
 };
 
-/**
- * Simple Bloom filter implementation (FNV-1a).
- */
 export class BloomFilter {
   constructor({ bits, hashes, bytes } = {}) {
     const resolvedBits = Number.isFinite(Number(bits)) ? Math.max(1, Math.floor(Number(bits))) : MIN_BLOOM_BITS;
@@ -64,10 +45,6 @@ export class BloomFilter {
     this.count = 0;
   }
 
-  /**
-   * Add a value to the filter.
-   * @param {unknown} value
-   */
   add(value) {
     const { h1, h2 } = hashPair(value);
     for (let i = 0; i < this.hashes; i += 1) {
@@ -77,11 +54,6 @@ export class BloomFilter {
     this.count += 1;
   }
 
-  /**
-   * Check whether a value may exist in the filter.
-   * @param {unknown} value
-   * @returns {boolean}
-   */
   has(value) {
     const { h1, h2 } = hashPair(value);
     for (let i = 0; i < this.hashes; i += 1) {
@@ -92,21 +64,11 @@ export class BloomFilter {
   }
 }
 
-/**
- * Create a Bloom filter with derived parameters.
- * @param {object} [options]
- * @returns {BloomFilter}
- */
 export const createBloomFilter = (options = {}) => {
   const { bits, hashes } = resolveBloomParams(options);
   return new BloomFilter({ bits, hashes });
 };
 
-/**
- * Encode a Bloom filter to JSON-safe payload.
- * @param {BloomFilter} filter
- * @returns {object|null}
- */
 export const encodeBloomFilter = (filter) => {
   if (!filter) return null;
   return {
@@ -119,11 +81,6 @@ export const encodeBloomFilter = (filter) => {
   };
 };
 
-/**
- * Decode a Bloom filter from JSON payload.
- * @param {object} input
- * @returns {BloomFilter|null}
- */
 export const decodeBloomFilter = (input) => {
   if (!input || typeof input !== 'object') return null;
   const bits = Number(input.bits);

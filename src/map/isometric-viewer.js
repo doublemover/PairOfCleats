@@ -38,6 +38,7 @@ export function renderIsometricHtml({
   #selection-body .sel-pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 4px; font-size: 10px; }
   #selection-body .sel-empty { opacity: 0.6; }
   #hud .controls { margin-top: 10px; font-size: 11px; opacity: 0.6; }
+  #perf-hud { margin-top: 8px; font-size: 11px; font-family: Consolas, Monaco, monospace; background: rgba(255,255,255,0.06); border-radius: 6px; padding: 6px 8px; display: none; }
   #menu { position: absolute; left: 12px; top: 12px; background: rgba(15, 17, 21, 0.9); border: 1px solid rgba(255,255,255,0.12); padding: 10px 12px; border-radius: 8px; font-size: 11px; min-width: 220px; max-width: 280px; max-height: 85vh; overflow: auto; z-index: 2; pointer-events: auto; }
   #menu details { margin-bottom: 8px; }
   #menu summary { font-size: 12px; cursor: pointer; list-style: none; margin-bottom: 6px; }
@@ -65,6 +66,7 @@ export function renderIsometricHtml({
       <strong>Selection</strong>
       <div id="selection-body">None</div>
     </div>
+    <div id="perf-hud"></div>
     <div class="controls">Click to focus. WASD to move. Scroll to zoom. Double click to open.</div>
   </div>
   <div id="menu">

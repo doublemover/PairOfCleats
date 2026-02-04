@@ -24,25 +24,34 @@ export function chunkArray(items, size = 900) {
 }
 
 const SQLITE_BATCH_MIN = 50;
+const SQLITE_BATCH_MAX = 2000;
 const BYTES_PER_MB = 1024 * 1024;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 /**
  * Resolve a batch size for sqlite inserts based on input size.
- * @param {{batchSize?:number|null,inputBytes?:number|null}} [options]
+ * @param {{batchSize?:number|null,inputBytes?:number|null,rowCount?:number|null}} [options]
  * @returns {number}
  */
 export function resolveSqliteBatchSize(options = {}) {
   const requested = Number(options.batchSize);
   if (Number.isFinite(requested) && requested > 0) {
-    return Math.max(SQLITE_BATCH_MIN, Math.floor(requested));
+    return clamp(Math.floor(requested), SQLITE_BATCH_MIN, SQLITE_BATCH_MAX);
   }
+  let resolved = 1000;
   const inputBytes = Number(options.inputBytes);
   if (Number.isFinite(inputBytes) && inputBytes > 0) {
-    if (inputBytes >= 2048 * BYTES_PER_MB) return 200;
-    if (inputBytes >= 512 * BYTES_PER_MB) return 400;
-    if (inputBytes >= 128 * BYTES_PER_MB) return 700;
+    if (inputBytes >= 2048 * BYTES_PER_MB) resolved = 200;
+    else if (inputBytes >= 512 * BYTES_PER_MB) resolved = 400;
+    else if (inputBytes >= 128 * BYTES_PER_MB) resolved = 700;
   }
-  return 1000;
+  const rowCount = Number(options.rowCount);
+  if (Number.isFinite(rowCount) && rowCount > 0) {
+    if (rowCount >= 1_000_000) resolved = Math.min(resolved, 200);
+    else if (rowCount >= 200_000) resolved = Math.min(resolved, 400);
+    else if (rowCount >= 50_000) resolved = Math.min(resolved, 700);
+  }
+  return clamp(resolved, SQLITE_BATCH_MIN, SQLITE_BATCH_MAX);
 }
 
 /**

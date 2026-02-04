@@ -1,8 +1,3 @@
-/**
- * Format a duration in milliseconds into a human-readable string.
- * @param {number} ms
- * @returns {string}
- */
 export const formatDurationMs = (ms) => {
   const total = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(total / 3600);

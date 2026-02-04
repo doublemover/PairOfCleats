@@ -308,6 +308,14 @@ const setMemberInstanceTint = (memberId, color) => {
   if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
 };
 
+const setFileInstanceTint = (fileKey, color) => {
+  if (!fileKey) return;
+  const ref = state.fileInstanceByKey?.get(fileKey) || null;
+  if (!ref || !ref.mesh || ref.instanceId == null) return;
+  ref.mesh.setColorAt(ref.instanceId, color);
+  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+};
+
 const resetMemberInstanceHighlights = () => {
   const highlighted = state.highlightedMemberIds;
   if (!highlighted || !highlighted.size) return;
@@ -316,6 +324,18 @@ const resetMemberInstanceHighlights = () => {
   for (const memberId of highlighted) {
     const base = state.memberColorById?.get(memberId) || white;
     setMemberInstanceTint(memberId, base);
+  }
+  highlighted.clear();
+};
+
+const resetFileInstanceHighlights = () => {
+  const highlighted = state.highlightedFileKeys;
+  if (!highlighted || !highlighted.size) return;
+
+  const white = new state.THREE.Color(0xffffff);
+  for (const fileKey of highlighted) {
+    const base = state.fileColorByPath?.get(fileKey) || white;
+    setFileInstanceTint(fileKey, base);
   }
   highlighted.clear();
 };
@@ -330,6 +350,7 @@ const resetObjectHighlights = () => {
 
   // Restore any per-instance tints applied to instanced members.
   resetMemberInstanceHighlights();
+  resetFileInstanceHighlights();
 };
 
 const resetEdgeHighlights = () => {
@@ -374,6 +395,20 @@ const resetWireHighlights = () => {
 const boostWireframe = (mesh, color, strength) => {
   if (!mesh) return;
   const wire = state.wireByMesh.get(mesh);
+  if (!wire || !wire.material) return;
+  const material = wire.material;
+  const baseWidth = material.userData?.baseLinewidth || material.linewidth || 1;
+  if ('linewidth' in material) {
+    material.linewidth = baseWidth * (1 + strength);
+  }
+  if (color) material.color.copy(color);
+  material.opacity = clamp(material.opacity + strength * 0.2, 0.02, 0.9);
+  material.needsUpdate = true;
+};
+
+const boostWireframeByKey = (fileKey, color, strength) => {
+  if (!fileKey) return;
+  const wire = state.fileWireByKey?.get(fileKey);
   if (!wire || !wire.material) return;
   const material = wire.material;
   const baseWidth = material.userData?.baseLinewidth || material.linewidth || 1;
@@ -470,8 +505,15 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
     if (!entry.weight) return;
     const color = entry.color.multiplyScalar(1 / entry.weight);
     const [type, id] = endpointKey.split(':');
-    if (type === 'file' && state.fileMeshByKey.has(id)) {
-      highlightMesh(state.fileMeshByKey.get(id), color, 0.35 * intensity + 0.15, 0.25 * intensity);
+    if (type === 'file') {
+      if (state.fileInstanceByKey?.has(id)) {
+        const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
+        setFileInstanceTint(id, tint);
+        state.highlightedFileKeys?.add(id);
+        boostWireframeByKey(id, tint, 0.2 * intensity);
+      } else if (state.fileMeshByKey.has(id)) {
+        highlightMesh(state.fileMeshByKey.get(id), color, 0.35 * intensity + 0.15, 0.25 * intensity);
+      }
     }
     if (type === 'member') {
       // Instanced members: tint the instance temporarily.
@@ -496,12 +538,23 @@ export const applyHighlights = () => {
 
   if (selectedHit && selectedObj) {
     if (selectedObj.isInstancedMesh && selectedHit.instanceId != null) {
-      const memberId = selectedInfo?.id ? String(selectedInfo.id) : null;
-      const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
-      const tint = base.clone().lerp(white, 0.45);
-      if (memberId) {
-        setMemberInstanceTint(memberId, tint);
-        state.highlightedMemberIds?.add(memberId);
+      if (selectedInfo?.type === 'file') {
+        const fileKey = selectedInfo?.file || selectedInfo?.name;
+        const base = (fileKey && state.fileColorByPath?.get(fileKey)) || selectedInfo?.baseColor || white;
+        const tint = base.clone().lerp(white, 0.35);
+        if (fileKey) {
+          setFileInstanceTint(fileKey, tint);
+          state.highlightedFileKeys?.add(fileKey);
+          boostWireframeByKey(fileKey, tint, 0.25);
+        }
+      } else {
+        const memberId = selectedInfo?.id ? String(selectedInfo.id) : null;
+        const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
+        const tint = base.clone().lerp(white, 0.45);
+        if (memberId) {
+          setMemberInstanceTint(memberId, tint);
+          state.highlightedMemberIds?.add(memberId);
+        }
       }
     } else {
       const baseColor = selectedObj.userData?.baseColor
@@ -521,8 +574,15 @@ export const applyHighlights = () => {
     const hoverKeys = buildSelectionKeys(hoverInfo);
     applyHighlightsForKeys(hoverKeys, 0.6);
 
-    if (state.hoveredRef.refType === 'file' && state.fileMeshByKey.has(state.hoveredRef.refId)) {
-      highlightMesh(state.fileMeshByKey.get(state.hoveredRef.refId), white, 0.35, 0.35);
+    if (state.hoveredRef.refType === 'file') {
+      const fileKey = state.hoveredRef.refId;
+      if (state.fileInstanceByKey?.has(fileKey)) {
+        setFileInstanceTint(fileKey, white);
+        state.highlightedFileKeys?.add(fileKey);
+        boostWireframeByKey(fileKey, white, 0.2);
+      } else if (state.fileMeshByKey.has(fileKey)) {
+        highlightMesh(state.fileMeshByKey.get(fileKey), white, 0.35, 0.35);
+      }
     }
 
     if (state.hoveredRef.refType === 'member') {
@@ -540,12 +600,23 @@ export const applyHighlights = () => {
     if (hoveredObj) {
       if (hoveredObj.isInstancedMesh && hoveredHit.instanceId != null) {
         const hoverInfo = resolveHitInfo(hoveredHit);
-        const memberId = hoverInfo?.id ? String(hoverInfo.id) : null;
-        const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
-        const tint = base.clone().lerp(white, 0.25);
-        if (memberId) {
-          setMemberInstanceTint(memberId, tint);
-          state.highlightedMemberIds?.add(memberId);
+        if (hoverInfo?.type === 'file') {
+          const fileKey = hoverInfo?.file || hoverInfo?.name;
+          const base = (fileKey && state.fileColorByPath?.get(fileKey)) || hoverInfo?.baseColor || white;
+          const tint = base.clone().lerp(white, 0.25);
+          if (fileKey) {
+            setFileInstanceTint(fileKey, tint);
+            state.highlightedFileKeys?.add(fileKey);
+            boostWireframeByKey(fileKey, tint, 0.2);
+          }
+        } else {
+          const memberId = hoverInfo?.id ? String(hoverInfo.id) : null;
+          const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
+          const tint = base.clone().lerp(white, 0.25);
+          if (memberId) {
+            setMemberInstanceTint(memberId, tint);
+            state.highlightedMemberIds?.add(memberId);
+          }
         }
       } else {
         const baseColor = hoveredObj.userData?.baseColor
@@ -560,6 +631,7 @@ export const applyHighlights = () => {
 export const setSelection = (hit) => {
   state.selected = hit;
   const info = resolveHitInfo(hit);
+  state.selectedInfo = info || null;
   renderSelectionDetails(info);
   applyHighlights();
 };

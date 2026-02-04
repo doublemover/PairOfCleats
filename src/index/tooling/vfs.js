@@ -17,7 +17,6 @@ import { LANGUAGE_ID_EXT } from '../segments/config.js';
 
 const VFS_PREFIX = '.poc-vfs/';
 const VFS_HASH_PREFIX = `${VFS_PREFIX}by-hash/`;
-/** Max JSON byte size for a single VFS manifest row before trimming. */
 export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
 const VFS_DOC_HASH_CACHE = new Map();
@@ -143,11 +142,6 @@ const normalizeLanguageId = (value, fallback = null) => {
   return text ? text.toLowerCase() : fallback;
 };
 
-/**
- * Resolve the effective language id for a chunk/segment.
- * @param {{ chunk?: object, segment?: object, containerLanguageId?: string|null }} input
- * @returns {string}
- */
 export const resolveEffectiveLanguageId = ({ chunk, segment, containerLanguageId }) => {
   const candidate = chunk?.lang
     || chunk?.metaV2?.lang
@@ -582,11 +576,6 @@ export const buildToolingVirtualDocuments = async ({
   return { documents, targets };
 };
 
-/**
- * Build deterministic VFS manifest rows for a single file.
- * @param {object} input
- * @returns {Promise<object[]>}
- */
 export const buildVfsManifestRowsForFile = async ({
   chunks,
   fileText,

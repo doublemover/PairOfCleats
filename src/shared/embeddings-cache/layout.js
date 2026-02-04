@@ -1,12 +1,6 @@
 import path from 'node:path';
 import { getCacheRoot } from '../cache-roots.js';
 
-/**
- * Sanitize a path segment for cache layout.
- * @param {string} value
- * @param {string} fallback
- * @returns {string}
- */
 const sanitizeSegment = (value, fallback) => {
   const raw = typeof value === 'string' && value.trim() ? value.trim() : fallback;
   if (!raw) return fallback || 'unknown';
@@ -14,14 +8,6 @@ const sanitizeSegment = (value, fallback) => {
   return normalized || fallback || 'unknown';
 };
 
-/**
- * Resolve the embeddings cache root based on scope and overrides.
- *
- * Path handling: returns absolute OS paths.
- *
- * @param {{ repoCacheRoot?: string, cacheDirConfig?: string, scope?: string }} [options]
- * @returns {string}
- */
 export const resolveEmbeddingsCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope } = {}) => {
   if (cacheDirConfig) return path.resolve(cacheDirConfig);
   const resolvedScope = typeof scope === 'string' ? scope.trim().toLowerCase() : '';
@@ -31,11 +17,6 @@ export const resolveEmbeddingsCacheRoot = ({ repoCacheRoot, cacheDirConfig, scop
   return path.join(repoCacheRoot || '', 'embeddings');
 };
 
-/**
- * Resolve the base cache directory for a provider/model/dims.
- * @param {{ cacheRoot?: string, provider?: string, modelId?: string, dims?: number }} [options]
- * @returns {string}
- */
 export const resolveEmbeddingsCacheBase = ({
   cacheRoot,
   provider,
@@ -48,12 +29,6 @@ export const resolveEmbeddingsCacheBase = ({
   return path.join(cacheRoot || '', providerKey, modelKey, dimsKey);
 };
 
-/**
- * Resolve the cache directory for a given mode.
- * @param {string} baseDir
- * @param {string} mode
- * @returns {string}
- */
 export const resolveEmbeddingsCacheModeDir = (baseDir, mode) => {
   const modeKey = sanitizeSegment(mode, 'mode');
   return path.join(baseDir || '', modeKey);

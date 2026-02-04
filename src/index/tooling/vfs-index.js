@@ -1,13 +1,7 @@
-/** Schema version for VFS index rows. */
 export const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
 
 const stringifyField = (value) => (value == null ? '' : String(value));
 
-/**
- * Build a deterministic sort key for VFS manifest rows.
- * @param {object} row
- * @returns {string}
- */
 export const buildVfsManifestSortKey = (row = {}) => {
   return [
     stringifyField(row.containerPath),
@@ -20,11 +14,6 @@ export const buildVfsManifestSortKey = (row = {}) => {
   ].join('\u0000');
 };
 
-/**
- * Build a VFS index row from a manifest row.
- * @param {{ manifestRow?: object }} [input]
- * @returns {object|null}
- */
 export const buildVfsIndexRow = ({ manifestRow } = {}) => {
   const row = manifestRow || null;
   if (!row || typeof row !== 'object') return null;
@@ -37,11 +26,6 @@ export const buildVfsIndexRow = ({ manifestRow } = {}) => {
   };
 };
 
-/**
- * Build VFS index rows for a list of manifest rows.
- * @param {object[]} rows
- * @returns {object[]}
- */
 export const buildVfsIndexRows = (rows = []) => (
   Array.isArray(rows) ? rows.map((row) => buildVfsIndexRow({ manifestRow: row })).filter(Boolean) : []
 );

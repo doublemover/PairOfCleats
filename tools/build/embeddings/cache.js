@@ -19,25 +19,12 @@ const CACHE_INDEX_VERSION = 1;
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 
-/**
- * Build embedding identity + key for cache usage.
- *
- * Deterministic: identical inputs produce identical identity and key.
- *
- * @param {object} [input]
- * @returns {{ identity: object, key: string }}
- */
 export const buildCacheIdentity = (input = {}) => {
   const identity = buildEmbeddingIdentity(input);
   const key = buildEmbeddingIdentityKey(identity);
   return { identity, key };
 };
 
-/**
- * Resolve cache root based on scope and config.
- * @param {{ repoCacheRoot?: string, cacheDirConfig?: string, scope?: string }} options
- * @returns {string}
- */
 export const resolveCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope }) => (
   resolveEmbeddingsCacheRoot({ repoCacheRoot, cacheDirConfig, scope })
 );
@@ -159,14 +146,6 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
   }
 };
 
-/**
- * Read a cache entry from shard or legacy file.
- *
- * @param {string} cacheDir
- * @param {string} cacheKey
- * @param {object|null} cacheIndex
- * @returns {Promise<{ path: string|null, entry: object|null, indexEntry?: object }>}
- */
 export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
   const indexEntry = cacheIndex?.entries?.[cacheKey];
   if (indexEntry?.shard) {
@@ -251,17 +230,6 @@ const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => {
   }
 };
 
-/**
- * Write a cache entry to shard or standalone file.
- *
- * Side effects: writes to disk and updates shards when index is provided.
- *
- * @param {string} cacheDir
- * @param {string} cacheKey
- * @param {object} payload
- * @param {object} [options]
- * @returns {Promise<object|null>}
- */
 export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {}) => {
   const targetPath = resolveCacheEntryPath(cacheDir, cacheKey);
   if (!targetPath) return null;
@@ -309,14 +277,6 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
   return next;
 };
 
-/**
- * Prune cache index entries by size or age.
- *
- * @param {string} cacheDir
- * @param {object} cacheIndex
- * @param {{ maxBytes?: number, maxAgeMs?: number }} [options]
- * @returns {Promise<{ removedKeys: string[], removedShards: string[], changed: boolean }>}
- */
 export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   if (!cacheDir || !cacheIndex) return { removedKeys: [], removedShards: [], changed: false };
   const maxBytes = Number.isFinite(Number(options.maxBytes)) ? Math.max(0, Number(options.maxBytes)) : 0;

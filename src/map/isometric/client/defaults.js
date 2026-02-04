@@ -109,6 +109,27 @@ export const displayDefaults = {
   maxEdges: 400
 };
 
+export const performanceDefaults = {
+  drawCaps: {
+    files: 500,
+    members: 12000,
+    edges: 16000,
+    labels: 2000
+  },
+  bucketSize: 40,
+  cullInterval: 0.08,
+  frameBudgetMs: 18,
+  lod: {
+    zoomHigh: 20,
+    zoomLow: 6,
+    edgeCountHigh: 12000,
+    edgeCountLow: 3000
+  },
+  hud: {
+    enabled: false
+  }
+};
+
 export const flowWaveLayers = [
   { speed: 0.9, amplitude: 0.6 },
   { speed: 1.6, amplitude: 0.35 },
