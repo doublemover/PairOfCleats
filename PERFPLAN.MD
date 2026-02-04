@@ -818,9 +818,9 @@ Reduce search CLI startup time by eliminating unnecessary work on cold start and
 - [x] Add a fast-path for `search --help` and `search --backend` validation without full config load.
 
 ### Tests
-- [ ] `tests/cli/search/search-help-fastpath.test.js`
-- [ ] `tests/cli/search/search-startup-profiler.test.js`
-- [ ] `tests/cli/search/search-lazy-imports.test.js`
+- [x] `tests/cli/search/search-help-fastpath.test.js`
+- [x] `tests/cli/search/search-startup-profiler.test.js`
+- [x] `tests/cli/search/search-lazy-imports.test.js`
 
 ### Acceptance
 - [ ] Search CLI startup time improves measurably on cold start.
