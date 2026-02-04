@@ -47,6 +47,11 @@ const updateHighWater = (target, source) => {
   }
 };
 
+/**
+ * Create a stage checkpoint recorder for build timing and memory snapshots.
+ * @param {{buildRoot?:string,metricsDir?:string,mode?:string,buildId?:string}} [options]
+ * @returns {{record:(input?:object)=>object,buildSummary:()=>object,flush:()=>Promise<object>,checkpoints:Array<object>}}
+ */
 export const createStageCheckpointRecorder = ({
   buildRoot = null,
   metricsDir = null,

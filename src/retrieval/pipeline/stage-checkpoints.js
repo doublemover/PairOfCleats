@@ -14,6 +14,11 @@ const diffMemory = (end, start) => ({
   arrayBuffers: end.arrayBuffers - start.arrayBuffers
 });
 
+/**
+ * Create a lightweight retrieval stage timing/memory tracker.
+ * @param {{enabled?:boolean}} [options]
+ * @returns {{enabled:boolean,mark:()=>object|null,record:(stage:string,start:object,meta?:object)=>void,span:(stage:string,metaOrFn:any,fn?:Function)=>Promise<any>,spanSync:(stage:string,metaOrFn:any,fn?:Function)=>any,stages:Array<object>}}
+ */
 export function createRetrievalStageTracker({ enabled = true } = {}) {
   const stages = [];
   const mark = () => {

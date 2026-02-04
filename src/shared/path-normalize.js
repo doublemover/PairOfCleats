@@ -5,6 +5,13 @@ const stripDotPrefix = (value) => (
   value.startsWith('./') ? value.slice(2) : value
 );
 
+/**
+ * Normalize a path into repo-relative form, or return null when outside root.
+ * @param {unknown} value
+ * @param {string|null} repoRoot
+ * @param {{stripDot?:boolean}} [options]
+ * @returns {string|null}
+ */
 export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } = {}) => {
   if (!value) return null;
   const raw = String(value);
@@ -19,6 +26,13 @@ export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } =
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };
 
+/**
+ * Normalize a file path for a repository, preferring repo-relative values.
+ * @param {unknown} value
+ * @param {string|null} repoRoot
+ * @param {{stripDot?:boolean}} [options]
+ * @returns {string|null}
+ */
 export const normalizePathForRepo = (value, repoRoot, { stripDot = true } = {}) => {
   if (!value) return null;
   const raw = String(value);
@@ -37,6 +51,12 @@ export const normalizePathForRepo = (value, repoRoot, { stripDot = true } = {}) 
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };
 
+/**
+ * Normalize a file path to POSIX and optionally lower-case it.
+ * @param {unknown} value
+ * @param {{lower?:boolean}} [options]
+ * @returns {string}
+ */
 export const normalizeFilePath = (value, { lower = false } = {}) => {
   const normalized = toPosix(String(value || ''));
   return lower ? normalized.toLowerCase() : normalized;

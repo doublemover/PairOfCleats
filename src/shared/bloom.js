@@ -30,6 +30,9 @@ const resolveBloomParams = ({ expectedEntries, falsePositiveRate, minBits } = {}
   return { bits, hashes };
 };
 
+/**
+ * Simple Bloom filter using fnv1a32 double-hashing.
+ */
 export class BloomFilter {
   constructor({ bits, hashes, bytes } = {}) {
     const resolvedBits = Number.isFinite(Number(bits)) ? Math.max(1, Math.floor(Number(bits))) : MIN_BLOOM_BITS;
@@ -64,11 +67,21 @@ export class BloomFilter {
   }
 }
 
+/**
+ * Create a Bloom filter with size derived from expected entries and FP rate.
+ * @param {{expectedEntries?:number,falsePositiveRate?:number,minBits?:number}} [options]
+ * @returns {BloomFilter}
+ */
 export const createBloomFilter = (options = {}) => {
   const { bits, hashes } = resolveBloomParams(options);
   return new BloomFilter({ bits, hashes });
 };
 
+/**
+ * Encode a Bloom filter as a JSON-safe payload.
+ * @param {BloomFilter} filter
+ * @returns {object|null}
+ */
 export const encodeBloomFilter = (filter) => {
   if (!filter) return null;
   return {
@@ -81,6 +94,11 @@ export const encodeBloomFilter = (filter) => {
   };
 };
 
+/**
+ * Decode a Bloom filter payload back into a BloomFilter instance.
+ * @param {object|null} input
+ * @returns {BloomFilter|null}
+ */
 export const decodeBloomFilter = (input) => {
   if (!input || typeof input !== 'object') return null;
   const bits = Number(input.bits);

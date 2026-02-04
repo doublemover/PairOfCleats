@@ -129,6 +129,12 @@ const readJsonLinesFile = async (
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
 ) => readJsonLinesEach(filePath, onEntry, { maxBytes, requiredKeys });
 
+/**
+ * Load artifact pieces required for sqlite builds.
+ * @param {string|{indexDir?:string,modes?:string[],modelId?:string}} dirOrOptions
+ * @param {string} [modelId]
+ * @returns {object|null}
+ */
 export const loadIndexPieces = (dirOrOptions, modelId) => {
   if (dirOrOptions && typeof dirOrOptions === 'object' && !Array.isArray(dirOrOptions)) {
     const { indexDir, modes, modelId: modelIdOverride } = dirOrOptions;

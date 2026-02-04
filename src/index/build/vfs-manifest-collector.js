@@ -50,10 +50,20 @@ const writeRunFile = async (runPath, rows) => {
   }
 };
 
+/**
+ * Test if a value looks like a VFS manifest collector.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 export const isVfsManifestCollector = (value) => (
   value && typeof value === 'object' && value.kind === COLLECTOR_KIND && typeof value.finalize === 'function'
 );
 
+/**
+ * Create a collector that buffers and spills VFS manifest rows.
+ * @param {{buildRoot?:string,maxBufferBytes?:number,maxBufferRows?:number,log?:object}} [options]
+ * @returns {{kind:string,appendRows:(rows:Array<object>,opts?:object)=>Promise<void>,finalize:()=>Promise<object>,stats:object}}
+ */
 export const createVfsManifestCollector = ({
   buildRoot,
   maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES,

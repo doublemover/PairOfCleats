@@ -19,16 +19,32 @@ const CACHE_INDEX_VERSION = 1;
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 
+/**
+ * Build an embeddings cache identity payload and key.
+ * @param {object} [input]
+ * @returns {{identity:object,key:string|null}}
+ */
 export const buildCacheIdentity = (input = {}) => {
   const identity = buildEmbeddingIdentity(input);
   const key = buildEmbeddingIdentityKey(identity);
   return { identity, key };
 };
 
+/**
+ * Resolve the cache root for embeddings cache.
+ * @param {{repoCacheRoot?:string,cacheDirConfig?:string,scope?:string}} input
+ * @returns {string}
+ */
 export const resolveCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope }) => (
   resolveEmbeddingsCacheRoot({ repoCacheRoot, cacheDirConfig, scope })
 );
 
+/**
+ * Resolve the cache base directory for an identity.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @returns {string}
+ */
 export const resolveCacheBase = (cacheRoot, identity) => resolveEmbeddingsCacheBase({
   cacheRoot,
   provider: identity?.provider,
@@ -36,31 +52,75 @@ export const resolveCacheBase = (cacheRoot, identity) => resolveEmbeddingsCacheB
   dims: identity?.dims
 });
 
+/**
+ * Resolve the mode-specific cache directory.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @param {string} mode
+ * @returns {string}
+ */
 export const resolveCacheModeDir = (cacheRoot, identity, mode) => (
   resolveEmbeddingsCacheModeDir(resolveCacheBase(cacheRoot, identity), mode)
 );
 
+/**
+ * Resolve the cache files directory for a mode.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @param {string} mode
+ * @returns {string}
+ */
 export const resolveCacheDir = (cacheRoot, identity, mode) => (
   path.join(resolveCacheModeDir(cacheRoot, identity, mode), 'files')
 );
+/**
+ * Resolve the cache metadata path for a mode.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @param {string} mode
+ * @returns {string}
+ */
 export const resolveCacheMetaPath = (cacheRoot, identity, mode) => (
   path.join(resolveCacheModeDir(cacheRoot, identity, mode), 'cache.meta.json')
 );
 
+/**
+ * Resolve the cache index file path.
+ * @param {string|null} cacheDir
+ * @returns {string|null}
+ */
 export const resolveCacheIndexPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.index.json') : null
 );
 
+/**
+ * Resolve the cache shard directory path.
+ * @param {string|null} cacheDir
+ * @returns {string|null}
+ */
 export const resolveCacheShardDir = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'shards') : null
 );
 
+/**
+ * Resolve a specific cache shard path.
+ * @param {string|null} cacheDir
+ * @param {string|null} shardName
+ * @returns {string|null}
+ */
 export const resolveCacheShardPath = (cacheDir, shardName) => (
   cacheDir && shardName ? path.join(resolveCacheShardDir(cacheDir), shardName) : null
 );
 
 const resolveCacheEntrySuffix = () => getEmbeddingsCacheSuffix();
 
+/**
+ * Resolve the cache entry path for a key.
+ * @param {string|null} cacheDir
+ * @param {string|null} cacheKey
+ * @param {{legacy?:boolean}} [options]
+ * @returns {string|null}
+ */
 export const resolveCacheEntryPath = (cacheDir, cacheKey, options = {}) => {
   if (!cacheDir || !cacheKey) return null;
   if (options.legacy) {
@@ -69,6 +129,11 @@ export const resolveCacheEntryPath = (cacheDir, cacheKey, options = {}) => {
   return path.join(cacheDir, `${cacheKey}${resolveCacheEntrySuffix()}`);
 };
 
+/**
+ * Read and decode a cache entry file.
+ * @param {string|null} filePath
+ * @returns {Promise<object|null>}
+ */
 export const readCacheEntryFile = async (filePath) => {
   if (!filePath) return null;
   if (filePath.endsWith('.json')) {
@@ -108,6 +173,12 @@ const normalizeCacheIndex = (index, identityKey) => {
   return normalized;
 };
 
+/**
+ * Read the cache index from disk, falling back to a fresh index on errors.
+ * @param {string|null} cacheDir
+ * @param {string|null} [identityKey]
+ * @returns {Promise<object>}
+ */
 export const readCacheIndex = async (cacheDir, identityKey = null) => {
   const indexPath = resolveCacheIndexPath(cacheDir);
   if (!indexPath || !fsSync.existsSync(indexPath)) return createCacheIndex(identityKey);
@@ -123,6 +194,12 @@ export const readCacheIndex = async (cacheDir, identityKey = null) => {
   }
 };
 
+/**
+ * Persist the cache index to disk.
+ * @param {string|null} cacheDir
+ * @param {object} index
+ * @returns {Promise<void>}
+ */
 export const writeCacheIndex = async (cacheDir, index) => {
   const indexPath = resolveCacheIndexPath(cacheDir);
   if (!indexPath) return;
@@ -146,6 +223,13 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
   }
 };
 
+/**
+ * Read a cache entry from shards or standalone files.
+ * @param {string|null} cacheDir
+ * @param {string|null} cacheKey
+ * @param {object|null} [cacheIndex]
+ * @returns {Promise<{path:string|null,entry:object|null,indexEntry?:object}>}
+ */
 export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
   const indexEntry = cacheIndex?.entries?.[cacheKey];
   if (indexEntry?.shard) {
@@ -165,6 +249,12 @@ export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
   return { path: primaryPath, entry: null };
 };
 
+/**
+ * Update last access metadata for a cache key.
+ * @param {object|null} cacheIndex
+ * @param {string|null} cacheKey
+ * @returns {object|null}
+ */
 export const updateCacheIndexAccess = (cacheIndex, cacheKey) => {
   if (!cacheIndex || !cacheKey) return null;
   const entry = cacheIndex.entries?.[cacheKey];
@@ -230,6 +320,14 @@ const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => {
   }
 };
 
+/**
+ * Write a cache entry, optionally appending to a shard.
+ * @param {string|null} cacheDir
+ * @param {string|null} cacheKey
+ * @param {object} payload
+ * @param {{index?:object,maxShardBytes?:number}} [options]
+ * @returns {Promise<object|null>}
+ */
 export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {}) => {
   const targetPath = resolveCacheEntryPath(cacheDir, cacheKey);
   if (!targetPath) return null;
@@ -251,6 +349,14 @@ export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {})
   return { path: targetPath };
 };
 
+/**
+ * Upsert a cache index entry for a payload.
+ * @param {object|null} cacheIndex
+ * @param {string|null} cacheKey
+ * @param {object} payload
+ * @param {object|null} [shardEntry]
+ * @returns {object|null}
+ */
 export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry = null) => {
   if (!cacheIndex || !cacheKey || !payload) return null;
   const now = new Date().toISOString();
@@ -277,6 +383,13 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
   return next;
 };
 
+/**
+ * Prune cache entries from disk based on size/age caps.
+ * @param {string|null} cacheDir
+ * @param {object|null} cacheIndex
+ * @param {{maxBytes?:number,maxAgeMs?:number}} [options]
+ * @returns {Promise<{removedKeys:string[],removedShards:string[],changed:boolean}>}
+ */
 export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   if (!cacheDir || !cacheIndex) return { removedKeys: [], removedShards: [], changed: false };
   const maxBytes = Number.isFinite(Number(options.maxBytes)) ? Math.max(0, Number(options.maxBytes)) : 0;
@@ -323,17 +436,34 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   return { removedKeys: plan.removeKeys, removedShards, changed: true };
 };
 
+/**
+ * Build a stable cache key for an embedding payload.
+ * @param {{file?:string,hash?:string,signature?:string,identityKey?:string}} input
+ * @returns {string|null}
+ */
 export const buildCacheKey = ({ file, hash, signature, identityKey }) => {
   if (!hash) return null;
   return sha1(`${file}:${hash}:${signature}:${identityKey}`);
 };
 
+/**
+ * Validate a cached entry against the current signature and identity.
+ * @param {{cached?:object,signature?:string,identityKey?:string,hash?:string}} input
+ * @returns {boolean}
+ */
 export const isCacheValid = ({ cached, signature, identityKey, hash }) => {
   if (!cached || cached.chunkSignature !== signature) return false;
   if (hash && cached.hash && cached.hash !== hash) return false;
   return cached.cacheMeta?.identityKey === identityKey;
 };
 
+/**
+ * Read cache metadata from disk.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @param {string} mode
+ * @returns {object|null}
+ */
 export const readCacheMeta = (cacheRoot, identity, mode) => {
   const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
   if (!metaPath || !fsSync.existsSync(metaPath)) return null;
@@ -345,6 +475,14 @@ export const readCacheMeta = (cacheRoot, identity, mode) => {
   }
 };
 
+/**
+ * Write cache metadata to disk.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @param {string} mode
+ * @param {object} meta
+ * @returns {Promise<void>}
+ */
 export const writeCacheMeta = async (cacheRoot, identity, mode, meta) => {
   const metaPath = resolveCacheMetaPath(cacheRoot, identity, mode);
   if (!metaPath) return;

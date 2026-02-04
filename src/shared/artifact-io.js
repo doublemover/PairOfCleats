@@ -13,12 +13,6 @@ export {
   setArtifactReadObserver
 } from './artifact-io/telemetry.js';
 export {
-  DEFAULT_ARTIFACT_READ_THRESHOLD,
-  hasArtifactReadObserver,
-  recordArtifactRead,
-  setArtifactReadObserver
-} from './artifact-io/telemetry.js';
-export {
   loadPiecesManifest,
   readCompatibilityKey,
   resolveArtifactPresence,
