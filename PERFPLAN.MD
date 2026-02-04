@@ -1763,6 +1763,22 @@ Reduce serialization/IO cost for index_state, file_meta, minhash_signatures, and
 - `docs/perf/index-state-file-meta.md` (new)
 
 ### Tasks
+- [ ] **15.4 JSON artifact streaming + compression**
+- [ ] Task 15.4.a: Use size‑based sharding in `createArtifactWriter` (byte budgets, not row counts).
+- [ ] Task 15.4.b: Extend per‑artifact compression config and default zstd for large artifacts.
+- [ ] Task 15.4.c: Add write‑path metrics (bytes, rows, wall time) per artifact.
+Details: Touchpoints `src/index/build/artifacts/writer.js`, `src/index/build/artifacts/helpers.js`, `src/shared/json-stream.js`, `src/shared/artifact-io/compression.js`. Implementation notes: enforce byte budgets before allocating buffers; record artifact sizes in build state or perf profile; keep compression opt-in per artifact to avoid regressions.
+
+- [ ] **15.6 Discovery + file list reuse**
+- [ ] Task 15.6.a: Emit a stable discovery file list with file hashes to power file_meta and avoid per‑chunk scans.
+- [ ] Task 15.6.b: Persist discovery list hash for incremental reuse.
+Details: Touchpoints `src/index/build/indexer/steps/discover.js`, `src/index/build/state.js`.
+
+- [ ] **15.7 Chunk-to-file metadata reuse**
+- [ ] Task 15.7.a: Maintain chunkUid -> fileId map during chunk creation instead of rescan in artifacts.
+- [ ] Task 15.7.b: Record per-file aggregate metadata once per file rather than per chunk.
+Details: Touchpoints `src/index/build/indexer/steps/process-files.js`, `src/index/build/artifacts.js`.
+
 - [ ] **15.1 Index state write optimization**
 - [ ] Task 15.1.a: Skip index_state writes when a comparable hash is unchanged (cache last hash by buildRoot).
 - [ ] Task 15.1.b: Split stable vs volatile sections and only re‑serialize volatile on incremental updates.
@@ -1784,12 +1800,6 @@ Details: Touchpoints `src/index/build/artifacts/file-meta.js`, `src/index/build/
 - [ ] Task 15.3.d: Add a max‑docs guard to skip minhash when the corpus is too large (configurable).
 Details: Touchpoints `src/index/build/postings.js`, `src/index/build/artifacts.js`, `src/shared/artifact-io/loaders.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/retrieval/cli-index.js`. Implementation notes: keep JSON artifact for back-compat; packed format should include endian flag + width metadata; use streaming writer for minhash rows during build; document the guard behavior in perf doc.
 
-- [ ] **15.4 JSON artifact streaming + compression**
-- [ ] Task 15.4.a: Use size‑based sharding in `createArtifactWriter` (byte budgets, not row counts).
-- [ ] Task 15.4.b: Extend per‑artifact compression config and default zstd for large artifacts.
-- [ ] Task 15.4.c: Add write‑path metrics (bytes, rows, wall time) per artifact.
-Details: Touchpoints `src/index/build/artifacts/writer.js`, `src/index/build/artifacts/helpers.js`, `src/shared/json-stream.js`, `src/shared/artifact-io/compression.js`. Implementation notes: enforce byte budgets before allocating buffers; record artifact sizes in build state or perf profile; keep compression opt-in per artifact to avoid regressions.
-
 - [ ] **15.5 Build state sidecar tuning**
 - [ ] Task 15.5.a: Coalesce build_state sidecar writes using a size‑aware debounce.
 - [ ] Task 15.5.b: Optionally compress event/delta JSONL logs when they exceed a cap.
@@ -1809,16 +1819,6 @@ Details: Touchpoints `src/index/build/build-state.js`, `src/shared/json-stream.j
 - `src/shared/json-stream.js`
 
 ### Additional Tasks (indexing pipeline opportunities)
-- [ ] **15.6 Discovery + file list reuse**
-- [ ] Task 15.6.a: Emit a stable discovery file list with file hashes to power file_meta and avoid per‑chunk scans.
-- [ ] Task 15.6.b: Persist discovery list hash for incremental reuse.
-Details: Touchpoints `src/index/build/indexer/steps/discover.js`, `src/index/build/state.js`.
-
-- [ ] **15.7 Chunk-to-file metadata reuse**
-- [ ] Task 15.7.a: Maintain chunkUid -> fileId map during chunk creation instead of rescan in artifacts.
-- [ ] Task 15.7.b: Record per-file aggregate metadata once per file rather than per chunk.
-Details: Touchpoints `src/index/build/indexer/steps/process-files.js`, `src/index/build/artifacts.js`.
-
 - [ ] **15.8 Postings memory guards**
 - [ ] Task 15.8.a: Skip minhash emission when `minhashMaxDocs` is exceeded and record a guard event.
 - [ ] Task 15.8.b: Ensure chargram/phrase spill thresholds are enforced by bytes, not only counts.
