@@ -281,6 +281,7 @@ export const buildGraphNeighborhood = ({
   const nodeMap = new Map();
   const edgeSet = new Set();
   const edges = [];
+  // Windowed spill/merge keeps large edge sets deterministic without holding all edges in one buffer.
   const edgeWindows = [];
   const paths = [];
   const pathTargets = [];

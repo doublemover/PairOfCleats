@@ -22,6 +22,7 @@ const payload = assembleCompositeContextPack({
   chunkMeta,
   chunkIndex,
   repoRoot,
+  indexSignature: 'test',
   includeGraph: false,
   includeTypes: false,
   includeRisk: false,

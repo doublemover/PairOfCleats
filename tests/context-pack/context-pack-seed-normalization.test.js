@@ -18,6 +18,7 @@ const payload = assembleCompositeContextPack({
   seed: { type: 'file', path: 'src\\alpha.js' },
   chunkMeta,
   repoRoot,
+  indexSignature: 'test',
   includeGraph: false,
   includeTypes: false,
   includeRisk: false,

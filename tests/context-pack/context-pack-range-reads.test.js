@@ -18,6 +18,7 @@ const payload = assembleCompositeContextPack({
   seed: { type: 'chunk', chunkUid: 'chunk-b' },
   chunkMeta,
   repoRoot,
+  indexSignature: 'test',
   maxBytes: 4,
   includeGraph: false,
   includeTypes: false,

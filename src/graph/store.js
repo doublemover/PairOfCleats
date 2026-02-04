@@ -64,6 +64,10 @@ const normalizeGraphList = (graphs) => {
   return [String(graphs)];
 };
 
+/**
+ * Build a stable cache key for graph index reuse.
+ * Includes index signature, repo root, graph selection, and CSR flag.
+ */
 export const buildGraphIndexCacheKey = ({
   indexSignature,
   repoRoot = null,
@@ -80,6 +84,10 @@ export const buildGraphIndexCacheKey = ({
   return `graph-index:${indexSignature}${repoTag}${graphTag}${csrTag}`;
 };
 
+/**
+ * Build the in-memory GraphIndex with precomputed adjacency, IDs, and indexes.
+ * This structure is intended to be cached and shared across graph requests.
+ */
 export const buildGraphIndex = ({
   graphRelations,
   symbolEdges,

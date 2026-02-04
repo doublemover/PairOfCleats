@@ -39,18 +39,43 @@ const summarize = (values) => {
   };
 };
 
+const runIterations = ({
+  iterations,
+  buildPayload
+}) => {
+  const timings = [];
+  const rssValues = [];
+  const started = process.hrtime.bigint();
+  for (let i = 0; i < iterations; i += 1) {
+    const payload = buildPayload();
+    const elapsed = Number(payload?.stats?.timing?.elapsedMs || 0);
+    const rss = Number(payload?.stats?.memory?.peak?.rss || 0);
+    timings.push(elapsed);
+    rssValues.push(rss);
+  }
+  const durationMs = Number((process.hrtime.bigint() - started) / 1000000n);
+  const throughput = durationMs > 0 ? iterations / (durationMs / 1000) : 0;
+  return {
+    iterations,
+    timingMs: summarize(timings),
+    rssBytes: summarize(rssValues),
+    totalMs: durationMs,
+    throughput
+  };
+};
+
 export async function runContextPackLatencyBench({
   indexDir,
   repoRoot,
   seed,
   iterations = 5,
   depth = 2,
-  caps = {}
+  caps = {},
+  mode = 'compare'
 }) {
   const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
   const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
   const graphRelations = await loadGraphRelations(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
-  const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
   const indexSignature = await buildIndexSignature(indexDir);
   const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
@@ -67,43 +92,60 @@ export async function runContextPackLatencyBench({
     graphs: ['callGraph', 'usageGraph', 'importGraph'],
     includeCsr
   });
+  const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
 
   const resolvedSeed = seed || resolveDefaultSeed(chunkMeta);
   if (!resolvedSeed) {
     throw new Error('Unable to resolve seed for context-pack bench.');
   }
 
-  const timings = [];
-  const rssValues = [];
-  for (let i = 0; i < iterations; i += 1) {
-    const payload = assembleCompositeContextPack({
-      seed: resolvedSeed,
-      chunkMeta,
-      chunkIndex,
-      repoRoot,
-      graphIndex,
-      includeGraph: true,
-      includeTypes: false,
-      includeRisk: false,
-      includeImports: true,
-      includeUsages: true,
-      includeCallersCallees: true,
-      includePaths: false,
-      depth,
-      caps,
-      indexCompatKey: indexCompatKey || null,
-      indexSignature: indexSignature || null
+  const assembleArgs = {
+    seed: resolvedSeed,
+    chunkMeta,
+    repoRoot,
+    includeGraph: true,
+    includeTypes: false,
+    includeRisk: false,
+    includeImports: true,
+    includeUsages: true,
+    includeCallersCallees: true,
+    includePaths: false,
+    depth,
+    caps,
+    indexCompatKey: indexCompatKey || null,
+    indexSignature: indexSignature || null
+  };
+
+  const normalizedMode = mode === 'baseline' || mode === 'current' ? mode : 'compare';
+  const results = {};
+
+  if (normalizedMode === 'baseline' || normalizedMode === 'compare') {
+    results.baseline = runIterations({
+      iterations,
+      buildPayload: () => assembleCompositeContextPack({
+        ...assembleArgs,
+        graphRelations,
+        graphIndex: null,
+        chunkIndex: null
+      })
     });
-    const elapsed = Number(payload?.stats?.timing?.elapsedMs || 0);
-    const rss = Number(payload?.stats?.memory?.peak?.rss || 0);
-    timings.push(elapsed);
-    rssValues.push(rss);
+  }
+
+  if (normalizedMode === 'current' || normalizedMode === 'compare') {
+    results.current = runIterations({
+      iterations,
+      buildPayload: () => assembleCompositeContextPack({
+        ...assembleArgs,
+        graphRelations,
+        graphIndex,
+        chunkIndex
+      })
+    });
   }
 
   return {
-    iterations,
-    timingMs: summarize(timings),
-    rssBytes: summarize(rssValues)
+    mode: normalizedMode,
+    ...results
   };
 }
 
@@ -116,7 +158,8 @@ export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice
       repo: { type: 'string' },
       seed: { type: 'string' },
       iterations: { type: 'number', default: 5 },
-      depth: { type: 'number', default: 2 }
+      depth: { type: 'number', default: 2 },
+      mode: { type: 'string', default: 'compare' }
     }
   });
   const argv = cli.parse();
@@ -130,14 +173,36 @@ export async function runContextPackLatencyBenchCli(rawArgs = process.argv.slice
   const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
   const iterations = normalizeOptionalNumber(argv.iterations) || 5;
   const depth = normalizeOptionalNumber(argv.depth) || 2;
+  const mode = argv.mode || 'compare';
 
   const result = await runContextPackLatencyBench({
     indexDir,
     repoRoot,
     seed,
     iterations,
-    depth
+    depth,
+    mode
   });
+  const formatSummary = (label, summary) => {
+    const avg = summary.timingMs.avg.toFixed(2);
+    const p95 = summary.timingMs.p95.toFixed(2);
+    const total = summary.totalMs.toFixed(1);
+    const throughput = summary.throughput.toFixed(2);
+    console.log(`[bench] ${label} total=${total}ms avg=${avg}ms p95=${p95}ms throughput=${throughput} it/s`);
+  };
+
+  if (result.baseline) formatSummary('baseline', result.baseline);
+  if (result.current) formatSummary('current', result.current);
+  if (result.baseline && result.current) {
+    const deltaMs = result.current.totalMs - result.baseline.totalMs;
+    const deltaPct = result.baseline.totalMs ? (deltaMs / result.baseline.totalMs) * 100 : 0;
+    const deltaThroughput = result.current.throughput - result.baseline.throughput;
+    console.log(
+      `[bench] delta ms=${deltaMs.toFixed(1)} throughput=${deltaThroughput.toFixed(2)} it/s ` +
+      `pct=${deltaPct.toFixed(1)} duration=${result.current.totalMs.toFixed(1)}ms`
+    );
+  }
+
   console.log(JSON.stringify({ ok: true, result }, null, 2));
   return result;
 }

@@ -32,6 +32,7 @@ const build = () => buildArchitectureReport({
   rules,
   graphRelations,
   repoRoot: null,
+  indexSignature: 'test',
   now: () => '2026-02-04T00:00:00.000Z'
 });
 

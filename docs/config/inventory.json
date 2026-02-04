@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T18:25:57.256Z",
+  "generatedAt": "2026-02-04T22:15:22.480Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2307,7 +2307,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 292,
+    "totalFlags": 293,
     "publicFlags": [
       "backend",
       "host",
@@ -2429,6 +2429,7 @@
       "inputs",
       "interactive",
       "interval",
+      "iterations",
       "justification",
       "keep",
       "keep-backup",
@@ -3050,6 +3051,16 @@
           "graphFixture",
           "index",
           "outDir"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/context-pack-latency.js",
+        "flags": [
+          "depth",
+          "index",
+          "iterations",
+          "repo",
+          "seed"
         ]
       },
       {
@@ -3869,7 +3880,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 56,
+        "count": 57,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3880,6 +3891,7 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
+          "tools/bench/graph/context-pack-latency.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -4055,12 +4067,13 @@
       },
       {
         "flag": "seed",
-        "count": 13,
+        "count": 14,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "tests/fixtures/medium/generate.js",
+          "tools/bench/graph/context-pack-latency.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -4419,6 +4432,16 @@
         ]
       },
       {
+        "flag": "depth",
+        "count": 4,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js"
+        ]
+      },
+      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -4596,21 +4619,21 @@
         ]
       },
       {
-        "flag": "depth",
-        "count": 3,
-        "files": [
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tools/bench/graph-caps-harness.js"
-        ]
-      },
-      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "index",
+        "count": 3,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js"
         ]
       },
       {
@@ -4899,14 +4922,6 @@
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js"
-        ]
-      },
-      {
-        "flag": "index",
-        "count": 2,
-        "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js"
         ]
       },
       {

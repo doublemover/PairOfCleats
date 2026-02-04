@@ -42,6 +42,9 @@ const resolveSeedCandidates = (seed) => {
   return out;
 };
 
+/**
+ * Build a reusable index of chunk metadata to resolve seed refs efficiently.
+ */
 export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
@@ -49,16 +52,17 @@ export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   const bySymbol = new Map();
   for (const chunk of chunkMeta) {
     if (!chunk) continue;
-    const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
-    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, chunk);
-    const normalizedFile = normalizePathForRepo(chunk.file, repoRoot);
+    const entry = { ...chunk };
+    const chunkUid = entry.chunkUid || entry.metaV2?.chunkUid || null;
+    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+    const normalizedFile = normalizePathForRepo(entry.file, repoRoot);
     if (normalizedFile) {
       const list = byFile.get(normalizedFile) || [];
-      list.push(chunk);
+      list.push(entry);
       byFile.set(normalizedFile, list);
     }
-    const symbolId = chunk.metaV2?.symbol?.symbolId || null;
-    if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, chunk);
+    const symbolId = entry.metaV2?.symbol?.symbolId || null;
+    if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, entry);
   }
   return {
     byChunkUid,
@@ -136,6 +140,7 @@ const trimUtf8Buffer = (buffer) => {
   return buffer.subarray(0, Math.max(0, end - 1));
 };
 
+// Excerpt caches avoid repeated IO and token slicing for identical ranges.
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const excerptCache = new Map();

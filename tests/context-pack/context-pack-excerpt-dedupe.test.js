@@ -18,6 +18,7 @@ const build = () => assembleCompositeContextPack({
   seed: { type: 'chunk', chunkUid: 'chunk-a' },
   chunkMeta,
   repoRoot,
+  indexSignature: 'test',
   includeGraph: false,
   includeTypes: false,
   includeRisk: false,

@@ -78,6 +78,9 @@ export const resolvePrefixEntry = (table, index) => {
   return value;
 };
 
+/**
+ * Build sorted, unique adjacency lists for graph traversal.
+ */
 export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null } = {}) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
@@ -110,6 +113,9 @@ export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normali
   return map;
 };
 
+/**
+ * Build a compact CSR representation from adjacency lists.
+ */
 export const buildAdjacencyCsr = (adjacencyMap, idTable) => {
   if (!adjacencyMap || !idTable?.ids || !idTable.idToIndex) return null;
   const ids = idTable.ids;

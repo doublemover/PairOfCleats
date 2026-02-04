@@ -1,7 +1,7 @@
 import { normalizeOptionalNonNegativeInt } from '../shared/limits.js';
 
 const normalizeLimit = (value) => (
-  normalizeOptionalNonNegativeInt(value)
+  value == null ? null : normalizeOptionalNonNegativeInt(value)
 );
 
 const normalizeCadence = (value, fallback) => {

@@ -30,13 +30,13 @@ const nodeSection = output.indexOf('## Nodes');
 const edgeSection = output.indexOf('## Edges');
 assert(nodeSection !== -1 && edgeSection !== -1, 'expected node/edge sections');
 
-const firstNodeLine = output[nodeSection + 2];
-const secondNodeLine = output[nodeSection + 3];
+const nodeLines = output.slice(nodeSection + 1, edgeSection).filter((line) => line.startsWith('-'));
+const [firstNodeLine, secondNodeLine] = nodeLines;
 assert(firstNodeLine.includes('chunk:b'), 'expected first node to remain b');
 assert(secondNodeLine.includes('chunk:a'), 'expected second node to remain a');
 
-const firstEdgeLine = output[edgeSection + 2];
-const secondEdgeLine = output[edgeSection + 3];
+const edgeLines = output.slice(edgeSection + 1).filter((line) => line.startsWith('-'));
+const [firstEdgeLine, secondEdgeLine] = edgeLines;
 assert(firstEdgeLine.includes('chunk:b') && firstEdgeLine.includes('chunk:a'));
 assert(secondEdgeLine.includes('chunk:a') && secondEdgeLine.includes('chunk:b'));
 
