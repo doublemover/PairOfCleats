@@ -27,10 +27,6 @@ jobs:
         with:
           node-version: '24.13.0'
 
-      - name: Prepare PairOfCleats cache
-        run: |
-          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
-
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
         with:
@@ -39,19 +35,24 @@ jobs:
             .ci-cache/pairofcleats/dictionaries
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Node and npm versions
-        run: |
-          node -v
-          npm -v
-
       - name: Restore node_modules cache
+        id: node-modules-cache
         uses: actions/cache@v4
         with:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Install deps
-        run: npm ci
+      - name: Install deps and report versions
+        shell: bash
+        run: |
+          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
+          if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
+            npm ci
+          else
+            echo "node_modules cache hit; skipping npm ci."
+          fi
+          node -v
+          npm -v
 
       - name: Nightly suite
         run: node tools/ci/run-suite.js --mode nightly
