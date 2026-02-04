@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T23:20:18.179Z",
+  "generatedAt": "2026-02-04T04:13:16.761Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -91,6 +91,14 @@
     ],
     "knownConfigKeys": [
       "cache.root",
+      "indexing.artifacts.chunkMetaFormat",
+      "indexing.artifacts.chunkMetaJsonlThreshold",
+      "indexing.artifacts.chunkMetaShardSize",
+      "indexing.artifacts.mode",
+      "indexing.artifacts.symbolArtifactsFormat",
+      "indexing.artifacts.tokenPostingsFormat",
+      "indexing.artifacts.tokenPostingsShardSize",
+      "indexing.artifacts.tokenPostingsShardThreshold",
       "indexing.concurrency",
       "indexing.embeddings.cache.dir",
       "indexing.embeddings.cache.maxAgeDays",
@@ -120,6 +128,19 @@
       "indexing.ioConcurrencyCap",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.postings.chargramMaxDf",
+      "indexing.postings.chargramMaxN",
+      "indexing.postings.chargramMaxTokenLength",
+      "indexing.postings.chargramMinN",
+      "indexing.postings.chargramSource",
+      "indexing.postings.chargramSpillMaxUnique",
+      "indexing.postings.enableChargrams",
+      "indexing.postings.enablePhraseNgrams",
+      "indexing.postings.fielded",
+      "indexing.postings.phraseMaxN",
+      "indexing.postings.phraseMinN",
+      "indexing.postings.phraseSource",
+      "indexing.postings.tokenClassification",
       "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "indexing.riskInterprocedural.caps.maxDepth",
       "indexing.riskInterprocedural.caps.maxEdgeExpansions",
@@ -252,8 +273,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 200,
-    "leafKeys": 158,
+    "totalKeys": 223,
+    "leafKeys": 179,
     "topLevel": [
       {
         "key": "cache",
@@ -261,7 +282,7 @@
       },
       {
         "key": "indexing",
-        "count": 70
+        "count": 93
       },
       {
         "key": "mcp",
@@ -307,6 +328,51 @@
     {
       "path": "indexing",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaJsonlThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.mode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.symbolArtifactsFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardThreshold",
+      "type": "number",
       "enum": null
     },
     {
@@ -536,6 +602,76 @@
     {
       "path": "indexing.maxFileLines",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxDf",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxTokenLength",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramSource",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramSpillMaxUnique",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.enableChargrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.enablePhraseNgrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.fielded",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseSource",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.tokenClassification",
+      "type": null,
       "enum": null
     },
     {

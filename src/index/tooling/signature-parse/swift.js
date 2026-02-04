@@ -89,7 +89,10 @@ export const parseSwiftSignature = (detail) => {
   const arrowIndex = after.lastIndexOf('->');
   let returnType = null;
   if (arrowIndex !== -1) {
-    returnType = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
+    const resolved = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
+    returnType = resolved || null;
+  } else {
+    returnType = 'Void';
   }
 
   const paramTypes = {};
