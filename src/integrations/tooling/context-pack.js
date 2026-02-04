@@ -103,9 +103,13 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     });
     const indexSignature = await buildIndexSignature(indexDir);
     const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot });
-    const graphIndex = (argv.includeGraph !== false && graphStore.hasArtifact('graph_relations'))
-      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey })
+    const graphList = [];
+    if (argv.includeCallersCallees !== false) graphList.push('callGraph');
+    if (argv.includeUsages !== false) graphList.push('usageGraph');
+    if (argv.includeImports !== false) graphList.push('importGraph');
+    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot, graphs: graphList });
+    const graphIndex = (argv.includeGraph !== false)
+      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey, graphs: graphList })
       : null;
 
     const payload = assembleCompositeContextPack({

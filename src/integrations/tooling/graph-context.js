@@ -122,10 +122,17 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     });
     const indexSignature = await buildIndexSignature(indexDir);
     const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot });
-    const graphIndex = graphStore.hasArtifact('graph_relations')
-      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey })
-      : null;
+    const graphSelection = includeAllGraphs ? null : graphs;
+    const graphCacheKey = buildGraphIndexCacheKey({
+      indexSignature,
+      repoRoot,
+      graphs: graphSelection
+    });
+    const graphIndex = await graphStore.loadGraphIndex({
+      repoRoot,
+      cacheKey: graphCacheKey,
+      graphs: graphSelection
+    });
 
     const pack = buildGraphContextPack({
       seed,

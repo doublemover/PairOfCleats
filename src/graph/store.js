@@ -56,10 +56,25 @@ const setCachedGraphArtifacts = (key, value) => {
   }
 };
 
-export const buildGraphIndexCacheKey = ({ indexSignature, repoRoot = null } = {}) => {
+const normalizeGraphList = (graphs) => {
+  if (!graphs) return null;
+  if (graphs instanceof Set) return Array.from(graphs);
+  if (Array.isArray(graphs)) return graphs;
+  return [String(graphs)];
+};
+
+export const buildGraphIndexCacheKey = ({
+  indexSignature,
+  repoRoot = null,
+  graphs = null
+} = {}) => {
   if (!indexSignature) return null;
   const repoTag = repoRoot ? `|repo:${repoRoot}` : '';
-  return `graph-index:${indexSignature}${repoTag}`;
+  const graphList = normalizeGraphList(graphs);
+  const graphTag = graphList?.length
+    ? `|graphs:${graphList.map((entry) => String(entry)).sort().join(',')}`
+    : '';
+  return `graph-index:${indexSignature}${repoTag}${graphTag}`;
 };
 
 export const buildGraphIndex = ({
@@ -175,15 +190,27 @@ export const createGraphStore = ({
     strict
   }));
 
-  const loadGraphIndex = async ({ repoRoot = null, cacheKey = null } = {}) => {
+  const loadGraphIndex = async ({
+    repoRoot = null,
+    cacheKey = null,
+    graphs = null
+  } = {}) => {
     const cached = getCachedGraphIndex(cacheKey);
     if (cached) return cached;
+    const graphList = normalizeGraphList(graphs);
+    const graphSet = graphList?.length ? new Set(graphList) : null;
+    const wantsGraphRelations = !graphSet
+      || graphSet.has('callGraph')
+      || graphSet.has('usageGraph')
+      || graphSet.has('importGraph');
+    const wantsSymbolEdges = !graphSet || graphSet.has('symbolEdges');
+    const wantsCallSites = !graphSet || graphSet.has('callGraph');
     let cachedArtifacts = getCachedGraphArtifacts(cacheKey);
     if (!cachedArtifacts) {
       const [graphRelations, symbolEdges, callSites] = await Promise.all([
-        loadGraph(),
-        loadSymbolEdges(),
-        loadCallSites()
+        wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
+        wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
+        wantsCallSites && hasArtifact('call_sites') ? loadCallSites() : null
       ]);
       cachedArtifacts = { graphRelations, symbolEdges, callSites };
       setCachedGraphArtifacts(cacheKey, cachedArtifacts);

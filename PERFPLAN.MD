@@ -738,12 +738,12 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Store graph relations in memory-mapped or buffer-backed typed arrays for large graphs.
 - [x] Bound graph artifact caches by index signature (LRU eviction) to prevent unbounded growth.
 - [x] Cache the `GraphIndex` by index signature + options; reuse across graph/context-pack calls in a session.
-- [ ] Add lazy edge-type loading so call/usage/import graphs are only loaded when requested.
-- [ ] Gate graph artifact loads in tooling CLIs based on include flags and edge filters.
-- [ ] Parallelize graph artifact loads (`graph_relations`, `symbol_edges`, `call_sites`) with `Promise.all`.
-- [ ] Task 10.X.3.a: Resolve required artifacts from CLI flags (`graphs`, `edgeTypes`, include toggles).
-- [ ] Task 10.X.3.b: Load only required artifacts; emit warning when required artifact missing.
-- [ ] Task 10.X.3.c: Use `Promise.all` for required loads.
+- [x] Add lazy edge-type loading so call/usage/import graphs are only loaded when requested.
+- [x] Gate graph artifact loads in tooling CLIs based on include flags and edge filters.
+- [x] Parallelize graph artifact loads (`graph_relations`, `symbol_edges`, `call_sites`) with `Promise.all`.
+- [x] Task 10.X.3.a: Resolve required artifacts from CLI flags (`graphs`, `edgeTypes`, include toggles).
+- [x] Task 10.X.3.b: Load only required artifacts; emit warning when required artifact missing.
+- [x] Task 10.X.3.c: Use `Promise.all` for required loads.
 - [ ] Task 10.X.3.d: Add tests verifying unused artifacts are not loaded.
 - [ ] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
 - [ ] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
