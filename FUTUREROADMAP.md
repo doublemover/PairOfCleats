@@ -16,10 +16,10 @@
 - Phase 16 -- Prose Ingestion + Retrieval Routing Correctness (PDF/DOCX + FTS policy)
 - Phase 17 -- Vector-Only Profile (Embeddings-First, Build + Search w/o Sparse Postings)
 - Phase 18 -- Distribution & Platform Hardening (Release Matrix, Packaging, & Optional Python)
+- Phase 19 -- Lexicon-Aware Relations + Retrieval Enrichment (Phase 11.9 consolidation)
+- Phase 20 -- Ratatui TUI + Node Supervisor (Protocol v2, Dispatcher, Tool Hygiene)
 
 ---
-
-## Phase 15 — Federation & Multi-Repo (Workspaces, Catalog, Federated Search)\n\nPhase 15 is now tracked in GIGAROADMAP_2.md (see the Phase 15 section there).\n\n---\n\n## Phase 16 — Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
 
 ### Objective
 
