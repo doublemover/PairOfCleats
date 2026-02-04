@@ -366,10 +366,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       importGraph: state.importResolutionGraph?.stats
         ? {
           files: Number(state.importResolutionGraph.stats.files) || 0,
+          nodes: Number(state.importResolutionGraph.stats.nodes) || 0,
           edges: Number(state.importResolutionGraph.stats.edges) || 0,
           resolved: Number(state.importResolutionGraph.stats.resolved) || 0,
           external: Number(state.importResolutionGraph.stats.external) || 0,
-          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0
+          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0,
+          truncatedEdges: Number(state.importResolutionGraph.stats.truncatedEdges) || 0,
+          truncatedNodes: Number(state.importResolutionGraph.stats.truncatedNodes) || 0,
+          warningSuppressed: Number(state.importResolutionGraph.stats.warningSuppressed) || 0
         }
         : null,
       graphs: summarizeGraphRelations(graphRelations)

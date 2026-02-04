@@ -1230,20 +1230,20 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
 - [x] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
 
-- [ ] **14.C Import resolution graph performance**
-- [ ] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
-- [ ] Task 14.C.1.a: Cache negative lookups for specifiers that do not resolve.
-- [ ] Task 14.C.1.b: Include `paths`/`baseUrl` fingerprint in cache key.
-- [ ] Task 14.C.2: Add a fast path when `paths`/`baseUrl` are absent (skip tsconfig traversal).
-- [ ] Task 14.C.2.a: Detect “no tsconfig in root” once and reuse.
-- [ ] Task 14.C.3: Replace repeated `fs.existsSync` calls with a directory cache + file lookup map.
-- [ ] Task 14.C.3.a: Build a `Set` of repo‑relative paths from scan to avoid syscalls.
-- [ ] Task 14.C.4: Precompute extension candidates and normalize only once per specifier.
-- [ ] Task 14.C.4.a: Normalize specifiers at parse time and reuse (trim/query/hash removed once).
-- [ ] Task 14.C.5: Keep graph node/edge caps deterministic; record when caps drop edges.
-- [ ] Task 14.C.5.a: Record capped count by edge type (imports/usage/calls).
-- [ ] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
-- [ ] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
+- [x] **14.C Import resolution graph performance**
+- [x] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
+- [x] Task 14.C.1.a: Cache negative lookups for specifiers that do not resolve.
+- [x] Task 14.C.1.b: Include `paths`/`baseUrl` fingerprint in cache key.
+- [x] Task 14.C.2: Add a fast path when `paths`/`baseUrl` are absent (skip tsconfig traversal).
+- [x] Task 14.C.2.a: Detect “no tsconfig in root” once and reuse.
+- [x] Task 14.C.3: Replace repeated `fs.existsSync` calls with a directory cache + file lookup map.
+- [x] Task 14.C.3.a: Build a `Set` of repo‑relative paths from scan to avoid syscalls.
+- [x] Task 14.C.4: Precompute extension candidates and normalize only once per specifier.
+- [x] Task 14.C.4.a: Normalize specifiers at parse time and reuse (trim/query/hash removed once).
+- [x] Task 14.C.5: Keep graph node/edge caps deterministic; record when caps drop edges.
+- [x] Task 14.C.5.a: Record capped count by edge type (imports/usage/calls).
+- [x] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
+- [x] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
 
 - [ ] **14.D Chunk meta streaming**
 - [ ] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
