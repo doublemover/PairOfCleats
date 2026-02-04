@@ -553,8 +553,12 @@ export function resolveImportLinks({
       let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
         ? fileCache.specs[spec]
         : null;
-      if (cachedSpec && fileSetChanged && cachedSpec.resolvedType === 'unresolved') {
-        cachedSpec = null;
+      if (cachedSpec && fileSetChanged) {
+        if (cachedSpec.resolvedType === 'unresolved') {
+          cachedSpec = null;
+        } else if (cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
+          cachedSpec = null;
+        }
       }
       if (cachedSpec) {
         ({
