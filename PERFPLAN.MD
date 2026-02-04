@@ -748,7 +748,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
 - [x] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
 - [x] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
-- [ ] Task 10.X.8.c: Add test that repeated calls reuse index.
+- [x] Task 10.X.8.c: Add test that repeated calls reuse index.
 - [x] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
 - [x] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
 - [ ] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
@@ -816,7 +816,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/graph/graph-store-cache-eviction.test.js`
 - [ ] `tests/graph/architecture-rules-cache.test.js`
 - [ ] `tests/graph/suggest-tests-cache.test.js`
-- [ ] `tests/context-pack/context-pack-shared-index.test.js`
+- [x] `tests/context-pack/context-pack-shared-index.test.js`
 - [ ] `tests/context-pack/context-pack-range-reads.test.js`
 - [ ] `tests/context-pack/context-pack-excerpt-cache.test.js`
 - [ ] `tests/graph/graph-output-deterministic.test.js`
