@@ -1278,16 +1278,16 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.F.4.a: Include dropped edge counts and cap reasons.
 
 - [ ] **14.G Chargram postings memory bounds**
-- [ ] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
-- [ ] Task 14.G.1.a: Maintain a reusable Set and clear it per chunk.
-- [ ] Task 14.G.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
-- [ ] Task 14.G.2.a: Spill vocab fragments to sorted JSONL shards, merge via K‑way heap.
-- [ ] Task 14.G.2.b: Keep deterministic vocab ordering across spills.
-- [ ] Task 14.G.3: Keep output ordering stable (sorted vocab, deterministic postings order).
-- [ ] Task 14.G.4: Add instrumentation: max unique chargrams, dropped tokens, spill count.
-- [ ] Task 14.G.4.a: Emit guard counters into stage checkpoints.
-- [ ] Task 14.G.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
-- [ ] Task 14.G.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
+- [x] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
+- [x] Task 14.G.1.a: Maintain a reusable Set and clear it per chunk.
+- [x] Task 14.G.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
+- [x] Task 14.G.2.a: Spill vocab fragments to sorted JSONL shards, merge via K‑way heap.
+- [x] Task 14.G.2.b: Keep deterministic vocab ordering across spills.
+- [x] Task 14.G.3: Keep output ordering stable (sorted vocab, deterministic postings order).
+- [x] Task 14.G.4: Add instrumentation: max unique chargrams, dropped tokens, spill count.
+- [x] Task 14.G.4.a: Emit guard counters into stage checkpoints.
+- [x] Task 14.G.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
+- [x] Task 14.G.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
 
 - [ ] **14.H Benchmarks + acceptance harness**
 - [ ] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
@@ -1296,8 +1296,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.H.2.a: Report node/edge counts and cap triggers; include seed and baseline delta.
 - [ ] Task 14.H.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
 - [ ] Task 14.H.3.a: Include memory watermark and output hash compare.
-- [ ] Task 14.H.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
-- [ ] Task 14.H.4.a: Include spill count and vocab size metrics + baseline delta.
+- [x] Task 14.H.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
+- [x] Task 14.H.4.a: Include spill count and vocab size metrics + baseline delta.
 - [ ] Task 14.H.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
 - [ ] Task 14.H.5.a: Report bytes/sec and shard counts + baseline delta.
 - [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.

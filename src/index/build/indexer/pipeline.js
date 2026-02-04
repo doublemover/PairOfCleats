@@ -413,6 +413,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       tokenVocab: postings.tokenVocab?.length || 0,
       phraseVocab: postings.phraseVocab?.length || 0,
       chargramVocab: postings.chargramVocab?.length || 0,
+      chargramStats: postings.chargramStats || null,
       denseVectors: postings.quantizedVectors?.length || 0,
       docVectors: postings.quantizedDocVectors?.length || 0,
       codeVectors: postings.quantizedCodeVectors?.length || 0

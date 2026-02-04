@@ -17,6 +17,7 @@ const createGuardEntry = (label, limits) => ({
   reason: null,
   dropped: 0,
   truncatedChunks: 0,
+  peakUnique: 0,
   samples: []
 });
 
@@ -52,6 +53,9 @@ function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null)
       return;
     }
     map.set(key, docId);
+    if (guard) {
+      guard.peakUnique = Math.max(guard.peakUnique || 0, map.size);
+    }
     return;
   }
   if (typeof current === 'number') {
@@ -212,6 +216,9 @@ export function createIndexState() {
     vfsManifestCollector: null,
     vfsManifestStats: null,
     importResolutionGraph: null,
+    chargramBuffers: {
+      set: new Set()
+    },
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)
@@ -267,7 +274,9 @@ export function appendChunk(
   const phraseGuard = state.postingsGuard?.phrase || null;
   const chargramGuard = state.postingsGuard?.chargram || null;
 
-  const charSet = new Set();
+  const reuseSet = state.chargramBuffers?.set || null;
+  const charSet = reuseSet || new Set();
+  if (reuseSet) reuseSet.clear();
   if (chargramEnabled) {
     const maxChargramsPerChunk = chargramGuard?.maxPerChunk || 0;
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
