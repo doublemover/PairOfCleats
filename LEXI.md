@@ -88,6 +88,13 @@ These are the non-negotiable details that must be preserved when the Phase 11.9 
 
 # Phase 11.9 – Lexicon-Aware Relations and Retrieval Enrichment
 
+## Dependency Graph (must land in order)
+1. 11.9.0 (contracts + config surfaces) → 11.9.1 (lexicon loader + wordlists).
+2. 11.9.1 must land before any filtering/boosting/chargram changes.
+3. 11.9.2 (relations filtering) and 11.9.4 (chargram enrichment + ANN policy) can run in parallel after 11.9.1.
+4. 11.9.3 (retrieval boosts) should follow 11.9.1 and can land after 11.9.2/11.9.4.
+5. 11.9.5 (observability + rollout) lands last and updates logs/explain surfaces once behavior is stable.
+
 ## Feature Flags + Defaults (v1)
 - Lexicon loader: enabled by default; fail-open on missing/invalid files.
 - Relation filtering: enabled only at `quality=max` unless explicitly enabled in config.
@@ -101,14 +108,225 @@ These are the non-negotiable details that must be preserved when the Phase 11.9 
 - Explain output: `relationBoost` and `annCandidatePolicy` fields added with a versioned explain schema.
 - Config schema: new lexicon + ANN candidate keys explicitly versioned in docs/config schema and inventory.
 
+### Contract Ownership (authoritative sources)
+- Config surface: `docs/config/schema.json` + `docs/config/contract.md`.
+- Lexicon wordlist schema: `docs/schemas/language-lexicon-wordlist.schema.json` + `src/contracts/registry.js`.
+- Retrieval explain schema: `docs/specs/lexicon-retrieval-boosts.md` + `docs/specs/chargram-enrichment-and-ann-fallback.md`.
+- Build-time filtering contract: `docs/specs/lexicon-relations-filtering.md`.
+
+### Explain Schema Versioning
+- Introduce a small `explainVersion` or similar field in explain payloads if adding `relationBoost`/`annCandidatePolicy` changes shape.
+- Consumers must ignore unknown explain fields; breaking changes require a version bump.
+
 ## Performance Guardrails
 - All lexicon filtering must be O(n) over relations; no per-token regex or substring scans.
 - Avoid new allocations in inner loops; reuse buffers/arrays where possible.
 - Relation boost matching must be bounded by query token count (no unbounded scans).
 
+### Performance Budgets (explicit)
+- Per-file filtering must stay linear in relation count; add a perf test or benchmark if relation count exceeds a threshold.
+- Per-query boost matching must cap token comparisons at a fixed multiplier of query token count.
+- Add explicit counters for relations filtered and boost matches when verbose logging is enabled.
+
 ## Compatibility: cache/signature impact
 - Build signature inputs must include lexicon configs (stopwords, chargramFields/stopwords) and ANN candidate knobs.
 - If signature shape changes, bump `SIGNATURE_VERSION` and update incremental tests accordingly.
+
+### Signature Decision Table
+| Change type | Include in signature payload | Bump `SIGNATURE_VERSION`? |
+| --- | --- | --- |
+| New config key that changes behavior | Yes | No (unless payload shape changes) |
+| New derived stopword domain or semantics | Yes | Maybe (if output changes without config) |
+| New explain-only field | No | No |
+| Lexicon schema version bump | Yes | Yes |
+
+## Out of Scope (v1)
+- Non-ASCII language keywords (explicit v1 constraint).
+- Language-specific semantic parsing beyond wordlists.
+- Heuristic name stemming or fuzzy matching.
+- Unicode normalization unless explicitly enabled.
+
+---
+
+## ASN-X – Advanced Symbol Normalization + Cross-Language Inference (v1‑X)
+
+### Objective
+Provide a deterministic, high‑throughput symbol normalization layer that **includes cross‑language semantic inference**, **Unicode normalization by default**, **fuzzy matching**, **stemming**, and **heuristic tokenization**, while integrating with existing type inference and semantic IDs.
+
+### Scope (explicit)
+- Operates on **string symbol names** and **query tokens**.
+- Coexists with semantic IDs; never mutates or replaces them.
+- Enables cross‑language matching when semantic IDs are unavailable.
+
+### Non‑goals
+- Full semantic equivalence proofs.
+- Runtime dynamic dispatch resolution.
+- Cross‑repo semantic inference.
+
+### Core Contract: Dual‑track identity
+- **Track A (semantic ID):** chunkUid/symbolId/cross‑file inference IDs win when present.
+- **Track B (canonical string):** ASN‑X canonical key used for filtering, boosts, and fallback matching.
+
+### Unicode normalization (default)
+- Apply **NFKC** to all symbol tokens and query tokens.
+- Normalize whitespace to single spaces, strip control characters.
+
+### Heuristic tokenization (deterministic)
+- Split on `.`, `::`, `->`, `#`, `/`, `:`, `@`.
+- Split camelCase + snake_case + numeric boundaries.
+- Preserve input order, then stable‑sort for canonical sets.
+
+### Stemming + fuzzy matching
+- Stemming: lightweight, applied only to tokens length ≥ 4; skip stopwords and numerics.
+- Fuzzy: max edit distance **1**, only when token count ≤ cap (default 32).
+- Fuzzy used only for **cross‑language candidate linking** and **query boosts**.
+
+### Canonical key pipeline (ordered)
+1. NFKC normalize
+2. Separator normalization (language profile)
+3. Strip generics/templates
+4. Strip parameter lists
+5. Normalize optional chaining / non‑null assertions
+6. Case normalize (language profile)
+7. Tokenize
+8. Stem tokens
+9. Stable‑sort tokens
+10. Join with canonical separator
+
+### Cross‑language semantic inference
+Priority order:
+1. Semantic IDs
+2. Canonical key match
+3. Token overlap + fuzzy score (bounded)
+
+Deterministic confidence score:
+```
+confidence = w_id * idMatch
+           + w_key * keyMatch
+           + w_overlap * tokenOverlap
+           + w_fuzzy * fuzzyScore
+```
+Defaults: `w_id=0.5`, `w_key=0.3`, `w_overlap=0.15`, `w_fuzzy=0.05`.
+
+### Config surface (v1‑X)
+```
+indexing.symbolNormalization: {
+  enabled: true,
+  version: 1,
+  unicodeNormalization: "NFKC",
+  stemTokens: true,
+  fuzzyDistance: 1,
+  tokenOverlapThreshold: 0.6,
+  maxTokenCount: 32,
+  maxFuzzyCandidates: 128,
+  languages: { ... }
+}
+retrieval.symbolNormalization: {
+  enabled: true,
+  useForRelationBoosts: true,
+  fuzzyMatchQueryTokens: true
+}
+```
+
+### Decision Tables (explicit defaults)
+| Concern | Default | Rationale | Override |
+| --- | --- | --- | --- |
+| Unicode normalization | NFKC | collapse visually‑equivalent glyphs | `unicodeNormalization: "none"` |
+| Fuzzy distance | 1 | avoid false positives while catching common typos | `fuzzyDistance: 0` to disable |
+| Token overlap threshold | 0.6 | require majority overlap | `tokenOverlapThreshold` |
+| Case folding | language profile | preserve semantics | per‑language toggle |
+
+### Integration points
+- **Indexing:** normalize names in `rawRelations` filtering; attach `normalizedKey` where useful.
+- **Retrieval:** normalize query plan tokens; use normalized tokens in relation boosts.
+- **Map:** optional `normalizedSymbolKey` on members; aggregates can use normalized keys.
+
+### Conflict resolution rules
+- If semantic ID exists, it is authoritative and **wins** over canonical key matches.
+- If canonical key match conflicts with semantic ID, log once (structured warning) and prefer semantic ID.
+
+### Performance guardrails
+- Token count cap enforced (default 32).
+- Fuzzy candidates cap enforced (default 128).
+- O(n) tokenization; no backtracking regex.
+- Short‑circuit fuzzy path when caps exceeded.
+
+### Failure modes (bounded + deterministic)
+- If caps exceeded, **fail‑open** by using canonical key only (no fuzzy).
+- If Unicode normalization fails on input, emit warning and fallback to raw token.
+
+### Explain output (when enabled)
+```
+symbolNormalization: {
+  enabled: true,
+  unicode: "NFKC",
+  stemmed: true,
+  fuzzyDistance: 1,
+  normalizedKey: "...",
+  tokens: ["..."],
+  tokenOverlap: 0.72,
+  confidence: 0.83
+}
+```
+
+### Concrete payload examples (normative)
+Example normalized map member:
+```
+{
+  "id": "chunkUid:abc",
+  "name": "Foo<T>.bar",
+  "normalizedSymbolKey": "foo.bar"
+}
+```
+
+Example explain payload:
+```
+{
+  "symbolNormalization": {
+    "enabled": true,
+    "unicode": "NFKC",
+    "stemmed": true,
+    "fuzzyDistance": 1,
+    "normalizedKey": "foo.bar",
+    "tokens": ["foo", "bar"],
+    "tokenOverlap": 0.67,
+    "confidence": 0.8
+  }
+}
+```
+
+### Tests (required)
+- `tests/asn/asn-determinism.test.js`
+- `tests/asn/asn-nfkc-normalization.test.js`
+- `tests/asn/asn-tokenization.test.js`
+- `tests/asn/asn-stemming.test.js`
+- `tests/asn/asn-fuzzy-distance.test.js`
+- `tests/asn/asn-fuzzy-cap.test.js`
+- `tests/asn/asn-cross-language-equivalence.test.js`
+- `tests/asn/asn-confidence-scores.test.js`
+- `tests/indexing/asn-relations-filtering.test.js`
+- `tests/retrieval/asn-relation-boost.test.js`
+- `tests/map/asn-edge-aggregate-grouping.test.js`
+- `tests/asn/asn-performance-budget.test.js`
+
+### Telemetry (required counters)
+- `asn.tokens.normalized`
+- `asn.tokens.stemmed`
+- `asn.fuzzy.candidates`
+- `asn.fuzzy.droppedByCap`
+- `asn.conflicts.semanticVsCanonical`
+
+### Performance targets (explicit)
+- ≤ 2ms per 1k symbol tokens in normalization path.
+- ≤ 5ms per 1k relation entries in filtering path.
+
+### Language coverage checklist (must complete)
+- TS/JS, Python, Rust, Java, C/C++, Swift, Go.
+- Each profile must specify: separators, generics stripping, param stripping, case behavior.
+
+### Migration/compatibility
+- ASN‑X is additive; no breaking changes to existing artifact schemas.
+- If `normalizedSymbolKey` is added, consumers must ignore unknown fields.
 
 ## 11.9.0 – Cross-cutting Setup and Contracts
 
@@ -189,6 +407,7 @@ Provide a standardized lexicon for all language registry ids, with a cached load
   - [ ] Cache in `Map<languageId, LanguageLexicon>`.
   - [ ] Fail-open: missing or invalid => `_generic`.
   - [ ] Emit a single structured warning on invalid lexicon files (no per-token spam).
+  - [ ] Warning contract: include `languageId`, resolved file path, failure reason, and fallback target.
 - [ ] Loader must be deterministic: stable ordering, no locale-sensitive transforms.
 - [ ] Add schema validation for each wordlist file.
   - [ ] Register schema in `src/contracts/registry.js` and validate on load.
@@ -202,6 +421,7 @@ Provide a standardized lexicon for all language registry ids, with a cached load
 - [ ] `tests/lexicon/lexicon-fallback.test.js` (missing/invalid file -> _generic)
 - [ ] `tests/lexicon/extract-symbol-base-name.test.js` (separators `.`, `::`, `->`, `#`, `/` and trailing punctuation trimming)
 - [ ] `tests/lexicon/lexicon-ascii-only.test.js` (explicit v1 constraint)
+ - [ ] `tests/lexicon/lexicon-warning-contract.test.js` (single warning with required fields)
  - [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ---
@@ -245,6 +465,7 @@ Filter `rawRelations` before building `file_relations` and `callIndex`, using le
 - [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js` (JS/TS property-name edge case)
 - [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js` (imports/exports unchanged)
  - [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
+ - [ ] `tests/file-processor/lexicon-relations-filter-perf-budget.test.js` (bounded runtime vs relation count)
 
 ---
 
@@ -267,6 +488,11 @@ Add boost-only ranking based on calls/usages aligned with query tokens, excludin
   - Provide explain payload when `--explain`.
 - [ ] Gate by quality or config (default off).
 - [ ] Ensure query token source uses `buildQueryPlan(...)` output (do not recompute).
+- [ ] Token extraction contract:
+  - Use `buildQueryPlan(...)` output from the pipeline context.
+  - Respect `caseTokens` and `caseFile` when normalizing.
+  - Exclude empty tokens, wildcard-only tokens, and quoted phrase delimiters.
+  - Ensure deterministic token ordering and truncation rules are documented.
 - [ ] Define case-folding behavior in relation to `caseTokens` and `caseFile`.
  - [ ] Add a small explain schema snippet documenting `relationBoost` fields and units.
 
@@ -276,6 +502,7 @@ Add boost-only ranking based on calls/usages aligned with query tokens, excludin
 - [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
 - [ ] `tests/retrieval/relation-boost-case-folding.test.js`
 - [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
+ - [ ] `tests/retrieval/relation-boost-token-source.test.js` (uses pipeline query plan tokens)
 
 ---
 

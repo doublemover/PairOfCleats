@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { applyHeightFog, updateFlowLights } from './materials.js';
-import { aggregateEdges, createFlowSegmentAggregator } from './edges/aggregate.js';
+import { aggregateEdges, aggregateEdgesFromStats, createFlowSegmentAggregator } from './edges/aggregate.js';
 import { buildEndpointDotsMesh, createEndpointDotTracker } from './edges/endpoints.js';
 import { createEdgeResolvers } from './edges/resolvers.js';
 import { createRoutingHelpers } from './edges/routing.js';
@@ -13,6 +13,7 @@ export const buildEdges = () => {
     allFiles,
     layoutMetrics,
     edgeWeights,
+    edgeAggregates,
     edgeGroup,
     edgeVisibility,
     flowTypeProfiles,
@@ -124,14 +125,20 @@ export const buildEdges = () => {
   };
 
   const edgeEntries = fastMode
-    ? aggregateEdges({
-      edges,
-      edgeWeights,
-      fileColorByPath,
-      resolveEdgeType,
-      resolveEdgeFile,
-      THREE
-    })
+    ? (edgeAggregates && edgeAggregates.length
+      ? aggregateEdgesFromStats({
+        edgeAggregates,
+        fileColorByPath,
+        resolveEdgeType
+      })
+      : aggregateEdges({
+        edges,
+        edgeWeights,
+        fileColorByPath,
+        resolveEdgeType,
+        resolveEdgeFile,
+        THREE
+      }))
     : edges.map((edge) => ({ edge }));
 
   for (const entry of edgeEntries) {

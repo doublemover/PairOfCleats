@@ -121,8 +121,10 @@ export const writeMapJsonStream = async ({
       'legend',
       'nodes',
       'edges',
+      'edgeAggregates',
       'viewer',
       'summary',
+      'sectionHashes',
       'buildMetrics',
       'warnings'
     ];

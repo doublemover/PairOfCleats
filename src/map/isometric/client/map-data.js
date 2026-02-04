@@ -11,6 +11,8 @@ const buildMemberNameKey = (filePath, name) => `${filePath}::${name || ''}`;
 export const initMapData = () => {
   const files = Array.isArray(state.map?.nodes) ? state.map.nodes : [];
   const edges = Array.isArray(state.map?.edges) ? state.map.edges : [];
+  const edgeAggregates = Array.isArray(state.map?.edgeAggregates) ? state.map.edgeAggregates : [];
+  const sectionHashes = state.map?.sectionHashes || null;
   const nodeByPath = new Map();
   const nodeById = new Map();
   const memberById = new Map();
@@ -36,6 +38,8 @@ export const initMapData = () => {
   Object.assign(state, {
     files,
     edges,
+    edgeAggregates,
+    sectionHashes,
     nodeByPath,
     nodeById,
     memberById,

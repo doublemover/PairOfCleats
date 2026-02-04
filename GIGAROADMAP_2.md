@@ -1,15 +1,21 @@
 # PairOfCleats GigaRoadmap
 
-    ## Status legend
-    
-    Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
-    - [x] Implemented and appears complete/correct based on code inspection and existing test coverage
-    - [@] In Progress, this work has been started
-    - [.] Work has been completed but has Not been tested
-    - [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
-    - [x] Not complete
-    
-    Completed Phases: `COMPLETED_PHASES.md`
+## Status legend
+
+Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
+- [x] Implemented and appears complete/correct based on code inspection and existing test coverage
+- [@] In Progress, this work has been started
+- [.] Work has been completed but has Not been tested
+- [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
+- [ ] Not complete
+
+Completed Phases: `COMPLETED_PHASES.md`
+
+### Phase status summary (update as you go)
+| Phase | Status | Notes |
+| --- | --- | --- |
+| 14 | [ ] |  |
+| 15 | [ ] |  |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -77,6 +83,13 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
   + 15.5 Federated query cache (keying + invalidation + canonicalization)
   + 15.6 Cache taxonomy, CAS, GC, and scale-out ergonomics
 
+### Dependency map (high-level)
+- Phase 14.1 (artifact surface + contracts) must land before any snapshot creation or diff computation.
+- Phase 14.2/14.3 depend on 14.1.1–14.1.3 (IndexRef parsing + atomic writes).
+- Phase 14.4 diff computation depends on 14.1–14.3 artifacts.
+- Phase 14.5 retrieval/tooling integration depends on 14.2–14.4.
+- Phase 15.1/15.2 must land before 15.3 (federated search), which must land before 15.5 (federated cache).
+
 ---
 
 ## Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
@@ -109,6 +122,12 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - **Pointer snapshots** (cheap metadata references to validated builds).
 - **Frozen snapshots** (immutable, self-contained archival copies).
 - **Diff artifacts** (bounded, deterministic change sets + summaries).
+
+### Phase 14 Acceptance (explicit)
+- [ ] Snapshot artifacts are schema‑valid and deterministic across runs.
+- [ ] “As‑of” retrieval can target a snapshot without fallback to live builds.
+- [ ] Diff artifacts are bounded, deterministic, and machine‑readable.
+- [ ] Snapshot/diff tooling surfaces are present in CLI/API.
 
 
 ### 14.1 Snapshot & diff artifact surface (contracts, retention, safety)
@@ -675,6 +694,12 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - safe-by-default compatibility gating (cohorts) with explicit overrides and loud diagnostics
 - clear cache layering with an eventual content-addressed store (CAS) and manifest-driven garbage collection (GC)
 
+### Phase 15 Acceptance (explicit)
+- [ ] Workspace config + manifest schemas are enforced and validated.
+- [ ] Federated search works across repo sets with deterministic ordering.
+- [ ] Cohort gating prevents unsafe mixed‑version query plans.
+- [ ] Federated query cache is keyed and invalidated deterministically.
+
 ### Canonical specs and required updates
 
 Phase 15 MUST align with these authoritative docs:
@@ -1010,4 +1035,169 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] `tests/tooling/index-stats/index-stats-json.test.js`
 - [ ] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
 - [ ] `tests/tooling/index-stats/index-stats-aggregate.test.js`
+
+---
+
+## Appendix: Touchpoint line index (approximate)
+
+- `<federationCacheRoot>/federation/<repoSetId>/queryCache.json` (new)
+- `<federationCacheRoot>/federation/<repoSetId>/workspace_manifest.json` (new)
+- `<indexDir>/index_state.json` (new)
+- `<repoCacheRoot>/builds/current.json` (new)
+- `bin/pairofcleats.js` (~L1-L738)
+- `builds/current.json` (new)
+- `diffs/*/inputs.json` (new)
+- `diffs/*/summary.json` (new)
+- `diffs/<diffId>/events.jsonl` (new)
+- `diffs/<diffId>/inputs.json` (new)
+- `diffs/<diffId>/summary.json` (new)
+- `diffs/manifest.json` (new)
+- `docs/archived/` (new)
+- `docs/config/contract.md` (~L1-L406)
+- `docs/config/inventory-notes.md` (~L1-L30)
+- `docs/config/inventory.md` (~L1-L904)
+- `docs/config/schema.json` (~L1-L536)
+- `docs/contracts/**` (new)
+- `docs/contracts/artifact-contract.md` (~L1-L250)
+- `docs/contracts/compatibility-key.md` (~L1-L48)
+- `docs/contracts/indexing.md` (~L1-L90)
+- `docs/guides/commands.md` (~L1-L165)
+- `docs/specs/` (new)
+- `docs/specs/**` (new)
+- `docs/specs/as-of-retrieval-integration.md` (~L1-L219)
+- `docs/specs/cache-cas-gc.md` (new)
+- `docs/specs/config-defaults.md` (new)
+- `docs/specs/federated-query-cache.md` (new)
+- `docs/specs/federated-search.md` (~L1-L538)
+- `docs/specs/federation-cohorts.md` (new)
+- `docs/specs/http-api.md` (new)
+- `docs/specs/implementation-checklist.md` (~L1-L169)
+- `docs/specs/index-diffs.md` (~L1-L414)
+- `docs/specs/index-refs-and-snapshots.md` (~L1-L564)
+- `docs/specs/index-stats.md` (new)
+- `docs/specs/workspace-config.md` (~L1-L428)
+- `docs/specs/workspace-manifest.md` (~L1-L439)
+- `pieces/manifest.json` (new)
+- `snapshots/<id>/frozen.json` (new)
+- `snapshots/<id>/snapshot.json` (new)
+- `snapshots/<snapshotId>/frozen.json` (new)
+- `snapshots/<snapshotId>/snapshot.json` (new)
+- `snapshots/manifest.json` (new)
+- `src/contracts/**` (new)
+- `src/contracts/compatibility.js` (~L1-L52)
+- `src/contracts/registry.js` (~L1-L14)
+- `src/contracts/schemas/*` (new)
+- `src/contracts/schemas/build-state.js` (~L1-L208)
+- `src/contracts/validators/*` (new)
+- `src/contracts/validators/build-state.js` (~L1-L33)
+- `src/index/build/build-state.js` (~L1-L738)
+- `src/index/build/incremental.js` (~L1-L488)
+- `src/index/build/indexer/steps/incremental.js` (~L1-L75)
+- `src/index/build/indexer/steps/write.js` (~L1-L192)
+- `src/index/build/lock.js#acquireIndexLock` (new)
+- `src/index/diffs/**` (new)
+- `src/index/diffs/compute.js` (new)
+- `src/index/diffs/events.js` (new)
+- `src/index/diffs/registry.js` (new)
+- `src/index/index-ref.js` (new)
+- `src/index/snapshots/**` (new)
+- `src/index/snapshots/copy-pieces.js` (new)
+- `src/index/snapshots/create.js` (new)
+- `src/index/snapshots/freeze.js` (new)
+- `src/index/snapshots/registry.js` (new)
+- `src/index/snapshots/validate-source.js` (new)
+- `src/index/validate.js` (~L1-L783)
+- `src/index/validate/*` (new)
+- `src/index/validate/paths.js#isManifestPathSafe` (new)
+- `src/integrations/core/build-index/compatibility.js` (~L1-L24)
+- `src/integrations/core/index.js` (~L1-L4)
+- `src/integrations/core/status.js` (~L1-L265)
+- `src/retrieval/cli-args.js` (~L1-L193)
+- `src/retrieval/cli-index.js` (~L1-L458)
+- `src/retrieval/cli.js` (~L1-L845)
+- `src/retrieval/cli/run-search-session.js` (~L1-L597)
+- `src/retrieval/federation/coordinator.js` (new)
+- `src/retrieval/federation/{coordinator,select,merge,args}.js` (new)
+- `src/retrieval/index-cache.js` (~L1-L300)
+- `src/retrieval/index-cache.js#buildIndexSignature` (new)
+- `src/retrieval/output/explain.js` (~L1-L73)
+- `src/retrieval/query-cache.js` (~L1-L73)
+- `src/shared/artifact-io.js` (~L1-L41)
+- `src/shared/artifact-io/manifest.js` (~L1-L418)
+- `src/shared/artifact-schemas.js` (~L1-L4)
+- `src/shared/cache.js` (~L1-L203)
+- `src/shared/error-codes.js#createError` (new)
+- `src/shared/files.js#toPosix` (new)
+- `src/shared/fs/atomic-replace.js` (new)
+- `src/shared/hash.js` (~L1-L75)
+- `src/shared/hash.js#sha1` (new)
+- `src/shared/json-stream.js` (~L1-L572)
+- `src/shared/json-stream.js#writeJsonObjectFile` (new)
+- `src/shared/jsonc.js` (~L1-L27)
+- `src/shared/stable-json.js` (~L1-L70)
+- `src/shared/stable-json.js#stableStringify` (new)
+- `src/workspace/config.js` (new)
+- `src/workspace/manifest.js` (new)
+- `tests/api/federated-search-redacts-paths.test.js` (new)
+- `tests/api/federated-search-workspace-allowlist.test.js` (new)
+- `tests/indexer/incremental/index-reuse-validation.test.js` (new)
+- `tests/indexing/cache/cas-reuse-across-repos.test.js` (new)
+- `tests/indexing/cache/workspace-concurrency-limits.test.js` (new)
+- `tests/indexing/cache/workspace-global-cache-reuse.test.js` (new)
+- `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js` (new)
+- `tests/retrieval/federation/compat-cohort-defaults.test.js` (new)
+- `tests/retrieval/federation/compat-cohort-determinism.test.js` (new)
+- `tests/retrieval/federation/compat-cohort-explicit-selection.test.js` (new)
+- `tests/retrieval/federation/mcp-repo-canonicalization.test.js` (new)
+- `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js` (new)
+- `tests/retrieval/federation/query-cache-key-stability.test.js` (new)
+- `tests/retrieval/federation/repo-selection.test.js` (new)
+- `tests/retrieval/federation/search-determinism.test.js` (new)
+- `tests/retrieval/federation/search-multi-repo-basic.test.js` (new)
+- `tests/run.rules.jsonc` (~L1-L139)
+- `tests/services/api-search-asof.test.js` (new)
+- `tests/services/index-diff.test.js` (new)
+- `tests/services/snapshot-create.test.js` (new)
+- `tests/services/snapshot-freeze.test.js` (new)
+- `tests/services/snapshot-query.test.js` (new)
+- `tests/services/sqlite-build-snapshot.test.js` (new)
+- `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js` (new)
+- `tests/tooling/index-stats/index-stats-aggregate.test.js` (new)
+- `tests/tooling/index-stats/index-stats-json.test.js` (new)
+- `tests/tooling/index-stats/index-stats-missing-artifact.test.js` (new)
+- `tests/unit/diffs-contracts.unit.js` (new)
+- `tests/unit/diffs-registry.unit.js` (new)
+- `tests/unit/index-ref.unit.js` (new)
+- `tests/unit/no-path-leak.unit.js` (new)
+- `tests/unit/retrieval-cache-key-asof.unit.js` (new)
+- `tests/unit/retrieval-index-signature-shards.unit.js` (new)
+- `tests/unit/snapshots-contracts.unit.js` (new)
+- `tests/unit/snapshots-registry.unit.js` (new)
+- `tests/workspace/alias-uniqueness-and-tags-normalization.test.js` (new)
+- `tests/workspace/build-pointer-invalid-treated-missing.test.js` (new)
+- `tests/workspace/config-parsing.test.js` (new)
+- `tests/workspace/index-signature-sharded-variants.test.js` (new)
+- `tests/workspace/manifest-determinism.test.js` (new)
+- `tests/workspace/manifest-hash-invalidation.test.js` (new)
+- `tests/workspace/repo-canonicalization-dedup.test.js` (new)
+- `tests/workspace/repo-set-id-determinism.test.js` (new)
+- `tools/api/**` (new)
+- `tools/api/router.js` (~L1-L351)
+- `tools/api/router/*` (new)
+- `tools/api/router/index-diffs.js` (new)
+- `tools/api/router/index-snapshots.js` (new)
+- `tools/api/router/search.js` (~L1-L150)
+- `tools/api/validation.js` (~L1-L143)
+- `tools/build/sqlite/cli.js` (~L1-L48)
+- `tools/build/sqlite/run.js` (~L1-L9)
+- `tools/cache-gc.js` (new)
+- `tools/dict-utils/*` (new)
+- `tools/dict-utils/config.js#normalizeUserConfig` (new)
+- `tools/index-diff.js` (new)
+- `tools/index-snapshot.js` (new)
+- `tools/index/stats.js` (new)
+- `tools/index/validate.js` (~L1-L129)
+- `tools/mcp/repo.js` (~L1-L497)
+- `tools/mcp/server.js` (~L1-L67)
+- `tools/shared/dict-utils.js` (~L1-L68)
 

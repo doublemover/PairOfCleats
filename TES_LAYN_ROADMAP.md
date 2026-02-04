@@ -19,10 +19,42 @@ How to use this roadmap:
 - **Appendix E**: subsystem matrix (goals, edge cases, tests).
 - **Appendices F–O**: execution aids (fixtures, schema versions, negatives, goldens, perf, mixed repo, ordering, toggles).
 
+Appendix D2 is encoded in `tests/lang/matrix/lang-artifact-presence.json` and must remain in sync with this document.
+
 Conventions:
 - If an artifact is optional for a language, tests must assert **absent/empty** per Appendix D2.
 - Counts in Appendix D are **minimums**; update them alongside fixtures.
 - Language order in tables follows `registry-data.js` for stable diffs.
+
+---
+
+## Execution policy (budgets, sharding, skips, triage)
+
+### Runtime budgets (per lane)
+- `lang-full` lane target: <= 30 minutes on CI, <= 15 minutes locally on a modern dev laptop.
+- Per-shard target: <= 10 minutes on CI, <= 5 minutes locally.
+- Per-test target: <= 30 seconds (aligns with repo test policy; auto-cancel beyond 30s).
+
+### Sharding strategy
+- Deterministic sharding by language ID list in `registry-data.js`.
+- Shard manifest files (checked in) define the exact ordered test list per shard.
+- Shard count is configurable via env (`LANG_FULL_SHARD_COUNT`), and shards are selected by index (`LANG_FULL_SHARD_INDEX`).
+- Sharding must preserve per-language ordering within a shard to keep diffs stable.
+
+### Fixture generation strategy
+- Fixtures are curated and checked in; avoid network dependencies in tests.
+- Any auto-generated fixtures must have a committed generator script and a fixed seed.
+- Fixture updates must include a changelog entry in `tests/fixtures/README.md` describing intent.
+
+### Skip rules
+- Missing optional tools (clangd, sourcekit-lsp, gtags, ctags, lsif/scip) may skip only the tool-specific subset, not the entire lane.
+- Skips must include a reason code and the missing tool/version in test output.
+- Skips are not allowed for core indexing artifacts (chunks, imports, relations, risk summaries).
+
+### Failure triage checklist
+- Classify failures as: fixture regression, tool/runtime dependency, schema drift, performance regression.
+- Capture: failing test name, shard id, tool versions, and the affected artifacts list.
+- Provide a minimal reproduction command in the test log.
 
 ---
 
@@ -49,8 +81,9 @@ Conventions:
   - Add `frameworks` array (e.g., `react`, `vue`) for JS/TS.
 - [ ] Create `tests/lang/matrix/lang-fixtures.json` mapping language → fixture directory + main files.
 - [ ] Create `tests/lang/matrix/lang-expectations.json` for expected minimum counts (chunks/imports/relations) per language.
+- [ ] Create `tests/lang/matrix/lang-artifact-presence.json` to encode Appendix D2 (required/optional/absent artifacts per language).
 - [ ] Add `tests/lang/matrix/lang-matrix-completeness.test.js`:
-  - verify every registry language ID appears in all 3 JSON files.
+  - verify every registry language ID appears in all 4 JSON files.
   - verify JSON schema (required keys, no unknown keys).
 
 **Per-language tasks**: see Section 0.A (per‑language subphases). Apply Appendix B/F for language‑unique fixture + expectation details.
@@ -134,12 +167,120 @@ Conventions:
 **Tasks**
 - [ ] Add lane to `tests/run.js`, `tests/run.rules.jsonc`, `tests/run.config.jsonc`.
 - [ ] Create `tests/lang-full/lang-full.order.txt` ordered by language and by capability.
+- [ ] Add sharding support using `LANG_FULL_SHARD_INDEX`/`LANG_FULL_SHARD_COUNT` and shard manifests derived from `lang-full.order.txt`.
 - [ ] Add lane description to `docs/guides/commands.md`.
 
 **Per-language tasks**: see Section 1.A; ensure ordering entry exists for every language.
 
 **Tests**
 - `tests/runner/lane-ordering-lang-full.test.js`
+
+---
+
+## Appendix: Touchpoint line index (approximate)
+
+- `CMakeLists.txt` (new)
+- `docs/contracts/indexing.md` (~L1-L90)
+- `docs/guides/commands.md` (~L1-L165)
+- `docs/specs/language-registry.md` (new)
+- `docs/tooling/lang-matrix-report.json` (new)
+- `docs/tooling/lang-roadmap-coverage.json` (new)
+- `src/index/language-registry/registry-data.js` (~L1-L513)
+- `tests/fixtures/README.md` (new)
+- `tests/fixtures/languages/<id>/` (new)
+- `tests/fixtures/languages/mixed/` (new)
+- `tests/lang-full/lang-full.order.json` (new)
+- `tests/lang-full/lang-full.order.txt` (new)
+- `tests/lang/<id>/ast-flow.test.js` (new)
+- `tests/lang/<id>/determinism.test.js` (new)
+- `tests/lang/<id>/embeddings.test.js` (new)
+- `tests/lang/<id>/fixture-inventory.test.js` (new)
+- `tests/lang/<id>/fixture-sanity.test.js` (new)
+- `tests/lang/<id>/golden-artifacts.test.js` (new)
+- `tests/lang/<id>/negative-artifacts.test.js` (new)
+- `tests/lang/<id>/relations.test.js` (new)
+- `tests/lang/<id>/risk-local.test.js` (new)
+- `tests/lang/<id>/search-filters.test.js` (new)
+- `tests/lang/<id>/symbol-graph.test.js` (new)
+- `tests/lang/<id>/toggle-matrix.test.js` (new)
+- `tests/lang/<id>/vfs.test.js` (new)
+- `tests/lang/api/search-language.test.js` (new)
+- `tests/lang/clike/fixture-sanity.test.js` (new)
+- `tests/lang/clike/relations.test.js` (new)
+- `tests/lang/cmake/fixture-sanity.test.js` (new)
+- `tests/lang/csharp/fixture-sanity.test.js` (new)
+- `tests/lang/css/fixture-sanity.test.js` (new)
+- `tests/lang/dart/fixture-sanity.test.js` (new)
+- `tests/lang/determinism-matrix.test.js` (new)
+- `tests/lang/dockerfile/fixture-sanity.test.js` (new)
+- `tests/lang/failures/encoding-fallback.test.js` (new)
+- `tests/lang/failures/malformed-import.test.js` (new)
+- `tests/lang/failures/missing-deps.test.js` (new)
+- `tests/lang/fixtures/<id>/fixture-inventory.json` (new)
+- `tests/lang/go/fixture-sanity.test.js` (new)
+- `tests/lang/go/relations.test.js` (new)
+- `tests/lang/goldens/<id>/<artifact>.json` (new)
+- `tests/lang/graphql/fixture-sanity.test.js` (new)
+- `tests/lang/groovy/fixture-sanity.test.js` (new)
+- `tests/lang/handlebars/fixture-sanity.test.js` (new)
+- `tests/lang/harness/expectations.js` (new)
+- `tests/lang/harness/fixtures.js` (new)
+- `tests/lang/html/fixture-sanity.test.js` (new)
+- `tests/lang/java/fixture-sanity.test.js` (new)
+- `tests/lang/java/relations.test.js` (new)
+- `tests/lang/javascript/ast-flow.test.js` (new)
+- `tests/lang/javascript/fixture-sanity.test.js` (new)
+- `tests/lang/javascript/relations.test.js` (new)
+- `tests/lang/javascript/risk-local.test.js` (new)
+- `tests/lang/javascript/symbol-graph.test.js` (new)
+- `tests/lang/jinja/fixture-sanity.test.js` (new)
+- `tests/lang/julia/fixture-sanity.test.js` (new)
+- `tests/lang/kotlin/fixture-sanity.test.js` (new)
+- `tests/lang/lua/fixture-sanity.test.js` (new)
+- `tests/lang/makefile/fixture-sanity.test.js` (new)
+- `tests/lang/matrix/**` (new)
+- `tests/lang/matrix/feature-toggles.json` (new)
+- `tests/lang/matrix/lang-artifact-presence.json` (new)
+- `tests/lang/matrix/lang-capabilities.json` (new)
+- `tests/lang/matrix/lang-expectations.json` (new)
+- `tests/lang/matrix/lang-fixtures.json` (new)
+- `tests/lang/matrix/lang-matrix-completeness.test.js` (new)
+- `tests/lang/matrix/lang-matrix-drift.test.js` (new)
+- `tests/lang/matrix/roadmap-tags.json` (new)
+- `tests/lang/matrix/roadmap-tags.test.js` (new)
+- `tests/lang/matrix/schema-versions.json` (new)
+- `tests/lang/mixed/mixed-relations.test.js` (new)
+- `tests/lang/mustache/fixture-sanity.test.js` (new)
+- `tests/lang/nix/fixture-sanity.test.js` (new)
+- `tests/lang/perf/lang-perf-budget.json` (new)
+- `tests/lang/perf/lang-perf-budget.test.js` (new)
+- `tests/lang/perl/fixture-sanity.test.js` (new)
+- `tests/lang/phase-gates.test.js` (new)
+- `tests/lang/php/fixture-sanity.test.js` (new)
+- `tests/lang/proto/fixture-sanity.test.js` (new)
+- `tests/lang/python/fixture-sanity.test.js` (new)
+- `tests/lang/python/relations.test.js` (new)
+- `tests/lang/r/fixture-sanity.test.js` (new)
+- `tests/lang/razor/fixture-sanity.test.js` (new)
+- `tests/lang/risk-interprocedural-matrix.test.js` (new)
+- `tests/lang/ruby/fixture-sanity.test.js` (new)
+- `tests/lang/rust/fixture-sanity.test.js` (new)
+- `tests/lang/scala/fixture-sanity.test.js` (new)
+- `tests/lang/schema/schema-version.test.js` (new)
+- `tests/lang/shell/fixture-sanity.test.js` (new)
+- `tests/lang/sql/fixture-sanity.test.js` (new)
+- `tests/lang/starlark/fixture-sanity.test.js` (new)
+- `tests/lang/swift/fixture-sanity.test.js` (new)
+- `tests/lang/typescript/ast-flow.test.js` (new)
+- `tests/lang/typescript/fixture-sanity.test.js` (new)
+- `tests/lang/typescript/relations.test.js` (new)
+- `tests/lang/typescript/symbol-graph.test.js` (new)
+- `tests/run.config.jsonc` (~L1-L14)
+- `tests/run.js` (~L1-L487)
+- `tests/run.rules.jsonc` (~L1-L139)
+- `tests/runner/lane-ordering-lang-full.test.js` (new)
+- `tools/lang/matrix-audit.js` (new)
+- `tools/lang/phase-gates.json` (new)
 
 ### 1.A Per-language subphases (inline)
 

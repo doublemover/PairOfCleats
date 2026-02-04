@@ -1,18 +1,21 @@
 import { basename, classifyFilePath, extension, sortBy } from '../utils.js';
 
-export const buildFileNodes = (membersByFile) => {
-  const nodes = [];
+export function* buildFileNodesIterable(membersByFile, { intern } = {}) {
   for (const [file, members] of membersByFile.entries()) {
     const list = sortBy(members || [], (member) => `${member.name}:${member.range?.startLine || 0}`);
-    nodes.push({
-      id: file,
-      path: file,
-      name: basename(file),
-      ext: extension(file) || null,
-      category: classifyFilePath(file),
+    const filePath = intern ? intern(file) : file;
+    yield {
+      id: filePath,
+      path: filePath,
+      name: intern ? intern(basename(filePath)) : basename(filePath),
+      ext: extension(filePath) || null,
+      category: classifyFilePath(filePath),
       type: 'file',
       members: list
-    });
+    };
   }
-  return nodes;
+}
+
+export const buildFileNodes = (membersByFile, options = {}) => {
+  return Array.from(buildFileNodesIterable(membersByFile, options));
 };
