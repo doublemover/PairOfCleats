@@ -69,6 +69,15 @@ const normalizeEdgeFilter = (edgeFilters) => {
   };
 };
 
+const createEdgeFilterPredicate = ({ graphFilter, edgeTypeFilter, minConfidence }) => (
+  ({ graph, edgeType, confidence }) => {
+    if (graphFilter && !graphFilter.has(graph)) return false;
+    if (edgeTypeFilter && !edgeTypeFilter.has(String(edgeType || '').toLowerCase())) return false;
+    if (minConfidence != null && confidence != null && confidence < minConfidence) return false;
+    return true;
+  }
+);
+
 const buildGraphIndex = buildGraphNodeIndex;
 
 const resolveSeedNodeRef = (seed) => {
@@ -191,6 +200,7 @@ export const buildGraphNeighborhood = ({
   const graphFilter = filter.graphs;
   const edgeTypeFilter = filter.edgeTypes;
   const minConfidence = filter.minConfidence;
+  const allowEdge = createEdgeFilterPredicate({ graphFilter, edgeTypeFilter, minConfidence });
 
   const effectiveRepoRoot = graphIndex?.repoRoot ?? repoRoot;
   const callGraphIndex = graphIndex?.callGraphIndex ?? buildGraphIndex(graphRelations?.callGraph);
@@ -343,15 +353,7 @@ export const buildGraphNeighborhood = ({
 
   addNode(resolvedSeed, 0);
 
-  const includeGraph = (graphName) => {
-    if (!graphFilter) return true;
-    return graphFilter.has(graphName);
-  };
-
-  const includeEdgeType = (edgeType) => {
-    if (!edgeTypeFilter) return true;
-    return edgeTypeFilter.has(edgeType.toLowerCase());
-  };
+  const includeGraph = (graphName) => allowEdge({ graph: graphName, edgeType: null, confidence: null });
 
   const resolveGraphNeighbors = (
     graphNodes,
@@ -460,7 +462,7 @@ export const buildGraphNeighborhood = ({
       );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
-        if (!includeEdgeType(edgeType)) continue;
+        if (!allowEdge({ graph: 'callGraph', edgeType, confidence: null })) continue;
         const toRef = { type: 'chunk', chunkUid: neighborId };
         const fromRef = { type: 'chunk', chunkUid: currentRef.chunkUid };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
@@ -488,7 +490,7 @@ export const buildGraphNeighborhood = ({
       );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
-        if (!includeEdgeType(edgeType)) continue;
+        if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
         const toRef = { type: 'chunk', chunkUid: neighborId };
         edgeCandidates.push({
           edge: {
@@ -519,7 +521,7 @@ export const buildGraphNeighborhood = ({
         );
         for (const neighborId of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
-          if (!includeEdgeType(edgeType)) continue;
+          if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
           const toRef = { type: 'file', path: neighborId };
           edgeCandidates.push({
             edge: {
@@ -543,14 +545,10 @@ export const buildGraphNeighborhood = ({
       for (const entry of symbolNeighbors) {
         if (!entry?.edge || !entry?.toRef) continue;
         const edgeType = entry.edge.type || 'symbol';
-        if (!includeEdgeType(edgeType)) continue;
         const confidence = Number.isFinite(entry.edge.confidence)
           ? entry.edge.confidence
           : null;
-        if (minConfidence != null) {
-          const effectiveConfidence = confidence == null ? 1 : confidence;
-          if (effectiveConfidence < minConfidence) continue;
-        }
+        if (!allowEdge({ graph: 'symbolEdges', edgeType, confidence })) continue;
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
         const symbolId = entry.symbolId;
         const nextRef = symbolId ? { type: 'symbol', symbolId } : null;
