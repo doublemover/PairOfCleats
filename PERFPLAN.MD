@@ -761,12 +761,12 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Ensure budget/truncation ordering is deterministic across runs.
 - [ ] Track graph/context-pack timings and memory checkpoints.
 - [ ] Track graph/context-pack peak memory and excerpt bytes in stats payload.
-- [ ] Use range reads for excerpts instead of full file loads; avoid `fs.readFileSync` for slices.
-- [ ] Add `readFileRange` helper; prefer when `start/end` valid.
-- [ ] Add a small excerpt LRU cache keyed by `(path,start,end,maxBytes,maxTokens)` to avoid repeated reads.
-- [ ] Add file-level excerpt cache keyed by `(filePath, byteRange)` before token slicing.
-- [ ] Add excerpt prefetch batching to reduce per-chunk IO latency in context packs.
-- [ ] Add excerpt hash de-duplication to avoid emitting duplicate slices.
+- [x] Use range reads for excerpts instead of full file loads; avoid `fs.readFileSync` for slices.
+- [x] Add `readFileRange` helper; prefer when `start/end` valid.
+- [x] Add a small excerpt LRU cache keyed by `(path,start,end,maxBytes,maxTokens)` to avoid repeated reads.
+- [x] Add file-level excerpt cache keyed by `(filePath, byteRange)` before token slicing.
+- [x] Add excerpt prefetch batching to reduce per-chunk IO latency in context packs.
+- [x] Add excerpt hash de-duplication to avoid emitting duplicate slices.
 - [ ] Normalize chunk/file paths once for seed resolution in context-pack assembly.
 - [ ] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
 - [ ] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
