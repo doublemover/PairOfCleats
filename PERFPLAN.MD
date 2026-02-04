@@ -774,7 +774,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
 - [x] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
 - [x] Task 10.X.1.c: Sort suggest-tests outputs by score desc then path; include truncation + warnings sections.
-- [ ] Task 10.X.1.d: Add renderer tests for deterministic ordering and diagnostics visibility.
+- [x] Task 10.X.1.d: Add renderer tests for deterministic ordering and diagnostics visibility.
 - [x] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
 - [x] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
 - [x] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
@@ -819,9 +819,9 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/context-pack/context-pack-shared-index.test.js`
 - [x] `tests/context-pack/context-pack-range-reads.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
-- [ ] `tests/graph/graph-output-deterministic.test.js`
-- [ ] `tests/graph/architecture-output-deterministic.test.js`
-- [ ] `tests/graph/suggest-tests-output-deterministic.test.js`
+- [x] `tests/graph/graph-output-deterministic.test.js`
+- [x] `tests/graph/architecture-output-deterministic.test.js`
+- [x] `tests/graph/suggest-tests-output-deterministic.test.js`
 - [ ] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
