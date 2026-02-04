@@ -147,6 +147,11 @@ const stageSatisfied = (requested, existing) => {
   return current >= target;
 };
 
+/**
+ * Decide whether an incremental index can be reused for the current build.
+ * @param {{outDir:string,entries:Array<{rel:string}>,manifest:object,stage?:string,log?:(msg:string)=>void,explain?:boolean}} input
+ * @returns {Promise<boolean>}
+ */
 export async function shouldReuseIncrementalIndex({
   outDir,
   entries,

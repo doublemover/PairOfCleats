@@ -270,6 +270,11 @@ const addGraphNode = (nodes, id, type) => {
   nodes.set(id, { id, type });
 };
 
+/**
+ * Resolve import specifiers to file paths and optionally emit a graph artifact.
+ * @param {{root:string,entries:object[],importsByFile:Map<string,string[]>|object,fileRelations:Map<string,object>,log?:(msg:string)=>void,enableGraph?:boolean,graphMeta?:object}} input
+ * @returns {{stats:{files:number,edges:number,resolved:number,external:number,unresolved:number},graph:object|null}}
+ */
 export function resolveImportLinks({
   root,
   entries,
