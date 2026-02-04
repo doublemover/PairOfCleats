@@ -814,7 +814,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/context-pack/context-pack-excerpt-dedupe.test.js`
 - [x] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
 - [ ] `tests/graph/graph-adjacency-presorted.test.js`
-- [ ] `tests/graph/graph-store-cache-eviction.test.js`
+- [x] `tests/graph/graph-store-cache-eviction.test.js`
 - [ ] `tests/graph/architecture-rules-cache.test.js`
 - [ ] `tests/graph/suggest-tests-cache.test.js`
 - [x] `tests/context-pack/context-pack-shared-index.test.js`
