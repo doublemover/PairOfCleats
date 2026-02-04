@@ -508,10 +508,13 @@ export const enqueueChunkMetaArtifacts = async ({
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `chunk_meta.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
+  const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
+  const offsetsPath = offsetsConfig ? `${jsonlPath}.${offsetsConfig.suffix}` : null;
   const removeJsonlVariants = async () => {
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.gz'));
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.zst'));
+    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.offsets.bin'));
   };
 
   if (resolvedUseJsonl) {
@@ -556,7 +559,8 @@ export const enqueueChunkMetaArtifacts = async ({
               maxItems: chunkMetaShardSize,
               atomic: true,
               compression,
-              gzipOptions
+              gzipOptions,
+              offsets: offsetsConfig
             })
             : await writeJsonLinesSharded({
               dir: outDir,
@@ -567,13 +571,21 @@ export const enqueueChunkMetaArtifacts = async ({
               maxItems: chunkMetaShardSize,
               atomic: true,
               compression,
-              gzipOptions
+              gzipOptions,
+              offsets: offsetsConfig
             });
           const parts = result.parts.map((part, index) => ({
             path: part,
             records: result.counts[index] || 0,
             bytes: result.bytes[index] || 0
           }));
+          const offsetsMeta = result.offsets?.length
+            ? {
+              format: 'u64-le',
+              suffix: offsetsConfig?.suffix || null,
+              parts: result.offsets
+            }
+            : null;
           await writeJsonObjectFile(metaPath, {
             fields: {
               schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -591,7 +603,8 @@ export const enqueueChunkMetaArtifacts = async ({
                   trimmedEntries,
                   trimmedMetaV2,
                   trimmedFields: trimmedFieldsPayload
-                }
+                },
+                ...(offsetsMeta ? { offsets: offsetsMeta } : {})
               },
               parts
             },
@@ -608,6 +621,19 @@ export const enqueueChunkMetaArtifacts = async ({
               compression: compression || null
             }, absPath);
           }
+          if (Array.isArray(result.offsets)) {
+            for (let i = 0; i < result.offsets.length; i += 1) {
+              const relPath = result.offsets[i];
+              if (!relPath) continue;
+              const absPath = path.join(outDir, fromPosix(relPath));
+              addPieceFile({
+                type: 'chunks',
+                name: 'chunk_meta_offsets',
+                format: 'bin',
+                count: result.counts[i] || 0
+              }, absPath);
+            }
+          }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
           if (collected?.cleanup) await collected.cleanup();
         }
@@ -619,7 +645,12 @@ export const enqueueChunkMetaArtifacts = async ({
           await writeJsonLinesFileAsync(
             jsonlPath,
             items,
-            { atomic: true, compression, gzipOptions }
+            {
+              atomic: true,
+              compression,
+              gzipOptions,
+              offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+            }
           );
           if (collected?.cleanup) await collected.cleanup();
         }
@@ -631,6 +662,14 @@ export const enqueueChunkMetaArtifacts = async ({
         count: chunkMetaCount,
         compression: compression || null
       }, jsonlPath);
+      if (offsetsPath) {
+        addPieceFile({
+          type: 'chunks',
+          name: 'chunk_meta_offsets',
+          format: 'bin',
+          count: chunkMetaCount
+        }, offsetsPath);
+      }
     }
   } else {
     enqueueJsonArray('chunk_meta', chunkMetaIterator(), {

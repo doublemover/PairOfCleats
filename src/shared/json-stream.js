@@ -4,6 +4,7 @@ import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { writeJsonValue, stringifyJsonValue, writeArrayItems } from './json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from './json-stream/streams.js';
 import { throwIfAborted } from './json-stream/runtime.js';
+import { createOffsetsWriter } from './json-stream/offsets.js';
 
 export { createTempPath, replaceFile };
 
@@ -11,7 +12,7 @@ export { createTempPath, replaceFile };
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean}}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
@@ -20,26 +21,42 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
     atomic = false,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    offsets = null
   } = options;
-  const { stream, done } = createJsonWriteStream(filePath, {
+  if (offsets?.path && compression) {
+    throw new Error('JSONL offsets require uncompressed output.');
+  }
+  const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
     highWaterMark,
     signal
   });
+  const offsetsWriter = offsets?.path
+    ? createOffsetsWriter(offsets.path, { atomic: offsets.atomic ?? atomic, highWaterMark })
+    : null;
   try {
     for (const item of items) {
       throwIfAborted(signal);
+      if (offsetsWriter) {
+        await offsetsWriter.writeOffset(getBytesWritten());
+      }
       await writeJsonValue(stream, item);
       await writeChunk(stream, '\n');
     }
     stream.end();
     await done;
+    if (offsetsWriter) {
+      await offsetsWriter.close();
+    }
   } catch (err) {
     try { stream.destroy(err); } catch {}
     try { await done; } catch {}
+    if (offsetsWriter) {
+      await offsetsWriter.destroy(err);
+    }
     throw err;
   }
 }
@@ -48,7 +65,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
  * Stream JSON lines to disk from an async iterable.
  * @param {string} filePath
  * @param {AsyncIterable<any>|Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean}}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
@@ -57,34 +74,50 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
     atomic = false,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    offsets = null
   } = options;
-  const { stream, done } = createJsonWriteStream(filePath, {
+  if (offsets?.path && compression) {
+    throw new Error('JSONL offsets require uncompressed output.');
+  }
+  const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
     highWaterMark,
     signal
   });
+  const offsetsWriter = offsets?.path
+    ? createOffsetsWriter(offsets.path, { atomic: offsets.atomic ?? atomic, highWaterMark })
+    : null;
   try {
     for await (const item of items) {
       throwIfAborted(signal);
+      if (offsetsWriter) {
+        await offsetsWriter.writeOffset(getBytesWritten());
+      }
       await writeJsonValue(stream, item);
       await writeChunk(stream, '\n');
     }
     stream.end();
     await done;
+    if (offsetsWriter) {
+      await offsetsWriter.close();
+    }
   } catch (err) {
     try { stream.destroy(err); } catch {}
     try { await done; } catch {}
+    if (offsetsWriter) {
+      await offsetsWriter.destroy(err);
+    }
     throw err;
   }
 }
 
 /**
  * Stream JSON lines into sharded JSONL files.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} input
- * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null}>}
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean}}} input
+ * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null,offsets?:string[]}>}
  */
 export async function writeJsonLinesSharded(input) {
   const {
@@ -98,8 +131,12 @@ export async function writeJsonLinesSharded(input) {
     compression = null,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    offsets = null
   } = input || {};
+  if (offsets && compression) {
+    throw new Error('JSONL offsets require uncompressed output.');
+  }
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
   const partsDir = path.join(dir, partsDirName);
@@ -116,6 +153,7 @@ export async function writeJsonLinesSharded(input) {
   const parts = [];
   const counts = [];
   const bytes = [];
+  const offsetsParts = [];
   let total = 0;
   let totalBytes = 0;
   let partIndex = -1;
@@ -124,11 +162,16 @@ export async function writeJsonLinesSharded(input) {
   let partLogicalBytes = 0;
   let current = null;
   let currentPath = null;
+  let offsetsWriter = null;
 
   const closePart = async () => {
     if (!current) return;
     current.stream.end();
     await current.done;
+    if (offsetsWriter) {
+      await offsetsWriter.close();
+      offsetsWriter = null;
+    }
     if (currentPath) {
       try {
         const stat = await fsPromises.stat(currentPath);
@@ -159,6 +202,17 @@ export async function writeJsonLinesSharded(input) {
       signal
     });
     currentPath = absPath;
+    if (offsets) {
+      const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
+      const offsetsName = `${partName}.${suffix}`;
+      const offsetsAbs = path.join(partsDir, offsetsName);
+      const offsetsRel = path.posix.join(partsDirName, offsetsName);
+      offsetsParts.push(offsetsRel);
+      offsetsWriter = createOffsetsWriter(offsetsAbs, {
+        atomic: offsets.atomic ?? atomic,
+        highWaterMark
+      });
+    }
   };
 
   const iterator = items?.[Symbol.iterator] ? items[Symbol.iterator]() : null;
@@ -180,6 +234,9 @@ export async function writeJsonLinesSharded(input) {
       if (!current || needsNewPart) {
         await closePart();
         openPart();
+      }
+      if (offsetsWriter) {
+        await offsetsWriter.writeOffset(current.getBytesWritten());
       }
       await writeChunk(current.stream, line);
       await writeChunk(current.stream, '\n');
@@ -206,6 +263,10 @@ export async function writeJsonLinesSharded(input) {
       try { current.stream.destroy(err); } catch {}
       try { await current.done; } catch {}
     }
+    if (offsetsWriter) {
+      await offsetsWriter.destroy(err);
+      offsetsWriter = null;
+    }
     throw err;
   }
 
@@ -221,14 +282,15 @@ export async function writeJsonLinesSharded(input) {
     partsDir,
     maxPartRecords,
     maxPartBytes,
-    targetMaxBytes
+    targetMaxBytes,
+    ...(offsetsParts.length ? { offsets: offsetsParts } : {})
   };
 }
 
 /**
  * Stream JSON lines into sharded JSONL files from an async iterable.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:AsyncIterable<any>|Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} input
- * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null}>}
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:AsyncIterable<any>|Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean}}} input
+ * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null,offsets?:string[]}>}
  */
 export async function writeJsonLinesShardedAsync(input) {
   const {
@@ -242,8 +304,12 @@ export async function writeJsonLinesShardedAsync(input) {
     compression = null,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    offsets = null
   } = input || {};
+  if (offsets && compression) {
+    throw new Error('JSONL offsets require uncompressed output.');
+  }
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
   const partsDir = path.join(dir, partsDirName);
@@ -260,6 +326,7 @@ export async function writeJsonLinesShardedAsync(input) {
   const parts = [];
   const counts = [];
   const bytes = [];
+  const offsetsParts = [];
   let total = 0;
   let totalBytes = 0;
   let partIndex = -1;
@@ -267,11 +334,16 @@ export async function writeJsonLinesShardedAsync(input) {
   let partLogicalBytes = 0;
   let current = null;
   let currentPath = null;
+  let offsetsWriter = null;
 
   const closePart = async () => {
     if (!current) return;
     current.stream.end();
     await current.done;
+    if (offsetsWriter) {
+      await offsetsWriter.close();
+      offsetsWriter = null;
+    }
     if (currentPath) {
       try {
         const stat = await fsPromises.stat(currentPath);
@@ -301,6 +373,17 @@ export async function writeJsonLinesShardedAsync(input) {
       signal
     });
     currentPath = absPath;
+    if (offsets) {
+      const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
+      const offsetsName = `${partName}.${suffix}`;
+      const offsetsAbs = path.join(partsDir, offsetsName);
+      const offsetsRel = path.posix.join(partsDirName, offsetsName);
+      offsetsParts.push(offsetsRel);
+      offsetsWriter = createOffsetsWriter(offsetsAbs, {
+        atomic: offsets.atomic ?? atomic,
+        highWaterMark
+      });
+    }
   };
 
   try {
@@ -314,6 +397,9 @@ export async function writeJsonLinesShardedAsync(input) {
       if (!current || needsNewPart) {
         await closePart();
         openPart();
+      }
+      if (offsetsWriter) {
+        await offsetsWriter.writeOffset(current.getBytesWritten());
       }
       await writeChunk(current.stream, line);
       await writeChunk(current.stream, '\n');
@@ -338,6 +424,10 @@ export async function writeJsonLinesShardedAsync(input) {
       try { current.stream.destroy(err); } catch {}
       try { await current.done; } catch {}
     }
+    if (offsetsWriter) {
+      await offsetsWriter.destroy(err);
+      offsetsWriter = null;
+    }
     throw err;
   }
 
@@ -353,7 +443,8 @@ export async function writeJsonLinesShardedAsync(input) {
     partsDir,
     maxPartRecords,
     maxPartBytes,
-    targetMaxBytes
+    targetMaxBytes,
+    ...(offsetsParts.length ? { offsets: offsetsParts } : {})
   };
 }
 
