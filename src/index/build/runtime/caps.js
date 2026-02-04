@@ -1,14 +1,31 @@
 import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 
+/**
+ * Normalize a numeric cap value to a non-negative integer.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 export const normalizeLimit = (value, fallback) => (
   normalizeCapNullOnZero(value, fallback)
 );
 
+/**
+ * Select the smallest positive limit from a list of values.
+ * @param {...number} values
+ * @returns {number|null}
+ */
 export const pickMinLimit = (...values) => {
   const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
   return candidates.length ? Math.min(...candidates) : null;
 };
 
+/**
+ * Normalize a depth-like cap value.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 export const normalizeDepth = (value, fallback) => {
   if (value === 0) return 0;
   if (value === false) return null;
@@ -17,6 +34,12 @@ export const normalizeDepth = (value, fallback) => {
   return fallback;
 };
 
+/**
+ * Normalize a ratio (0..1) value.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 export const normalizeRatio = (value, fallback) => {
   if (value === undefined || value === null || value === false) return fallback;
   const parsed = Number(value);
@@ -28,6 +51,11 @@ const normalizeCapValue = (value) => (
   normalizeCapNullOnZero(value, null)
 );
 
+/**
+ * Normalize a cap entry object.
+ * @param {object} raw
+ * @returns {object}
+ */
 export const normalizeCapEntry = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};
   const maxBytes = normalizeCapValue(input.maxBytes);
@@ -35,6 +63,11 @@ export const normalizeCapEntry = (raw) => {
   return { maxBytes, maxLines };
 };
 
+/**
+ * Normalize caps keyed by file extension.
+ * @param {object} raw
+ * @returns {object}
+ */
 export const normalizeCapsByExt = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};
   const output = {};
@@ -47,6 +80,11 @@ export const normalizeCapsByExt = (raw) => {
   return output;
 };
 
+/**
+ * Normalize caps keyed by language id.
+ * @param {object} raw
+ * @returns {object}
+ */
 export const normalizeCapsByLanguage = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};
   const output = {};
@@ -58,6 +96,11 @@ export const normalizeCapsByLanguage = (raw) => {
   return output;
 };
 
+/**
+ * Normalize caps keyed by mode.
+ * @param {object} raw
+ * @returns {object}
+ */
 export const normalizeCapsByMode = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};
   const output = {};
@@ -72,6 +115,11 @@ export const normalizeCapsByMode = (raw) => {
   return output;
 };
 
+/**
+ * Normalize an optional limit (null/undefined means unset).
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 export const normalizeOptionalLimit = (value) => {
   if (value === 0 || value === false) return null;
   if (value === undefined || value === null) return null;
@@ -79,6 +127,11 @@ export const normalizeOptionalLimit = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 };
 
+/**
+ * Normalize tree-sitter caps keyed by language.
+ * @param {object} raw
+ * @returns {object}
+ */
 export const normalizeTreeSitterByLanguage = (raw) => {
   const input = raw && typeof raw === 'object' ? raw : {};
   const output = {};
@@ -93,6 +146,11 @@ export const normalizeTreeSitterByLanguage = (raw) => {
   return output;
 };
 
+/**
+ * Resolve file cap configuration and guardrails from indexing config.
+ * @param {object} indexingConfig
+ * @returns {{fileCaps:object,guardrails:object}}
+ */
 export const resolveFileCapsAndGuardrails = (indexingConfig) => {
   const maxFileBytes = normalizeLimit(indexingConfig.maxFileBytes, 5 * 1024 * 1024);
   const fileCapsConfig = indexingConfig.fileCaps || {};

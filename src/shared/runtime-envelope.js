@@ -2,22 +2,42 @@ import { resolveThreadLimits } from './threads.js';
 
 const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '');
 
+/**
+ * Coerce a value into a positive integer (or null).
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 export const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.floor(parsed);
 };
 
+/**
+ * Parse UV_THREADPOOL_SIZE from environment.
+ * @param {object} env
+ * @returns {number|null}
+ */
 export const parseUvThreadpoolSize = (env = {}) => {
   const raw = env?.UV_THREADPOOL_SIZE;
   return coercePositiveInt(raw);
 };
 
+/**
+ * Parse NODE_OPTIONS into an argv-like list.
+ * @param {object} env
+ * @returns {string[]}
+ */
 export const parseNodeOptions = (env = {}) => {
   const raw = normalizeString(env?.NODE_OPTIONS);
   return raw || null;
 };
 
+/**
+ * Resolve the effective --max-old-space-size from env/execArgv.
+ * @param {{env?:object,execArgv?:string[]}} [input]
+ * @returns {number|null}
+ */
 export const parseEffectiveMaxOldSpaceMb = ({ env = {}, execArgv = [] } = {}) => {
   const argv = Array.isArray(execArgv) ? execArgv : [];
   const nodeOptionsRaw = normalizeString(env?.NODE_OPTIONS || '');
@@ -94,6 +114,12 @@ const pushWarning = (warnings, warning, limit = 20) => {
   warnings.push(warning);
 };
 
+/**
+ * Apply env var overrides to a base env map.
+ * @param {object} baseEnv
+ * @param {object} envPatch
+ * @returns {object}
+ */
 export function applyEnvPatch(baseEnv, envPatch) {
   const env = { ...(baseEnv || {}) };
   const setEntries = envPatch?.set && typeof envPatch.set === 'object' ? envPatch.set : {};
@@ -107,11 +133,22 @@ export function applyEnvPatch(baseEnv, envPatch) {
   return env;
 }
 
+/**
+ * Build the runtime environment block from an envelope.
+ * @param {object} envelope
+ * @param {object} [baseEnv]
+ * @returns {object}
+ */
 export function resolveRuntimeEnv(envelope, baseEnv = {}) {
   if (!envelope || typeof envelope !== 'object') return { ...(baseEnv || {}) };
   return applyEnvPatch(baseEnv, envelope.envPatch || {});
 }
 
+/**
+ * Resolve a runtime envelope (thread limits, env, exec args).
+ * @param {object} [input]
+ * @returns {object}
+ */
 export function resolveRuntimeEnvelope(input = {}) {
   const {
     argv = {},

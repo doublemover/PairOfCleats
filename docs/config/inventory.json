@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T20:37:09.549Z",
+  "generatedAt": "2026-02-04T00:35:05.201Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2156,7 +2156,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 280,
+    "totalFlags": 292,
     "publicFlags": [
       "backend",
       "host",
@@ -2219,9 +2219,16 @@
       "dims",
       "dir",
       "direction",
+      "display-edges",
+      "display-files",
+      "display-members",
       "docBytes",
       "docs",
       "dp-max",
+      "draw-edges",
+      "draw-files",
+      "draw-labels",
+      "draw-members",
       "dry-run",
       "edgeTypes",
       "edits",
@@ -2246,6 +2253,7 @@
       "focus",
       "force",
       "format",
+      "frame-budget",
       "from",
       "global",
       "graphFixture",
@@ -2279,6 +2287,10 @@
       "limit",
       "list-packs",
       "load",
+      "lod-edge-high",
+      "lod-edge-low",
+      "lod-zoom-high",
+      "lod-zoom-low",
       "log",
       "log-dir",
       "lookups",
@@ -2298,6 +2310,7 @@
       "maxCallsPerSymbol",
       "maxCandidates",
       "maxDepth",
+      "maxEdgeBytes",
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
@@ -2420,7 +2433,6 @@
       "tooling-scope",
       "tools",
       "top-k-by-degree",
-      "topKByDegree",
       "translateTime",
       "treeSitter",
       "treeSitterMissingLanguages",
@@ -2599,11 +2611,9 @@
       {
         "file": "src/map/build-map.js",
         "flags": [
-          "collapse",
           "focus",
           "include",
-          "onlyExported",
-          "topKByDegree"
+          "onlyExported"
         ]
       },
       {
@@ -2680,6 +2690,25 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/map/map-build-determinism.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
+        "file": "tests/map/map-build-heap-guard.test.js",
+        "flags": [
+          "maxEdgeBytes",
+          "mode"
+        ]
+      },
+      {
+        "file": "tests/map/map-build-streaming.test.js",
+        "flags": [
+          "mode"
         ]
       },
       {
@@ -2870,6 +2899,102 @@
           "graphFixture",
           "index",
           "outDir"
+        ]
+      },
+      {
+        "file": "tools/bench/map/build-map-memory.js",
+        "flags": [
+          "collapse",
+          "focus",
+          "include",
+          "index-root",
+          "json",
+          "max-edges",
+          "max-files",
+          "max-members-per-file",
+          "mode",
+          "only-exported",
+          "repo",
+          "runs",
+          "scope",
+          "top-k-by-degree"
+        ]
+      },
+      {
+        "file": "tools/bench/map/build-map-streaming.js",
+        "flags": [
+          "collapse",
+          "focus",
+          "include",
+          "index-root",
+          "json",
+          "max-edges",
+          "max-files",
+          "max-members-per-file",
+          "mode",
+          "only-exported",
+          "out",
+          "repo",
+          "runs",
+          "scope",
+          "top-k-by-degree"
+        ]
+      },
+      {
+        "file": "tools/bench/map/viewer-fps.js",
+        "flags": [
+          "collapse",
+          "display-edges",
+          "display-files",
+          "display-members",
+          "draw-edges",
+          "draw-files",
+          "draw-labels",
+          "draw-members",
+          "focus",
+          "include",
+          "index-root",
+          "max-edges",
+          "max-files",
+          "max-members-per-file",
+          "mode",
+          "only-exported",
+          "out",
+          "port",
+          "repo",
+          "scope",
+          "top-k-by-degree"
+        ]
+      },
+      {
+        "file": "tools/bench/map/viewer-lod-stress.js",
+        "flags": [
+          "collapse",
+          "display-edges",
+          "display-files",
+          "display-members",
+          "draw-edges",
+          "draw-files",
+          "draw-labels",
+          "draw-members",
+          "focus",
+          "frame-budget",
+          "include",
+          "index-root",
+          "lod-edge-high",
+          "lod-edge-low",
+          "lod-zoom-high",
+          "lod-zoom-low",
+          "max-edges",
+          "max-files",
+          "max-members-per-file",
+          "mode",
+          "only-exported",
+          "out",
+          "port",
+          "repo",
+          "scope",
+          "top-k-by-degree"
         ]
       },
       {
@@ -3593,7 +3718,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 52,
+        "count": 56,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3604,6 +3729,10 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
           "tools/bench/query-generator.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
@@ -3651,7 +3780,7 @@
       },
       {
         "flag": "json",
-        "count": 43,
+        "count": 45,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3664,6 +3793,8 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -3700,7 +3831,7 @@
       },
       {
         "flag": "out",
-        "count": 35,
+        "count": 38,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -3708,6 +3839,9 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -3741,8 +3875,15 @@
       },
       {
         "flag": "mode",
-        "count": 16,
+        "count": 23,
         "files": [
+          "tests/map/map-build-determinism.test.js",
+          "tests/map/map-build-heap-guard.test.js",
+          "tests/map/map-build-streaming.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/cold-start-cache.js",
           "tools/bench/vfs/io-batching.js",
@@ -3778,6 +3919,23 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
+        ]
+      },
+      {
+        "flag": "index-root",
+        "count": 11,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/bench/query-generator.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/sqlite/cli.js",
+          "tools/build/tantivy-index.js",
+          "tools/index/validate.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -3822,6 +3980,20 @@
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
           "tools/analysis/structural-search.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "include",
+        "count": 8,
+        "files": [
+          "src/map/build-map.js",
+          "tests/indexing/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-chunkuid-join.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
         ]
       },
@@ -3880,19 +4052,6 @@
         ]
       },
       {
-        "flag": "index-root",
-        "count": 7,
-        "files": [
-          "tools/bench/query-generator.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
-          "tools/build/tantivy-index.js",
-          "tools/index/validate.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
         "flag": "input",
         "count": 7,
         "files": [
@@ -3919,6 +4078,18 @@
         ]
       },
       {
+        "flag": "focus",
+        "count": 6,
+        "files": [
+          "src/map/build-map.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "log",
         "count": 6,
         "files": [
@@ -3928,6 +4099,18 @@
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
           "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
           "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
+        ]
+      },
+      {
+        "flag": "scope",
+        "count": 6,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js",
+          "tools/tooling/install.js"
         ]
       },
       {
@@ -3954,6 +4137,17 @@
         ]
       },
       {
+        "flag": "collapse",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "force",
         "count": 5,
         "files": [
@@ -3973,6 +4167,39 @@
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "max-edges",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "max-files",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "max-members-per-file",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -4009,6 +4236,28 @@
         ]
       },
       {
+        "flag": "only-exported",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "top-k-by-degree",
+        "count": 5,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "backend",
         "count": 4,
         "files": [
@@ -4036,16 +4285,6 @@
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/token-uri-encode.js"
-        ]
-      },
-      {
-        "flag": "include",
-        "count": 4,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/map/map-build-symbol-identity.test.js",
-          "tests/indexing/map/map-chunkuid-join.test.js",
-          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -4126,6 +4365,16 @@
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js"
+        ]
+      },
+      {
+        "flag": "port",
+        "count": 4,
+        "files": [
+          "tools/analysis/map-iso-serve.js",
+          "tools/api/server.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
         ]
       },
       {
@@ -4259,6 +4508,15 @@
         ]
       },
       {
+        "flag": "runs",
+        "count": 3,
+        "files": [
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/vfs/merge-runs-heap.js"
+        ]
+      },
+      {
         "flag": "segments",
         "count": 3,
         "files": [
@@ -4357,14 +4615,6 @@
         ]
       },
       {
-        "flag": "collapse",
-        "count": 2,
-        "files": [
-          "src/map/build-map.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
         "flag": "concurrency",
         "count": 2,
         "files": [
@@ -4386,6 +4636,62 @@
         "files": [
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "display-edges",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "display-files",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "display-members",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "draw-edges",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "draw-files",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "draw-labels",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "draw-members",
+        "count": 2,
+        "files": [
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js"
         ]
       },
       {
@@ -4418,14 +4724,6 @@
         "files": [
           "tests/tooling/fixtures/fixture-parity.test.js",
           "tools/bench/dict-seg.js"
-        ]
-      },
-      {
-        "flag": "focus",
-        "count": 2,
-        "files": [
-          "src/map/build-map.js",
-          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -4549,14 +4847,6 @@
         ]
       },
       {
-        "flag": "port",
-        "count": 2,
-        "files": [
-          "tools/analysis/map-iso-serve.js",
-          "tools/api/server.js"
-        ]
-      },
-      {
         "flag": "pretty",
         "count": 2,
         "files": [
@@ -4586,14 +4876,6 @@
         "files": [
           "tests/runner/all.js",
           "tests/tooling/script-coverage/script-coverage.test.js"
-        ]
-      },
-      {
-        "flag": "scope",
-        "count": 2,
-        "files": [
-          "tools/reports/report-code-map.js",
-          "tools/tooling/install.js"
         ]
       },
       {

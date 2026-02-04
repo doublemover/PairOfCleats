@@ -99,6 +99,15 @@ const serializeGraph = (graph) => {
   };
 };
 
+/**
+ * Build call/usage/import relation graphs from indexed chunks.
+ * @param {object} input
+ * @param {Array<object>} [input.chunks]
+ * @param {Map<string,object>|null} [input.fileRelations]
+ * @param {Array<object>|null} [input.callSites]
+ * @param {object|null} [input.caps]
+ * @returns {{version:number,generatedAt:string,callGraph:object,usageGraph:object,importGraph:object,caps:object}}
+ */
 export function buildRelationGraphs({
   chunks = [],
   fileRelations = null,

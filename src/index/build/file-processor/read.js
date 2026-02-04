@@ -2,11 +2,24 @@ import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
 import { fileExt } from '../../../shared/files.js';
 
+/**
+ * Select the smallest positive limit from a list of values.
+ * @param {...number} values
+ * @returns {number|null}
+ */
 export const pickMinLimit = (...values) => {
   const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
   return candidates.length ? Math.min(...candidates) : null;
 };
 
+/**
+ * Resolve file size/line caps for a file based on ext/language/mode.
+ * @param {object} fileCaps
+ * @param {string} ext
+ * @param {string|null} [languageId]
+ * @param {string|null} [mode]
+ * @returns {{maxBytes:number|null,maxLines:number|null}}
+ */
 export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) => {
   const extKey = typeof ext === 'string' ? ext.toLowerCase() : '';
   const languageKey = typeof languageId === 'string' ? languageId.toLowerCase() : '';
@@ -21,6 +34,12 @@ export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) =
   };
 };
 
+/**
+ * Truncate a string to a byte limit, preserving UTF-8 boundaries.
+ * @param {string} value
+ * @param {number} maxBytes
+ * @returns {{text:string,truncated:boolean,bytes:number}}
+ */
 export const truncateByBytes = (value, maxBytes) => {
   const text = typeof value === 'string' ? value : '';
   const limit = Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : 0;
@@ -54,6 +73,11 @@ export const truncateByBytes = (value, maxBytes) => {
   };
 };
 
+/**
+ * Resolve file extension, honoring special code extensions.
+ * @param {string} absPath
+ * @returns {string}
+ */
 export const resolveExt = (absPath) => {
   const baseName = path.basename(absPath);
   const specialExt = resolveSpecialCodeExt(baseName);
