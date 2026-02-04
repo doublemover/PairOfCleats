@@ -29,14 +29,15 @@ const summarize = (values) => {
 
 const runIterations = async ({ iterations, loadIndex }) => {
   const timings = [];
-  const started = process.hrtime.bigint();
+  let durationMs = 0;
   for (let i = 0; i < iterations; i += 1) {
+    const started = process.hrtime.bigint();
     const result = await loadIndex();
     void result;
     const elapsed = Number((process.hrtime.bigint() - started) / 1000000n);
     timings.push(elapsed);
+    durationMs += elapsed;
   }
-  const durationMs = timings[timings.length - 1] || 0;
   const throughput = durationMs > 0 ? iterations / (durationMs / 1000) : 0;
   return {
     iterations,
