@@ -389,13 +389,39 @@ export const summarizeFilterIndex = (value) => {
   };
 };
 
-export const createGraphRelationsIterator = (relations) => function* graphRelationsIterator() {
+export const createGraphRelationsIterator = (relations, options = {}) => function* graphRelationsIterator() {
   if (!relations || typeof relations !== 'object') return;
+  const { byteBudget = null, stats = null } = options;
+  let totalBytes = 0;
+  let dropping = false;
   for (const graphName of GRAPH_RELATION_GRAPHS) {
     const nodeIterator = iterateGraphNodes(relations, graphName);
     for (const node of nodeIterator) {
       if (!node || typeof node !== 'object' || Array.isArray(node)) continue;
-      yield { graph: graphName, node };
+      const row = { graph: graphName, node };
+      if (byteBudget && !dropping) {
+        const lineBytes = Buffer.byteLength(JSON.stringify(row), 'utf8') + 1;
+        if (totalBytes + lineBytes > byteBudget) {
+          dropping = true;
+          if (stats) {
+            stats.byteBudget = byteBudget;
+            stats.truncated = true;
+          }
+        } else {
+          totalBytes += lineBytes;
+          yield row;
+          continue;
+        }
+      }
+      if (dropping) {
+        if (stats) {
+          stats.droppedRows = (stats.droppedRows || 0) + 1;
+          stats.droppedByGraph = stats.droppedByGraph || {};
+          stats.droppedByGraph[graphName] = (stats.droppedByGraph[graphName] || 0) + 1;
+        }
+        continue;
+      }
+      yield row;
     }
   }
 };
@@ -520,6 +546,52 @@ export const materializeGraphRelationsPayload = (relations) => {
   };
   if (relations.caps !== undefined) output.caps = relations.caps;
   return output;
+};
+
+export const buildGraphRelationsCsr = (relations) => {
+  if (!relations || typeof relations !== 'object') return null;
+  const version = Number.isFinite(relations.version) ? relations.version : 1;
+  const generatedAt = typeof relations.generatedAt === 'string'
+    ? relations.generatedAt
+    : new Date().toISOString();
+  const graphs = {};
+  for (const graphName of GRAPH_RELATION_GRAPHS) {
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodeEntries = graphObj ? null : Array.from(iterateGraphNodes(relations, graphName));
+    const nodes = graphObj
+      ? graphObj.nodes().slice().sort(compareStrings)
+      : nodeEntries.map((node) => node.id).sort(compareStrings);
+    const outById = nodeEntries
+      ? nodeEntries.reduce((acc, node) => {
+        acc.set(node.id, Array.isArray(node.out) ? node.out : []);
+        return acc;
+      }, new Map())
+      : null;
+    const idToIndex = new Map(nodes.map((id, index) => [id, index]));
+    const offsets = new Array(nodes.length + 1);
+    const edges = [];
+    offsets[0] = 0;
+    for (let i = 0; i < nodes.length; i += 1) {
+      const id = nodes[i];
+      const out = graphObj
+        ? graphObj.outNeighbors(id).slice().sort()
+        : (outById?.get(id) || []);
+      const outList = graphObj ? out : (Array.isArray(out) ? out.slice().sort() : []);
+      for (const target of outList) {
+        const targetIndex = idToIndex.get(target);
+        if (Number.isFinite(targetIndex)) edges.push(targetIndex);
+      }
+      offsets[i + 1] = edges.length;
+    }
+    graphs[graphName] = {
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      nodes,
+      offsets,
+      edges
+    };
+  }
+  return { version, generatedAt, graphs };
 };
 
 export const estimatePostingsBytes = (vocab, postingsList, sampleLimit = 200) => {
