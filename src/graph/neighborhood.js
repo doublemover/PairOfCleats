@@ -281,12 +281,14 @@ export const buildGraphNeighborhood = ({
   const nodeMap = new Map();
   const edgeSet = new Set();
   const edges = [];
+  const edgeWindows = [];
   const paths = [];
   const pathTargets = [];
   const pathTargetSet = new Set();
   const parentMap = new Map();
   const queue = [];
   const edgeCandidates = [];
+  const EDGE_WINDOW_SIZE = 20000;
 
   const addNode = (ref, distance) => {
     const normalizedRef = normalizeFileRef(ref, effectiveRepoRoot);
@@ -335,6 +337,10 @@ export const buildGraphNeighborhood = ({
     }
     edgeSet.add(key);
     edges.push(edge);
+    if (normalizedCaps.maxEdges == null && edges.length >= EDGE_WINDOW_SIZE) {
+      edges.sort(compareGraphEdges);
+      edgeWindows.push(edges.splice(0, edges.length));
+    }
     return true;
   };
 
@@ -638,7 +644,33 @@ export const buildGraphNeighborhood = ({
   }
 
   const nodes = Array.from(nodeMap.values()).sort(compareGraphNodes);
-  edges.sort(compareGraphEdges);
+  let mergedEdges = edges;
+  if (edgeWindows.length) {
+    edges.sort(compareGraphEdges);
+    edgeWindows.push(edges.slice());
+    const indices = new Array(edgeWindows.length).fill(0);
+    const merged = [];
+    while (true) {
+      let bestEdge = null;
+      let bestIndex = -1;
+      for (let i = 0; i < edgeWindows.length; i += 1) {
+        const idx = indices[i];
+        const window = edgeWindows[i];
+        if (!window || idx >= window.length) continue;
+        const candidate = window[idx];
+        if (!bestEdge || compareGraphEdges(candidate, bestEdge) < 0) {
+          bestEdge = candidate;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex === -1) break;
+      merged.push(bestEdge);
+      indices[bestIndex] += 1;
+    }
+    mergedEdges = merged;
+  } else {
+    mergedEdges.sort(compareGraphEdges);
+  }
   if (includePaths) {
     let targets = pathTargets;
     if (normalizedCaps.maxPaths != null && targets.length > normalizedCaps.maxPaths) {
@@ -684,7 +716,7 @@ export const buildGraphNeighborhood = ({
 
   return {
     nodes,
-    edges,
+    edges: mergedEdges,
     paths: includePaths ? paths : null,
     truncation: truncationList.length ? truncationList : null,
     warnings: warningList.length ? warningList : null,
