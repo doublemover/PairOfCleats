@@ -288,6 +288,12 @@ export const buildGraphNeighborhood = ({
   const parentMap = new Map();
   const queue = [];
   const edgeCandidates = [];
+  const edgeBatches = {
+    callGraph: [],
+    usageGraph: [],
+    importGraph: [],
+    symbolEdges: []
+  };
   const EDGE_WINDOW_SIZE = 20000;
 
   const addNode = (ref, distance) => {
@@ -469,6 +475,10 @@ export const buildGraphNeighborhood = ({
     if (current.distance >= effectiveDepth) continue;
     const currentRef = current.ref;
     edgeCandidates.length = 0;
+    edgeBatches.callGraph.length = 0;
+    edgeBatches.usageGraph.length = 0;
+    edgeBatches.importGraph.length = 0;
+    edgeBatches.symbolEdges.length = 0;
 
     if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
       const neighbors = resolveGraphNeighbors(
@@ -484,7 +494,7 @@ export const buildGraphNeighborhood = ({
         const toRef = { type: 'chunk', chunkUid: neighborId };
         const fromRef = { type: 'chunk', chunkUid: currentRef.chunkUid };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
-        edgeCandidates.push({
+        edgeBatches.callGraph.push({
           edge: {
             edgeType,
             graph: 'callGraph',
@@ -510,7 +520,7 @@ export const buildGraphNeighborhood = ({
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
         if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
         const toRef = { type: 'chunk', chunkUid: neighborId };
-        edgeCandidates.push({
+        edgeBatches.usageGraph.push({
           edge: {
             edgeType,
             graph: 'usageGraph',
@@ -541,7 +551,7 @@ export const buildGraphNeighborhood = ({
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
           if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
           const toRef = { type: 'file', path: neighborId };
-          edgeCandidates.push({
+          edgeBatches.importGraph.push({
             edge: {
               edgeType,
               graph: 'importGraph',
@@ -575,7 +585,7 @@ export const buildGraphNeighborhood = ({
           normalizedCaps.maxCandidates,
           recordTruncation
         );
-        edgeCandidates.push({
+        edgeBatches.symbolEdges.push({
           edge: {
             edgeType,
             graph: 'symbolEdges',
@@ -588,6 +598,17 @@ export const buildGraphNeighborhood = ({
         });
       }
     }
+    for (const batch of [
+      edgeBatches.callGraph,
+      edgeBatches.usageGraph,
+      edgeBatches.importGraph,
+      edgeBatches.symbolEdges
+    ]) {
+      for (const candidate of batch) {
+        edgeCandidates.push(candidate);
+      }
+    }
+
     if (normalizedCaps.maxFanoutPerNode != null && edgeCandidates.length > normalizedCaps.maxFanoutPerNode) {
       recordTruncation('maxFanoutPerNode', {
         limit: normalizedCaps.maxFanoutPerNode,
