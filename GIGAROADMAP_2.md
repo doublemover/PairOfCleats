@@ -971,3 +971,43 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
 - [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
 
+---
+
+### 15.7 Index stats reporter (single-shot + JSON)
+
+> **Spec to draft:** `docs/specs/index-stats.md`
+
+- [ ] Add a dedicated index stats reporter tool.
+  - [ ] CLI entrypoint: `pairofcleats index stats` (or `node tools/index/stats.js`).
+  - [ ] Input: `--repo <path>` or `--index-dir <path>`, optional `--mode`.
+  - [ ] Output: human summary + `--json` for structured output.
+  - [ ] Must use `pieces/manifest.json` as the source of truth (manifest-first).
+
+- [ ] Report per-mode artifact stats with counts + bytes.
+  - [ ] `chunk_meta` total rows, parts count, bytes per part.
+  - [ ] `token_postings`, `phrase_ngrams`, `chargram_postings` counts + bytes.
+  - [ ] `symbols`, `symbol_occurrences`, `symbol_edges` counts + bytes.
+  - [ ] `graph_relations` rows + bytes; `call_sites` rows + bytes.
+  - [ ] embeddings (dense vectors, hnsw, lancedb): count + bytes where present.
+
+- [ ] Report index-level summary.
+  - [ ] Total chunk count (per mode + aggregate).
+  - [ ] Total file count (from `file_meta` or manifest counts).
+  - [ ] Manifest compatibility key + build id + artifact surface version.
+  - [ ] Size totals by artifact family (chunks, postings, symbols, relations, embeddings).
+
+- [ ] Add a lightweight “missing/invalid” validator mode.
+  - [ ] `--verify` checks required artifacts exist and sizes match manifest.
+  - [ ] Warn on missing or mismatched checksum/bytes.
+
+**Touchpoints:**
+- `tools/index/stats.js` (new)
+- `tools/shared/dict-utils.js` (index root resolution)
+- `src/shared/artifact-io/manifest.js` (manifest parsing helpers)
+- `src/integrations/core/status.js` (optional reuse)
+
+**Tests**
+- [ ] `tests/tooling/index-stats/index-stats-json.test.js`
+- [ ] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
+- [ ] `tests/tooling/index-stats/index-stats-aggregate.test.js`
+

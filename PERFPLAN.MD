@@ -1229,6 +1229,13 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.B.6.b: Validate merged state includes schema + signature versions.
 - [x] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
 - [x] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
+- [ ] Task 14.B.9: Add append‑only delta records for build_state writes with periodic compaction.
+- [ ] Task 14.B.9.a: Write `{op, path, value, ts}` deltas to `build_state.deltas.jsonl`.
+- [ ] Task 14.B.9.b: Add compaction job to rewrite a full snapshot when delta log exceeds a size threshold.
+- [ ] Task 14.B.9.c: Ensure compaction is atomic and never blocks primary writes.
+- [ ] Task 14.B.10: Add write‑through cache for serialized checkpoint blocks to avoid re‑stringify.
+- [ ] Task 14.B.10.a: Cache JSON strings per section keyed by snapshot hash + size.
+- [ ] Task 14.B.10.b: Invalidate on dirty flags or schema/version changes.
 
 - [x] **14.C Import resolution graph performance**
 - [x] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
@@ -1244,16 +1251,37 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.C.5.a: Record capped count by edge type (imports/usage/calls).
 - [x] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
 - [x] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
+- [ ] Task 14.C.7: Add a path‑segment trie cache for rapid “exists” prefix checks.
+- [ ] Task 14.C.7.a: Reuse trie to short‑circuit repeated path joins under common roots.
+- [ ] Task 14.C.8: Add negative cache TTL so new files are eventually re‑checked.
+- [ ] Task 14.C.8.a: Evict negative entries after a short window (e.g. 30–60s).
+- [ ] Task 14.C.9: Precompile `paths`/`baseUrl` matchers into regexes for faster specifier resolution.
+- [ ] Task 14.C.9.a: Cache compiled matchers per tsconfig fingerprint.
 
 - [x] **14.D Chunk meta streaming**
 - [x] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
 - [x] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
 - [x] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
 - [x] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
-- [ ] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
-- [ ] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
+- [ ] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
+- [ ] Task 14.D.3.a: Add `canonicalOrderIndex` from discovery order and keep processing reorder separate.
+- [ ] Task 14.D.3.b: Ensure `orderedAppender` uses canonical order for docId assignment.
+- [ ] Task 14.D.3.c: Add optional windowed batching to cap pending buffers when processing order diverges.
+- [ ] Task 14.D.3.d: Detect out‑of‑order chunk_meta stream; only enable external sort when needed.
+- [ ] Task 14.D.3.e: External sort by numeric `id` only to preserve docId alignment.
+- [ ] Task 14.D.3.f: Stream JSONL directly when already ordered (skip spill collector).
+- [ ] Task 14.D.3.g: Emit chunk_meta ordering telemetry in stage checkpoints.
+- [ ] Task 14.D.3.h: Add docId alignment guardrails and verification in tests.
+- [ ] Task 14.D.3.i: Add bucketed external sort by `id` range to avoid full compare sort.
+- [ ] Task 14.D.3.j: Log the first out‑of‑order pair (prevId/nextId) for diagnostics.
+- [ ] Task 14.D.3.k: Add ID‑only spill index to re‑order without re‑serializing rows.
+- [ ] Task 14.D.3.l: Cache JSONL row strings when measuring to avoid double stringify in sorting paths.
+- [ ] Touchpoints 14.D.3: `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/tree-sitter.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts/helpers.js`, `src/index/validate/checks.js`.
 - [x] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
 - [x] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
+- [ ] Task 14.D.6: Add optional columnar chunk_meta format with boundary conversion to row objects.
+- [ ] Task 14.D.6.a: Keep compatibility loader that inflates columnar arrays to row objects on demand.
+- [ ] Task 14.D.6.b: Add config switch + manifest flag for columnar chunk_meta.
 
 - [x] **14.E Symbol occurrences + edges streaming**
 - [x] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
@@ -1266,6 +1294,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
 - [x] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
 - [x] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
+- [ ] Task 14.E.7: Add optional columnar JSONL format for symbol occurrences/edges.
+- [ ] Task 14.E.7.a: Convert to row objects at boundaries only (loaders + CLI).
+- [ ] Task 14.E.8: Add canonical string tables for symbol names/roles/kinds to reduce repetition.
+- [ ] Task 14.E.8.a: Store string tables in meta and reference by index in rows.
 
 - [ ] **14.F Graph relations streaming + measurement**
 - [x] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
@@ -1276,6 +1308,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.F.3.a: Define stable graph name ordering + edge ordering rules.
 - [x] Task 14.F.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
 - [x] Task 14.F.4.a: Include dropped edge counts and cap reasons.
+- [ ] Task 14.F.5: Add CSR‑style adjacency format for graph relations (offsets + edge list).
+- [ ] Task 14.F.5.a: Keep JSONL output for compatibility and emit CSR as optional artifact.
+- [ ] Task 14.F.6: Add byte‑budgeted streaming caps for graph_relations to avoid runaway growth.
+- [ ] Task 14.F.6.a: Record precise drop counts and cap thresholds per graph.
 
 - [ ] **14.G Chargram postings memory bounds**
 - [x] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
@@ -1288,6 +1324,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.G.4.a: Emit guard counters into stage checkpoints.
 - [x] Task 14.G.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
 - [x] Task 14.G.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
+- [ ] Task 14.G.7: Add rolling hash/sliding window chargram generator to reduce allocations.
+- [ ] Task 14.G.7.a: Implement a reusable buffer to avoid substring allocations per token.
+- [ ] Task 14.G.8: Add df‑based cutoff for high‑frequency chargrams to bound postings growth.
+- [ ] Task 14.G.8.a: Track dropped high‑df chargrams in stage checkpoints.
 
 - [ ] **14.H Benchmarks + acceptance harness**
 - [ ] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
@@ -1315,6 +1355,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: no-op updates skip disk writes (mtime unchanged).
 - [ ] `tests/indexing/build-state/build-state-merge-consistency.test.js`
   - Success: concurrent updates do not lose fields or corrupt state.
+- [ ] `tests/indexing/build-state/build-state-delta-compaction.test.js` (new)
+  - Success: delta logs compact into identical snapshots.
+- [ ] `tests/indexing/build-state/build-state-cache-reuse.test.js` (new)
+  - Success: cached sections avoid repeat serialization unless dirty.
 - [ ] `tests/indexing/imports/import-resolution-cache.test.js`
   - Success: cached resolutions match baseline outputs.
 - [ ] `tests/indexing/imports/import-resolution-negative-cache.test.js` (new)
@@ -1325,6 +1369,12 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: identical inputs produce identical import graphs.
 - [ ] `tests/indexing/imports/import-resolution-graph-cap.test.js`
   - Success: cap enforcement is deterministic and logged.
+- [ ] `tests/indexing/imports/import-resolution-trie-cache.test.js` (new)
+  - Success: trie cache reduces fs hits without changing graph output.
+- [ ] `tests/indexing/imports/import-resolution-negative-ttl.test.js` (new)
+  - Success: negative cache expires and detects new files.
+- [ ] `tests/indexing/imports/import-resolution-regex-cache.test.js` (new)
+  - Success: precompiled matchers produce identical resolutions.
 - [ ] `tests/indexing/symbols/symbol-occurrences-streaming.test.js`
   - Success: streaming output matches baseline JSONL content.
 - [ ] `tests/indexing/symbols/symbol-edges-streaming.test.js`
@@ -1335,29 +1385,59 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: spill+merge output equals baseline order + hash.
 - [ ] `tests/indexing/symbols/symbol-edges-spill-merge.test.js` (new)
   - Success: spill+merge output equals baseline order + hash.
+- [ ] `tests/indexing/symbols/symbol-columnar-roundtrip.test.js` (new)
+  - Success: columnar symbol rows inflate to baseline row objects.
+- [ ] `tests/indexing/symbols/symbol-string-table.test.js` (new)
+  - Success: string table indices resolve to original values.
 - [ ] `tests/indexing/postings/chargram-postings-memory-guard.test.js`
   - Success: memory guard triggers spill without changing output.
 - [ ] `tests/indexing/postings/chargram-postings-spill-merge.test.js`
   - Success: spill+merge output equals baseline in deterministic order.
 - [ ] `tests/indexing/postings/chargram-postings-determinism.test.js` (new)
   - Success: vocab ordering + postings are stable across runs.
+- [ ] `tests/indexing/postings/chargram-rolling-hash.test.js` (new)
+  - Success: rolling chargram generator matches baseline tokens.
+- [ ] `tests/indexing/postings/chargram-df-cutoff.test.js` (new)
+  - Success: high‑df chargrams are dropped and reported without corrupting postings.
 - [ ] `tests/indexing/relations/graph-relations-streaming.test.js`
   - Success: streaming JSONL output matches baseline graph_relations.
 - [ ] `tests/indexing/relations/graph-relations-determinism.test.js`
   - Success: deterministic ordering and stable metadata.
 - [ ] `tests/indexing/relations/graph-relations-bytes-tracking.test.js` (new)
   - Success: byte counters match JSONL size without re-stringify.
+- [ ] `tests/indexing/relations/graph-relations-csr-roundtrip.test.js` (new)
+  - Success: CSR adjacency loads to equivalent node/edge sets.
+- [ ] `tests/indexing/relations/graph-relations-byte-budget.test.js` (new)
+  - Success: caps drop edges deterministically and report counts.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-streaming.test.js`
   - Success: JSONL output matches baseline for medium fixture.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js`
   - Success: trimming preserves required fields and order.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-external-sort.test.js` (new)
   - Success: external sort restores deterministic order when chunk IDs are shuffled.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-canonical-order.test.js` (new)
+  - Success: docId alignment holds even when processing order changes.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-out-of-order-detection.test.js` (new)
+  - Success: ordered streams skip sort; shuffled streams enable id‑sort.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-jsonl-shard-order.test.js` (new)
+  - Success: sharded JSONL preserves id order across parts.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-bucketed-sort.test.js` (new)
+  - Success: bucketed id sort matches full sort output with fewer allocations.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-id-index-reorder.test.js` (new)
+  - Success: ID‑only spill index produces identical output without re‑stringify.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-columnar-roundtrip.test.js` (new)
+  - Success: columnar format inflates to row objects equivalent to baseline.
 
 ### Acceptance
 - [ ] Build state writes are coalesced and deterministic.
+- [ ] Build state delta logs compact cleanly without blocking writes.
 - [ ] Import resolution graphs are faster and use less memory with the same output.
+- [ ] Import resolution caches (trie + regex + negative TTL) reduce syscalls without changing results.
 - [ ] Symbol occurrences/edges and chunk meta stream without large intermediate arrays.
+- [ ] Symbol artifacts optionally support columnar output + string tables with identical semantics.
+- [ ] Chunk meta ordering preserves docId alignment regardless of processing order.
 - [ ] Chargram postings are bounded by memory guards and retain deterministic output.
+- [ ] Chargram postings drop high‑df entries deterministically when configured.
 - [ ] Graph relations write paths scale to large repos with sharded JSONL.
+- [ ] Graph relations CSR format round‑trips to the same node/edge sets.
 - [ ] Benchmarks show measurable gains (baseline vs current deltas captured) and are documented.
