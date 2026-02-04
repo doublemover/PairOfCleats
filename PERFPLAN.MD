@@ -792,7 +792,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Add microbench harness for graph/context-pack latency + memory.
 - [ ] Update `docs/perf/graph-context-pack.md` with new graph index, caching, and excerpt strategies.
 - [ ] Add JSDoc on tricky components (GraphIndex, ChunkIndex, adjacency builders, spill/merge, excerpt caches).
-- [ ] Deduplicate seed candidates in context-pack assembly to avoid repeated lookups.
+- [x] Deduplicate seed candidates in context-pack assembly to avoid repeated lookups.
 - [ ] Add seed normalization tests (posix/windows mix) for context-pack and impact outputs.
 - [ ] Add streaming load path for api-contracts symbols/call-sites to avoid full array materialization.
 - [ ] Validate api-contracts call-site grouping keys against symbol ids/chunkUids (add fallback).

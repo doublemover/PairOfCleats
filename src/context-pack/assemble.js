@@ -21,8 +21,22 @@ const resolveSeedCandidates = (seed) => {
   const candidates = Array.isArray(seed.candidates) ? seed.candidates : [];
   const resolved = seed.resolved && typeof seed.resolved === 'object' ? seed.resolved : null;
   const out = [];
-  if (resolved) out.push(resolved);
-  out.push(...candidates);
+  const seen = new Set();
+  const pushUnique = (candidate) => {
+    if (!candidate || typeof candidate !== 'object') return;
+    const key = candidate.chunkUid
+      ? `chunk:${candidate.chunkUid}`
+      : candidate.symbolId
+        ? `symbol:${candidate.symbolId}`
+        : candidate.path
+          ? `file:${candidate.path}`
+          : null;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(candidate);
+  };
+  if (resolved) pushUnique(resolved);
+  for (const candidate of candidates) pushUnique(candidate);
   return out;
 };
 
