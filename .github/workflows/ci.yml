@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.13.0'
-          cache: npm
 
       - name: Node and npm versions
         run: |
@@ -36,12 +35,19 @@ jobs:
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
         with:
-          path: .ci-cache/pairofcleats
+          path: |
+            .ci-cache/pairofcleats/models
+            .ci-cache/pairofcleats/dictionaries
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci
+
+      - name: Prune PairOfCleats cache
+        if: always()
+        run: |
+          node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
 
       - name: Upload test artifacts
         if: always()

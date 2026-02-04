@@ -1,6 +1,11 @@
 import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 
+/**
+ * Build helpers for navigating a parsed query AST.
+ * @param {{queryAst:object,phraseNgramSet?:Set<string>,phraseRange?:object}} input
+ * @returns {object}
+ */
 export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange }) => {
   const resolvePhraseRangeFor = (phraseSet) => resolvePhraseRange(phraseSet, phraseRange);
   const resolvedPhraseRange = resolvePhraseRangeFor(phraseNgramSet);

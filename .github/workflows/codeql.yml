@@ -1,0 +1,78 @@
+name: CodeQL
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: CodeQL (javascript)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rate limit (nightly)
+        if: github.event_name == 'schedule'
+        id: nightly
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 1
+            });
+            const latest = data?.[0]?.commit?.committer?.date || data?.[0]?.commit?.author?.date;
+            if (!latest) {
+              core.setOutput('skip', 'false');
+              return;
+            }
+            const lastAt = new Date(latest).getTime();
+            const now = Date.now();
+            const hours = (now - lastAt) / 3600000;
+            core.setOutput('skip', hours > 24 ? 'true' : 'false');
+
+      - name: Rate limit (push)
+        if: github.event_name == 'push'
+        id: rate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.ref.replace('refs/heads/', '');
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'codeql.yml',
+              branch,
+              status: 'success',
+              per_page: 1
+            });
+            const last = data.workflow_runs?.[0];
+            if (!last) {
+              core.setOutput('skip', 'false');
+              return;
+            }
+            const lastAt = new Date(last.created_at).getTime();
+            const now = Date.now();
+            const minutes = (now - lastAt) / 60000;
+            core.setOutput('skip', minutes < 60 ? 'true' : 'false');
+
+      - name: Checkout
+        if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
+        uses: github/codeql-action/analyze@v3

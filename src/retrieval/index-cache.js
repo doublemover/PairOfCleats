@@ -1,10 +1,11 @@
-import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
+export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const indexSignatureCache = new Map();
 
 const INDEX_FILES = [
@@ -30,86 +31,114 @@ const INDEX_FILES = [
   'index_state.json'
 ];
 
-const indexStateSignature = (dir) => {
+const getCachedSignature = (cacheKey) => {
+  if (!cacheKey) return null;
+  const cached = indexSignatureCache.get(cacheKey);
+  if (!cached) return null;
+  if (cached.expiresAt && cached.expiresAt <= Date.now()) {
+    indexSignatureCache.delete(cacheKey);
+    return null;
+  }
+  return cached.signature || null;
+};
+
+const setCachedSignature = (cacheKey, signature) => {
+  if (!cacheKey || !signature) return;
+  indexSignatureCache.set(cacheKey, {
+    signature,
+    expiresAt: Date.now() + INDEX_SIGNATURE_TTL_MS
+  });
+};
+
+const safeStat = async (statPath, useBigInt) => {
+  try {
+    return await fs.stat(statPath, useBigInt ? { bigint: true } : undefined);
+  } catch {
+    return null;
+  }
+};
+
+const indexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
   try {
-    const raw = fsSync.readFileSync(statePath, 'utf8');
+    const raw = await fs.readFile(statePath, 'utf8');
     const state = JSON.parse(raw);
     if (state && typeof state === 'object') {
       const buildId = typeof state.buildId === 'string' ? state.buildId : '';
       const mode = typeof state.mode === 'string' ? state.mode : '';
       const surface = typeof state.artifactSurfaceVersion === 'string' ? state.artifactSurfaceVersion : '';
       if (buildId || mode || surface) {
-        return `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${surface || 'missing'}`;
+        return {
+          signature: `build:${buildId || 'missing'}|mode:${mode || 'missing'}|surface:${surface || 'missing'}`,
+          buildId: buildId || null
+        };
       }
     }
   } catch {}
-  const statSig = fileSignature(statePath);
-  return statSig ? `stat:${statSig}` : null;
+  const statSig = await fileSignature(statePath);
+  return statSig ? { signature: `stat:${statSig}`, buildId: null } : null;
 };
 
-const fileSignature = (filePath) => {
+const fileSignature = async (filePath) => {
   try {
     let statPath = filePath;
-    if (!fsSync.existsSync(statPath) && filePath.endsWith('.json')) {
+    let stat = await safeStat(statPath, true);
+    if (!stat && filePath.endsWith('.json')) {
       const zstPath = `${filePath}.zst`;
-      const gzPath = `${filePath}.gz`;
-      if (fsSync.existsSync(zstPath)) {
+      stat = await safeStat(zstPath, true);
+      if (stat) {
         statPath = zstPath;
-      } else if (fsSync.existsSync(gzPath)) {
-        statPath = gzPath;
+      } else {
+        const gzPath = `${filePath}.gz`;
+        stat = await safeStat(gzPath, true);
+        if (stat) statPath = gzPath;
       }
     }
     // Prefer nanosecond mtime precision when available so that successive writes within the
     // same millisecond still invalidate the cache (observed on Windows runners).
-    try {
-      const stat = fsSync.statSync(statPath, { bigint: true });
-      const size = typeof stat.size === 'bigint' ? stat.size : BigInt(stat.size);
-      const mtimeNs = stat.mtimeNs
-        ?? (typeof stat.mtimeMs === 'bigint'
-          ? stat.mtimeMs * 1000000n
-          : BigInt(Math.trunc(Number(stat.mtimeMs) * 1_000_000)));
-      const ctimeNs = stat.ctimeNs
-        ?? (typeof stat.ctimeMs === 'bigint'
-          ? stat.ctimeMs * 1000000n
-          : BigInt(Math.trunc(Number(stat.ctimeMs) * 1_000_000)));
-      return `${size.toString()}:${mtimeNs.toString()}:${ctimeNs.toString()}`;
-    } catch {
-      const stat = fsSync.statSync(statPath);
-      return `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
-    }
+    if (!stat) stat = await safeStat(statPath, false);
+    if (!stat) return null;
+    const size = typeof stat.size === 'bigint' ? stat.size : BigInt(stat.size);
+    const mtimeNs = stat.mtimeNs
+      ?? (typeof stat.mtimeMs === 'bigint'
+        ? stat.mtimeMs * 1000000n
+        : BigInt(Math.trunc(Number(stat.mtimeMs) * 1_000_000)));
+    const ctimeNs = stat.ctimeNs
+      ?? (typeof stat.ctimeMs === 'bigint'
+        ? stat.ctimeMs * 1000000n
+        : BigInt(Math.trunc(Number(stat.ctimeMs) * 1_000_000)));
+    return `${size.toString()}:${mtimeNs.toString()}:${ctimeNs.toString()}`;
   } catch {
     return null;
   }
 };
 
-const shardSignature = (dir, prefix) => {
+const shardSignature = async (dir, prefix) => {
   try {
-    if (!fsSync.existsSync(dir)) return null;
-    const entries = fsSync
-      .readdirSync(dir)
+    const entries = (await fs.readdir(dir))
       .filter((name) => name.startsWith(prefix))
       .sort();
     if (!entries.length) return null;
-    return entries
-      .map((name) => fileSignature(path.join(dir, name)) || 'missing')
-      .join(',');
+    const sigs = await Promise.all(
+      entries.map((name) => fileSignature(path.join(dir, name)))
+    );
+    return sigs.map((sig) => sig || 'missing').join(',');
   } catch {
     return null;
   }
 };
 
-const chunkMetaSignature = (dir) => {
+const chunkMetaSignature = async (dir) => {
   const jsonPath = path.join(dir, 'chunk_meta.json');
-  const jsonSig = fileSignature(jsonPath);
+  const jsonSig = await fileSignature(jsonPath);
   if (jsonSig) return `chunk_meta.json:${jsonSig}`;
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  const jsonlSig = fileSignature(jsonlPath);
+  const jsonlSig = await fileSignature(jsonlPath);
   if (jsonlSig) return `chunk_meta.jsonl:${jsonlSig}`;
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
-  const metaSig = fileSignature(metaPath);
-  const partsSig = shardSignature(path.join(dir, 'chunk_meta.parts'), 'chunk_meta.part-');
+  const metaSig = await fileSignature(metaPath);
+  const partsSig = await shardSignature(path.join(dir, 'chunk_meta.parts'), 'chunk_meta.part-');
   if (metaSig || partsSig) {
     return `chunk_meta.meta.json:${metaSig || 'missing'}|parts:${partsSig || 'missing'}`;
   }
@@ -125,56 +154,69 @@ const tokenPostingsSignature = (dir) => {
     return `token_postings.packed.bin:${packedSig}|offsets:${offsetsSig || 'missing'}|meta:${metaSig || 'missing'}`;
   }
   const jsonPath = path.join(dir, 'token_postings.json');
-  const jsonSig = fileSignature(jsonPath);
+  const jsonSig = await fileSignature(jsonPath);
   if (jsonSig) return `token_postings.json:${jsonSig}`;
   const metaPath = path.join(dir, 'token_postings.meta.json');
-  const metaSig = fileSignature(metaPath);
-  const partsSig = shardSignature(path.join(dir, 'token_postings.shards'), 'token_postings.part-');
+  const metaSig = await fileSignature(metaPath);
+  const partsSig = await shardSignature(path.join(dir, 'token_postings.shards'), 'token_postings.part-');
   if (metaSig || partsSig) {
     return `token_postings.meta.json:${metaSig || 'missing'}|parts:${partsSig || 'missing'}`;
   }
   return 'token_postings.json:missing';
 };
 
-const jsonlArtifactSignature = (dir, baseName) => {
+const jsonlArtifactSignature = async (dir, baseName) => {
   const jsonPath = path.join(dir, `${baseName}.json`);
-  const jsonSig = fileSignature(jsonPath);
+  const jsonSig = await fileSignature(jsonPath);
   if (jsonSig) return `${baseName}.json:${jsonSig}`;
   const jsonlPath = path.join(dir, `${baseName}.jsonl`);
-  const jsonlSig = fileSignature(jsonlPath);
+  const jsonlSig = await fileSignature(jsonlPath);
   if (jsonlSig) return `${baseName}.jsonl:${jsonlSig}`;
   const metaPath = path.join(dir, `${baseName}.meta.json`);
-  const metaSig = fileSignature(metaPath);
-  const partsSig = shardSignature(path.join(dir, `${baseName}.parts`), `${baseName}.part-`);
+  const metaSig = await fileSignature(metaPath);
+  const partsSig = await shardSignature(path.join(dir, `${baseName}.parts`), `${baseName}.part-`);
   if (metaSig || partsSig) {
     return `${baseName}.meta.json:${metaSig || 'missing'}|parts:${partsSig || 'missing'}`;
   }
   return `${baseName}.json:missing`;
 };
 
-export function buildIndexSignature(dir) {
+export async function buildIndexSignature(dir) {
   if (!dir) return null;
-  const stateSig = indexStateSignature(dir);
-  if (stateSig) {
-    const cacheKey = `${dir}|${stateSig}`;
-    const cached = indexSignatureCache.get(cacheKey);
+  const stateInfo = await indexStateSignature(dir);
+  if (stateInfo?.signature) {
+    const cacheKey = stateInfo.buildId
+      ? `${dir}|build:${stateInfo.buildId}`
+      : `${dir}|state:${stateInfo.signature}`;
+    const cached = getCachedSignature(cacheKey);
     if (cached) return cached;
-    const signature = `index_state:${stateSig}`;
-    indexSignatureCache.set(cacheKey, signature);
+    const signature = `index_state:${stateInfo.signature}`;
+    setCachedSignature(cacheKey, signature);
     return signature;
   }
-  const parts = [
+  const cacheKey = `${dir}|fallback`;
+  const cached = getCachedSignature(cacheKey);
+  if (cached) return cached;
+  const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
     chunkMetaSignature(dir),
     tokenPostingsSignature(dir),
     jsonlArtifactSignature(dir, 'file_relations'),
     jsonlArtifactSignature(dir, 'repo_map'),
-    ...INDEX_FILES.map((name) => {
+    ...INDEX_FILES.map(async (name) => {
       const target = path.join(dir, name);
-      const sig = fileSignature(target);
+      const sig = await fileSignature(target);
       return `${name}:${sig || 'missing'}`;
     })
-  ];
-  return parts.join('|');
+  ]);
+  const signature = [
+    chunkMetaSig,
+    tokenPostingsSig,
+    fileRelationsSig,
+    repoMapSig,
+    ...fileSigs
+  ].join('|');
+  setCachedSignature(cacheKey, signature);
+  return signature;
 }
 
 export function createIndexCache({
@@ -246,7 +288,7 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeTokenIndex !== false ? 'token' : 'no-token'
   ].join(',');
   const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
-  const signature = buildIndexSignature(dir);
+  const signature = await buildIndexSignature(dir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {
     return cached.value;

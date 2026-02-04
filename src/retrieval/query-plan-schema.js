@@ -1,5 +1,8 @@
+/** Schema version for serialized query plans. */
 export const QUERY_PLAN_SCHEMA_VERSION = 1;
+/** Query parser version that influences cache signatures. */
 export const QUERY_PARSER_VERSION = 1;
+/** Query tokenizer version that influences cache signatures. */
 export const QUERY_TOKENIZER_VERSION = 1;
 
 const isPlainObject = (value) => (
@@ -16,6 +19,11 @@ const isRange = (value) => (
   && isNumberOrNull(value.max)
 );
 
+/**
+ * Validate a hydrated query plan structure.
+ * @param {object} plan
+ * @returns {boolean}
+ */
 export function validateQueryPlan(plan) {
   if (!plan || typeof plan !== 'object') return false;
   if (!Array.isArray(plan.queryTokens)) return false;

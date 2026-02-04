@@ -174,6 +174,10 @@ const normalizeSeconds = (value) => {
   return parsed;
 };
 
+/**
+ * Observe index duration metrics.
+ * @param {{ stage: string, mode: string, status: string, seconds: number }} input
+ */
 export function observeIndexDuration({ stage, mode, status, seconds }) {
   ensureMetrics();
   const labels = {
@@ -186,6 +190,10 @@ export function observeIndexDuration({ stage, mode, status, seconds }) {
   metrics.indexRuns.inc(labels);
 }
 
+/**
+ * Observe search duration metrics.
+ * @param {{ mode: string, backend: string, ann: string|boolean, status: string, seconds: number }} input
+ */
 export function observeSearchDuration({ mode, backend, ann, status, seconds }) {
   ensureMetrics();
   const labels = {
@@ -199,16 +207,28 @@ export function observeSearchDuration({ mode, backend, ann, status, seconds }) {
   metrics.searchRuns.inc(labels);
 }
 
+/**
+ * Set worker queue depth metric.
+ * @param {{ pool: string, value: number }} input
+ */
 export function setWorkerQueueDepth({ pool, value }) {
   ensureMetrics();
   metrics.workerQueueDepth.set({ pool: normalizePool(pool) }, Number(value) || 0);
 }
 
+/**
+ * Set worker active tasks metric.
+ * @param {{ pool: string, value: number }} input
+ */
 export function setWorkerActiveTasks({ pool, value }) {
   ensureMetrics();
   metrics.workerActiveTasks.set({ pool: normalizePool(pool) }, Number(value) || 0);
 }
 
+/**
+ * Observe worker task duration metrics.
+ * @param {{ pool: string, task: string, worker: string|number, status: string, seconds: number }} input
+ */
 export function observeWorkerTaskDuration({ pool, task, worker, status, seconds }) {
   ensureMetrics();
   metrics.workerTaskDuration.observe({
@@ -219,36 +239,63 @@ export function observeWorkerTaskDuration({ pool, task, worker, status, seconds 
   }, normalizeSeconds(seconds));
 }
 
+/**
+ * Increment worker retry count.
+ * @param {{ pool: string }} input
+ */
 export function incWorkerRetries({ pool }) {
   ensureMetrics();
   metrics.workerRetries.inc({ pool: normalizePool(pool) });
 }
 
+/**
+ * Set watch backlog metric.
+ * @param {number} value
+ */
 export function setWatchBacklog(value) {
   ensureMetrics();
   metrics.watchBacklog.set({ pool: 'watch' }, Number(value) || 0);
 }
 
+/**
+ * Increment watch event count.
+ * @param {string} eventType
+ */
 export function incWatchEvent(eventType) {
   ensureMetrics();
   metrics.watchEvents.inc({ event: normalizeWatchEvent(eventType) });
 }
 
+/**
+ * Increment watch debounce metric.
+ * @param {string} type
+ */
 export function incWatchDebounce(type) {
   ensureMetrics();
   metrics.watchDebounce.inc({ type: normalizeDebounce(type) });
 }
 
+/**
+ * Observe watch build duration.
+ * @param {{ status: string, seconds: number }} input
+ */
 export function observeWatchBuildDuration({ status, seconds }) {
   ensureMetrics();
   metrics.watchBuildDuration.observe({ status: normalizeStatus(status) }, normalizeSeconds(seconds));
 }
 
+/**
+ * Increment watch burst count.
+ */
 export function incWatchBurst() {
   ensureMetrics();
   metrics.watchBursts.inc({ pool: 'watch' });
 }
 
+/**
+ * Increment cache hit/miss metric.
+ * @param {{ cache: string, result: string }} input
+ */
 export function incCacheEvent({ cache, result }) {
   ensureMetrics();
   metrics.cacheEvents.inc({
@@ -257,11 +304,19 @@ export function incCacheEvent({ cache, result }) {
   });
 }
 
+/**
+ * Set cache size gauge.
+ * @param {{ cache: string, value: number }} input
+ */
 export function setCacheSize({ cache, value }) {
   ensureMetrics();
   metrics.cacheSize.set({ cache: normalizeCache(cache) }, Number(value) || 0);
 }
 
+/**
+ * Increment cache eviction count.
+ * @param {{ cache: string, count?: number }} input
+ */
 export function incCacheEviction({ cache, count = 1 }) {
   ensureMetrics();
   const normalized = normalizeCache(cache);
@@ -270,6 +325,10 @@ export function incCacheEviction({ cache, count = 1 }) {
   metrics.cacheEvictions.inc({ cache: normalized }, amount);
 }
 
+/**
+ * Increment fallback counter.
+ * @param {{ surface: string, reason: string }} input
+ */
 export function incFallback({ surface, reason }) {
   ensureMetrics();
   metrics.fallbacks.inc({
@@ -278,6 +337,10 @@ export function incFallback({ surface, reason }) {
   });
 }
 
+/**
+ * Increment timeout counter.
+ * @param {{ surface: string, operation: string }} input
+ */
 export function incTimeout({ surface, operation }) {
   ensureMetrics();
   metrics.timeouts.inc({
@@ -286,11 +349,19 @@ export function incTimeout({ surface, operation }) {
   });
 }
 
+/**
+ * Get the metrics registry.
+ * @returns {Registry}
+ */
 export function getMetricsRegistry() {
   ensureMetrics();
   return registry;
 }
 
+/**
+ * Get text representation of metrics.
+ * @returns {Promise<string>}
+ */
 export async function getMetricsText() {
   ensureMetrics();
   return registry.metrics();

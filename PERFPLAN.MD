@@ -51,21 +51,21 @@ Perform a cross-codebase audit for duplicate utility implementations, consolidat
 - `docs/guides/shared-components.md` (new)
 
 ### Tasks
-- [x] Inventory duplicate helper patterns across graph/context-pack/retrieval tooling.
-- [x] Implement shared helpers for provenance resolution, truncation recording, and limit normalization.
-- [x] Update all call sites to use shared helpers.
-- [x] Add a duplicate-utility scan and document required shared usage.
-- [x] Document shared component expectations and examples.
+- [ ] Inventory duplicate helper patterns across graph/context-pack/retrieval tooling.
+- [ ] Implement shared helpers for provenance resolution, truncation recording, and limit normalization.
+- [ ] Update all call sites to use shared helpers.
+- [ ] Add a duplicate-utility scan and document required shared usage.
+- [ ] Document shared component expectations and examples.
 
 ### Tests
-- [x] `tests/shared/provenance.test.js`
-- [x] `tests/shared/truncation.test.js`
-- [x] `tests/shared/limits-normalization.test.js`
-- [x] `tests/perf/shared-component-audit.test.js`
+- [ ] `tests/shared/provenance.test.js`
+- [ ] `tests/shared/truncation.test.js`
+- [ ] `tests/shared/limits-normalization.test.js`
+- [ ] `tests/perf/shared-component-audit.test.js`
 
 ### Acceptance
-- [x] Duplicate helper implementations removed and replaced by shared modules.
-- [x] Tests enforce shared helper behavior and prevent drift.
+- [ ] Duplicate helper implementations removed and replaced by shared modules.
+- [ ] Tests enforce shared helper behavior and prevent drift.
 
 ---
 
@@ -103,19 +103,19 @@ Add consistent timing/memory checkpoints across the 4 indexing stages to identif
 - `docs/perf/indexing-stage-audit.md` (new)
 
 ### Tasks
-- [x] Add per-stage checkpoints (time + heapUsed + rss + external + arrayBuffers).
-- [x] Record checkpoints in build state or perf profile (schema versioned).
-- [x] Emit a concise audit summary per mode and per stage.
-- [x] Capture high-watermarks for postings maps, chunk arrays, relations, and embeddings buffers.
-- [x] Document the audit output format and interpretation guide.
+- [ ] Add per-stage checkpoints (time + heapUsed + rss + external + arrayBuffers).
+- [ ] Record checkpoints in build state or perf profile (schema versioned).
+- [ ] Emit a concise audit summary per mode and per stage.
+- [ ] Capture high-watermarks for postings maps, chunk arrays, relations, and embeddings buffers.
+- [ ] Document the audit output format and interpretation guide.
 
 ### Tests
-- [x] `tests/indexing/runtime/stage-memory-checkpoints.test.js`
-- [x] `tests/indexing/runtime/stage-timing-checkpoints.test.js`
+- [ ] `tests/indexing/runtime/stage-memory-checkpoints.test.js`
+- [ ] `tests/indexing/runtime/stage-timing-checkpoints.test.js`
 
 ### Acceptance
-- [x] Each stage records timing and memory checkpoints.
-- [x] Audit report is produced and documented.
+- [ ] Each stage records timing and memory checkpoints.
+- [ ] Audit report is produced and documented.
 
 ---
 
@@ -164,36 +164,36 @@ Optimize shared JSON streaming, artifact IO, and compression paths used across i
 - `docs/perf/shared-io-serialization.md` (new)
 
 ### Tasks
-- [x] Enforce streaming decode/encode paths for large arrays and JSONL.
-- [x] Tune chunk sizes and backpressure handling in json-stream.
-- [x] Use bounded buffers for atomic writes and compression.
-- [x] Add shared IO telemetry hooks for large artifact reads.
+- [ ] Enforce streaming decode/encode paths for large arrays and JSONL.
+- [ ] Tune chunk sizes and backpressure handling in json-stream.
+- [ ] Use bounded buffers for atomic writes and compression.
+- [ ] Add shared IO telemetry hooks for large artifact reads.
 
 ### Tests
-- [x] `tests/shared/json-stream/large-array-stream.test.js`
-- [x] `tests/shared/artifact-io/manifest-streaming.test.js`
-- [x] `tests/shared/artifact-io/jsonl-stream-roundtrip.test.js`
+- [ ] `tests/shared/json-stream/large-array-stream.test.js`
+- [ ] `tests/shared/artifact-io/manifest-streaming.test.js`
+- [ ] `tests/shared/artifact-io/jsonl-stream-roundtrip.test.js`
 
 ### Acceptance
-- [x] Large artifact loads stay within memory bounds.
-- [x] Shared IO paths demonstrate improved throughput.
+- [ ] Large artifact loads stay within memory bounds.
+- [ ] Shared IO paths demonstrate improved throughput.
 
 ---
 
 ## Cross-cutting Tests to Run
-- [x] `node tests/run.js --lane ci-lite`
-- [x] `node tests/run.js --lane ci`
+- [ ] `node tests/run.js --lane ci-lite`
+- [ ] `node tests/run.js --lane ci`
 
 ---
 
 ## Acceptance (overall)
-- [x] Stage audit report exists and highlights memory/perf hotspots.
-- [x] Global embeddings cache reduces recomputation and passes tests.
-- [x] Search CLI startup time improved without functional regressions.
-- [x] VFS correctness/perf improvements land before tree-sitter load changes.
-- [x] Retrieval, graph/context-pack, map, and shared IO perf improvements landed with tests.
-- [x] No artifact schema regressions.
-- [x] Documentation and JSDoc standards met.
+- [ ] Stage audit report exists and highlights memory/perf hotspots.
+- [ ] Global embeddings cache reduces recomputation and passes tests.
+- [ ] Search CLI startup time improved without functional regressions.
+- [ ] VFS correctness/perf improvements land before tree-sitter load changes.
+- [ ] Retrieval, graph/context-pack, map, and shared IO perf improvements landed with tests.
+- [ ] No artifact schema regressions.
+- [ ] Documentation and JSDoc standards met.
 ## Phase 3 — Stage1 (Discovery + Chunking + Token Postings) Optimizations
 
 ### Objective
@@ -228,18 +228,18 @@ Reduce memory pressure in postings and chunk retention while preserving determin
 - `docs/specs/large-file-caps-strategy.md` (update if caps change)
 
 ### Tasks
-- [x] Identify large allocations in postings construction (token/phrase/chargram maps).
-- [x] Reduce duplicate string retention (file text reuse + token arrays).
-- [x] Evaluate flat postings buffers for token postings (optional if safe).
-- [x] Review token retention defaults for chunk metadata.
-- [x] Ensure early release of intermediate arrays once written.
+- [ ] Identify large allocations in postings construction (token/phrase/chargram maps).
+- [ ] Reduce duplicate string retention (file text reuse + token arrays).
+- [ ] Evaluate flat postings buffers for token postings (optional if safe).
+- [ ] Review token retention defaults for chunk metadata.
+- [ ] Ensure early release of intermediate arrays once written.
 
 ### Tests
-- [x] `tests/indexing/postings/postings-heap-plateau.test.js`
-- [x] `tests/indexing/runtime/chunk-retention-sampling.test.js`
+- [ ] `tests/indexing/postings/postings-heap-plateau.test.js`
+- [ ] `tests/indexing/runtime/chunk-retention-sampling.test.js`
 
 ### Acceptance
-- [x] Stage1 peak heap reduced on large fixtures without regressions.
+- [ ] Stage1 peak heap reduced on large fixtures without regressions.
 
 ---
 
@@ -271,17 +271,17 @@ Reduce memory spikes caused by relations graphs and large filter indexes.
 - `docs/perf/indexing-stage-audit.md` (update Stage2 findings)
 
 ### Tasks
-- [x] Identify oversized in-memory relation structures and their lifetimes.
-- [x] Stream or shard relations/filters where feasible.
-- [x] Ensure early release of relation maps after artifact write.
-- [x] Verify stable ordering and deterministic output after streaming/sharding.
+- [ ] Identify oversized in-memory relation structures and their lifetimes.
+- [ ] Stream or shard relations/filters where feasible.
+- [ ] Ensure early release of relation maps after artifact write.
+- [ ] Verify stable ordering and deterministic output after streaming/sharding.
 
 ### Tests
-- [x] `tests/indexing/relations/relations-memory-release.test.js`
-- [x] `tests/indexing/filter-index/filter-index-sharding.test.js`
+- [ ] `tests/indexing/relations/relations-memory-release.test.js`
+- [ ] `tests/indexing/filter-index/filter-index-sharding.test.js`
 
 ### Acceptance
-- [x] Stage2 peak heap reduced; no changes to artifact schemas.
+- [ ] Stage2 peak heap reduced; no changes to artifact schemas.
 
 ---
 
@@ -329,23 +329,23 @@ Avoid re-computation of embeddings across runs and reduce in-memory vector reten
 - `docs/guides/commands.md`
 
 ### Tasks
-- [x] Implement a global, compressed embeddings cache in OS cache root.
-- [x] Cache format: binary + zstd, store quantized vectors and metadata.
-- [x] Use `@mongodb-js/zstd` for compression.
-- [x] Cache keys include file hash, chunkSignature, identityKey.
-- [x] Add pruning by size and age with a stable policy.
-- [x] Ensure cache identity mismatch invalidates entries deterministically.
+- [ ] Implement a global, compressed embeddings cache in OS cache root.
+- [ ] Cache format: binary + zstd, store quantized vectors and metadata.
+- [ ] Use `@mongodb-js/zstd` for compression.
+- [ ] Cache keys include file hash, chunkSignature, identityKey.
+- [ ] Add pruning by size and age with a stable policy.
+- [ ] Ensure cache identity mismatch invalidates entries deterministically.
 
 ### Tests
-- [x] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
-- [x] `tests/indexing/embeddings/cache-identity-invalidation.test.js`
-- [x] `tests/indexing/embeddings/cache-compression-zstd.test.js`
-- [x] `tests/indexing/embeddings/cache-pruning.test.js`
-- [x] `tests/indexing/embeddings/cache-cross-repo-reuse.test.js`
+- [ ] `tests/indexing/embeddings/cache-binary-roundtrip.test.js`
+- [ ] `tests/indexing/embeddings/cache-identity-invalidation.test.js`
+- [ ] `tests/indexing/embeddings/cache-compression-zstd.test.js`
+- [ ] `tests/indexing/embeddings/cache-pruning.test.js`
+- [ ] `tests/indexing/embeddings/cache-cross-repo-reuse.test.js`
 
 ### Acceptance
-- [x] Cache hits prevent recomputation for unchanged files.
-- [x] Cache invalidation works for identity/hash/signature changes.
+- [ ] Cache hits prevent recomputation for unchanged files.
+- [ ] Cache invalidation works for identity/hash/signature changes.
 
 ---
 
@@ -399,68 +399,63 @@ Reduce memory and time during SQLite builds and incremental updates.
 - `docs/perf/sqlite-build.md` (new)
 
 ### Tasks
-- [ ] **6.0 Phase summary**
-- [ ] Task 6.0.1: Audit incremental vs artifacts build memory usage.
-- [ ] Task 6.0.2: Optimize batch sizes and streaming inserts.
-- [ ] Task 6.0.3: Ensure WAL checkpointing and temp file cleanup are bounded.
-
 - [ ] **6.A Build pragmas + transaction strategy**
-- [x] Task 6.A.1: Make build pragmas adaptive based on input size + available memory (cache_size, mmap_size).
-- [x] Task 6.A.2: Set `wal_autocheckpoint` and `journal_size_limit` during builds; restore after.
-- [x] Task 6.A.3: Use `locking_mode=EXCLUSIVE` for build database temp files; restore after finalize.
+- [ ] Task 6.A.1: Make build pragmas adaptive based on input size + available memory (cache_size, mmap_size).
+- [ ] Task 6.A.2: Set `wal_autocheckpoint` and `journal_size_limit` during builds; restore after.
+- [ ] Task 6.A.3: Use `locking_mode=EXCLUSIVE` for build database temp files; restore after finalize.
 - [ ] Task 6.A.4: Add explicit `BEGIN/COMMIT` wrapping per-table inserts to reduce transaction churn.
-- [x] Task 6.A.5: Run `PRAGMA optimize` (and optional `ANALYZE`) after indexes are created.
-- [x] Task 6.A.6: Record applied pragmas + batch sizes in build telemetry.
+- [ ] Task 6.A.5: Run `PRAGMA optimize` (and optional `ANALYZE`) after indexes are created.
+- [ ] Task 6.A.6: Record applied pragmas + batch sizes in build telemetry.
 
 - [ ] **6.B Streaming JSONL ingestion**
-- [x] Task 6.B.1: Replace `.gz/.zst` JSONL reads that load into memory with streaming decompress + parse.
-- [x] Task 6.B.2: Ensure `readJsonLinesFile` handles compressed files without `readJsonLinesArray`.
-- [x] Task 6.B.3: Add guardrails for max JSON bytes during streaming parse.
+- [ ] Task 6.B.1: Replace `.gz/.zst` JSONL reads that load into memory with streaming decompress + parse.
+- [ ] Task 6.B.2: Ensure `readJsonLinesFile` handles compressed files without `readJsonLinesArray`.
+- [ ] Task 6.B.3: Add guardrails for max JSON bytes during streaming parse.
 
 - [ ] **6.C Batch sizing + throughput**
-- [x] Task 6.C.1: Tune `resolveSqliteBatchSize` using inputBytes + row counts; add min/max clamps.
-- [x] Task 6.C.2: Record batch counts per table (token/postings/chargram/minhash).
-- [x] Task 6.C.3: Add per-table throughput metrics (rows/sec).
+- [ ] Task 6.C.1: Tune `resolveSqliteBatchSize` using inputBytes + row counts; add min/max clamps.
+- [ ] Task 6.C.2: Record batch counts per table (token/postings/chargram/minhash).
+- [ ] Task 6.C.3: Add per-table throughput metrics (rows/sec).
 
 - [ ] **6.D Incremental update improvements**
-- [x] Task 6.D.1: Add transaction boundaries around delete + insert phases to avoid partial WAL growth.
-- [x] Task 6.D.2: Cap incremental updates by change ratio (already) and log skip reasons to build state.
-- [x] Task 6.D.3: Add explicit `wal_checkpoint(TRUNCATE)` after incremental updates.
+- [ ] Task 6.D.1: Add transaction boundaries around delete + insert phases to avoid partial WAL growth.
+- [ ] Task 6.D.2: Cap incremental updates by change ratio (already) and log skip reasons to build state.
+- [ ] Task 6.D.3: Add explicit `wal_checkpoint(TRUNCATE)` after incremental updates.
 
 - [ ] **6.E Validation + compaction hooks**
-- [x] Task 6.E.1: Ensure compact/validate paths use the same adaptive pragma set.
-- [x] Task 6.E.2: Emit validation timing + row counts to Stage4 audit.
+- [ ] Task 6.E.1: Ensure compact/validate paths use the same adaptive pragma set.
+- [ ] Task 6.E.2: Emit validation timing + row counts to Stage4 audit.
 
 - [ ] **6.F Benchmarks**
-- [x] Task 6.F.1: Add `tools/bench/sqlite/build-from-artifacts.js` with baseline vs optimized runs.
-- [x] Task 6.F.2: Add `tools/bench/sqlite/build-from-bundles.js`.
-- [x] Task 6.F.3: Add `tools/bench/sqlite/incremental-update.js`.
-- [x] Task 6.F.4: Add `tools/bench/sqlite/jsonl-streaming.js` to compare compressed streaming vs array load.
-- [x] Task 6.F.5: Document benchmark setup + expected deltas in `docs/perf/sqlite-build.md`.
+- [ ] Task 6.F.1: Add `tools/bench/sqlite/build-from-artifacts.js` with baseline vs optimized runs.
+- [ ] Task 6.F.2: Add `tools/bench/sqlite/build-from-bundles.js`.
+- [ ] Task 6.F.3: Add `tools/bench/sqlite/incremental-update.js`.
+- [ ] Task 6.F.4: Add `tools/bench/sqlite/jsonl-streaming.js` to compare compressed streaming vs array load.
+- [ ] Task 6.F.5: Document benchmark setup + expected deltas in `docs/perf/sqlite-build.md`.
 
 ### Tests
-- [x] `tests/storage/sqlite/sqlite-build-memory-guard.test.js`
-- [x] `tests/storage/sqlite/sqlite-incremental-memory-profile.test.js`
-- [x] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js`
+- [ ] `tests/storage/sqlite/sqlite-build-memory-guard.test.js`
+- [ ] `tests/storage/sqlite/sqlite-incremental-memory-profile.test.js`
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js`
   - Success: pragmas are restored to safe defaults after build.
-- [x] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js`
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js`
   - Success: adaptive pragma values scale with input size.
-- [x] `tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js`
+- [ ] `tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js`
   - Success: gzip JSONL is streamed without loading full file.
-- [x] `tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js`
+- [ ] `tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js`
   - Success: zstd JSONL is streamed without loading full file.
-- [x] `tests/storage/sqlite/sqlite-batch-size-adaptive.test.js`
+- [ ] `tests/storage/sqlite/sqlite-batch-size-adaptive.test.js`
   - Success: batch size scales with inputBytes and stays within bounds.
-- [x] `tests/storage/sqlite/sqlite-wal-size-limit.test.js`
+- [ ] `tests/storage/sqlite/sqlite-wal-size-limit.test.js`
   - Success: WAL is checkpointed/truncated and remains bounded.
-- [x] `tests/storage/sqlite/sqlite-incremental-transaction-boundary.test.js`
+- [ ] `tests/storage/sqlite/sqlite-incremental-transaction-boundary.test.js`
   - Success: delete+insert phases execute inside explicit transactions.
 
 ### Acceptance
-- [x] Stage4 peak memory reduced for large indexes.
+- [ ] Stage4 peak memory reduced for large indexes.
 - [ ] WAL/SHM sidecars stay bounded after builds and incremental updates.
-- [x] Compressed JSONL ingestion is streaming and does not allocate large arrays.
-- [x] Build telemetry captures pragmas, batch sizes, and throughput.
+- [ ] Compressed JSONL ingestion is streaming and does not allocate large arrays.
+- [ ] Build telemetry captures pragmas, batch sizes, and throughput.
 
 ---
 
@@ -525,24 +520,24 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - `docs/specs/tooling-provider-registry.md`
 
 ### Tasks
-- [x] Validate VFS virtualPath determinism and path normalization across platforms.
-- [x] Stream or shard VFS manifest rows to avoid large in-memory arrays.
-- [x] Enforce row size caps and deterministic trimming rules.
-- [x] Ensure VFS routing always uses `.poc-vfs/` paths for segment docs.
-- [x] Use VFS segment language routing to minimize unnecessary tree-sitter loads.
-- [x] Provide stable mapping from virtualPath → disk path (for LSP file scheme fallback).
+- [ ] Validate VFS virtualPath determinism and path normalization across platforms.
+- [ ] Stream or shard VFS manifest rows to avoid large in-memory arrays.
+- [ ] Enforce row size caps and deterministic trimming rules.
+- [ ] Ensure VFS routing always uses `.poc-vfs/` paths for segment docs.
+- [ ] Use VFS segment language routing to minimize unnecessary tree-sitter loads.
+- [ ] Provide stable mapping from virtualPath → disk path (for LSP file scheme fallback).
 
 ### Tests
-- [x] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
-- [x] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
-- [x] `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
-- [x] `tests/tooling/vfs/vfs-manifest-streaming.test.js`
-- [x] `tests/tooling/vfs/vfs-row-size-trim.test.js`
+- [ ] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
+- [ ] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
+- [ ] `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
+- [ ] `tests/tooling/vfs/vfs-manifest-streaming.test.js`
+- [ ] `tests/tooling/vfs/vfs-row-size-trim.test.js`
 
 ### Acceptance
-- [x] VFS manifest rows are deterministic and schema-valid.
-- [x] VFS manifest generation remains bounded in memory.
-- [x] Tooling providers work with `.poc-vfs` paths and fall back safely when needed.
+- [ ] VFS manifest rows are deterministic and schema-valid.
+- [ ] VFS manifest generation remains bounded in memory.
+- [ ] Tooling providers work with `.poc-vfs` paths and fall back safely when needed.
 
 ---
 
@@ -587,23 +582,23 @@ Reduce tree-sitter WASM churn, improve load determinism, and avoid unnecessary g
 - `docs/specs/segmentation-perf.md`
 
 ### Tasks
-- [x] Ensure tree-sitter runtime is initialized lazily and only when needed.
-- [x] Restrict preloading to languages discovered in the repo (not full registry).
-- [x] Improve LRU eviction rules for WASM grammar cache (deterministic + bounded).
-- [x] Batch tree-sitter parses by language to minimize grammar swaps.
-- [x] Use VFS segment language routing to avoid loading grammars for unused embedded languages.
-- [x] Add a clear fallback path when wasm is missing or load fails (no crash, deterministic logs).
+- [ ] Ensure tree-sitter runtime is initialized lazily and only when needed.
+- [ ] Restrict preloading to languages discovered in the repo (not full registry).
+- [ ] Improve LRU eviction rules for WASM grammar cache (deterministic + bounded).
+- [ ] Batch tree-sitter parses by language to minimize grammar swaps.
+- [ ] Use VFS segment language routing to avoid loading grammars for unused embedded languages.
+- [ ] Add a clear fallback path when wasm is missing or load fails (no crash, deterministic logs).
 
 ### Tests
-- [x] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js`
-- [x] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js`
-- [x] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js`
-- [x] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
+- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js`
+- [ ] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js`
+- [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js`
+- [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js`
 
 ### Acceptance
-- [x] WASM grammar count stays within configured bounds.
-- [x] Tree-sitter load failures do not crash indexing.
-- [x] Language preloading is limited to observed repo languages.
+- [ ] WASM grammar count stays within configured bounds.
+- [ ] Tree-sitter load failures do not crash indexing.
+- [ ] Language preloading is limited to observed repo languages.
 
 ---
 
@@ -678,21 +673,21 @@ Reduce query latency and memory use by minimizing repeated parsing, avoiding unn
 - `docs/perf/retrieval-pipeline.md` (new)
 
 ### Tasks
-- [x] Add query parse + plan cache keyed by query + index signature.
-- [x] Avoid loading heavy artifacts when query does not need them.
-- [x] Use bitmap/bitset short-circuit for filters and structural predicates.
-- [x] Reduce candidate retention by streaming and early cutoff.
-- [x] Track per-stage retrieval timing and memory checkpoints.
+- [ ] Add query parse + plan cache keyed by query + index signature.
+- [ ] Avoid loading heavy artifacts when query does not need them.
+- [ ] Use bitmap/bitset short-circuit for filters and structural predicates.
+- [ ] Reduce candidate retention by streaming and early cutoff.
+- [ ] Track per-stage retrieval timing and memory checkpoints.
 
 ### Tests
-- [x] `tests/retrieval/pipeline/query-cache-hit.test.js`
-- [x] `tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js`
-- [x] `tests/retrieval/pipeline/candidates-memory-plateau.test.js`
-- [x] `tests/retrieval/pipeline/ranking-fastpath.test.js`
+- [ ] `tests/retrieval/pipeline/query-cache-hit.test.js`
+- [ ] `tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js`
+- [ ] `tests/retrieval/pipeline/candidates-memory-plateau.test.js`
+- [ ] `tests/retrieval/pipeline/ranking-fastpath.test.js`
 
 ### Acceptance
-- [x] Query latency reduced on cold and warm runs.
-- [x] Retrieval memory spikes reduced for large result sets.
+- [ ] Query latency reduced on cold and warm runs.
+- [ ] Retrieval memory spikes reduced for large result sets.
 
 ---
 
@@ -736,21 +731,21 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - `docs/perf/graph-context-pack.md` (new)
 
 ### Tasks
-- [x] Build and reuse symbol/edge indexes instead of re-sorting per request.
-- [x] Cache graph relations and reuse across calls within a session.
-- [x] Use range reads for excerpts instead of full file loads.
-- [x] Reduce intermediate array churn in neighborhood traversal.
-- [x] Track graph/context-pack timings and memory checkpoints.
+- [ ] Build and reuse symbol/edge indexes instead of re-sorting per request.
+- [ ] Cache graph relations and reuse across calls within a session.
+- [ ] Use range reads for excerpts instead of full file loads.
+- [ ] Reduce intermediate array churn in neighborhood traversal.
+- [ ] Track graph/context-pack timings and memory checkpoints.
 
 ### Tests
-- [x] `tests/graph/graph-neighborhood-cache.test.js`
-- [x] `tests/graph/graph-truncation-deterministic.test.js`
-- [x] `tests/context-pack/context-pack-excerpt-range.test.js`
-- [x] `tests/context-pack/context-pack-assembly-memory.test.js`
+- [ ] `tests/graph/graph-neighborhood-cache.test.js`
+- [ ] `tests/graph/graph-truncation-deterministic.test.js`
+- [ ] `tests/context-pack/context-pack-excerpt-range.test.js`
+- [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
 
 ### Acceptance
-- [x] Graph and context pack generation uses less memory on large graphs.
-- [x] Deterministic outputs remain unchanged.
+- [ ] Graph and context pack generation uses less memory on large graphs.
+- [ ] Deterministic outputs remain unchanged.
 
 ---
 
@@ -824,20 +819,20 @@ Reduce search CLI startup time by eliminating unnecessary work on cold start and
 - `docs/guides/commands.md`
 
 ### Tasks
-- [x] Add a startup profiler (checkpoint timing) for CLI commands.
-- [x] Ensure `--help` and `--version` avoid loading heavy modules.
-- [x] Lazy-load search pipeline and config only after command resolution.
-- [x] Avoid loading indexing/runtime configuration for search-only invocations.
-- [x] Add a fast-path for `search --help` and `search --backend` validation without full config load.
+- [ ] Add a startup profiler (checkpoint timing) for CLI commands.
+- [ ] Ensure `--help` and `--version` avoid loading heavy modules.
+- [ ] Lazy-load search pipeline and config only after command resolution.
+- [ ] Avoid loading indexing/runtime configuration for search-only invocations.
+- [ ] Add a fast-path for `search --help` and `search --backend` validation without full config load.
 
 ### Tests
-- [x] `tests/cli/search/search-help-fastpath.test.js`
-- [x] `tests/cli/search/search-startup-profiler.test.js`
-- [x] `tests/cli/search/search-lazy-imports.test.js`
+- [ ] `tests/cli/search/search-help-fastpath.test.js`
+- [ ] `tests/cli/search/search-startup-profiler.test.js`
+- [ ] `tests/cli/search/search-lazy-imports.test.js`
 
 ### Acceptance
-- [x] Search CLI startup time improves measurably on cold start.
-- [x] `--help` and `--version` do not initialize heavy subsystems.
+- [ ] Search CLI startup time improves measurably on cold start.
+- [ ] `--help` and `--version` do not initialize heavy subsystems.
 
 ---
 
@@ -919,75 +914,68 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 - `docs/specs/map-artifact.md` (new; schema + determinism rules)
 
 ### Tasks
-- [ ] **12.0 Phase summary**
-- [ ] Task 12.0.1: Stream map build output and avoid full graph materialization.
-- [ ] Task 12.0.2: Precompute edge aggregates and reduce per-frame allocations.
-- [ ] Task 12.0.3: Use instancing + frustum culling for large node sets.
-- [ ] Task 12.0.4: Add LOD strategy for edges/labels under load.
-- [ ] Task 12.0.5: Add viewer telemetry for dropped frames and memory usage.
-
-- [x] **12.A Map build streaming + memory bounds**
-- [x] Task 12.A.1: Define streaming writer in `src/map/build-map/io.js` that accepts async iterables and writes JSON in chunks without buffering full arrays.
-- [x] Task 12.A.2: Refactor `build-map.js` pipeline to emit node/edge/symbol iterables and avoid materializing full graph arrays simultaneously.
-- [x] Task 12.A.3: Add a build “spill” path for large graphs that writes partial node/edge sets to temp files, then merges deterministically.
-- [x] Task 12.A.4: Add explicit max-bytes guardrails per section (nodes/edges/symbols) with actionable error messages.
-- [x] Task 12.A.5: Preserve current output schema (same keys/ordering), but stream in a deterministic stable order.
-- [x] Task 12.A.6: Add per-stage build telemetry (time, peak heap, row counts) and export into `docs/perf/map-pipeline.md`.
+- [ ] **12.A Map build streaming + memory bounds**
+- [ ] Task 12.A.1: Define streaming writer in `src/map/build-map/io.js` that accepts async iterables and writes JSON in chunks without buffering full arrays.
+- [ ] Task 12.A.2: Refactor `build-map.js` pipeline to emit node/edge/symbol iterables and avoid materializing full graph arrays simultaneously.
+- [ ] Task 12.A.3: Add a build “spill” path for large graphs that writes partial node/edge sets to temp files, then merges deterministically.
+- [ ] Task 12.A.4: Add explicit max-bytes guardrails per section (nodes/edges/symbols) with actionable error messages.
+- [ ] Task 12.A.5: Preserve current output schema (same keys/ordering), but stream in a deterministic stable order.
+- [ ] Task 12.A.6: Add per-stage build telemetry (time, peak heap, row counts) and export into `docs/perf/map-pipeline.md`.
 - [ ] **12.B Map build determinism + aggregation**
-- [x] Task 12.B.1: Define canonical ordering rules for nodes, edges, and symbols (sort keys + tie-breakers).
+- [ ] Task 12.B.1: Define canonical ordering rules for nodes, edges, and symbols (sort keys + tie-breakers).
 - [ ] Task 12.B.2: Precompute and serialize edge aggregates (counts, weights, min/max) so viewer doesn’t recompute per frame.
 - [ ] Task 12.B.3: Avoid duplicate string retention by interning common labels/paths in `normalize.js`.
 - [ ] Task 12.B.4: Ensure `build-map/filters.js` uses shared filters and avoids per-node allocations.
 - [ ] Task 12.B.5: Add deterministic hashing of map sections to detect mismatches between runs.
-- [x] **12.C Viewer instancing + culling**
-- [x] Task 12.C.1: Replace per-node mesh creation with instanced meshes in `meshes.js` and `scene.js`.
-- [x] Task 12.C.2: Add frustum culling of node and edge instances with spatial buckets (grid or quadtree).
-- [x] Task 12.C.3: Batch edge geometry updates and reuse buffers across frames.
-- [x] Task 12.C.4: Add configurable max draw counts for nodes/edges/labels under load.
-- [x] Task 12.C.5: Ensure selection/hover works with instanced IDs (stable mapping).
-- [x] **12.D LOD + load shedding**
-- [x] Task 12.D.1: Introduce LOD tiers for edges and labels (full, simplified, hidden).
-- [x] Task 12.D.2: Switch LOD based on zoom level + frame budget + visible count.
-- [x] Task 12.D.3: Throttle layout updates during high load and defer non-critical UI.
-- [x] Task 12.D.4: Keep semantic selection (selected node/edge always visible).
-- [x] **12.E Telemetry + profiling hooks**
-- [x] Task 12.E.1: Add viewer FPS + dropped frame counters (`performance.now` + RAF deltas).
-- [x] Task 12.E.2: Emit memory usage and active instance counts in `viewer-app.js`.
-- [x] Task 12.E.3: Add a “perf HUD” toggle for debugging (dev only).
-- [x] Task 12.E.4: Persist build metrics in map artifact metadata (non-breaking optional field).
-- [x] **12.F Benchmarks + acceptance harness**
-- [x] Task 12.F.1: Add `tools/bench/map/build-map-streaming.js` (baseline vs streaming).
-- [x] Task 12.F.2: Add `tools/bench/map/build-map-memory.js` (peak heap, duration).
-- [x] Task 12.F.3: Add `tools/bench/map/viewer-fps.js` (FPS under fixed scenario).
-- [x] Task 12.F.4: Add `tools/bench/map/viewer-lod-stress.js` (LOD tiers, draw counts).
-- [x] Task 12.F.5: Document how to run benchmarks and expected deltas in `docs/perf/map-pipeline.md`.
-- [x] **12.G Sub-agent work packets**
-- [x] Task 12.G.1: Sub-agent Packet A — Map build streaming + memory guards (Tasks 12.A.1–12.A.6).
-- [x] Task 12.G.2: Sub-agent Packet B — Viewer instancing + culling (Tasks 12.C.1–12.C.5).
-- [x] Task 12.G.3: Sub-agent Packet C — LOD + load shedding + telemetry (Tasks 12.D.1–12.E.4).
-- [x] Task 12.G.4: Sub-agent Packet D — Benchmarks + docs (Tasks 12.F.1–12.F.5).
+- [ ] **12.C Viewer instancing + culling**
+- [ ] Task 12.C.1: Replace per-node mesh creation with instanced meshes in `meshes.js` and `scene.js`.
+- [ ] Task 12.C.2: Add frustum culling of node and edge instances with spatial buckets (grid or quadtree).
+- [ ] Task 12.C.3: Batch edge geometry updates and reuse buffers across frames.
+- [ ] Task 12.C.4: Add configurable max draw counts for nodes/edges/labels under load.
+- [ ] Task 12.C.5: Ensure selection/hover works with instanced IDs (stable mapping).
+- [ ] **12.D LOD + load shedding**
+- [ ] Task 12.D.1: Introduce LOD tiers for edges and labels (full, simplified, hidden).
+- [ ] Task 12.D.2: Switch LOD based on zoom level + frame budget + visible count.
+- [ ] Task 12.D.3: Throttle layout updates during high load and defer non-critical UI.
+- [ ] Task 12.D.4: Keep semantic selection (selected node/edge always visible).
+- [ ] **12.E Telemetry + profiling hooks**
+- [ ] Task 12.E.1: Add viewer FPS + dropped frame counters (`performance.now` + RAF deltas).
+- [ ] Task 12.E.2: Emit memory usage and active instance counts in `viewer-app.js`.
+- [ ] Task 12.E.3: Add a “perf HUD” toggle for debugging (dev only).
+- [ ] Task 12.E.4: Persist build metrics in map artifact metadata (non-breaking optional field).
+- [ ] **12.F Benchmarks + acceptance harness**
+- [ ] Task 12.F.1: Add `tools/bench/map/build-map-streaming.js` (baseline vs streaming).
+- [ ] Task 12.F.2: Add `tools/bench/map/build-map-memory.js` (peak heap, duration).
+- [ ] Task 12.F.3: Add `tools/bench/map/viewer-fps.js` (FPS under fixed scenario).
+- [ ] Task 12.F.4: Add `tools/bench/map/viewer-lod-stress.js` (LOD tiers, draw counts).
+- [ ] Task 12.F.5: Document how to run benchmarks and expected deltas in `docs/perf/map-pipeline.md`.
+- [ ] **12.G Sub-agent work packets**
+- [ ] Task 12.G.1: Sub-agent Packet A — Map build streaming + memory guards (Tasks 12.A.1–12.A.6).
+- [ ] Task 12.G.2: Sub-agent Packet B — Viewer instancing + culling (Tasks 12.C.1–12.C.5).
+- [ ] Task 12.G.3: Sub-agent Packet C — LOD + load shedding + telemetry (Tasks 12.D.1–12.E.4).
+- [ ] Task 12.G.4: Sub-agent Packet D — Benchmarks + docs (Tasks 12.F.1–12.F.5).
 
 ### Tests
-- [x] `tests/map/map-build-streaming.test.js`
+- [ ] `tests/map/map-build-streaming.test.js`
   - Success: stream writer emits identical JSON to prior build for small graphs.
-- [x] `tests/map/map-build-determinism.test.js`
+- [ ] `tests/map/map-build-determinism.test.js`
   - Success: identical input yields identical map output hashes across runs.
-- [x] `tests/map/map-build-heap-guard.test.js`
+- [ ] `tests/map/map-build-heap-guard.test.js`
   - Success: peak heap stays under threshold for medium fixture.
 - [ ] `tests/map/map-edge-aggregate-stability.test.js`
   - Success: aggregate counts/weights match pre-aggregate baseline.
-- [x] `tests/map/map-viewer-display-limits.test.js`
+- [ ] `tests/map/map-viewer-display-limits.test.js`
   - Success: draw count caps engaged and UI remains responsive.
-- [x] `tests/map/map-viewer-instancing-count.test.js`
-  - Success: instanced meshes are used for files and members.
-- [x] `tests/map/map-viewer-culling-correctness.test.js`
-  - Success: culling hides/restores instanced buckets correctly.
-- [x] `tests/map/map-viewer-lod-switch.test.js`
-  - Success: LOD tier changes based on zoom + counts.
-- [x] `tests/map/map-viewer-selection-stability.test.js`
-  - Success: selected buckets remain visible under culling.
-- [x] `tests/map/map-viewer-telemetry.test.js`
-  - Success: FPS/dropped frame counters advance per frame.
+- [ ] `tests/map/map-viewer-instancing-count.test.js`
+  - Success: instanced meshes used; instance count matches node count.
+- [ ] `tests/map/map-viewer-culling-correctness.test.js`
+  - Success: off-screen elements are culled; visible set is correct.
+- [ ] `tests/map/map-viewer-lod-switch.test.js`
+  - Success: LOD tiers switch deterministically under zoom/load.
+- [ ] `tests/map/map-viewer-selection-stability.test.js`
+  - Success: selected node remains visible and highlighted across LOD transitions.
+- [ ] `tests/map/map-viewer-telemetry.test.js`
+  - Success: FPS/memory metrics emitted and within expected ranges.
 
 ### Acceptance
 - [ ] Map build memory usage reduced for large inputs (documented via benchmark).
@@ -1040,7 +1028,7 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/specs/lsp-provider-hardening.md`
 - `docs/specs/tooling-provider-registry.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
-- `tests/docs/embeddings-cache-docs-sync.test.js` (new)
+- `tests/tooling/docs/embeddings-cache-docs-sync.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/indexing-stage-audit.md`
@@ -1053,6 +1041,22 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
 - `docs/guides/perfplan-execution.md` (new)
 - `docs/guides/roadmap-checklists.md` (new)
 
+### Doc inventory (Phase 13)
+| Doc path | Purpose | Required sections | Code touchpoints | Tests | Gaps |
+| --- | --- | --- | --- | --- | --- |
+| `docs/perf/indexing-stage-audit.md` | Describe stage audit output + interpretation | Output locations, schema, stage list, counters, interpretation | `src/index/build/stage-checkpoints.js`, `src/index/build/perf-profile.js` | `tests/indexing/runtime/stage-memory-checkpoints.test.js`, `tests/indexing/runtime/stage-timing-checkpoints.test.js` | None |
+| `docs/specs/embeddings-cache.md` | Global embeddings cache contract | Layout, keys, invalidation, compression, pruning, examples | `tools/build/embeddings/cache.js`, `src/shared/embeddings-cache/*`, `src/shared/embedding-identity.js` | `tests/indexing/embeddings/cache-*.test.js` | None |
+| `docs/perf/map-pipeline.md` | Map build pipeline + perf guardrails | Inputs, pipeline steps, cache, outputs, determinism | `src/map/build-map.js`, `tools/reports/report-code-map.js` | `tests/indexing/map/*` | None |
+| `docs/specs/map-artifact.md` | Map model schema + ordering | Schema, node/edge shapes, summary, truncation, determinism | `src/map/build-map.js`, `src/map/constants.js` | `tests/indexing/map/*` | None |
+| `docs/specs/tooling-vfs-and-segment-routing.md` | VFS routing + path rules | Path format, offset mapping, disk-path safety, routing | `src/index/tooling/vfs*.js`, `src/index/build/artifacts/writers/vfs-manifest.js` | `tests/tooling/vfs/*` | None |
+| `docs/specs/vfs-manifest-artifact.md` | VFS manifest artifact schema | Row schema, trim rules, sort order, meta fields | `src/index/build/artifacts/writers/vfs-manifest.js` | `tests/tooling/vfs/vfs-manifest*.test.js` | None |
+| `docs/specs/tooling-provider-registry.md` | Provider registry keys + selection | Provider IDs, selection order, gating | `src/tooling/providers/*` | `tests/tooling/providers/*` | None |
+| `docs/contracts/indexing.md` | Indexing contracts + artifacts | Build state, provenance, artifact list | `src/contracts/schemas/*` | `tests/indexing/contracts/*` | None |
+| `docs/config/contract.md` + `docs/config/inventory.*` | Config surface + invariants | Keys, defaults, env/cli precedence | `src/shared/config.js`, `src/shared/env.js` | `tests/tooling/docs/config-inventory-sync.test.js` | None |
+| `docs/guides/jsdoc-standards.md` | JSDoc requirements | Required tags, examples, determinism rules | `tests/tooling/docs/jsdoc-standards-sync.test.js` | `tests/tooling/docs/jsdoc-standards-sync.test.js` | None |
+| `docs/guides/perfplan-execution.md` | How to execute PERFPLAN | Phase order, gating, test steps | `tests/tooling/docs/perfplan-docs-sync.test.js` | `tests/tooling/docs/perfplan-docs-sync.test.js` | None |
+| `docs/guides/roadmap-checklists.md` | Checklist policy | Checkbox rules, timestamps, test logging | `tests/tooling/docs/roadmap-checklist-consistency.test.js` | `tests/tooling/docs/roadmap-checklist-consistency.test.js` | None |
+
 ### JSDoc requirements
 - New/shared modules must document:
   - purpose + performance characteristics
@@ -1064,56 +1068,149 @@ Document the audit outputs and embeddings cache with clear JSDoc requirements.
   - concurrency assumptions and thread-pool interactions
 
 ### Tests
-- [x] `tests/docs/embeddings-cache-docs-sync.test.js`
-- [ ] `tests/docs/perfplan-docs-sync.test.js` (new)
-- [ ] `tests/docs/jsdoc-standards-sync.test.js` (new)
-- [ ] `tests/docs/config-inventory-sync.test.js` (new; verifies doc updates when CLI flags change)
-- [ ] `tests/docs/spec-links-valid.test.js` (new; ensures spec references resolve)
-- [ ] `tests/docs/roadmap-checklist-consistency.test.js` (new)
+- [ ] `tests/tooling/docs/embeddings-cache-docs-sync.test.js`
+- [ ] `tests/tooling/docs/perfplan-docs-sync.test.js` (new)
+- [ ] `tests/tooling/docs/jsdoc-standards-sync.test.js` (new)
+- [ ] `tests/tooling/docs/config-inventory-sync.test.js` (new; verifies doc updates when CLI flags change)
+- [ ] `tests/tooling/docs/spec-links-valid.test.js` (new; ensures spec references resolve)
+- [ ] `tests/tooling/docs/roadmap-checklist-consistency.test.js` (new)
 
 ### Acceptance
-- [x] Docs updated and referenced in commands/config inventories.
-- [x] JSDoc standards documented and enforced for new modules.
+- [ ] Docs updated and referenced in commands/config inventories.
+- [ ] JSDoc standards documented and enforced for new modules.
 - [ ] Perfplan execution guide allows a sub-agent to execute phases without ambiguity.
 - [ ] Spec links and references are valid and consistent.
 
 ### Tasks
-- [ ] **13.A Inventory + gap analysis**
-- [ ] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
-- [ ] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
-- [ ] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
-- [ ] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
+- [x] **13.A Inventory + gap analysis**
+- [x] Task 13.A.1: Inventory all docs touched by Phases 0–12 and list missing sections (schemas, invariants, examples).
+- [x] Task 13.A.2: Identify config/CLI changes that require inventory updates (schema, contract, commands).
+- [x] Task 13.A.3: Audit for out-of-date references (renamed files, removed flags, new artifacts).
+- [x] Task 13.A.4: Create a doc update checklist with explicit owners and completion criteria.
 
-- [ ] **13.B Embeddings cache spec hardening**
-- [ ] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
-- [ ] Task 13.B.2: Define cache key and invalidation rules (provider/model/dims/quantization/hash).
-- [ ] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
-- [ ] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
+- [x] **13.B Embeddings cache spec hardening**
+- [x] Task 13.B.1: Document cache layout (directory hierarchy, shard naming, metadata).
+- [x] Task 13.B.2: Define cache key and invalidation rules (provider/model/dims/quantization/hash).
+- [x] Task 13.B.3: Describe compression format, headers, and compatibility guarantees.
+- [x] Task 13.B.4: Add examples for cache hits, partial reuse, and invalidation paths.
 
-- [ ] **13.C VFS + tooling spec alignment**
-- [ ] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
-- [ ] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
-- [ ] Task 13.C.3: Align token URI and hash routing docs with current code paths.
-- [ ] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
+- [x] **13.C VFS + tooling spec alignment**
+- [x] Task 13.C.1: Ensure VFS manifest specs match actual row trimming and sorting order.
+- [x] Task 13.C.2: Add precise virtualPath encoding rules and disk-path safety constraints.
+- [x] Task 13.C.3: Align token URI and hash routing docs with current code paths.
+- [x] Task 13.C.4: Document cold-start cache and segment hash cache invariants.
 
-- [ ] **13.D CLI + contracts + inventories**
-- [ ] Task 13.D.1: Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts/sidecars.
-- [ ] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
-- [ ] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
+- [x] **13.D CLI + contracts + inventories**
+- [x] Task 13.D.1: Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts/sidecars.
+- [x] Task 13.D.2: Update `docs/guides/commands.md` to reflect new CLI flags or behaviors.
+- [x] Task 13.D.3: Regenerate/update config inventories and explain any new fields in `docs/config/contract.md`.
 
-- [ ] **13.E JSDoc standards + enforcement**
-- [ ] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
-- [ ] Task 13.E.2: Add rules for tricky behaviors (streaming, caching, determinism, path handling).
-- [ ] Task 13.E.3: Update touched modules with missing JSDoc blocks.
+- [x] **13.E JSDoc standards + enforcement**
+- [x] Task 13.E.1: Write `docs/guides/jsdoc-standards.md` with mandatory tags and examples.
+- [x] Task 13.E.2: Add rules for tricky behaviors (streaming, caching, determinism, path handling).
+- [x] Task 13.E.3: Update touched modules with missing JSDoc blocks.
 
-- [ ] **13.F Execution guides**
-- [ ] Task 13.F.1: Add `docs/guides/perfplan-execution.md` describing how to execute phases in order.
-- [ ] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
+- [x] **13.F Execution guides**
+- [x] Task 13.F.1: Add `docs/guides/perfplan-execution.md` describing how to execute phases in order.
+- [x] Task 13.F.2: Add `docs/guides/roadmap-checklists.md` explaining checkbox rules and test logging.
 
-- [ ] **13.G Docs validation tests**
-- [ ] Task 13.G.1: Implement `tests/docs/embeddings-cache-docs-sync.test.js`.
-- [ ] Task 13.G.2: Add tests for spec link validation and checklist consistency.
-- [ ] Task 13.G.3: Add docs/config inventory sync test.
+- [x] **13.G Docs validation tests**
+- [x] Task 13.G.1: Implement `tests/tooling/docs/embeddings-cache-docs-sync.test.js`.
+- [x] Task 13.G.2: Add tests for spec link validation and checklist consistency.
+- [x] Task 13.G.3: Add docs/config inventory sync test.
+
+### Task details (decision-complete)
+#### 13.A Inventory + gap analysis
+- [x] Build a doc inventory table in Phase 13 with columns: doc path, purpose, required sections, code touchpoints, tests, gaps.
+- [x] List docs touched by Phases 0-12 (use git history and PERFPLAN checklists as source of truth).
+- [x] Enumerate missing sections for each doc: schema, invariants, examples, determinism, error behavior, compatibility.
+- [x] Capture renamed files/flags/artifacts and link to the code that superseded them.
+- [x] Output a checklist of required doc edits with explicit owners and completion criteria.
+
+Doc update checklist (Phase 13.A.4):
+- [x] `docs/specs/vfs-hash-routing.md` - Owner: tooling docs - Completion: hash routing path uses docHash with prefix and matches code.
+- [x] `docs/specs/vfs-token-uris.md` - Owner: tooling docs - Completion: token derivation and URI format match LSP URI code.
+- [x] `docs/specs/vfs-cold-start-cache.md` - Owner: tooling docs - Completion: cache validation, defaults, and testing behavior match code.
+- [x] `docs/specs/vfs-segment-hash-cache.md` - Owner: tooling docs - Completion: in-memory LRU behavior and caps match code.
+- [x] `docs/perf/map-pipeline.md` - Owner: perf docs - Completion: stage2 map pipeline steps documented.
+- [x] `docs/specs/map-artifact.md` - Owner: perf docs - Completion: map schema matches current artifact writer.
+- [x] `docs/perf/indexing-stage-audit.md` - Owner: perf docs - Completion: determinism guidance included.
+- [x] `docs/contracts/indexing.md` - Owner: contracts docs - Completion: VFS artifacts and sidecars listed.
+- [x] `docs/contracts/artifact-contract.md` - Owner: contracts docs - Completion: VFS artifacts and sidecars listed.
+- [x] `docs/guides/commands.md` - Owner: docs - Completion: no Phase 13 flag changes; no update required.
+- [x] `docs/config/contract.md` + `docs/config/inventory.*` - Owner: docs - Completion: VFS config surface already covered; no update required.
+
+#### 13.B Embeddings cache spec hardening
+- [x] Add a cache layout section with full directory tree, shard naming rules, and sidecars.
+- [x] Document cache keys and invalidation rules (provider/model/dims/quantization/index signature/schema version).
+- [x] Specify compression format(s), headers, and forward/backward compatibility rules.
+- [x] Add examples for: cache hit, partial reuse, invalidation after config change.
+- [ ] Touchpoints to review:
+  - `src/shared/embeddings-cache/*`
+  - `tools/build/embeddings/*`
+  - `src/index/build/*` (cache reuse/write paths)
+
+#### 13.C VFS + tooling spec alignment
+- [x] Align VFS manifest trimming and sorting order with actual implementation (row trim, spill/merge order).
+- [x] Document virtualPath encoding and disk-path safety constraints (including Windows specifics).
+- [x] Align token URI and hash routing docs with current code.
+- [x] Document cold-start cache and segment hash cache invariants (inputs, invalidation, fallbacks).
+- [ ] Touchpoints to review:
+  - `src/index/build/vfs-*`
+  - `src/index/tooling/vfs*`
+  - `src/index/segments/*` (CDC segmentation)
+
+#### 13.D CLI + contracts + inventories
+- [x] Update `docs/contracts/indexing.md` and `docs/contracts/artifact-contract.md` for new artifacts and sidecars.
+- [x] Update `docs/guides/commands.md` for new flags or behavior (no Phase 13 deltas found).
+- [x] Regenerate config inventories and add explanations for new fields in `docs/config/contract.md` (no Phase 13 deltas found).
+- [ ] Touchpoints to review:
+  - `src/retrieval/cli*`
+  - `src/index/build/*`
+  - `tools/*` CLI entrypoints
+
+#### 13.E JSDoc standards + enforcement
+- [x] Write `docs/guides/jsdoc-standards.md` with required tags and examples.
+- [x] Require sections for streaming behavior, caching/invalidation, determinism, path normalization, concurrency.
+- [ ] JSDoc targets (Phase 13 + Quantum spindle work):
+  - `src/shared/limits.js`
+  - `src/shared/provenance.js`
+  - `src/shared/truncation.js`
+  - `src/shared/path-normalize.js`
+  - `src/shared/time-format.js`
+  - `src/shared/seed-ref.js`
+  - `src/shared/bloom.js`
+  - `src/shared/cache-roots.js`
+  - `src/shared/metrics.js`
+  - `src/shared/embeddings-cache/layout.js`
+  - `src/shared/embeddings-cache/lru.js`
+  - `src/shared/embedding-utils.js`
+  - `src/shared/embedding-identity.js`
+  - `tools/build/embeddings/cache.js`
+  - `tools/build/embeddings/manifest.js`
+  - `src/index/build/stage-checkpoints.js`
+  - `src/retrieval/pipeline/stage-checkpoints.js`
+  - `src/retrieval/query-plan-cache.js`
+  - `src/retrieval/query-plan-schema.js`
+  - `src/index/build/vfs-manifest-collector.js`
+  - `src/index/build/vfs-segment-hash-cache.js`
+  - `src/index/tooling/vfs-hash-routing.js`
+  - `src/index/tooling/vfs-index.js`
+  - `src/index/tooling/vfs.js`
+  - `src/index/segments/cdc.js`
+
+#### 13.F Execution guides
+- [x] `docs/guides/perfplan-execution.md`: how to run phases, gating criteria, expected artifacts, failure triage.
+- [x] `docs/guides/roadmap-checklists.md`: checkbox rules, test logging, ISO-8601 timestamp policy.
+
+#### 13.G Docs validation tests
+- [x] Add tests under `tests/tooling/docs/`:
+  - `embeddings-cache-docs-sync`: ensure required sections and examples exist.
+  - `perfplan-docs-sync`: ensure Phase 13 doc inventory table exists and references required docs.
+  - `jsdoc-standards-sync`: ensure standards doc exists and includes required tags.
+  - `spec-links-valid`: ensure spec references resolve.
+  - `roadmap-checklist-consistency`: ensure checklist formatting/requirements.
+  - `config-inventory-sync`: ensure config docs match schema.
 
 ### Sub-agent work packets
 - [ ] Sub-agent Packet A — Embeddings cache spec + contract updates (Tasks 13.B + 13.D.1).

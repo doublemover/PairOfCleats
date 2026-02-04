@@ -171,6 +171,11 @@ function *iteratePostingDocIds(posting) {
   }
 }
 
+/**
+ * Normalize token retention options to a stable shape.
+ * @param {object} [raw]
+ * @returns {{mode:'full'|'sample'|'none',sampleSize:number}}
+ */
 export function normalizeTokenRetention(raw = {}) {
   if (!raw || typeof raw !== 'object') {
     return { mode: 'full', sampleSize: 32 };
@@ -183,6 +188,11 @@ export function normalizeTokenRetention(raw = {}) {
   return { mode, sampleSize };
 }
 
+/**
+ * Apply token retention rules to a chunk in-place.
+ * @param {object} chunk
+ * @param {{mode:'full'|'sample'|'none',sampleSize:number}} retention
+ */
 export function applyTokenRetention(chunk, retention) {
   if (!chunk || !retention || retention.mode === 'full') return;
   if (retention.mode === 'none') {
@@ -632,6 +642,11 @@ const formatGuardSample = (sample) => {
   return `${file}${chunkId}`;
 };
 
+/**
+ * Build warning messages from postings guard counters.
+ * @param {object} state
+ * @returns {string[]}
+ */
 export function getPostingsGuardWarnings(state) {
   const guards = state?.postingsGuard;
   if (!guards) return [];

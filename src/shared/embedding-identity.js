@@ -1,6 +1,8 @@
 import { sha1 } from './hash.js';
 
+/** Embedding identity schema version. */
 export const EMBEDDING_IDENTITY_VERSION = 2;
+/** Embedding identity fingerprint tag used in cache keys. */
 export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v2';
 
 const normalizeString = (value) => {
@@ -27,6 +29,27 @@ const normalizeArray = (value) => {
   return normalized.length ? normalized : null;
 };
 
+/**
+ * Build a normalized embedding identity payload.
+ *
+ * Deterministic: identical inputs produce identical normalized output.
+ * Cache behavior: identity is used to compute cache keys and invalidation.
+ *
+ * @param {object} options
+ * @param {string} [options.modelId]
+ * @param {string} [options.provider]
+ * @param {string} [options.mode]
+ * @param {boolean} [options.stub]
+ * @param {number} [options.dims]
+ * @param {number} [options.scale]
+ * @param {string} [options.pooling]
+ * @param {boolean} [options.normalize]
+ * @param {string} [options.truncation]
+ * @param {number} [options.maxLength]
+ * @param {object} [options.quantization]
+ * @param {object} [options.onnx]
+ * @returns {object}
+ */
 export const buildEmbeddingIdentity = ({
   modelId,
   provider,
@@ -74,6 +97,14 @@ export const buildEmbeddingIdentity = ({
   return identity;
 };
 
+/**
+ * Compute a stable identity key for embedding cache entries.
+ *
+ * Deterministic: JSON stringification of normalized identity.
+ *
+ * @param {object} identity
+ * @returns {string}
+ */
 export const buildEmbeddingIdentityKey = (identity) => {
   const safeIdentity = identity && typeof identity === 'object' ? identity : {};
   return sha1(JSON.stringify(safeIdentity));

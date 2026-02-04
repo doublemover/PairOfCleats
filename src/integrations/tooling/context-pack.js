@@ -112,7 +112,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       maxBytes: MAX_JSON_BYTES,
       strict: true
     });
-    const indexSignature = buildIndexSignature(indexDir);
+    const indexSignature = await buildIndexSignature(indexDir);
 
     const payload = assembleCompositeContextPack({
       seed,

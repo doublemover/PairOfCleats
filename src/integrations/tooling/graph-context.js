@@ -132,7 +132,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       maxBytes: MAX_JSON_BYTES,
       strict: true
     });
-    const indexSignature = buildIndexSignature(indexDir);
+    const indexSignature = await buildIndexSignature(indexDir);
 
     const pack = buildGraphContextPack({
       seed,

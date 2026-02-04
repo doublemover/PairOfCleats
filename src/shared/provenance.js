@@ -1,7 +1,25 @@
+/**
+ * Resolve a timestamp string using an optional override.
+ * @param {(() => string)|undefined} now
+ * @returns {string}
+ */
 const buildTimestamp = (now) => (
   typeof now === 'function' ? now() : new Date().toISOString()
 );
 
+/**
+ * Resolve provenance metadata for artifacts and stats.
+ * @param {object} [options]
+ * @param {object} [options.provenance]
+ * @param {string} [options.indexSignature]
+ * @param {string} [options.indexCompatKey]
+ * @param {object} [options.capsUsed]
+ * @param {object} [options.repo]
+ * @param {string} [options.indexDir]
+ * @param {() => string} [options.now]
+ * @param {string} [options.label]
+ * @returns {object}
+ */
 export const resolveProvenance = ({
   provenance,
   indexSignature,

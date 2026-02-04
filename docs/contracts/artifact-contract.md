@@ -55,6 +55,16 @@ Each `index-<mode>/` directory contains:
   - Evidence-rich callsite records (Phase 6). Emits `callSiteId`, caller chunk identity, location, callee info, and bounded args.
   - Sharded form uses `call_sites.meta.json` + `call_sites.parts/`.
   - Additive: does not replace `file_relations`; legacy relations remain available.
+- `vfs_manifest.jsonl` (optional; JSONL or sharded JSONL)
+  - Tooling VFS manifest rows (virtualPath, diskPath, docHash, segment metadata).
+  - Sharded form uses `vfs_manifest.meta.json` + `vfs_manifest.parts/`.
+- `vfs_path_map.jsonl` (optional; JSONL or sharded JSONL)
+  - Maps canonical `virtualPath` to hash-routed disk paths when `hashRouting` is enabled.
+  - Sharded form uses `vfs_path_map.meta.json` + `vfs_path_map.parts/`.
+- `vfs_manifest.vfsidx` (optional)
+  - Line index for `vfs_manifest.jsonl` to support offset lookups.
+- `vfs_manifest.vfsbloom.json` (optional)
+  - Bloom filter sidecar for fast negative checks on virtualPath queries.
 - `filter_index.json` (optional)
   - Serialized filter index for fast metadata filters.
 - `field_postings.json` + `field_tokens.json` (optional; only when fielded postings enabled)

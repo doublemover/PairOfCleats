@@ -423,6 +423,10 @@ export function createTokenizationContext(input) {
   };
 }
 
+/**
+ * Allocate reusable buffers for tokenization to reduce allocations.
+ * @returns {{tokens:string[],seq:string[],scratch:string[],scratch2:string[],chargramSet:Set<string>,minhash:SimpleMinHash}}
+ */
 export function createTokenizationBuffers() {
   return {
     tokens: [],
@@ -468,6 +472,11 @@ const normalizeToken = (value) => {
   return value;
 };
 
+/**
+ * Build tokens and optional synonym-expanded sequence for indexing.
+ * @param {{text:string,mode:'code'|'prose',ext?:string,dictWords:Set<string>|{size:number,has:function},dictConfig:object,buffers?:object,includeSeq?:boolean}} input
+ * @returns {{tokens:string[],seq:string[]}}
+ */
 export function buildTokenSequence({
   text,
   mode,
@@ -550,6 +559,13 @@ export function buildTokenSequence({
   };
 }
 
+/**
+ * Build chargrams from tokens with configurable n-gram limits.
+ * @param {string[]} tokens
+ * @param {{chargramMinN:number,chargramMaxN:number,chargramMaxTokenLength?:number}} options
+ * @param {{chargramSet:Set<string>}|null} [buffers]
+ * @returns {string[]}
+ */
 export function buildChargramsFromTokens(tokens, options, buffers = null) {
   const { chargramMinN, chargramMaxN, chargramMaxTokenLength } = options;
   const charSet = buffers?.chargramSet || new Set();

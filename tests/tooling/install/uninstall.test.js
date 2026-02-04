@@ -43,7 +43,7 @@ const env = {
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'uninstall.js'), '--yes', '--repo', repoDir],
+  [path.join(root, 'tools', 'tooling', 'uninstall.js'), '--yes', '--repo', repoDir],
   { env, stdio: 'inherit', cwd: repoDir }
 );
 

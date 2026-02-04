@@ -1,7 +1,13 @@
+/** Schema version for the VFS segment hash cache. */
 export const VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
 
 const normalizeField = (value, fallback = '') => (value == null ? fallback : String(value));
 
+/**
+ * Build a cache key for a VFS segment doc hash.
+ * @param {object} [input]
+ * @returns {string|null}
+ */
 export const buildVfsSegmentHashCacheKey = ({
   fileHash,
   fileHashAlgo,
@@ -20,8 +26,14 @@ export const buildVfsSegmentHashCacheKey = ({
   return `${algo}:${fileHash}::${path}::${lang}::${ext}::${range}`;
 };
 
+/** Alias for buildVfsSegmentHashCacheKey. */
 export const buildDocHashCacheKey = buildVfsSegmentHashCacheKey;
 
+/**
+ * Create an in-memory LRU cache for VFS segment hashes.
+ * @param {{maxEntries?:number}} [options]
+ * @returns {{get:(key:string)=>any,set:(key:string,value:any)=>void,clear:()=>void,size:number}}
+ */
 export const createVfsSegmentHashCache = ({ maxEntries = 50000 } = {}) => {
   const limit = Number.isFinite(Number(maxEntries)) ? Math.max(1, Math.floor(Number(maxEntries))) : 50000;
   const store = new Map();

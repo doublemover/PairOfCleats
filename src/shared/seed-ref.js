@@ -2,6 +2,12 @@ import { normalizeRepoRelativePath } from './path-normalize.js';
 
 const SEED_REGEX = /^(chunk|symbol|file):(.+)$/;
 
+/**
+ * Parse a seed reference string into a normalized structure.
+ * @param {unknown} raw
+ * @param {string|null} repoRoot
+ * @returns {{type:'chunk',chunkUid:string}|{type:'symbol',symbolId:string}|{type:'file',path:string}}
+ */
 export const parseSeedRef = (raw, repoRoot) => {
   const value = String(raw || '').trim();
   if (!value) throw new Error('Missing --seed value.');

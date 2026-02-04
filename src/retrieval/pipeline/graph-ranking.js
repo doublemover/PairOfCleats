@@ -54,6 +54,15 @@ const resolveSeeds = (entries, seedSelection, seedK) => {
   return [resolveChunkUid(entries[0].chunk)].filter(Boolean);
 };
 
+/**
+ * Apply graph-based score adjustments to ranked entries.
+ * @param {object} input
+ * @param {Array<object>} input.entries
+ * @param {object|null} input.graphRelations
+ * @param {object} input.config
+ * @param {boolean} [input.explain]
+ * @returns {{entries:Array<object>,stats:object|null}}
+ */
 export const applyGraphRanking = ({
   entries,
   graphRelations,

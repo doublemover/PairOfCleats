@@ -81,6 +81,7 @@ const sqliteBuild = spawnSync(
   process.execPath,
   [
     path.join(root, 'tools', 'build/sqlite-index.js'),
+    '--incremental',
     '--mode',
     'code',
     '--repo',

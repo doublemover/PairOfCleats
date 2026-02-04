@@ -8,6 +8,11 @@ const sanitizeSegment = (value, fallback) => {
   return normalized || fallback || 'unknown';
 };
 
+/**
+ * Resolve the embeddings cache root directory.
+ * @param {{repoCacheRoot?:string,cacheDirConfig?:string,scope?:string}} [options]
+ * @returns {string}
+ */
 export const resolveEmbeddingsCacheRoot = ({ repoCacheRoot, cacheDirConfig, scope } = {}) => {
   if (cacheDirConfig) return path.resolve(cacheDirConfig);
   const resolvedScope = typeof scope === 'string' ? scope.trim().toLowerCase() : '';
@@ -17,6 +22,11 @@ export const resolveEmbeddingsCacheRoot = ({ repoCacheRoot, cacheDirConfig, scop
   return path.join(repoCacheRoot || '', 'embeddings');
 };
 
+/**
+ * Resolve the cache base directory for a provider/model/dims tuple.
+ * @param {{cacheRoot?:string,provider?:string,modelId?:string,dims?:number}} [options]
+ * @returns {string}
+ */
 export const resolveEmbeddingsCacheBase = ({
   cacheRoot,
   provider,
@@ -29,6 +39,12 @@ export const resolveEmbeddingsCacheBase = ({
   return path.join(cacheRoot || '', providerKey, modelKey, dimsKey);
 };
 
+/**
+ * Resolve the cache directory for a specific mode.
+ * @param {string} baseDir
+ * @param {string} mode
+ * @returns {string}
+ */
 export const resolveEmbeddingsCacheModeDir = (baseDir, mode) => {
   const modeKey = sanitizeSegment(mode, 'mode');
   return path.join(baseDir || '', modeKey);

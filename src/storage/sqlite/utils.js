@@ -170,6 +170,11 @@ export async function loadIndex(dir, modelId) {
 
 const SQLITE_SIDECARS = ['-wal', '-shm'];
 
+/**
+ * Remove SQLite WAL/SHM sidecar files for a database path.
+ * @param {string} basePath
+ * @returns {Promise<void>}
+ */
 export async function removeSqliteSidecars(basePath) {
   await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
     try {

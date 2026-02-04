@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { loadIndexWithCache } from '../../../src/retrieval/index-cache.js';
+import { INDEX_SIGNATURE_TTL_MS, loadIndexWithCache } from '../../../src/retrieval/index-cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-cache-'));
 const indexDir = path.join(tempRoot, 'index');
@@ -27,7 +27,16 @@ assert.equal(loads, 1, 'cache should prevent reloads');
 assert.equal(first.loaded, second.loaded, 'cached result should match');
 
 await writeMeta([{ id: 2 }]);
-const third = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
+const originalNow = Date.now;
+let now = originalNow();
+Date.now = () => now;
+let third;
+try {
+  now += INDEX_SIGNATURE_TTL_MS + 1;
+  third = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
+} finally {
+  Date.now = originalNow;
+}
 assert.equal(loads, 2, 'cache should reload after signature change');
 assert.notEqual(third.loaded, first.loaded, 'reloaded result should differ');
 

@@ -34,6 +34,10 @@ Optional (feature/config driven):
 - `phrase_ngrams.json` / `chargram_postings.json`.
 - `minhash_signatures.json`.
 - Embeddings artifacts (`dense_vectors_*`, `dense_vectors_hnsw.*`, `dense_vectors*.lancedb`) when embeddings are enabled.
+- Tooling VFS artifacts (when VFS/tooling is enabled):
+  - `vfs_manifest.jsonl` (or `vfs_manifest.meta.json` + `vfs_manifest.parts/`).
+  - `vfs_path_map.jsonl` (optional, or sharded `vfs_path_map.meta.json` + `vfs_path_map.parts/`).
+  - `vfs_manifest.vfsidx` and `vfs_manifest.vfsbloom.json` (optional index/bloom sidecars).
 
 ## Format precedence
 - If a pieces manifest is present and strict mode is enabled, loaders follow the manifest and treat missing entries as errors.

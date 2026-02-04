@@ -1,3 +1,19 @@
+/**
+ * Fuse sparse and ANN hits into a single ranked list.
+ * @param {object} input
+ * @param {Array<object>} input.bmHits
+ * @param {Array<object>} input.annHits
+ * @param {string} input.sparseType
+ * @param {string|null} input.annSource
+ * @param {boolean} input.rrfEnabled
+ * @param {number} input.rrfK
+ * @param {boolean} input.blendEnabled
+ * @param {number} input.blendSparseWeight
+ * @param {number} input.blendAnnWeight
+ * @param {boolean} input.fieldWeightsEnabled
+ * @param {object|null} [input.scoreBuffer]
+ * @returns {{scored:Array<object>|object,useRrf:boolean}}
+ */
 export const fuseRankedHits = ({
   bmHits,
   annHits,

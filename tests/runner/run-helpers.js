@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -31,30 +32,94 @@ export const resolveLogDir = ({ cli, env, defaultDir, root }) => {
 
 export const resolvePhysicalCores = () => {
   const logical = Math.max(1, Math.floor(os.cpus().length || 1));
+  let logicalFromPlatform = null;
   try {
     if (process.platform === 'win32') {
-      const output = execSync('wmic cpu get NumberOfCores /value', { encoding: 'utf8', timeout: 3000 });
-      const matches = output.match(/NumberOfCores=(\d+)/g) || [];
-      const total = matches.reduce((sum, entry) => sum + Number(entry.split('=')[1] || 0), 0);
+      const output = execSync(
+        'powershell.exe -NoProfile -Command "(Get-CimInstance Win32_Processor | Measure-Object -Sum NumberOfCores).Sum"',
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      const total = Number(String(output).trim());
       if (Number.isFinite(total) && total > 0) return total;
+      const logicalOutput = execSync(
+        'powershell.exe -NoProfile -Command "(Get-CimInstance Win32_Processor | Measure-Object -Sum NumberOfLogicalProcessors).Sum"',
+        { encoding: 'utf8', timeout: 3000 }
+      );
+      const logicalTotal = Number(String(logicalOutput).trim());
+      if (Number.isFinite(logicalTotal) && logicalTotal > 0) {
+        logicalFromPlatform = logicalTotal;
+      }
     }
     if (process.platform === 'darwin') {
       const output = execSync('sysctl -n hw.physicalcpu', { encoding: 'utf8', timeout: 3000 });
       const total = Number(output.trim());
       if (Number.isFinite(total) && total > 0) return total;
+      const logicalOutput = execSync('sysctl -n hw.logicalcpu', { encoding: 'utf8', timeout: 3000 });
+      const logicalTotal = Number(logicalOutput.trim());
+      if (Number.isFinite(logicalTotal) && logicalTotal > 0) {
+        logicalFromPlatform = logicalTotal;
+      }
     }
     if (process.platform === 'linux') {
-      const output = execSync('lscpu -p=CORE,SOCKET', { encoding: 'utf8', timeout: 3000 });
-      const cores = new Set();
-      output.split(/\r?\n/).forEach((line) => {
-        if (!line || line.startsWith('#')) return;
-        cores.add(line.trim());
-      });
-      if (cores.size > 0) return cores.size;
+      try {
+        const output = execSync('lscpu -p=CORE,SOCKET', { encoding: 'utf8', timeout: 3000 });
+        const cores = new Set();
+        output.split(/\r?\n/).forEach((line) => {
+          if (!line || line.startsWith('#')) return;
+          cores.add(line.trim());
+        });
+        if (cores.size > 0) return cores.size;
+      } catch {}
+      try {
+        const logicalOutput = execSync('lscpu -p=CPU', { encoding: 'utf8', timeout: 3000 });
+        const logicalCores = new Set();
+        logicalOutput.split(/\r?\n/).forEach((line) => {
+          if (!line || line.startsWith('#')) return;
+          logicalCores.add(line.trim());
+        });
+        if (logicalCores.size > 0) {
+          logicalFromPlatform = logicalCores.size;
+        }
+      } catch {}
+      if (logicalFromPlatform === null) {
+        try {
+          const output = execSync('nproc --all', { encoding: 'utf8', timeout: 3000 });
+          const total = Number(output.trim());
+          if (Number.isFinite(total) && total > 0) {
+            logicalFromPlatform = total;
+          }
+        } catch {}
+      }
+      if (Number.isFinite(logicalFromPlatform) && logicalFromPlatform > 0) {
+        try {
+          const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
+          const corePairs = new Set();
+          let physicalId = null;
+          let coreId = null;
+          cpuinfo.split(/\r?\n/).forEach((line) => {
+            if (!line.trim()) {
+              if (physicalId !== null && coreId !== null) {
+                corePairs.add(`${physicalId}:${coreId}`);
+              }
+              physicalId = null;
+              coreId = null;
+              return;
+            }
+            const [key, value] = line.split(':').map((entry) => entry && entry.trim());
+            if (key === 'physical id') physicalId = value;
+            if (key === 'core id') coreId = value;
+          });
+          if (physicalId !== null && coreId !== null) {
+            corePairs.add(`${physicalId}:${coreId}`);
+          }
+          if (corePairs.size > 0) return corePairs.size;
+        } catch {}
+      }
     }
   } catch {}
-  if (logical >= 4 && logical % 2 === 0) return logical / 2;
-  return logical;
+  const logicalFallback = Number.isFinite(logicalFromPlatform) && logicalFromPlatform > 0 ? logicalFromPlatform : logical;
+  if (logicalFallback >= 4 && logicalFallback % 2 === 0) return logicalFallback / 2;
+  return logicalFallback;
 };
 
 export const normalizeLaneArgs = (values) => {

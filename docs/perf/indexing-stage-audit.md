@@ -6,6 +6,9 @@ This document describes the stage audit checkpoints emitted during index builds.
 - `metrics/stage-audit-<mode>.json` (per mode, per build)
 - `build_state.json` under `stageCheckpoints` (per mode)
 
+## Determinism
+Stage audit files are append-only per build and MUST be deterministic for the same input and config. Checkpoint ordering follows the stage/step execution order and is stable across runs.
+
 ## Stages
 - `stage1`: discovery + imports + processing + postings
 - `stage2`: relations + artifact writes
@@ -41,7 +44,7 @@ Stage summary fields:
 - Stage1 counters highlight postings map growth and chunk retention.
 - Stage2 counters highlight relation graph sizes and file relation counts.
 - Stage3 counters track vector counts and backend availability.
-- Stage4 counters track input/output sizes, row counts, batch sizing, validation timing, and applied pragmas.
+- Stage4 counters track input/output sizes and row counts.
 
 Use these reports to prioritize optimization work before implementing algorithmic changes.
 
@@ -59,4 +62,3 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - SQLite inserts are chunked into bounded transactions based on input size to reduce WAL and statement retention.
 - Bundle ingestion splits large files into smaller insert batches to avoid oversized transactions.
 - Incremental updates only load chunk rows for changed/deleted files instead of scanning the full chunks table.
-- Adaptive build pragmas (cache/mmap/WAL limits) are captured in audit extras to correlate with throughput.

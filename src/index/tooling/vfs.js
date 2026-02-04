@@ -142,6 +142,11 @@ const normalizeLanguageId = (value, fallback = null) => {
   return text ? text.toLowerCase() : fallback;
 };
 
+/**
+ * Resolve the effective language id for a chunk/segment.
+ * @param {{chunk?:object,segment?:object,containerLanguageId?:string|null}} input
+ * @returns {string}
+ */
 export const resolveEffectiveLanguageId = ({ chunk, segment, containerLanguageId }) => {
   const candidate = chunk?.lang
     || chunk?.metaV2?.lang
@@ -576,6 +581,22 @@ export const buildToolingVirtualDocuments = async ({
   return { documents, targets };
 };
 
+/**
+ * Build VFS manifest rows for a single container file.
+ * @param {object} input
+ * @param {Array<object>} input.chunks
+ * @param {string} input.fileText
+ * @param {string} input.containerPath
+ * @param {string|null} [input.containerExt]
+ * @param {string|null} [input.containerLanguageId]
+ * @param {Array<number>|null} [input.lineIndex]
+ * @param {string|null} [input.fileHash]
+ * @param {string|null} [input.fileHashAlgo]
+ * @param {boolean} [input.strict]
+ * @param {Function|null} [input.log]
+ * @param {number|null} [input.concurrency]
+ * @returns {Promise<Array<object>>}
+ */
 export const buildVfsManifestRowsForFile = async ({
   chunks,
   fileText,

@@ -8,6 +8,15 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { checksumFile } from '../../../src/shared/hash.js';
 import { fromPosix } from '../../../src/shared/files.js';
 
+/**
+ * Update pieces manifest with embedding artifacts for a given mode.
+ *
+ * Deterministic: preserves non-embedding pieces and appends embedding pieces
+ * in a stable order.
+ *
+ * @param {{ indexDir: string, mode: string, totalChunks: number, dims: number }} options
+ * @returns {Promise<void>}
+ */
 export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
   const piecesDir = path.join(indexDir, 'pieces');
   const manifestPath = path.join(piecesDir, 'manifest.json');
