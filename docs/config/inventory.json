@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T22:15:22.480Z",
+  "generatedAt": "2026-02-04T23:16:07.426Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2307,7 +2307,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 293,
+    "totalFlags": 295,
     "publicFlags": [
       "backend",
       "host",
@@ -2395,6 +2395,7 @@
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
+      "fanout",
       "fields",
       "files",
       "finding",
@@ -2495,6 +2496,7 @@
       "no-compact",
       "no-fallback",
       "node-list-out",
+      "nodes",
       "non-interactive",
       "non-strict",
       "only-exported",
@@ -2864,6 +2866,12 @@
         ]
       },
       {
+        "file": "tests/map/map-edge-aggregate-stability.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
         "file": "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
         "flags": [
           "includeCalls",
@@ -3059,8 +3067,36 @@
           "depth",
           "index",
           "iterations",
+          "mode",
           "repo",
           "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/neighborhood-cache.js",
+        "flags": [
+          "depth",
+          "fanout",
+          "iterations",
+          "mode",
+          "nodes"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/render-sort.js",
+        "flags": [
+          "iterations",
+          "mode",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/store-lazy-load.js",
+        "flags": [
+          "index",
+          "iterations",
+          "mode",
+          "repo"
         ]
       },
       {
@@ -3880,7 +3916,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 57,
+        "count": 58,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3892,6 +3928,7 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -4038,11 +4075,16 @@
       },
       {
         "flag": "mode",
-        "count": 23,
+        "count": 28,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
+          "tests/map/map-edge-aggregate-stability.test.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -4312,6 +4354,17 @@
         ]
       },
       {
+        "flag": "depth",
+        "count": 5,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js"
+        ]
+      },
+      {
         "flag": "force",
         "count": 5,
         "files": [
@@ -4432,16 +4485,6 @@
         ]
       },
       {
-        "flag": "depth",
-        "count": 4,
-        "files": [
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js"
-        ]
-      },
-      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -4459,6 +4502,26 @@
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/token-uri-encode.js"
+        ]
+      },
+      {
+        "flag": "index",
+        "count": 4,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
+        "flag": "iterations",
+        "count": 4,
+        "files": [
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js"
         ]
       },
       {
@@ -4572,6 +4635,16 @@
         ]
       },
       {
+        "flag": "size",
+        "count": 4,
+        "files": [
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
         "flag": "strict",
         "count": 4,
         "files": [
@@ -4625,15 +4698,6 @@
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
-        ]
-      },
-      {
-        "flag": "index",
-        "count": 3,
-        "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js"
         ]
       },
       {
@@ -4696,15 +4760,6 @@
         "files": [
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "size",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/cdc-segmentation.js",
-          "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
