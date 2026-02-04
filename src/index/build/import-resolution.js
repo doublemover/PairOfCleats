@@ -374,6 +374,18 @@ const parsePackageName = (spec) => {
   return name || null;
 };
 
+const resolvePackageFingerprint = (rootAbs) => {
+  if (!rootAbs) return null;
+  const packagePath = path.join(rootAbs, 'package.json');
+  if (!fs.existsSync(packagePath)) return null;
+  try {
+    const raw = fs.readFileSync(packagePath, 'utf8');
+    return sha1(raw);
+  } catch {
+    return null;
+  }
+};
+
 const addGraphNode = (nodes, id, type, stats) => {
   if (nodes.has(id)) return;
   if (nodes.size >= MAX_GRAPH_NODES) {
@@ -390,10 +402,44 @@ export function resolveImportLinks({
   fileRelations,
   log,
   enableGraph = true,
-  graphMeta = null
+  graphMeta = null,
+  cache = null,
+  fileHashes = null,
+  cacheStats = null
 }) {
   const lookup = createFileLookup({ entries, root });
   const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet });
+  const cacheState = cache && typeof cache === 'object' ? cache : null;
+  const cacheMetrics = cacheState
+    ? (cacheStats || {
+      files: 0,
+      filesHashed: 0,
+      filesReused: 0,
+      filesInvalidated: 0,
+      specs: 0,
+      specsReused: 0,
+      specsComputed: 0,
+      packageInvalidated: false
+    })
+    : null;
+  if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
+    cacheState.files = {};
+  }
+  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs) : null;
+  if (cacheState && packageFingerprint && cacheState.packageFingerprint
+    && cacheState.packageFingerprint !== packageFingerprint) {
+    if (cacheMetrics) cacheMetrics.packageInvalidated = true;
+    cacheState.files = {};
+  }
+  if (cacheState && packageFingerprint) {
+    cacheState.packageFingerprint = packageFingerprint;
+  }
+  const resolveFileHash = (relPath) => {
+    if (!fileHashes || !relPath) return null;
+    if (typeof fileHashes.get === 'function') return fileHashes.get(relPath) || null;
+    if (fileHashes && typeof fileHashes === 'object') return fileHashes[relPath] || null;
+    return null;
+  };
   const graph = enableGraph
     ? {
       generatedAt: new Date().toISOString(),
@@ -440,6 +486,28 @@ export function resolveImportLinks({
 
     const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
     rawSpecs.sort(sortStrings);
+    const hasNonRelative = rawSpecs.some((rawSpec) => {
+      const spec = stripSpecifier(rawSpec);
+      return spec && !(spec.startsWith('.') || spec.startsWith('/'));
+    });
+    if (hasNonRelative && !tsconfigResolved) {
+      tsconfigResolved = true;
+      tsconfig = tsConfigResolver ? tsConfigResolver.resolveForFile(importerAbs) : null;
+    }
+    const tsconfigFingerprint = tsconfig?.fingerprint || null;
+    const fileHash = resolveFileHash(relNormalized);
+    const fileCache = cacheState?.files?.[relNormalized] || null;
+    const canReuseCache = !!(fileCache
+      && fileHash
+      && fileCache.hash === fileHash
+      && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
+    if (cacheMetrics) {
+      cacheMetrics.files += 1;
+      if (fileHash) cacheMetrics.filesHashed += 1;
+      if (fileCache && !canReuseCache && fileHash) cacheMetrics.filesInvalidated += 1;
+      if (canReuseCache) cacheMetrics.filesReused += 1;
+    }
+    const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
       const spec = stripSpecifier(rawSpec);
@@ -456,56 +524,82 @@ export function resolveImportLinks({
       let packageName = null;
       let edgeTarget = null;
 
-      const cacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
-      let cached = resolutionCache.get(cacheKey);
-      if (cached?.expiresAt && cached.expiresAt < Date.now()) {
-        resolutionCache.delete(cacheKey);
-        cached = null;
-      }
-      if (cached) {
+      if (cacheMetrics) cacheMetrics.specs += 1;
+      const cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
+        ? fileCache.specs[spec]
+        : null;
+      if (cachedSpec) {
         ({
           resolvedType,
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
           packageName
-        } = cached);
-      } else if (isRelative) {
-        const base = spec.startsWith('/')
-          ? normalizeRelPath(spec.slice(1))
-          : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-        const candidate = resolveCandidate(base, lookup);
-        if (candidate) {
-          resolvedType = 'relative';
-          resolvedPath = candidate;
-        } else {
-          resolvedType = 'unresolved';
-        }
+        } = cachedSpec);
+        if (cacheMetrics) cacheMetrics.specsReused += 1;
       } else {
-        const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
-        if (tsResolved) {
-          resolvedType = 'ts-path';
-          resolvedPath = tsResolved.resolved;
-          tsPathPattern = tsResolved.pattern;
-          tsconfigPath = tsconfig?.tsconfigPath || null;
-        } else {
-          resolvedType = 'external';
-          packageName = parsePackageName(spec);
+        const cacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
+        let cached = resolutionCache.get(cacheKey);
+        if (cached?.expiresAt && cached.expiresAt < Date.now()) {
+          resolutionCache.delete(cacheKey);
+          cached = null;
         }
+        if (cached) {
+          ({
+            resolvedType,
+            resolvedPath,
+            tsPathPattern,
+            tsconfigPath,
+            packageName
+          } = cached);
+        } else if (isRelative) {
+          const base = spec.startsWith('/')
+            ? normalizeRelPath(spec.slice(1))
+            : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
+          const candidate = resolveCandidate(base, lookup);
+          if (candidate) {
+            resolvedType = 'relative';
+            resolvedPath = candidate;
+          } else {
+            resolvedType = 'unresolved';
+          }
+        } else {
+          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
+          if (tsResolved) {
+            resolvedType = 'ts-path';
+            resolvedPath = tsResolved.resolved;
+            tsPathPattern = tsResolved.pattern;
+            tsconfigPath = tsconfig?.tsconfigPath || null;
+          } else {
+            resolvedType = 'external';
+            packageName = parsePackageName(spec);
+          }
+        }
+
+        if (!cached) {
+          const expiresAt = resolvedType === 'unresolved'
+            ? Date.now() + NEGATIVE_CACHE_TTL_MS
+            : null;
+          resolutionCache.set(cacheKey, {
+            resolvedType,
+            resolvedPath,
+            tsPathPattern,
+            tsconfigPath,
+            packageName,
+            expiresAt
+          });
+        }
+        if (cacheMetrics) cacheMetrics.specsComputed += 1;
       }
 
-      if (!cached) {
-        const expiresAt = resolvedType === 'unresolved'
-          ? Date.now() + NEGATIVE_CACHE_TTL_MS
-          : null;
-        resolutionCache.set(cacheKey, {
+      if (nextSpecCache) {
+        nextSpecCache[spec] = {
           resolvedType,
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName,
-          expiresAt
-        });
+          packageName
+        };
       }
 
       if (resolvedType === 'relative' || resolvedType === 'ts-path') {
@@ -558,6 +652,13 @@ export function resolveImportLinks({
       }
     }
 
+    if (nextSpecCache && fileHash && cacheState) {
+      cacheState.files[relNormalized] = {
+        hash: fileHash,
+        tsconfigFingerprint,
+        specs: nextSpecCache
+      };
+    }
     const existing = fileRelations.get(relNormalized);
     if (existing) {
       const imports = Array.isArray(existing.imports) && existing.imports.length
@@ -637,6 +738,7 @@ export function resolveImportLinks({
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       warningSuppressed: suppressedWarnings
     },
-    graph
+    graph,
+    cacheStats: cacheMetrics
   };
 }

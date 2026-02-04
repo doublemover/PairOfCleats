@@ -335,7 +335,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
 
-  const postImportResult = postScanImports({
+  const postImportResult = await postScanImports({
     mode,
     relationsEnabled,
     scanPlan,
@@ -343,7 +343,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     timing,
     runtime: runtimeRef,
     entries: allEntries,
-    importResult
+    importResult,
+    incrementalState,
+    fileTextByFile
   });
   if (postImportResult) importResult = postImportResult;
 
@@ -363,6 +365,21 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     step: 'relations',
     extra: {
       fileRelations: state.fileRelations?.size || 0,
+      importGraphCache: postImportResult?.cacheStats
+        ? {
+          files: Number(postImportResult.cacheStats.files) || 0,
+          filesHashed: Number(postImportResult.cacheStats.filesHashed) || 0,
+          filesReused: Number(postImportResult.cacheStats.filesReused) || 0,
+          filesInvalidated: Number(postImportResult.cacheStats.filesInvalidated) || 0,
+          specs: Number(postImportResult.cacheStats.specs) || 0,
+          specsReused: Number(postImportResult.cacheStats.specsReused) || 0,
+          specsComputed: Number(postImportResult.cacheStats.specsComputed) || 0,
+          packageInvalidated: postImportResult.cacheStats.packageInvalidated === true,
+          reuseRatio: postImportResult.cacheStats.files
+            ? Number(postImportResult.cacheStats.filesReused || 0) / Number(postImportResult.cacheStats.files || 1)
+            : 0
+        }
+        : null,
       importGraph: state.importResolutionGraph?.stats
         ? {
           files: Number(state.importResolutionGraph.stats.files) || 0,
