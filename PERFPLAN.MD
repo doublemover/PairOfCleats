@@ -1249,11 +1249,11 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
 - [x] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
 - [x] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
-- [ ] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
-- [x] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
-- [x] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
-- [ ] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
-- [ ] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
+- [x] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
+- [ ] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
+- [ ] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
+- [x] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
+- [x] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
 
 - [x] **14.E Symbol occurrences + edges streaming**
 - [x] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
@@ -1263,9 +1263,9 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.3: Add optional spill files for large symbol artifact sets; merge via heap.
 - [x] Task 14.E.3.a: Reuse shared spill/merge helper from 14.A.1.
 - [x] Task 14.E.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
-- [ ] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
-- [ ] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
-- [ ] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
+- [x] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
+- [x] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
+- [x] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
 
 - [ ] **14.F Graph relations streaming + measurement**
 - [ ] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.

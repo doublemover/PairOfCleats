@@ -25,6 +25,10 @@ const resolveJsonlExtension = (value) => {
   return 'jsonl';
 };
 
+const measureRowBytes = (row) => (
+  Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
+);
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -43,11 +47,17 @@ const trimSymbolRef = (ref) => {
 
 const maybeTrimRow = (row) => {
   const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= MAX_ROW_BYTES;
-  if (fits(row)) return { row, trimmed: false };
+  const required = (value) => (
+    value?.host?.file && value?.host?.chunkUid && value?.role && value?.ref
+  );
+  const rowBytes = measureRowBytes(row);
+  if (rowBytes <= MAX_ROW_BYTES) {
+    return { row: required(row) ? row : null, trimmed: false };
+  }
   const trimmed = { ...row, range: null };
-  if (fits(trimmed)) return { row: trimmed, trimmed: true };
+  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
   trimmed.ref = trimSymbolRef(trimmed.ref);
-  if (fits(trimmed)) return { row: trimmed, trimmed: true };
+  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
   return { row: null, trimmed: false };
 };
 
@@ -243,6 +253,13 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           maxPartRecords: result.maxPartRecords,
           maxPartBytes: result.maxPartBytes,
           targetMaxBytes: result.targetMaxBytes,
+          extensions: {
+            trim: {
+              trimmedRows: stats?.trimmedRows || 0,
+              droppedRows: stats?.droppedRows || 0,
+              maxRowBytes: stats?.maxRowBytes || 0
+            }
+          },
           parts
         },
         atomic: true

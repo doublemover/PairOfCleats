@@ -37,29 +37,74 @@ const formatBytes = (bytes) => {
   return `${gb.toFixed(1)}GB`;
 };
 
-const compactChunkMetaEntry = (entry, maxBytes) => {
+const recordTrimmedField = (stats, field) => {
+  if (!stats || !field) return;
+  if (!stats.trimmedFields) stats.trimmedFields = {};
+  stats.trimmedFields[field] = (stats.trimmedFields[field] || 0) + 1;
+};
+
+const recordTrimmedFields = (stats, fields) => {
+  if (!stats || !fields) return;
+  for (const field of fields) {
+    recordTrimmedField(stats, field);
+  }
+};
+
+const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   const resolvedMax = Number.isFinite(Number(maxBytes)) ? Math.floor(Number(maxBytes)) : 0;
   if (!resolvedMax) return entry;
   const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= resolvedMax;
   if (fits(entry)) return entry;
   const trimmed = { ...entry };
-  delete trimmed.tokens;
-  delete trimmed.ngrams;
+  const tokenFields = [];
+  if ('tokens' in trimmed) {
+    delete trimmed.tokens;
+    tokenFields.push('tokens');
+  }
+  if ('ngrams' in trimmed) {
+    delete trimmed.ngrams;
+    tokenFields.push('ngrams');
+  }
+  recordTrimmedFields(stats, tokenFields);
   if (fits(trimmed)) return trimmed;
-  delete trimmed.preContext;
-  delete trimmed.postContext;
-  delete trimmed.headline;
-  delete trimmed.segment;
+  const contextFields = [];
+  if ('preContext' in trimmed) {
+    delete trimmed.preContext;
+    contextFields.push('preContext');
+  }
+  if ('postContext' in trimmed) {
+    delete trimmed.postContext;
+    contextFields.push('postContext');
+  }
+  if ('headline' in trimmed) {
+    delete trimmed.headline;
+    contextFields.push('headline');
+  }
+  if ('segment' in trimmed) {
+    delete trimmed.segment;
+    contextFields.push('segment');
+  }
+  recordTrimmedFields(stats, contextFields);
   if (fits(trimmed)) return trimmed;
-  delete trimmed.docmeta;
-  delete trimmed.metaV2;
-  delete trimmed.stats;
-  delete trimmed.complexity;
-  delete trimmed.lint;
-  delete trimmed.codeRelations;
-  delete trimmed.chunk_authors;
-  delete trimmed.chunkAuthors;
-  delete trimmed.weight;
+  const dropFields = [
+    'docmeta',
+    'metaV2',
+    'stats',
+    'complexity',
+    'lint',
+    'codeRelations',
+    'chunk_authors',
+    'chunkAuthors',
+    'weight'
+  ];
+  const droppedFields = [];
+  for (const field of dropFields) {
+    if (field in trimmed) {
+      delete trimmed[field];
+      droppedFields.push(field);
+    }
+  }
+  recordTrimmedFields(stats, droppedFields);
   return trimmed;
 };
 
@@ -102,7 +147,8 @@ export const createChunkMetaIterator = ({
   const stats = {
     trimmedMetaV2: 0,
     trimmedEntries: 0,
-    trimmedSamples: []
+    trimmedSamples: [],
+    trimmedFields: {}
   };
   const sampleLimit = 5;
   const recordTrimSample = (entry) => {
@@ -183,7 +229,7 @@ export const createChunkMetaIterator = ({
         entry.ngrams = ngramOut;
       }
       const hadMetaV2 = !!entry.metaV2;
-      const compacted = compactChunkMetaEntry(entry, maxJsonBytes);
+      const compacted = compactChunkMetaEntry(entry, maxJsonBytes, trackStats ? stats : null);
       if (trackStats && compacted !== entry) {
         stats.trimmedEntries += 1;
       }
@@ -199,6 +245,7 @@ export const createChunkMetaIterator = ({
     stats.trimmedMetaV2 = 0;
     stats.trimmedEntries = 0;
     stats.trimmedSamples.length = 0;
+    stats.trimmedFields = {};
   };
   return chunkMetaIterator;
 };
@@ -365,6 +412,10 @@ export const enqueueChunkMetaArtifacts = async ({
   }
   const trimmedEntries = chunkMetaIterator.stats?.trimmedEntries || 0;
   const trimmedMetaV2 = chunkMetaIterator.stats?.trimmedMetaV2 || 0;
+  const trimmedFields = chunkMetaIterator.stats?.trimmedFields || null;
+  const trimmedFieldsPayload = trimmedFields && Object.keys(trimmedFields).length
+    ? trimmedFields
+    : null;
   if (resolvedUseJsonl && collected?.stats) {
     recordArtifactTelemetry(stageCheckpoints, {
       stage: 'stage2',
@@ -376,7 +427,8 @@ export const enqueueChunkMetaArtifacts = async ({
       droppedRows: collected.stats.droppedRows,
       extra: {
         format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
-        trimmedMetaV2
+        trimmedMetaV2,
+        trimmedFields: trimmedFieldsPayload
       }
     });
   } else if (measured) {
@@ -390,7 +442,8 @@ export const enqueueChunkMetaArtifacts = async ({
       droppedRows: 0,
       extra: {
         format: 'json',
-        trimmedMetaV2
+        trimmedMetaV2,
+        trimmedFields: trimmedFieldsPayload
       }
     });
   }
@@ -489,6 +542,13 @@ export const enqueueChunkMetaArtifacts = async ({
               maxPartRecords: result.maxPartRecords,
               maxPartBytes: result.maxPartBytes,
               targetMaxBytes: result.targetMaxBytes,
+              extensions: {
+                trim: {
+                  trimmedEntries,
+                  trimmedMetaV2,
+                  trimmedFields: trimmedFieldsPayload
+                }
+              },
               parts
             },
             atomic: true
