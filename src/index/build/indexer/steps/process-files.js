@@ -120,7 +120,9 @@ export const processFiles = async ({
     }
   );
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
-    allowReorder: runtime.shards?.enabled !== true
+    // Avoid reordering: ordered appender waits on canonical order, and
+    // out-of-order processing can deadlock queue completion.
+    allowReorder: false
   });
   const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
   if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
