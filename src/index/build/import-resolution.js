@@ -209,9 +209,17 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
       visited.push(dir);
       const candidate = path.join(dir, 'tsconfig.json');
       const candidateRel = resolveWithinRoot(rootAbs, candidate);
-      const hasCandidate = candidateRel
-        ? fileLookup?.has(candidateRel) ?? fs.existsSync(candidate)
-        : fs.existsSync(candidate);
+      let hasCandidate = false;
+      if (candidateRel && fileLookup) {
+        hasCandidate = fileLookup.has(candidateRel);
+        if (!hasCandidate) {
+          hasCandidate = fs.existsSync(candidate);
+        }
+      } else if (candidateRel) {
+        hasCandidate = fs.existsSync(candidate);
+      } else {
+        hasCandidate = fs.existsSync(candidate);
+      }
       if (hasCandidate) {
         for (const seen of visited) dirCache.set(seen, candidate);
         return candidate;
