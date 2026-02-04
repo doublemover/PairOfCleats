@@ -801,7 +801,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-neighborhood-cache.test.js`
 - [x] `tests/graph/graph-index-cache-reuse.test.js`
 - [x] `tests/graph/graph-adjacency-deterministic.test.js`
-- [ ] `tests/graph/graph-truncation-deterministic.test.js`
+- [x] `tests/graph/graph-truncation-deterministic.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-range.test.js`
 - [x] `tests/context-pack/context-pack-range-reads.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
@@ -830,7 +830,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
-- [ ] `tests/graph/graph-truncation-order-deterministic.test.js`
+- [x] `tests/graph/graph-truncation-order-deterministic.test.js`
 - [ ] `tools/bench/graph/context-pack-latency.js` (new)
 
 ### Acceptance
