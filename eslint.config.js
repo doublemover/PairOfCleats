@@ -38,5 +38,11 @@ export default [
       'max-lines': ['error', { max: 1200, skipBlankLines: true, skipComments: false }],
       indent: ['error', 2, { SwitchCase: 1 }]
     }
+  },
+  {
+    files: ['src/contracts/schemas/**/*.js'],
+    rules: {
+      'max-lines': 'off'
+    }
   }
 ];

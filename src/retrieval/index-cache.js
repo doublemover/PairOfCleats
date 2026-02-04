@@ -145,12 +145,12 @@ const chunkMetaSignature = async (dir) => {
   return 'chunk_meta.json:missing';
 };
 
-const tokenPostingsSignature = (dir) => {
+const tokenPostingsSignature = async (dir) => {
   const packedPath = path.join(dir, 'token_postings.packed.bin');
-  const packedSig = fileSignature(packedPath);
+  const packedSig = await fileSignature(packedPath);
   if (packedSig) {
-    const offsetsSig = fileSignature(path.join(dir, 'token_postings.packed.offsets.bin'));
-    const metaSig = fileSignature(path.join(dir, 'token_postings.packed.meta.json'));
+    const offsetsSig = await fileSignature(path.join(dir, 'token_postings.packed.offsets.bin'));
+    const metaSig = await fileSignature(path.join(dir, 'token_postings.packed.meta.json'));
     return `token_postings.packed.bin:${packedSig}|offsets:${offsetsSig || 'missing'}|meta:${metaSig || 'missing'}`;
   }
   const jsonPath = path.join(dir, 'token_postings.json');
