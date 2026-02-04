@@ -523,8 +523,8 @@ Ensure VFS manifests are correct, deterministic, and efficient, and leverage VFS
 - [x] `tests/tooling/vfs/vfs-virtualpath-deterministic.test.js`
 - [x] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js`
 - [x] `tests/tooling/vfs/vfs-routing-by-effective-language.test.js`
-- [ ] `tests/tooling/vfs/vfs-manifest-streaming.test.js`
-- [ ] `tests/tooling/vfs/vfs-row-size-trim.test.js`
+- [x] `tests/tooling/vfs/vfs-manifest-streaming.test.js`
+- [x] `tests/tooling/vfs/vfs-row-size-trim.test.js`
 
 ### Acceptance
 - [x] VFS manifest rows are deterministic and schema-valid.
