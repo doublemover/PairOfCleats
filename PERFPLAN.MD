@@ -798,7 +798,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Validate api-contracts call-site grouping keys against symbol ids/chunkUids (add fallback).
 
 ### Tests
-- [ ] `tests/graph/graph-neighborhood-cache.test.js`
+- [x] `tests/graph/graph-neighborhood-cache.test.js`
 - [x] `tests/graph/graph-index-cache-reuse.test.js`
 - [ ] `tests/graph/graph-adjacency-deterministic.test.js`
 - [ ] `tests/graph/graph-truncation-deterministic.test.js`
