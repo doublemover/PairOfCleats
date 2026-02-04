@@ -17,6 +17,7 @@ const normalizeCache = (raw) => {
     version: CACHE_VERSION,
     generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : null,
     packageFingerprint: typeof raw.packageFingerprint === 'string' ? raw.packageFingerprint : null,
+    fileSetFingerprint: typeof raw.fileSetFingerprint === 'string' ? raw.fileSetFingerprint : null,
     files
   };
 };
@@ -30,7 +31,16 @@ export const resolveImportResolutionCachePath = (incrementalState) => {
 export const loadImportResolutionCache = async ({ incrementalState, log = null } = {}) => {
   const cachePath = resolveImportResolutionCachePath(incrementalState);
   if (!cachePath || !fsSync.existsSync(cachePath)) {
-    return { cache: { version: CACHE_VERSION, generatedAt: null, packageFingerprint: null, files: {} }, cachePath };
+    return {
+      cache: {
+        version: CACHE_VERSION,
+        generatedAt: null,
+        packageFingerprint: null,
+        fileSetFingerprint: null,
+        files: {}
+      },
+      cachePath
+    };
   }
   try {
     const raw = JSON.parse(await fs.readFile(cachePath, 'utf8'));
@@ -41,7 +51,16 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
       log(`[imports] Failed to read import resolution cache: ${err?.message || err}`);
     }
   }
-  return { cache: { version: CACHE_VERSION, generatedAt: null, packageFingerprint: null, files: {} }, cachePath };
+  return {
+    cache: {
+      version: CACHE_VERSION,
+      generatedAt: null,
+      packageFingerprint: null,
+      fileSetFingerprint: null,
+      files: {}
+    },
+    cachePath
+  };
 };
 
 export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
@@ -50,6 +69,7 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
     version: CACHE_VERSION,
     generatedAt: new Date().toISOString(),
     packageFingerprint: typeof cache.packageFingerprint === 'string' ? cache.packageFingerprint : null,
+    fileSetFingerprint: typeof cache.fileSetFingerprint === 'string' ? cache.fileSetFingerprint : null,
     files: isObject(cache.files) ? cache.files : {}
   };
   try {
