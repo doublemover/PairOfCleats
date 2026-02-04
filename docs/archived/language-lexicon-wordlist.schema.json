@@ -1,0 +1,75 @@
+{
+  "_deprecated": {
+    "replacement": "LEXI.md",
+    "reason": "Absorbed into LEXI roadmap.",
+    "date": "2026-02-03",
+    "commit": "75d70209"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PairOfCleats Language Lexicon Wordlist (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "languageId",
+    "keywords",
+    "literals"
+  ],
+  "properties": {
+    "formatVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "languageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "literals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "builtins": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  }
+}
