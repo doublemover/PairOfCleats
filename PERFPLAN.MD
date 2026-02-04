@@ -781,10 +781,10 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
 - [x] Cache compiled architecture rules + ordered node lists by rules payload hash.
 - [x] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
-- [ ] Add signature arity cache + call-site grouping optimizations in api-contracts.
-- [ ] Task 10.X.4.a: Add arity cache keyed by signature string.
-- [ ] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.
-- [ ] Task 10.X.4.c: Skip per-symbol call sorting when `maxCallsPerSymbol` unset.
+- [x] Add signature arity cache + call-site grouping optimizations in api-contracts.
+- [x] Task 10.X.4.a: Add arity cache keyed by signature string.
+- [x] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.
+- [x] Task 10.X.4.c: Skip per-symbol call sorting when `maxCallsPerSymbol` unset.
 - [ ] Task 10.X.4.d: Add large-call-site test to validate identical output with cache.
 - [ ] Warn when `impact` CLI receives both seed and changed inputs (changed ignored).
 - [ ] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.

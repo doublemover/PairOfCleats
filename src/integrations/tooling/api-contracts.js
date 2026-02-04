@@ -35,6 +35,8 @@ const isExportedSymbol = (symbol) => {
   return false;
 };
 
+const signatureArityCache = new Map();
+
 const parseSignatureArity = (signature) => {
   if (!signature || typeof signature !== 'string') return null;
   const text = String(signature);
@@ -257,6 +259,15 @@ const parseSignatureArity = (signature) => {
   };
 };
 
+const resolveSignatureArity = (signature) => {
+  if (!signature) return null;
+  const key = String(signature);
+  if (signatureArityCache.has(key)) return signatureArityCache.get(key);
+  const parsed = parseSignatureArity(key);
+  signatureArityCache.set(key, parsed);
+  return parsed;
+};
+
 export const buildApiContractsReport = ({
   symbols = [],
   callSites = [],
@@ -312,18 +323,21 @@ export const buildApiContractsReport = ({
     list.push(callSite);
     callSitesByTarget.set(key, list);
   }
+  const sortCallSites = (a, b) => {
+    const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
+    if (fileCmp) return fileCmp;
+    const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
+    if (lineCmp) return lineCmp;
+    return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
+  };
+  for (const list of callSitesByTarget.values()) {
+    list.sort(sortCallSites);
+  }
 
   const symbolEntries = selected.map((symbol) => {
     const symbolId = symbol.symbolId || symbol.id || null;
     const targetKey = symbol.chunkUid || symbolId || symbol.name || null;
     const rawCalls = targetKey ? (callSitesByTarget.get(targetKey) || []) : [];
-    rawCalls.sort((a, b) => {
-      const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
-      if (fileCmp) return fileCmp;
-      const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
-      if (lineCmp) return lineCmp;
-      return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
-    });
 
     let observedCalls = rawCalls;
     const entryTruncation = [];
@@ -338,7 +352,7 @@ export const buildApiContractsReport = ({
       observedCalls = observedCalls.slice(0, maxCallsPerSymbol);
     }
 
-    const signatureInfo = parseSignatureArity(symbol.signature);
+    const signatureInfo = resolveSignatureArity(symbol.signature);
     const entryWarnings = [];
     if (signatureInfo) {
       const requiredCount = Number.isFinite(signatureInfo.requiredCount) ? signatureInfo.requiredCount : null;
