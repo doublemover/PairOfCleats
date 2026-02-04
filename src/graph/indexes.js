@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { toPosix, isAbsolutePathNative } from '../shared/files.js';
+import { compareStrings } from '../shared/sort.js';
 import { compareCandidates } from './ordering.js';
 
 export const normalizeImportPath = (value, repoRoot) => {
@@ -35,6 +36,16 @@ export const buildGraphNodeIndex = (graph, { normalizeId = null } = {}) => {
     map.set(normalizedId, node);
   }
   return map;
+};
+
+export const buildIdTable = (nodeIndex) => {
+  const ids = Array.from(nodeIndex.keys());
+  ids.sort(compareStrings);
+  const idToIndex = new Map();
+  for (let i = 0; i < ids.length; i += 1) {
+    idToIndex.set(ids[i], i);
+  }
+  return { ids, idToIndex };
 };
 
 export const buildImportGraphIndex = (graph, repoRoot) => buildGraphNodeIndex(graph, {

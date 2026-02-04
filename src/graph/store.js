@@ -4,6 +4,7 @@ import { loadGraphRelations, loadJsonArrayArtifact } from '../shared/artifact-io
 import {
   buildCallSiteIndex,
   buildChunkInfo,
+  buildIdTable,
   buildGraphNodeIndex,
   buildImportGraphIndex,
   buildSymbolEdgesIndex
@@ -18,6 +19,9 @@ export const buildGraphIndex = ({
   const callGraphIndex = buildGraphNodeIndex(graphRelations?.callGraph);
   const usageGraphIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
   const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
+  const callGraphIds = buildIdTable(callGraphIndex);
+  const usageGraphIds = buildIdTable(usageGraphIndex);
+  const importGraphIds = buildIdTable(importGraphIndex);
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = buildCallSiteIndex(callSites);
@@ -27,6 +31,9 @@ export const buildGraphIndex = ({
     callGraphIndex,
     usageGraphIndex,
     importGraphIndex,
+    callGraphIds,
+    usageGraphIds,
+    importGraphIds,
     chunkInfo,
     symbolIndex,
     callSiteIndex
