@@ -117,6 +117,13 @@ const chunkMetaSignature = (dir) => {
 };
 
 const tokenPostingsSignature = (dir) => {
+  const packedPath = path.join(dir, 'token_postings.packed.bin');
+  const packedSig = fileSignature(packedPath);
+  if (packedSig) {
+    const offsetsSig = fileSignature(path.join(dir, 'token_postings.packed.offsets.bin'));
+    const metaSig = fileSignature(path.join(dir, 'token_postings.packed.meta.json'));
+    return `token_postings.packed.bin:${packedSig}|offsets:${offsetsSig || 'missing'}|meta:${metaSig || 'missing'}`;
+  }
   const jsonPath = path.join(dir, 'token_postings.json');
   const jsonSig = fileSignature(jsonPath);
   if (jsonSig) return `token_postings.json:${jsonSig}`;

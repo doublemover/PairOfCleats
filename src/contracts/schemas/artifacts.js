@@ -28,6 +28,19 @@ const chunkMetaEntry = {
   additionalProperties: true
 };
 
+const columnarEnvelope = {
+  type: 'object',
+  required: ['format', 'columns', 'length', 'arrays'],
+  properties: {
+    format: { type: 'string', const: 'columnar' },
+    columns: { type: 'array', items: { type: 'string' } },
+    length: intId,
+    arrays: { type: 'object' },
+    tables: { type: ['object', 'null'] }
+  },
+  additionalProperties: true
+};
+
 const postingEntry = {
   type: 'array',
   minItems: 2,
@@ -862,8 +875,10 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
 
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
-    type: 'array',
-    items: chunkMetaEntry
+    anyOf: [
+      { type: 'array', items: chunkMetaEntry },
+      columnarEnvelope
+    ]
   },
   chunk_uid_map: {
     type: 'array',
@@ -930,12 +945,16 @@ export const ARTIFACT_SCHEMA_DEFS = {
     items: symbolRecord
   },
   symbol_occurrences: {
-    type: 'array',
-    items: symbolOccurrence
+    anyOf: [
+      { type: 'array', items: symbolOccurrence },
+      columnarEnvelope
+    ]
   },
   symbol_edges: {
-    type: 'array',
-    items: symbolEdge
+    anyOf: [
+      { type: 'array', items: symbolEdge },
+      columnarEnvelope
+    ]
   },
   call_sites: {
     type: 'array',

@@ -51,6 +51,9 @@ export const buildVfsToken = async ({ virtualPath, docHash = null, mode = null }
 
 export const registerVfsTokenMapping = (token, virtualPath) => {
   if (!token || !virtualPath) return;
+  if (TOKEN_CACHE.has(token)) {
+    TOKEN_CACHE.delete(token);
+  }
   TOKEN_CACHE.set(token, virtualPath);
   if (TOKEN_CACHE.size <= TOKEN_CACHE_MAX) return;
   const overflow = TOKEN_CACHE.size - TOKEN_CACHE_MAX;
@@ -64,7 +67,11 @@ export const registerVfsTokenMapping = (token, virtualPath) => {
 
 export const resolveVfsVirtualPathFromToken = (token) => {
   if (!token) return null;
-  return TOKEN_CACHE.get(token) || null;
+  const mapped = TOKEN_CACHE.get(token) || null;
+  if (!mapped) return null;
+  TOKEN_CACHE.delete(token);
+  TOKEN_CACHE.set(token, mapped);
+  return mapped;
 };
 
 export const buildVfsTokenUri = ({ virtualPath, token }) => {

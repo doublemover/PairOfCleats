@@ -1,7 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
+
+const normalizeTokenPostingsFormat = (value, artifactMode) => {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (raw === 'packed' || raw === 'json' || raw === 'sharded' || raw === 'auto') return raw;
+  if (artifactMode === 'json') return 'json';
+  if (artifactMode === 'sharded') return 'sharded';
+  return 'auto';
+};
 
 export function resolveTokenPostingsPlan({
   artifactMode,
@@ -14,8 +24,7 @@ export function resolveTokenPostingsPlan({
   shardTargetBytes,
   log
 }) {
-  const tokenPostingsFormat = tokenPostingsFormatConfig
-    || (artifactMode === 'sharded' ? 'sharded' : (artifactMode === 'json' ? 'json' : 'auto'));
+  const tokenPostingsFormat = normalizeTokenPostingsFormat(tokenPostingsFormatConfig, artifactMode);
   let resolvedShardSize = tokenPostingsShardSize;
   let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
     || (tokenPostingsFormat === 'auto'
@@ -24,9 +33,12 @@ export function resolveTokenPostingsPlan({
     postings.tokenVocab,
     postings.tokenPostingsList
   );
+  if (tokenPostingsFormat === 'packed') {
+    tokenPostingsUseShards = false;
+  }
   if (tokenPostingsEstimate) {
     if (tokenPostingsEstimate.estimatedBytes > maxJsonBytesSoft) {
-      tokenPostingsUseShards = true;
+      tokenPostingsUseShards = tokenPostingsFormat !== 'packed';
       const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
       resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
       log(
@@ -50,6 +62,7 @@ export async function enqueueTokenPostingsArtifacts({
   outDir,
   postings,
   state,
+  tokenPostingsFormat,
   tokenPostingsUseShards,
   tokenPostingsShardSize,
   tokenPostingsCompression,
@@ -58,6 +71,59 @@ export async function enqueueTokenPostingsArtifacts({
   addPieceFile,
   formatArtifactLabel
 }) {
+  const writePackedTokenPostings = async () => {
+    const packedPath = path.join(outDir, 'token_postings.packed.bin');
+    const offsetsPath = path.join(outDir, 'token_postings.packed.offsets.bin');
+    const metaPath = path.join(outDir, 'token_postings.packed.meta.json');
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings',
+      format: 'packed',
+      count: postings.tokenVocab.length
+    }, packedPath);
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings_offsets',
+      format: 'binary'
+    }, offsetsPath);
+    addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
+    enqueueWrite(
+      formatArtifactLabel(packedPath),
+      async () => {
+        const packed = packTfPostings(postings.tokenPostingsList, {
+          blockSize: DEFAULT_PACKED_BLOCK_SIZE
+        });
+        const offsetsBuffer = encodePackedOffsets(packed.offsets);
+        const packedTemp = createTempPath(packedPath);
+        const offsetsTemp = createTempPath(offsetsPath);
+        await fs.writeFile(packedTemp, packed.buffer);
+        await fs.writeFile(offsetsTemp, offsetsBuffer);
+        await replaceFile(packedTemp, packedPath);
+        await replaceFile(offsetsTemp, offsetsPath);
+        await writeJsonObjectFile(metaPath, {
+          fields: {
+            avgDocLen: postings.avgDocLen,
+            totalDocs: state.docLengths.length,
+            format: 'packed',
+            encoding: 'delta-varint',
+            blockSize: packed.blockSize,
+            vocabCount: postings.tokenVocab.length,
+            offsets: path.posix.basename(offsetsPath)
+          },
+          arrays: {
+            vocab: postings.tokenVocab,
+            docLengths: state.docLengths
+          },
+          atomic: true
+        });
+      }
+    );
+  };
+
+  if (tokenPostingsFormat === 'packed') {
+    await writePackedTokenPostings();
+    return;
+  }
   if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');
     const parts = [];
