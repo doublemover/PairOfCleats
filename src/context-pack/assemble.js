@@ -143,6 +143,7 @@ const trimUtf8Buffer = (buffer) => {
 // Excerpt caches avoid repeated IO and token slicing for identical ranges.
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
+const EXCERPT_HASH_CACHE_MAX = 256;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
 const excerptHashCache = new Map();
@@ -263,10 +264,11 @@ const resolveExcerpt = ({
   const excerptHash = excerpt ? sha1(excerpt) : null;
   let deduped = excerpt;
   if (excerptHash) {
-    if (excerptHashCache.has(excerptHash)) {
-      deduped = excerptHashCache.get(excerptHash);
+    const cached = getCachedValue(excerptHashCache, excerptHash);
+    if (cached) {
+      deduped = cached;
     } else {
-      excerptHashCache.set(excerptHash, excerpt);
+      setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
   const payload = { excerpt: deduped, truncated, excerptHash };

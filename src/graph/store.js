@@ -117,7 +117,6 @@ export const buildGraphIndex = ({
   const usageGraphIds = buildIdTable(usageGraphIndex);
   const importGraphIds = buildIdTable(importGraphIndex);
   const importGraphPathTable = buildPrefixTable(importGraphIds.ids || []);
-  importGraphIds.ids = null;
   const graphRelationsCsr = includeCsr
     ? {
       callGraph: buildAdjacencyCsr(callGraphAdjacency, callGraphIds),
@@ -125,6 +124,9 @@ export const buildGraphIndex = ({
       importGraph: buildAdjacencyCsr(importGraphAdjacency, importGraphIds)
     }
     : null;
+  if (!includeCsr) {
+    importGraphIds.ids = null;
+  }
   if (includeCsr && graphRelations && typeof graphRelations === 'object') {
     for (const graphName of ['callGraph', 'usageGraph', 'importGraph']) {
       const graph = graphRelations[graphName];
