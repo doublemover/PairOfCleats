@@ -1277,17 +1277,17 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [@] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
 - [x] Task 14.D.3.a: Add `canonicalOrderIndex` from discovery order and keep processing reorder separate.
 - [x] Task 14.D.3.b: Ensure `orderedAppender` uses canonical order for docId assignment.
-- [ ] Task 14.D.3.c: Add optional windowed batching to cap pending buffers when processing order diverges.
+- [x] Task 14.D.3.c: Add optional windowed batching to cap pending buffers when processing order diverges.
 - [x] Task 14.D.3.d: Detect out‑of‑order chunk_meta stream; only enable external sort when needed.
 - [x] Task 14.D.3.e: External sort by numeric `id` only to preserve docId alignment.
 - [x] Task 14.D.3.f: Stream JSONL directly when already ordered (skip spill collector).
 - [x] Task 14.D.3.g: Emit chunk_meta ordering telemetry in stage checkpoints.
-- [ ] Task 14.D.3.h: Add docId alignment guardrails and verification in tests.
-- [ ] Task 14.D.3.i: Add bucketed external sort by `id` range to avoid full compare sort.
-- [ ] Task 14.D.3.j: Log the first out‑of‑order pair (prevId/nextId) for diagnostics.
-- [ ] Task 14.D.3.k: Add ID‑only spill index to re‑order without re‑serializing rows.
-- [ ] Task 14.D.3.l: Cache JSONL row strings when measuring to avoid double stringify in sorting paths.
-- [ ] Touchpoints 14.D.3: `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/tree-sitter.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts/helpers.js`, `src/index/validate/checks.js`.
+- [x] Task 14.D.3.h: Add docId alignment guardrails and verification in tests.
+- [x] Task 14.D.3.i: Add bucketed external sort by `id` range to avoid full compare sort.
+- [x] Task 14.D.3.j: Log the first out‑of‑order pair (prevId/nextId) for diagnostics.
+- [x] Task 14.D.3.k: Add ID‑only spill index to re‑order without re‑serializing rows.
+- [x] Task 14.D.3.l: Cache JSONL row strings when measuring to avoid double stringify in sorting paths.
+- [x] Touchpoints 14.D.3: `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/tree-sitter.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts/helpers.js`, `src/index/validate/checks.js`.
 - [x] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
 - [x] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
 - [x] Task 14.D.6: Add optional columnar chunk_meta format with boundary conversion to row objects.
@@ -1340,30 +1340,30 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.G.8: Add df-based cutoff for high-frequency chargrams to bound postings growth.
 - [x] Task 14.G.8.a: Track dropped high-df chargrams in stage checkpoints.
 
-- [ ] **14.H Benchmarks + acceptance harness**
-- [ ] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
-- [ ] Task 14.H.1.a: Emit JSON summary with p50/p95 latency and write counts + delta.
-- [ ] Task 14.H.2: Implement `tools/bench/index/import-resolution-graph.js` for nodes/edges throughput.
-- [ ] Task 14.H.2.a: Report node/edge counts and cap triggers; include seed and baseline delta.
-- [ ] Task 14.H.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
-- [ ] Task 14.H.3.a: Include memory watermark and output hash compare.
+- [x] **14.H Benchmarks + acceptance harness**
+- [x] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
+- [x] Task 14.H.1.a: Emit JSON summary with p50/p95 latency and write counts + delta.
+- [x] Task 14.H.2: Implement `tools/bench/index/import-resolution-graph.js` for nodes/edges throughput.
+- [x] Task 14.H.2.a: Report node/edge counts and cap triggers; include seed and baseline delta.
+- [x] Task 14.H.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
+- [x] Task 14.H.3.a: Include memory watermark and output hash compare.
 - [x] Task 14.H.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
 - [x] Task 14.H.4.a: Include spill count and vocab size metrics + baseline delta.
 - [x] Task 14.H.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
 - [x] Task 14.H.5.a: Report bytes/sec and shard counts + baseline delta.
-- [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
-- [ ] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
-- [ ] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
+- [x] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
+- [x] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
+- [x] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
 - [x] Task 14.H.8: Implement `tools/bench/index/jsonl-offset-index.js` for random-access lookups.
 - [x] Task 14.H.8.a: Compare baseline scan vs offset index (p50/p95 row fetch latency).
-- [ ] Task 14.H.9: Implement `tools/bench/index/postings-packed.js` to compare JSON vs packed postings.
-- [ ] Task 14.H.9.a: Report size ratio + load time delta for token/phrase/chargram postings.
-- [ ] Task 14.H.10: Implement `tools/bench/index/jsonl-compression-pipeline.js` for write throughput.
-- [ ] Task 14.H.10.a: Compare sync write vs worker compression (wall time + CPU).
-- [ ] Task 14.H.11: Implement `tools/bench/index/import-graph-incremental.js` for incremental rebuilds.
-- [ ] Task 14.H.11.a: Report reuse ratio (cached vs recomputed) + total time delta.
+- [x] Task 14.H.9: Implement `tools/bench/index/postings-packed.js` to compare JSON vs packed postings.
+- [x] Task 14.H.9.a: Report size ratio + load time delta for token/phrase/chargram postings.
+- [x] Task 14.H.10: Implement `tools/bench/index/jsonl-compression-pipeline.js` for write throughput.
+- [x] Task 14.H.10.a: Compare sync write vs worker compression (wall time + CPU).
+- [x] Task 14.H.11: Implement `tools/bench/index/import-graph-incremental.js` for incremental rebuilds.
+- [x] Task 14.H.11.a: Report reuse ratio (cached vs recomputed) + total time delta.
 
-- [ ] **14.I Artifact access + write acceleration**
+- [x] **14.I Artifact access + write acceleration**
 - [x] Task 14.I.1: Add byte‑offset indexes for JSONL artifacts (chunk_meta, symbols, symbol_occurrences, symbol_edges, graph_relations, call_sites).
 - [x] Task 14.I.1.a: Emit offsets during JSONL write (no second pass); store `offsets.bin` (uint64 LE) + `offsets.meta.json`.
 - [x] Task 14.I.1.b: For compressed shards, either keep raw JSONL alongside compressed or use seekable zstd frames; document fallback (offsets require uncompressed output).
@@ -1379,15 +1379,15 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.I.3.b: Compress blocks in a bounded worker pool; preserve output ordering.
 - [x] Task 14.I.3.c: Backpressure when compression lags to avoid unbounded memory.
 - [x] Task 14.I.3.d: Prefer zstd (seekable frames) for large shards; fall back to gzip where required.
-- [ ] Task 14.I.4: Add packed postings format (delta+varint) for docId lists.
-- [ ] Task 14.I.4.a: Encode docId deltas + tf counts in a binary blob with offsets per token.
-- [ ] Task 14.I.4.b: Keep JSON as fallback; loader prefers packed when present.
-- [ ] Task 14.I.4.c: Use block-encoded varints (e.g., 128/256 doc blocks) to balance decode speed + compression.
-- [ ] Task 14.I.5: Add incremental import‑graph refresh.
-- [ ] Task 14.I.5.a: Persist per‑file resolution results keyed by file hash + tsconfig fingerprint.
-- [ ] Task 14.I.5.b: Invalidate cache on tsconfig/package.json/paths changes; reuse for unchanged files.
-- [ ] Task 14.I.5.c: Track reuse ratio + invalidations in stage checkpoints for tuning.
-- [ ] Touchpoints 14.I: `src/index/build/artifacts/writers/*.js`, `src/shared/artifact-io/*.js`, `src/index/build/import-resolution-graph.js`, `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/retrieval/*` loaders.
+- [x] Task 14.I.4: Add packed postings format (delta+varint) for docId lists.
+- [x] Task 14.I.4.a: Encode docId deltas + tf counts in a binary blob with offsets per token.
+- [x] Task 14.I.4.b: Keep JSON as fallback; loader prefers packed when present.
+- [x] Task 14.I.4.c: Use block-encoded varints (e.g., 128/256 doc blocks) to balance decode speed + compression.
+- [x] Task 14.I.5: Add incremental import‑graph refresh.
+- [x] Task 14.I.5.a: Persist per‑file resolution results keyed by file hash + tsconfig fingerprint.
+- [x] Task 14.I.5.b: Invalidate cache on tsconfig/package.json/paths changes; reuse for unchanged files.
+- [x] Task 14.I.5.c: Track reuse ratio + invalidations in stage checkpoints for tuning.
+- [x] Touchpoints 14.I: `src/index/build/artifacts/writers/*.js`, `src/shared/artifact-io/*.js`, `src/index/build/import-resolution-graph.js`, `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/retrieval/*` loaders.
 
 ### Tests
 - [ ] `tests/indexing/build-state/build-state-debounce.test.js`

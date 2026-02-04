@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
 import { writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
@@ -142,9 +143,23 @@ export const mergeSortedRuns = async function* (runs, { compare, readRun = readJ
   }
 };
 
-export const writeJsonlRunFile = async (filePath, rows, { atomic = true } = {}) => (
-  writeJsonLinesFile(filePath, rows, { atomic })
-);
+export const writeJsonlRunFile = async (filePath, rows, { atomic = true, serialize = null } = {}) => {
+  if (typeof serialize !== 'function') {
+    return writeJsonLinesFile(filePath, rows, { atomic });
+  }
+  const writer = createJsonlBatchWriter(filePath, { atomic });
+  try {
+    for (const entry of rows) {
+      const line = serialize(entry);
+      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+      await writer.writeLine(line, lineBytes);
+    }
+    await writer.close();
+  } catch (err) {
+    try { await writer.destroy(err); } catch {}
+    throw err;
+  }
+};
 
 export const createByteTracker = ({ maxJsonBytes = null } = {}) => {
   const stats = {
@@ -236,7 +251,9 @@ export const createRowSpillCollector = ({
   maxBufferBytes = 2 * 1024 * 1024,
   maxBufferRows = 5000,
   maxJsonBytes = null,
-  stats = createTrimStats()
+  stats = createTrimStats(),
+  mapRow = null,
+  serialize = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
@@ -244,6 +261,8 @@ export const createRowSpillCollector = ({
   let runIndex = 0;
   const runs = [];
   const compareRows = typeof compare === 'function' ? compare : compareStrings;
+  const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
+  const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
   const runDirName = `${runPrefix || 'rows'}.runs`;
 
   const ensureRunsDir = async () => {
@@ -261,26 +280,29 @@ export const createRowSpillCollector = ({
     const runName = `${runPrefix || 'rows'}.run-${String(runIndex).padStart(5, '0')}.jsonl`;
     const runPath = path.join(dir, runName);
     runIndex += 1;
-    await writeJsonlRunFile(runPath, buffer, { atomic: true });
+    await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
     runs.push(runPath);
     buffer.length = 0;
     bufferBytes = 0;
   };
 
-  const append = async (row, { trimmed = false, dropped = false } = {}) => {
+  const append = async (row, { trimmed = false, dropped = false, line = null, lineBytes = null } = {}) => {
     if (!row || dropped) {
       recordTrimStats(stats, { dropped: true });
       return;
     }
-    const lineBytes = Buffer.byteLength(JSON.stringify(row), 'utf8') + 1;
-    if (maxJsonBytes && lineBytes > maxJsonBytes) {
-      const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${maxJsonBytes}).`);
+    const resolvedLine = line ?? serializeRow(row);
+    const resolvedBytes = Number.isFinite(Number(lineBytes))
+      ? Math.max(0, Math.floor(Number(lineBytes)))
+      : Buffer.byteLength(resolvedLine, 'utf8') + 1;
+    if (maxJsonBytes && resolvedBytes > maxJsonBytes) {
+      const err = new Error(`JSONL entry exceeds maxBytes (${resolvedBytes} > ${maxJsonBytes}).`);
       err.code = 'ERR_JSON_TOO_LARGE';
       throw err;
     }
-    recordTrimStats(stats, { rowBytes: lineBytes, trimmed });
-    buffer.push(row);
-    bufferBytes += lineBytes;
+    recordTrimStats(stats, { rowBytes: resolvedBytes, trimmed });
+    buffer.push(wrapRow(row, { line: resolvedLine, lineBytes: resolvedBytes }));
+    bufferBytes += resolvedBytes;
     const overflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
       || (maxBufferRows && buffer.length >= maxBufferRows);
     if (overflow) {

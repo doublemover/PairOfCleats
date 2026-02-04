@@ -650,11 +650,11 @@ cache (object)
 cache.root (string)
 indexing (object)
 indexing.artifacts (object)
-indexing.artifacts.chunkMetaFormat (string)
+indexing.artifacts.chunkMetaFormat (string) enum=auto|json|jsonl|columnar
 indexing.artifacts.chunkMetaJsonlThreshold (number)
 indexing.artifacts.chunkMetaShardSize (number)
 indexing.artifacts.mode (string)
-indexing.artifacts.symbolArtifactsFormat (string)
+indexing.artifacts.symbolArtifactsFormat (string) enum=auto|jsonl|jsonl-sharded|columnar
 indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
