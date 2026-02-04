@@ -45,7 +45,16 @@ Use the context-pack latency harness to measure timing and RSS:
 node tools/bench/graph/context-pack-latency.js --index <indexDir> --seed chunk:<id>
 ```
 
-The harness reports min/avg/p95 timing and RSS deltas over multiple iterations.
+The harness reports min/avg/p95 timing and RSS deltas over multiple iterations. It
+defaults to auto-discovered code index when `--index` is omitted.
+
+Additional graph Phase 10 benches:
+
+```
+node tools/bench/graph/neighborhood-cache.js --nodes 2000 --fanout 6 --mode compare
+node tools/bench/graph/store-lazy-load.js --mode compare
+node tools/bench/graph/render-sort.js --size 2000 --mode compare
+```
 
 ## Validation
 Phase 10 adds deterministic output tests, cache reuse tests, and excerpt

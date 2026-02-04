@@ -147,6 +147,12 @@ const excerptCache = new Map();
 const fileRangeCache = new Map();
 const excerptHashCache = new Map();
 
+export const clearContextPackCaches = () => {
+  excerptCache.clear();
+  fileRangeCache.clear();
+  excerptHashCache.clear();
+};
+
 const getCachedValue = (cache, key) => {
   if (!key) return null;
   if (!cache.has(key)) return null;

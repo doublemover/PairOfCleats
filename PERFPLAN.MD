@@ -790,6 +790,9 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.
 - [x] Task 10.X.6.b: Add test asserting warning and unchanged behavior.
 - [x] Add microbench harness for graph/context-pack latency + memory.
+- [x] Add neighborhood cache benchmark (graphIndex vs rebuild).
+- [x] Add graph store lazy-load benchmark (subset vs full graphs).
+- [x] Add graph renderer sorted-skip benchmark.
 - [x] Update `docs/perf/graph-context-pack.md` with new graph index, caching, and excerpt strategies.
 - [x] Add JSDoc on tricky components (GraphIndex, ChunkIndex, adjacency builders, spill/merge, excerpt caches).
 - [x] Deduplicate seed candidates in context-pack assembly to avoid repeated lookups.
