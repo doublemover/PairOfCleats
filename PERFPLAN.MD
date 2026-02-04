@@ -1502,3 +1502,55 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Packed postings are smaller and load faster than JSON in benchmarks.
 - [ ] Worker compression preserves row order and checksums while reducing wall time.
 - [ ] Benchmarks show measurable gains (baseline vs current deltas captured) and are documented.
+
+### Commit Review (21-40)
+- 0f4f4b5c Track chunk_meta trim stats and symbol trim metadata: Regression risk: `resolveChunkMetaOrder` is no longer used, so non-JSONL `chunk_meta` output can become non-deterministic when chunk order is unstable.
+- e369124f Add stage checkpoint telemetry for symbol artifacts: No issues found.
+- ffa8ba0a Stream chunk_meta JSONL output: No issues found.
+- 340029db Stream symbol artifact rows: No issues found.
+- b04a0ccf Stabilize chunk_meta ordering: No issues found.
+- 958ef562 Optimize graph relations measurement: No issues found.
+- 7e3bfe8e Optimize import resolution graph: Potential regression: skips tsconfig lookup entirely when `tsconfig.json` is not present in the scanned entries; if tsconfig exists but is excluded from entries, `paths`/`baseUrl` resolution is silently disabled.
+- 33ac4475 Phase 14 foundations + build_state streaming: No issues found.
+- 224481d4 PERFPLAN: reorder Phase 14 + expand tests: No issues found.
+- 9c1b2d07 Artifacts: fallback chunk_meta + pragma threshold: Potential perf regression if `inputBytes` is missing/0; build pragmas/optimize default to off, even for large builds.
+- c4a1ab04 Test runner: redo/log formatting and summary order: No issues found.
+- b9f8199e Bench: add baseline vs current comparisons: No issues found.
+- 14ec5a1a Phase 6 sqlite perf + map pipeline updates: No issues found.
+- 3708b325 Stabilize test runner output and tooling fixtures: Potential regression: Swift signatures without explicit return types no longer default to `Void`, which may drop return types in type inference.
+- 6b740e03 Fix moved tool/test paths and smoke runners: No issues found.
+- bf76ece5 Limit symbol determinism test to stage2: No issues found.
+- 05e2c83c Fix LSP param type enrichment for clangd: Gap: `mergeSignatureInfo` only adopts `paramTypes` when none exist, so hover results cannot fill missing parameter types for partial signatures.
+- 8abdcd5e Update PERFPLAN phase details: No issues found.
+- a458ed44 Merge main into QUANTUM-SPINDLE: No issues found.
+- e3b9c8c7 Fix json-stream cleanup and vfs manifest indexing: No issues found.
+
+### Commit Review (41-60)
+- 6f6d85ef bimg mep: No issues found.
+- 1c0cb09e Add Phase 7 VFS tests and benchmarks: No issues found.
+- 8ee99201 Add VFS hash routing/index/hash cache helpers: No issues found.
+- 385a1b40 Update perfplan with VFS contract test runs: No issues found.
+- 5991d020 Update perfplan Phase 7 VFS expert status: No issues found.
+- 0a1dfa93 Fix embeddings cache reuse for empty vectors: No issues found.
+- 67ec2907 Implement VFS bloom/parallel/cold-start caches: No issues found.
+- 179db9e4 Add VFS LSP IO batching and bench baselines: No issues found.
+- 584312ab Retire future sweeps after absorbing fixes: No issues found.
+- b98de2bc Avoid treating literal help/version as flags: No issues found.
+- c7986ab1 Fix bloom-negative-lookup bench initialization: No issues found.
+- d49ad38b Fix merge-runs-heap bench initialization: No issues found.
+- 421cc4d9 Implement VFS tokens, coalescing, and CDC segmentation: Gap: token cache in `src/integrations/tooling/lsp/uris.js` is unbounded and never evicted, so long-running sessions can grow memory with many unique virtual paths.
+- 75d70209 docs: absorb lexicon drafts into LEXI: Gap: lexicon draft specs were deleted from `future/lexi/*` instead of archived under `docs/archived` per the spec deprecation process.
+- 4390a25e docs: absorb phase 15 drafts into roadmap: No issues found.
+- 8f67444b docs: absorb phase 14 drafts into roadmap: No issues found.
+- d6aba5d2 docs: mark future/14 drafts and align with roadmap: No issues found.
+- 63719f9d Add VFS hash routing artifacts and indexes: No issues found.
+- c29bc2a5 Update doc-contract drift outputs: No issues found.
+- 7d3d3f4b Groan improvement (#46): Potential regression: tool script paths were renamed without compatibility shims (e.g. `tools/download-dicts.js` -> `tools/download/dicts.js`), so external automation using old paths will break.
+
+---
+
+### Commit Review (Last 20 commits on QUANTUM-SPINDLE)
+- a3644d3d Add columnar chunk_meta support — New `columnar` artifact format is not documented in `docs/contracts/*` or artifact schema allowlists; update artifact contract/schemas and docs to include `.columnar.json` and format enum.
+- 602ef1bd Add columnar symbol artifacts — New `symbolArtifactsFormat` config and `.columnar.json` outputs are not reflected in `docs/config/schema.json` / inventory or artifact contract docs; add config surface + contract updates.
+- 9567fe0c Optimize chargram generation and drop high-df terms — Added `chargramMaxDf` config without docs/config schema + inventory updates; decide whether public (document) or internal (hide/rename).
+- Remaining commits in this range: no additional issues found during review.
