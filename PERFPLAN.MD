@@ -715,25 +715,115 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - `src/integrations/tooling/api-contracts.js`
 - `docs/perf/graph-context-pack.md` (new)
 - `tests/graph/graph-neighborhood-cache.test.js` (new)
+- `tests/graph/graph-index-cache-reuse.test.js` (new)
+- `tests/graph/graph-adjacency-deterministic.test.js` (new)
 - `tests/graph/graph-truncation-deterministic.test.js` (new)
 - `tests/context-pack/context-pack-excerpt-range.test.js` (new)
+- `tests/context-pack/context-pack-range-reads.test.js` (new)
+- `tests/context-pack/context-pack-excerpt-cache.test.js` (new)
 - `tests/context-pack/context-pack-assembly-memory.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/graph-context-pack.md` (new)
 
 ### Tasks
-- [ ] Build and reuse symbol/edge indexes instead of re-sorting per request.
-- [ ] Cache graph relations and reuse across calls within a session.
-- [ ] Use range reads for excerpts instead of full file loads.
-- [ ] Reduce intermediate array churn in neighborhood traversal.
+- [ ] Build a shared `GraphIndex` in `src/graph/store.js` that precomputes node/edge maps and sort keys.
+- [ ] Add compact integer ID remapping for graph nodes/edges with reversible string tables.
+- [ ] Replace per-edge string keys with numeric IDs or pre-hashed keys in the graph index.
+- [ ] Normalize import/file paths once in the graph index; avoid per-edge normalization.
+- [ ] Make adjacency lists unique + pre-sorted at index build time; skip per-node neighbor sorting.
+- [ ] Precompute adjacency partitions (by from/to/type) to avoid per-request sorting and repeated scans.
+- [ ] Add prefix-compressed path tables for file path references to reduce memory.
+- [ ] Add an opt-in columnar/offsets representation for `graph_relations` to cut parse + memory cost.
+- [ ] Store graph relations in memory-mapped or buffer-backed typed arrays for large graphs.
+- [ ] Bound graph artifact caches by index signature (LRU eviction) to prevent unbounded growth.
+- [ ] Cache the `GraphIndex` by index signature + options; reuse across graph/context-pack calls in a session.
+- [ ] Add lazy edge-type loading so call/usage/import graphs are only loaded when requested.
+- [ ] Gate graph artifact loads in tooling CLIs based on include flags and edge filters.
+- [ ] Parallelize graph artifact loads (`graph_relations`, `symbol_edges`, `call_sites`) with `Promise.all`.
+- [ ] Task 10.X.3.a: Resolve required artifacts from CLI flags (`graphs`, `edgeTypes`, include toggles).
+- [ ] Task 10.X.3.b: Load only required artifacts; emit warning when required artifact missing.
+- [ ] Task 10.X.3.c: Use `Promise.all` for required loads.
+- [ ] Task 10.X.3.d: Add tests verifying unused artifacts are not loaded.
+- [ ] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
+- [ ] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
+- [ ] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
+- [ ] Task 10.X.8.c: Add test that repeated calls reuse index.
+- [ ] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
+- [ ] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
+- [ ] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
+- [ ] Reduce intermediate array churn in neighborhood traversal with streaming + budgeted iterators.
+- [ ] Add windowed spill/merge for large neighborhood assembly to cap heap usage.
+- [ ] Add parallel neighborhood expansion per edge type with deterministic merge ordering.
+- [ ] Precompute deterministic edge buckets for truncation (priority + stable sort keys) to avoid per-call sort.
+- [ ] Add lazy witness-path construction; avoid building paths unless requested and within caps.
+- [ ] Add fast edge-filter predicate compiled once per request.
+- [ ] Ensure budget/truncation ordering is deterministic across runs.
 - [ ] Track graph/context-pack timings and memory checkpoints.
+- [ ] Track graph/context-pack peak memory and excerpt bytes in stats payload.
+- [ ] Use range reads for excerpts instead of full file loads; avoid `fs.readFileSync` for slices.
+- [ ] Add `readFileRange` helper; prefer when `start/end` valid.
+- [ ] Add a small excerpt LRU cache keyed by `(path,start,end,maxBytes,maxTokens)` to avoid repeated reads.
+- [ ] Add file-level excerpt cache keyed by `(filePath, byteRange)` before token slicing.
+- [ ] Add excerpt prefetch batching to reduce per-chunk IO latency in context packs.
+- [ ] Add excerpt hash de-duplication to avoid emitting duplicate slices.
+- [ ] Normalize chunk/file paths once for seed resolution in context-pack assembly.
+- [ ] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
+- [ ] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
+- [ ] Add deterministic output ordering for graph/architecture/suggest-tests renderers and include warnings/truncation sections.
+- [ ] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
+- [ ] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
+- [ ] Task 10.X.1.c: Sort suggest-tests outputs by score desc then path; include truncation + warnings sections.
+- [ ] Task 10.X.1.d: Add renderer tests for deterministic ordering and diagnostics visibility.
+- [ ] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
+- [ ] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
+- [ ] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
+- [ ] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
+- [ ] Cache compiled architecture rules + ordered node lists by rules payload hash.
+- [ ] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
+- [ ] Add signature arity cache + call-site grouping optimizations in api-contracts.
+- [ ] Task 10.X.4.a: Add arity cache keyed by signature string.
+- [ ] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.
+- [ ] Task 10.X.4.c: Skip per-symbol call sorting when `maxCallsPerSymbol` unset.
+- [ ] Task 10.X.4.d: Add large-call-site test to validate identical output with cache.
+- [ ] Warn when `impact` CLI receives both seed and changed inputs (changed ignored).
+- [ ] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.
+- [ ] Task 10.X.6.b: Add test asserting warning and unchanged behavior.
+- [ ] Add microbench harness for graph/context-pack latency + memory.
+- [ ] Update `docs/perf/graph-context-pack.md` with new graph index, caching, and excerpt strategies.
+- [ ] Add JSDoc on tricky components (GraphIndex, ChunkIndex, adjacency builders, spill/merge, excerpt caches).
 
 ### Tests
 - [ ] `tests/graph/graph-neighborhood-cache.test.js`
+- [ ] `tests/graph/graph-index-cache-reuse.test.js`
+- [ ] `tests/graph/graph-adjacency-deterministic.test.js`
 - [ ] `tests/graph/graph-truncation-deterministic.test.js`
 - [ ] `tests/context-pack/context-pack-excerpt-range.test.js`
+- [ ] `tests/context-pack/context-pack-range-reads.test.js`
+- [ ] `tests/context-pack/context-pack-excerpt-cache.test.js`
 - [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
+- [ ] `tests/graph/graph-id-remap-roundtrip.test.js`
+- [ ] `tests/graph/graph-edge-bucket-determinism.test.js`
+- [ ] `tests/graph/graph-lazy-edge-load.test.js`
+- [ ] `tests/graph/graph-spill-merge-deterministic.test.js`
+- [ ] `tests/context-pack/context-pack-excerpt-dedupe.test.js`
+- [ ] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
+- [ ] `tests/graph/graph-adjacency-presorted.test.js`
+- [ ] `tests/graph/graph-store-cache-eviction.test.js`
+- [ ] `tests/graph/architecture-rules-cache.test.js`
+- [ ] `tests/graph/suggest-tests-cache.test.js`
+- [ ] `tests/context-pack/context-pack-shared-index.test.js`
+- [ ] `tests/context-pack/context-pack-range-reads.test.js`
+- [ ] `tests/context-pack/context-pack-excerpt-cache.test.js`
+- [ ] `tests/graph/graph-output-deterministic.test.js`
+- [ ] `tests/graph/architecture-output-deterministic.test.js`
+- [ ] `tests/graph/suggest-tests-output-deterministic.test.js`
+- [ ] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
+- [ ] `tests/graph/graph-witness-path-lazy.test.js`
+- [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
+- [ ] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
+- [ ] `tests/graph/graph-truncation-order-deterministic.test.js`
+- [ ] `tools/bench/graph/context-pack-latency.js` (new)
 
 ### Acceptance
 - [ ] Graph and context pack generation uses less memory on large graphs.
