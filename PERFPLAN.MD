@@ -769,7 +769,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add excerpt hash de-duplication to avoid emitting duplicate slices.
 - [x] Normalize chunk/file paths once for seed resolution in context-pack assembly.
 - [x] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
-- [ ] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
+- [x] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
 - [x] Add deterministic output ordering for graph/architecture/suggest-tests renderers and include warnings/truncation sections.
 - [x] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
 - [x] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
@@ -793,7 +793,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Update `docs/perf/graph-context-pack.md` with new graph index, caching, and excerpt strategies.
 - [ ] Add JSDoc on tricky components (GraphIndex, ChunkIndex, adjacency builders, spill/merge, excerpt caches).
 - [x] Deduplicate seed candidates in context-pack assembly to avoid repeated lookups.
-- [ ] Add seed normalization tests (posix/windows mix) for context-pack and impact outputs.
+- [x] Add seed normalization tests (posix/windows mix) for context-pack and impact outputs.
 - [ ] Add streaming load path for api-contracts symbols/call-sites to avoid full array materialization.
 - [ ] Validate api-contracts call-site grouping keys against symbol ids/chunkUids (add fallback).
 
@@ -806,6 +806,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/context-pack/context-pack-range-reads.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
 - [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
+- [x] `tests/context-pack/context-pack-seed-normalization.test.js`
 - [ ] `tests/graph/graph-id-remap-roundtrip.test.js`
 - [ ] `tests/graph/graph-edge-bucket-determinism.test.js`
 - [x] `tests/graph/graph-lazy-edge-load.test.js`
@@ -825,6 +826,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-context-pack-skip-resort.test.js`
 - [x] `tests/tooling/api-contracts/api-contracts-large-call-sites.test.js`
 - [x] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
+- [x] `tests/tooling/impact/impact-seed-normalization.test.js`
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
