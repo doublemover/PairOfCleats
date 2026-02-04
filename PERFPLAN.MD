@@ -780,7 +780,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
 - [ ] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
 - [x] Cache compiled architecture rules + ordered node lists by rules payload hash.
-- [ ] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
+- [x] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
 - [ ] Add signature arity cache + call-site grouping optimizations in api-contracts.
 - [ ] Task 10.X.4.a: Add arity cache keyed by signature string.
 - [ ] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.

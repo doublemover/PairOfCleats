@@ -21,6 +21,29 @@ const DEFAULT_EXCLUDED_DIRS = new Set([
 ]);
 
 const TEST_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx']);
+const TEST_MATCHER_CACHE_MAX = 8;
+const TEST_DISCOVERY_CACHE_MAX = 4;
+const testMatcherCache = new Map();
+const testDiscoveryCache = new Map();
+
+const getCachedValue = (cache, key) => {
+  if (!key) return null;
+  if (!cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+};
+
+const setCachedValue = (cache, key, value, max) => {
+  if (!key) return;
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > max) {
+    const oldest = cache.keys().next().value;
+    cache.delete(oldest);
+  }
+};
 
 const isTestFileName = (relPath) => {
   const normalized = toPosix(relPath || '');
@@ -34,11 +57,24 @@ const isTestFileName = (relPath) => {
   return false;
 };
 
-const compileTestMatchers = (patterns) => {
+const normalizeTestPatterns = (patterns) => {
   const list = Array.isArray(patterns) ? patterns : [];
   const normalized = list.map((entry) => String(entry).trim()).filter(Boolean);
-  if (!normalized.length) return null;
-  return normalized.map((pattern) => picomatch(pattern, { dot: true }));
+  normalized.sort(compareStrings);
+  return normalized;
+};
+
+const compileTestMatchers = (patterns) => {
+  const normalized = normalizeTestPatterns(patterns);
+  if (!normalized.length) {
+    return { matchers: null, key: '' };
+  }
+  const cacheKey = normalized.join('|');
+  const cached = getCachedValue(testMatcherCache, cacheKey);
+  if (cached) return { matchers: cached, key: cacheKey };
+  const matchers = normalized.map((pattern) => picomatch(pattern, { dot: true }));
+  setCachedValue(testMatcherCache, cacheKey, matchers, TEST_MATCHER_CACHE_MAX);
+  return { matchers, key: cacheKey };
 };
 
 const matchesTestPatterns = (relPath, matchers) => {
@@ -86,6 +122,26 @@ const discoverCandidateTests = ({
   }
   results.sort(compareStrings);
   return results;
+};
+
+const resolveCachedTests = ({
+  repoRoot,
+  maxCandidates,
+  recordTruncation,
+  testMatchers,
+  patternKey
+}) => {
+  const cacheKey = `${repoRoot || ''}|${patternKey || ''}|max:${maxCandidates ?? 'all'}`;
+  const cached = getCachedValue(testDiscoveryCache, cacheKey);
+  if (cached) return cached;
+  const tests = discoverCandidateTests({
+    repoRoot,
+    maxCandidates,
+    recordTruncation,
+    testMatchers
+  });
+  setCachedValue(testDiscoveryCache, cacheKey, tests, TEST_DISCOVERY_CACHE_MAX);
+  return tests;
 };
 
 const buildImportGraphIndex = (graphRelations, repoRoot) => {
@@ -219,17 +275,18 @@ export const buildSuggestTestsReport = ({
     seeds = seeds.slice(0, capsNormalized.maxSeeds);
   }
 
-  const testMatchers = compileTestMatchers(testPatterns);
+  const { matchers: testMatchers, key: testMatcherKey } = compileTestMatchers(testPatterns);
   if (!Array.isArray(tests) && !repoRoot) {
     throw new Error('Suggest-tests requires repoRoot when tests are not provided.');
   }
   const testList = Array.isArray(tests)
     ? tests.map((entry) => normalizePathForRepo(entry, repoRoot)).filter(Boolean)
-    : discoverCandidateTests({
+    : resolveCachedTests({
       repoRoot,
       maxCandidates: capsNormalized.maxCandidates,
       recordTruncation,
-      testMatchers
+      testMatchers,
+      patternKey: testMatcherKey
     });
   const changedEntries = seeds.map((entry) => ({ path: entry }));
 
