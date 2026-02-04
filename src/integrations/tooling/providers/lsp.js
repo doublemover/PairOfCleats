@@ -360,8 +360,13 @@ export async function collectLspTypes({
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
       let info = parseSignature ? parseSignature(symbol.detail || symbol.name, doc.languageId, symbol.name) : null;
-      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
-      if (!info || !info.returnType || !hasParamTypes) {
+      const paramNames = Array.isArray(info?.paramNames) ? info.paramNames : [];
+      const paramTypes = info?.paramTypes && typeof info.paramTypes === 'object' ? info.paramTypes : null;
+      const hasAnyParamTypes = !!paramTypes && Object.keys(paramTypes).length > 0;
+      const hasCompleteParamTypes = paramNames.length
+        ? paramNames.every((name) => paramTypes?.[name])
+        : hasAnyParamTypes;
+      if (!info || !info.returnType || !hasCompleteParamTypes) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
