@@ -5,12 +5,18 @@ import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
 import { ensureDiskSpace } from '../../../../shared/disk-space.js';
 import {
   writeJsonLinesFile,
+  writeJsonLinesFileAsync,
   writeJsonLinesSharded,
+  writeJsonLinesShardedAsync,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
-import { compareChunkMetaRows } from '../helpers.js';
+import {
+  compareChunkMetaRows,
+  createRowSpillCollector,
+  mergeSortedRuns
+} from '../helpers.js';
 
 const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   const parsed = Number(maxJsonBytes);
@@ -299,9 +305,50 @@ export const enqueueChunkMetaArtifacts = async ({
     return { totalJsonBytes, totalJsonlBytes, total };
   };
 
-  const measured = chunkMetaCount
-    ? measureChunkMeta()
-    : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
+  let resolvedUseJsonl = chunkMetaUseJsonl;
+  let resolvedUseShards = chunkMetaUseShards;
+  let measured = null;
+  let collected = null;
+  if (!resolvedUseJsonl) {
+    measured = chunkMetaCount
+      ? measureChunkMeta()
+      : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
+    if (resolvedMaxJsonBytes && measured.totalJsonBytes > resolvedMaxJsonBytes) {
+      resolvedUseJsonl = true;
+      resolvedUseShards = true;
+      log(
+        `Chunk metadata measured ~${formatBytes(measured.totalJsonBytes)}; ` +
+        `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
+      );
+    }
+  }
+
+  if (resolvedUseJsonl) {
+    chunkMetaIterator.resetStats?.();
+    const collector = createRowSpillCollector({
+      outDir,
+      runPrefix: 'chunk_meta',
+      compare: compareChunkMetaRows,
+      maxBufferBytes: 4 * 1024 * 1024,
+      maxBufferRows: 5000,
+      maxJsonBytes: resolvedMaxJsonBytes
+    });
+    for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
+      await collector.append(entry);
+    }
+    collected = await collector.finalize();
+    const totalJsonlBytes = collected?.stats?.totalBytes || 0;
+    if (resolvedMaxJsonBytes && totalJsonlBytes > resolvedMaxJsonBytes) {
+      resolvedUseShards = true;
+      if (!chunkMetaUseShards) {
+        log(
+          `Chunk metadata measured ~${formatBytes(totalJsonlBytes)}; ` +
+          `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
+        );
+      }
+    }
+  }
+
   if (chunkMetaIterator.stats?.trimmedMetaV2) {
     const samples = chunkMetaIterator.stats.trimmedSamples || [];
     const sampleText = samples.length
@@ -312,27 +359,11 @@ export const enqueueChunkMetaArtifacts = async ({
       `to fit ${formatBytes(resolvedMaxJsonBytes)}${sampleText}`
     );
   }
-  let resolvedUseJsonl = chunkMetaUseJsonl;
-  let resolvedUseShards = chunkMetaUseShards;
-  if (!resolvedUseJsonl && resolvedMaxJsonBytes && measured.totalJsonBytes > resolvedMaxJsonBytes) {
-    resolvedUseJsonl = true;
-    resolvedUseShards = true;
-    log(
-      `Chunk metadata measured ~${formatBytes(measured.totalJsonBytes)}; ` +
-      `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
-    );
-  } else if (resolvedUseJsonl && resolvedMaxJsonBytes && measured.totalJsonlBytes > resolvedMaxJsonBytes) {
-    resolvedUseShards = true;
-    if (!chunkMetaUseShards) {
-      log(
-        `Chunk metadata measured ~${formatBytes(measured.totalJsonlBytes)}; ` +
-        `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
-      );
-    }
-  }
   chunkMetaPlan.chunkMetaUseJsonl = resolvedUseJsonl;
   chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;
-  const requiredBytes = resolvedUseJsonl ? measured.totalJsonlBytes : measured.totalJsonBytes;
+  const requiredBytes = resolvedUseJsonl
+    ? (collected?.stats?.totalBytes || 0)
+    : (measured?.totalJsonBytes || 0);
   await ensureDiskSpace({
     targetPath: outDir,
     requiredBytes,
@@ -373,22 +404,39 @@ export const enqueueChunkMetaArtifacts = async ({
   }
 
   if (resolvedUseJsonl) {
+    const rows = collected?.rows || null;
+    const runs = collected?.runs || null;
+    const items = runs
+      ? mergeSortedRuns(runs, { compare: compareChunkMetaRows })
+      : rows;
     if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
         formatArtifactLabel(metaPath),
         async () => {
-          const result = await writeJsonLinesSharded({
-            dir: outDir,
-            partsDirName: 'chunk_meta.parts',
-            partPrefix: 'chunk_meta.part-',
-            items: chunkMetaIterator(),
-            maxBytes: resolvedMaxJsonBytes,
-            maxItems: chunkMetaShardSize,
-            atomic: true,
-            compression,
-            gzipOptions
-          });
+          const result = runs
+            ? await writeJsonLinesShardedAsync({
+              dir: outDir,
+              partsDirName: 'chunk_meta.parts',
+              partPrefix: 'chunk_meta.part-',
+              items,
+              maxBytes: resolvedMaxJsonBytes,
+              maxItems: chunkMetaShardSize,
+              atomic: true,
+              compression,
+              gzipOptions
+            })
+            : await writeJsonLinesSharded({
+              dir: outDir,
+              partsDirName: 'chunk_meta.parts',
+              partPrefix: 'chunk_meta.part-',
+              items,
+              maxBytes: resolvedMaxJsonBytes,
+              maxItems: chunkMetaShardSize,
+              atomic: true,
+              compression,
+              gzipOptions
+            });
           const parts = result.parts.map((part, index) => ({
             path: part,
             records: result.counts[index] || 0,
@@ -422,16 +470,20 @@ export const enqueueChunkMetaArtifacts = async ({
             }, absPath);
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
+          if (collected?.cleanup) await collected.cleanup();
         }
       );
     } else {
       enqueueWrite(
         formatArtifactLabel(jsonlPath),
-        () => writeJsonLinesFile(
-          jsonlPath,
-          chunkMetaIterator(),
-          { atomic: true, compression, gzipOptions }
-        )
+        async () => {
+          await writeJsonLinesFileAsync(
+            jsonlPath,
+            items,
+            { atomic: true, compression, gzipOptions }
+          );
+          if (collected?.cleanup) await collected.cleanup();
+        }
       );
       addPieceFile({
         type: 'chunks',

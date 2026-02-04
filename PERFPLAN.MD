@@ -1245,13 +1245,13 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
 - [x] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
 
-- [ ] **14.D Chunk meta streaming**
-- [ ] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
-- [ ] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
-- [ ] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
+- [x] **14.D Chunk meta streaming**
+- [x] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
+- [x] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
+- [x] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
 - [ ] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
-- [ ] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
-- [ ] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
+- [x] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
+- [x] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
 - [ ] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
 - [ ] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
 
