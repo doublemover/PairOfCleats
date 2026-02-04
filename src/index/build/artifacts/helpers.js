@@ -1,7 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { once } from 'node:events';
 import { writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.js';
+import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
 const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
@@ -138,9 +143,23 @@ export const mergeSortedRuns = async function* (runs, { compare, readRun = readJ
   }
 };
 
-export const writeJsonlRunFile = async (filePath, rows, { atomic = true } = {}) => (
-  writeJsonLinesFile(filePath, rows, { atomic })
-);
+export const writeJsonlRunFile = async (filePath, rows, { atomic = true, serialize = null } = {}) => {
+  if (typeof serialize !== 'function') {
+    return writeJsonLinesFile(filePath, rows, { atomic });
+  }
+  const writer = createJsonlBatchWriter(filePath, { atomic });
+  try {
+    for (const entry of rows) {
+      const line = serialize(entry);
+      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+      await writer.writeLine(line, lineBytes);
+    }
+    await writer.close();
+  } catch (err) {
+    try { await writer.destroy(err); } catch {}
+    throw err;
+  }
+};
 
 export const createByteTracker = ({ maxJsonBytes = null } = {}) => {
   const stats = {
@@ -232,7 +251,9 @@ export const createRowSpillCollector = ({
   maxBufferBytes = 2 * 1024 * 1024,
   maxBufferRows = 5000,
   maxJsonBytes = null,
-  stats = createTrimStats()
+  stats = createTrimStats(),
+  mapRow = null,
+  serialize = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
@@ -240,6 +261,8 @@ export const createRowSpillCollector = ({
   let runIndex = 0;
   const runs = [];
   const compareRows = typeof compare === 'function' ? compare : compareStrings;
+  const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
+  const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
   const runDirName = `${runPrefix || 'rows'}.runs`;
 
   const ensureRunsDir = async () => {
@@ -257,26 +280,29 @@ export const createRowSpillCollector = ({
     const runName = `${runPrefix || 'rows'}.run-${String(runIndex).padStart(5, '0')}.jsonl`;
     const runPath = path.join(dir, runName);
     runIndex += 1;
-    await writeJsonlRunFile(runPath, buffer, { atomic: true });
+    await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
     runs.push(runPath);
     buffer.length = 0;
     bufferBytes = 0;
   };
 
-  const append = async (row, { trimmed = false, dropped = false } = {}) => {
+  const append = async (row, { trimmed = false, dropped = false, line = null, lineBytes = null } = {}) => {
     if (!row || dropped) {
       recordTrimStats(stats, { dropped: true });
       return;
     }
-    const lineBytes = Buffer.byteLength(JSON.stringify(row), 'utf8') + 1;
-    if (maxJsonBytes && lineBytes > maxJsonBytes) {
-      const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${maxJsonBytes}).`);
+    const resolvedLine = line ?? serializeRow(row);
+    const resolvedBytes = Number.isFinite(Number(lineBytes))
+      ? Math.max(0, Math.floor(Number(lineBytes)))
+      : Buffer.byteLength(resolvedLine, 'utf8') + 1;
+    if (maxJsonBytes && resolvedBytes > maxJsonBytes) {
+      const err = new Error(`JSONL entry exceeds maxBytes (${resolvedBytes} > ${maxJsonBytes}).`);
       err.code = 'ERR_JSON_TOO_LARGE';
       throw err;
     }
-    recordTrimStats(stats, { rowBytes: lineBytes, trimmed });
-    buffer.push(row);
-    bufferBytes += lineBytes;
+    recordTrimStats(stats, { rowBytes: resolvedBytes, trimmed });
+    buffer.push(wrapRow(row, { line: resolvedLine, lineBytes: resolvedBytes }));
+    bufferBytes += resolvedBytes;
     const overflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
       || (maxBufferRows && buffer.length >= maxBufferRows);
     if (overflow) {
@@ -314,6 +340,57 @@ export const createRowSpillCollector = ({
     finalize,
     stats
   };
+};
+
+const writeBuffer = async (stream, buffer) => {
+  if (!buffer || buffer.length === 0) return;
+  if (!stream.write(buffer)) {
+    await once(stream, 'drain');
+  }
+};
+
+export const writePerFileVarintIndex = async ({
+  outDir,
+  baseName,
+  fileCount,
+  perFileRows,
+  atomic = true
+}) => {
+  if (!outDir || !baseName) return null;
+  if (!Number.isFinite(fileCount) || fileCount <= 0) return null;
+  if (!Array.isArray(perFileRows)) return null;
+  const dataPath = path.join(outDir, `${baseName}.bin`);
+  const offsetsPath = path.join(outDir, `${baseName}.offsets.bin`);
+  const targetPath = atomic ? createTempPath(dataPath) : dataPath;
+  const stream = fs.createWriteStream(targetPath);
+  const offsetsWriter = createOffsetsWriter(offsetsPath, { atomic });
+  let bytesWritten = 0;
+  try {
+    for (let i = 0; i < fileCount; i += 1) {
+      await offsetsWriter.writeOffset(bytesWritten);
+      const rows = Array.isArray(perFileRows[i]) ? perFileRows[i] : [];
+      if (!rows.length) continue;
+      const buffer = encodeVarintDeltas(rows);
+      bytesWritten += buffer.length;
+      await writeBuffer(stream, buffer);
+    }
+    await offsetsWriter.writeOffset(bytesWritten);
+    stream.end();
+    await once(stream, 'finish');
+    if (atomic) {
+      await replaceFile(targetPath, dataPath);
+    }
+    await offsetsWriter.close();
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await once(stream, 'close'); } catch {}
+    try { await offsetsWriter.destroy(err); } catch {}
+    if (atomic) {
+      try { await fs.promises.rm(targetPath, { force: true }); } catch {}
+    }
+    throw err;
+  }
+  return { dataPath, offsetsPath, bytesWritten };
 };
 
 export const compareSymbolOccurrenceRows = (a, b) => {

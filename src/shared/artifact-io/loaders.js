@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak, readShardFiles, resolveArtifactMtime, resolveDirMtime } from './fs.js';
+import { fromPosix } from '../files.js';
+import { readJsonlRowAt, readOffsetAt, resolveOffsetsCount } from './offsets.js';
+import { readVarintDeltasAt } from './varint.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync } from './json.js';
 import { resolveJsonlRequiredKeys } from './jsonl.js';
 import { createGraphRelationsShell, appendGraphRelationsEntries, finalizeGraphRelations } from './graph.js';
@@ -799,3 +802,163 @@ export const loadTokenPostings = (
   }
   throw new Error('Missing index artifact: token_postings.json');
 };
+
+const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) => {
+  const metaName = `${baseName}_by_file_meta`;
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest,
+    name: metaName,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    return sources.paths[0];
+  }
+  if (!strict) {
+    const fallback = path.join(dir, `${baseName}.by-file.meta.json`);
+    return existsOrBak(fallback) ? fallback : null;
+  }
+  return null;
+};
+
+const loadPerFileIndexMeta = (dir, baseName, { manifest, strict, maxBytes }) => {
+  const metaPath = resolvePerFileMetaPath(dir, baseName, { manifest, strict, maxBytes });
+  if (!metaPath) return null;
+  const metaRaw = readJsonFile(metaPath, { maxBytes });
+  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  if (!meta || typeof meta !== 'object') return null;
+  return { meta, metaPath };
+};
+
+const resolveRowSourcesFromPerFileMeta = (dir, meta) => {
+  const jsonl = meta?.jsonl && typeof meta.jsonl === 'object' ? meta.jsonl : null;
+  const parts = Array.isArray(jsonl?.parts) ? jsonl.parts : [];
+  const counts = Array.isArray(jsonl?.counts) ? jsonl.counts : [];
+  const offsets = Array.isArray(jsonl?.offsets) ? jsonl.offsets : [];
+  if (!parts.length || parts.length !== counts.length || offsets.length !== parts.length) {
+    return null;
+  }
+  const resolvedParts = parts.map((rel) => path.join(dir, fromPosix(rel)));
+  const resolvedOffsets = offsets.map((rel) => path.join(dir, fromPosix(rel)));
+  return { parts: resolvedParts, offsets: resolvedOffsets, counts };
+};
+
+const resolvePartIndex = (counts, index) => {
+  let cursor = 0;
+  for (let i = 0; i < counts.length; i += 1) {
+    const count = Number.isFinite(counts[i]) ? counts[i] : 0;
+    if (index < cursor + count) {
+      return { partIndex: i, localIndex: index - cursor };
+    }
+    cursor += count;
+  }
+  return null;
+};
+
+const loadSymbolRowsForFile = async (
+  dir,
+  baseName,
+  {
+    fileId,
+    filePath,
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  let resolvedFileId = Number.isFinite(fileId) ? fileId : null;
+  if (!Number.isFinite(resolvedFileId) && filePath) {
+    try {
+      const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
+        maxBytes,
+        manifest: resolvedManifest,
+        strict
+      });
+      if (Array.isArray(fileMeta)) {
+        const match = fileMeta.find((entry) => entry?.file === filePath);
+        if (match && Number.isFinite(match.id)) {
+          resolvedFileId = match.id;
+        }
+      }
+    } catch {}
+  }
+  let resolvedFilePath = filePath || null;
+  if (!resolvedFilePath && Number.isFinite(resolvedFileId)) {
+    try {
+      const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
+        maxBytes,
+        manifest: resolvedManifest,
+        strict
+      });
+      if (Array.isArray(fileMeta)) {
+        const match = fileMeta.find((entry) => entry?.id === resolvedFileId);
+        if (match?.file) {
+          resolvedFilePath = match.file;
+        }
+      }
+    } catch {}
+  }
+  if (!Number.isFinite(resolvedFileId)) {
+    return [];
+  }
+
+  const perFileMeta = loadPerFileIndexMeta(dir, baseName, {
+    manifest: resolvedManifest,
+    strict,
+    maxBytes
+  });
+  if (!perFileMeta?.meta) {
+    const full = await loadJsonArrayArtifact(dir, baseName, {
+      maxBytes,
+      manifest: resolvedManifest,
+      strict
+    });
+    const filterField = baseName === 'symbol_edges' ? 'from' : 'host';
+    return Array.isArray(full)
+      ? full.filter((row) => row?.[filterField]?.file === resolvedFilePath)
+      : [];
+  }
+
+  const meta = perFileMeta.meta;
+  const offsetsInfo = meta?.offsets && typeof meta.offsets === 'object' ? meta.offsets : null;
+  if (!offsetsInfo?.path || !meta?.data) {
+    return [];
+  }
+  const dataPath = path.join(dir, fromPosix(meta.data));
+  const offsetsPath = path.join(dir, fromPosix(offsetsInfo.path));
+  const offsetsCount = await resolveOffsetsCount(offsetsPath);
+  if (resolvedFileId + 1 >= offsetsCount) return [];
+  const [start, end] = await Promise.all([
+    readOffsetAt(offsetsPath, resolvedFileId),
+    readOffsetAt(offsetsPath, resolvedFileId + 1)
+  ]);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+  const rowIndexes = await readVarintDeltasAt(dataPath, start, end);
+  if (!rowIndexes.length) return [];
+  const sources = resolveRowSourcesFromPerFileMeta(dir, meta);
+  if (!sources) return [];
+  const requiredKeys = resolveJsonlRequiredKeys(baseName);
+  const rows = [];
+  for (const rowIndex of rowIndexes) {
+    const resolved = resolvePartIndex(sources.counts, rowIndex);
+    if (!resolved) continue;
+    const row = await readJsonlRowAt(
+      sources.parts[resolved.partIndex],
+      sources.offsets[resolved.partIndex],
+      resolved.localIndex,
+      { maxBytes, requiredKeys }
+    );
+    if (row) rows.push(row);
+  }
+  return rows;
+};
+
+export const loadSymbolOccurrencesByFile = async (dir, options = {}) => (
+  loadSymbolRowsForFile(dir, 'symbol_occurrences', options)
+);
+
+export const loadSymbolEdgesByFile = async (dir, options = {}) => (
+  loadSymbolRowsForFile(dir, 'symbol_edges', options)
+);

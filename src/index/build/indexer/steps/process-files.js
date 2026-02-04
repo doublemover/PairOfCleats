@@ -62,6 +62,8 @@ export const processFiles = async ({
   );
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
+  const debugOrdered = process.env.PAIROFCLEATS_DEBUG_ORDERED === '1'
+    || process.env.PAIROFCLEATS_DEBUG_ORDERED === 'true';
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -77,7 +79,9 @@ export const processFiles = async ({
   let checkpoint = null;
   let progress = null;
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
-    allowReorder: runtime.shards?.enabled !== true
+    // Avoid reordering: ordered appender waits on canonical order, and
+    // out-of-order processing can deadlock queue completion.
+    allowReorder: false
   });
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object') continue;
@@ -135,7 +139,8 @@ export const processFiles = async ({
     {
       expectedCount: Array.isArray(entries) ? entries.length : null,
       startIndex: startOrderIndex,
-      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' })
+      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
+      stallMs: debugOrdered ? 5000 : undefined
     }
   );
   const treeSitterOptions = runtime.languageOptions?.treeSitter || null;

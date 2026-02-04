@@ -7,14 +7,15 @@ import {
   writeJsonLinesShardedAsync,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
-import { fromPosix } from '../../../../shared/files.js';
+import { fromPosix, toPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import {
   compareSymbolOccurrenceRows,
   createRowSpillCollector,
   createTrimStats,
   mergeSortedRuns,
-  recordArtifactTelemetry
+  recordArtifactTelemetry,
+  writePerFileVarintIndex
 } from '../helpers.js';
 
 const MAX_ROW_BYTES = 32768;
@@ -177,8 +178,54 @@ const buildSymbolOccurrencesColumnar = async (items) => {
   };
 };
 
+const createPerFileTracker = ({ fileIdByPath, chunkUidToFileId, fileCount }) => {
+  if (!Number.isFinite(fileCount) || fileCount <= 0) return null;
+  if (!fileIdByPath && !chunkUidToFileId) return null;
+  const perFileRows = Array.from({ length: fileCount }, () => []);
+  const resolveFileId = (row) => {
+    const file = row?.host?.file || null;
+    if (file && fileIdByPath?.has?.(file)) {
+      return fileIdByPath.get(file);
+    }
+    const chunkUid = row?.host?.chunkUid || null;
+    if (chunkUid && chunkUidToFileId?.has?.(chunkUid)) {
+      return chunkUidToFileId.get(chunkUid);
+    }
+    return null;
+  };
+  const recordRow = (row, rowIndex) => {
+    const fileId = resolveFileId(row);
+    if (!Number.isFinite(fileId)) return;
+    if (fileId < 0 || fileId >= perFileRows.length) return;
+    perFileRows[fileId].push(rowIndex);
+  };
+  return { perFileRows, recordRow };
+};
+
+const trackRows = (items, recordRow) => {
+  let rowIndex = 0;
+  if (items?.[Symbol.asyncIterator]) {
+    return (async function* trackedRows() {
+      for await (const row of items) {
+        if (recordRow) recordRow(row, rowIndex);
+        rowIndex += 1;
+        yield row;
+      }
+    })();
+  }
+  return (function* trackedRows() {
+    for (const row of items || []) {
+      if (recordRow) recordRow(row, rowIndex);
+      rowIndex += 1;
+      yield row;
+    }
+  })();
+};
+
 export const enqueueSymbolOccurrencesArtifacts = async ({
   state,
+  fileIdByPath = null,
+  chunkUidToFileId = null,
   outDir,
   maxJsonBytes = null,
   log = null,
@@ -197,6 +244,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const totalRows = stats?.totalRows || 0;
   const totalBytes = stats?.totalBytes || 0;
   const maxRowBytes = stats?.maxRowBytes || 0;
+  const perFileBaseName = 'symbol_occurrences.by-file';
+  const perFileMetaPath = path.join(outDir, `${perFileBaseName}.meta.json`);
+  const perFileDataPath = path.join(outDir, `${perFileBaseName}.bin`);
+  const perFileOffsetsPath = path.join(outDir, `${perFileBaseName}.offsets.bin`);
+  const fileCount = fileIdByPath?.size ?? 0;
   let useColumnar = format === 'columnar';
   if (useColumnar && maxJsonBytes && totalBytes > maxJsonBytes) {
     useColumnar = false;
@@ -219,6 +271,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'symbol_occurrences.meta.json'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'symbol_occurrences.parts'), { recursive: true, force: true }).catch(() => {});
+    await fs.rm(perFileMetaPath, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(perFileDataPath, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(perFileOffsetsPath, { recursive: true, force: true }).catch(() => {});
     if (collected?.cleanup) await collected.cleanup();
     return;
   }
@@ -236,12 +291,18 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.zst'), { force: true });
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.offsets.bin'), { force: true });
   };
+  const removePerFileIndex = async () => {
+    await fs.rm(perFileMetaPath, { force: true });
+    await fs.rm(perFileDataPath, { force: true });
+    await fs.rm(perFileOffsetsPath, { force: true });
+  };
 
   if (useColumnar) {
     enqueueWrite(
       formatArtifactLabel(columnarPath),
       async () => {
         await removeJsonlVariants();
+        await removePerFileIndex();
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
@@ -264,16 +325,69 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       formatArtifactLabel(occurrencesPath),
       async () => {
         await removeJsonlVariants();
+        await removePerFileIndex();
         await fs.rm(columnarPath, { force: true });
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
-        await writeJsonLinesFileAsync(occurrencesPath, items, {
+        const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
+        const trackedItems = trackRows(items, tracker?.recordRow);
+        await writeJsonLinesFileAsync(occurrencesPath, trackedItems, {
           atomic: true,
           compression,
           gzipOptions,
           offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
         });
+        if (tracker?.perFileRows && offsetsPath) {
+          const perFileIndex = await writePerFileVarintIndex({
+            outDir,
+            baseName: perFileBaseName,
+            fileCount,
+            perFileRows: tracker.perFileRows,
+            atomic: true
+          });
+          if (perFileIndex) {
+            const relativeJsonl = toPosix(path.relative(outDir, occurrencesPath));
+            const relativeOffsets = toPosix(path.relative(outDir, offsetsPath));
+            const meta = {
+              format: 'varint-delta',
+              encoding: 'uvarint',
+              value: 'rowIndex',
+              fileCount,
+              rows: totalRows,
+              data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
+              offsets: {
+                format: 'u64-le',
+                path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
+                count: fileCount + 1
+              },
+              jsonl: {
+                format: 'jsonl',
+                parts: [relativeJsonl],
+                counts: [totalRows],
+                offsets: [relativeOffsets]
+              }
+            };
+            await writeJsonObjectFile(perFileMetaPath, { fields: meta, atomic: true });
+            addPieceFile({
+              type: 'symbols',
+              name: 'symbol_occurrences_by_file',
+              format: 'bin',
+              count: fileCount
+            }, perFileIndex.dataPath);
+            addPieceFile({
+              type: 'symbols',
+              name: 'symbol_occurrences_by_file_offsets',
+              format: 'bin',
+              count: fileCount + 1
+            }, perFileIndex.offsetsPath);
+            addPieceFile({
+              type: 'symbols',
+              name: 'symbol_occurrences_by_file_meta',
+              format: 'json'
+            }, perFileMetaPath);
+          }
+        }
         if (collected?.cleanup) await collected.cleanup();
       }
     );
@@ -302,14 +416,17 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     formatArtifactLabel(occurrencesMetaPath),
     async () => {
       await removeJsonlVariants();
+      await removePerFileIndex();
       await fs.rm(columnarPath, { force: true });
       const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+      const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
+      const trackedItems = trackRows(items, tracker?.recordRow);
       const result = runs
         ? await writeJsonLinesShardedAsync({
           dir: outDir,
           partsDirName: 'symbol_occurrences.parts',
           partPrefix: 'symbol_occurrences.part-',
-          items,
+          items: trackedItems,
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
@@ -320,7 +437,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           dir: outDir,
           partsDirName: 'symbol_occurrences.parts',
           partPrefix: 'symbol_occurrences.part-',
-          items,
+          items: trackedItems,
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
@@ -363,6 +480,57 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         },
         atomic: true
       });
+      if (tracker?.perFileRows && Array.isArray(result.offsets) && result.offsets.length) {
+        const perFileIndex = await writePerFileVarintIndex({
+          outDir,
+          baseName: perFileBaseName,
+          fileCount,
+          perFileRows: tracker.perFileRows,
+          atomic: true
+        });
+        if (perFileIndex) {
+          const parts = result.parts.map((part) => part);
+          const offsets = result.offsets.map((part) => part);
+          const counts = result.counts.map((count) => count || 0);
+          const meta = {
+            format: 'varint-delta',
+            encoding: 'uvarint',
+            value: 'rowIndex',
+            fileCount,
+            rows: totalRows,
+            data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
+            offsets: {
+              format: 'u64-le',
+              path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
+              count: fileCount + 1
+            },
+            jsonl: {
+              format: 'jsonl-sharded',
+              parts,
+              counts,
+              offsets
+            }
+          };
+          await writeJsonObjectFile(perFileMetaPath, { fields: meta, atomic: true });
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbol_occurrences_by_file',
+            format: 'bin',
+            count: fileCount
+          }, perFileIndex.dataPath);
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbol_occurrences_by_file_offsets',
+            format: 'bin',
+            count: fileCount + 1
+          }, perFileIndex.offsetsPath);
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbol_occurrences_by_file_meta',
+            format: 'json'
+          }, perFileMetaPath);
+        }
+      }
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];
         const absPath = path.join(outDir, fromPosix(relPath));

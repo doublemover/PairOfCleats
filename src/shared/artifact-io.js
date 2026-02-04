@@ -27,7 +27,9 @@ export {
   loadGraphRelations,
   loadGraphRelationsSync,
   loadChunkMeta,
-  loadTokenPostings
+  loadTokenPostings,
+  loadSymbolOccurrencesByFile,
+  loadSymbolEdgesByFile
 } from './artifact-io/loaders.js';
 export {
   readOffsetsFile,

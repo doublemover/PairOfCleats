@@ -34,6 +34,7 @@ import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts,
   resolveChunkMetaPlan,
+  resolveChunkMetaOrder,
   resolveChunkMetaOrderById
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
@@ -116,6 +117,17 @@ export async function writeIndexArtifacts(input) {
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   const { fileMeta, fileIdByPath } = buildFileMeta(state);
+  const chunkUidToFileId = new Map();
+  for (const chunk of state?.chunks || []) {
+    const file = chunk?.file || chunk?.metaV2?.file || null;
+    const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
+    if (!file || !chunkUid) continue;
+    const fileId = fileIdByPath.get(file);
+    if (!Number.isFinite(fileId)) continue;
+    if (!chunkUidToFileId.has(chunkUid)) {
+      chunkUidToFileId.set(chunkUid, fileId);
+    }
+  }
   const repoMapIterator = createRepoMapIterator({
     chunks: state.chunks,
     fileRelations: state.fileRelations
@@ -144,7 +156,12 @@ export async function writeIndexArtifacts(input) {
     );
   }
   const denseScale = 2 / 255;
-  const chunkMetaOrder = resolveChunkMetaOrderById(state.chunks);
+  const chunkMetaHasIds = Array.isArray(state.chunks)
+    && state.chunks.length > 0
+    && state.chunks.every((chunk) => Number.isFinite(chunk?.id));
+  const chunkMetaOrder = chunkMetaHasIds
+    ? resolveChunkMetaOrderById(state.chunks)
+    : resolveChunkMetaOrder(state.chunks);
   const chunkMetaIterator = createChunkMetaIterator({
     chunks: state.chunks,
     fileIdByPath,
@@ -510,6 +527,8 @@ export async function writeIndexArtifacts(input) {
     const symbolOccurrencesCompression = resolveShardCompression('symbol_occurrences');
     await enqueueSymbolOccurrencesArtifacts({
       state,
+      fileIdByPath,
+      chunkUidToFileId,
       outDir,
       maxJsonBytes,
       log,
@@ -524,6 +543,8 @@ export async function writeIndexArtifacts(input) {
     const symbolEdgesCompression = resolveShardCompression('symbol_edges');
     await enqueueSymbolEdgesArtifacts({
       state,
+      fileIdByPath,
+      chunkUidToFileId,
       outDir,
       maxJsonBytes,
       log,

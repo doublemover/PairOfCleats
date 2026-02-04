@@ -368,11 +368,16 @@ export async function collectLspTypes({
       if (!target) continue;
       const detailText = symbol.detail || symbol.name;
       let info = parseSignature ? parseSignature(detailText, doc.languageId, symbol.name) : null;
-      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
+      const paramNames = Array.isArray(info?.paramNames) ? info.paramNames : [];
+      const paramTypes = info?.paramTypes && typeof info.paramTypes === 'object' ? info.paramTypes : null;
+      const hasAnyParamTypes = !!paramTypes && Object.keys(paramTypes).length > 0;
+      const hasCompleteParamTypes = paramNames.length
+        ? paramNames.every((name) => paramTypes?.[name])
+        : hasAnyParamTypes;
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
       const treatVoidAsMissing = info?.returnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      if (!info || !info.returnType || !hasParamTypes || treatVoidAsMissing) {
+      if (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
