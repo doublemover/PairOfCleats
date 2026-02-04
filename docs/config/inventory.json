@@ -338,7 +338,7 @@
     {
       "path": "indexing.artifacts.chunkMetaFormat",
       "type": "string",
-      "enum": null
+      "enum": ["auto", "json", "jsonl", "columnar"]
     },
     {
       "path": "indexing.artifacts.chunkMetaJsonlThreshold",
@@ -358,7 +358,7 @@
     {
       "path": "indexing.artifacts.symbolArtifactsFormat",
       "type": "string",
-      "enum": null
+      "enum": ["auto", "jsonl", "jsonl-sharded", "columnar"]
     },
     {
       "path": "indexing.artifacts.tokenPostingsFormat",

@@ -72,6 +72,11 @@ Key requirements:
   - `fields`: `{ format: "sharded", shardSize, vocabCount, parts, avgDocLen, totalDocs, compression }`
   - `arrays`: `{ docLengths }`
 
+## Columnar artifacts
+- `chunk_meta.columnar.json` is a columnar variant of `chunk_meta` and is valid when `indexing.artifacts.chunkMetaFormat=columnar`.
+- `symbol_occurrences.columnar.json` and `symbol_edges.columnar.json` are valid when `indexing.artifacts.symbolArtifactsFormat=columnar`.
+- When columnar variants are present, readers should prefer them over JSON/JSONL.
+
 ## References
 - `docs/contracts/artifact-contract.md`
 - `docs/specs/metadata-schema-v2.md`

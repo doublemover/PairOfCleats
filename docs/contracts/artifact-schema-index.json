@@ -1,5 +1,5 @@
 {
-  "schemaHash": "529b72d8e57712a2540f28e1031ce6bf9d8476e3",
+  "schemaHash": "d17e7ceccddda636bcbd6588b847a491def75aed",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -899,25 +899,6 @@
       ]
     },
     {
-      "artifact": "vfs_path_map",
-      "schemaVersion": {
-        "type": "string"
-      },
-      "requiredFields": [
-        "containerPath",
-        "docHash",
-        "effectiveExt",
-        "hashVirtualPath",
-        "languageId",
-        "schemaVersion",
-        "segmentEnd",
-        "segmentStart",
-        "segmentUid",
-        "virtualPath"
-      ],
-      "optionalFields": []
-    },
-    {
       "artifact": "vfs_manifest_index",
       "schemaVersion": {
         "type": "string"
@@ -931,7 +912,7 @@
       "optionalFields": []
     },
     {
-      "artifact": "vfs_path_map_meta",
+      "artifact": "vfs_manifest_meta",
       "schemaVersion": {
         "type": "string",
         "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
@@ -954,7 +935,26 @@
       ]
     },
     {
-      "artifact": "vfs_manifest_meta",
+      "artifact": "vfs_path_map",
+      "schemaVersion": {
+        "type": "string"
+      },
+      "requiredFields": [
+        "containerPath",
+        "docHash",
+        "effectiveExt",
+        "hashVirtualPath",
+        "languageId",
+        "schemaVersion",
+        "segmentEnd",
+        "segmentStart",
+        "segmentUid",
+        "virtualPath"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "vfs_path_map_meta",
       "schemaVersion": {
         "type": "string",
         "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
