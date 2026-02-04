@@ -96,6 +96,9 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
     : 100000;
+  const symbolArtifactsFormatConfig = typeof artifactConfig.symbolArtifactsFormat === 'string'
+    ? artifactConfig.symbolArtifactsFormat.toLowerCase()
+    : null;
   const tokenPostingsFormatConfig = typeof artifactConfig.tokenPostingsFormat === 'string'
     ? artifactConfig.tokenPostingsFormat.toLowerCase()
     : null;
@@ -492,6 +495,7 @@ export async function writeIndexArtifacts(input) {
       outDir,
       maxJsonBytes,
       log,
+      format: symbolArtifactsFormatConfig,
       compression: symbolOccurrencesCompression,
       gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
@@ -505,6 +509,7 @@ export async function writeIndexArtifacts(input) {
       outDir,
       maxJsonBytes,
       log,
+      format: symbolArtifactsFormatConfig,
       compression: symbolEdgesCompression,
       gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,

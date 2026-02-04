@@ -135,11 +135,54 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   return collector.finalize();
 };
 
+const buildSymbolOccurrencesColumnar = async (items) => {
+  const roleTable = new Map();
+  const roleList = [];
+  const resolveRole = (value) => {
+    if (!value) return null;
+    if (roleTable.has(value)) return roleTable.get(value);
+    const index = roleList.length;
+    roleList.push(value);
+    roleTable.set(value, index);
+    return index;
+  };
+  const columns = [
+    'v',
+    'host_file',
+    'host_chunkUid',
+    'role',
+    'ref',
+    'range'
+  ];
+  const arrays = Object.fromEntries(columns.map((key) => [key, []]));
+  let length = 0;
+  for await (const row of items) {
+    if (!row || typeof row !== 'object') continue;
+    arrays.v.push(Number.isFinite(row.v) ? row.v : null);
+    arrays.host_file.push(row.host?.file ?? null);
+    arrays.host_chunkUid.push(row.host?.chunkUid ?? null);
+    arrays.role.push(resolveRole(row.role));
+    arrays.ref.push(row.ref ?? null);
+    arrays.range.push(row.range ?? null);
+    length += 1;
+  }
+  return {
+    format: 'columnar',
+    length,
+    columns,
+    arrays,
+    tables: {
+      role: roleList
+    }
+  };
+};
+
 export const enqueueSymbolOccurrencesArtifacts = async ({
   state,
   outDir,
   maxJsonBytes = null,
   log = null,
+  format = null,
   compression = null,
   gzipOptions = null,
   enqueueWrite,
@@ -154,7 +197,12 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const totalRows = stats?.totalRows || 0;
   const totalBytes = stats?.totalBytes || 0;
   const maxRowBytes = stats?.maxRowBytes || 0;
-  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
+  let useColumnar = format === 'columnar';
+  if (useColumnar && maxJsonBytes && totalBytes > maxJsonBytes) {
+    useColumnar = false;
+  }
+  const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
+  const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'symbol_occurrences',
@@ -163,7 +211,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: useShards ? 'jsonl-sharded' : 'jsonl' }
+    extra: { format: formatLabel }
   });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { recursive: true, force: true }).catch(() => {});
@@ -178,6 +226,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const occurrencesPath = path.join(outDir, `symbol_occurrences.${jsonlExtension}`);
   const occurrencesMetaPath = path.join(outDir, 'symbol_occurrences.meta.json');
   const occurrencesPartsDir = path.join(outDir, 'symbol_occurrences.parts');
+  const columnarPath = path.join(outDir, 'symbol_occurrences.columnar.json');
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${occurrencesPath}.${offsetsConfig.suffix}` : null;
 
@@ -188,11 +237,34 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.offsets.bin'), { force: true });
   };
 
+  if (useColumnar) {
+    enqueueWrite(
+      formatArtifactLabel(columnarPath),
+      async () => {
+        await removeJsonlVariants();
+        await fs.rm(occurrencesMetaPath, { force: true });
+        await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
+        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+        const payload = await buildSymbolOccurrencesColumnar(items);
+        await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
+        if (collected?.cleanup) await collected.cleanup();
+      }
+    );
+    addPieceFile({
+      type: 'symbols',
+      name: 'symbol_occurrences',
+      format: 'columnar',
+      count: totalRows
+    }, columnarPath);
+    return;
+  }
+
   if (!useShards) {
     enqueueWrite(
       formatArtifactLabel(occurrencesPath),
       async () => {
         await removeJsonlVariants();
+        await fs.rm(columnarPath, { force: true });
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
@@ -230,6 +302,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     formatArtifactLabel(occurrencesMetaPath),
     async () => {
       await removeJsonlVariants();
+      await fs.rm(columnarPath, { force: true });
       const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
       const result = runs
         ? await writeJsonLinesShardedAsync({

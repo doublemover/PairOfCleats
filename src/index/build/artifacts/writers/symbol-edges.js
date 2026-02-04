@@ -109,11 +109,58 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   return collector.finalize();
 };
 
+const buildSymbolEdgesColumnar = async (items) => {
+  const typeTable = new Map();
+  const typeList = [];
+  const resolveType = (value) => {
+    if (!value) return null;
+    if (typeTable.has(value)) return typeTable.get(value);
+    const index = typeList.length;
+    typeList.push(value);
+    typeTable.set(value, index);
+    return index;
+  };
+  const columns = [
+    'v',
+    'type',
+    'from_file',
+    'from_chunkUid',
+    'to',
+    'confidence',
+    'reason',
+    'evidence'
+  ];
+  const arrays = Object.fromEntries(columns.map((key) => [key, []]));
+  let length = 0;
+  for await (const row of items) {
+    if (!row || typeof row !== 'object') continue;
+    arrays.v.push(Number.isFinite(row.v) ? row.v : null);
+    arrays.type.push(resolveType(row.type));
+    arrays.from_file.push(row.from?.file ?? null);
+    arrays.from_chunkUid.push(row.from?.chunkUid ?? null);
+    arrays.to.push(row.to ?? null);
+    arrays.confidence.push(Number.isFinite(row.confidence) ? row.confidence : null);
+    arrays.reason.push(row.reason ?? null);
+    arrays.evidence.push(row.evidence ?? null);
+    length += 1;
+  }
+  return {
+    format: 'columnar',
+    length,
+    columns,
+    arrays,
+    tables: {
+      type: typeList
+    }
+  };
+};
+
 export const enqueueSymbolEdgesArtifacts = async ({
   state,
   outDir,
   maxJsonBytes = null,
   log = null,
+  format = null,
   compression = null,
   gzipOptions = null,
   enqueueWrite,
@@ -128,7 +175,12 @@ export const enqueueSymbolEdgesArtifacts = async ({
   const totalRows = stats?.totalRows || 0;
   const totalBytes = stats?.totalBytes || 0;
   const maxRowBytes = stats?.maxRowBytes || 0;
-  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
+  let useColumnar = format === 'columnar';
+  if (useColumnar && maxJsonBytes && totalBytes > maxJsonBytes) {
+    useColumnar = false;
+  }
+  const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
+  const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'symbol_edges',
@@ -137,7 +189,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: useShards ? 'jsonl-sharded' : 'jsonl' }
+    extra: { format: formatLabel }
   });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { recursive: true, force: true }).catch(() => {});
@@ -153,6 +205,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
   const edgesPath = path.join(outDir, `symbol_edges.${jsonlExtension}`);
   const edgesMetaPath = path.join(outDir, 'symbol_edges.meta.json');
   const edgesPartsDir = path.join(outDir, 'symbol_edges.parts');
+  const columnarPath = path.join(outDir, 'symbol_edges.columnar.json');
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${edgesPath}.${offsetsConfig.suffix}` : null;
 
@@ -163,11 +216,34 @@ export const enqueueSymbolEdgesArtifacts = async ({
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl.offsets.bin'), { force: true });
   };
 
+  if (useColumnar) {
+    enqueueWrite(
+      formatArtifactLabel(columnarPath),
+      async () => {
+        await removeJsonlVariants();
+        await fs.rm(edgesMetaPath, { force: true });
+        await fs.rm(edgesPartsDir, { recursive: true, force: true });
+        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
+        const payload = await buildSymbolEdgesColumnar(items);
+        await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
+        if (collected?.cleanup) await collected.cleanup();
+      }
+    );
+    addPieceFile({
+      type: 'symbols',
+      name: 'symbol_edges',
+      format: 'columnar',
+      count: totalRows
+    }, columnarPath);
+    return;
+  }
+
   if (!useShards) {
     enqueueWrite(
       formatArtifactLabel(edgesPath),
       async () => {
         await removeJsonlVariants();
+        await fs.rm(columnarPath, { force: true });
         await fs.rm(edgesMetaPath, { force: true });
         await fs.rm(edgesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
@@ -205,6 +281,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
     formatArtifactLabel(edgesMetaPath),
     async () => {
       await removeJsonlVariants();
+      await fs.rm(columnarPath, { force: true });
       const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
       const result = runs
         ? await writeJsonLinesShardedAsync({

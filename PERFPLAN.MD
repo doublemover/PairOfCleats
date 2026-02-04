@@ -1238,13 +1238,13 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.B.6.b: Validate merged state includes schema + signature versions.
 - [x] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
 - [x] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
-- [ ] Task 14.B.9: Add append‑only delta records for build_state writes with periodic compaction.
-- [ ] Task 14.B.9.a: Write `{op, path, value, ts}` deltas to `build_state.deltas.jsonl`.
-- [ ] Task 14.B.9.b: Add compaction job to rewrite a full snapshot when delta log exceeds a size threshold.
-- [ ] Task 14.B.9.c: Ensure compaction is atomic and never blocks primary writes.
-- [ ] Task 14.B.10: Add write‑through cache for serialized checkpoint blocks to avoid re‑stringify.
-- [ ] Task 14.B.10.a: Cache JSON strings per section keyed by snapshot hash + size.
-- [ ] Task 14.B.10.b: Invalidate on dirty flags or schema/version changes.
+- [x] Task 14.B.9: Add append-only delta records for build_state writes with periodic compaction.
+- [x] Task 14.B.9.a: Write `{op, path, value, ts}` deltas to `build_state.deltas.jsonl`.
+- [x] Task 14.B.9.b: Add compaction job to rewrite a full snapshot when delta log exceeds a size threshold.
+- [x] Task 14.B.9.c: Ensure compaction is atomic and never blocks primary writes.
+- [x] Task 14.B.10: Add write-through cache for serialized checkpoint blocks to avoid re-stringify.
+- [x] Task 14.B.10.a: Cache JSON strings per section keyed by snapshot hash + size.
+- [x] Task 14.B.10.b: Invalidate on dirty flags or schema/version changes.
 
 - [x] **14.C Import resolution graph performance**
 - [x] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
@@ -1260,12 +1260,12 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.C.5.a: Record capped count by edge type (imports/usage/calls).
 - [x] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
 - [x] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
-- [ ] Task 14.C.7: Add a path‑segment trie cache for rapid “exists” prefix checks.
-- [ ] Task 14.C.7.a: Reuse trie to short‑circuit repeated path joins under common roots.
-- [ ] Task 14.C.8: Add negative cache TTL so new files are eventually re‑checked.
-- [ ] Task 14.C.8.a: Evict negative entries after a short window (e.g. 30–60s).
-- [ ] Task 14.C.9: Precompile `paths`/`baseUrl` matchers into regexes for faster specifier resolution.
-- [ ] Task 14.C.9.a: Cache compiled matchers per tsconfig fingerprint.
+- [x] Task 14.C.7: Add a path-segment trie cache for rapid “exists” prefix checks.
+- [x] Task 14.C.7.a: Reuse trie to short-circuit repeated path joins under common roots.
+- [x] Task 14.C.8: Add negative cache TTL so new files are eventually re-checked.
+- [x] Task 14.C.8.a: Evict negative entries after a short window (e.g. 30–60s).
+- [x] Task 14.C.9: Precompile `paths`/`baseUrl` matchers into regexes for faster specifier resolution.
+- [x] Task 14.C.9.a: Cache compiled matchers per tsconfig fingerprint.
 
 - [x] **14.D Chunk meta streaming**
 - [x] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
@@ -1288,9 +1288,9 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Touchpoints 14.D.3: `src/index/build/indexer/steps/discover.js`, `src/index/build/indexer/steps/process-files/tree-sitter.js`, `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts/helpers.js`, `src/index/validate/checks.js`.
 - [x] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
 - [x] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
-- [ ] Task 14.D.6: Add optional columnar chunk_meta format with boundary conversion to row objects.
-- [ ] Task 14.D.6.a: Keep compatibility loader that inflates columnar arrays to row objects on demand.
-- [ ] Task 14.D.6.b: Add config switch + manifest flag for columnar chunk_meta.
+- [x] Task 14.D.6: Add optional columnar chunk_meta format with boundary conversion to row objects.
+- [x] Task 14.D.6.a: Keep compatibility loader that inflates columnar arrays to row objects on demand.
+- [x] Task 14.D.6.b: Add config switch + manifest flag for columnar chunk_meta.
 
 - [x] **14.E Symbol occurrences + edges streaming**
 - [x] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
@@ -1303,10 +1303,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
 - [x] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
 - [x] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
-- [ ] Task 14.E.7: Add optional columnar JSONL format for symbol occurrences/edges.
-- [ ] Task 14.E.7.a: Convert to row objects at boundaries only (loaders + CLI).
-- [ ] Task 14.E.8: Add canonical string tables for symbol names/roles/kinds to reduce repetition.
-- [ ] Task 14.E.8.a: Store string tables in meta and reference by index in rows.
+- [x] Task 14.E.7: Add optional columnar JSONL format for symbol occurrences/edges.
+- [x] Task 14.E.7.a: Convert to row objects at boundaries only (loaders + CLI).
+- [x] Task 14.E.8: Add canonical string tables for symbol names/roles/kinds to reduce repetition.
+- [x] Task 14.E.8.a: Store string tables in meta and reference by index in rows.
 
 - [ ] **14.F Graph relations streaming + measurement**
 - [x] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
@@ -1317,10 +1317,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.F.3.a: Define stable graph name ordering + edge ordering rules.
 - [x] Task 14.F.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
 - [x] Task 14.F.4.a: Include dropped edge counts and cap reasons.
-- [ ] Task 14.F.5: Add CSR‑style adjacency format for graph relations (offsets + edge list).
-- [ ] Task 14.F.5.a: Keep JSONL output for compatibility and emit CSR as optional artifact.
-- [ ] Task 14.F.6: Add byte‑budgeted streaming caps for graph_relations to avoid runaway growth.
-- [ ] Task 14.F.6.a: Record precise drop counts and cap thresholds per graph.
+- [x] Task 14.F.5: Add CSR-style adjacency format for graph relations (offsets + edge list).
+- [x] Task 14.F.5.a: Keep JSONL output for compatibility and emit CSR as optional artifact.
+- [x] Task 14.F.6: Add byte-budgeted streaming caps for graph_relations to avoid runaway growth.
+- [x] Task 14.F.6.a: Record precise drop counts and cap thresholds per graph.
 
 - [ ] **14.G Chargram postings memory bounds**
 - [x] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
@@ -1333,10 +1333,10 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.G.4.a: Emit guard counters into stage checkpoints.
 - [x] Task 14.G.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
 - [x] Task 14.G.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
-- [ ] Task 14.G.7: Add rolling hash/sliding window chargram generator to reduce allocations.
-- [ ] Task 14.G.7.a: Implement a reusable buffer to avoid substring allocations per token.
-- [ ] Task 14.G.8: Add df‑based cutoff for high‑frequency chargrams to bound postings growth.
-- [ ] Task 14.G.8.a: Track dropped high‑df chargrams in stage checkpoints.
+- [x] Task 14.G.7: Add rolling hash/sliding window chargram generator to reduce allocations.
+- [x] Task 14.G.7.a: Implement a reusable buffer to avoid substring allocations per token.
+- [x] Task 14.G.8: Add df-based cutoff for high-frequency chargrams to bound postings growth.
+- [x] Task 14.G.8.a: Track dropped high-df chargrams in stage checkpoints.
 
 - [ ] **14.H Benchmarks + acceptance harness**
 - [ ] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
