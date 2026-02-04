@@ -282,7 +282,9 @@ export const processFiles = async ({
           onResult: (result, ctx) => {
             const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
             const entry = batchEntries[entryIndex];
-            const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex;
+            const orderIndex = Number.isFinite(entry?.canonicalOrderIndex)
+              ? entry.canonicalOrderIndex
+              : (Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex);
             if (result?.defer) {
               deferredEntries.push({
                 entry,
@@ -354,7 +356,7 @@ export const processFiles = async ({
           sortEntriesByTreeSitterBatchKey(nextEntries);
         }
         for (const entry of nextEntries) {
-          entry.orderIndex = orderIndexState.next++;
+          entry.processingOrderIndex = orderIndexState.next++;
         }
         pendingEntries = nextEntries;
       }

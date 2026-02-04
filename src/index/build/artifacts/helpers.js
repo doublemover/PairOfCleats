@@ -326,6 +326,15 @@ export const compareChunkMetaRows = (a, b) => {
   return compareStrings(a?.name, b?.name);
 };
 
+export const compareChunkMetaRowsById = (a, b) => {
+  const idA = Number.isFinite(Number(a?.id)) ? Number(a.id) : null;
+  const idB = Number.isFinite(Number(b?.id)) ? Number(b.id) : null;
+  if (idA != null && idB != null && idA !== idB) return idA - idB;
+  if (idA != null && idB == null) return -1;
+  if (idA == null && idB != null) return 1;
+  return compareChunkMetaRows(a, b);
+};
+
 export const compareGraphRelationRows = (a, b) => {
   const graphCmp = (GRAPH_RELATION_ORDER.get(a?.graph) ?? 99) - (GRAPH_RELATION_ORDER.get(b?.graph) ?? 99);
   if (graphCmp) return graphCmp;
