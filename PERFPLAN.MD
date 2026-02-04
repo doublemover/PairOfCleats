@@ -778,7 +778,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
 - [x] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
 - [x] Task 10.X.2.b: Skip `compareGraphNodes/Edges` sorts when `sorted` is true.
-- [ ] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
+- [x] Task 10.X.2.c: Add test that asserts no resort occurs when `sorted` is set.
 - [x] Cache compiled architecture rules + ordered node lists by rules payload hash.
 - [x] Cache test discovery + compiled matchers in suggest-tests (keyed by repo + patterns).
 - [x] Add signature arity cache + call-site grouping optimizations in api-contracts.
@@ -822,6 +822,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-output-deterministic.test.js`
 - [x] `tests/graph/architecture-output-deterministic.test.js`
 - [x] `tests/graph/suggest-tests-output-deterministic.test.js`
+- [x] `tests/graph/graph-context-pack-skip-resort.test.js`
 - [ ] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
