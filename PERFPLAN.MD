@@ -810,7 +810,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-id-remap-roundtrip.test.js`
 - [x] `tests/graph/graph-edge-bucket-determinism.test.js`
 - [x] `tests/graph/graph-lazy-edge-load.test.js`
-- [ ] `tests/graph/graph-spill-merge-deterministic.test.js`
+- [x] `tests/graph/graph-spill-merge-deterministic.test.js`
 - [ ] `tests/context-pack/context-pack-excerpt-dedupe.test.js`
 - [x] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
 - [x] `tests/graph/graph-adjacency-presorted.test.js`
