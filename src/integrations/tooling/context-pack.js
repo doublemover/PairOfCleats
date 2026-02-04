@@ -4,7 +4,7 @@ import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
-import { assembleCompositeContextPack } from '../../context-pack/assemble.js';
+import { assembleCompositeContextPack, buildChunkIndex } from '../../context-pack/assemble.js';
 import { renderCompositeContextPack } from '../../retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../contracts/validators/analysis.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
@@ -83,6 +83,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
 
     const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
     const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
+    const chunkIndex = buildChunkIndex(chunkMeta);
 
     const baseCaps = userConfig?.retrieval?.graph?.caps || {};
     const capOverrides = {
@@ -115,6 +116,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     const payload = assembleCompositeContextPack({
       seed,
       chunkMeta,
+      chunkIndex,
       repoRoot,
       graphIndex,
       includeGraph: argv.includeGraph !== false,

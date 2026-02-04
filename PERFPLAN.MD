@@ -745,9 +745,9 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.3.b: Load only required artifacts; emit warning when required artifact missing.
 - [x] Task 10.X.3.c: Use `Promise.all` for required loads.
 - [ ] Task 10.X.3.d: Add tests verifying unused artifacts are not loaded.
-- [ ] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
-- [ ] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
-- [ ] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
+- [x] Add shared chunk lookup index for context-pack to avoid per-call map rebuilds.
+- [x] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
+- [x] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
 - [ ] Task 10.X.8.c: Add test that repeated calls reuse index.
 - [ ] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
 - [ ] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.

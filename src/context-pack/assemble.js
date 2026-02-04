@@ -26,7 +26,7 @@ const resolveSeedCandidates = (seed) => {
   return out;
 };
 
-const resolveChunkBySeed = (seedRef, chunkMeta, warnings) => {
+export const buildChunkIndex = (chunkMeta) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
   const byFile = new Map();
@@ -43,6 +43,16 @@ const resolveChunkBySeed = (seedRef, chunkMeta, warnings) => {
     const symbolId = chunk.metaV2?.symbol?.symbolId || null;
     if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, chunk);
   }
+  return {
+    byChunkUid,
+    byFile,
+    bySymbol
+  };
+};
+
+const resolveChunkBySeed = (seedRef, chunkIndex, warnings) => {
+  if (!chunkIndex) return null;
+  const { byChunkUid, byFile, bySymbol } = chunkIndex;
 
   const resolveFromNode = (node) => {
     if (!node || typeof node !== 'object') return null;
@@ -274,6 +284,7 @@ const normalizeTypeFacts = (seedRef, chunk, maxTypeEntries, warnings) => {
 export const assembleCompositeContextPack = ({
   seed = null,
   chunkMeta = null,
+  chunkIndex = null,
   repoRoot = process.cwd(),
   graphRelations = null,
   symbolEdges = null,
@@ -301,7 +312,8 @@ export const assembleCompositeContextPack = ({
   const warnings = [];
   const truncation = [];
   const seedRef = resolveSeedRef(seed);
-  const primaryChunk = resolveChunkBySeed(seedRef, chunkMeta, warnings);
+  const resolvedChunkIndex = chunkIndex || buildChunkIndex(chunkMeta);
+  const primaryChunk = resolveChunkBySeed(seedRef, resolvedChunkIndex, warnings);
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
 
   const primary = {
