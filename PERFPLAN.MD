@@ -730,7 +730,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Build a shared `GraphIndex` in `src/graph/store.js` that precomputes node/edge maps and sort keys.
 - [x] Add compact integer ID remapping for graph nodes/edges with reversible string tables.
 - [x] Replace per-edge string keys with numeric IDs or pre-hashed keys in the graph index.
-- [ ] Normalize import/file paths once in the graph index; avoid per-edge normalization.
+- [x] Normalize import/file paths once in the graph index; avoid per-edge normalization.
 - [ ] Make adjacency lists unique + pre-sorted at index build time; skip per-node neighbor sorting.
 - [ ] Precompute adjacency partitions (by from/to/type) to avoid per-request sorting and repeated scans.
 - [ ] Add prefix-compressed path tables for file path references to reduce memory.

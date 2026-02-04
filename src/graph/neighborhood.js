@@ -106,7 +106,7 @@ const applyCandidateCap = (ref, maxCandidates, recordTruncation) => {
   };
 };
 
-const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, repoRoot) => {
+const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, normalizeImport) => {
   if (!ref || typeof ref !== 'object') return {};
   if (ref.type === 'chunk') {
     const meta = chunkInfo.get(ref.chunkUid);
@@ -118,9 +118,9 @@ const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, repoRoot) => {
     } : {};
   }
   if (ref.type === 'file') {
-    const normalizedPath = normalizeImportPath(ref.path, repoRoot);
+    const normalizedPath = normalizeImport(ref.path);
     const meta = normalizedPath ? importGraphIndex.get(normalizedPath) : null;
-    const file = normalizeImportPath(meta?.file || ref.path, repoRoot) || ref.path;
+    const file = normalizeImport(meta?.file || ref.path) || ref.path;
     return { file };
   }
   if (ref.type === 'symbol') {
@@ -199,7 +199,10 @@ export const buildGraphNeighborhood = ({
   const chunkInfo = graphIndex?.chunkInfo ?? buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = graphIndex?.symbolIndex ?? buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = graphIndex?.callSiteIndex ?? buildCallSiteIndex(callSites);
-  const normalizeImportId = (value) => normalizeImportPath(value, effectiveRepoRoot);
+  const normalizeImport = graphIndex?.normalizeImportPath
+    ? (value) => graphIndex.normalizeImportPath(value)
+    : (value) => normalizeImportPath(value, effectiveRepoRoot);
+  const normalizeImportId = (value) => normalizeImport(value);
 
   const hasGraphRelations = Boolean(graphIndex?.graphRelations ?? graphRelations);
   const hasSymbolEdges = graphIndex?.symbolIndex
@@ -274,7 +277,7 @@ export const buildGraphNeighborhood = ({
       });
       return false;
     }
-    const meta = resolveNodeMeta(normalizedRef, chunkInfo, importGraphIndex, effectiveRepoRoot);
+    const meta = resolveNodeMeta(normalizedRef, chunkInfo, importGraphIndex, normalizeImport);
     nodeMap.set(key, {
       ref: normalizedRef,
       distance,
@@ -293,7 +296,7 @@ export const buildGraphNeighborhood = ({
 
   const addEdge = (edge) => {
     const key = graphIndex
-      ? edgeKeyFromIndex(edge, graphIndex, effectiveRepoRoot)
+      ? edgeKeyFromIndex(edge, graphIndex)
       : edgeKey(edge);
     if (!key) return false;
     if (edgeSet.has(key)) return false;
@@ -380,15 +383,15 @@ export const buildGraphNeighborhood = ({
   };
 
   const resolveImportSourceId = (ref) => {
-    if (ref.type === 'file') return normalizeImportPath(ref.path, effectiveRepoRoot);
+    if (ref.type === 'file') return normalizeImport(ref.path);
     if (ref.type === 'chunk') {
       const meta = chunkInfo.get(ref.chunkUid);
-      return normalizeImportPath(meta?.file || null, effectiveRepoRoot);
+      return normalizeImport(meta?.file || null);
     }
     return null;
   };
 
-  const edgeKeyFromIndex = (edge, index, repoRootValue) => {
+  const edgeKeyFromIndex = (edge, index) => {
     if (!edge || typeof edge !== 'object' || !edge.graph) return edgeKey(edge);
     const graphName = edge.graph;
     if (graphName === 'callGraph') {
@@ -408,8 +411,8 @@ export const buildGraphNeighborhood = ({
       return edgeKey(edge);
     }
     if (graphName === 'importGraph') {
-      const fromPath = normalizeImportPath(edge.from?.path, repoRootValue) || edge.from?.path || '';
-      const toPath = normalizeImportPath(edge.to?.path, repoRootValue) || edge.to?.path || '';
+      const fromPath = normalizeImport(edge.from?.path) || edge.from?.path || '';
+      const toPath = normalizeImport(edge.to?.path) || edge.to?.path || '';
       const fromId = index.importGraphIds?.idToIndex?.get(fromPath);
       const toId = index.importGraphIds?.idToIndex?.get(toPath);
       if (fromId != null && toId != null) {

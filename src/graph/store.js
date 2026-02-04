@@ -7,7 +7,8 @@ import {
   buildIdTable,
   buildGraphNodeIndex,
   buildImportGraphIndex,
-  buildSymbolEdgesIndex
+  buildSymbolEdgesIndex,
+  normalizeImportPath
 } from './indexes.js';
 
 export const buildGraphIndex = ({
@@ -16,6 +17,15 @@ export const buildGraphIndex = ({
   callSites,
   repoRoot = null
 } = {}) => {
+  const importPathCache = new Map();
+  const normalizeImportPathCached = (value) => {
+    if (!value) return null;
+    const key = String(value);
+    if (importPathCache.has(key)) return importPathCache.get(key);
+    const normalized = normalizeImportPath(value, repoRoot);
+    importPathCache.set(key, normalized);
+    return normalized;
+  };
   const callGraphIndex = buildGraphNodeIndex(graphRelations?.callGraph);
   const usageGraphIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
   const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
@@ -27,6 +37,7 @@ export const buildGraphIndex = ({
   const callSiteIndex = buildCallSiteIndex(callSites);
   return {
     repoRoot,
+    normalizeImportPath: normalizeImportPathCached,
     graphRelations,
     callGraphIndex,
     usageGraphIndex,
