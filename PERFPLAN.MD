@@ -805,7 +805,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/context-pack/context-pack-excerpt-range.test.js`
 - [x] `tests/context-pack/context-pack-range-reads.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
-- [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
+- [x] `tests/context-pack/context-pack-assembly-memory.test.js`
 - [x] `tests/context-pack/context-pack-seed-normalization.test.js`
 - [x] `tests/graph/graph-id-remap-roundtrip.test.js`
 - [x] `tests/graph/graph-edge-bucket-determinism.test.js`
