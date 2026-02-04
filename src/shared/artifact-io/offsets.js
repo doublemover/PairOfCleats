@@ -86,14 +86,24 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
     if (!Number.isFinite(offset) || offset < 0) {
       throw new Error(`Invalid offset value: ${offset}`);
     }
-    if (offset < last) {
+    if (offset <= last) {
       throw new Error(`Offsets not monotonic for ${offsetsPath}`);
     }
     last = offset;
   }
   if (offsets.length) {
-    if (last > jsonlStat.size) {
+    if (last >= jsonlStat.size) {
       throw new Error(`Offset exceeds file size for ${jsonlPath}`);
+    }
+    const handle = await fs.open(jsonlPath, 'r');
+    try {
+      const buffer = Buffer.allocUnsafe(1);
+      const { bytesRead } = await handle.read(buffer, 0, 1, jsonlStat.size - 1);
+      if (bytesRead === 1 && buffer[0] !== 0x0a) {
+        throw new Error(`JSONL missing trailing newline for ${jsonlPath}`);
+      }
+    } finally {
+      await handle.close();
     }
   }
   return true;

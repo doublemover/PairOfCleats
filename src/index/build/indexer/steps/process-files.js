@@ -62,6 +62,8 @@ export const processFiles = async ({
   );
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
+  const debugOrdered = process.env.PAIROFCLEATS_DEBUG_ORDERED === '1'
+    || process.env.PAIROFCLEATS_DEBUG_ORDERED === 'true';
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -113,7 +115,8 @@ export const processFiles = async ({
     state,
     {
       expectedCount: Array.isArray(entries) ? entries.length : null,
-      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' })
+      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
+      stallMs: debugOrdered ? 5000 : undefined
     }
   );
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {

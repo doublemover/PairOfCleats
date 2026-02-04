@@ -851,7 +851,13 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'graph_relations_offsets',
   'symbol_edges_offsets',
   'symbol_occurrences_offsets',
-  'symbols_offsets'
+  'symbols_offsets',
+  'symbol_occurrences_by_file',
+  'symbol_occurrences_by_file_offsets',
+  'symbol_occurrences_by_file_meta',
+  'symbol_edges_by_file',
+  'symbol_edges_by_file_offsets',
+  'symbol_edges_by_file_meta'
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {

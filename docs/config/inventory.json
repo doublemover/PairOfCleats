@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T04:13:16.761Z",
+  "generatedAt": "2026-02-04T04:38:41.133Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1624,6 +1624,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DEBUG_ORDERED",
+      "files": [
+        "src/index/build/indexer/steps/process-files.js",
+        "src/index/build/indexer/steps/process-files/ordered.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
@@ -2290,7 +2297,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_DEBUG_ORDERED"
+  ],
   "cliFlags": {
     "totalFlags": 292,
     "publicFlags": [

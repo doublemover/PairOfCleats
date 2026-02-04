@@ -1191,6 +1191,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - `tests/indexing/relations/graph-relations-determinism.test.js` (new)
 - `tests/indexing/chunk-meta/chunk-meta-streaming.test.js` (new)
 - `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js` (new)
+- [x] `tests/indexing/chunk-meta/chunk-meta-ordering.test.js` (new)
+- [x] `tests/indexing/artifacts/symbols/symbol-by-file-index.test.js` (new)
 
 ### Docs/specs to add or update
 - `docs/perf/index-artifact-pipelines.md` (new)
@@ -1272,13 +1274,13 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
 - [x] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
 - [x] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
-- [ ] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
-- [ ] Task 14.D.3.a: Add `canonicalOrderIndex` from discovery order and keep processing reorder separate.
-- [ ] Task 14.D.3.b: Ensure `orderedAppender` uses canonical order for docId assignment.
+- [@] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
+- [x] Task 14.D.3.a: Add `canonicalOrderIndex` from discovery order and keep processing reorder separate.
+- [x] Task 14.D.3.b: Ensure `orderedAppender` uses canonical order for docId assignment.
 - [ ] Task 14.D.3.c: Add optional windowed batching to cap pending buffers when processing order diverges.
-- [ ] Task 14.D.3.d: Detect out‑of‑order chunk_meta stream; only enable external sort when needed.
-- [ ] Task 14.D.3.e: External sort by numeric `id` only to preserve docId alignment.
-- [ ] Task 14.D.3.f: Stream JSONL directly when already ordered (skip spill collector).
+- [x] Task 14.D.3.d: Detect out‑of‑order chunk_meta stream; only enable external sort when needed.
+- [x] Task 14.D.3.e: External sort by numeric `id` only to preserve docId alignment.
+- [x] Task 14.D.3.f: Stream JSONL directly when already ordered (skip spill collector).
 - [ ] Task 14.D.3.g: Emit chunk_meta ordering telemetry in stage checkpoints.
 - [ ] Task 14.D.3.h: Add docId alignment guardrails and verification in tests.
 - [ ] Task 14.D.3.i: Add bucketed external sort by `id` range to avoid full compare sort.
@@ -1362,21 +1364,21 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.H.11.a: Report reuse ratio (cached vs recomputed) + total time delta.
 
 - [ ] **14.I Artifact access + write acceleration**
-- [ ] Task 14.I.1: Add byte‑offset indexes for JSONL artifacts (chunk_meta, symbols, symbol_occurrences, symbol_edges, graph_relations, call_sites).
-- [ ] Task 14.I.1.a: Emit offsets during JSONL write (no second pass); store `offsets.bin` (uint64 LE) + `offsets.meta.json`.
-- [ ] Task 14.I.1.b: For compressed shards, either keep raw JSONL alongside compressed or use seekable zstd frames; document fallback.
-- [ ] Task 14.I.1.c: Add loader utilities for fast row fetch by index (single read + JSON.parse).
-- [ ] Task 14.I.1.d: Keep offsets in monotonically increasing order; validate last offset + row length against file size.
-- [ ] Task 14.I.2: Add per‑file symbol row indexes for `symbol_occurrences`/`symbol_edges`.
-- [ ] Task 14.I.2.a: Resolve `fileId` while streaming (via host chunkUid -> chunk_meta -> fileId); accumulate row offsets per file.
-- [ ] Task 14.I.2.b: Store per‑file offset lists in packed varint arrays with a small JSON meta.
-- [ ] Task 14.I.2.c: Add fast path in tooling to load per‑file rows without scanning all parts.
-- [ ] Task 14.I.2.d: Keep per‑file offset lists sorted by row index to preserve deterministic output.
-- [ ] Task 14.I.3: Add write batching + worker thread compression for JSONL artifacts.
-- [ ] Task 14.I.3.a: Buffer rows into fixed-size byte blocks (e.g., 1–4MB) before writing.
-- [ ] Task 14.I.3.b: Compress blocks in a bounded worker pool; preserve output ordering.
-- [ ] Task 14.I.3.c: Backpressure when compression lags to avoid unbounded memory.
-- [ ] Task 14.I.3.d: Prefer zstd (seekable frames) for large shards; fall back to gzip where required.
+- [x] Task 14.I.1: Add byte‑offset indexes for JSONL artifacts (chunk_meta, symbols, symbol_occurrences, symbol_edges, graph_relations, call_sites).
+- [x] Task 14.I.1.a: Emit offsets during JSONL write (no second pass); store `offsets.bin` (uint64 LE) + `offsets.meta.json`.
+- [x] Task 14.I.1.b: For compressed shards, either keep raw JSONL alongside compressed or use seekable zstd frames; document fallback (offsets require uncompressed output).
+- [x] Task 14.I.1.c: Add loader utilities for fast row fetch by index (single read + JSON.parse).
+- [x] Task 14.I.1.d: Keep offsets in monotonically increasing order; validate last offset + row length against file size.
+- [x] Task 14.I.2: Add per‑file symbol row indexes for `symbol_occurrences`/`symbol_edges`.
+- [x] Task 14.I.2.a: Resolve `fileId` while streaming (via host chunkUid -> chunk_meta -> fileId); accumulate row offsets per file.
+- [x] Task 14.I.2.b: Store per‑file offset lists in packed varint arrays with a small JSON meta.
+- [x] Task 14.I.2.c: Add fast path in tooling to load per‑file rows without scanning all parts.
+- [x] Task 14.I.2.d: Keep per‑file offset lists sorted by row index to preserve deterministic output.
+- [x] Task 14.I.3: Add write batching + worker thread compression for JSONL artifacts.
+- [x] Task 14.I.3.a: Buffer rows into fixed-size byte blocks (e.g., 1–4MB) before writing.
+- [x] Task 14.I.3.b: Compress blocks in a bounded worker pool; preserve output ordering.
+- [x] Task 14.I.3.c: Backpressure when compression lags to avoid unbounded memory.
+- [x] Task 14.I.3.d: Prefer zstd (seekable frames) for large shards; fall back to gzip where required.
 - [ ] Task 14.I.4: Add packed postings format (delta+varint) for docId lists.
 - [ ] Task 14.I.4.a: Encode docId deltas + tf counts in a binary blob with offsets per token.
 - [ ] Task 14.I.4.b: Keep JSON as fallback; loader prefers packed when present.

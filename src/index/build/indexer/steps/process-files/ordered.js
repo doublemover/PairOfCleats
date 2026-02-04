@@ -12,10 +12,13 @@
 // backpressure via `runWithQueue`'s awaited `onResult`, bounding in-flight
 // buffered results to queue concurrency.
 export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
+  const debugOrdered = process.env.PAIROFCLEATS_DEBUG_ORDERED === '1'
+    || process.env.PAIROFCLEATS_DEBUG_ORDERED === 'true';
   const pending = new Map();
   let nextIndex = 0;
   let flushing = null;
   let aborted = false;
+  let flushRequested = false;
   const skipped = new Set();
   const logFn = typeof options.log === 'function' ? options.log : null;
   const stallMs = Number.isFinite(options.stallMs) ? Math.max(0, options.stallMs) : 30000;
@@ -33,6 +36,19 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       if (logFn.length >= 2) logFn(message, meta);
       else logFn(message);
     } catch {}
+  };
+
+  const debugLog = (message, details = null) => {
+    if (!debugOrdered) return;
+    let suffix = '';
+    if (details && typeof details === 'object') {
+      try {
+        suffix = ` ${JSON.stringify(details)}`;
+      } catch {
+        suffix = ' [details=unserializable]';
+      }
+    }
+    emitLog(`${message}${suffix}`, { kind: 'debug' });
   };
 
   const noteAdvance = () => {
@@ -80,6 +96,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (seenCount < expectedCount) return;
     if (!pending.size) return;
     if (pending.has(nextIndex)) return;
+    debugLog('[ordered] finalize reached expected count but nextIndex missing', {
+      nextIndex,
+      pending: pending.size,
+      expectedCount,
+      seenCount
+    });
     const keys = Array.from(pending.keys()).sort((a, b) => a - b);
     const minPending = keys[0];
     if (!Number.isFinite(minPending) || minPending <= nextIndex) return;
@@ -115,6 +137,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   const flush = async () => {
+    debugLog('[ordered] flush start', {
+      nextIndex,
+      pending: pending.size,
+      expectedCount,
+      seenCount
+    });
     advancePastSkipped();
     while (pending.has(nextIndex)) {
       const entry = pending.get(nextIndex);
@@ -133,10 +161,19 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         advancePastSkipped();
       }
     }
+    debugLog('[ordered] flush complete', {
+      nextIndex,
+      pending: pending.size,
+      expectedCount,
+      seenCount
+    });
   };
 
   const scheduleFlush = async () => {
-    if (flushing) return flushing;
+    if (flushing) {
+      flushRequested = true;
+      return flushing;
+    }
     flushing = (async () => {
       try {
         await flush();
@@ -145,6 +182,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         throw err;
       } finally {
         flushing = null;
+        if (flushRequested && !aborted) {
+          flushRequested = false;
+          // Schedule another pass for entries queued while we were flushing.
+          scheduleFlush().catch(() => {});
+        }
       }
     })();
     return flushing;
@@ -157,6 +199,13 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       }
       if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
         noteSeen(orderIndex);
+        debugLog('[ordered] enqueue immediate', {
+          orderIndex,
+          nextIndex,
+          pending: pending.size,
+          expectedCount,
+          seenCount
+        });
         return handleFileResult(result, state, shardMeta);
       }
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
@@ -166,6 +215,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         if (result && !existing.result) existing.result = result;
         if (result && existing.result && existing.result !== result) existing.result = result;
         if (!existing.shardMeta && shardMeta) existing.shardMeta = shardMeta;
+        debugLog('[ordered] enqueue merge', {
+          orderIndex,
+          index,
+          nextIndex,
+          pending: pending.size,
+          expectedCount,
+          seenCount
+        });
         scheduleFlush().catch(() => {});
         scheduleStallCheck();
         maybeFinalize();
@@ -178,6 +235,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         reject = rej;
       });
       pending.set(index, { result, shardMeta, resolve, reject, done });
+      debugLog('[ordered] enqueue new', {
+        orderIndex,
+        index,
+        nextIndex,
+        pending: pending.size,
+        expectedCount,
+        seenCount
+      });
       // Ensure rejections from the flush loop don't surface as unhandled.
       scheduleFlush().catch(() => {});
       scheduleStallCheck();
@@ -189,6 +254,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
       if (index < nextIndex) return Promise.resolve();
       noteSeen(index);
+      debugLog('[ordered] skip', {
+        orderIndex,
+        index,
+        nextIndex,
+        pending: pending.size,
+        expectedCount,
+        seenCount
+      });
       if (pending.has(index)) {
         const entry = pending.get(index);
         pending.delete(index);

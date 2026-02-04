@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { once } from 'node:events';
 import { writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
 const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
@@ -314,6 +318,57 @@ export const createRowSpillCollector = ({
     finalize,
     stats
   };
+};
+
+const writeBuffer = async (stream, buffer) => {
+  if (!buffer || buffer.length === 0) return;
+  if (!stream.write(buffer)) {
+    await once(stream, 'drain');
+  }
+};
+
+export const writePerFileVarintIndex = async ({
+  outDir,
+  baseName,
+  fileCount,
+  perFileRows,
+  atomic = true
+}) => {
+  if (!outDir || !baseName) return null;
+  if (!Number.isFinite(fileCount) || fileCount <= 0) return null;
+  if (!Array.isArray(perFileRows)) return null;
+  const dataPath = path.join(outDir, `${baseName}.bin`);
+  const offsetsPath = path.join(outDir, `${baseName}.offsets.bin`);
+  const targetPath = atomic ? createTempPath(dataPath) : dataPath;
+  const stream = fs.createWriteStream(targetPath);
+  const offsetsWriter = createOffsetsWriter(offsetsPath, { atomic });
+  let bytesWritten = 0;
+  try {
+    for (let i = 0; i < fileCount; i += 1) {
+      await offsetsWriter.writeOffset(bytesWritten);
+      const rows = Array.isArray(perFileRows[i]) ? perFileRows[i] : [];
+      if (!rows.length) continue;
+      const buffer = encodeVarintDeltas(rows);
+      bytesWritten += buffer.length;
+      await writeBuffer(stream, buffer);
+    }
+    await offsetsWriter.writeOffset(bytesWritten);
+    stream.end();
+    await once(stream, 'finish');
+    if (atomic) {
+      await replaceFile(targetPath, dataPath);
+    }
+    await offsetsWriter.close();
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await once(stream, 'close'); } catch {}
+    try { await offsetsWriter.destroy(err); } catch {}
+    if (atomic) {
+      try { await fs.promises.rm(targetPath, { force: true }); } catch {}
+    }
+    throw err;
+  }
+  return { dataPath, offsetsPath, bytesWritten };
 };
 
 export const compareSymbolOccurrenceRows = (a, b) => {
