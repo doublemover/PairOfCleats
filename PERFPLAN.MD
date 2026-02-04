@@ -1352,8 +1352,8 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
 - [ ] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
 - [ ] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
-- [ ] Task 14.H.8: Implement `tools/bench/index/jsonl-offset-index.js` for random-access lookups.
-- [ ] Task 14.H.8.a: Compare baseline scan vs offset index (p50/p95 row fetch latency).
+- [x] Task 14.H.8: Implement `tools/bench/index/jsonl-offset-index.js` for random-access lookups.
+- [x] Task 14.H.8.a: Compare baseline scan vs offset index (p50/p95 row fetch latency).
 - [ ] Task 14.H.9: Implement `tools/bench/index/postings-packed.js` to compare JSON vs packed postings.
 - [ ] Task 14.H.9.a: Report size ratio + load time delta for token/phrase/chargram postings.
 - [ ] Task 14.H.10: Implement `tools/bench/index/jsonl-compression-pipeline.js` for write throughput.
