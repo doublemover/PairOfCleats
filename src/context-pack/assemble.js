@@ -9,6 +9,7 @@ import { resolveProvenance } from '../shared/provenance.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
 import { readFileRangeSync } from '../shared/files.js';
+import { normalizePathForRepo } from '../shared/path-normalize.js';
 
 const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -41,7 +42,7 @@ const resolveSeedCandidates = (seed) => {
   return out;
 };
 
-export const buildChunkIndex = (chunkMeta) => {
+export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
   const byFile = new Map();
@@ -50,10 +51,11 @@ export const buildChunkIndex = (chunkMeta) => {
     if (!chunk) continue;
     const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
     if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, chunk);
-    if (chunk.file) {
-      const list = byFile.get(chunk.file) || [];
+    const normalizedFile = normalizePathForRepo(chunk.file, repoRoot);
+    if (normalizedFile) {
+      const list = byFile.get(normalizedFile) || [];
       list.push(chunk);
-      byFile.set(chunk.file, list);
+      byFile.set(normalizedFile, list);
     }
     const symbolId = chunk.metaV2?.symbol?.symbolId || null;
     if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, chunk);
@@ -61,19 +63,21 @@ export const buildChunkIndex = (chunkMeta) => {
   return {
     byChunkUid,
     byFile,
-    bySymbol
+    bySymbol,
+    normalizePath: (value) => normalizePathForRepo(value, repoRoot)
   };
 };
 
 const resolveChunkBySeed = (seedRef, chunkIndex, warnings) => {
   if (!chunkIndex) return null;
-  const { byChunkUid, byFile, bySymbol } = chunkIndex;
+  const { byChunkUid, byFile, bySymbol, normalizePath } = chunkIndex;
 
   const resolveFromNode = (node) => {
     if (!node || typeof node !== 'object') return null;
     if (node.type === 'chunk') return byChunkUid.get(node.chunkUid) || null;
     if (node.type === 'file') {
-      const list = byFile.get(node.path) || [];
+      const normalizedPath = normalizePath ? normalizePath(node.path) : node.path;
+      const list = (normalizedPath && byFile.get(normalizedPath)) || byFile.get(node.path) || [];
       return list[0] || null;
     }
     if (node.type === 'symbol') return bySymbol.get(node.symbolId) || null;

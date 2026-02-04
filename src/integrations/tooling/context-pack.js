@@ -83,7 +83,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
 
     const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
     const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
-    const chunkIndex = buildChunkIndex(chunkMeta);
+    const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
 
     const baseCaps = userConfig?.retrieval?.graph?.caps || {};
     const capOverrides = {

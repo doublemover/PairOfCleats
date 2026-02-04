@@ -767,8 +767,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add file-level excerpt cache keyed by `(filePath, byteRange)` before token slicing.
 - [x] Add excerpt prefetch batching to reduce per-chunk IO latency in context packs.
 - [x] Add excerpt hash de-duplication to avoid emitting duplicate slices.
-- [ ] Normalize chunk/file paths once for seed resolution in context-pack assembly.
-- [ ] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
+- [x] Normalize chunk/file paths once for seed resolution in context-pack assembly.
+- [x] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
 - [ ] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
 - [ ] Add deterministic output ordering for graph/architecture/suggest-tests renderers and include warnings/truncation sections.
 - [ ] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
