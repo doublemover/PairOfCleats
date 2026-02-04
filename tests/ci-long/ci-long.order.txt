@@ -59,3 +59,17 @@ tooling/triage/context-pack
 indexing/imports/prose-skip-imports
 retrieval/parity/parity
 tooling/script-coverage/script-coverage
+indexing/map/code-map-determinism
+indexing/chunk-id/chunk-id-backend-parity
+retrieval/filters/file-and-token/punctuation-tokenization
+indexing/records/records-exclusion
+indexing/contracts/golden-surface-suite
+indexing/map/code-map-dot
+indexing/type-inference/crossfile/type-inference-crossfile-go
+indexing/validate/index-validate
+retrieval/filters/git-metadata/modified-time
+retrieval/filters/git-metadata/branch
+retrieval/filters/file-and-token/token-case
+retrieval/filters/query-syntax/negative-terms
+retrieval/filters/git-metadata/chunk-author
+indexing/chunking/formats/format-fidelity

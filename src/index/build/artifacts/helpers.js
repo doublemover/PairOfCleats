@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createInterface } from 'node:readline';
 import { writeJsonLinesFile } from '../../../shared/json-stream.js';
 import { compareStrings } from '../../../shared/sort.js';
 
@@ -66,16 +65,42 @@ export class MinHeap {
 
 export const readJsonlRows = async function* (filePath) {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+  let buffer = '';
+  let lineNumber = 0;
   try {
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      yield JSON.parse(trimmed);
+    for await (const chunk of stream) {
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        lineNumber += 1;
+        const trimmed = line.trim();
+        if (!trimmed) {
+          newlineIndex = buffer.indexOf('\n');
+          continue;
+        }
+        try {
+          yield JSON.parse(trimmed);
+        } catch (err) {
+          const message = err?.message || 'JSON parse error';
+          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+        }
+        newlineIndex = buffer.indexOf('\n');
+      }
+    }
+    const trimmed = buffer.trim();
+    if (trimmed) {
+      lineNumber += 1;
+      try {
+        yield JSON.parse(trimmed);
+      } catch (err) {
+        const message = err?.message || 'JSON parse error';
+        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+      }
     }
   } finally {
-    rl.close();
-    stream.destroy();
+    if (!stream.destroyed) stream.destroy();
   }
 };
 

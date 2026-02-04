@@ -71,16 +71,20 @@ const resolveChunkMetaSources = (dir) => {
   if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
     let parts = [];
     if (fsSync.existsSync(metaPath)) {
-      try {
-        const metaRaw = readJson(metaPath);
-        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        const entries = normalizeMetaParts(meta?.parts);
-        if (entries.length) {
-          parts = entries
-            .map((name) => path.join(dir, name))
-            .filter((candidate) => fsSync.existsSync(candidate));
+      const metaRaw = readJson(metaPath);
+      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const entries = normalizeMetaParts(meta?.parts);
+      if (entries.length) {
+        const missing = [];
+        parts = entries.map((name) => {
+          const candidate = path.join(dir, name);
+          if (!fsSync.existsSync(candidate)) missing.push(name);
+          return candidate;
+        });
+        if (missing.length) {
+          throw new Error(`[sqlite] chunk_meta parts missing: ${missing.join(', ')}`);
         }
-      } catch {}
+      }
     }
     if (!parts.length) {
       parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl', '.jsonl.gz', '.jsonl.zst']);
@@ -275,7 +279,8 @@ export async function buildDatabaseFromArtifacts({
 
   const db = new Database(resolvedOutPath);
   const resolvedInputBytes = Number(inputBytes);
-  const defaultOptimize = Number.isFinite(resolvedInputBytes)
+  const hasInputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0;
+  const defaultOptimize = hasInputBytes
     ? resolvedInputBytes >= ARTIFACT_BUILD_PRAGMA_MIN_BYTES
     : true;
   const useBuildPragmas = typeof buildPragmas === 'boolean' ? buildPragmas : defaultOptimize;

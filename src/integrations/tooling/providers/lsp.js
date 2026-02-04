@@ -337,9 +337,18 @@ export async function collectLspTypes({
       const merged = { ...base };
       if (!merged.returnType && next.returnType) merged.returnType = next.returnType;
       if (!merged.signature && next.signature) merged.signature = next.signature;
-      const baseParams = Object.keys(merged.paramTypes || {});
-      const nextParams = Object.keys(next.paramTypes || {});
-      if (!baseParams.length && nextParams.length) merged.paramTypes = next.paramTypes;
+      const baseParamTypes = merged.paramTypes && typeof merged.paramTypes === 'object'
+        ? merged.paramTypes
+        : null;
+      const nextParamTypes = next.paramTypes && typeof next.paramTypes === 'object'
+        ? next.paramTypes
+        : null;
+      if (nextParamTypes) {
+        merged.paramTypes = {
+          ...nextParamTypes,
+          ...(baseParamTypes || {})
+        };
+      }
       if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
         merged.paramNames = next.paramNames;
       }

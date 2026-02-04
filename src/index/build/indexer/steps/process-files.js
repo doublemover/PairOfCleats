@@ -112,6 +112,7 @@ export const processFiles = async ({
     },
     state,
     {
+      expectedCount: Array.isArray(entries) ? entries.length : null,
       log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' })
     }
   );

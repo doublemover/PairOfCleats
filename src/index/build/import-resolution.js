@@ -393,9 +393,7 @@ export function resolveImportLinks({
   graphMeta = null
 }) {
   const lookup = createFileLookup({ entries, root });
-  const tsConfigResolver = lookup.hasTsconfig
-    ? createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet })
-    : null;
+  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet });
   const graph = enableGraph
     ? {
       generatedAt: new Date().toISOString(),

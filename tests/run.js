@@ -75,7 +75,7 @@ const main = async () => {
   const resolveLaneDefaultTimeout = (lanes) => {
     const laneDefaults = new Map([
       ['ci-lite', 15000],
-      ['ci', 90000],
+      ['ci', 60000],
       ['ci-long', 240000]
     ]);
     const normalized = lanes.filter((lane) => lane && lane !== 'all');

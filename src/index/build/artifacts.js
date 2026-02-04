@@ -33,7 +33,8 @@ import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts,
-  resolveChunkMetaPlan
+  resolveChunkMetaPlan,
+  resolveChunkMetaOrder
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
@@ -143,12 +144,14 @@ export async function writeIndexArtifacts(input) {
     );
   }
   const denseScale = 2 / 255;
+  const chunkMetaOrder = resolveChunkMetaOrder(state.chunks);
   const chunkMetaIterator = createChunkMetaIterator({
     chunks: state.chunks,
     fileIdByPath,
     resolvedTokenMode,
     tokenSampleSize,
-    maxJsonBytes
+    maxJsonBytes,
+    order: chunkMetaOrder
   });
   const chunkMetaPlan = resolveChunkMetaPlan({
     chunks: state.chunks,

@@ -763,13 +763,34 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
 
 const readJsonlRows = async function* (filePath) {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let lineNumber = 0;
+  let buffer = '';
   try {
-    for await (const line of rl) {
+    for await (const chunk of stream) {
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        lineNumber += 1;
+        const trimmed = line.trim();
+        if (!trimmed) {
+          newlineIndex = buffer.indexOf('\n');
+          continue;
+        }
+        try {
+          const row = JSON.parse(trimmed);
+          yield row;
+        } catch (err) {
+          const message = err?.message || 'JSON parse error';
+          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+        }
+        newlineIndex = buffer.indexOf('\n');
+      }
+    }
+    const trimmed = buffer.trim();
+    if (trimmed) {
       lineNumber += 1;
-      const trimmed = line.trim();
-      if (!trimmed) continue;
       try {
         const row = JSON.parse(trimmed);
         yield row;
@@ -779,8 +800,7 @@ const readJsonlRows = async function* (filePath) {
       }
     }
   } finally {
-    rl.close();
-    stream.destroy();
+    if (!stream.destroyed) stream.destroy();
   }
 };
 

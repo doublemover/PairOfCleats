@@ -21,6 +21,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const stallMs = Number.isFinite(options.stallMs) ? Math.max(0, options.stallMs) : 30000;
   let lastAdvanceAt = Date.now();
   let stallTimer = null;
+  const expectedCount = Number.isFinite(options.expectedCount)
+    ? Math.max(0, Math.floor(options.expectedCount))
+    : null;
+  const seen = expectedCount != null ? new Set() : null;
+  let seenCount = 0;
 
   const emitLog = (message, meta) => {
     if (!logFn) return;
@@ -68,6 +73,30 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       nextIndex += 1;
       noteAdvance();
     }
+  };
+
+  const maybeFinalize = () => {
+    if (expectedCount == null) return;
+    if (seenCount < expectedCount) return;
+    if (!pending.size) return;
+    if (pending.has(nextIndex)) return;
+    const keys = Array.from(pending.keys()).sort((a, b) => a - b);
+    const minPending = keys[0];
+    if (!Number.isFinite(minPending) || minPending <= nextIndex) return;
+    emitLog(
+      `[ordered] missing indices ${nextIndex}-${minPending - 1}; fast-forwarding to ${minPending}`,
+      { kind: 'warning' }
+    );
+    nextIndex = minPending;
+    scheduleFlush().catch(() => {});
+  };
+
+  const noteSeen = (index) => {
+    if (!seen) return;
+    if (!Number.isFinite(index)) return;
+    if (seen.has(index)) return;
+    seen.add(index);
+    seenCount += 1;
   };
 
   const abort = (err) => {
@@ -127,9 +156,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         return Promise.reject(new Error('Ordered appender aborted.'));
       }
       if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
+        noteSeen(orderIndex);
         return handleFileResult(result, state, shardMeta);
       }
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
+      noteSeen(index);
       if (pending.has(index)) {
         const existing = pending.get(index);
         if (result && !existing.result) existing.result = result;
@@ -137,6 +168,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         if (!existing.shardMeta && shardMeta) existing.shardMeta = shardMeta;
         scheduleFlush().catch(() => {});
         scheduleStallCheck();
+        maybeFinalize();
         return existing.done;
       }
       let resolve;
@@ -149,12 +181,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       // Ensure rejections from the flush loop don't surface as unhandled.
       scheduleFlush().catch(() => {});
       scheduleStallCheck();
+      maybeFinalize();
       return done;
     },
     skip(orderIndex) {
       if (aborted) return Promise.reject(new Error('Ordered appender aborted.'));
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
       if (index < nextIndex) return Promise.resolve();
+      noteSeen(index);
       if (pending.has(index)) {
         const entry = pending.get(index);
         pending.delete(index);
@@ -164,6 +198,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       // Ensure we advance if the skipped index is next up.
       scheduleFlush().catch(() => {});
       scheduleStallCheck();
+      maybeFinalize();
       return Promise.resolve();
     },
     abort

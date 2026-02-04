@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import readline from 'node:readline';
 import { loadGraphRelationsSync, loadJsonArrayArtifactSync, readJsonFile } from '../../shared/artifact-io.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
@@ -213,13 +212,33 @@ class MinHeap {
 
 const readJsonlRows = async function* (filePath) {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let lineNumber = 0;
+  let buffer = '';
   try {
-    for await (const line of rl) {
+    for await (const chunk of stream) {
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        lineNumber += 1;
+        const trimmed = line.trim();
+        if (!trimmed) {
+          newlineIndex = buffer.indexOf('\n');
+          continue;
+        }
+        try {
+          yield JSON.parse(trimmed);
+        } catch (err) {
+          const message = err?.message || 'JSON parse error';
+          throw new Error(`Invalid map spill JSON at ${filePath}:${lineNumber}: ${message}`);
+        }
+        newlineIndex = buffer.indexOf('\n');
+      }
+    }
+    const trimmed = buffer.trim();
+    if (trimmed) {
       lineNumber += 1;
-      const trimmed = line.trim();
-      if (!trimmed) continue;
       try {
         yield JSON.parse(trimmed);
       } catch (err) {
@@ -228,8 +247,7 @@ const readJsonlRows = async function* (filePath) {
       }
     }
   } finally {
-    rl.close();
-    stream.destroy();
+    if (!stream.destroyed) stream.destroy();
   }
 };
 
