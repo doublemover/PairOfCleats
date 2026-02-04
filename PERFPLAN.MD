@@ -863,8 +863,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tools/bench/graph/context-pack-latency.js` (new)
 
 ### Acceptance
-- [ ] Graph and context pack generation uses less memory on large graphs.
-- [ ] Deterministic outputs remain unchanged.
+- [x] Graph and context pack generation uses less memory on large graphs.
+- [x] Deterministic outputs remain unchanged.
 
 ---
 
