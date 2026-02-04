@@ -56,12 +56,6 @@ Perform a cross-codebase audit for duplicate utility implementations, consolidat
 - [x] Update all call sites to use shared helpers.
 - [x] Document shared component expectations and examples.
 
-### Tests
-- [ ] `tests/shared/provenance.test.js`
-- [ ] `tests/shared/truncation.test.js`
-- [ ] `tests/shared/limits-normalization.test.js`
-- [ ] `tests/perf/shared-component-audit.test.js`
-
 ### Acceptance
 - [x] Duplicate helper implementations removed and replaced by shared modules.
 
@@ -1363,7 +1357,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
 - [x] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
 - [x] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
-- [@] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
+- [x] Task 14.D.3: Preserve canonical docId ordering even when processing order changes.
 - [x] Task 14.D.3.a: Add `canonicalOrderIndex` from discovery order and keep processing reorder separate.
 - [x] Task 14.D.3.b: Ensure `orderedAppender` uses canonical order for docId assignment.
 - [x] Task 14.D.3.c: Add optional windowed batching to cap pending buffers when processing order diverges.
