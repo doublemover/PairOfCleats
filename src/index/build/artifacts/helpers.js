@@ -309,6 +309,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
   for (const graphName of GRAPH_RELATION_GRAPHS) {
     const graph = relations[graphName] || {};
     const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    const graphKey = JSON.stringify(graphName);
     const nodeCount = Number.isFinite(graph.nodeCount) ? graph.nodeCount : nodes.length;
     const edgeCount = Number.isFinite(graph.edgeCount)
       ? graph.edgeCount
@@ -319,7 +320,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
       const node = nodes[i];
       const nodeJson = JSON.stringify(node);
       nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (i > 0 ? 1 : 0);
-      const line = JSON.stringify({ graph: graphName, node });
+      const line = `{"graph":${graphKey},"node":${nodeJson}}`;
       const lineBytes = Buffer.byteLength(line, 'utf8');
       if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
         throw new Error(`graph_relations entry exceeds max JSON size (${lineBytes} bytes).`);
