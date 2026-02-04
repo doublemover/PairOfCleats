@@ -727,7 +727,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - `docs/perf/graph-context-pack.md` (new)
 
 ### Tasks
-- [ ] Build a shared `GraphIndex` in `src/graph/store.js` that precomputes node/edge maps and sort keys.
+- [x] Build a shared `GraphIndex` in `src/graph/store.js` that precomputes node/edge maps and sort keys.
 - [ ] Add compact integer ID remapping for graph nodes/edges with reversible string tables.
 - [ ] Replace per-edge string keys with numeric IDs or pre-hashed keys in the graph index.
 - [ ] Normalize import/file paths once in the graph index; avoid per-edge normalization.

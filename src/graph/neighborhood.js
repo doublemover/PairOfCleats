@@ -1,10 +1,16 @@
-import path from 'node:path';
-import { isAbsolutePathNative, toPosix } from '../shared/files.js';
+import {
+  buildCallSiteIndex,
+  buildChunkInfo,
+  buildGraphNodeIndex,
+  buildImportGraphIndex,
+  buildSymbolEdgesIndex,
+  normalizeFileRef,
+  normalizeImportPath
+} from './indexes.js';
 import { normalizeCap, normalizeDepth } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
-  compareCandidates,
   compareGraphEdges,
   compareGraphNodes,
   compareWitnessPaths,
@@ -23,29 +29,6 @@ const GRAPH_NODE_TYPES = {
   callGraph: 'chunk',
   usageGraph: 'chunk',
   importGraph: 'file'
-};
-
-const normalizeImportPath = (value, repoRoot) => {
-  if (!value) return null;
-  const raw = String(value);
-  let normalized = raw;
-  if (repoRoot && isAbsolutePathNative(raw)) {
-    const rel = path.relative(repoRoot, raw) || '.';
-    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
-      normalized = rel;
-    }
-  }
-  normalized = toPosix(normalized);
-  if (normalized.startsWith('./')) normalized = normalized.slice(2);
-  return normalized;
-};
-
-const normalizeFileRef = (ref, repoRoot) => {
-  if (!ref || typeof ref !== 'object') return ref;
-  if (ref.type !== 'file') return ref;
-  const normalized = normalizeImportPath(ref.path, repoRoot);
-  if (!normalized || normalized === ref.path) return ref;
-  return { ...ref, path: normalized };
 };
 
 const normalizeCaps = (caps) => ({
@@ -86,33 +69,7 @@ const normalizeEdgeFilter = (edgeFilters) => {
   };
 };
 
-const buildGraphIndex = (graph, { normalizeId = null } = {}) => {
-  const map = new Map();
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  for (const node of nodes) {
-    if (!node || typeof node.id !== 'string' || !node.id) continue;
-    const normalizedId = normalizeId ? normalizeId(node.id) : node.id;
-    if (!normalizedId) continue;
-    map.set(normalizedId, node);
-  }
-  return map;
-};
-
-const buildImportGraphIndex = (graph, repoRoot) => buildGraphIndex(graph, {
-  normalizeId: (value) => normalizeImportPath(value, repoRoot)
-});
-
-const buildChunkInfo = (callGraphIndex, usageGraphIndex) => {
-  const map = new Map();
-  const ingest = (node) => {
-    if (!node || typeof node.id !== 'string') return;
-    if (!node.file && !node.name && !node.kind && !node.signature) return;
-    if (!map.has(node.id)) map.set(node.id, node);
-  };
-  for (const node of callGraphIndex.values()) ingest(node);
-  for (const node of usageGraphIndex.values()) ingest(node);
-  return map;
-};
+const buildGraphIndex = buildGraphNodeIndex;
 
 const resolveSeedNodeRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -134,89 +91,19 @@ const resolveSeedNodeRef = (seed) => {
   return null;
 };
 
-const normalizeSymbolRef = (ref, maxCandidates, recordTruncation) => {
-  if (!ref || typeof ref !== 'object') return null;
-  const candidatesRaw = Array.isArray(ref.candidates) ? ref.candidates.slice() : [];
-  const resolved = ref.resolved && typeof ref.resolved === 'object' ? ref.resolved : null;
-  let candidates = candidatesRaw;
-  const resolvedKey = resolved ? `${resolved.symbolId || ''}:${resolved.chunkUid || ''}:${resolved.path || ''}` : '';
-  const hasResolved = resolved
-    ? candidates.some((candidate) => (
-      `${candidate.symbolId || ''}:${candidate.chunkUid || ''}:${candidate.path || ''}` === resolvedKey
-    ))
-    : true;
-  if (resolved && !hasResolved) {
-    candidates = [resolved, ...candidates];
-  }
-  if (maxCandidates != null && candidates.length > maxCandidates) {
-    recordTruncation('maxCandidates', {
-      limit: maxCandidates,
-      observed: candidates.length,
-      omitted: candidates.length - maxCandidates
-    });
-    candidates = candidates.slice(0, maxCandidates);
-  }
+const applyCandidateCap = (ref, maxCandidates, recordTruncation) => {
+  if (!ref || typeof ref !== 'object') return ref;
+  if (!Number.isFinite(maxCandidates) || maxCandidates == null) return ref;
+  if (!Array.isArray(ref.candidates) || ref.candidates.length <= maxCandidates) return ref;
+  recordTruncation('maxCandidates', {
+    limit: maxCandidates,
+    observed: ref.candidates.length,
+    omitted: ref.candidates.length - maxCandidates
+  });
   return {
-    v: Number.isFinite(ref.v) ? ref.v : 1,
-    status: ref.status || 'unresolved',
-    targetName: ref.targetName ?? null,
-    kindHint: ref.kindHint ?? null,
-    importHint: ref.importHint ?? null,
-    candidates,
-    resolved: resolved || null,
-    reason: ref.reason ?? null,
-    confidence: Number.isFinite(ref.confidence) ? ref.confidence : null
+    ...ref,
+    candidates: ref.candidates.slice(0, maxCandidates)
   };
-};
-
-const resolveSymbolId = (ref) => {
-  if (!ref || typeof ref !== 'object') return null;
-  if (ref.resolved && ref.resolved.symbolId) return ref.resolved.symbolId;
-  const candidates = Array.isArray(ref.candidates) ? ref.candidates : [];
-  const symbolCandidates = candidates.filter((candidate) => candidate?.symbolId);
-  if (!symbolCandidates.length) return null;
-  const ordered = symbolCandidates.slice();
-  ordered.sort(compareCandidates);
-  return ordered[0].symbolId;
-};
-
-const buildSymbolEdgesIndex = (symbolEdges, { maxCandidates, recordTruncation }) => {
-  const byChunk = new Map();
-  const bySymbol = new Map();
-  const edges = Array.isArray(symbolEdges) ? symbolEdges : [];
-  for (const edge of edges) {
-    if (!edge?.from?.chunkUid || !edge?.to) continue;
-    const normalized = normalizeSymbolRef(edge.to, maxCandidates, recordTruncation);
-    if (!normalized) continue;
-    const symbolId = resolveSymbolId(normalized);
-    const entry = {
-      edge,
-      toRef: normalized,
-      symbolId
-    };
-    const list = byChunk.get(edge.from.chunkUid) || [];
-    list.push(entry);
-    byChunk.set(edge.from.chunkUid, list);
-    if (symbolId) {
-      const symList = bySymbol.get(symbolId) || [];
-      symList.push(entry);
-      bySymbol.set(symbolId, symList);
-    }
-  }
-  return { byChunk, bySymbol };
-};
-
-const buildCallSiteIndex = (callSites) => {
-  const map = new Map();
-  const entries = Array.isArray(callSites) ? callSites : [];
-  for (const site of entries) {
-    if (!site?.callerChunkUid || !site?.targetChunkUid || !site?.callSiteId) continue;
-    const key = `${site.callerChunkUid}|${site.targetChunkUid}`;
-    const list = map.get(key) || [];
-    list.push(site.callSiteId);
-    map.set(key, list);
-  }
-  return map;
 };
 
 const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, repoRoot) => {
@@ -260,6 +147,7 @@ export const buildGraphNeighborhood = ({
   graphRelations,
   symbolEdges,
   callSites,
+  graphIndex = null,
   direction = 'both',
   depth = 1,
   edgeFilters = null,
@@ -304,19 +192,19 @@ export const buildGraphNeighborhood = ({
   const edgeTypeFilter = filter.edgeTypes;
   const minConfidence = filter.minConfidence;
 
-  const callGraphIndex = buildGraphIndex(graphRelations?.callGraph);
-  const usageGraphIndex = buildGraphIndex(graphRelations?.usageGraph);
-  const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
-  const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
-  const symbolIndex = buildSymbolEdgesIndex(symbolEdges, {
-    maxCandidates: normalizedCaps.maxCandidates,
-    recordTruncation
-  });
-  const callSiteIndex = buildCallSiteIndex(callSites);
-  const normalizeImportId = (value) => normalizeImportPath(value, repoRoot);
+  const effectiveRepoRoot = graphIndex?.repoRoot ?? repoRoot;
+  const callGraphIndex = graphIndex?.callGraphIndex ?? buildGraphIndex(graphRelations?.callGraph);
+  const usageGraphIndex = graphIndex?.usageGraphIndex ?? buildGraphIndex(graphRelations?.usageGraph);
+  const importGraphIndex = graphIndex?.importGraphIndex ?? buildImportGraphIndex(graphRelations?.importGraph, effectiveRepoRoot);
+  const chunkInfo = graphIndex?.chunkInfo ?? buildChunkInfo(callGraphIndex, usageGraphIndex);
+  const symbolIndex = graphIndex?.symbolIndex ?? buildSymbolEdgesIndex(symbolEdges);
+  const callSiteIndex = graphIndex?.callSiteIndex ?? buildCallSiteIndex(callSites);
+  const normalizeImportId = (value) => normalizeImportPath(value, effectiveRepoRoot);
 
-  const hasGraphRelations = Boolean(graphRelations);
-  const hasSymbolEdges = Array.isArray(symbolEdges) && symbolEdges.length > 0;
+  const hasGraphRelations = Boolean(graphIndex?.graphRelations ?? graphRelations);
+  const hasSymbolEdges = graphIndex?.symbolIndex
+    ? graphIndex.symbolIndex.byChunk.size > 0
+    : (Array.isArray(symbolEdges) && symbolEdges.length > 0);
   if (!hasGraphRelations && (!graphFilter || graphFilter.has('callGraph')
     || graphFilter.has('usageGraph') || graphFilter.has('importGraph'))) {
     warnings.push({
@@ -373,7 +261,7 @@ export const buildGraphNeighborhood = ({
   const queue = [];
 
   const addNode = (ref, distance) => {
-    const normalizedRef = normalizeFileRef(ref, repoRoot);
+    const normalizedRef = normalizeFileRef(ref, effectiveRepoRoot);
     const key = nodeKey(normalizedRef);
     if (!key) return false;
     if (nodeMap.has(key)) return false;
@@ -386,7 +274,7 @@ export const buildGraphNeighborhood = ({
       });
       return false;
     }
-    const meta = resolveNodeMeta(normalizedRef, chunkInfo, importGraphIndex, repoRoot);
+    const meta = resolveNodeMeta(normalizedRef, chunkInfo, importGraphIndex, effectiveRepoRoot);
     nodeMap.set(key, {
       ref: normalizedRef,
       distance,
@@ -490,10 +378,10 @@ export const buildGraphNeighborhood = ({
   };
 
   const resolveImportSourceId = (ref) => {
-    if (ref.type === 'file') return normalizeImportPath(ref.path, repoRoot);
+    if (ref.type === 'file') return normalizeImportPath(ref.path, effectiveRepoRoot);
     if (ref.type === 'chunk') {
       const meta = chunkInfo.get(ref.chunkUid);
-      return normalizeImportPath(meta?.file || null, repoRoot);
+      return normalizeImportPath(meta?.file || null, effectiveRepoRoot);
     }
     return null;
   };
@@ -593,12 +481,17 @@ export const buildGraphNeighborhood = ({
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
         const symbolId = entry.symbolId;
         const nextRef = symbolId ? { type: 'symbol', symbolId } : null;
+        const cappedToRef = applyCandidateCap(
+          entry.toRef,
+          normalizedCaps.maxCandidates,
+          recordTruncation
+        );
         edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'symbolEdges',
             from: fromRef,
-            to: entry.toRef,
+            to: cappedToRef,
             confidence,
             evidence: entry.edge.reason ? { note: entry.edge.reason } : null
           },

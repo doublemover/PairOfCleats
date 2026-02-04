@@ -1,6 +1,37 @@
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-io/manifest.js';
 import { loadGraphRelations, loadJsonArrayArtifact } from '../shared/artifact-io/loaders.js';
+import {
+  buildCallSiteIndex,
+  buildChunkInfo,
+  buildGraphNodeIndex,
+  buildImportGraphIndex,
+  buildSymbolEdgesIndex
+} from './indexes.js';
+
+export const buildGraphIndex = ({
+  graphRelations,
+  symbolEdges,
+  callSites,
+  repoRoot = null
+} = {}) => {
+  const callGraphIndex = buildGraphNodeIndex(graphRelations?.callGraph);
+  const usageGraphIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
+  const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
+  const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
+  const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
+  const callSiteIndex = buildCallSiteIndex(callSites);
+  return {
+    repoRoot,
+    graphRelations,
+    callGraphIndex,
+    usageGraphIndex,
+    importGraphIndex,
+    chunkInfo,
+    symbolIndex,
+    callSiteIndex
+  };
+};
 
 export const createGraphStore = ({
   indexDir,
@@ -63,6 +94,20 @@ export const createGraphStore = ({
     strict
   }));
 
+  const loadGraphIndex = async ({ repoRoot = null } = {}) => {
+    const [graphRelations, symbolEdges, callSites] = await Promise.all([
+      loadGraph(),
+      loadSymbolEdges(),
+      loadCallSites()
+    ]);
+    return buildGraphIndex({
+      graphRelations,
+      symbolEdges,
+      callSites,
+      repoRoot
+    });
+  };
+
   return {
     dir: indexDir,
     manifest: resolvedManifest,
@@ -72,6 +117,7 @@ export const createGraphStore = ({
     loadGraph,
     loadSymbolEdges,
     loadCallSites,
+    loadGraphIndex,
     getArtifactsUsed: () => Array.from(artifactsUsed)
   };
 };
