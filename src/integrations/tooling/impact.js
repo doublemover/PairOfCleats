@@ -176,6 +176,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
       indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
     });
+    if (seed && changed.length) {
+      const warning = {
+        code: 'CHANGED_IGNORED',
+        message: 'Changed inputs are ignored when --seed is provided.'
+      };
+      if (Array.isArray(payload.warnings)) {
+        payload.warnings.push(warning);
+      } else {
+        payload.warnings = [warning];
+      }
+    }
 
     const validation = validateGraphImpact(payload);
     if (!validation.ok) {

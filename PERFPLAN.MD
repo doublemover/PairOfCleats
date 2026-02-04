@@ -786,8 +786,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.
 - [x] Task 10.X.4.c: Skip per-symbol call sorting when `maxCallsPerSymbol` unset.
 - [ ] Task 10.X.4.d: Add large-call-site test to validate identical output with cache.
-- [ ] Warn when `impact` CLI receives both seed and changed inputs (changed ignored).
-- [ ] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.
+- [x] Warn when `impact` CLI receives both seed and changed inputs (changed ignored).
+- [x] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.
 - [ ] Task 10.X.6.b: Add test asserting warning and unchanged behavior.
 - [ ] Add microbench harness for graph/context-pack latency + memory.
 - [ ] Update `docs/perf/graph-context-pack.md` with new graph index, caching, and excerpt strategies.
