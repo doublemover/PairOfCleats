@@ -58,7 +58,10 @@ jobs:
 
       - name: Prune PairOfCleats cache
         if: always()
+        shell: pwsh
         run: |
+          $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
+          $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
           node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
 
       - name: Upload test artifacts

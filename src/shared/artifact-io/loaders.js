@@ -904,12 +904,8 @@ const loadSymbolRowsForFile = async (
     return [];
   }
 
-  const perFileMeta = loadPerFileIndexMeta(dir, baseName, {
-    manifest: resolvedManifest,
-    strict,
-    maxBytes
-  });
-  if (!perFileMeta?.meta) {
+  const loadFullRows = async () => {
+    if (!resolvedFilePath) return [];
     const full = await loadJsonArrayArtifact(dir, baseName, {
       maxBytes,
       manifest: resolvedManifest,
@@ -919,26 +915,45 @@ const loadSymbolRowsForFile = async (
     return Array.isArray(full)
       ? full.filter((row) => row?.[filterField]?.file === resolvedFilePath)
       : [];
+  };
+
+  const perFileMeta = loadPerFileIndexMeta(dir, baseName, {
+    manifest: resolvedManifest,
+    strict,
+    maxBytes
+  });
+  if (!perFileMeta?.meta) {
+    return loadFullRows();
   }
 
   const meta = perFileMeta.meta;
   const offsetsInfo = meta?.offsets && typeof meta.offsets === 'object' ? meta.offsets : null;
-  if (!offsetsInfo?.path || !meta?.data) {
-    return [];
-  }
+  if (!offsetsInfo?.path || !meta?.data) return loadFullRows();
   const dataPath = path.join(dir, fromPosix(meta.data));
   const offsetsPath = path.join(dir, fromPosix(offsetsInfo.path));
-  const offsetsCount = await resolveOffsetsCount(offsetsPath);
-  if (resolvedFileId + 1 >= offsetsCount) return [];
-  const [start, end] = await Promise.all([
-    readOffsetAt(offsetsPath, resolvedFileId),
-    readOffsetAt(offsetsPath, resolvedFileId + 1)
-  ]);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
-  const rowIndexes = await readVarintDeltasAt(dataPath, start, end);
-  if (!rowIndexes.length) return [];
   const sources = resolveRowSourcesFromPerFileMeta(dir, meta);
-  if (!sources) return [];
+  if (!sources) return loadFullRows();
+  if (!existsOrBak(dataPath) || !existsOrBak(offsetsPath)) return loadFullRows();
+  if (!sources.parts.every(existsOrBak) || !sources.offsets.every(existsOrBak)) {
+    return loadFullRows();
+  }
+  let offsetsCount;
+  let start;
+  let end;
+  let rowIndexes;
+  try {
+    offsetsCount = await resolveOffsetsCount(offsetsPath);
+    if (resolvedFileId + 1 >= offsetsCount) return loadFullRows();
+    [start, end] = await Promise.all([
+      readOffsetAt(offsetsPath, resolvedFileId),
+      readOffsetAt(offsetsPath, resolvedFileId + 1)
+    ]);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+    rowIndexes = await readVarintDeltasAt(dataPath, start, end);
+  } catch {
+    return loadFullRows();
+  }
+  if (!rowIndexes.length) return [];
   const requiredKeys = resolveJsonlRequiredKeys(baseName);
   const rows = [];
   for (const rowIndex of rowIndexes) {
