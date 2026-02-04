@@ -48,6 +48,36 @@ export const buildIdTable = (nodeIndex) => {
   return { ids, idToIndex };
 };
 
+export const buildPrefixTable = (values = []) => {
+  const prefixes = [];
+  const suffixes = [];
+  let previous = '';
+  for (const value of values) {
+    const text = String(value);
+    let prefixLen = 0;
+    const maxPrefix = Math.min(previous.length, text.length);
+    while (prefixLen < maxPrefix && previous[prefixLen] === text[prefixLen]) {
+      prefixLen += 1;
+    }
+    prefixes.push(prefixLen);
+    suffixes.push(text.slice(prefixLen));
+    previous = text;
+  }
+  return { prefixes, suffixes };
+};
+
+export const resolvePrefixEntry = (table, index) => {
+  if (!table || !Array.isArray(table.prefixes) || !Array.isArray(table.suffixes)) return null;
+  if (index < 0 || index >= table.prefixes.length) return null;
+  let value = '';
+  for (let i = 0; i <= index; i += 1) {
+    const prefixLen = table.prefixes[i] || 0;
+    const suffix = table.suffixes[i] || '';
+    value = value.slice(0, prefixLen) + suffix;
+  }
+  return value;
+};
+
 export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null } = {}) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];

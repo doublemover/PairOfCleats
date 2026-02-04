@@ -9,6 +9,7 @@ import {
   buildGraphNodeIndex,
   buildImportGraphIndex,
   buildSymbolEdgesIndex,
+  buildPrefixTable,
   normalizeImportPath
 } from './indexes.js';
 
@@ -39,6 +40,8 @@ export const buildGraphIndex = ({
   const callGraphIds = buildIdTable(callGraphIndex);
   const usageGraphIds = buildIdTable(usageGraphIndex);
   const importGraphIds = buildIdTable(importGraphIndex);
+  const importGraphPathTable = buildPrefixTable(importGraphIds.ids || []);
+  importGraphIds.ids = null;
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = buildCallSiteIndex(callSites);
@@ -55,6 +58,7 @@ export const buildGraphIndex = ({
     callGraphIds,
     usageGraphIds,
     importGraphIds,
+    importGraphPathTable,
     chunkInfo,
     symbolIndex,
     callSiteIndex
