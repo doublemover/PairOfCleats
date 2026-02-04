@@ -16,7 +16,7 @@ import {
   readCompatibilityKey,
   loadChunkMeta
 } from '../../shared/artifact-io.js';
-import { createGraphStore } from '../../graph/store.js';
+import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const resolveFormat = (argv) => {
@@ -97,30 +97,22 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     };
     const caps = mergeCaps(baseCaps, capOverrides);
 
-    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-    const graphRelations = graphStore.hasArtifact('graph_relations')
-      ? await graphStore.loadGraph()
-      : null;
-    const symbolEdges = graphStore.hasArtifact('symbol_edges')
-      ? await graphStore.loadSymbolEdges()
-      : null;
-    const callSites = graphStore.hasArtifact('call_sites')
-      ? await graphStore.loadCallSites()
-      : null;
-
     const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
       maxBytes: MAX_JSON_BYTES,
       strict: true
     });
     const indexSignature = await buildIndexSignature(indexDir);
+    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
+    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot });
+    const graphIndex = (argv.includeGraph !== false && graphStore.hasArtifact('graph_relations'))
+      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey })
+      : null;
 
     const payload = assembleCompositeContextPack({
       seed,
       chunkMeta,
       repoRoot,
-      graphRelations,
-      symbolEdges,
-      callSites,
+      graphIndex,
       includeGraph: argv.includeGraph !== false,
       includeTypes: argv.includeTypes === true,
       includeRisk: argv.includeRisk === true,

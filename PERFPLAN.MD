@@ -737,7 +737,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Add an opt-in columnar/offsets representation for `graph_relations` to cut parse + memory cost.
 - [ ] Store graph relations in memory-mapped or buffer-backed typed arrays for large graphs.
 - [x] Bound graph artifact caches by index signature (LRU eviction) to prevent unbounded growth.
-- [ ] Cache the `GraphIndex` by index signature + options; reuse across graph/context-pack calls in a session.
+- [x] Cache the `GraphIndex` by index signature + options; reuse across graph/context-pack calls in a session.
 - [ ] Add lazy edge-type loading so call/usage/import graphs are only loaded when requested.
 - [ ] Gate graph artifact loads in tooling CLIs based on include flags and edge filters.
 - [ ] Parallelize graph artifact loads (`graph_relations`, `symbol_edges`, `call_sites`) with `Promise.all`.

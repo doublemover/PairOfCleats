@@ -17,7 +17,7 @@ import {
   loadPiecesManifest,
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
-import { createGraphStore } from '../../graph/store.js';
+import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const parseList = (value) => {
@@ -145,29 +145,21 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     };
 
     const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-    const graphRelations = graphStore.hasArtifact('graph_relations')
-      ? await graphStore.loadGraph()
-      : null;
-    const symbolEdges = graphStore.hasArtifact('symbol_edges')
-      ? await graphStore.loadSymbolEdges()
-      : null;
-    const callSites = graphStore.hasArtifact('call_sites')
-      ? await graphStore.loadCallSites()
-      : null;
-
     const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
       maxBytes: MAX_JSON_BYTES,
       strict: true
     });
     const indexSignature = await buildIndexSignature(indexDir);
+    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
+    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot });
+    const graphIndex = graphStore.hasArtifact('graph_relations')
+      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey })
+      : null;
 
     const payload = buildImpactAnalysis({
       seed,
       changed: seed ? null : changed,
-      graphRelations,
-      symbolEdges,
-      callSites,
+      graphIndex,
       direction,
       depth: Math.max(0, Math.floor(Number(argv.depth))),
       edgeFilters,
