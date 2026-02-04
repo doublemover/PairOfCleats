@@ -44,6 +44,9 @@ const normalizeRelPath = (value) => {
 
 const stripImportExtension = (value) => {
   if (!value) return '';
+  if (value.endsWith('.d.ts')) {
+    return value.slice(0, -'.d.ts'.length) || '';
+  }
   for (const ext of DEFAULT_IMPORT_EXTS) {
     if (value.endsWith(ext)) {
       return value.slice(0, -ext.length) || '';

@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json') }}
 
       - name: Install deps and report versions
         shell: pwsh
@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json') }}
 
       - name: Install deps and report versions
         shell: bash
