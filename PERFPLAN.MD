@@ -799,7 +799,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 
 ### Tests
 - [ ] `tests/graph/graph-neighborhood-cache.test.js`
-- [ ] `tests/graph/graph-index-cache-reuse.test.js`
+- [x] `tests/graph/graph-index-cache-reuse.test.js`
 - [ ] `tests/graph/graph-adjacency-deterministic.test.js`
 - [ ] `tests/graph/graph-truncation-deterministic.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-range.test.js`
