@@ -22,8 +22,11 @@ type CodeMapModelV1 = {
   legend: CodeMapLegend;
   nodes: CodeMapFileNode[];
   edges: CodeMapEdge[];
+  edgeAggregates?: CodeMapEdgeAggregate[];
+  sectionHashes?: CodeMapSectionHashes;
   viewer: CodeMapViewerConfig;
   summary: CodeMapSummary;
+  buildMetrics?: CodeMapBuildMetrics;
   warnings: string[];
 };
 
@@ -81,6 +84,23 @@ type CodeMapEdge = {
   meta?: object|null;
 };
 
+type CodeMapEdgeAggregate = {
+  type: "import" | "call" | "usage" | "dataflow" | "export" | "alias" | string;
+  fromFile: string;
+  toFile: string;
+  count: number;
+  weight: number;
+  minWeight?: number|null;
+  maxWeight?: number|null;
+};
+
+type CodeMapSectionHashes = {
+  nodes: string;
+  symbols: string;
+  edges: string;
+  edgeAggregates: string;
+};
+
 type CodeMapViewerConfig = {
   layout?: object;
   visuals?: object;
@@ -100,6 +120,13 @@ type CodeMapSummary = {
   collapse: string;
   topKByDegree: boolean;
 };
+
+type CodeMapBuildMetrics = {
+  generatedAt: string;
+  stages: Array<{ stage: string; elapsedMs: number; memory: object }>;
+  peak: { heapUsed?: number; rss?: number; external?: number; arrayBuffers?: number };
+  counts: CodeMapSummary["counts"];
+};
 ```
 
 ## Required invariants
@@ -115,6 +142,9 @@ Ordering MUST be stable:
 1. Nodes sorted by `node.path`.
 2. Members sorted by `member.name` then `member.range.startLine`.
 3. Edges sorted by `type:from->to:label` string keys.
+4. `edgeAggregates` sorted by `type:fromFile->toFile` keys when present.
+
+`sectionHashes` MUST be computed from the deterministic ordering above.
 
 ## Error behavior
 - Missing inputs SHOULD emit warnings and produce a reduced map.

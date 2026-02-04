@@ -119,3 +119,33 @@ export const aggregateEdges = ({ edges, edgeWeights, fileColorByPath, resolveEdg
       : null
   }));
 };
+
+export const aggregateEdgesFromStats = ({ edgeAggregates, fileColorByPath, resolveEdgeType }) => {
+  if (!Array.isArray(edgeAggregates) || !edgeAggregates.length) return [];
+  const entries = [];
+  for (const entry of edgeAggregates) {
+    if (!entry) continue;
+    const rawType = entry.type || 'other';
+    const type = resolveEdgeType(rawType);
+    const fromFile = entry.fromFile || null;
+    const toFile = entry.toFile || null;
+    if (!fromFile || !toFile) continue;
+    const fromColor = fileColorByPath.get(fromFile);
+    const toColor = fileColorByPath.get(toFile);
+    const mixedColor = fromColor && toColor
+      ? fromColor.clone().lerp(toColor, 0.5)
+      : (fromColor || toColor || null);
+    entries.push({
+      edge: { from: { file: fromFile }, to: { file: toFile }, type },
+      type,
+      fromFile,
+      toFile,
+      weight: Number.isFinite(entry.weight) ? entry.weight : (entry.count || 1),
+      edgeColor: mixedColor || null,
+      count: entry.count ?? null,
+      minWeight: entry.minWeight ?? null,
+      maxWeight: entry.maxWeight ?? null
+    });
+  }
+  return entries;
+};

@@ -908,17 +908,17 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 ### Tasks
 - [ ] **12.A Map build streaming + memory bounds**
 - [x] Task 12.A.1: Define streaming writer in `src/map/build-map/io.js` that accepts async iterables and writes JSON in chunks without buffering full arrays.
-- [ ] Task 12.A.2: Refactor `build-map.js` pipeline to emit node/edge/symbol iterables and avoid materializing full graph arrays simultaneously.
-- [ ] Task 12.A.3: Add a build “spill” path for large graphs that writes partial node/edge sets to temp files, then merges deterministically.
+- [x] Task 12.A.2: Refactor `build-map.js` pipeline to emit node/edge/symbol iterables and avoid materializing full graph arrays simultaneously.
+- [x] Task 12.A.3: Add a build “spill” path for large graphs that writes partial node/edge sets to temp files, then merges deterministically.
 - [x] Task 12.A.4: Add explicit max-bytes guardrails per section (nodes/edges/symbols) with actionable error messages.
 - [x] Task 12.A.5: Preserve current output schema (same keys/ordering), but stream in a deterministic stable order.
 - [x] Task 12.A.6: Add per-stage build telemetry (time, peak heap, row counts) and export into `docs/perf/map-pipeline.md`.
 - [ ] **12.B Map build determinism + aggregation**
 - [x] Task 12.B.1: Define canonical ordering rules for nodes, edges, and symbols (sort keys + tie-breakers).
-- [ ] Task 12.B.2: Precompute and serialize edge aggregates (counts, weights, min/max) so viewer doesn’t recompute per frame.
-- [ ] Task 12.B.3: Avoid duplicate string retention by interning common labels/paths in `normalize.js`.
-- [ ] Task 12.B.4: Ensure `build-map/filters.js` uses shared filters and avoids per-node allocations.
-- [ ] Task 12.B.5: Add deterministic hashing of map sections to detect mismatches between runs.
+- [x] Task 12.B.2: Precompute and serialize edge aggregates (counts, weights, min/max) so viewer doesn’t recompute per frame.
+- [x] Task 12.B.3: Avoid duplicate string retention by interning common labels/paths in `normalize.js`.
+- [x] Task 12.B.4: Ensure `build-map/filters.js` uses shared filters and avoids per-node allocations.
+- [x] Task 12.B.5: Add deterministic hashing of map sections to detect mismatches between runs.
 - [x] **12.C Viewer instancing + culling**
 - [x] Task 12.C.1: Replace per-node mesh creation with instanced meshes in `meshes.js` and `scene.js`.
 - [x] Task 12.C.2: Add frustum culling of node and edge instances with spatial buckets (grid or quadtree).
@@ -941,11 +941,11 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
 - [x] Task 12.F.3: Add `tools/bench/map/viewer-fps.js` (FPS under fixed scenario).
 - [x] Task 12.F.4: Add `tools/bench/map/viewer-lod-stress.js` (LOD tiers, draw counts).
 - [x] Task 12.F.5: Document how to run benchmarks and expected deltas in `docs/perf/map-pipeline.md`.
-- [ ] **12.G Sub-agent work packets**
-- [ ] Task 12.G.1: Sub-agent Packet A — Map build streaming + memory guards (Tasks 12.A.1–12.A.6).
-- [ ] Task 12.G.2: Sub-agent Packet B — Viewer instancing + culling (Tasks 12.C.1–12.C.5).
-- [ ] Task 12.G.3: Sub-agent Packet C — LOD + load shedding + telemetry (Tasks 12.D.1–12.E.4).
-- [ ] Task 12.G.4: Sub-agent Packet D — Benchmarks + docs (Tasks 12.F.1–12.F.5).
+- [x] **12.G Sub-agent work packets**
+- [x] Task 12.G.1: Sub-agent Packet A — Map build streaming + memory guards (Tasks 12.A.1–12.A.6).
+- [x] Task 12.G.2: Sub-agent Packet B — Viewer instancing + culling (Tasks 12.C.1–12.C.5).
+- [x] Task 12.G.3: Sub-agent Packet C — LOD + load shedding + telemetry (Tasks 12.D.1–12.E.4).
+- [x] Task 12.G.4: Sub-agent Packet D — Benchmarks + docs (Tasks 12.F.1–12.F.5).
 
 ### Tests
 - [x] `tests/map/map-build-streaming.test.js`
@@ -954,7 +954,7 @@ Reduce map build memory usage and improve isometric viewer runtime performance o
   - Success: identical input yields identical map output hashes across runs.
 - [x] `tests/map/map-build-heap-guard.test.js`
   - Success: peak heap stays under threshold for medium fixture.
-- [ ] `tests/map/map-edge-aggregate-stability.test.js`
+- [x] `tests/map/map-edge-aggregate-stability.test.js`
   - Success: aggregate counts/weights match pre-aggregate baseline.
 - [x] `tests/map/map-viewer-display-limits.test.js`
   - Success: draw count caps engaged and UI remains responsive.

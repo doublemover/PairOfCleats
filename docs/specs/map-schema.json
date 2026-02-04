@@ -41,11 +41,22 @@
       "type": "array",
       "items": { "$ref": "#/definitions/edge" }
     },
+    "edgeAggregates": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edgeAggregate" }
+    },
+    "sectionHashes": {
+      "$ref": "#/definitions/sectionHashes"
+    },
     "summary": {
       "type": "object",
       "additionalProperties": true
     },
     "viewer": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "buildMetrics": {
       "type": "object",
       "additionalProperties": true
     },
@@ -118,6 +129,31 @@
         "label": { "type": ["string", "null"] },
         "from": { "$ref": "#/definitions/edgeEndpoint" },
         "to": { "$ref": "#/definitions/edgeEndpoint" }
+      }
+    },
+    "edgeAggregate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "fromFile", "toFile", "count", "weight"],
+      "properties": {
+        "type": { "type": "string" },
+        "fromFile": { "type": "string" },
+        "toFile": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "weight": { "type": "number" },
+        "minWeight": { "type": ["number", "null"] },
+        "maxWeight": { "type": ["number", "null"] }
+      }
+    },
+    "sectionHashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "symbols", "edges", "edgeAggregates"],
+      "properties": {
+        "nodes": { "type": "string" },
+        "symbols": { "type": "string" },
+        "edges": { "type": "string" },
+        "edgeAggregates": { "type": "string" }
       }
     }
   }
