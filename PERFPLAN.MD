@@ -1199,109 +1199,128 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - `docs/specs/chunk-meta.md`
 
 ### Tasks
-- [ ] **14.A Build state writing + streaming**
-- [ ] Task 14.A.1: Add an in‑memory state cache with version checks to avoid re-reading `build_state.json` on every update.
-- [ ] Task 14.A.1.a: Cache last‑read state with `mtimeMs` + size fingerprint; invalidate on mismatch.
-- [ ] Task 14.A.1.b: Keep a per‑buildRoot cache object keyed by resolved path.
-- [ ] Task 14.A.2: Add a write debounce/merge window (e.g. 250–500ms) to coalesce bursts of updates.
-- [ ] Task 14.A.2.a: Make debounce window adaptive (short for CLI, longer for batch builds).
-- [ ] Task 14.A.2.b: Expose an explicit “flush now” hook for shutdown paths.
-- [ ] Task 14.A.3: Split large subtrees (e.g. stage checkpoints) into separate optional sidecar JSON files to reduce write volume.
-- [ ] Task 14.A.3.a: Add `build_state.stage-checkpoints.json` (per‑mode) and `build_state.progress.json`.
-- [ ] Task 14.A.3.b: Keep `build_state.json` minimal with references and updatedAt.
-- [ ] Task 14.A.4: Add per‑field “dirty” tracking so unchanged sections are not re‑serialized.
-- [ ] Task 14.A.4.a: Track dirty flags for `phases`, `progress`, `counts`, `signatures`, `stageCheckpoints`.
-- [ ] Task 14.A.4.b: Skip serialization for sections without dirty flag.
-- [ ] Task 14.A.5: Add a best‑effort append‑only event log (`build_state.events.jsonl`) for debugging without expanding the main file.
-- [ ] Task 14.A.5.a: Log `phase` transitions and checkpoint writes only.
-- [ ] Task 14.A.5.b: Cap log size and rotate by date/build id.
-- [ ] Task 14.A.6: Ensure `updateBuildState` remains atomic and safe across concurrent callers.
-- [ ] Task 14.A.6.a: Use the existing queue but ensure coalesced writes apply in order.
-- [ ] Task 14.A.6.b: Validate merged state includes schema + signature versions.
-- [ ] Task 14.A.7: Add a last‑write snapshot hash to skip no‑op writes.
-- [ ] Task 14.A.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
+- [ ] **14.A Foundations: shared streaming + determinism helpers**
+- [ ] Task 14.A.1: Add shared spill/merge helpers (K‑way heap + JSONL run writer) in `src/index/build/artifacts/helpers.js`.
+- [ ] Task 14.A.1.a: Reuse the VFS merge‑runs heap for row comparison and deterministic merge order.
+- [ ] Task 14.A.2: Add shared byte‑tracking helper to avoid repeated JSON.stringify for guards/telemetry.
+- [ ] Task 14.A.2.a: Provide `trackBytesForRow(row)` that accepts pre‑stringified rows to avoid double work.
+- [ ] Task 14.A.3: Centralize deterministic comparators for symbol rows, chunk meta rows, and graph relation rows.
+- [ ] Task 14.A.4: Add shared “trim stats” accumulator for artifact writers (rows dropped, bytes trimmed, max row bytes).
+- [ ] Task 14.A.5: Add a shared “artifact telemetry” helper that writes counts/bytes to stage checkpoints.
 
-- [ ] **14.B Import resolution graph performance**
-- [ ] Task 14.B.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
-- [ ] Task 14.B.1.a: Cache negative lookups for specifiers that do not resolve.
-- [ ] Task 14.B.1.b: Include `paths`/`baseUrl` fingerprint in cache key.
-- [ ] Task 14.B.2: Add a fast path when `paths`/`baseUrl` are absent (skip tsconfig traversal).
-- [ ] Task 14.B.2.a: Detect “no tsconfig in root” once and reuse.
-- [ ] Task 14.B.3: Replace repeated `fs.existsSync` calls with a directory cache + file lookup map.
-- [ ] Task 14.B.3.a: Build a `Set` of repo‑relative paths from scan to avoid syscalls.
-- [ ] Task 14.B.4: Precompute extension candidates and normalize only once per specifier.
-- [ ] Task 14.B.4.a: Normalize specifiers at parse time and reuse (trim/query/hash removed once).
-- [ ] Task 14.B.5: Keep graph node/edge caps deterministic; record when caps drop edges.
-- [ ] Task 14.B.5.a: Record capped count by edge type (imports/usage/calls).
-- [ ] Task 14.B.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
-- [ ] Task 14.B.6.a: Add telemetry into stage checkpoints for stage2.
+- [ ] **14.B Build state writing + streaming**
+- [ ] Task 14.B.1: Add an in‑memory state cache with version checks to avoid re-reading `build_state.json` on every update.
+- [ ] Task 14.B.1.a: Cache last‑read state with `mtimeMs` + size fingerprint; invalidate on mismatch.
+- [ ] Task 14.B.1.b: Keep a per‑buildRoot cache object keyed by resolved path.
+- [ ] Task 14.B.2: Add a write debounce/merge window (e.g. 250–500ms) to coalesce bursts of updates.
+- [ ] Task 14.B.2.a: Make debounce window adaptive (short for CLI, longer for batch builds).
+- [ ] Task 14.B.2.b: Expose an explicit “flush now” hook for shutdown paths.
+- [ ] Task 14.B.3: Split large subtrees (e.g. stage checkpoints) into separate optional sidecar JSON files to reduce write volume.
+- [ ] Task 14.B.3.a: Add `build_state.stage-checkpoints.json` (per‑mode) and `build_state.progress.json`.
+- [ ] Task 14.B.3.b: Keep `build_state.json` minimal with references and updatedAt.
+- [ ] Task 14.B.4: Add per‑field “dirty” tracking so unchanged sections are not re‑serialized.
+- [ ] Task 14.B.4.a: Track dirty flags for `phases`, `progress`, `counts`, `signatures`, `stageCheckpoints`.
+- [ ] Task 14.B.4.b: Skip serialization for sections without dirty flag.
+- [ ] Task 14.B.5: Add a best‑effort append‑only event log (`build_state.events.jsonl`) for debugging without expanding the main file.
+- [ ] Task 14.B.5.a: Log `phase` transitions and checkpoint writes only.
+- [ ] Task 14.B.5.b: Cap log size and rotate by date/build id.
+- [ ] Task 14.B.6: Ensure `updateBuildState` remains atomic and safe across concurrent callers.
+- [ ] Task 14.B.6.a: Use the existing queue but ensure coalesced writes apply in order.
+- [ ] Task 14.B.6.b: Validate merged state includes schema + signature versions.
+- [ ] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
+- [ ] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
 
-- [ ] **14.C Symbol occurrences + edges streaming**
-- [ ] Task 14.C.1: Replace `buildRows` full arrays with streaming iterators over chunks.
-- [ ] Task 14.C.1.a: Emit rows per chunk; avoid storing all rows in memory.
-- [ ] Task 14.C.2: Preserve deterministic ordering by sorting per‑chunk and emitting in chunk order.
-- [ ] Task 14.C.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
-- [ ] Task 14.C.3: Add optional spill files for large symbol artifact sets; merge via heap.
-- [ ] Task 14.C.3.a: Reuse VFS merge‑runs heap implementation.
-- [ ] Task 14.C.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
-- [ ] Task 14.C.4.a: Add per‑artifact meta extension with trim counts.
-- [ ] Task 14.C.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
-- [ ] Task 14.C.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
+- [ ] **14.C Import resolution graph performance**
+- [ ] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
+- [ ] Task 14.C.1.a: Cache negative lookups for specifiers that do not resolve.
+- [ ] Task 14.C.1.b: Include `paths`/`baseUrl` fingerprint in cache key.
+- [ ] Task 14.C.2: Add a fast path when `paths`/`baseUrl` are absent (skip tsconfig traversal).
+- [ ] Task 14.C.2.a: Detect “no tsconfig in root” once and reuse.
+- [ ] Task 14.C.3: Replace repeated `fs.existsSync` calls with a directory cache + file lookup map.
+- [ ] Task 14.C.3.a: Build a `Set` of repo‑relative paths from scan to avoid syscalls.
+- [ ] Task 14.C.4: Precompute extension candidates and normalize only once per specifier.
+- [ ] Task 14.C.4.a: Normalize specifiers at parse time and reuse (trim/query/hash removed once).
+- [ ] Task 14.C.5: Keep graph node/edge caps deterministic; record when caps drop edges.
+- [ ] Task 14.C.5.a: Record capped count by edge type (imports/usage/calls).
+- [ ] Task 14.C.6: Emit import‑graph telemetry (nodes, edges, capped count, warnings).
+- [ ] Task 14.C.6.a: Add telemetry into stage checkpoints for stage2.
 
-- [ ] **14.D Chargram postings memory bounds**
-- [ ] Task 14.D.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
-- [ ] Task 14.D.1.a: Maintain a reusable Set and clear it per chunk.
-- [ ] Task 14.D.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
-- [ ] Task 14.D.2.a: Spill vocab fragments to sorted JSONL shards, merge via K‑way heap.
-- [ ] Task 14.D.2.b: Keep deterministic vocab ordering across spills.
-- [ ] Task 14.D.3: Keep output ordering stable (sorted vocab, deterministic postings order).
-- [ ] Task 14.D.4: Add instrumentation: max unique chargrams, dropped tokens, spill count.
-- [ ] Task 14.D.4.a: Emit guard counters into stage checkpoints.
-- [ ] Task 14.D.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
-- [ ] Task 14.D.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
+- [ ] **14.D Chunk meta streaming**
+- [ ] Task 14.D.1: Move chunk meta emission to a streaming writer fed from the file processor.
+- [ ] Task 14.D.1.a: Emit JSONL rows as chunks are finalized.
+- [ ] Task 14.D.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
+- [ ] Task 14.D.2.a: Track trimmed fields in a per‑artifact stats block.
+- [ ] Task 14.D.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
+- [ ] Task 14.D.3.a: Use external merge sort when chunk IDs are out of order.
+- [ ] Task 14.D.4: Track trimming stats (what fields were dropped) in build state.
+- [ ] Task 14.D.5: Add strict mode test to ensure no trimming occurs on small fixtures.
 
-- [ ] **14.E Graph relations streaming + measurement**
-- [ ] Task 14.E.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
-- [ ] Task 14.E.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
-- [ ] Task 14.E.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
-- [ ] Task 14.E.2.a: Track bytes as rows are emitted (no re‑stringify).
-- [ ] Task 14.E.3: Add deterministic ordering for graph sections and keys.
-- [ ] Task 14.E.3.a: Define stable graph name ordering + edge ordering rules.
-- [ ] Task 14.E.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
-- [ ] Task 14.E.4.a: Include dropped edge counts and cap reasons.
+- [ ] **14.E Symbol occurrences + edges streaming**
+- [ ] Task 14.E.1: Replace `buildRows` full arrays with streaming iterators over chunks.
+- [ ] Task 14.E.1.a: Emit rows per chunk; avoid storing all rows in memory.
+- [ ] Task 14.E.2: Preserve deterministic ordering by sorting per‑chunk and emitting in chunk order.
+- [ ] Task 14.E.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
+- [ ] Task 14.E.3: Add optional spill files for large symbol artifact sets; merge via heap.
+- [ ] Task 14.E.3.a: Reuse shared spill/merge helper from 14.A.1.
+- [ ] Task 14.E.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
+- [ ] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
+- [ ] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
+- [ ] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
 
-- [ ] **14.F Chunk meta streaming**
-- [ ] Task 14.F.1: Move chunk meta emission to a streaming writer fed from the file processor.
-- [ ] Task 14.F.1.a: Emit JSONL rows as chunks are finalized.
-- [ ] Task 14.F.2: Apply `compactChunkMetaEntry` on the fly; avoid holding full `metaV2` in memory.
-- [ ] Task 14.F.2.a: Track trimmed fields in a per‑artifact stats block.
-- [ ] Task 14.F.3: Add optional external sort for chunk meta if chunk order is non‑deterministic.
-- [ ] Task 14.F.3.a: Use external merge sort when chunk IDs are out of order.
-- [ ] Task 14.F.4: Track trimming stats (what fields were dropped) in build state.
-- [ ] Task 14.F.5: Add strict mode test to ensure no trimming occurs on small fixtures.
+- [ ] **14.F Graph relations streaming + measurement**
+- [ ] Task 14.F.1: Avoid full `graphRelations` materialization for large graphs; stream into JSONL shards.
+- [ ] Task 14.F.1.a: Build iterator directly from `relations` inputs in `graphs.js`.
+- [ ] Task 14.F.2: Replace JSON stringify measurement with incremental byte tracking per edge/node.
+- [ ] Task 14.F.2.a: Track bytes as rows are emitted (no re‑stringify).
+- [ ] Task 14.F.3: Add deterministic ordering for graph sections and keys.
+- [ ] Task 14.F.3.a: Define stable graph name ordering + edge ordering rules.
+- [ ] Task 14.F.4: Record relation counts and caps in `graph_relations.meta.json` extensions.
+- [ ] Task 14.F.4.a: Include dropped edge counts and cap reasons.
 
-- [ ] **14.G Benchmarks + acceptance harness**
-- [ ] Task 14.G.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
-- [ ] Task 14.G.1.a: Emit JSON summary with p50/p95 latency and write counts.
-- [ ] Task 14.G.2: Implement `tools/bench/index/import-resolution-graph.js` for nodes/edges throughput.
-- [ ] Task 14.G.2.a: Report node/edge counts and cap triggers; include seed.
-- [ ] Task 14.G.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
-- [ ] Task 14.G.3.a: Include memory watermark and output hash compare.
-- [ ] Task 14.G.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
-- [ ] Task 14.G.4.a: Include spill count and vocab size metrics.
-- [ ] Task 14.G.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
-- [ ] Task 14.G.5.a: Report bytes/sec and shard counts.
-- [ ] Task 14.G.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
-- [ ] Task 14.G.6.a: Include trim stats and output hash.
-- [ ] Task 14.G.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
+- [ ] **14.G Chargram postings memory bounds**
+- [ ] Task 14.G.1: Reuse per‑chunk chargram buffers/sets to avoid allocations.
+- [ ] Task 14.G.1.a: Maintain a reusable Set and clear it per chunk.
+- [ ] Task 14.G.2: Add a spill/merge path for chargram postings when `triPost` exceeds a memory threshold.
+- [ ] Task 14.G.2.a: Spill vocab fragments to sorted JSONL shards, merge via K‑way heap.
+- [ ] Task 14.G.2.b: Keep deterministic vocab ordering across spills.
+- [ ] Task 14.G.3: Keep output ordering stable (sorted vocab, deterministic postings order).
+- [ ] Task 14.G.4: Add instrumentation: max unique chargrams, dropped tokens, spill count.
+- [ ] Task 14.G.4.a: Emit guard counters into stage checkpoints.
+- [ ] Task 14.G.5: Add guardrails for `chargramMaxTokenLength` and `chargramMaxN` to avoid runaway growth.
+- [ ] Task 14.G.6: Add “no‑chargram” short‑circuit for files with empty field tokens.
+
+- [ ] **14.H Benchmarks + acceptance harness**
+- [ ] Task 14.H.1: Implement `tools/bench/index/build-state-write.js` comparing baseline vs debounced writes.
+- [ ] Task 14.H.1.a: Emit JSON summary with p50/p95 latency and write counts + delta.
+- [ ] Task 14.H.2: Implement `tools/bench/index/import-resolution-graph.js` for nodes/edges throughput.
+- [ ] Task 14.H.2.a: Report node/edge counts and cap triggers; include seed and baseline delta.
+- [ ] Task 14.H.3: Implement `tools/bench/index/symbol-artifacts.js` to compare streaming vs baseline.
+- [ ] Task 14.H.3.a: Include memory watermark and output hash compare.
+- [ ] Task 14.H.4: Implement `tools/bench/index/chargram-postings.js` to measure memory + throughput.
+- [ ] Task 14.H.4.a: Include spill count and vocab size metrics + baseline delta.
+- [ ] Task 14.H.5: Implement `tools/bench/index/graph-relations.js` for JSONL shard throughput.
+- [ ] Task 14.H.5.a: Report bytes/sec and shard counts + baseline delta.
+- [ ] Task 14.H.6: Implement `tools/bench/index/chunk-meta-stream.js` for chunk_meta memory.
+- [ ] Task 14.H.6.a: Include trim stats and output hash + baseline delta.
+- [ ] Task 14.H.7: Document how to run benchmarks and expected deltas in `docs/perf/index-artifact-pipelines.md`.
 
 ### Tests
 - [ ] `tests/indexing/build-state/build-state-debounce.test.js`
   - Success: multiple rapid updates coalesce into a single write.
+- [ ] `tests/indexing/build-state/build-state-sidecars.test.js` (new)
+  - Success: stage checkpoint sidecars are written and referenced without expanding main build_state.
+- [ ] `tests/indexing/build-state/build-state-event-log-rotation.test.js` (new)
+  - Success: events JSONL rotates/caps as configured and never blocks build_state writes.
+- [ ] `tests/indexing/build-state/build-state-noop-write.test.js` (new)
+  - Success: no-op updates skip disk writes (mtime unchanged).
 - [ ] `tests/indexing/build-state/build-state-merge-consistency.test.js`
   - Success: concurrent updates do not lose fields or corrupt state.
 - [ ] `tests/indexing/imports/import-resolution-cache.test.js`
   - Success: cached resolutions match baseline outputs.
+- [ ] `tests/indexing/imports/import-resolution-negative-cache.test.js` (new)
+  - Success: negative cache avoids repeated fs checks while preserving output.
+- [ ] `tests/indexing/imports/import-resolution-no-tsconfig-fastpath.test.js` (new)
+  - Success: fast path used when no tsconfig exists (same graph, fewer stats).
 - [ ] `tests/indexing/imports/import-resolution-determinism.test.js`
   - Success: identical inputs produce identical import graphs.
 - [ ] `tests/indexing/imports/import-resolution-graph-cap.test.js`
@@ -1312,18 +1331,28 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
   - Success: streaming output matches baseline JSONL content.
 - [ ] `tests/indexing/symbols/symbol-artifacts-determinism.test.js`
   - Success: stable ordering and identical hashes across runs.
+- [ ] `tests/indexing/symbols/symbol-occurrences-spill-merge.test.js` (new)
+  - Success: spill+merge output equals baseline order + hash.
+- [ ] `tests/indexing/symbols/symbol-edges-spill-merge.test.js` (new)
+  - Success: spill+merge output equals baseline order + hash.
 - [ ] `tests/indexing/postings/chargram-postings-memory-guard.test.js`
   - Success: memory guard triggers spill without changing output.
 - [ ] `tests/indexing/postings/chargram-postings-spill-merge.test.js`
   - Success: spill+merge output equals baseline in deterministic order.
+- [ ] `tests/indexing/postings/chargram-postings-determinism.test.js` (new)
+  - Success: vocab ordering + postings are stable across runs.
 - [ ] `tests/indexing/relations/graph-relations-streaming.test.js`
   - Success: streaming JSONL output matches baseline graph_relations.
 - [ ] `tests/indexing/relations/graph-relations-determinism.test.js`
   - Success: deterministic ordering and stable metadata.
+- [ ] `tests/indexing/relations/graph-relations-bytes-tracking.test.js` (new)
+  - Success: byte counters match JSONL size without re-stringify.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-streaming.test.js`
   - Success: JSONL output matches baseline for medium fixture.
 - [ ] `tests/indexing/chunk-meta/chunk-meta-trim-order.test.js`
   - Success: trimming preserves required fields and order.
+- [ ] `tests/indexing/chunk-meta/chunk-meta-external-sort.test.js` (new)
+  - Success: external sort restores deterministic order when chunk IDs are shuffled.
 
 ### Acceptance
 - [ ] Build state writes are coalesced and deterministic.
@@ -1331,4 +1360,4 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [ ] Symbol occurrences/edges and chunk meta stream without large intermediate arrays.
 - [ ] Chargram postings are bounded by memory guards and retain deterministic output.
 - [ ] Graph relations write paths scale to large repos with sharded JSONL.
-- [ ] Benchmarks show measurable gains and are documented.
+- [ ] Benchmarks show measurable gains (baseline vs current deltas captured) and are documented.
