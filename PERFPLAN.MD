@@ -785,7 +785,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.4.a: Add arity cache keyed by signature string.
 - [x] Task 10.X.4.b: Build `callSitesByTarget` once and reuse.
 - [x] Task 10.X.4.c: Skip per-symbol call sorting when `maxCallsPerSymbol` unset.
-- [ ] Task 10.X.4.d: Add large-call-site test to validate identical output with cache.
+- [x] Task 10.X.4.d: Add large-call-site test to validate identical output with cache.
 - [x] Warn when `impact` CLI receives both seed and changed inputs (changed ignored).
 - [x] Task 10.X.6.a: Emit warning in payload/stderr when both seed and changed provided.
 - [ ] Task 10.X.6.b: Add test asserting warning and unchanged behavior.
@@ -823,6 +823,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/architecture-output-deterministic.test.js`
 - [x] `tests/graph/suggest-tests-output-deterministic.test.js`
 - [x] `tests/graph/graph-context-pack-skip-resort.test.js`
+- [x] `tests/tooling/api-contracts/api-contracts-large-call-sites.test.js`
 - [ ] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
