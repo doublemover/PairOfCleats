@@ -220,7 +220,7 @@ export const buildGraphNeighborhood = ({
     : (value) => normalizeImportPath(value, effectiveRepoRoot);
   const normalizeImportId = (value) => normalizeImport(value);
 
-  const hasGraphRelations = Boolean(graphIndex?.graphRelations ?? graphRelations);
+  const hasGraphRelations = Boolean(graphIndex?.graphRelations ?? graphRelations ?? graphIndex?.graphRelationsCsr);
   const hasSymbolEdges = graphIndex?.symbolIndex
     ? graphIndex.symbolIndex.byChunk.size > 0
     : (Array.isArray(symbolEdges) && symbolEdges.length > 0);

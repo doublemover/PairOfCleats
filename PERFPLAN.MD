@@ -734,8 +734,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Make adjacency lists unique + pre-sorted at index build time; skip per-node neighbor sorting.
 - [x] Precompute adjacency partitions (by from/to/type) to avoid per-request sorting and repeated scans.
 - [x] Add prefix-compressed path tables for file path references to reduce memory.
-- [ ] Add an opt-in columnar/offsets representation for `graph_relations` to cut parse + memory cost.
-- [ ] Store graph relations in memory-mapped or buffer-backed typed arrays for large graphs.
+- [x] Add an opt-in columnar/offsets representation for `graph_relations` to cut parse + memory cost.
+- [x] Store graph relations in memory-mapped or buffer-backed typed arrays for large graphs.
 - [x] Bound graph artifact caches by index signature (LRU eviction) to prevent unbounded growth.
 - [x] Cache the `GraphIndex` by index signature + options; reuse across graph/context-pack calls in a session.
 - [x] Add lazy edge-type loading so call/usage/import graphs are only loaded when requested.

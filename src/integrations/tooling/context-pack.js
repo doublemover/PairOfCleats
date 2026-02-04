@@ -108,9 +108,20 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     if (argv.includeCallersCallees !== false) graphList.push('callGraph');
     if (argv.includeUsages !== false) graphList.push('usageGraph');
     if (argv.includeImports !== false) graphList.push('importGraph');
-    const graphCacheKey = buildGraphIndexCacheKey({ indexSignature, repoRoot, graphs: graphList });
+    const includeCsr = graphStore.hasArtifact('graph_relations_csr');
+    const graphCacheKey = buildGraphIndexCacheKey({
+      indexSignature,
+      repoRoot,
+      graphs: graphList,
+      includeCsr
+    });
     const graphIndex = (argv.includeGraph !== false)
-      ? await graphStore.loadGraphIndex({ repoRoot, cacheKey: graphCacheKey, graphs: graphList })
+      ? await graphStore.loadGraphIndex({
+        repoRoot,
+        cacheKey: graphCacheKey,
+        graphs: graphList,
+        includeCsr
+      })
       : null;
 
     const payload = assembleCompositeContextPack({

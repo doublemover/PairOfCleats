@@ -152,15 +152,18 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     const indexSignature = await buildIndexSignature(indexDir);
     const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
     const graphSelection = graphs.length ? graphs : null;
+    const includeCsr = graphStore.hasArtifact('graph_relations_csr');
     const graphCacheKey = buildGraphIndexCacheKey({
       indexSignature,
       repoRoot,
-      graphs: graphSelection
+      graphs: graphSelection,
+      includeCsr
     });
     const graphIndex = await graphStore.loadGraphIndex({
       repoRoot,
       cacheKey: graphCacheKey,
-      graphs: graphSelection
+      graphs: graphSelection,
+      includeCsr
     });
 
     const payload = buildImpactAnalysis({

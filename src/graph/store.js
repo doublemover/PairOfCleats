@@ -4,6 +4,7 @@ import { loadGraphRelations, loadJsonArrayArtifact } from '../shared/artifact-io
 import {
   buildCallSiteIndex,
   buildAdjacencyIndex,
+  buildAdjacencyCsr,
   buildChunkInfo,
   buildIdTable,
   buildGraphNodeIndex,
@@ -66,7 +67,8 @@ const normalizeGraphList = (graphs) => {
 export const buildGraphIndexCacheKey = ({
   indexSignature,
   repoRoot = null,
-  graphs = null
+  graphs = null,
+  includeCsr = false
 } = {}) => {
   if (!indexSignature) return null;
   const repoTag = repoRoot ? `|repo:${repoRoot}` : '';
@@ -74,14 +76,16 @@ export const buildGraphIndexCacheKey = ({
   const graphTag = graphList?.length
     ? `|graphs:${graphList.map((entry) => String(entry)).sort().join(',')}`
     : '';
-  return `graph-index:${indexSignature}${repoTag}${graphTag}`;
+  const csrTag = includeCsr ? '|csr:1' : '';
+  return `graph-index:${indexSignature}${repoTag}${graphTag}${csrTag}`;
 };
 
 export const buildGraphIndex = ({
   graphRelations,
   symbolEdges,
   callSites,
-  repoRoot = null
+  repoRoot = null,
+  includeCsr = false
 } = {}) => {
   const importPathCache = new Map();
   const normalizeImportPathCached = (value) => {
@@ -106,6 +110,29 @@ export const buildGraphIndex = ({
   const importGraphIds = buildIdTable(importGraphIndex);
   const importGraphPathTable = buildPrefixTable(importGraphIds.ids || []);
   importGraphIds.ids = null;
+  const graphRelationsCsr = includeCsr
+    ? {
+      callGraph: buildAdjacencyCsr(callGraphAdjacency, callGraphIds),
+      usageGraph: buildAdjacencyCsr(usageGraphAdjacency, usageGraphIds),
+      importGraph: buildAdjacencyCsr(importGraphAdjacency, importGraphIds)
+    }
+    : null;
+  if (includeCsr && graphRelations && typeof graphRelations === 'object') {
+    for (const graphName of ['callGraph', 'usageGraph', 'importGraph']) {
+      const graph = graphRelations[graphName];
+      if (!graph || !Array.isArray(graph.nodes)) continue;
+      graph.nodes = graph.nodes.map((node) => {
+        if (!node || typeof node !== 'object') return node;
+        return {
+          id: node.id,
+          file: node.file ?? null,
+          kind: node.kind ?? null,
+          name: node.name ?? null,
+          signature: node.signature ?? null
+        };
+      });
+    }
+  }
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = buildCallSiteIndex(callSites);
@@ -113,6 +140,7 @@ export const buildGraphIndex = ({
     repoRoot,
     normalizeImportPath: normalizeImportPathCached,
     graphRelations,
+    graphRelationsCsr,
     callGraphIndex,
     usageGraphIndex,
     importGraphIndex,
@@ -193,7 +221,8 @@ export const createGraphStore = ({
   const loadGraphIndex = async ({
     repoRoot = null,
     cacheKey = null,
-    graphs = null
+    graphs = null,
+    includeCsr = false
   } = {}) => {
     const cached = getCachedGraphIndex(cacheKey);
     if (cached) return cached;
@@ -219,7 +248,8 @@ export const createGraphStore = ({
       graphRelations: cachedArtifacts.graphRelations,
       symbolEdges: cachedArtifacts.symbolEdges,
       callSites: cachedArtifacts.callSites,
-      repoRoot
+      repoRoot,
+      includeCsr
     });
     setCachedGraphIndex(cacheKey, index);
     return index;

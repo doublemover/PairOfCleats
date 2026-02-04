@@ -110,6 +110,29 @@ export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normali
   return map;
 };
 
+export const buildAdjacencyCsr = (adjacencyMap, idTable) => {
+  if (!adjacencyMap || !idTable?.ids || !idTable.idToIndex) return null;
+  const ids = idTable.ids;
+  const offsets = new Uint32Array(ids.length + 1);
+  const edges = [];
+  offsets[0] = 0;
+  for (let i = 0; i < ids.length; i += 1) {
+    const entry = adjacencyMap.get(ids[i]);
+    const out = entry?.out || [];
+    for (const neighbor of out) {
+      const idx = idTable.idToIndex.get(neighbor);
+      if (idx == null) continue;
+      edges.push(idx);
+    }
+    offsets[i + 1] = edges.length;
+  }
+  return {
+    ids,
+    offsets,
+    edges: Uint32Array.from(edges)
+  };
+};
+
 export const buildImportGraphIndex = (graph, repoRoot) => buildGraphNodeIndex(graph, {
   normalizeId: (value) => normalizeImportPath(value, repoRoot)
 });
