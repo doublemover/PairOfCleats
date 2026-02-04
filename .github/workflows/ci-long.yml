@@ -22,13 +22,9 @@ jobs:
         with:
           node-version: '24.13.0'
 
-      - name: Node and npm versions
+      - name: Prepare PairOfCleats cache
         run: |
-          node -v
-          npm -v
-
-      - name: Install deps
-        run: npm ci
+          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
 
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
@@ -37,6 +33,20 @@ jobs:
             .ci-cache/pairofcleats/models
             .ci-cache/pairofcleats/dictionaries
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Restore node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install deps
+        run: npm ci
 
       - name: CI Long
         run: |
