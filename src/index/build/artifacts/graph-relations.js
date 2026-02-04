@@ -25,6 +25,7 @@ export async function enqueueGraphRelationsArtifacts({
   const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
   const graphMetaPath = path.join(outDir, 'graph_relations.meta.json');
   const graphPartsDir = path.join(outDir, 'graph_relations.parts');
+  const offsetsConfig = { suffix: 'offsets.bin' };
   const useGraphJsonl = maxJsonBytes && graphMeasurement.totalJsonBytes > maxJsonBytes;
   if (!useGraphJsonl) {
     enqueueWrite(
@@ -54,13 +55,21 @@ export async function enqueueGraphRelationsArtifacts({
           partPrefix: 'graph_relations.part-',
           items: createGraphRelationsIterator(graphRelations)(),
           maxBytes: maxJsonBytes,
-          atomic: true
+          atomic: true,
+          offsets: offsetsConfig
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
           records: result.counts[index] || 0,
           bytes: result.bytes[index] || 0
         }));
+        const offsetsMeta = result.offsets?.length
+          ? {
+            format: 'u64-le',
+            suffix: offsetsConfig.suffix,
+            parts: result.offsets
+          }
+          : null;
         await writeJsonObjectFile(graphMetaPath, {
           fields: {
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -77,7 +86,8 @@ export async function enqueueGraphRelationsArtifacts({
             extensions: {
               graphs: graphMeasurement.graphs,
               caps: graphRelations.caps ?? null,
-              version: graphMeasurement.version
+              version: graphMeasurement.version,
+              ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
           },
           atomic: true
@@ -91,6 +101,19 @@ export async function enqueueGraphRelationsArtifacts({
             format: 'jsonl',
             count: result.counts[i] || 0
           }, absPath);
+        }
+        if (Array.isArray(result.offsets)) {
+          for (let i = 0; i < result.offsets.length; i += 1) {
+            const relPath = result.offsets[i];
+            if (!relPath) continue;
+            const absPath = path.join(outDir, fromPosix(relPath));
+            addPieceFile({
+              type: 'relations',
+              name: 'graph_relations_offsets',
+              format: 'bin',
+              count: result.counts[i] || 0
+            }, absPath);
+          }
         }
         addPieceFile({ type: 'relations', name: 'graph_relations_meta', format: 'json' }, graphMetaPath);
       }
