@@ -749,8 +749,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.8.a: Build shared `ChunkIndex` in context-pack path.
 - [x] Task 10.X.8.b: Thread `ChunkIndex` through impact/context-pack callers.
 - [ ] Task 10.X.8.c: Add test that repeated calls reuse index.
-- [ ] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
-- [ ] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
+- [x] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
+- [x] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
 - [ ] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
 - [x] Reduce intermediate array churn in neighborhood traversal with streaming + budgeted iterators.
 - [ ] Add windowed spill/merge for large neighborhood assembly to cap heap usage.

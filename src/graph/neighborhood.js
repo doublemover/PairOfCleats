@@ -153,6 +153,7 @@ const formatEvidence = (edgeType, fromRef, toRef, callSiteIndex) => {
 
 export const buildGraphNeighborhood = ({
   seed,
+  seeds = null,
   graphRelations,
   symbolEdges,
   callSites,
@@ -235,8 +236,14 @@ export const buildGraphNeighborhood = ({
     });
   }
 
-  const resolvedSeed = resolveSeedNodeRef(seed);
-  if (!resolvedSeed) {
+  const resolvedSeeds = [];
+  const seedCandidates = Array.isArray(seeds) && seeds.length ? seeds : [seed];
+  for (const entry of seedCandidates) {
+    const resolved = resolveSeedNodeRef(entry);
+    if (resolved) resolvedSeeds.push(resolved);
+  }
+  resolvedSeeds.sort((a, b) => compareStrings(nodeKey(a), nodeKey(b)));
+  if (!resolvedSeeds.length) {
     warnings.push({
       code: 'UNRESOLVED_SEED',
       message: 'Seed could not be resolved to a graph node.'
@@ -352,7 +359,9 @@ export const buildGraphNeighborhood = ({
     };
   };
 
-  addNode(resolvedSeed, 0);
+  for (const resolvedSeed of resolvedSeeds) {
+    addNode(resolvedSeed, 0);
+  }
 
   const includeGraph = (graphName) => allowEdge({ graph: graphName, edgeType: null, confidence: null });
 

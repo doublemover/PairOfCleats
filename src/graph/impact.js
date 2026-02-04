@@ -177,87 +177,57 @@ export const buildImpactAnalysis = ({
   const traversalDirection = directionMode === 'upstream' ? 'in' : 'out';
   const effectiveDepth = normalizeDepth(depth, 1);
 
-  const impactedMap = new Map();
-  const witnessMap = new Map();
-  const mergeWitnessPath = (path) => {
-    if (!path?.to) return;
-    const key = nodeKey(path.to);
-    if (!key) return;
-    const existing = witnessMap.get(key);
-    if (!existing) {
-      witnessMap.set(key, path);
-      return;
-    }
-    const distanceCompare = Number(path.distance) - Number(existing.distance);
-    if (Number.isFinite(distanceCompare) && distanceCompare < 0) {
-      witnessMap.set(key, path);
-      return;
-    }
-    if (distanceCompare === 0 && compareWitnessPaths(path, existing) < 0) {
-      witnessMap.set(key, path);
-    }
+  const neighborhood = buildGraphNeighborhood({
+    seeds,
+    graphRelations,
+    symbolEdges,
+    callSites,
+    graphIndex,
+    direction: traversalDirection,
+    depth: effectiveDepth,
+    edgeFilters,
+    caps,
+    includePaths: true
+  });
+
+  const artifactsUsed = neighborhood?.stats?.artifactsUsed || {
+    graphRelations: false,
+    symbolEdges: false,
+    callSites: false
   };
+  const workUnitsUsed = neighborhood?.stats?.counts?.workUnitsUsed || 0;
 
-  let workUnitsUsed = 0;
-  let graphRelationsUsed = false;
-  let symbolEdgesUsed = false;
-  let callSitesUsed = false;
+  mergeWarnings(warnings, neighborhood?.warnings);
+  mergeTruncation(truncation, neighborhood?.truncation);
 
-  for (const seedNode of seeds) {
-    if (!seedNode?.type) continue;
-    const neighborhood = buildGraphNeighborhood({
-      seed: seedNode,
-      graphRelations,
-      symbolEdges,
-      callSites,
-      graphIndex,
-      direction: traversalDirection,
-      depth: effectiveDepth,
-      edgeFilters,
-      caps,
-      includePaths: true
-    });
-
-    if (neighborhood?.stats?.artifactsUsed) {
-      graphRelationsUsed = graphRelationsUsed || neighborhood.stats.artifactsUsed.graphRelations;
-      symbolEdgesUsed = symbolEdgesUsed || neighborhood.stats.artifactsUsed.symbolEdges;
-      callSitesUsed = callSitesUsed || neighborhood.stats.artifactsUsed.callSites;
+  const nodes = Array.isArray(neighborhood?.nodes) ? neighborhood.nodes : [];
+  const paths = Array.isArray(neighborhood?.paths) ? neighborhood.paths : [];
+  const pathByKey = new Map();
+  for (const path of paths) {
+    if (!path?.to) continue;
+    const key = nodeKey(path.to);
+    if (!key) continue;
+    if (!pathByKey.has(key)) {
+      pathByKey.set(key, path);
+    } else if (compareWitnessPaths(path, pathByKey.get(key)) < 0) {
+      pathByKey.set(key, path);
     }
-    if (neighborhood?.stats?.counts?.workUnitsUsed) {
-      workUnitsUsed += neighborhood.stats.counts.workUnitsUsed;
-    }
-
-    mergeWarnings(warnings, neighborhood?.warnings);
-    mergeTruncation(truncation, neighborhood?.truncation);
-
-    const nodes = Array.isArray(neighborhood?.nodes) ? neighborhood.nodes : [];
-    for (const node of nodes) {
-      if (!node?.ref) continue;
-      if (node.distance === 0) continue;
-      const key = nodeKey(node.ref);
-      if (!key) continue;
-      const existing = impactedMap.get(key);
-      if (!existing || node.distance < existing.distance) {
-        impactedMap.set(key, {
-          ref: node.ref,
-          distance: node.distance,
-          confidence: node.confidence ?? null,
-          witnessPath: null,
-          partial: false
-        });
-      }
-    }
-
-    const paths = Array.isArray(neighborhood?.paths) ? neighborhood.paths : [];
-    for (const path of paths) mergeWitnessPath(path);
   }
 
-  const impacted = Array.from(impactedMap.values());
+  const impacted = nodes
+    .filter((node) => node?.ref && node.distance > 0)
+    .map((node) => ({
+      ref: node.ref,
+      distance: node.distance,
+      confidence: node.confidence ?? null,
+      witnessPath: null,
+      partial: false
+    }));
   impacted.sort(compareImpactNodes);
   for (const entry of impacted) {
     const key = nodeKey(entry.ref);
     if (!key) continue;
-    const witness = witnessMap.get(key);
+    const witness = pathByKey.get(key);
     if (witness) {
       entry.witnessPath = witness;
     } else {
@@ -287,9 +257,9 @@ export const buildImpactAnalysis = ({
     }),
     stats: {
       artifactsUsed: {
-        graphRelations: graphRelationsUsed,
-        symbolEdges: symbolEdgesUsed,
-        callSites: callSitesUsed
+        graphRelations: artifactsUsed.graphRelations,
+        symbolEdges: artifactsUsed.symbolEdges,
+        callSites: artifactsUsed.callSites
       },
       counts: {
         impacted: impacted.length,
