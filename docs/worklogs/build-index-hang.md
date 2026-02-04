@@ -11,3 +11,6 @@
 - 2026-02-04T01:32:00Z
   - Change: disabled tree-sitter reordering in `process-files` to keep processing in canonical order.
   - Repro: reran stage2 build with debug ordering; ordered appender advanced normally (no stall).
+- 2026-02-04T01:40:00Z
+  - Repro: `node build_index.js --mode code --stage stage2 --progress off`.
+  - Result: completed successfully; no hang observed. Stages advanced from processing to relations, postings, write, and finished in ~148s.
