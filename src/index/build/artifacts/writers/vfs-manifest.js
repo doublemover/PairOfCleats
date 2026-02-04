@@ -21,6 +21,7 @@ import {
   buildVfsHashVirtualPath
 } from '../../../tooling/vfs.js';
 import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
+import { mergeSortedRuns } from '../helpers.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
@@ -172,95 +173,10 @@ const writeVfsIndexForJsonl = async ({
   return count;
 };
 
-class MinHeap {
-  constructor(compare) {
-    this.compare = compare;
-    this.items = [];
-  }
-
-  get size() {
-    return this.items.length;
-  }
-
-  push(value) {
-    this.items.push(value);
-    this.bubbleUp(this.items.length - 1);
-  }
-
-  pop() {
-    if (!this.items.length) return null;
-    const top = this.items[0];
-    const last = this.items.pop();
-    if (this.items.length && last) {
-      this.items[0] = last;
-      this.bubbleDown(0);
-    }
-    return top;
-  }
-
-  bubbleUp(index) {
-    const { items, compare } = this;
-    let i = index;
-    while (i > 0) {
-      const parent = Math.floor((i - 1) / 2);
-      if (compare(items[i], items[parent]) >= 0) break;
-      [items[i], items[parent]] = [items[parent], items[i]];
-      i = parent;
-    }
-  }
-
-  bubbleDown(index) {
-    const { items, compare } = this;
-    let i = index;
-    for (;;) {
-      const left = i * 2 + 1;
-      const right = left + 1;
-      let smallest = i;
-      if (left < items.length && compare(items[left], items[smallest]) < 0) {
-        smallest = left;
-      }
-      if (right < items.length && compare(items[right], items[smallest]) < 0) {
-        smallest = right;
-      }
-      if (smallest === i) break;
-      [items[i], items[smallest]] = [items[smallest], items[i]];
-      i = smallest;
-    }
-  }
-}
-
-const mergeSortedRuns = async function* (runs) {
-  const advance = async (cursor) => {
-    const next = await cursor.iterator.next();
-    if (next.done) {
-      cursor.done = true;
-      cursor.row = null;
-      return false;
-    }
-    cursor.row = next.value;
-    return true;
-  };
-  const heap = new MinHeap((a, b) => {
-    const cmp = compareVfsManifestRows(a.row, b.row);
-    if (cmp !== 0) return cmp;
-    return a.order - b.order;
-  });
-  for (let i = 0; i < runs.length; i += 1) {
-    const runPath = runs[i];
-    const iterator = readJsonlRows(runPath)[Symbol.asyncIterator]();
-    const cursor = { iterator, row: null, done: false, order: i };
-    const hasRow = await advance(cursor);
-    if (hasRow) heap.push(cursor);
-  }
-  while (heap.size) {
-    const best = heap.pop();
-    if (!best) break;
-    const row = best.row;
-    yield row;
-    const hasMore = await advance(best);
-    if (hasMore) heap.push(best);
-  }
-};
+const mergeVfsRuns = (runs) => mergeSortedRuns(runs, {
+  compare: compareVfsManifestRows,
+  readRun: readJsonlRows
+});
 
 const writeJsonLinesFileAsync = async (filePath, items, options = {}) => {
   const {
@@ -542,7 +458,7 @@ export const enqueueVfsManifestArtifacts = async ({
               dir: outDir,
               partsDirName: 'vfs_manifest.parts',
               partPrefix: 'vfs_manifest.part-',
-              items: mergeSortedRuns(resolved.runs || []),
+              items: mergeVfsRuns(resolved.runs || []),
               maxBytes: maxJsonBytes,
               maxItems: 100000,
               atomic: true,
@@ -599,7 +515,7 @@ export const enqueueVfsManifestArtifacts = async ({
                 dir: outDir,
                 partsDirName: 'vfs_path_map.parts',
                 partPrefix: 'vfs_path_map.part-',
-                items: createPathMapIterator(mergeSortedRuns(resolved.runs || [])),
+                items: createPathMapIterator(mergeVfsRuns(resolved.runs || [])),
                 maxBytes: maxJsonBytes,
                 maxItems: 100000,
                 atomic: true,
@@ -687,7 +603,7 @@ export const enqueueVfsManifestArtifacts = async ({
         } else {
           await writeJsonLinesFileAsync(
             jsonlPath,
-            mergeSortedRuns(resolved.runs || []),
+            mergeVfsRuns(resolved.runs || []),
             { atomic: true, compression, gzipOptions }
           );
         }
@@ -699,7 +615,7 @@ export const enqueueVfsManifestArtifacts = async ({
           } else {
             await writeJsonLinesFileAsync(
               mapPath,
-              createPathMapIterator(mergeSortedRuns(resolved.runs || [])),
+              createPathMapIterator(mergeVfsRuns(resolved.runs || [])),
               { atomic: true, compression: null }
             );
           }

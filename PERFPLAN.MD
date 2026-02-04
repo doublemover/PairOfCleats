@@ -1199,36 +1199,36 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - `docs/specs/chunk-meta.md`
 
 ### Tasks
-- [ ] **14.A Foundations: shared streaming + determinism helpers**
-- [ ] Task 14.A.1: Add shared spill/merge helpers (K‑way heap + JSONL run writer) in `src/index/build/artifacts/helpers.js`.
-- [ ] Task 14.A.1.a: Reuse the VFS merge‑runs heap for row comparison and deterministic merge order.
-- [ ] Task 14.A.2: Add shared byte‑tracking helper to avoid repeated JSON.stringify for guards/telemetry.
-- [ ] Task 14.A.2.a: Provide `trackBytesForRow(row)` that accepts pre‑stringified rows to avoid double work.
-- [ ] Task 14.A.3: Centralize deterministic comparators for symbol rows, chunk meta rows, and graph relation rows.
-- [ ] Task 14.A.4: Add shared “trim stats” accumulator for artifact writers (rows dropped, bytes trimmed, max row bytes).
-- [ ] Task 14.A.5: Add a shared “artifact telemetry” helper that writes counts/bytes to stage checkpoints.
+- [x] **14.A Foundations: shared streaming + determinism helpers**
+- [x] Task 14.A.1: Add shared spill/merge helpers (K‑way heap + JSONL run writer) in `src/index/build/artifacts/helpers.js`.
+- [x] Task 14.A.1.a: Reuse the VFS merge‑runs heap for row comparison and deterministic merge order.
+- [x] Task 14.A.2: Add shared byte‑tracking helper to avoid repeated JSON.stringify for guards/telemetry.
+- [x] Task 14.A.2.a: Provide `trackBytesForRow(row)` that accepts pre‑stringified rows to avoid double work.
+- [x] Task 14.A.3: Centralize deterministic comparators for symbol rows, chunk meta rows, and graph relation rows.
+- [x] Task 14.A.4: Add shared “trim stats” accumulator for artifact writers (rows dropped, bytes trimmed, max row bytes).
+- [x] Task 14.A.5: Add a shared “artifact telemetry” helper that writes counts/bytes to stage checkpoints.
 
-- [ ] **14.B Build state writing + streaming**
-- [ ] Task 14.B.1: Add an in‑memory state cache with version checks to avoid re-reading `build_state.json` on every update.
-- [ ] Task 14.B.1.a: Cache last‑read state with `mtimeMs` + size fingerprint; invalidate on mismatch.
-- [ ] Task 14.B.1.b: Keep a per‑buildRoot cache object keyed by resolved path.
-- [ ] Task 14.B.2: Add a write debounce/merge window (e.g. 250–500ms) to coalesce bursts of updates.
-- [ ] Task 14.B.2.a: Make debounce window adaptive (short for CLI, longer for batch builds).
-- [ ] Task 14.B.2.b: Expose an explicit “flush now” hook for shutdown paths.
-- [ ] Task 14.B.3: Split large subtrees (e.g. stage checkpoints) into separate optional sidecar JSON files to reduce write volume.
-- [ ] Task 14.B.3.a: Add `build_state.stage-checkpoints.json` (per‑mode) and `build_state.progress.json`.
-- [ ] Task 14.B.3.b: Keep `build_state.json` minimal with references and updatedAt.
-- [ ] Task 14.B.4: Add per‑field “dirty” tracking so unchanged sections are not re‑serialized.
-- [ ] Task 14.B.4.a: Track dirty flags for `phases`, `progress`, `counts`, `signatures`, `stageCheckpoints`.
-- [ ] Task 14.B.4.b: Skip serialization for sections without dirty flag.
-- [ ] Task 14.B.5: Add a best‑effort append‑only event log (`build_state.events.jsonl`) for debugging without expanding the main file.
-- [ ] Task 14.B.5.a: Log `phase` transitions and checkpoint writes only.
-- [ ] Task 14.B.5.b: Cap log size and rotate by date/build id.
-- [ ] Task 14.B.6: Ensure `updateBuildState` remains atomic and safe across concurrent callers.
-- [ ] Task 14.B.6.a: Use the existing queue but ensure coalesced writes apply in order.
-- [ ] Task 14.B.6.b: Validate merged state includes schema + signature versions.
-- [ ] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
-- [ ] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
+- [x] **14.B Build state writing + streaming**
+- [x] Task 14.B.1: Add an in‑memory state cache with version checks to avoid re-reading `build_state.json` on every update.
+- [x] Task 14.B.1.a: Cache last‑read state with `mtimeMs` + size fingerprint; invalidate on mismatch.
+- [x] Task 14.B.1.b: Keep a per‑buildRoot cache object keyed by resolved path.
+- [x] Task 14.B.2: Add a write debounce/merge window (e.g. 250–500ms) to coalesce bursts of updates.
+- [x] Task 14.B.2.a: Make debounce window adaptive (short for CLI, longer for batch builds).
+- [x] Task 14.B.2.b: Expose an explicit “flush now” hook for shutdown paths.
+- [x] Task 14.B.3: Split large subtrees (e.g. stage checkpoints) into separate optional sidecar JSON files to reduce write volume.
+- [x] Task 14.B.3.a: Add `build_state.stage-checkpoints.json` (per‑mode) and `build_state.progress.json`.
+- [x] Task 14.B.3.b: Keep `build_state.json` minimal with references and updatedAt.
+- [x] Task 14.B.4: Add per‑field “dirty” tracking so unchanged sections are not re‑serialized.
+- [x] Task 14.B.4.a: Track dirty flags for `phases`, `progress`, `counts`, `signatures`, `stageCheckpoints`.
+- [x] Task 14.B.4.b: Skip serialization for sections without dirty flag.
+- [x] Task 14.B.5: Add a best‑effort append‑only event log (`build_state.events.jsonl`) for debugging without expanding the main file.
+- [x] Task 14.B.5.a: Log `phase` transitions and checkpoint writes only.
+- [x] Task 14.B.5.b: Cap log size and rotate by date/build id.
+- [x] Task 14.B.6: Ensure `updateBuildState` remains atomic and safe across concurrent callers.
+- [x] Task 14.B.6.a: Use the existing queue but ensure coalesced writes apply in order.
+- [x] Task 14.B.6.b: Validate merged state includes schema + signature versions.
+- [x] Task 14.B.7: Add a last‑write snapshot hash to skip no‑op writes.
+- [x] Task 14.B.8: Add explicit shutdown flush in `startBuildHeartbeat` stop handler.
 
 - [ ] **14.C Import resolution graph performance**
 - [ ] Task 14.C.1: Cache resolved specifiers per importer + tsconfig hash to avoid repeated resolution.
