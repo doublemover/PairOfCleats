@@ -292,7 +292,9 @@ export const buildGraphNeighborhood = ({
   };
 
   const addEdge = (edge) => {
-    const key = edgeKey(edge);
+    const key = graphIndex
+      ? edgeKeyFromIndex(edge, graphIndex, effectiveRepoRoot)
+      : edgeKey(edge);
     if (!key) return false;
     if (edgeSet.has(key)) return false;
     if (normalizedCaps.maxEdges != null && edges.length >= normalizedCaps.maxEdges) {
@@ -384,6 +386,38 @@ export const buildGraphNeighborhood = ({
       return normalizeImportPath(meta?.file || null, effectiveRepoRoot);
     }
     return null;
+  };
+
+  const edgeKeyFromIndex = (edge, index, repoRootValue) => {
+    if (!edge || typeof edge !== 'object' || !edge.graph) return edgeKey(edge);
+    const graphName = edge.graph;
+    if (graphName === 'callGraph') {
+      const fromId = index.callGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
+      const toId = index.callGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
+      if (fromId != null && toId != null) {
+        return `callGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      }
+      return edgeKey(edge);
+    }
+    if (graphName === 'usageGraph') {
+      const fromId = index.usageGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
+      const toId = index.usageGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
+      if (fromId != null && toId != null) {
+        return `usageGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      }
+      return edgeKey(edge);
+    }
+    if (graphName === 'importGraph') {
+      const fromPath = normalizeImportPath(edge.from?.path, repoRootValue) || edge.from?.path || '';
+      const toPath = normalizeImportPath(edge.to?.path, repoRootValue) || edge.to?.path || '';
+      const fromId = index.importGraphIds?.idToIndex?.get(fromPath);
+      const toId = index.importGraphIds?.idToIndex?.get(toPath);
+      if (fromId != null && toId != null) {
+        return `importGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
+      }
+      return edgeKey(edge);
+    }
+    return edgeKey(edge);
   };
 
   let queueIndex = 0;
