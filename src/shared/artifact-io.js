@@ -29,3 +29,10 @@ export {
   loadChunkMeta,
   loadTokenPostings
 } from './artifact-io/loaders.js';
+export {
+  readOffsetsFile,
+  readOffsetAt,
+  resolveOffsetsCount,
+  readJsonlRowAt,
+  validateOffsetsAgainstFile
+} from './artifact-io/offsets.js';
