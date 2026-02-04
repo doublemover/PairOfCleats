@@ -13,7 +13,10 @@
 // buffered results to queue concurrency.
 export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const pending = new Map();
-  let nextIndex = 0;
+  const startIndex = Number.isFinite(options.startIndex)
+    ? Math.max(0, Math.floor(options.startIndex))
+    : 0;
+  let nextIndex = startIndex;
   let flushing = null;
   let aborted = false;
   const skipped = new Set();
@@ -116,6 +119,30 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
 
   const flush = async () => {
     advancePastSkipped();
+    if (pending.size) {
+      const outOfOrder = Array.from(pending.keys())
+        .filter((key) => Number.isFinite(key) && key < nextIndex)
+        .sort((a, b) => a - b);
+      if (outOfOrder.length) {
+        emitLog(
+          `[ordered] flushing ${outOfOrder.length} late index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
+          { kind: 'warning' }
+        );
+      }
+      for (const key of outOfOrder) {
+        const entry = pending.get(key);
+        pending.delete(key);
+        try {
+          if (entry?.result) {
+            await handleFileResult(entry.result, state, entry.shardMeta);
+          }
+          entry?.resolve?.();
+        } catch (err) {
+          try { entry?.reject?.(err); } catch {}
+          throw err;
+        }
+      }
+    }
     while (pending.has(nextIndex)) {
       const entry = pending.get(nextIndex);
       pending.delete(nextIndex);
@@ -145,6 +172,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         throw err;
       } finally {
         flushing = null;
+        if (pending.size) {
+          scheduleFlush().catch(() => {});
+        }
       }
     })();
     return flushing;
@@ -155,11 +185,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       if (aborted) {
         return Promise.reject(new Error('Ordered appender aborted.'));
       }
+      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
+      if (skipped.has(index)) {
+        skipped.delete(index);
+      }
       if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
         noteSeen(orderIndex);
         return handleFileResult(result, state, shardMeta);
       }
-      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
       noteSeen(index);
       if (pending.has(index)) {
         const existing = pending.get(index);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T04:13:16.761Z",
+  "generatedAt": "2026-02-04T17:01:47.970Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -338,7 +338,12 @@
     {
       "path": "indexing.artifacts.chunkMetaFormat",
       "type": "string",
-      "enum": ["auto", "json", "jsonl", "columnar"]
+      "enum": [
+        "auto",
+        "json",
+        "jsonl",
+        "columnar"
+      ]
     },
     {
       "path": "indexing.artifacts.chunkMetaJsonlThreshold",
@@ -358,7 +363,12 @@
     {
       "path": "indexing.artifacts.symbolArtifactsFormat",
       "type": "string",
-      "enum": ["auto", "jsonl", "jsonl-sharded", "columnar"]
+      "enum": [
+        "auto",
+        "jsonl",
+        "jsonl-sharded",
+        "columnar"
+      ]
     },
     {
       "path": "indexing.artifacts.tokenPostingsFormat",
@@ -1540,7 +1550,6 @@
         "tests/indexing/imports/prose-skip-imports.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-graphviz-fallback.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
@@ -1677,7 +1686,6 @@
         "tests/indexing/imports/prose-skip-imports.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-graphviz-fallback.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
@@ -2122,7 +2130,6 @@
         "tests/indexing/extracted-prose/extracted-prose.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",

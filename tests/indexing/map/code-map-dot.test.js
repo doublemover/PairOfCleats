@@ -30,7 +30,16 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      embeddings: { enabled: false },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      treeSitter: {
+        deferMissing: false
+      }
+    },
+    tooling: {
+      autoEnableOnDetect: false
     }
   }
 });

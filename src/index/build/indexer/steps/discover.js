@@ -59,8 +59,8 @@ export const runDiscovery = async ({
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
   entries = entries.map((entry, index) => ({
     ...entry,
-    canonicalOrderIndex: Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : index,
-    orderIndex: Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index
+    canonicalOrderIndex: index,
+    orderIndex: index
   }));
   log(`→ Found ${entries.length} files.`);
   if (timing) timing.discoverMs = Date.now() - discoverStart;

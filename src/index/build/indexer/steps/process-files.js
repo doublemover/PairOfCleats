@@ -76,6 +76,27 @@ export const processFiles = async ({
   const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
   let checkpoint = null;
   let progress = null;
+  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
+    allowReorder: runtime.shards?.enabled !== true
+  });
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (Number.isFinite(entry.processingOrderIndex)) {
+      entry.orderIndex = entry.processingOrderIndex;
+    }
+  }
+  const startOrderIndex = (() => {
+    let minIndex = null;
+    for (const entry of entries || []) {
+      if (!entry || typeof entry !== 'object') continue;
+      const value = Number.isFinite(entry.orderIndex)
+        ? entry.orderIndex
+        : (Number.isFinite(entry.canonicalOrderIndex) ? entry.canonicalOrderIndex : null);
+      if (!Number.isFinite(value)) continue;
+      minIndex = minIndex == null ? value : Math.min(minIndex, value);
+    }
+    return Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0;
+  })();
   const orderedAppender = buildOrderedAppender(
     async (result, stateRef, shardMeta) => {
       if (!result) return;
@@ -113,12 +134,10 @@ export const processFiles = async ({
     state,
     {
       expectedCount: Array.isArray(entries) ? entries.length : null,
+      startIndex: startOrderIndex,
       log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' })
     }
   );
-  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
-    allowReorder: runtime.shards?.enabled !== true
-  });
   const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
   if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
     const preloadPlan = resolveTreeSitterPreloadPlan(entries, treeSitterOptions);
@@ -286,9 +305,9 @@ export const processFiles = async ({
           onResult: (result, ctx) => {
             const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
             const entry = batchEntries[entryIndex];
-            const orderIndex = Number.isFinite(entry?.canonicalOrderIndex)
-              ? entry.canonicalOrderIndex
-              : (Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex);
+            const orderIndex = Number.isFinite(entry?.orderIndex)
+              ? entry.orderIndex
+              : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
             if (result?.defer) {
               deferredEntries.push({
                 entry,
@@ -309,9 +328,9 @@ export const processFiles = async ({
           onError: async (err, ctx) => {
             const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
             const entry = batchEntries[entryIndex];
-            const orderIndex = Number.isFinite(entry?.canonicalOrderIndex)
-              ? entry.canonicalOrderIndex
-              : (Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex);
+            const orderIndex = Number.isFinite(entry?.orderIndex)
+              ? entry.orderIndex
+              : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
             const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
             logLine(
               `[ordered] skipping failed file ${orderIndex} ${rel} (${err?.message || err})`,
@@ -384,6 +403,7 @@ export const processFiles = async ({
         }
         for (const entry of nextEntries) {
           entry.processingOrderIndex = orderIndexState.next++;
+          entry.orderIndex = entry.processingOrderIndex;
         }
         pendingEntries = nextEntries;
       }
