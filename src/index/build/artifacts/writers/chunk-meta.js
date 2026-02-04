@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { compareChunkMetaRows } from '../helpers.js';
 
 const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   const parsed = Number(maxJsonBytes);
@@ -55,15 +56,45 @@ const compactChunkMetaEntry = (entry, maxBytes) => {
   return trimmed;
 };
 
+const getChunkMetaSortKey = (chunk) => ({
+  file: chunk?.file || chunk?.metaV2?.file || null,
+  chunkUid: chunk?.chunkUid || chunk?.metaV2?.chunkUid || null,
+  chunkId: chunk?.chunkId || chunk?.metaV2?.chunkId || chunk?.id || null,
+  id: chunk?.id || null,
+  start: chunk?.start,
+  name: chunk?.name
+});
+
+const compareChunkMetaChunks = (left, right) => (
+  compareChunkMetaRows(getChunkMetaSortKey(left), getChunkMetaSortKey(right))
+);
+
+export const resolveChunkMetaOrder = (chunks) => {
+  if (!Array.isArray(chunks) || chunks.length <= 1) return null;
+  let prev = chunks[0];
+  for (let i = 1; i < chunks.length; i += 1) {
+    const current = chunks[i];
+    if (compareChunkMetaChunks(prev, current) > 0) {
+      const order = Array.from({ length: chunks.length }, (_, index) => index);
+      order.sort((a, b) => compareChunkMetaChunks(chunks[a], chunks[b]));
+      return order;
+    }
+    prev = current;
+  }
+  return null;
+};
+
 export const createChunkMetaIterator = ({
   chunks,
   fileIdByPath,
   resolvedTokenMode,
   tokenSampleSize,
-  maxJsonBytes
+  maxJsonBytes,
+  order = null
 }) => {
   const stats = {
     trimmedMetaV2: 0,
+    trimmedEntries: 0,
     trimmedSamples: []
   };
   const sampleLimit = 5;
@@ -89,8 +120,12 @@ export const createChunkMetaIterator = ({
     };
   };
   const chunkMetaIterator = function* iterator(start = 0, end = chunks.length, trackStats = false) {
-    for (let i = start; i < end; i += 1) {
-      const c = chunks[i];
+    const source = Array.isArray(order) ? order : null;
+    const sourceLength = source ? source.length : chunks.length;
+    const resolvedEnd = Math.min(end, sourceLength);
+    for (let i = start; i < resolvedEnd; i += 1) {
+      const index = source ? source[i] : i;
+      const c = chunks[index];
       const authors = Array.isArray(c.chunk_authors)
         ? c.chunk_authors
         : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
@@ -142,6 +177,9 @@ export const createChunkMetaIterator = ({
       }
       const hadMetaV2 = !!entry.metaV2;
       const compacted = compactChunkMetaEntry(entry, maxJsonBytes);
+      if (trackStats && compacted !== entry) {
+        stats.trimmedEntries += 1;
+      }
       if (trackStats && hadMetaV2 && !compacted.metaV2) {
         stats.trimmedMetaV2 += 1;
         recordTrimSample(entry);
@@ -152,6 +190,7 @@ export const createChunkMetaIterator = ({
   chunkMetaIterator.stats = stats;
   chunkMetaIterator.resetStats = () => {
     stats.trimmedMetaV2 = 0;
+    stats.trimmedEntries = 0;
     stats.trimmedSamples.length = 0;
   };
   return chunkMetaIterator;
