@@ -770,10 +770,10 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Normalize chunk/file paths once for seed resolution in context-pack assembly.
 - [x] Task 10.X.5.c: Normalize seed paths before lookup; use shared chunk index.
 - [ ] Task 10.X.5.d: Add tests for range reads + cache hits + path normalization.
-- [ ] Add deterministic output ordering for graph/architecture/suggest-tests renderers and include warnings/truncation sections.
-- [ ] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
-- [ ] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
-- [ ] Task 10.X.1.c: Sort suggest-tests outputs by score desc then path; include truncation + warnings sections.
+- [x] Add deterministic output ordering for graph/architecture/suggest-tests renderers and include warnings/truncation sections.
+- [x] Task 10.X.1.a: Sort impact outputs by distance then ref key; include truncation + warnings sections.
+- [x] Task 10.X.1.b: Sort architecture outputs by rule id + edge key; include truncation + warnings sections.
+- [x] Task 10.X.1.c: Sort suggest-tests outputs by score desc then path; include truncation + warnings sections.
 - [ ] Task 10.X.1.d: Add renderer tests for deterministic ordering and diagnostics visibility.
 - [ ] Add optional skip-resort flag in graph-context-pack renderer when upstream already sorted.
 - [ ] Task 10.X.2.a: Thread a `sorted` flag through context-pack payload (stats or top-level).
