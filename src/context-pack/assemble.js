@@ -417,6 +417,8 @@ export const assembleCompositeContextPack = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  const timingStart = process.hrtime.bigint();
+  const memoryStart = process.memoryUsage();
   const warnings = [];
   const truncation = [];
   const seedRef = resolveSeedRef(seed);
@@ -443,6 +445,7 @@ export const assembleCompositeContextPack = ({
   primary.range = excerptPayload.range;
   primary.excerpt = excerptPayload.excerpt;
   primary.excerptHash = excerptPayload.excerptHash;
+  const excerptBytes = primary.excerpt ? Buffer.byteLength(primary.excerpt, 'utf8') : 0;
 
   let graph = null;
   if (includeGraph && primaryRef) {
@@ -508,6 +511,21 @@ export const assembleCompositeContextPack = ({
     label: 'CompositeContextPack'
   });
 
+  const memoryEnd = process.memoryUsage();
+  const snapshotMemory = (value) => ({
+    heapUsed: value.heapUsed,
+    rss: value.rss,
+    external: value.external,
+    arrayBuffers: value.arrayBuffers
+  });
+  const peakMemory = {
+    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
+    rss: Math.max(memoryStart.rss, memoryEnd.rss),
+    external: Math.max(memoryStart.external, memoryEnd.external),
+    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
+  };
+  const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+
   return {
     version: '1.0.0',
     seed: primaryRef || seedRef || { v: 1, status: 'unresolved', candidates: [], resolved: null },
@@ -517,6 +535,15 @@ export const assembleCompositeContextPack = ({
     types,
     risk,
     truncation: truncation.length ? truncation : null,
-    warnings: warnings.length ? warnings : null
+    warnings: warnings.length ? warnings : null,
+    stats: {
+      timing: { elapsedMs },
+      memory: {
+        start: snapshotMemory(memoryStart),
+        end: snapshotMemory(memoryEnd),
+        peak: peakMemory
+      },
+      excerptBytes
+    }
   };
 };

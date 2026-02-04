@@ -264,7 +264,9 @@ export const buildImpactAnalysis = ({
       counts: {
         impacted: impacted.length,
         workUnitsUsed
-      }
+      },
+      timing: neighborhood?.stats?.timing || null,
+      memory: neighborhood?.stats?.memory || null
     }
   };
 };

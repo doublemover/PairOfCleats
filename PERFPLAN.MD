@@ -759,8 +759,8 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Add lazy witness-path construction; avoid building paths unless requested and within caps.
 - [x] Add fast edge-filter predicate compiled once per request.
 - [ ] Ensure budget/truncation ordering is deterministic across runs.
-- [ ] Track graph/context-pack timings and memory checkpoints.
-- [ ] Track graph/context-pack peak memory and excerpt bytes in stats payload.
+- [x] Track graph/context-pack timings and memory checkpoints.
+- [x] Track graph/context-pack peak memory and excerpt bytes in stats payload.
 - [x] Use range reads for excerpts instead of full file loads; avoid `fs.readFileSync` for slices.
 - [x] Add `readFileRange` helper; prefer when `start/end` valid.
 - [x] Add a small excerpt LRU cache keyed by `(path,start,end,maxBytes,maxTokens)` to avoid repeated reads.

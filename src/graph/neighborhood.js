@@ -166,6 +166,8 @@ export const buildGraphNeighborhood = ({
   workBudget = null,
   repoRoot = null
 } = {}) => {
+  const timingStart = process.hrtime.bigint();
+  const memoryStart = process.memoryUsage();
   const warnings = [];
   const truncation = createTruncationRecorder({ scope: 'graph' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
@@ -654,6 +656,21 @@ export const buildGraphNeighborhood = ({
     paths.sort(compareWitnessPaths);
   }
 
+  const memoryEnd = process.memoryUsage();
+  const snapshotMemory = (value) => ({
+    heapUsed: value.heapUsed,
+    rss: value.rss,
+    external: value.external,
+    arrayBuffers: value.arrayBuffers
+  });
+  const peakMemory = {
+    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
+    rss: Math.max(memoryStart.rss, memoryEnd.rss),
+    external: Math.max(memoryStart.external, memoryEnd.external),
+    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
+  };
+  const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+
   return {
     nodes,
     edges,
@@ -662,6 +679,12 @@ export const buildGraphNeighborhood = ({
     warnings: warnings.length ? warnings : null,
     stats: {
       sorted: true,
+      timing: { elapsedMs },
+      memory: {
+        start: snapshotMemory(memoryStart),
+        end: snapshotMemory(memoryEnd),
+        peak: peakMemory
+      },
       artifactsUsed: {
         graphRelations: hasGraphRelations,
         symbolEdges: hasSymbolEdges,
