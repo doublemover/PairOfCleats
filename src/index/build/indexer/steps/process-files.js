@@ -62,8 +62,7 @@ export const processFiles = async ({
   );
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
-  const debugOrdered = process.env.PAIROFCLEATS_DEBUG_ORDERED === '1'
-    || process.env.PAIROFCLEATS_DEBUG_ORDERED === 'true';
+  const debugOrdered = envConfig.debugOrdered === true;
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -140,7 +139,8 @@ export const processFiles = async ({
       expectedCount: Array.isArray(entries) ? entries.length : null,
       startIndex: startOrderIndex,
       log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
-      stallMs: debugOrdered ? 5000 : undefined
+      stallMs: debugOrdered ? 5000 : undefined,
+      debugOrdered
     }
   );
   const treeSitterOptions = runtime.languageOptions?.treeSitter || null;

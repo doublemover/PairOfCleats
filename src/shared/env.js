@@ -48,6 +48,7 @@ export function getEnvConfig(env = process.env) {
     logFormat: normalizeString(env.PAIROFCLEATS_LOG_FORMAT),
     stage: normalizeString(env.PAIROFCLEATS_STAGE),
     xxhashBackend: normalizeString(env.PAIROFCLEATS_XXHASH_BACKEND),
+    debugOrdered: normalizeBoolean(env.PAIROFCLEATS_DEBUG_ORDERED),
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
     summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),

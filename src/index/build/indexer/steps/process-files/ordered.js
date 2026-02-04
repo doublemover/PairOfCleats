@@ -12,8 +12,7 @@
 // backpressure via `runWithQueue`'s awaited `onResult`, bounding in-flight
 // buffered results to queue concurrency.
 export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
-  const debugOrdered = process.env.PAIROFCLEATS_DEBUG_ORDERED === '1'
-    || process.env.PAIROFCLEATS_DEBUG_ORDERED === 'true';
+  const debugOrdered = options.debugOrdered === true;
   const pending = new Map();
   const startIndex = Number.isFinite(options.startIndex)
     ? Math.max(0, Math.floor(options.startIndex))
