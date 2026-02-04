@@ -802,9 +802,9 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/graph/graph-index-cache-reuse.test.js`
 - [ ] `tests/graph/graph-adjacency-deterministic.test.js`
 - [ ] `tests/graph/graph-truncation-deterministic.test.js`
-- [ ] `tests/context-pack/context-pack-excerpt-range.test.js`
-- [ ] `tests/context-pack/context-pack-range-reads.test.js`
-- [ ] `tests/context-pack/context-pack-excerpt-cache.test.js`
+- [x] `tests/context-pack/context-pack-excerpt-range.test.js`
+- [x] `tests/context-pack/context-pack-range-reads.test.js`
+- [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
 - [ ] `tests/context-pack/context-pack-assembly-memory.test.js`
 - [ ] `tests/graph/graph-id-remap-roundtrip.test.js`
 - [ ] `tests/graph/graph-edge-bucket-determinism.test.js`
@@ -817,15 +817,15 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] `tests/graph/architecture-rules-cache.test.js`
 - [ ] `tests/graph/suggest-tests-cache.test.js`
 - [x] `tests/context-pack/context-pack-shared-index.test.js`
-- [ ] `tests/context-pack/context-pack-range-reads.test.js`
-- [ ] `tests/context-pack/context-pack-excerpt-cache.test.js`
+- [x] `tests/context-pack/context-pack-range-reads.test.js`
+- [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
 - [ ] `tests/graph/graph-output-deterministic.test.js`
 - [ ] `tests/graph/architecture-output-deterministic.test.js`
 - [ ] `tests/graph/suggest-tests-output-deterministic.test.js`
 - [ ] `tests/tooling/impact/impact-changed-and-seed-warning.test.js`
 - [ ] `tests/graph/graph-witness-path-lazy.test.js`
 - [ ] `tests/graph/graph-filter-predicate-deterministic.test.js`
-- [ ] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
+- [x] `tests/context-pack/context-pack-excerpt-file-cache.test.js`
 - [ ] `tests/graph/graph-truncation-order-deterministic.test.js`
 - [ ] `tools/bench/graph/context-pack-latency.js` (new)
 
