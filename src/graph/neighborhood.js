@@ -277,6 +277,7 @@ export const buildGraphNeighborhood = ({
   const pathTargetSet = new Set();
   const parentMap = new Map();
   const queue = [];
+  const edgeCandidates = [];
 
   const addNode = (ref, distance) => {
     const normalizedRef = normalizeFileRef(ref, effectiveRepoRoot);
@@ -450,7 +451,7 @@ export const buildGraphNeighborhood = ({
     if (!current) continue;
     if (current.distance >= effectiveDepth) continue;
     const currentRef = current.ref;
-    const edgeCandidates = [];
+    edgeCandidates.length = 0;
 
     if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
       const neighbors = resolveGraphNeighbors(
@@ -570,7 +571,6 @@ export const buildGraphNeighborhood = ({
         });
       }
     }
-    edgeCandidates.sort((a, b) => compareGraphEdges(a.edge, b.edge));
     if (normalizedCaps.maxFanoutPerNode != null && edgeCandidates.length > normalizedCaps.maxFanoutPerNode) {
       recordTruncation('maxFanoutPerNode', {
         limit: normalizedCaps.maxFanoutPerNode,

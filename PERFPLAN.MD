@@ -752,10 +752,10 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
 - [ ] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
 - [ ] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
-- [ ] Reduce intermediate array churn in neighborhood traversal with streaming + budgeted iterators.
+- [x] Reduce intermediate array churn in neighborhood traversal with streaming + budgeted iterators.
 - [ ] Add windowed spill/merge for large neighborhood assembly to cap heap usage.
 - [ ] Add parallel neighborhood expansion per edge type with deterministic merge ordering.
-- [ ] Precompute deterministic edge buckets for truncation (priority + stable sort keys) to avoid per-call sort.
+- [x] Precompute deterministic edge buckets for truncation (priority + stable sort keys) to avoid per-call sort.
 - [x] Add lazy witness-path construction; avoid building paths unless requested and within caps.
 - [x] Add fast edge-filter predicate compiled once per request.
 - [ ] Ensure budget/truncation ordering is deterministic across runs.

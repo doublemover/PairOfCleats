@@ -187,6 +187,13 @@ export const buildSymbolEdgesIndex = (symbolEdges) => {
       bySymbol.set(symbolId, symList);
     }
   }
+  const compareEntries = (left, right) => {
+    const typeCompare = compareStrings(left?.edge?.type || 'symbol', right?.edge?.type || 'symbol');
+    if (typeCompare !== 0) return typeCompare;
+    return compareCandidates(left?.toRef, right?.toRef);
+  };
+  for (const list of byChunk.values()) list.sort(compareEntries);
+  for (const list of bySymbol.values()) list.sort(compareEntries);
   return { byChunk, bySymbol };
 };
 
