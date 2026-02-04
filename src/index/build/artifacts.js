@@ -61,6 +61,7 @@ export async function writeIndexArtifacts(input) {
     perfProfile,
     indexState,
     graphRelations,
+    stageCheckpoints,
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
@@ -334,7 +335,8 @@ export async function writeIndexArtifacts(input) {
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
   const chunkUidMapCompression = resolveShardCompression('chunk_uid_map');
   await enqueueChunkUidMapArtifacts({
@@ -500,7 +502,8 @@ export async function writeIndexArtifacts(input) {
       gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     });
     const symbolEdgesCompression = resolveShardCompression('symbol_edges');
     await enqueueSymbolEdgesArtifacts({
@@ -512,7 +515,8 @@ export async function writeIndexArtifacts(input) {
       gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     });
   }
   await enqueueGraphRelationsArtifacts({

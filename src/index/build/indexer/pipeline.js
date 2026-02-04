@@ -431,7 +431,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     entries: allEntries,
     perfProfile,
     graphRelations,
-    shardSummary
+    shardSummary,
+    stageCheckpoints
   });
   const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
   const vfsExtra = vfsStats

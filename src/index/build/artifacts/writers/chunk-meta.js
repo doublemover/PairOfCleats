@@ -15,7 +15,8 @@ import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/version
 import {
   compareChunkMetaRows,
   createRowSpillCollector,
-  mergeSortedRuns
+  mergeSortedRuns,
+  recordArtifactTelemetry
 } from '../helpers.js';
 
 const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
@@ -272,7 +273,8 @@ export const enqueueChunkMetaArtifacts = async ({
   enqueueJsonArray,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const {
     chunkMetaUseJsonl,
@@ -291,10 +293,12 @@ export const enqueueChunkMetaArtifacts = async ({
     let totalJsonBytes = 2;
     let totalJsonlBytes = 0;
     let total = 0;
+    let maxRowBytes = 0;
     chunkMetaIterator.resetStats?.();
     for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
       const line = JSON.stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
         throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
       }
@@ -302,7 +306,7 @@ export const enqueueChunkMetaArtifacts = async ({
       totalJsonlBytes += lineBytes + 1;
       total += 1;
     }
-    return { totalJsonBytes, totalJsonlBytes, total };
+    return { totalJsonBytes, totalJsonlBytes, total, maxRowBytes };
   };
 
   let resolvedUseJsonl = chunkMetaUseJsonl;
@@ -358,6 +362,37 @@ export const enqueueChunkMetaArtifacts = async ({
       `[metaV2] trimmed ${chunkMetaIterator.stats.trimmedMetaV2} chunk_meta entries ` +
       `to fit ${formatBytes(resolvedMaxJsonBytes)}${sampleText}`
     );
+  }
+  const trimmedEntries = chunkMetaIterator.stats?.trimmedEntries || 0;
+  const trimmedMetaV2 = chunkMetaIterator.stats?.trimmedMetaV2 || 0;
+  if (resolvedUseJsonl && collected?.stats) {
+    recordArtifactTelemetry(stageCheckpoints, {
+      stage: 'stage2',
+      artifact: 'chunk_meta',
+      rows: collected.stats.totalRows,
+      bytes: collected.stats.totalBytes,
+      maxRowBytes: collected.stats.maxRowBytes,
+      trimmedRows: trimmedEntries,
+      droppedRows: collected.stats.droppedRows,
+      extra: {
+        format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
+        trimmedMetaV2
+      }
+    });
+  } else if (measured) {
+    recordArtifactTelemetry(stageCheckpoints, {
+      stage: 'stage2',
+      artifact: 'chunk_meta',
+      rows: measured.total,
+      bytes: measured.totalJsonBytes,
+      maxRowBytes: measured.maxRowBytes,
+      trimmedRows: trimmedEntries,
+      droppedRows: 0,
+      extra: {
+        format: 'json',
+        trimmedMetaV2
+      }
+    });
   }
   chunkMetaPlan.chunkMetaUseJsonl = resolvedUseJsonl;
   chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;

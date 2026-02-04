@@ -13,7 +13,8 @@ import {
   compareSymbolEdgeRows,
   createRowSpillCollector,
   createTrimStats,
-  mergeSortedRuns
+  mergeSortedRuns,
+  recordArtifactTelemetry
 } from '../helpers.js';
 
 const MAX_ROW_BYTES = 32768;
@@ -107,7 +108,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
   gzipOptions = null,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const collected = await collectRows(state?.chunks || [], { outDir, maxJsonBytes });
   const rows = collected?.rows || null;
@@ -115,6 +117,18 @@ export const enqueueSymbolEdgesArtifacts = async ({
   const stats = collected?.stats || null;
   const totalRows = stats?.totalRows || 0;
   const totalBytes = stats?.totalBytes || 0;
+  const maxRowBytes = stats?.maxRowBytes || 0;
+  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
+  recordArtifactTelemetry(stageCheckpoints, {
+    stage: 'stage2',
+    artifact: 'symbol_edges',
+    rows: totalRows,
+    bytes: totalBytes,
+    maxRowBytes,
+    trimmedRows: stats?.trimmedRows || 0,
+    droppedRows: stats?.droppedRows || 0,
+    extra: { format: useShards ? 'jsonl-sharded' : 'jsonl' }
+  });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
@@ -125,7 +139,6 @@ export const enqueueSymbolEdgesArtifacts = async ({
     return;
   }
 
-  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
   const jsonlExtension = resolveJsonlExtension(compression);
   const edgesPath = path.join(outDir, `symbol_edges.${jsonlExtension}`);
   const edgesMetaPath = path.join(outDir, 'symbol_edges.meta.json');

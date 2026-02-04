@@ -13,7 +13,8 @@ import {
   compareSymbolOccurrenceRows,
   createRowSpillCollector,
   createTrimStats,
-  mergeSortedRuns
+  mergeSortedRuns,
+  recordArtifactTelemetry
 } from '../helpers.js';
 
 const MAX_ROW_BYTES = 32768;
@@ -133,7 +134,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   gzipOptions = null,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const collected = await collectRows(state?.chunks || [], { outDir, maxJsonBytes });
   const rows = collected?.rows || null;
@@ -142,6 +144,17 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const totalRows = stats?.totalRows || 0;
   const totalBytes = stats?.totalBytes || 0;
   const maxRowBytes = stats?.maxRowBytes || 0;
+  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
+  recordArtifactTelemetry(stageCheckpoints, {
+    stage: 'stage2',
+    artifact: 'symbol_occurrences',
+    rows: totalRows,
+    bytes: totalBytes,
+    maxRowBytes,
+    trimmedRows: stats?.trimmedRows || 0,
+    droppedRows: stats?.droppedRows || 0,
+    extra: { format: useShards ? 'jsonl-sharded' : 'jsonl' }
+  });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { recursive: true, force: true }).catch(() => {});
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
@@ -151,7 +164,6 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     if (collected?.cleanup) await collected.cleanup();
     return;
   }
-  const useShards = maxJsonBytes && totalBytes > maxJsonBytes;
   const jsonlExtension = resolveJsonlExtension(compression);
   const occurrencesPath = path.join(outDir, `symbol_occurrences.${jsonlExtension}`);
   const occurrencesMetaPath = path.join(outDir, 'symbol_occurrences.meta.json');

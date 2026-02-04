@@ -1262,7 +1262,7 @@ Reduce memory and IO overhead for index state writing, import resolution graphs,
 - [x] Task 14.E.2.a: If chunk order is unstable, add external merge sort by `(file, chunkUid, role/type, targetName)`.
 - [x] Task 14.E.3: Add optional spill files for large symbol artifact sets; merge via heap.
 - [x] Task 14.E.3.a: Reuse shared spill/merge helper from 14.A.1.
-- [ ] Task 14.E.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
+- [x] Task 14.E.4: Track trimming stats (rows dropped/trimmed, max bytes) in stage checkpoints.
 - [ ] Task 14.E.4.a: Add per‑artifact meta extension with trim counts.
 - [ ] Task 14.E.5: Ensure trimming preserves required fields (`host`, `role`, `ref`).
 - [ ] Task 14.E.6: Skip trim work when row byte size is below threshold (avoid repeated JSON.stringify).
