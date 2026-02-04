@@ -178,11 +178,14 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const occurrencesPath = path.join(outDir, `symbol_occurrences.${jsonlExtension}`);
   const occurrencesMetaPath = path.join(outDir, 'symbol_occurrences.meta.json');
   const occurrencesPartsDir = path.join(outDir, 'symbol_occurrences.parts');
+  const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
+  const offsetsPath = offsetsConfig ? `${occurrencesPath}.${offsetsConfig.suffix}` : null;
 
   const removeJsonlVariants = async () => {
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { force: true });
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.gz'), { force: true });
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.zst'), { force: true });
+    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.offsets.bin'), { force: true });
   };
 
   if (!useShards) {
@@ -193,7 +196,12 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
-        await writeJsonLinesFileAsync(occurrencesPath, items, { atomic: true, compression, gzipOptions });
+        await writeJsonLinesFileAsync(occurrencesPath, items, {
+          atomic: true,
+          compression,
+          gzipOptions,
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+        });
         if (collected?.cleanup) await collected.cleanup();
       }
     );
@@ -204,6 +212,14 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       count: totalRows,
       compression: compression || null
     }, occurrencesPath);
+    if (offsetsPath) {
+      addPieceFile({
+        type: 'symbols',
+        name: 'symbol_occurrences_offsets',
+        format: 'bin',
+        count: totalRows
+      }, offsetsPath);
+    }
     return;
   }
 
@@ -224,7 +240,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
-          gzipOptions
+          gzipOptions,
+          offsets: offsetsConfig
         })
         : await writeJsonLinesSharded({
           dir: outDir,
@@ -234,13 +251,21 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
-          gzipOptions
+          gzipOptions,
+          offsets: offsetsConfig
         });
       const parts = result.parts.map((part, index) => ({
         path: part,
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
+      const offsetsMeta = result.offsets?.length
+        ? {
+          format: 'u64-le',
+          suffix: offsetsConfig?.suffix || null,
+          parts: result.offsets
+        }
+        : null;
       await writeJsonObjectFile(occurrencesMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -258,7 +283,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
               trimmedRows: stats?.trimmedRows || 0,
               droppedRows: stats?.droppedRows || 0,
               maxRowBytes: stats?.maxRowBytes || 0
-            }
+            },
+            ...(offsetsMeta ? { offsets: offsetsMeta } : {})
           },
           parts
         },
@@ -274,6 +300,19 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           count: result.counts[i] || 0,
           compression: compression || null
         }, absPath);
+      }
+      if (Array.isArray(result.offsets)) {
+        for (let i = 0; i < result.offsets.length; i += 1) {
+          const relPath = result.offsets[i];
+          if (!relPath) continue;
+          const absPath = path.join(outDir, fromPosix(relPath));
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbol_occurrences_offsets',
+            format: 'bin',
+            count: result.counts[i] || 0
+          }, absPath);
+        }
       }
       addPieceFile({ type: 'symbols', name: 'symbol_occurrences_meta', format: 'json' }, occurrencesMetaPath);
       if (collected?.cleanup) await collected.cleanup();

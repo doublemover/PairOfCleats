@@ -153,11 +153,14 @@ export const enqueueSymbolEdgesArtifacts = async ({
   const edgesPath = path.join(outDir, `symbol_edges.${jsonlExtension}`);
   const edgesMetaPath = path.join(outDir, 'symbol_edges.meta.json');
   const edgesPartsDir = path.join(outDir, 'symbol_edges.parts');
+  const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
+  const offsetsPath = offsetsConfig ? `${edgesPath}.${offsetsConfig.suffix}` : null;
 
   const removeJsonlVariants = async () => {
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { force: true });
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl.gz'), { force: true });
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl.zst'), { force: true });
+    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.offsets.bin'), { force: true });
   };
 
   if (!useShards) {
@@ -168,7 +171,12 @@ export const enqueueSymbolEdgesArtifacts = async ({
         await fs.rm(edgesMetaPath, { force: true });
         await fs.rm(edgesPartsDir, { recursive: true, force: true });
         const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
-        await writeJsonLinesFileAsync(edgesPath, items, { atomic: true, compression, gzipOptions });
+        await writeJsonLinesFileAsync(edgesPath, items, {
+          atomic: true,
+          compression,
+          gzipOptions,
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+        });
         if (collected?.cleanup) await collected.cleanup();
       }
     );
@@ -179,6 +187,14 @@ export const enqueueSymbolEdgesArtifacts = async ({
       count: totalRows,
       compression: compression || null
     }, edgesPath);
+    if (offsetsPath) {
+      addPieceFile({
+        type: 'symbols',
+        name: 'symbol_edges_offsets',
+        format: 'bin',
+        count: totalRows
+      }, offsetsPath);
+    }
     return;
   }
 
@@ -199,7 +215,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
-          gzipOptions
+          gzipOptions,
+          offsets: offsetsConfig
         })
         : await writeJsonLinesSharded({
           dir: outDir,
@@ -209,13 +226,21 @@ export const enqueueSymbolEdgesArtifacts = async ({
           maxBytes: maxJsonBytes,
           atomic: true,
           compression,
-          gzipOptions
+          gzipOptions,
+          offsets: offsetsConfig
         });
       const parts = result.parts.map((part, index) => ({
         path: part,
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
+      const offsetsMeta = result.offsets?.length
+        ? {
+          format: 'u64-le',
+          suffix: offsetsConfig?.suffix || null,
+          parts: result.offsets
+        }
+        : null;
       await writeJsonObjectFile(edgesMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -233,7 +258,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
               trimmedRows: stats?.trimmedRows || 0,
               droppedRows: stats?.droppedRows || 0,
               maxRowBytes: stats?.maxRowBytes || 0
-            }
+            },
+            ...(offsetsMeta ? { offsets: offsetsMeta } : {})
           },
           parts
         },
@@ -249,6 +275,19 @@ export const enqueueSymbolEdgesArtifacts = async ({
           count: result.counts[i] || 0,
           compression: compression || null
         }, absPath);
+      }
+      if (Array.isArray(result.offsets)) {
+        for (let i = 0; i < result.offsets.length; i += 1) {
+          const relPath = result.offsets[i];
+          if (!relPath) continue;
+          const absPath = path.join(outDir, fromPosix(relPath));
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbol_edges_offsets',
+            format: 'bin',
+            count: result.counts[i] || 0
+          }, absPath);
+        }
       }
       addPieceFile({ type: 'symbols', name: 'symbol_edges_meta', format: 'json' }, edgesMetaPath);
       if (collected?.cleanup) await collected.cleanup();
