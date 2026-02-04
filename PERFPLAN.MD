@@ -751,7 +751,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] Task 10.X.8.c: Add test that repeated calls reuse index.
 - [x] Add multi-seed BFS for impact/context-pack to avoid repeated graph traversal.
 - [x] Task 10.X.7.a: Implement multi-seed traversal with deterministic merge order.
-- [ ] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
+- [x] Task 10.X.7.b: Add deterministic test comparing multi-seed vs single-seed union output.
 - [x] Reduce intermediate array churn in neighborhood traversal with streaming + budgeted iterators.
 - [x] Add windowed spill/merge for large neighborhood assembly to cap heap usage.
 - [x] Add parallel neighborhood expansion per edge type with deterministic merge ordering.
@@ -811,7 +811,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-lazy-edge-load.test.js`
 - [ ] `tests/graph/graph-spill-merge-deterministic.test.js`
 - [ ] `tests/context-pack/context-pack-excerpt-dedupe.test.js`
-- [ ] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
+- [x] `tests/graph/graph-multiseed-bfs-deterministic.test.js`
 - [ ] `tests/graph/graph-adjacency-presorted.test.js`
 - [ ] `tests/graph/graph-store-cache-eviction.test.js`
 - [ ] `tests/graph/architecture-rules-cache.test.js`
