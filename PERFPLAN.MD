@@ -816,7 +816,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [x] `tests/graph/graph-adjacency-presorted.test.js`
 - [x] `tests/graph/graph-store-cache-eviction.test.js`
 - [x] `tests/graph/architecture-rules-cache.test.js`
-- [ ] `tests/graph/suggest-tests-cache.test.js`
+- [x] `tests/graph/suggest-tests-cache.test.js`
 - [x] `tests/context-pack/context-pack-shared-index.test.js`
 - [x] `tests/context-pack/context-pack-range-reads.test.js`
 - [x] `tests/context-pack/context-pack-excerpt-cache.test.js`
