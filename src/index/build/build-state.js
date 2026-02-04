@@ -483,11 +483,11 @@ const applyStatePatch = async (buildRoot, patch, events = []) => {
     merged = sanitizeMainState(ensureStateVersions(merged, buildRoot, false));
     const comparableHash = hashJson(stripUpdatedAt(merged));
     const shouldWrite = comparableHash && comparableHash !== cache.lastComparableHash;
-    cache.lastComparableHash = comparableHash;
     if (shouldWrite) {
       merged.updatedAt = new Date().toISOString();
       writes.push(writeStateFile(buildRoot, merged, cache, { comparableHash }));
     } else {
+      if (comparableHash) cache.lastComparableHash = comparableHash;
       cache.state = merged;
     }
   }

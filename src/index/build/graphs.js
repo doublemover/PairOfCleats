@@ -122,7 +122,7 @@ export function buildRelationGraphs({
   fileRelations = null,
   callSites = null,
   caps = null,
-  emitNodes = false
+  emitNodes = true
 } = {}) {
   const callGraph = new Graph({ type: 'directed' });
   const usageGraph = new Graph({ type: 'directed' });

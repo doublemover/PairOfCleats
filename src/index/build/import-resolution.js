@@ -103,6 +103,14 @@ const createFileLookup = ({ entries, root }) => {
     if (!fileLower.has(lower)) fileLower.set(lower, relPosix);
     const basePath = stripImportExtension(relPosix);
     if (basePath) addPathToTrie(pathTrie, basePath);
+    addPathToTrie(pathTrie, relPosix);
+  }
+  if (!hasTsconfig) {
+    try {
+      if (fs.existsSync(path.join(rootAbs, 'tsconfig.json'))) {
+        hasTsconfig = true;
+      }
+    } catch {}
   }
   return { rootAbs, fileSet, fileLower, hasTsconfig, pathTrie };
 };
@@ -120,12 +128,12 @@ const resolveCandidate = (relPath, lookup) => {
   if (!relPath) return null;
   const normalized = normalizeRelPath(relPath);
   const trimmed = normalized.replace(/\/+$/, '');
-  if (lookup?.pathTrie && !trieHasPrefix(lookup.pathTrie, trimmed)) {
-    return null;
-  }
   const ext = path.posix.extname(trimmed);
   if (ext) {
     return resolveFromLookup(trimmed, lookup);
+  }
+  if (lookup?.pathTrie && !trieHasPrefix(lookup.pathTrie, trimmed)) {
+    return null;
   }
   for (const suffix of DEFAULT_IMPORT_SUFFIXES) {
     const candidate = resolveFromLookup(`${trimmed}${suffix}`, lookup);
