@@ -30,6 +30,8 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - Windows: `taskkill /T` then escalate to `/F`
   - POSIX: signal the process group (negative PID) when detached
 - `--json` outputs must be **stdout-only** (no additional stdout noise); logs and progress go to stderr/protocol.
+- **Line length cap**: decoder enforces a hard cap (default 1MB) and emits a `log` event indicating truncation.
+- **Error behavior**: any malformed JSONL line becomes a `log` event with `parseError=true` (never fatal).
 
 ### Locked decisions (remove ambiguity)
 - **Cancel exit code**: tools invoked under the supervisor must exit **130** on user‑initiated cancel (SIGINT/SIGTERM are normalized to 130).
@@ -47,6 +49,22 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`
   - `docs/specs/supervisor-artifacts-indexing-pass.md`
   - `docs/specs/tui-installation.md`
+
+### Tool JSON/JSONL stdout inventory (must remain exhaustive)
+Tools that emit JSON to stdout or JSONL progress (must never use `stdio: 'inherit'` for children):
+- `build_index.js` (progress JSONL / JSON summary)
+- `search.js` (JSON output modes)
+- `tools/reports/report-code-map.js` (JSON map output)
+- `tools/setup/*` (JSONL progress mode)
+- `tools/bootstrap/*` (JSONL progress mode)
+- `tools/bench/**` (JSON/JSONL in harness mode)
+- `tools/tooling/**` (install/detect/download report tools)
+- `tools/config/**` (inventory/contract scripts)
+
+Each listed tool must declare:
+- stdout mode (JSON vs JSONL vs human)
+- stderr mode (logs/protocol only)
+- child stdio policy (pipe vs inherit)
 
 ### Related but out-of-scope specs
 - `docs/specs/spimi-spill.md` (indexing perf roadmap; not part of TUI milestone work)
@@ -105,6 +123,16 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
 - **Line length cap**: enforce a maximum line size (e.g., 1MB) in the shared decoder to prevent memory blowups.
 - **Stdout discipline**: any tool that writes JSON to stdout must never run children in `stdio: 'inherit'`.
 - **Test determinism**: tests must run without network access unless explicitly mocked.
+
+### Protocol versioning + migration
+- v1 remains supported for legacy tools; supervisor accepts v1 but wraps into v2 envelope.
+- v2 is strict: missing `proto` or `event` becomes `log` (never fatal).
+- Version bump rules: breaking field changes require `@v3` and dual‑emit during migration window.
+
+### Packaging constraints
+- Rust TUI ships as standalone binary plus thin wrapper in `bin/`.
+- Supervisor is invoked via wrapper to guarantee PATH and Node version consistency.
+- Artifact naming must include platform and version (e.g., `poc-tui-vX.Y.Z-win32-x64.zip`).
 
 ---
 
@@ -170,6 +198,132 @@ Use this list to remove ambiguity about which tools already emit JSONL progress 
 - `tools/index/validate.js`
 - `tools/index/cache-gc.js`
 - `tools/index/report-artifacts.js`
+
+---
+
+## Appendix: Touchpoint line index (approximate)
+
+- `../helpers/kill-tree.js` (new)
+- `bin/` (new)
+- `bin/native/manifest.json` (new)
+- `bin/native/pairofcleats-tui[.exe]` (new)
+- `bin/pairofcleats-tui.js` (new)
+- `bin/pairofcleats.js` (~L1-L738)
+- `docs/` (new)
+- `docs/config/contract.md` (~L1-L406)
+- `docs/config/schema.json` (~L1-L536)
+- `docs/guides/commands.md` (~L1-L165)
+- `docs/guides/tui.md` (new)
+- `docs/language/benchmarks.md` (~L1-L71)
+- `docs/specs/dispatcher-rewrite-and-search-reconciliation.md` (~L1-L252)
+- `docs/specs/node-supervisor-protocol.md` (~L1-L267)
+- `docs/specs/progress-protocol-v2.md` (~L1-L297)
+- `docs/specs/spimi-spill.md` (~L1-L788)
+- `docs/specs/subprocess-helper.md` (~L1-L229)
+- `docs/specs/supervisor-artifacts-indexing-pass.md` (~L1-L138)
+- `docs/specs/tui-installation.md` (~L1-L172)
+- `docs/specs/tui-tool-contract.md` (~L1-L83)
+- `docs/testing/test-runner-interface.md` (~L1-L301)
+- `src/retrieval/cli-args.js` (~L1-L193)
+- `src/shared/` (new)
+- `src/shared/cli/display.js` (~L1-L339)
+- `src/shared/cli/progress-events.js` (~L1-L34)
+- `src/shared/cli/progress-stream.js` (new)
+- `src/shared/cli/stdout-guard.js` (new)
+- `src/shared/dispatch/` (new)
+- `src/shared/dispatch/manifest.js` (new)
+- `src/shared/dispatch/registry.js` (new)
+- `src/shared/env.js` (~L1-L118)
+- `src/shared/kill-tree.js` (new)
+- `src/shared/subprocess.js` (~L1-L437)
+- `src/storage/backend-policy.js` (~L1-L193)
+- `tests/dispatch/manifest-describe-search.test.js` (new)
+- `tests/dispatch/manifest-list.test.js` (new)
+- `tests/helpers/kill-tree.js` (~L1-L58)
+- `tests/runner/run-execution.js` (~L1-L288)
+- `tests/shared/kill-tree.posix.test.js` (new)
+- `tests/shared/kill-tree.windows.test.js` (new)
+- `tests/tools/bootstrap-json-output.test.js` (new)
+- `tests/tools/setup-json-output.test.js` (new)
+- `tools/analysis/explain-risk.js` (~L1-L241)
+- `tools/analysis/structural-search.js` (~L1-L100)
+- `tools/api/router/search.js` (~L1-L150)
+- `tools/api/server.js` (~L1-L116)
+- `tools/bench/**` (new)
+- `tools/bench/dict-seg.js` (~L1-L189)
+- `tools/bench/language-*` (new)
+- `tools/bench/language-repos.js` (~L1-L766)
+- `tools/bench/language/cli.js` (~L1-L141)
+- `tools/bench/language/process.js` (~L1-L165)
+- `tools/bench/map/build-map-memory.js` (~L1-L89)
+- `tools/bench/map/build-map-streaming.js` (~L1-L149)
+- `tools/bench/micro/compression.js` (~L1-L197)
+- `tools/bench/micro/extractors.js` (~L1-L205)
+- `tools/bench/micro/hash.js` (~L1-L119)
+- `tools/bench/micro/regex.js` (~L1-L180)
+- `tools/bench/micro/run.js` (~L1-L319)
+- `tools/bench/micro/tinybench.js` (~L1-L381)
+- `tools/bench/micro/watch.js` (~L1-L159)
+- `tools/bench/query-generator.js` (~L1-L108)
+- `tools/bench/symbol-resolution-bench.js` (~L1-L225)
+- `tools/bench/vfs/bloom-negative-lookup.js` (~L1-L140)
+- `tools/bench/vfs/cdc-segmentation.js` (~L1-L188)
+- `tools/bench/vfs/coalesce-docs.js` (~L1-L200)
+- `tools/bench/vfs/cold-start-cache.js` (~L1-L163)
+- `tools/bench/vfs/hash-routing-lookup.js` (~L1-L163)
+- `tools/bench/vfs/io-batching.js` (~L1-L129)
+- `tools/bench/vfs/merge-runs-heap.js` (~L1-L242)
+- `tools/bench/vfs/parallel-manifest-build.js` (~L1-L135)
+- `tools/bench/vfs/partial-lsp-open.js` (~L1-L186)
+- `tools/bench/vfs/segment-hash-cache.js` (~L1-L169)
+- `tools/bench/vfs/token-uri-encode.js` (~L1-L176)
+- `tools/bench/vfs/vfsidx-lookup.js` (~L1-L173)
+- `tools/bootstrap/*` (new)
+- `tools/build/lmdb-index.js` (~L1-L370)
+- `tools/build/sqlite-index.js` (~L1-L13)
+- `tools/build/sqlite/runner.js` (~L1-L659)
+- `tools/build/tantivy-index.js` (~L1-L127)
+- `tools/ci/build-artifacts.js` (~L1-L211)
+- `tools/ci/capability-gate.js` (~L1-L193)
+- `tools/ci/run-suite.js` (~L1-L173)
+- `tools/cli-utils.js` (new)
+- `tools/config/**` (new)
+- `tools/config/dump.js` (~L1-L58)
+- `tools/config/reset.js` (~L1-L69)
+- `tools/config/validate.js` (~L1-L76)
+- `tools/docs/repo-inventory.js` (~L1-L243)
+- `tools/docs/script-inventory.js` (~L1-L106)
+- `tools/download/dicts.js` (~L1-L257)
+- `tools/download/extensions.js` (~L1-L705)
+- `tools/download/models.js` (~L1-L85)
+- `tools/eval/run.js` (~L1-L210)
+- `tools/index/cache-gc.js` (~L1-L188)
+- `tools/index/report-artifacts.js` (~L1-L216)
+- `tools/index/validate.js` (~L1-L129)
+- `tools/ingest/ctags.js` (~L1-L182)
+- `tools/ingest/gtags.js` (~L1-L136)
+- `tools/ingest/lsif.js` (~L1-L189)
+- `tools/ingest/scip.js` (~L1-L240)
+- `tools/mcp/tools/handlers/artifacts.js` (~L1-L60)
+- `tools/mcp/tools/handlers/downloads.js` (~L1-L134)
+- `tools/mcp/tools/search-args.js` (~L1-L226)
+- `tools/reports/combined-summary.js` (~L1-L256)
+- `tools/reports/compare-models.js` (~L1-L631)
+- `tools/reports/metrics-dashboard.js` (~L1-L145)
+- `tools/reports/report-code-map.js` (~L1-L270)
+- `tools/setup/*` (new)
+- `tools/setup/bootstrap.js` (~L1-L142)
+- `tools/setup/setup.js` (~L1-L466)
+- `tools/sqlite/verify-extensions.js` (~L1-L132)
+- `tools/tooling/*` (new)
+- `tools/tooling/**` (new)
+- `tools/tooling/detect.js` (~L1-L60)
+- `tools/tooling/doctor.js` (~L1-L78)
+- `tools/tooling/install.js` (~L1-L99)
+- `tools/triage/context-pack.js` (~L1-L264)
+- `tools/tui/download.js` (new)
+- `tools/tui/install.js` (new)
+- `tools/tui/supervisor.js` (new)
 - `tools/sqlite/verify-extensions.js`
 - `tools/tooling/doctor.js`
 - `tools/tooling/detect.js`
