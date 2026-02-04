@@ -756,7 +756,7 @@ Reduce graph traversal overhead and context pack assembly cost while preserving 
 - [ ] Add windowed spill/merge for large neighborhood assembly to cap heap usage.
 - [ ] Add parallel neighborhood expansion per edge type with deterministic merge ordering.
 - [ ] Precompute deterministic edge buckets for truncation (priority + stable sort keys) to avoid per-call sort.
-- [ ] Add lazy witness-path construction; avoid building paths unless requested and within caps.
+- [x] Add lazy witness-path construction; avoid building paths unless requested and within caps.
 - [ ] Add fast edge-filter predicate compiled once per request.
 - [ ] Ensure budget/truncation ordering is deterministic across runs.
 - [ ] Track graph/context-pack timings and memory checkpoints.

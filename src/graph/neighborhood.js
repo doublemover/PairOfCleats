@@ -263,6 +263,8 @@ export const buildGraphNeighborhood = ({
   const edgeSet = new Set();
   const edges = [];
   const paths = [];
+  const pathTargets = [];
+  const pathTargetSet = new Set();
   const parentMap = new Map();
   const queue = [];
 
@@ -617,14 +619,9 @@ export const buildGraphNeighborhood = ({
               edgeType: edge.edgeType
             }
           });
-          if (includePaths && (normalizedCaps.maxPaths == null || paths.length < normalizedCaps.maxPaths)) {
-            const path = buildPathForNode(nextKey);
-            if (path?.to) paths.push(path);
-          } else if (includePaths && normalizedCaps.maxPaths != null && paths.length >= normalizedCaps.maxPaths) {
-            recordTruncation('maxPaths', {
-              limit: normalizedCaps.maxPaths,
-              observed: paths.length
-            });
+          if (includePaths && !pathTargetSet.has(nextKey)) {
+            pathTargetSet.add(nextKey);
+            pathTargets.push(nextKey);
           }
         }
       }
@@ -633,7 +630,22 @@ export const buildGraphNeighborhood = ({
 
   const nodes = Array.from(nodeMap.values()).sort(compareGraphNodes);
   edges.sort(compareGraphEdges);
-  if (includePaths) paths.sort(compareWitnessPaths);
+  if (includePaths) {
+    let targets = pathTargets;
+    if (normalizedCaps.maxPaths != null && targets.length > normalizedCaps.maxPaths) {
+      recordTruncation('maxPaths', {
+        limit: normalizedCaps.maxPaths,
+        observed: targets.length,
+        omitted: targets.length - normalizedCaps.maxPaths
+      });
+      targets = targets.slice(0, normalizedCaps.maxPaths);
+    }
+    for (const key of targets) {
+      const path = buildPathForNode(key);
+      if (path?.to) paths.push(path);
+    }
+    paths.sort(compareWitnessPaths);
+  }
 
   return {
     nodes,
