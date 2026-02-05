@@ -4,6 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { buildAutoPolicy } from '../../src/shared/auto-policy.js';
 import { getEnvConfig, getTestEnvConfig } from '../../src/shared/env.js';
+import { getCacheRoot as getVersionedCacheRoot } from '../../src/shared/cache-roots.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { validateConfig } from '../../src/config/validate.js';
@@ -277,12 +278,7 @@ function normalizeUserConfig(baseConfig) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const envConfig = getEnvConfig();
-  const envRoot = envConfig.cacheRoot || envConfig.homeRoot || '';
-  if (envRoot) return envRoot;
-  if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
-  if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
-  return path.join(os.homedir(), '.cache', 'pairofcleats');
+  return getVersionedCacheRoot();
 }
 
 /**

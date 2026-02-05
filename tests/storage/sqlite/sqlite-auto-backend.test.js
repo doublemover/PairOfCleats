@@ -3,13 +3,13 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-auto');
 const cacheRoot = path.join(tempRoot, '.cache');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -45,7 +45,7 @@ const run = (args, label, config = null) => {
 };
 
 run([buildIndexPath, '--stub-embeddings', '--repo', tempRoot], 'build index');
-run([buildSqlitePath, '--repo', tempRoot], 'build sqlite');
+await runSqliteBuild(tempRoot);
 
 const backendA = JSON.parse(run(
   [searchPath, 'greet', '--json', '--repo', tempRoot],

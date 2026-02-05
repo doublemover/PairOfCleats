@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { resolveOutputPaths } from '../../../../tools/build/sqlite/run.js';
+import { resolveOutputPaths } from '../../../../tools/build/sqlite/output-paths.js';
 
 const sqlitePaths = {
   codePath: path.join('C:', 'cache', 'index-code.db'),
@@ -22,4 +22,4 @@ assert.equal(allPaths.proseOutPath, path.join(outDir, 'index-prose.db'));
 const fileOut = resolveOutputPaths({ modeArg: 'prose', outArg: path.join(outDir, 'custom.db'), sqlitePaths });
 assert.equal(fileOut.outPath, path.join(outDir, 'custom.db'));
 
-console.log('build-sqlite-index output paths test passed');
+console.log('sqlite output paths test passed');

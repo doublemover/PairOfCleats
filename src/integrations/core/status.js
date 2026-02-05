@@ -184,7 +184,7 @@ export async function getStatus(input = {}) {
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `node tools/build/sqlite-index.js` to rebuild SQLite indexes.');
+    health.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite indexes.');
   }
 
   const lmdbIssues = [];

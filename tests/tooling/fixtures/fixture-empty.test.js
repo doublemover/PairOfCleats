@@ -4,11 +4,11 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'empty');
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 
 if (!fs.existsSync(fixtureRoot)) {
   console.error(`Missing empty fixture at ${fixtureRoot}`);
@@ -41,7 +41,7 @@ function run(args, label) {
 }
 
 run([buildIndexPath, '--stub-embeddings', '--repo', fixtureRoot], 'build index (empty)');
-run([buildSqlitePath, '--repo', fixtureRoot], 'build sqlite (empty)');
+await runSqliteBuild(fixtureRoot);
 
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);

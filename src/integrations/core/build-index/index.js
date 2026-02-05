@@ -148,6 +148,7 @@ export async function buildIndex(repoRoot, options = {}) {
       argv,
       embedModes,
       embeddingRuntime,
+      userConfig,
       includeEmbeddings,
       overallProgressRef,
       log,
@@ -163,15 +164,14 @@ export async function buildIndex(repoRoot, options = {}) {
       root,
       argv,
       rawArgv,
+      policy,
       userConfig,
-      envelope,
       sqliteModes,
       shouldBuildSqlite,
       includeSqlite,
       overallProgressRef,
       log,
       abortSignal,
-      repoCacheRoot,
       recordIndexMetric,
       options,
       sqliteLogger
@@ -190,6 +190,8 @@ export async function buildIndex(repoRoot, options = {}) {
       argv,
       embedModes,
       embeddingRuntime,
+      userConfig,
+      indexRoot: stage2Result?.buildRoot || null,
       includeEmbeddings,
       overallProgressRef,
       log,
@@ -202,19 +204,21 @@ export async function buildIndex(repoRoot, options = {}) {
     if (stage3Result?.embeddings?.cancelled) {
       return { modes, stage2: stage2Result, stage3: stage3Result, repo: root };
     }
+    const sqliteArgv = stage2Result?.buildRoot
+      ? { ...argv, 'index-root': stage2Result.buildRoot }
+      : argv;
     const stage4Result = await runSqliteStage({
       root,
-      argv,
+      argv: sqliteArgv,
       rawArgv,
+      policy,
       userConfig,
-      envelope,
       sqliteModes,
       shouldBuildSqlite,
       includeSqlite,
       overallProgressRef,
       log,
       abortSignal,
-      repoCacheRoot,
       recordIndexMetric,
       options,
       sqliteLogger

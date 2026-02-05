@@ -1,6 +1,6 @@
 # SQLite Index Schema
 
-This schema is created by `tools/build/sqlite-index.js`.
+This schema is created by the SQLite stage of `build_index.js` (stage 4).
 
 ## Core tables
 
@@ -103,6 +103,6 @@ SQLite vector extension).
 - Split DBs use per-mode chunk IDs directly (no offsets).
 - `idx_chunks_file`, `idx_chunks_file_id`, and `idx_file_manifest_mode_file` speed file-level updates.
 - File paths in SQLite are normalized to use `/`.
-- When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
+- When `chunk_meta.json` stores `fileId` instead of `file`, the stage 4 SQLite build uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
 - When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
 - Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 10); mismatches require a full rebuild.

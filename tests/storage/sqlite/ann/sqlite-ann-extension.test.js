@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/shared/dict-utils.js';
 import { requireSqliteVec } from '../../../helpers/optional-deps.js';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -56,7 +57,7 @@ function run(args, label) {
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+await runSqliteBuild(repoRoot);
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -132,7 +133,7 @@ if (!stats.annExtension?.available?.code) {
 
 await fsPromises.rm(deletableFile, { force: true });
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
+await runSqliteBuild(repoRoot, { mode: 'code', incremental: true });
 
 const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);
 const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });

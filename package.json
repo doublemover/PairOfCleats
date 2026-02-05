@@ -26,7 +26,6 @@
     "lsif-ingest": "node tools/ingest/lsif.js",
     "gtags-ingest": "node tools/ingest/gtags.js",
     "structural-search": "node tools/analysis/structural-search.js",
-    "build-sqlite-index": "node tools/build/sqlite-index.js",
     "build-lmdb-index": "node tools/build/lmdb-index.js",
     "build-tantivy-index": "node tools/build/tantivy-index.js",
     "report-artifacts": "node tools/index/report-artifacts.js",

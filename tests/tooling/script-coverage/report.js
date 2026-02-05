@@ -1,6 +1,5 @@
 const TIER_B_DEFAULT = [
   'build-index',
-  'build-sqlite-index',
   'build-lmdb-index',
   'compact-sqlite-index'
 ];

@@ -42,7 +42,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
       sqliteReport.ok = false;
       sqliteReport.issues.push(...sqliteIssues);
       sqliteIssues.forEach((issue) => report.issues.push(`[sqlite] ${issue}`));
-      report.hints.push('Run `node tools/build/sqlite-index.js` to rebuild SQLite artifacts.');
+      report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
     } else {
       let Database = null;
       try {
@@ -66,7 +66,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
               const issue = `${label} missing tables: ${missing.join(', ')}`;
               sqliteReport.issues.push(issue);
               report.issues.push(`[sqlite] ${issue}`);
-              report.hints.push('Run `node tools/build/sqlite-index.js` to rebuild SQLite artifacts.');
+              report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
             }
           } finally {
             db.close();

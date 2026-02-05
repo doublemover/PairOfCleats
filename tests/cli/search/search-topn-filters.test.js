@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'search-topn-filters');
@@ -50,7 +51,7 @@ function run(args, label, options = {}) {
 }
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+await runSqliteBuild(repoRoot);
 
 const searchPath = path.join(root, 'search.js');
 

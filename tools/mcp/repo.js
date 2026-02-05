@@ -389,7 +389,7 @@ export async function configStatus(args = {}) {
     if (missing.length) {
       warnings.push({
         code: 'sqlite_missing',
-        message: `SQLite indexes missing (${missing.join(', ')}). Run node tools/build/sqlite-index.js.`
+        message: `SQLite indexes missing (${missing.join(', ')}). Run "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`
       });
     }
   }

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -47,14 +48,14 @@ function run(args, label) {
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+await runSqliteBuild(repoRoot);
 
 const renamedFile = path.join(repoRoot, 'src', 'renamed.js');
 await fsPromises.rm(deletableFile, { force: true });
 await fsPromises.rename(renameFile, renamedFile);
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot], 'build sqlite index (incremental)');
+await runSqliteBuild(repoRoot, { incremental: true });
 run([path.join(root, 'tools', 'build', 'compact-sqlite-index.js'), '--repo', repoRoot], 'compact sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);

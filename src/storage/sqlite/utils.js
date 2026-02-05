@@ -11,6 +11,7 @@ import {
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
+import { logLine } from '../../shared/progress.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -230,7 +231,11 @@ const SQLITE_SIDECARS = ['-wal', '-shm'];
 export async function removeSqliteSidecars(basePath) {
   await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
     try {
-      await fsPromises.rm(`${basePath}${suffix}`, { force: true });
+      const targetPath = `${basePath}${suffix}`;
+      if (fs.existsSync(targetPath)) {
+        logLine(`[sqlite-cleanup] remove ${targetPath}`, { kind: 'status' });
+      }
+      await fsPromises.rm(targetPath, { force: true });
     } catch {}
   }));
 }

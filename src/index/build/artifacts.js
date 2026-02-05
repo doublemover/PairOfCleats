@@ -379,6 +379,9 @@ export async function writeIndexArtifacts(input) {
   });
   const removeArtifact = async (targetPath) => {
     try {
+      if (fsSync.existsSync(targetPath)) {
+        logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
+      }
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };

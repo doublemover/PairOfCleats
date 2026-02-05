@@ -81,6 +81,9 @@ export async function loadIndex(dir, options) {
         yield row;
       }
     } catch (err) {
+      if (err?.message?.startsWith('Missing manifest entry for')) {
+        return;
+      }
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
         console.warn(
           `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`

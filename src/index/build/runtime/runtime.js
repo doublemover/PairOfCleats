@@ -62,7 +62,7 @@ import {
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
+export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoot: indexRootOverride = null } = {}) {
   const initStartedAt = Date.now();
   const logInit = (label, startedAt) => {
     const elapsed = Math.max(0, Date.now() - startedAt);
@@ -264,8 +264,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     || null;
   const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const buildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
-  const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
+  const computedBuildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
+  const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
+  const buildRoot = resolvedIndexRoot || path.join(getBuildsRoot(root, userConfig), computedBuildId);
+  const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
+  if (buildRoot) {
+    const suffix = resolvedIndexRoot ? ' (override)' : '';
+    log(`[init] build root: ${buildRoot}${suffix}`);
+  }
+  if (currentIndexRoot) {
+    log(`[init] current index root: ${currentIndexRoot}`);
+  }
   const loggingConfig = userConfig.logging || {};
   configureRuntimeLogger({
     envConfig,

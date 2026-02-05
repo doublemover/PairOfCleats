@@ -164,7 +164,7 @@ export async function createSqliteBackend(options) {
     const tableNames = new Set(tableRows.map((row) => row.name));
     const missing = requiredTables.filter((name) => !tableNames.has(name));
     if (missing.length) {
-      const message = `SQLite index ${label} is missing required tables (${formatMissingList(missing)}). Rebuild with node tools/build/sqlite-index.js.`;
+      const message = `SQLite index ${label} is missing required tables (${formatMissingList(missing)}). Rebuild with "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -184,7 +184,7 @@ export async function createSqliteBackend(options) {
       }
     }
     if (columnIssues.length) {
-      const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with node tools/build/sqlite-index.js.`;
+      const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -222,7 +222,7 @@ export async function createSqliteBackend(options) {
     }
     if (!hasVectorTable(db, config.table)) {
       if (!vectorAnnWarned) {
-        console.warn(`[ann] SQLite vector table missing (${config.table}). Rebuild with node tools/build/sqlite-index.js.`);
+        console.warn(`[ann] SQLite vector table missing (${config.table}). Rebuild with "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`);
         vectorAnnWarned = true;
       }
       return;

@@ -757,6 +757,18 @@ export const enqueueChunkMetaArtifacts = async ({
   }
 
   if (resolvedUseJsonl) {
+    if (resolvedUseShards) {
+      log(`[chunk_meta] writing sharded JSONL -> ${path.join(outDir, 'chunk_meta.parts')}`);
+    } else {
+      log(`[chunk_meta] writing JSONL -> ${jsonlPath}`);
+    }
+  } else if (resolvedUseColumnar) {
+    log(`[chunk_meta] writing columnar -> ${columnarPath}`);
+  } else {
+    log(`[chunk_meta] writing JSON -> ${path.join(outDir, 'chunk_meta.json')}`);
+  }
+
+  if (resolvedUseJsonl) {
     const rows = collected?.rows || null;
     const runs = collected?.runs || null;
     const buckets = collected?.buckets || null;

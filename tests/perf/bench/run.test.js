@@ -12,6 +12,7 @@ import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { attachSilentLogging } from '../../helpers/test-env.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 
@@ -49,7 +50,6 @@ const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const searchPath = path.join(root, 'search.js');
 const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
@@ -383,15 +383,18 @@ if (buildIndex || buildSqlite) {
     }
   }
   if (buildSqlite) {
-    const args = [
-      buildSqlitePath,
-      ...buildProgressArgs,
-      ...buildVerboseArgs,
-      ...buildQuietArgs
-    ];
-    if (repoArg) args.push('--repo', repoArg);
-    if (buildIncremental) args.push('--incremental');
-    buildMs.sqlite = runBuild(args, 'build sqlite', buildEnv);
+    Object.assign(process.env, buildEnv);
+    const sqliteStarted = Date.now();
+    await runSqliteBuild(runtimeRoot, {
+      incremental: buildIncremental,
+      emitOutput: true,
+      logger: {
+        log: logBench,
+        warn: logBench,
+        error: logBench
+      }
+    });
+    buildMs.sqlite = Date.now() - sqliteStarted;
   }
   if (buildIndex && useEmbeddingService) {
     runServiceQueue('embeddings', buildEnv);

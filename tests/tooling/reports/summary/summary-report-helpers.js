@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const ROOT = process.cwd();
 const TEMP_ROOT = path.join(ROOT, '.testCache', 'summary-report');
@@ -92,11 +93,8 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       '--repo',
       REPO_ROOT
     ]);
-    runBuild('build sqlite (repo cache)', repoEnv, [
-      path.join(ROOT, 'tools', 'build/sqlite-index.js'),
-      '--repo',
-      REPO_ROOT
-    ]);
+    Object.assign(process.env, baseEnv, repoEnv);
+    await runSqliteBuild(REPO_ROOT);
 
     const modelCacheRoot = path.join(CACHE_ROOT, 'model-compare', modelSlug(modelId));
     const modelEnv = {
@@ -109,11 +107,8 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       '--repo',
       REPO_ROOT
     ]);
-    runBuild('build sqlite (model cache)', modelEnv, [
-      path.join(ROOT, 'tools', 'build/sqlite-index.js'),
-      '--repo',
-      REPO_ROOT
-    ]);
+    Object.assign(process.env, baseEnv, modelEnv);
+    await runSqliteBuild(REPO_ROOT);
 
     await fsPromises.writeFile(
       MARKER_PATH,

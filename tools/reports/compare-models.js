@@ -362,7 +362,7 @@ for (const modelId of models) {
   }
 
   if (buildSqlite) {
-    const args = [path.join(scriptRoot, 'tools', 'build', 'sqlite-index.js'), '--repo', root];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--stage', '4', '--repo', root];
     if (buildIncremental) args.push('--incremental');
     runCommand(args, env, `build sqlite (${modelId})`);
   } else if (sqliteBackend) {

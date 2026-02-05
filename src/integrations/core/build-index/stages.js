@@ -10,12 +10,12 @@ import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { createBuildScheduler } from '../../../shared/concurrency.js';
-import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
-import { resolveSchedulerConfig, SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
+import { isTestingEnv } from '../../../shared/env.js';
+import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import {
   getCacheRoot,
+  getCurrentBuildInfo,
   getIndexDir,
   getMetricsDir,
   getToolVersion
@@ -33,6 +33,8 @@ export const runEmbeddingsStage = async ({
   argv,
   embedModes,
   embeddingRuntime,
+  userConfig,
+  indexRoot,
   includeEmbeddings,
   overallProgressRef,
   log,
@@ -54,6 +56,18 @@ export const runEmbeddingsStage = async ({
       log('Embeddings disabled; skipping stage3.');
       return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
     }
+    const explicitIndexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
+    const providedIndexRoot = indexRoot ? path.resolve(indexRoot) : null;
+    const buildInfo = explicitIndexRoot
+      ? null
+      : getCurrentBuildInfo(root, userConfig, { mode: embedModes[0] || null });
+    const baseIndexRoot = explicitIndexRoot || providedIndexRoot || null;
+    const resolveModeIndexRoot = (mode) => (
+      baseIndexRoot
+      || (mode ? buildInfo?.buildRoots?.[mode] : null)
+      || buildInfo?.buildRoot
+      || null
+    );
     const lock = await acquireIndexLock({ repoCacheRoot, log });
     if (!lock) throw new Error('Index lock unavailable.');
     try {
@@ -71,6 +85,10 @@ export const runEmbeddingsStage = async ({
         const jobs = [];
         for (const modeItem of embedModes) {
           throwIfAborted(abortSignal);
+          const modeIndexRoot = resolveModeIndexRoot(modeItem);
+          const modeIndexDir = modeIndexRoot
+            ? getIndexDir(root, modeItem, userConfig, { indexRoot: modeIndexRoot })
+            : null;
           const jobId = crypto.randomUUID();
           const result = await enqueueJob(
             queueDir,
@@ -79,6 +97,8 @@ export const runEmbeddingsStage = async ({
               createdAt: new Date().toISOString(),
               repo: root,
               mode: modeItem,
+              buildRoot: modeIndexRoot,
+              indexDir: modeIndexDir,
               reason: 'stage3',
               stage: 'stage3'
             },
@@ -116,7 +136,11 @@ export const runEmbeddingsStage = async ({
       }
       for (const modeItem of embedModes) {
         throwIfAborted(abortSignal);
+        const modeIndexRoot = resolveModeIndexRoot(modeItem);
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeItem];
+        if (modeIndexRoot) {
+          args.push('--index-root', modeIndexRoot);
+        }
         if (Number.isFinite(Number(argv.dims))) {
           args.push('--dims', String(argv.dims));
         }
@@ -197,15 +221,14 @@ export const runSqliteStage = async ({
   root,
   argv,
   rawArgv,
+  policy,
   userConfig,
-  envelope,
   sqliteModes,
   shouldBuildSqlite,
   includeSqlite,
   overallProgressRef,
   log,
   abortSignal,
-  repoCacheRoot,
   recordIndexMetric,
   options,
   sqliteLogger
@@ -215,45 +238,65 @@ export const runSqliteStage = async ({
     recordIndexMetric('stage4', 'ok', started);
     return result;
   };
-  const envConfig = getEnvConfig();
-  const schedulerConfig = resolveSchedulerConfig({
-    argv,
-    rawArgv: rawArgv || [],
-    envConfig,
-    indexingConfig: userConfig?.indexing || {},
-    runtimeConfig: userConfig?.runtime || null,
-    envelope
-  });
-  const scheduler = createBuildScheduler({
-    enabled: schedulerConfig.enabled,
-    lowResourceMode: schedulerConfig.lowResourceMode,
-    cpuTokens: schedulerConfig.cpuTokens,
-    ioTokens: schedulerConfig.ioTokens,
-    memoryTokens: schedulerConfig.memoryTokens,
-    starvationMs: schedulerConfig.starvationMs,
-    queues: schedulerConfig.queues
-  });
-  const scheduleSqlite = (fn) => (scheduler?.schedule
-    ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
-    : fn());
+  let runtime = null;
   try {
     throwIfAborted(abortSignal);
     if (!shouldBuildSqlite) {
       log('SQLite disabled; skipping stage4.');
       return recordOk({ modes: sqliteModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
     }
-    const lock = await acquireIndexLock({ repoCacheRoot, log });
+    if (!sqliteModes.length) return recordOk({ modes: sqliteModes, sqlite: null, repo: root, stage: 'stage4' });
+    const explicitIndexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
+    const buildInfo = explicitIndexRoot
+      ? null
+      : getCurrentBuildInfo(root, userConfig, { mode: sqliteModes[0] || null });
+    if (!explicitIndexRoot && !buildInfo?.buildRoot) {
+      throw new Error('Missing current build for SQLite stage. Run stage2 first or pass --index-root.');
+    }
+    const runtimeIndexRoot = explicitIndexRoot
+      || buildInfo?.buildRoots?.[sqliteModes[0]]
+      || buildInfo?.buildRoot
+      || null;
+    runtime = await createBuildRuntime({
+      root,
+      argv: { ...argv, stage: 'stage4' },
+      rawArgv,
+      policy,
+      indexRoot: runtimeIndexRoot
+    });
+    const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
+      ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
+      : fn());
+    const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
     if (!lock) throw new Error('Index lock unavailable.');
     try {
-      throwIfAborted(abortSignal);
-      if (!sqliteModes.length) return recordOk({ modes: sqliteModes, sqlite: null, repo: root, stage: 'stage4' });
       let sqliteResult = null;
       const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
       for (const mode of sqliteModeList) {
         throwIfAborted(abortSignal);
+        const indexRoot = explicitIndexRoot
+          || buildInfo?.buildRoots?.[mode]
+          || buildInfo?.buildRoot
+          || runtime?.buildRoot
+          || null;
+        if (!indexRoot) {
+          throw new Error(`Missing index root for SQLite stage (mode=${mode}).`);
+        }
+        const codeDir = getIndexDir(root, 'code', userConfig, { indexRoot });
+        const proseDir = getIndexDir(root, 'prose', userConfig, { indexRoot });
+        const extractedProseDir = getIndexDir(root, 'extracted-prose', userConfig, { indexRoot });
+        const recordsDir = getIndexDir(root, 'records', userConfig, { indexRoot });
+        const sqliteOut = path.join(indexRoot, 'index-sqlite');
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,
           incremental: argv.incremental === true,
+          indexRoot,
+          out: sqliteOut,
+          runtime,
+          codeDir,
+          proseDir,
+          extractedProseDir,
+          recordsDir,
           emitOutput: options.emitOutput !== false,
           exitOnError: false,
           logger: sqliteLogger
@@ -275,6 +318,10 @@ export const runSqliteStage = async ({
     }
     recordIndexMetric('stage4', 'error', started);
     throw err;
+  } finally {
+    if (runtime) {
+      await teardownRuntime(runtime);
+    }
   }
 };
 
@@ -431,6 +478,8 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
             mode,
             incremental: stageArgv.incremental === true,
             out: sqliteOut,
+            indexRoot: runtime.buildRoot,
+            runtime,
             codeDir,
             proseDir,
             extractedProseDir,
@@ -492,7 +541,14 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         repoProvenance: runtime.repoProvenance
       });
       await markBuildPhase(runtime.buildRoot, 'promote', 'done');
-      result = { modes, sqlite: sqliteResult, repo: runtime.root, stage };
+      result = {
+        modes,
+        sqlite: sqliteResult,
+        repo: runtime.root,
+        stage,
+        buildRoot: runtime.buildRoot,
+        repoCacheRoot: runtime.repoCacheRoot
+      };
     } finally {
       stopHeartbeat();
       await lock.release();

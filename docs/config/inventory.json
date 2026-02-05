@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T10:33:59.036Z",
+  "generatedAt": "2026-02-05T13:33:54.641Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2463,7 +2463,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 295,
+    "totalFlags": 289,
     "publicFlags": [
       "backend",
       "host",
@@ -2507,12 +2507,10 @@
       "chunk-meta-size",
       "clean",
       "code",
-      "code-dir",
       "collapse",
       "colorize",
       "column",
       "command",
-      "compact",
       "concurrency",
       "config",
       "cors-allow-any",
@@ -2547,7 +2545,6 @@
       "evidence",
       "expires",
       "extensions",
-      "extracted-prose-dir",
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
@@ -2649,7 +2646,6 @@
       "models",
       "module",
       "no-ann",
-      "no-compact",
       "no-fallback",
       "node-list-out",
       "nodes",
@@ -2674,7 +2670,6 @@
       "pretty",
       "progress",
       "properties",
-      "prose-dir",
       "provider",
       "queries",
       "queries-dir",
@@ -2682,7 +2677,6 @@
       "quiet",
       "reason",
       "record",
-      "records-dir",
       "refresh",
       "registry",
       "require-dicts",
@@ -3559,26 +3553,6 @@
         ]
       },
       {
-        "file": "tools/build/sqlite/cli.js",
-        "flags": [
-          "code-dir",
-          "compact",
-          "extracted-prose-dir",
-          "incremental",
-          "index-root",
-          "mode",
-          "no-compact",
-          "out",
-          "progress",
-          "prose-dir",
-          "quiet",
-          "records-dir",
-          "repo",
-          "validate",
-          "verbose"
-        ]
-      },
-      {
         "file": "tools/build/tantivy-index.js",
         "flags": [
           "index-root",
@@ -4089,7 +4063,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 58,
+        "count": 57,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4110,7 +4084,6 @@
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/ci/restore-artifacts.js",
@@ -4204,7 +4177,7 @@
       },
       {
         "flag": "out",
-        "count": 38,
+        "count": 37,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -4228,7 +4201,6 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
-          "tools/build/sqlite/cli.js",
           "tools/ci/build-artifacts.js",
           "tools/config/generate-demo-config.js",
           "tools/dicts/generate-repo-dict.js",
@@ -4248,7 +4220,7 @@
       },
       {
         "flag": "mode",
-        "count": 28,
+        "count": 27,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
@@ -4269,7 +4241,6 @@
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
@@ -4302,7 +4273,7 @@
       },
       {
         "flag": "index-root",
-        "count": 11,
+        "count": 10,
         "files": [
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -4311,7 +4282,6 @@
           "tools/bench/query-generator.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/index/validate.js",
           "tools/reports/report-code-map.js"
@@ -4349,21 +4319,6 @@
         ]
       },
       {
-        "flag": "quiet",
-        "count": 9,
-        "files": [
-          "tools/api/server.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
-        ]
-      },
-      {
         "flag": "format",
         "count": 8,
         "files": [
@@ -4378,27 +4333,13 @@
         ]
       },
       {
-        "flag": "progress",
+        "flag": "quiet",
         "count": 8,
         "files": [
+          "tools/api/server.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "verbose",
-        "count": 8,
-        "files": [
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
@@ -4432,19 +4373,6 @@
         ]
       },
       {
-        "flag": "incremental",
-        "count": 7,
-        "files": [
-          "tools/build/sqlite/cli.js",
-          "tools/ci/build-artifacts.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/setup/bootstrap.js",
-          "tools/setup/setup.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "input",
         "count": 7,
         "files": [
@@ -4455,6 +4383,19 @@
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
           "tools/ingest/scip.js"
+        ]
+      },
+      {
+        "flag": "progress",
+        "count": 7,
+        "files": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
         ]
       },
       {
@@ -4484,6 +4425,19 @@
         ]
       },
       {
+        "flag": "verbose",
+        "count": 7,
+        "files": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
         "flag": "force",
         "count": 6,
         "files": [
@@ -4493,6 +4447,18 @@
           "tools/download/dicts.js",
           "tools/download/extensions.js",
           "tools/index/assemble-pieces.js"
+        ]
+      },
+      {
+        "flag": "incremental",
+        "count": 6,
+        "files": [
+          "tools/ci/build-artifacts.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/setup/bootstrap.js",
+          "tools/setup/setup.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -5395,14 +5361,6 @@
         "files": [
           "tools/download/dicts.js",
           "tools/download/extensions.js"
-        ]
-      },
-      {
-        "flag": "validate",
-        "count": 2,
-        "files": [
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js"
         ]
       },
       {

@@ -6,6 +6,7 @@ import {
   getRepoCacheRoot,
   getToolVersion
 } from '../../shared/dict-utils.js';
+import { logLine } from '../../shared/progress.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
@@ -84,5 +85,6 @@ export async function promoteBuild({
   };
   await fs.mkdir(buildsRoot, { recursive: true });
   await writeJsonObjectFile(currentPath, { fields: payload, atomic: true });
+  logLine(`[build] updated current.json -> ${currentPath}`, { kind: 'status' });
   return payload;
 }

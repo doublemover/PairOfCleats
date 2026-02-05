@@ -10,13 +10,13 @@ This document maps user-visible behavior to implementation, configuration switch
   - Limitations: `records` requires triage record inputs.
 
 - Claim: stage flags gate enrichment (`stage1` sparse, `stage2` relations, `stage3` embeddings, `stage4` sqlite).
-  - Implementation: `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `src/index/build/runtime.js` (`normalizeStage`, `buildStageOverrides`), `tools/build/embeddings.js` (script entrypoint), `tools/build/sqlite-index.js` (script entrypoint).
+- Implementation: `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `src/index/build/runtime.js` (`normalizeStage`, `buildStageOverrides`), `tools/build/embeddings.js` (script entrypoint), SQLite stage in `tools/build/sqlite/runner.js`.
   - Config: CLI `--stage`, `--stage1`, `--stage2`, `--stage3`, `--stage4`; `indexing.twoStage.*`, `indexing.embeddings.*`, `sqlite.use`; environment `PAIROFCLEATS_STAGE`.
   - Tests: `tests/indexing/runtime/two-stage-state.test.js`, `tests/indexing/embeddings/embeddings-validate.test.js`, `tests/storage/sqlite/sqlite-build-indexes.test.js`.
   - Limitations: stage3 requires embeddings; stage4 requires sqlite dependencies.
 
 - Claim: `index_state.json` gates readers on pending stage outputs (embeddings/sqlite/lmdb).
-  - Implementation: `src/index/build/artifacts.js` (`writeIndexArtifacts`), `tools/build/embeddings.js` (index_state updates), `tools/build/sqlite-index.js` (index_state updates), `tools/build/lmdb-index.js` (`updateLmdbState`), `src/retrieval/cli.js` (pending warnings), `src/retrieval/cli/index-loader.js` (`warnPendingState`).
+- Implementation: `src/index/build/artifacts.js` (`writeIndexArtifacts`), `tools/build/embeddings.js` (index_state updates), SQLite stage in `tools/build/sqlite/runner.js` (index_state updates), `tools/build/lmdb-index.js` (`updateLmdbState`), `src/retrieval/cli.js` (pending warnings), `src/retrieval/cli/index-loader.js` (`warnPendingState`).
   - Config: `indexing.twoStage.*`, `indexing.embeddings.*`, `sqlite.use`, `lmdb.use`.
   - Tests: `tests/indexing/runtime/two-stage-state.test.js`, `tests/indexing/embeddings/embeddings-validate.test.js`, `tests/storage/sqlite/incremental/file-manifest-updates.test.js`, `tests/storage/lmdb/lmdb-backend.test.js`.
   - Limitations: manual edits can override gating.

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveIndexRoot } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -61,19 +62,14 @@ await fsPromises.rm(chunkMetaParts, { recursive: true, force: true });
 const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
 await fsPromises.rm(manifestPath, { force: true });
 
-const sqliteBuild = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'build/sqlite-index.js'),
-    '--mode',
-    'code',
-    '--repo',
-    repoRoot
-  ],
-  { cwd: repoRoot, env, encoding: 'utf8' }
-);
-if (sqliteBuild.status === 0) {
-  console.error('Expected build-sqlite-index to fail with missing artifacts.');
+let sqliteFailed = false;
+try {
+  await runSqliteBuild(repoRoot, { mode: 'code' });
+} catch {
+  sqliteFailed = true;
+}
+if (!sqliteFailed) {
+  console.error('Expected sqlite build to fail with missing artifacts.');
   process.exit(1);
 }
 
@@ -95,13 +91,7 @@ run([
   '--repo',
   repoRoot
 ], 'rebuild index');
-run([
-  path.join(root, 'tools', 'build/sqlite-index.js'),
-  '--mode',
-  'code',
-  '--repo',
-  repoRoot
-], 'rebuild sqlite');
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 const refreshedIndexRoot = resolveIndexRoot(repoRoot, userConfig);
 const refreshedCodeDir = getIndexDir(repoRoot, 'code', userConfig, { indexRoot: refreshedIndexRoot });
