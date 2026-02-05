@@ -798,4 +798,13 @@ await writeMeta({ vocabCount, parts, docLengths, avgDocLen, ... });
 
 ---
 
+## Benchmarks
+- `tools/bench/merge/merge-core-throughput.js`
+- `tools/bench/merge/spill-merge-compare.js`
+- `tools/bench/merge/missing-run-file.js` (failure simulation)
+
+## Tests
+- `tests/shared/merge/merge-benchmark-contract.test.js`
+- `tests/shared/merge/merge-cleanup-regression.test.js`
+
 **End of specification.**

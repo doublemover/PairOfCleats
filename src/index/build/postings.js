@@ -518,7 +518,10 @@ export async function buildPostings(input) {
             runs: runs.length,
             rows: 0,
             bytes: mergeResult?.stats?.bytes ?? null,
-            planner: mergeResult?.plannerUsed || false
+            planner: mergeResult?.plannerUsed || false,
+            passes: mergeResult?.stats?.passes ?? null,
+            runsMerged: mergeResult?.stats?.runsMerged ?? null,
+            elapsedMs: mergeResult?.stats?.elapsedMs ?? null
           };
           for await (const row of iterator) {
             const token = row?.token;
@@ -636,7 +639,10 @@ export async function buildPostings(input) {
             runs: runs.length,
             rows: 0,
             bytes: mergeResult?.stats?.bytes ?? null,
-            planner: mergeResult?.plannerUsed || false
+            planner: mergeResult?.plannerUsed || false,
+            passes: mergeResult?.stats?.passes ?? null,
+            runsMerged: mergeResult?.stats?.runsMerged ?? null,
+            elapsedMs: mergeResult?.stats?.elapsedMs ?? null
           };
           for await (const row of iterator) {
             const token = row?.token;

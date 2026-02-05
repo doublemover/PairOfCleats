@@ -412,6 +412,11 @@ export const mergeRunsWithPlanner = async ({
     serialize,
     validateComparator
   });
+  if (finalStats) {
+    finalStats.runsMerged = runs.length;
+    finalStats.passes = passIndex;
+    finalStats.plannerUsed = true;
+  }
   await writeCheckpoint(checkpointPath, checkpointState);
 
   const cleanup = async () => {

@@ -51,3 +51,6 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 - Regression fixture: frontmatter + fenced blocks + inline spans (order-sensitive).
 - Equivalence test: `segment-pipeline` outputs are byte-for-byte equivalent for Markdown inputs.
 - Determinism test: two runs on the same Markdown input produce identical segment ordering.
+
+## Benchmarks
+- `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)

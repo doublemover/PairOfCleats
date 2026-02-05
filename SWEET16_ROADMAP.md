@@ -745,26 +745,28 @@ Tasks:
 - [x] Task 16.5.4.h: Add shared `resolveByteBudget(artifactName, config)` helper.
 
 Tests:
-- [ ] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)
+- [x] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)
 
 ### Subphase 16.5.5 -- Tests + Bench
 Parallel: Run after 16.5.1–16.5.4.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
-Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
+Touchpoints: `src/shared/merge.js (anchor: mergeRunsWithPlanner)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/artifacts/helpers.js (anchor: createRowSpillCollector)`, `src/index/build/artifacts/writers/symbol-edges.js (anchor: writeSymbolEdges)`, `src/index/build/artifacts/writers/symbol-occurrences.js (anchor: writeSymbolOccurrences)`, `src/index/build/build-state.js (anchor: byteBudgets)`, `tools/bench/merge/merge-core-throughput.js`, `tools/bench/merge/spill-merge-compare.js`, `tools/bench/merge/missing-run-file.js`
 Tasks:
-- [ ] Task 16.5.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.5.5.a: Add merge throughput benchmark for large runs.
-- [ ] Task 16.5.5.b: Add byte budget regression test.
-- [ ] Task 16.5.5.c: Add benchmark comparing old/new spill merges.
-- [ ] Task 16.5.5.d: Add documentation updates for budgets and merges.
-- [ ] Task 16.5.5.e: Add build_state counters for spill/merge.
-- [ ] Task 16.5.5.f: Add merge cleanup/compaction regression test.
-- [ ] Task 16.5.5.g: Add benchmark metrics for throughput + heap + spill bytes.
-- [ ] Task 16.5.5.h: Add baseline/current delta line (amount, throughput, percent, duration).
-- [ ] Task 16.5.5.i: Add failure simulation bench for missing run file handling.
+- [x] Task 16.5.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.5.5.a: Add merge throughput benchmark for large runs.
+- [x] Task 16.5.5.b: Add byte budget regression test.
+- [x] Task 16.5.5.c: Add benchmark comparing old/new spill merges.
+- [x] Task 16.5.5.d: Add documentation updates for budgets and merges.
+- [x] Task 16.5.5.e: Add build_state counters for spill/merge.
+- [x] Task 16.5.5.f: Add merge cleanup/compaction regression test.
+- [x] Task 16.5.5.g: Add benchmark metrics for throughput + heap + spill bytes.
+- [x] Task 16.5.5.h: Add baseline/current delta line (amount, throughput, percent, duration).
+- [x] Task 16.5.5.i: Add failure simulation bench for missing run file handling.
 
 Tests:
-- [ ] `tests/shared/merge/merge-benchmark-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/merge-cleanup-regression.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/merge-benchmark-contract.test.js` (perf lane) (new)
 
 ---
 

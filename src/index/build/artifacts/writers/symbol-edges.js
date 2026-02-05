@@ -252,7 +252,12 @@ export const enqueueSymbolEdgesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: formatLabel, budget: budgetInfo }
+    extra: {
+      format: formatLabel,
+      budget: budgetInfo,
+      runsSpilled: stats?.runsSpilled || 0,
+      spillBytes: stats?.spillBytes || 0
+    }
   });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { recursive: true, force: true }).catch(() => {});

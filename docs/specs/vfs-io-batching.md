@@ -93,6 +93,18 @@ Comparator/serializer contract:
 
 ---
 
+## 5.2) Benchmarks + Tests
+
+Benchmarks:
+- `tools/bench/merge/merge-core-throughput.js`
+- `tools/bench/merge/spill-merge-compare.js`
+
+Tests:
+- `tests/indexing/vfs/merge-core-integration.test.js`
+- `tests/shared/merge/merge-cleanup-regression.test.js`
+
+---
+
 ## 6) Related specs
 
 - `docs/specs/vfs-cold-start-cache.md`

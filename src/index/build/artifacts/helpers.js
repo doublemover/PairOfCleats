@@ -227,7 +227,9 @@ export const createTrimStats = () => ({
   trimmedRows: 0,
   droppedRows: 0,
   totalBytes: 0,
-  maxRowBytes: 0
+  maxRowBytes: 0,
+  runsSpilled: 0,
+  spillBytes: 0
 });
 
 export const recordTrimStats = (stats, { rowBytes = 0, trimmed = false, dropped = false } = {}) => {
@@ -304,8 +306,13 @@ export const createRowSpillCollector = ({
     const runName = `${runPrefix || 'rows'}.run-${String(runIndex).padStart(5, '0')}.jsonl`;
     const runPath = path.join(dir, runName);
     runIndex += 1;
+    const spillBytes = bufferBytes;
     await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
     runs.push(runPath);
+    if (stats) {
+      stats.runsSpilled = (stats.runsSpilled || 0) + 1;
+      stats.spillBytes = (stats.spillBytes || 0) + spillBytes;
+    }
     buffer.length = 0;
     bufferBytes = 0;
   };
