@@ -84,7 +84,12 @@ Emit counters:
 ## 5.1) Spill/Merge Integration
 
 When VFS artifacts spill or require merge/compaction, use the shared merge core (`src/shared/merge.js`)
-so ordering and cleanup are consistent with other artifact pipelines.
+so ordering and cleanup are consistent with other artifact pipelines. This includes merging
+`vfs_manifest` spill runs during artifact writes.
+
+Comparator/serializer contract:
+- Ordering uses `compareVfsManifestRows` (virtualPath, segment info, hash routing tie-breaks).
+- Serialization is JSONL via `stringifyJsonValue` to preserve stable ordering and size checks.
 
 ---
 

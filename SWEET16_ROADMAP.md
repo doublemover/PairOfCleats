@@ -715,19 +715,19 @@ Parallel: Can run alongside 16.5.2 after 16.5.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
-- [ ] Task 16.5.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.5.3.a: Replace VFS merge with shared merge core.
-- [ ] Task 16.5.3.b: Replace relations spill/merge with shared merge core.
-- [ ] Task 16.5.3.c: Replace artifact shard merge with shared merge core.
-- [ ] Task 16.5.3.d: Ensure byte thresholds are used consistently.
-- [ ] Task 16.5.3.e: Add unified cleanup for spill artifacts.
-- [ ] Task 16.5.3.f: Define per-adopter comparator + serializer contracts for VFS/relations/artifacts.
-- [ ] Task 16.5.3.g: Add byte-budget policy mapping for VFS/relations/artifacts (fail vs truncate).
-- [ ] Task 16.5.3.h: Add spill cleanup regression test for VFS/relations/artifacts.
+- [x] Task 16.5.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.5.3.a: Replace VFS merge with shared merge core.
+- [x] Task 16.5.3.b: Replace relations spill/merge with shared merge core.
+- [x] Task 16.5.3.c: Replace artifact shard merge with shared merge core.
+- [x] Task 16.5.3.d: Ensure byte thresholds are used consistently.
+- [x] Task 16.5.3.e: Add unified cleanup for spill artifacts.
+- [x] Task 16.5.3.f: Define per-adopter comparator + serializer contracts for VFS/relations/artifacts.
+- [x] Task 16.5.3.g: Add byte-budget policy mapping for VFS/relations/artifacts (fail vs truncate).
+- [x] Task 16.5.3.h: Add spill cleanup regression test for VFS/relations/artifacts.
 
 Tests:
-- [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane) (new)
-- [ ] `tests/indexing/relations/merge-core-integration.test.js` (perf lane) (new)
+- [x] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/merge-core-integration.test.js` (perf lane) (new)
 
 ### Subphase 16.5.4 -- Byte Budget Policy
 Parallel: Can run alongside 16.5.1; must land before 16.5.5.

@@ -15,13 +15,13 @@ import { createJsonWriteStream, writeChunk } from '../../../../shared/json-strea
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
+import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareVfsManifestRows,
   trimVfsManifestRow,
   buildVfsHashVirtualPath
 } from '../../../tooling/vfs.js';
 import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
-import { mergeSortedRuns } from '../helpers.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';

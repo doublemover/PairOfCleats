@@ -9,13 +9,13 @@ import {
 } from '../../../../shared/json-stream.js';
 import { fromPosix, toPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareSymbolEdgeRows,
   createOffsetsIndexMeta,
   createOffsetsMeta,
   createRowSpillCollector,
   createTrimStats,
-  mergeSortedRuns,
   recordArtifactTelemetry,
   writePerFileVarintIndex
 } from '../helpers.js';

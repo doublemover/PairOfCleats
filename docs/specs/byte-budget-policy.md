@@ -26,6 +26,14 @@
 - relations: large
 - VFS: medium
 
+## Artifact Policy Mapping
+- vfs_manifest: fail if any row exceeds maxJsonBytes; shard when totalBytes exceeds maxJsonBytes.
+- symbol_occurrences / symbol_edges: trim oversized rows first; drop if still above MAX_ROW_BYTES.
+- symbol_occurrences ordering: compare by host file/chunkUid, role, ref targetName, then status.
+- symbol_edges ordering: compare by from chunkUid, type, to targetName, then status.
+- chunk_meta: trim fields in priority order; if still above maxJsonBytes, drop tokens/contexts before final emit.
+- file_relations / repo_map: shard by maxJsonBytes; fail on single-row overflow.
+
 ## Telemetry
 - budget.usedBytes
 - budget.limitBytes
