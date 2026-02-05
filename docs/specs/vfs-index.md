@@ -58,7 +58,15 @@ Consumers:
 
 ---
 
-## 5) Related specs
+## 5) Cache keys (notes)
+
+Any in-process caches that key VFS index lookups MUST use the unified cache-key schema
+(`docs/specs/cache-key-invalidation.md`). Use schema tag `vfs-index-cache-v1` when
+building cache keys.
+
+---
+
+## 6) Related specs
 
 - `docs/specs/vfs-manifest-artifact.md`
 - `docs/specs/vfs-hash-routing.md`

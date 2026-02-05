@@ -1,3 +1,5 @@
+import { buildCacheKey } from '../../shared/cache-key.js';
+
 /** Schema version for the VFS segment hash cache. */
 export const VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
 
@@ -23,7 +25,19 @@ export const buildVfsSegmentHashCacheKey = ({
   const lang = normalizeField(languageId, 'unknown');
   const ext = normalizeField(effectiveExt);
   const range = `${Number.isFinite(Number(segmentStart)) ? Number(segmentStart) : 0}-${Number.isFinite(Number(segmentEnd)) ? Number(segmentEnd) : 0}`;
-  return `${algo}:${fileHash}::${path}::${lang}::${ext}::${range}`;
+  const keyInfo = buildCacheKey({
+    repoHash: `${algo}:${fileHash}`,
+    buildConfigHash: null,
+    mode: 'vfs',
+    schemaVersion: VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION,
+    featureFlags: [`lang:${lang}`, `ext:${ext}`],
+    pathPolicy: 'posix',
+    extra: {
+      containerPath: path,
+      range
+    }
+  });
+  return keyInfo.key;
 };
 
 /** Alias for buildVfsSegmentHashCacheKey. */

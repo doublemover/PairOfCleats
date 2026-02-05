@@ -9,6 +9,7 @@ import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
+import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
@@ -149,6 +150,20 @@ export async function writeIndexArtifacts(input) {
   let fileMetaFingerprint = fileMetaFiles.length
     ? computeFileMetaFingerprint({ files: fileMetaFiles, fileInfoByPath: state?.fileInfoByPath })
     : null;
+  const fileMetaCacheFlags = [
+    `format:${fileMetaFormatConfig || 'auto'}`,
+    `columnarThreshold:${fileMetaColumnarThreshold}`
+  ];
+  const fileMetaCacheKey = fileMetaFingerprint
+    ? buildCacheKey({
+      repoHash: indexState?.repoId || null,
+      buildConfigHash: fileMetaFingerprint,
+      mode,
+      schemaVersion: 'file-meta-cache-v1',
+      featureFlags: fileMetaCacheFlags,
+      pathPolicy: 'posix'
+    }).key
+    : null;
   let fileMeta = null;
   let fileIdByPath = new Map();
   let fileMetaFromCache = false;
@@ -160,7 +175,10 @@ export async function writeIndexArtifacts(input) {
         const metaRaw = readJsonFile(metaPath, { maxBytes: maxJsonBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
-        if (cachedFingerprint === fileMetaFingerprint) {
+        const cachedCacheKey = meta?.cacheKey ?? meta?.extensions?.cacheKey ?? null;
+        const cacheKeyMatches = !!(cachedCacheKey && fileMetaCacheKey && cachedCacheKey === fileMetaCacheKey);
+        const fingerprintMatches = !!(cachedFingerprint && fileMetaFingerprint && cachedFingerprint === fileMetaFingerprint);
+        if (cacheKeyMatches || (!cachedCacheKey && fingerprintMatches)) {
           fileMetaMeta = meta;
           const cached = await loadJsonArrayArtifact(outDir, 'file_meta', { maxBytes, strict: false });
           if (Array.isArray(cached)) {
@@ -541,8 +559,10 @@ export async function writeIndexArtifacts(input) {
               maxPartBytes: fileMetaEstimatedBytes,
               targetMaxBytes: null,
               parts: [{ path: 'file_meta.columnar.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              cacheKey: fileMetaCacheKey || null,
               extensions: {
-                fingerprint: fileMetaFingerprint || null
+                fingerprint: fileMetaFingerprint || null,
+                cacheKey: fileMetaCacheKey || null
               }
             },
             atomic: true
@@ -562,7 +582,7 @@ export async function writeIndexArtifacts(input) {
       enqueueJsonArraySharded('file_meta', fileMeta, {
         maxBytes: maxJsonBytes,
         piece: { type: 'chunks', name: 'file_meta' },
-        metaExtensions: { fingerprint: fileMetaFingerprint || null },
+        metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,
         gzipOptions: null
       });
@@ -587,8 +607,10 @@ export async function writeIndexArtifacts(input) {
               maxPartBytes: fileMetaEstimatedBytes,
               targetMaxBytes: null,
               parts: [{ path: 'file_meta.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              cacheKey: fileMetaCacheKey || null,
               extensions: {
-                fingerprint: fileMetaFingerprint || null
+                fingerprint: fileMetaFingerprint || null,
+                cacheKey: fileMetaCacheKey || null
               }
             },
             atomic: true

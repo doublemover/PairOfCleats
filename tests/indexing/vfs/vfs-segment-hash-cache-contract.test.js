@@ -35,9 +35,25 @@ const key = buildKey({
   segmentEnd: 42
 });
 
-assert.ok(String(key).includes('sha1:abc123'), 'Expected key to include file hash prefix.');
-assert.ok(String(key).includes('src/app.js'), 'Expected key to include containerPath.');
-assert.ok(String(key).includes('0-42'), 'Expected key to include segment range.');
+assert.ok(String(key).startsWith('pairofcleats:ck1:'), 'Expected key to include cache namespace prefix.');
+const keyWithRange = buildKey({
+  fileHash: 'abc123',
+  fileHashAlgo: 'sha1',
+  containerPath: 'src/app.js',
+  segmentUid: 'segu:v1:abc',
+  segmentStart: 0,
+  segmentEnd: 43
+});
+assert.notEqual(key, keyWithRange, 'Expected key to change when segment range changes.');
+const keyWithHash = buildKey({
+  fileHash: 'def456',
+  fileHashAlgo: 'sha1',
+  containerPath: 'src/app.js',
+  segmentUid: 'segu:v1:abc',
+  segmentStart: 0,
+  segmentEnd: 42
+});
+assert.notEqual(key, keyWithHash, 'Expected key to change when file hash changes.');
 
 if (typeof mod.createVfsSegmentHashCache === 'function') {
   const cache = mod.createVfsSegmentHashCache({ maxEntries: 1 });

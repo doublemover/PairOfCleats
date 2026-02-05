@@ -15,9 +15,17 @@ const key = buildVfsSegmentHashCacheKey({
   segmentEnd: 10
 });
 
-assert.ok(String(key).includes('sha1:abc123'), 'Expected key to include file hash prefix.');
-assert.ok(String(key).includes('src/app.js'), 'Expected key to include container path.');
-assert.ok(String(key).includes('0-10'), 'Expected key to include segment range.');
+assert.ok(String(key).startsWith('pairofcleats:ck1:'), 'Expected key to include cache namespace prefix.');
+const keyRange = buildVfsSegmentHashCacheKey({
+  fileHash: 'abc123',
+  fileHashAlgo: 'sha1',
+  containerPath: 'src/app.js',
+  languageId: 'javascript',
+  effectiveExt: '.js',
+  segmentStart: 0,
+  segmentEnd: 11
+});
+assert.notEqual(key, keyRange, 'Expected key to change when segment range changes.');
 
 const cache = createVfsSegmentHashCache({ maxEntries: 2 });
 cache.set('k1', 'v1');

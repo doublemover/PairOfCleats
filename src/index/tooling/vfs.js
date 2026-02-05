@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
+import { buildCacheKey } from '../../shared/cache-key.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { fromPosix, toPosix } from '../../shared/files.js';
 import { buildChunkRef } from '../../shared/identity.js';
@@ -21,6 +22,7 @@ export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
 const VFS_DOC_HASH_CACHE = new Map();
 const VFS_DOC_HASH_CACHE_MAX = 50000;
+const VFS_DOC_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
 const VFS_COLD_START_SCHEMA_VERSION = '1.0.0';
 const VFS_COLD_START_DIR = 'vfs-cold-start';
 const VFS_COLD_START_META = 'vfs_cold_start.meta.json';
@@ -106,8 +108,27 @@ const buildDocHashCacheKey = ({
   const algo = fileHashAlgo || 'sha1';
   const lang = languageId || 'unknown';
   const ext = effectiveExt || '';
-  return `${algo}:${fileHash}::${lang}::${ext}::${segmentStart}-${segmentEnd}`;
+  const range = `${segmentStart}-${segmentEnd}`;
+  return buildCacheKey({
+    repoHash: `${algo}:${fileHash}`,
+    buildConfigHash: null,
+    mode: 'vfs',
+    schemaVersion: VFS_DOC_HASH_CACHE_SCHEMA_VERSION,
+    featureFlags: [`lang:${lang}`, `ext:${ext}`],
+    pathPolicy: 'posix',
+    extra: { range }
+  }).key;
 };
+
+const buildVfsDiskCacheKey = ({ baseDir, virtualPath }) => buildCacheKey({
+  repoHash: baseDir || '',
+  buildConfigHash: null,
+  mode: 'vfs',
+  schemaVersion: 'vfs-disk-cache-v1',
+  featureFlags: null,
+  pathPolicy: 'posix',
+  extra: { virtualPath: virtualPath || '' }
+}).key;
 
 const getCachedDocHash = (cacheKey) => {
   if (!cacheKey) return null;
@@ -712,7 +733,7 @@ export const ensureVfsDiskDocument = async ({
   docHash = null,
   coldStartCache = null
 }) => {
-  const cacheKey = `${baseDir}::${virtualPath}`;
+  const cacheKey = buildVfsDiskCacheKey({ baseDir, virtualPath });
   const cachedPath = coldStartCache?.get
     ? coldStartCache.get({ virtualPath, docHash })
     : null;

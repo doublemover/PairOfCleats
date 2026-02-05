@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
+import { buildCacheKey } from '../../shared/cache-key.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -422,6 +423,7 @@ export function resolveImportLinks({
   importsByFile,
   fileRelations,
   log,
+  mode = null,
   enableGraph = true,
   graphMeta = null,
   cache = null,
@@ -440,7 +442,8 @@ export function resolveImportLinks({
       specs: 0,
       specsReused: 0,
       specsComputed: 0,
-      packageInvalidated: false
+      packageInvalidated: false,
+      fileSetInvalidated: false
     })
     : null;
   if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
@@ -451,9 +454,39 @@ export function resolveImportLinks({
     && fileSetFingerprint
     && cacheState.fileSetFingerprint !== fileSetFingerprint);
   const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs) : null;
+  const repoHash = cacheState ? sha1(lookup.rootAbs) : null;
+  const cacheKeyInfo = cacheState && fileSetFingerprint
+    ? buildCacheKey({
+      repoHash,
+      buildConfigHash: packageFingerprint || null,
+      mode,
+      schemaVersion: 'import-resolution-cache-v2',
+      featureFlags: graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : null,
+      pathPolicy: 'posix',
+      extra: { fileSetFingerprint }
+    })
+    : null;
+  const cacheKey = cacheKeyInfo?.key || null;
+  const cacheKeyChanged = !!(cacheState && cacheKey && cacheState.cacheKey && cacheState.cacheKey !== cacheKey);
   if (cacheState && packageFingerprint && cacheState.packageFingerprint
     && cacheState.packageFingerprint !== packageFingerprint) {
     if (cacheMetrics) cacheMetrics.packageInvalidated = true;
+    if (typeof log === 'function') {
+      log('[imports] cache invalidated: package.json fingerprint changed');
+    }
+    cacheState.files = {};
+  }
+  if (cacheState && fileSetChanged) {
+    if (cacheMetrics) cacheMetrics.fileSetInvalidated = true;
+    if (typeof log === 'function') {
+      log('[imports] cache invalidated: file set changed');
+    }
+    cacheState.files = {};
+  }
+  if (cacheState && cacheKeyChanged) {
+    if (typeof log === 'function') {
+      log('[imports] cache invalidated: cache key changed');
+    }
     cacheState.files = {};
   }
   if (cacheState && packageFingerprint) {
@@ -461,6 +494,9 @@ export function resolveImportLinks({
   }
   if (cacheState && fileSetFingerprint) {
     cacheState.fileSetFingerprint = fileSetFingerprint;
+  }
+  if (cacheState && cacheKey) {
+    cacheState.cacheKey = cacheKey;
   }
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
@@ -482,7 +518,18 @@ export function resolveImportLinks({
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
-    return `${importerRel}|${tsKey}|${spec}`;
+    return buildCacheKey({
+      repoHash,
+      buildConfigHash: tsKey,
+      mode,
+      schemaVersion: 'import-resolution-cache-v2',
+      featureFlags: null,
+      pathPolicy: 'posix',
+      extra: {
+        importer: importerRel || '',
+        spec: spec || ''
+      }
+    }).key;
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
@@ -557,11 +604,10 @@ export function resolveImportLinks({
         ? fileCache.specs[spec]
         : null;
       if (cachedSpec && fileSetChanged) {
-        if (cachedSpec.resolvedType === 'unresolved') {
-          cachedSpec = null;
-        } else if (cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
-          cachedSpec = null;
-        }
+        cachedSpec = null;
+      }
+      if (cachedSpec && cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
+        cachedSpec = null;
       }
       if (cachedSpec) {
         ({

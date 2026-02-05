@@ -12,10 +12,17 @@ Non-goals:
 
 ## 1) Cache key (normative)
 
-Cache entries are keyed by immutable container identity + segment range:
+Cache entries use the unified cache-key schema:
 
 ```
-key = `${fileHashAlgo || 'sha1'}:${fileHash}::${languageId || 'unknown'}::${effectiveExt || ''}::${segmentStart}-${segmentEnd}`
+key = buildCacheKey({
+  repoHash: `${fileHashAlgo || 'sha1'}:${fileHash}`,
+  mode: 'vfs',
+  schemaVersion: '1.0.0',
+  featureFlags: [`lang:${languageId || 'unknown'}`, `ext:${effectiveExt || ''}`],
+  pathPolicy: 'posix',
+  extra: { containerPath, range: `${segmentStart}-${segmentEnd}` }
+})
 ```
 
 Requirements:

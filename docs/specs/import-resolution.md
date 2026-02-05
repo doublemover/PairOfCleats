@@ -49,6 +49,11 @@ Replace co-import adjacency with a true dependency graph and make resolution det
 - Cache tsconfig resolution results by path + mtime + size.
 - If the tsconfig changes, invalidate cached alias resolution and recompute deterministically.
 
+## Import resolution cache (incremental builds)
+- Persistent cache key uses the unified cache-key schema (`import-resolution-cache-v2`).
+- Cache is invalidated when the file set fingerprint changes or `package.json` changes.
+- Both resolved and unresolved entries are re-resolved after a file-set change.
+
 ## Path normalization
 - Normalize all resolved paths to repo-relative POSIX paths.
 - Ensure Windows/drive-letter paths never leak into IRG outputs.

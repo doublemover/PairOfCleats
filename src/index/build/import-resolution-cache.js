@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_FILE = 'import-resolution-cache.json';
 
 const isObject = (value) => (
@@ -18,6 +18,7 @@ const normalizeCache = (raw) => {
     generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : null,
     packageFingerprint: typeof raw.packageFingerprint === 'string' ? raw.packageFingerprint : null,
     fileSetFingerprint: typeof raw.fileSetFingerprint === 'string' ? raw.fileSetFingerprint : null,
+    cacheKey: typeof raw.cacheKey === 'string' ? raw.cacheKey : null,
     files
   };
 };
@@ -37,6 +38,7 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
         generatedAt: null,
         packageFingerprint: null,
         fileSetFingerprint: null,
+        cacheKey: null,
         files: {}
       },
       cachePath
@@ -57,6 +59,7 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
       generatedAt: null,
       packageFingerprint: null,
       fileSetFingerprint: null,
+      cacheKey: null,
       files: {}
     },
     cachePath
@@ -70,6 +73,7 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
     generatedAt: new Date().toISOString(),
     packageFingerprint: typeof cache.packageFingerprint === 'string' ? cache.packageFingerprint : null,
     fileSetFingerprint: typeof cache.fileSetFingerprint === 'string' ? cache.fileSetFingerprint : null,
+    cacheKey: typeof cache.cacheKey === 'string' ? cache.cacheKey : null,
     files: isObject(cache.files) ? cache.files : {}
   };
   try {

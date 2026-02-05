@@ -477,6 +477,12 @@ Touchpoints:
 - `src/lang/tree-sitter/chunking.js` (anchor: resolveChunkCacheKey)
 - `src/graph/store.js` (anchor: buildGraphIndexCacheKey)
 - `src/graph/suggest-tests.js` (anchor: TEST_MATCHER_CACHE_MAX)
+- `src/retrieval/output/summary.js` (anchor: summaryCache)
+- `src/retrieval/output/format.js` (anchor: formatCache)
+- `src/retrieval/cli-sqlite.js` (anchor: sqliteChunkCountCache)
+- `src/retrieval/cli-index.js` (anchor: buildQueryCacheKey)
+- `src/retrieval/index-cache.js` (anchor: indexSignatureCache)
+- `src/shared/embedding-adapter.js` (anchor: pipelineCache)
 - `tools/build/embeddings/cache.js` (anchor: buildCacheKey)
 - `tools/build/embeddings/runner.js` (anchor: buildCacheIdentity)
 - `tools/reports/report-code-map.js` (anchor: buildMapCacheKey)
@@ -518,16 +524,16 @@ Parallel: Can run alongside 16.3.2 after 16.3.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, `docs/specs/file-meta.md`
 Touchpoints: see Phase 16.3 list (primary anchors: `src/index/build/import-resolution.js`, `src/index/tooling/vfs.js`, `src/index/build/vfs-segment-hash-cache.js`, `src/index/build/artifacts/file-meta.js`).
 Tasks:
-- [ ] Task 16.3.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.3.3.a: Apply key schema to file_meta cache reuse.
-- [ ] Task 16.3.3.b: Apply key schema to import-resolution cache.
-- [ ] Task 16.3.3.c: Apply key schema to VFS routing/index caches.
-- [ ] Task 16.3.3.d: Add invalidation on file set changes.
-- [ ] Task 16.3.3.e: Add logs for cache eviction reason.
-- [ ] Task 16.3.3.f: Invalidate resolved imports on file-set change (not just unresolved).
+- [x] Task 16.3.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.3.3.a: Apply key schema to file_meta cache reuse.
+- [x] Task 16.3.3.b: Apply key schema to import-resolution cache.
+- [x] Task 16.3.3.c: Apply key schema to VFS routing/index caches.
+- [x] Task 16.3.3.d: Add invalidation on file set changes.
+- [x] Task 16.3.3.e: Add logs for cache eviction reason.
+- [x] Task 16.3.3.f: Invalidate resolved imports on file-set change (not just unresolved).
 
 Tests:
-- [ ] `tests/indexing/imports/cache-invalidation.test.js` (perf lane) (new)
+- [x] `tests/indexing/imports/cache-invalidation.test.js` (perf lane) (new)
 
 ### Subphase 16.3.4 -- Cache Reset + Cleanup
 Parallel: Run after 16.3.1; can overlap with 16.3.2/16.3.3 if isolated to tooling.

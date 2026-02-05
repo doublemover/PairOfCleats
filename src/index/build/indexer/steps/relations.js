@@ -113,6 +113,7 @@ export const postScanImports = async ({
     importsByFile,
     fileRelations: state.fileRelations,
     log,
+    mode,
     enableGraph: scanPlan.importGraphEnabled,
     graphMeta: {
       toolVersion: runtime.toolInfo?.version || null,
