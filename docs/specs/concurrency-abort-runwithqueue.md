@@ -186,6 +186,10 @@ Required mappings:
 * Stage1 postings → `stage1.postings` queue (CPU tokens)
 * Stage2 relations/cross-file → `stage2.relations` queue (CPU tokens)
 * Stage4 sqlite builds → `stage4.sqlite` queue (CPU+IO tokens)
+* Embeddings runner → `embeddings.compute` (CPU tokens for embed batches) and
+  `embeddings.io` (IO tokens for cache/artifact reads and writes). The embeddings
+  pipeline must process one file at a time (no cross-file batching) to keep
+  memory bounded and make scheduler backpressure effective.
 
 Fallback:
 * If the scheduler is disabled or in low-resource bypass mode, runtime queues

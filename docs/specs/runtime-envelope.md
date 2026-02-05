@@ -178,6 +178,11 @@ When the scheduler is enabled (and not in low-resource bypass mode), runtime que
 adapter-backed and schedule work via the scheduler token pools instead of PQueue.
 Stage progress reporting includes scheduler stats in its metadata payload.
 
+The `build-embeddings` tool resolves the scheduler configuration using the same
+envelope inputs (argv, config, env) and schedules embedding compute + artifact IO
+via `embeddings.compute` and `embeddings.io` queues. This keeps Stage3 backpressure
+consistent with the rest of the build pipeline.
+
 Config path:
 - `indexing.scheduler.*` (config file)
 

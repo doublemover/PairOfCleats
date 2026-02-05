@@ -15,7 +15,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | Phase | Status | Notes |
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
-| 16.1 | [@] | Core scheduler + stage wiring done; embeddings integration + benches pending |
+| 16.1 | [@] | Core scheduler + stage wiring + embeddings integration done; benches pending |
 | 16.2 | [ ] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
@@ -332,16 +332,16 @@ Parallel: Can run alongside 16.1.2 after 16.1.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
-- [ ] Task 16.1.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.1.3.a: Gate embeddings compute concurrency via scheduler CPU tokens.
-- [ ] Task 16.1.3.b: Gate embeddings write queue via scheduler IO tokens.
-- [ ] Task 16.1.3.c: Coordinate artifact IO loads with scheduler IO pool.
-- [ ] Task 16.1.3.d: Add scheduler-aware backpressure to embedding runner.
-- [ ] Task 16.1.3.e: Add logging for token starvation events.
+- [x] Task 16.1.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.1.3.a: Gate embeddings compute concurrency via scheduler CPU tokens.
+- [x] Task 16.1.3.b: Gate embeddings write queue via scheduler IO tokens.
+- [x] Task 16.1.3.c: Coordinate artifact IO loads with scheduler IO pool.
+- [x] Task 16.1.3.d: Add scheduler-aware backpressure to embedding runner.
+- [x] Task 16.1.3.e: Add logging for token starvation events.
 Notes: Ensure scheduler defaults do not regress small repos.
 
 Tests:
-- [ ] `tests/indexing/embeddings/scheduler-backpressure.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/embeddings/scheduler-backpressure.test.js` (perf lane) (new)
 
 ### Subphase 16.1.4 -- Scheduler Tests + Bench
 Parallel: Run after 16.1.1–16.1.3.

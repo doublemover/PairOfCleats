@@ -7,9 +7,10 @@ import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getModelConfig, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
 
 export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
+  const resolvedRawArgs = Array.isArray(rawArgs) ? rawArgs : [];
   const argv = createCli({
     scriptName: 'build-embeddings',
-    argv: ['node', 'tools/build/embeddings.js', ...(rawArgs || [])],
+    argv: ['node', 'tools/build/embeddings.js', ...resolvedRawArgs],
     options: {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
@@ -72,6 +73,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     : [embedMode];
 
   return {
+    rawArgv: resolvedRawArgs,
     argv,
     root,
     userConfig,
