@@ -146,7 +146,7 @@ const readJsonLinesFile = async (
  * @param {string} [modelId]
  * @returns {object|null}
  */
-export const loadIndexPieces = (dirOrOptions, modelId) => {
+export const loadIndexPieces = async (dirOrOptions, modelId) => {
   if (dirOrOptions && typeof dirOrOptions === 'object' && !Array.isArray(dirOrOptions)) {
     const { indexDir, modes, modelId: modelIdOverride } = dirOrOptions;
     const baseDir = typeof indexDir === 'string' ? indexDir : null;
@@ -157,7 +157,7 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
       for (const mode of modeList) {
         const suffix = `${path.sep}index-${mode}`;
         const modeDir = baseDir.endsWith(suffix) ? baseDir : path.join(baseDir, `index-${mode}`);
-        const pieces = loadIndexPieces(modeDir, resolvedModelId);
+        const pieces = await loadIndexPieces(modeDir, resolvedModelId);
         if (pieces) piecesByMode[mode] = pieces;
       }
       return piecesByMode;
@@ -171,6 +171,14 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
   if (!sources) return null;
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  let minhash = null;
+  try {
+    minhash = await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
+    }
+  }
   return {
     chunkMeta: null,
     dir,
@@ -178,17 +186,7 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash: (() => {
-      try {
-        return loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
-      } catch (err) {
-        if (err?.code === 'ERR_JSON_TOO_LARGE') {
-          console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
-          return null;
-        }
-        return null;
-      }
-    })(),
+    minhash,
     tokenPostings: null
   };
 };

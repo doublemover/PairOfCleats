@@ -150,23 +150,21 @@ export async function loadIndex(dir, modelId) {
   const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  let minhash = null;
+  try {
+    minhash = await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
+    }
+  }
   return {
     chunkMeta,
     fileMeta: loadOptional(dir, 'file_meta.json'),
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash: (() => {
-      try {
-        return loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
-      } catch (err) {
-        if (err?.code === 'ERR_JSON_TOO_LARGE') {
-          console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
-          return null;
-        }
-        return null;
-      }
-    })(),
+    minhash,
     tokenPostings: (() => {
       const direct = loadOptional(dir, 'token_postings.json');
       if (direct) return direct;
