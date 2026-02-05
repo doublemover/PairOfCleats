@@ -121,12 +121,7 @@ export const loadJsonArrayArtifact = async (
         if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
         return inflated;
       }
-      const out = [];
-      for (const partPath of sources.paths) {
-        const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys: resolvedKeys });
-        for (const entry of part) out.push(entry);
-      }
-      return out;
+      return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys: resolvedKeys });
     }
     throw new Error(`Missing manifest entry for ${baseName}`);
   }
@@ -156,12 +151,7 @@ export const loadJsonArrayArtifact = async (
       if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
       return inflated;
     }
-    const out = [];
-    for (const partPath of sources.paths) {
-      const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys: resolvedKeys });
-      for (const entry of part) out.push(entry);
-    }
-    return out;
+    return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys: resolvedKeys });
   }
   const jsonPath = path.join(dir, `${baseName}.json`);
   if (existsOrBak(jsonPath)) {

@@ -12,6 +12,8 @@ This document defines the on-disk index artifact contracts. Schema validation is
 - Unknown top-level fields are errors when a schema sets `additionalProperties: false`.
 - Most artifact schemas allow `additionalProperties`; use `extensions` for namespaced data but it is not the only permitted location.
 - Columnar artifacts use `{ format: "columnar", columns, arrays, length, tables? }` and inflate to the same row schema as JSON/JSONL.
+- JSONL readers may process shards in parallel but must preserve shard order when concatenating results.
+- JSONL readers use buffer scanning (not line interfaces) and may use small-file fast paths.
 
 ## Sharded JSONL meta schema
 

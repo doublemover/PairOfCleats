@@ -16,6 +16,7 @@ Run benchmarks from the repo root.
 8. `node tools/bench/index/postings-packed.js --mode compare`
 9. `node tools/bench/index/jsonl-compression-pipeline.js --mode compare`
 10. `node tools/bench/index/import-graph-incremental.js --mode compare`
+11. `node tools/bench/index/artifact-io-read.js --mode compare`
 
 Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
 
@@ -70,3 +71,8 @@ Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`
 
 - Target: high reuse ratio with faster warm runs.
 - Output: reuse ratio, invalidations, and duration delta.
+
+### Artifact IO read
+
+- Target: higher rows/sec with deterministic shard ordering.
+- Output: rows/sec, bytes/sec, and delta vs baseline.

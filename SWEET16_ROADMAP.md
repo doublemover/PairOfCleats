@@ -16,7 +16,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
 | 16.1 | [x] | Scheduler core + stage wiring + embeddings integration + tests/bench complete |
-| 16.2 | [ ] |  |
+| 16.2 | [@] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
@@ -375,17 +375,17 @@ Parallel: Can run alongside 16.2.2; complete before 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
-- [ ] Task 16.2.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.2.1.a: Implement buffer-scanner JSONL reader (replace readline).
-- [ ] Task 16.2.1.b: Add adaptive highWaterMark based on file size.
-- [ ] Task 16.2.1.c: Add shard read concurrency with deterministic ordering.
-- [ ] Task 16.2.1.d: Add telemetry sampling for large reads.
-- [ ] Task 16.2.1.e: Add decompression offload for large shards.
-- [ ] Task 16.2.1.f: Add small-file fast path to avoid overhead on tiny artifacts.
+- [x] Task 16.2.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.2.1.a: Implement buffer-scanner JSONL reader (replace readline).
+- [x] Task 16.2.1.b: Add adaptive highWaterMark based on file size.
+- [x] Task 16.2.1.c: Add shard read concurrency with deterministic ordering.
+- [x] Task 16.2.1.d: Add telemetry sampling for large reads.
+- [x] Task 16.2.1.e: Add decompression offload for large shards.
+- [x] Task 16.2.1.f: Add small-file fast path to avoid overhead on tiny artifacts.
 
 Tests:
-- [ ] `tests/shared/artifact-io/jsonl-buffer-scan.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/jsonl-concurrency-order.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/jsonl-buffer-scan.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/jsonl-concurrency-order.test.js` (perf lane) (new)
 
 ### Subphase 16.2.2 -- Compression + Offsets
 Parallel: Can run alongside 16.2.1; complete before 16.2.3/16.2.4.

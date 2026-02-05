@@ -28,11 +28,19 @@ Recorded fields for JSON/JSONL reads:
 - `compression`: `null`, `gzip`, or `zstd`
 - `rawBytes`: compressed or on-disk byte size
 - `bytes`: inflated byte size (when available)
+- `rows`: parsed row count when available
 - `durationMs`: total read + parse duration
 
 Telemetry only fires when:
 - an observer is registered, and
 - the read meets or exceeds `thresholdBytes` (default 8 MB).
+
+## JSONL Reader Fast Paths
+- JSONL parsing uses a buffer scanner (no readline) to avoid per-line interface overhead.
+- Reader highWaterMark adapts to file size for better throughput on large artifacts.
+- Small JSONL files use a buffer scan fast path to avoid stream overhead.
+- Zstd reads use streaming decompression for large shards; buffer decompression is limited to small files.
+- Sharded JSONL reads support bounded parallelism with deterministic ordering.
 
 ## Expectations
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.
