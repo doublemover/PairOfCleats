@@ -14,8 +14,8 @@ Completed Phases: `COMPLETED_PHASES.md`
 ### Phase status summary (update as you go)
 | Phase | Status | Notes |
 | --- | --- | --- |
-| 16.0 | [ ] |  |
-| 16.1 | [ ] |  |
+| 16.0 | [@] | Specs drafted; tests pending |
+| 16.1 | [@] | Core scheduler implemented; tests + wiring pending |
 | 16.2 | [ ] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
@@ -137,18 +137,18 @@ Parallel: Can run alongside 16.0.2–16.0.7; reconcile glossary/terms at end of 
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.1.a: Draft `docs/specs/build-scheduler.md` with goals, non-goals, and scope.
+- [x] Task 16.0.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.1.a: Draft `docs/specs/build-scheduler.md` with goals, non-goals, and scope.
 Details: Include explicit definitions of CPU/IO/memory tokens, what “backpressure” means in this system, and what is explicitly out-of-scope for v1.
-- [ ] Task 16.0.1.b: Define resource model (CPU, IO, memory tokens) and backpressure algorithm.
+- [x] Task 16.0.1.b: Define resource model (CPU, IO, memory tokens) and backpressure algorithm.
 Details: Specify token acquisition/release rules, fairness guarantees, starvation limits, and how memory pressure is measured.
-- [ ] Task 16.0.1.c: Define scheduler API surface and config schema (env + CLI + config file).
+- [x] Task 16.0.1.c: Define scheduler API surface and config schema (env + CLI + config file).
 Details: Document config keys, defaults, precedence rules (env vs CLI vs config), and example configurations.
-- [ ] Task 16.0.1.d: Define priority/queue classes for Stage1/2/4 and embeddings.
+- [x] Task 16.0.1.d: Define priority/queue classes for Stage1/2/4 and embeddings.
 Details: List queue names, priority ordering, and which stage operations map to each queue.
-- [ ] Task 16.0.1.e: Define failure/abort semantics and retry policy.
+- [x] Task 16.0.1.e: Define failure/abort semantics and retry policy.
 Details: Specify how cancellations propagate, when retries occur, and which failures are terminal vs recoverable.
-- [ ] Task 16.0.1.f: Define telemetry fields and required logs.
+- [x] Task 16.0.1.f: Define telemetry fields and required logs.
 Details: Enumerate counters/metrics and required log lines for diagnosing starvation or backlog.
 Notes: Include diagrams for scheduling flow and queue ownership.
 
@@ -161,16 +161,16 @@ Parallel: Can run alongside 16.0.1 and 16.0.3–16.0.7; reconcile glossary/terms
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.2.a: Draft `docs/specs/artifact-io-pipeline.md` with reader/writer lifecycle.
+- [x] Task 16.0.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.2.a: Draft `docs/specs/artifact-io-pipeline.md` with reader/writer lifecycle.
 Details: Define lifecycle steps, expected inputs/outputs, and invariants shared across readers and writers.
-- [ ] Task 16.0.2.b: Specify sharding rules (bytes), offsets format, and compression negotiation.
+- [x] Task 16.0.2.b: Specify sharding rules (bytes), offsets format, and compression negotiation.
 Details: Include the exact offsets schema, shard naming, and compression fallback behavior.
-- [ ] Task 16.0.2.c: Define streaming parser behavior and validation modes.
+- [x] Task 16.0.2.c: Define streaming parser behavior and validation modes.
 Details: Define strict vs fast-path validation and which modes are used in CI vs runtime.
-- [ ] Task 16.0.2.d: Define telemetry and sampling rules for large reads.
+- [x] Task 16.0.2.d: Define telemetry and sampling rules for large reads.
 Details: Specify sampling rates, thresholds, and required telemetry fields.
-- [ ] Task 16.0.2.e: Define atomic write/rename rules and failure handling.
+- [x] Task 16.0.2.e: Define atomic write/rename rules and failure handling.
 Details: Document temp file naming, swap rules, cleanup behavior, and partial-write detection.
 Notes: Breaking changes are allowed; no backward compatibility required.
 
@@ -182,16 +182,16 @@ Parallel: Can run alongside 16.0.1–16.0.2 and 16.0.4–16.0.7; reconcile gloss
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.3.a: Draft `docs/specs/cache-key-invalidation.md` with key schema.
+- [x] Task 16.0.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.3.a: Draft `docs/specs/cache-key-invalidation.md` with key schema.
 Details: Provide the full key schema with all fields and required hashes.
-- [ ] Task 16.0.3.b: Define repo hash, build config hash, mode, and schema version inputs.
+- [x] Task 16.0.3.b: Define repo hash, build config hash, mode, and schema version inputs.
 Details: Specify how each hash is computed and which files/configs are included.
-- [ ] Task 16.0.3.c: Define invalidation triggers for embeddings/file_meta/import/VFS caches.
+- [x] Task 16.0.3.c: Define invalidation triggers for embeddings/file_meta/import/VFS caches.
 Details: List explicit invalidation triggers and how they are detected.
-- [ ] Task 16.0.3.d: Define migration rules for older cache entries.
+- [x] Task 16.0.3.d: Define migration rules for older cache entries.
 Details: Specify version checks and force-rebuild rules (breaking changes allowed).
-- [ ] Task 16.0.3.e: Define explicit TTL/expiry rules where needed.
+- [x] Task 16.0.3.e: Define explicit TTL/expiry rules where needed.
 Details: Identify which caches can expire by time and the default TTLs.
 Notes: Provide a table mapping cache types to required key components.
 
@@ -203,16 +203,16 @@ Parallel: Can run alongside 16.0.1–16.0.3 and 16.0.5–16.0.7; reconcile gloss
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.4.a: Draft `docs/specs/build-truth-ledger.md` with schema and purpose.
+- [x] Task 16.0.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.4.a: Draft `docs/specs/build-truth-ledger.md` with schema and purpose.
 Details: Include schema fields, storage location, and example ledger entries per stage.
-- [ ] Task 16.0.4.b: Define ordering hash rules for chunk_meta, relations, graph outputs.
+- [x] Task 16.0.4.b: Define ordering hash rules for chunk_meta, relations, graph outputs.
 Details: Specify ordering inputs and hash algorithm requirements.
-- [ ] Task 16.0.4.c: Define write cadence and storage location (build_state sidecar).
+- [x] Task 16.0.4.c: Define write cadence and storage location (build_state sidecar).
 Details: Define when ledger entries are appended vs replaced and file naming.
-- [ ] Task 16.0.4.d: Define validation rules and mismatch behaviors.
+- [x] Task 16.0.4.d: Define validation rules and mismatch behaviors.
 Details: Specify warn vs error behavior, and when to trigger rebuilds.
-- [ ] Task 16.0.4.e: Define integration with contracts and validators.
+- [x] Task 16.0.4.e: Define integration with contracts and validators.
 Details: Document how ledger validation integrates with `index-validate`.
 Notes: Include examples of ledger entries for each stage.
 
@@ -224,16 +224,16 @@ Parallel: Can run alongside 16.0.1–16.0.4 and 16.0.6–16.0.7; reconcile gloss
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.5.a: Draft `docs/specs/spill-merge-framework.md` with API and lifecycle.
+- [x] Task 16.0.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.5.a: Draft `docs/specs/spill-merge-framework.md` with API and lifecycle.
 Details: Define API surface, expected inputs/outputs, and lifecycle states.
-- [ ] Task 16.0.5.b: Define k-way merge semantics, heap bounds, and ordering guarantees.
+- [x] Task 16.0.5.b: Define k-way merge semantics, heap bounds, and ordering guarantees.
 Details: Specify merge ordering, tie-breakers, and deterministic guarantees.
-- [ ] Task 16.0.5.c: Define spill triggers (bytes/rows) and retention strategy.
+- [x] Task 16.0.5.c: Define spill triggers (bytes/rows) and retention strategy.
 Details: Include thresholds, how to measure size, and cleanup rules.
-- [ ] Task 16.0.5.d: Define file naming, cleanup, and crash recovery.
+- [x] Task 16.0.5.d: Define file naming, cleanup, and crash recovery.
 Details: Specify temp naming, recovery heuristics, and cleanup lifecycle.
-- [ ] Task 16.0.5.e: Define telemetry fields and performance counters.
+- [x] Task 16.0.5.e: Define telemetry fields and performance counters.
 Details: Enumerate required metrics (spill count, bytes, merge duration, peak heap).
 Notes: Include determinism guarantees and merge stability rules.
 
@@ -245,16 +245,16 @@ Parallel: Can run alongside 16.0.1–16.0.5 and 16.0.7; reconcile glossary/terms
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.6.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.6.a: Draft `docs/specs/byte-budget-policy.md` with global thresholds.
+- [x] Task 16.0.6.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.6.a: Draft `docs/specs/byte-budget-policy.md` with global thresholds.
 Details: Specify default budgets, units, and how they scale with repo size.
-- [ ] Task 16.0.6.b: Define per-artifact budget allocation and enforcement strategy.
+- [x] Task 16.0.6.b: Define per-artifact budget allocation and enforcement strategy.
 Details: Provide allocation table and how budgets are derived per artifact type.
-- [ ] Task 16.0.6.c: Define guard behavior (skip, spill, warn, abort).
+- [x] Task 16.0.6.c: Define guard behavior (skip, spill, warn, abort).
 Details: Specify behavior by severity and artifact category.
-- [ ] Task 16.0.6.d: Define telemetry fields for budget usage.
+- [x] Task 16.0.6.d: Define telemetry fields for budget usage.
 Details: List counters, gauges, and log outputs for budget tracking.
-- [ ] Task 16.0.6.e: Define how budgets affect sharding, compression, and spill.
+- [x] Task 16.0.6.e: Define how budgets affect sharding, compression, and spill.
 Details: Specify decision flow and precedence rules.
 Notes: Include a mapping table from artifact type to default budgets.
 
@@ -266,14 +266,14 @@ Parallel: Can run alongside 16.0.1–16.0.6; reconcile glossary/terms at end of 
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
-- [ ] Task 16.0.7.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.0.7.a: Draft `docs/specs/deterministic-ordering.md` with ordering rules.
+- [x] Task 16.0.7.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.0.7.a: Draft `docs/specs/deterministic-ordering.md` with ordering rules.
 Details: Include ordering rules per artifact and any required stable sorts.
-- [ ] Task 16.0.7.b: Define tie-breakers for chunk_meta, relations, and graph edges.
+- [x] Task 16.0.7.b: Define tie-breakers for chunk_meta, relations, and graph edges.
 Details: Specify tie-breaker fields and their precedence.
-- [ ] Task 16.0.7.c: Define ordering helpers and API surface.
+- [x] Task 16.0.7.c: Define ordering helpers and API surface.
 Details: Document helper functions, inputs, and expected outputs.
-- [ ] Task 16.0.7.d: Define determinism verification strategy and hashes.
+- [x] Task 16.0.7.d: Define determinism verification strategy and hashes.
 Details: Specify how hashes are computed and when they are validated.
 Details: Document breaking-change behavior and how ordering updates are handled.
 Notes: Include a table of ordering keys per artifact.
@@ -296,14 +296,14 @@ Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/spec
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
 - [ ] Task 16.1.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.1.1.a: Implement scheduler core and resource tokens in `src/shared/concurrency.js`.
-- [ ] Task 16.1.1.b: Add queue classes with priorities and fairness.
+- [.] Task 16.1.1.a: Implement scheduler core and resource tokens in `src/shared/concurrency.js`.
+- [.] Task 16.1.1.b: Add queue classes with priorities and fairness.
 - [ ] Task 16.1.1.c: Add config loader for scheduler limits (env/CLI/config).
 - [ ] Task 16.1.1.d: Expose hooks for stage registration and lifecycle.
-- [ ] Task 16.1.1.e: Add telemetry counters and diagnostics export.
-- [ ] Task 16.1.1.f: Add admission-control caps per queue (max backlog) to prevent unbounded memory growth.
-- [ ] Task 16.1.1.g: Add starvation detection metrics (max wait time, token debt) with a fairness override.
-- [ ] Task 16.1.1.h: Add a CPU-only “low-resource mode” fallback for small repos to avoid scheduler overhead.
+- [.] Task 16.1.1.e: Add telemetry counters and diagnostics export.
+- [.] Task 16.1.1.f: Add admission-control caps per queue (max backlog) to prevent unbounded memory growth.
+- [.] Task 16.1.1.g: Add starvation detection metrics (max wait time, token debt) with a fairness override.
+- [.] Task 16.1.1.h: Add a CPU-only “low-resource mode” fallback for small repos to avoid scheduler overhead.
 Notes: Ensure scheduler can be disabled for baseline comparisons.
 
 Tests:
