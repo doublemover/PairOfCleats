@@ -79,3 +79,4 @@ Unsharded JSONL writers now pass `maxBytes` into `writeJsonLinesFile`/`writeJson
 
 - Target: higher rows/sec with deterministic shard ordering.
 - Output: rows/sec, bytes/sec, and delta vs baseline.
+- Note: manifest/meta hot-cache reduces repeated parse overhead in tight loops.

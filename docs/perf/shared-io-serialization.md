@@ -36,6 +36,10 @@ Telemetry only fires when:
 - an observer is registered, and
 - the read meets or exceeds `thresholdBytes` (default 8 MB).
 
+## Manifest + Meta Hot Cache
+- `pieces/manifest.json` and `*.meta.json` reads use a small stat-keyed in-memory cache to avoid repeated JSON parsing in tight loops.
+- Cache entries are keyed by file path + size + mtime; changes invalidate automatically.
+
 ## JSONL Reader Fast Paths
 - JSONL parsing uses a buffer scanner (no readline) to avoid per-line interface overhead.
 - Reader highWaterMark adapts to file size for better throughput on large artifacts.

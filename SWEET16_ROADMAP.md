@@ -423,9 +423,9 @@ Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.3 with clear file ow
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
-- [ ] Task 16.2.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.2.4.a: Migrate loader paths to unified pipeline (chunk_meta, symbols).
-- [ ] Task 16.2.4.b: Add hot parse cache for manifest + meta files.
+  - [x] Task 16.2.4.doc: Update docs/specs and touchpoints listed for this subphase.
+  - [x] Task 16.2.4.a: Migrate loader paths to unified pipeline (chunk_meta, symbols).
+  - [x] Task 16.2.4.b: Add hot parse cache for manifest + meta files.
 - [ ] Task 16.2.4.c: Add bounded parallel artifact loads.
 - [ ] Task 16.2.4.d: Add fallback to full scan when per-file index is invalid.
 - [ ] Task 16.2.4.e: Add missing-artifact detection for partial shards.

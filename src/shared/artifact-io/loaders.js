@@ -14,6 +14,7 @@ import {
 } from './offsets.js';
 import { readVarintDeltasAt } from './varint.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync } from './json.js';
+import { readCache, writeCache } from './cache.js';
 import { resolveJsonlRequiredKeys } from './jsonl.js';
 import { createGraphRelationsShell, appendGraphRelationsEntries, finalizeGraphRelations } from './graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
@@ -27,6 +28,14 @@ const warnNonStrictJsonFallback = (dir, name) => {
   console.warn(
     `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`
   );
+};
+
+const readJsonFileCached = (filePath, options) => {
+  const cached = readCache(filePath);
+  if (cached) return cached;
+  const value = readJsonFile(filePath, options);
+  writeCache(filePath, value);
+  return value;
 };
 
 const validatedOffsets = new Set();
@@ -57,7 +66,7 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
     let parts = [];
     if (existsOrBak(metaPath)) {
       try {
-        const metaRaw = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+        const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         if (Array.isArray(meta?.parts) && meta.parts.length) {
           parts = meta.parts
@@ -440,7 +449,7 @@ export const loadGraphRelations = async (
   const metaPath = path.join(dir, 'graph_relations.meta.json');
   const partsDir = path.join(dir, 'graph_relations.parts');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
-    const metaRaw = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const metaRaw = existsOrBak(metaPath) ? readJsonFileCached(metaPath, { maxBytes }) : null;
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const partList = normalizeMetaParts(meta?.parts);
     const parts = partList.length
@@ -530,7 +539,7 @@ export const loadGraphRelationsSync = (
   const metaPath = path.join(dir, 'graph_relations.meta.json');
   const partsDir = path.join(dir, 'graph_relations.parts');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
-    const metaRaw = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const metaRaw = existsOrBak(metaPath) ? readJsonFileCached(metaPath, { maxBytes }) : null;
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const partList = normalizeMetaParts(meta?.parts);
     const parts = partList.length
@@ -594,12 +603,7 @@ export const loadChunkMeta = async (
         if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
         return inflated;
       }
-      const out = [];
-      for (const partPath of sources.paths) {
-        const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
-        for (const entry of part) out.push(entry);
-      }
-      return out;
+      return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys });
     }
     throw new Error('Missing manifest entry for chunk_meta');
   }
@@ -627,12 +631,7 @@ export const loadChunkMeta = async (
       if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
       return inflated;
     }
-    const out = [];
-    for (const partPath of sources.paths) {
-      const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
-      for (const entry of part) out.push(entry);
-    }
-    return out;
+    return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys });
   }
 
   const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
@@ -667,7 +666,7 @@ export const loadTokenPostings = (
     if (!existsOrBak(metaPath)) {
       throw new Error('Missing token_postings packed meta');
     }
-    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
@@ -796,7 +795,7 @@ export const loadTokenPostings = (
   const metaPath = path.join(dir, 'token_postings.meta.json');
   const shardsDir = path.join(dir, 'token_postings.shards');
   if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {
-    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : {};
+    const meta = existsOrBak(metaPath) ? readJsonFileCached(metaPath, { maxBytes }) : {};
     const partList = normalizeMetaParts(meta?.parts);
     const shards = partList.length
       ? partList.map((name) => path.join(dir, name))
@@ -821,7 +820,7 @@ export const loadMinhashSignatures = async (
   const packedPath = path.join(dir, 'minhash_signatures.packed.bin');
   const metaPath = path.join(dir, 'minhash_signatures.packed.meta.json');
   if (existsOrBak(packedPath) && existsOrBak(metaPath)) {
-    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
     const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
@@ -875,7 +874,7 @@ const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) =
 const loadPerFileIndexMeta = (dir, baseName, { manifest, strict, maxBytes }) => {
   const metaPath = resolvePerFileMetaPath(dir, baseName, { manifest, strict, maxBytes });
   if (!metaPath) return null;
-  const metaRaw = readJsonFile(metaPath, { maxBytes });
+  const metaRaw = readJsonFileCached(metaPath, { maxBytes });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   if (!meta || typeof meta !== 'object') return null;
   return { meta, metaPath };

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
 import { readJsonFile } from './json.js';
+import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env.js';
 import { fromPosix, isAbsolutePathNative, toPosix } from '../files.js';
 
@@ -93,12 +94,17 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     return null;
   }
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes);
+  const cached = readCache(manifestPath);
+  if (cached) return cached;
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
   const manifest = normalizeManifest(raw);
   if (!manifest && strict) {
     const err = new Error(`Invalid pieces manifest: ${manifestPath}`);
     err.code = 'ERR_MANIFEST_INVALID';
     throw err;
+  }
+  if (manifest) {
+    writeCache(manifestPath, manifest);
   }
   return manifest;
 };
