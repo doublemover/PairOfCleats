@@ -874,12 +874,25 @@ Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
 - [ ] Task 16.14.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [ ] Task 16.14.1.doc.1: Enumerate current index_state fields and delta log format.
+- [ ] Task 16.14.1.doc.2: Define compatibility rules for compressed vs plain state.
 - [ ] Task 16.14.1.a: Implement index_state delta compression.
+- [ ] Task 16.14.1.a.1: Define delta encoding (patch list + binary diff) with schema version.
+- [ ] Task 16.14.1.a.2: Add reader that replays deltas into a snapshot.
+- [ ] Task 16.14.1.a.3: Add corruption detection and fallback to last full snapshot.
 - [ ] Task 16.14.1.b: Add comparable-hash skip logic for unchanged writes.
+- [ ] Task 16.14.1.b.1: Track lastComparableHash only after successful write.
+- [ ] Task 16.14.1.b.2: Add guard to reset hash on error.
 - [ ] Task 16.14.1.c: Add size instrumentation with thresholds.
+- [ ] Task 16.14.1.c.1: Emit size stats in build_state and stage audit.
+- [ ] Task 16.14.1.c.2: Define warning/abort thresholds in policy.
 - [ ] Task 16.14.1.d: Add compressed write path for large state.
+- [ ] Task 16.14.1.d.1: Use jsonl + zstd for large state snapshots.
+- [ ] Task 16.14.1.d.2: Ensure loader auto-detects compression by extension.
 - [ ] Task 16.14.1.e: Add ledger integration for index_state.
+- [ ] Task 16.14.1.e.1: Store ordering ledger hash in index_state metadata.
 - [ ] Task 16.14.1.f: Add full snapshot after N deltas to cap chain length.
+- [ ] Task 16.14.1.f.1: Add rolling snapshot cadence (configurable N).
 
 Tests:
 - [ ] `tests/indexing/artifacts/index-state-delta-compression.test.js` (perf lane) (new)
@@ -890,12 +903,25 @@ Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
 - [ ] Task 16.14.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [ ] Task 16.14.2.doc.1: Define columnar schema fields and binary layout.
+- [ ] Task 16.14.2.doc.2: Document fallback behavior and max-bytes thresholds.
 - [ ] Task 16.14.2.a: Default to binary columnar for large repos.
+- [ ] Task 16.14.2.a.1: Add size estimator to choose columnar vs JSONL.
+- [ ] Task 16.14.2.a.2: Emit columnar meta with row counts and checksums.
 - [ ] Task 16.14.2.b: Add JSONL fallback when columnar exceeds cap.
+- [ ] Task 16.14.2.b.1: Detect oversize columnar output and re-run JSONL path.
+- [ ] Task 16.14.2.b.2: Ensure fallback removes columnar outputs to avoid stale reads.
 - [ ] Task 16.14.2.c: Stream file_meta into sqlite build.
+- [ ] Task 16.14.2.c.1: Allow sqlite builder to accept async iterator of rows.
+- [ ] Task 16.14.2.c.2: Add batch insert size config for file_meta ingest.
 - [ ] Task 16.14.2.d: Add reuse cache based on file hash list.
+- [ ] Task 16.14.2.d.1: Persist fingerprint (hash list) in meta extensions.
+- [ ] Task 16.14.2.d.2: Validate fingerprint before reuse and log reuse reason.
 - [ ] Task 16.14.2.e: Add file_meta validity checks.
+- [ ] Task 16.14.2.e.1: Validate required fields + row count parity.
+- [ ] Task 16.14.2.e.2: Detect stale columnar payload and fall back to JSONL.
 - [ ] Task 16.14.2.f: Add MAX_JSON_BYTES guard to force sharding for large columnar outputs.
+- [ ] Task 16.14.2.f.1: Ensure loader uses JSONL when columnar exceeds cap.
 
 Tests:
 - [ ] `tests/indexing/artifacts/file-meta-binary-roundtrip.test.js` (perf lane) (new)
@@ -906,12 +932,23 @@ Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
 - [ ] Task 16.14.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [ ] Task 16.14.3.doc.1: Document packed layout (endianness, alignment, row order).
+- [ ] Task 16.14.3.doc.2: Define skip behavior and cache invalidation rules.
 - [ ] Task 16.14.3.a: Implement SIMD-friendly packed minhash layout.
+- [ ] Task 16.14.3.a.1: Define fixed-width row structure with SIMD alignment.
+- [ ] Task 16.14.3.a.2: Add packer/unpacker utilities with schema version.
 - [ ] Task 16.14.3.b: Add packed consistency checks (checksum + count).
+- [ ] Task 16.14.3.b.1: Store checksum + row count in packed meta file.
+- [ ] Task 16.14.3.b.2: Reject packed reads on mismatch and fall back to JSONL.
 - [ ] Task 16.14.3.c: Add streaming minhash emission to avoid full arrays.
+- [ ] Task 16.14.3.c.1: Emit minhash rows during postings build.
+- [ ] Task 16.14.3.c.2: Allow packer to stream from iterator.
 - [ ] Task 16.14.3.d: Add cleanup of stale packed artifacts when skipped.
+- [ ] Task 16.14.3.d.1: Remove packed files when minhash is intentionally skipped.
 - [ ] Task 16.14.3.e: Add skip guard for large corpora with telemetry.
+- [ ] Task 16.14.3.e.1: Add threshold config and stage audit output.
 - [ ] Task 16.14.3.f: Ensure packed minhash always invalidates when skipped in a build.
+- [ ] Task 16.14.3.f.1: Gate packed loads on manifest or current build signature.
 
 Tests:
 - [ ] `tests/indexing/postings/minhash-packed-consistency.test.js` (perf lane) (new)
