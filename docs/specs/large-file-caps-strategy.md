@@ -225,6 +225,7 @@ Maintenance note: if `watch.js` grows again, prefer extracting additional pure h
 * Token IDs are canonicalized at tokenize time (64-bit hash) to make postings deterministic independent of discovery order.
 * Chunk metadata can store packed token IDs to reduce retention overhead; large-file caps still apply before tokenization.
 * Stage1 now applies a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
+* Stage1 perf coverage includes `tools/bench/index/postings-real.js` (end-to-end) and `tools/bench/index/chargram-postings.js --rolling-hash` (microbench).
 
 ## 8. Future Phase Alignment
 

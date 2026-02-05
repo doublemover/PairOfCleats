@@ -128,7 +128,10 @@ export const processFiles = async ({
     });
   }
   const schedulePostings = runtime?.scheduler?.schedule
-    ? (fn) => runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage1Postings, { cpu: 1, mem: 1 }, fn)
+    // Avoid deadlocking the scheduler when Stage1 CPU work is already holding
+    // the only CPU token (e.g. --threads 1). Postings apply runs on the same
+    // JS thread, so account it against memory/backpressure only.
+    ? (fn) => runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage1Postings, { mem: 1 }, fn)
     : (fn) => fn();
   let checkpoint = null;
   let progress = null;

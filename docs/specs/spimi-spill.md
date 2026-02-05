@@ -806,6 +806,8 @@ await writeMeta({ vocabCount, parts, docLengths, avgDocLen, ... });
 - `tools/bench/merge/merge-core-throughput.js`
 - `tools/bench/merge/spill-merge-compare.js`
 - `tools/bench/merge/missing-run-file.js` (failure simulation)
+- `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)
+- `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)
 
 ## Tests
 - `tests/shared/merge/merge-benchmark-contract.test.js`

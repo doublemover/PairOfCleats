@@ -1135,9 +1135,9 @@ export async function writeIndexArtifacts(input) {
     enqueueJsonObject('vocab_order', {
       fields: {
         algo: 'sha1',
-        generatedAt: new Date().toISOString()
-      },
-      vocab: vocabOrder
+        generatedAt: new Date().toISOString(),
+        vocab: vocabOrder
+      }
     }, {
       piece: { type: 'postings', name: 'vocab_order' }
     });

@@ -61,3 +61,5 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 
 ## Benchmarks
 - `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)
+- `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)
+- `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)

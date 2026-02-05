@@ -1,9 +1,23 @@
 #!/usr/bin/env node
-import { buildPostings } from '../../../src/index/build/postings.js';
+import { buildIndexPostings } from '../../../../src/index/build/indexer/steps/postings.js';
 
 const chunks = [
-  { tokens: ['alpha'], tokenCount: 1, minhashSig: [1, 2] },
-  { tokens: ['beta'], tokenCount: 1, minhashSig: [3, 4] }
+  {
+    tokens: ['alpha'],
+    tokenCount: 1,
+    minhashSig: [1, 2],
+    embedding: [0.1, 0.2],
+    embed_doc: [],
+    embed_code: [0.3, 0.4]
+  },
+  {
+    tokens: ['beta'],
+    tokenCount: 1,
+    minhashSig: [3, 4],
+    embedding: [0.5, 0.6],
+    embed_doc: [0.7, 0.8],
+    embed_code: [0.9, 1.0]
+  }
 ];
 
 const tokenPostings = new Map([
@@ -42,21 +56,29 @@ const fieldDocLengths = {
   literal: [0, 0]
 };
 
-await buildPostings({
-  chunks,
-  df: new Map(),
-  tokenPostings,
-  docLengths: [1, 1],
-  fieldPostings,
-  fieldDocLengths,
-  phrasePost,
-  triPost,
-  postingsConfig: {},
-  modelId: 'test',
-  useStubEmbeddings: true,
-  log: () => {},
-  workerPool: null,
-  embeddingsEnabled: false
+await buildIndexPostings({
+  runtime: {
+    postingsConfig: {},
+    buildRoot: null,
+    modelId: 'test',
+    useStubEmbeddings: true,
+    workerPool: null,
+    quantizePool: null,
+    embeddingEnabled: false,
+    stage: 'stage1'
+  },
+  state: {
+    chunks,
+    df: new Map(),
+    tokenPostings,
+    tokenIdMap: new Map(),
+    docLengths: [1, 1],
+    fieldPostings,
+    fieldDocLengths,
+    phrasePost,
+    triPost,
+    postingsGuard: null
+  }
 });
 
 if (tokenPostings.size !== 0) {
@@ -74,6 +96,13 @@ if (triPost.size !== 0) {
 for (const [field, map] of Object.entries(fieldPostings)) {
   if (map && typeof map.size === 'number' && map.size !== 0) {
     console.error(`postings heap plateau test failed: fieldPostings ${field} not cleared.`);
+    process.exit(1);
+  }
+}
+
+for (const chunk of chunks) {
+  if (chunk && typeof chunk === 'object' && ('embedding' in chunk || 'embed_doc' in chunk || 'embed_code' in chunk)) {
+    console.error('postings heap plateau test failed: float embeddings not cleared from chunk.');
     process.exit(1);
   }
 }

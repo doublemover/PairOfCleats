@@ -73,3 +73,13 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Stage progress reporting includes scheduler stats in its metadata payload for each stage transition.
 - Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.proc`, `stage1.postings`, `stage2.relations`, `stage4.sqlite`) to ensure global backpressure.
 - Stage3 embeddings uses scheduler queues (`embeddings.compute`, `embeddings.io`) for batch compute and artifact/cache IO.
+
+## Stage1 Bench + Regression Coverage
+- `tools/bench/index/postings-real.js`: end-to-end Stage1 `code` benchmark that generates a fixed corpus via `tests/fixtures/medium/generate.js` (default `--seed postings-real --count 500`) and compares baseline/current runs.
+- `tools/bench/index/chargram-postings.js --rolling-hash`: microbench for chargram postings build throughput and key representation (`h64:`) with baseline/current compare.
+- Regression tests:
+- `tests/indexing/postings/postings-real-bench-contract.test.js`
+- `tests/indexing/postings/chargram-bench-contract.test.js`
+- `tests/indexing/postings/chunk-meta-determinism.test.js`
+- `tests/perf/indexing/postings/postings-heap-plateau.test.js`
+- `tests/perf/indexing/postings/stage1-memory-budget.test.js`

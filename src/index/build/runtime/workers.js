@@ -137,7 +137,11 @@ export const createRuntimeQueues = ({
       ? createSchedulerQueueAdapter({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.stage1Proc,
-        tokens: { cpu: 1 },
+        // Proc queue tasks are awaited from within Stage1 CPU tasks; charging them
+        // against the same CPU token pool can deadlock when cpuTokens is small
+        // (e.g. --threads 1). Use memory tokens to preserve backpressure without
+        // blocking nested scheduling.
+        tokens: { mem: 1 },
         maxPending: procPendingLimit,
         concurrency: resolvedProcConcurrency
       })
