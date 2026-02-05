@@ -307,19 +307,31 @@ export function createBuildScheduler(input = {}) {
     tokens.mem.used = Math.max(0, tokens.mem.used - (used?.mem || 0));
   };
 
+  const findStartableIndex = (queue) => {
+    if (!queue?.pending?.length) return -1;
+    for (let i = 0; i < queue.pending.length; i += 1) {
+      if (canStart(queue.pending[i].tokens)) return i;
+    }
+    return -1;
+  };
+
   const pickNextQueue = () => {
     if (!queueOrder.length) return null;
     let starving = null;
+    let picked = null;
     for (const q of queueOrder) {
       if (!q.pending.length) continue;
+      const index = findStartableIndex(q);
+      if (index < 0) continue;
       const waited = nowMs() - q.pending[0].enqueuedAt;
       if (waited >= starvationMs && (!starving || waited > starving.waited)) {
-        starving = { queue: q, waited };
+        starving = { queue: q, waited, index };
+      } else if (!picked) {
+        picked = { queue: q, index };
       }
     }
-    if (starving) return { queue: starving.queue, starved: true };
-    const next = queueOrder.find((q) => q.pending.length) || null;
-    return next ? { queue: next, starved: false } : null;
+    if (starving) return { queue: starving.queue, starved: true, index: starving.index };
+    return picked ? { queue: picked.queue, starved: false, index: picked.index } : null;
   };
 
   const pump = () => {
@@ -327,10 +339,10 @@ export function createBuildScheduler(input = {}) {
     while (true) {
       const pick = pickNextQueue();
       if (!pick) return;
-      const { queue, starved } = pick;
-      const next = queue.pending[0];
-      if (!canStart(next.tokens)) return;
-      queue.pending.shift();
+      const { queue, starved, index } = pick;
+      const next = queue.pending[index];
+      if (!next || !canStart(next.tokens)) return;
+      queue.pending.splice(index, 1);
       queue.running += 1;
       queue.stats.started += 1;
       counters.started += 1;
@@ -399,6 +411,21 @@ export function createBuildScheduler(input = {}) {
     });
   };
 
+  const clearQueue = (queueName, reason = 'scheduler queue cleared') => {
+    const queue = queues.get(queueName);
+    if (!queue || !queue.pending.length) return 0;
+    const error = new Error(reason);
+    const cleared = queue.pending.splice(0, queue.pending.length);
+    for (const item of cleared) {
+      queue.stats.rejected += 1;
+      counters.rejected += 1;
+      try {
+        item.reject(error);
+      } catch {}
+    }
+    return cleared.length;
+  };
+
   const stats = () => {
     const queueStats = {};
     for (const q of queueOrder) {
@@ -447,5 +474,67 @@ export function createBuildScheduler(input = {}) {
     pump();
   };
 
-  return { schedule, stats, shutdown, setLimits, registerQueue, registerQueues };
+  return {
+    schedule,
+    stats,
+    shutdown,
+    setLimits,
+    registerQueue,
+    registerQueues,
+    clearQueue,
+    enabled,
+    lowResourceMode
+  };
+}
+
+/**
+ * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
+ * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,concurrency?:number}} input
+ * @returns {{add:(fn:()=>Promise<any>)=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,concurrency?:number}}
+ */
+export function createSchedulerQueueAdapter({ scheduler, queueName, tokens, maxPending, concurrency }) {
+  if (!scheduler || typeof scheduler.schedule !== 'function') {
+    throw new Error('Scheduler queue adapter requires a scheduler instance.');
+  }
+  if (!queueName) {
+    throw new Error('Scheduler queue adapter requires a queue name.');
+  }
+  scheduler.registerQueue?.(queueName, {
+    ...(Number.isFinite(Number(maxPending)) ? { maxPending: Math.max(1, Math.floor(Number(maxPending))) } : {})
+  });
+  const pending = new Set();
+  let idleResolvers = [];
+  const notifyIdle = () => {
+    if (pending.size !== 0) return;
+    const resolvers = idleResolvers;
+    idleResolvers = [];
+    for (const resolve of resolvers) {
+      resolve();
+    }
+  };
+  const add = (fn) => {
+    const task = scheduler.schedule(queueName, tokens || { cpu: 1 }, fn);
+    pending.add(task);
+    task.finally(() => {
+      pending.delete(task);
+      notifyIdle();
+    }).catch(() => {});
+    return task;
+  };
+  const onIdle = () => {
+    if (pending.size === 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      idleResolvers.push(resolve);
+    });
+  };
+  const clear = () => {
+    scheduler.clearQueue?.(queueName, 'scheduler queue cleared');
+  };
+  return {
+    add,
+    onIdle,
+    clear,
+    maxPending: Number.isFinite(Number(maxPending)) ? Math.floor(Number(maxPending)) : undefined,
+    concurrency: Number.isFinite(Number(concurrency)) ? Math.floor(Number(concurrency)) : undefined
+  };
 }

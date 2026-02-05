@@ -170,6 +170,14 @@ interface RuntimeEnvelopeV1 {
 ## 4.5 Scheduler config (build runtime)
 The build scheduler configuration is resolved alongside the runtime envelope (in `createBuildRuntime`) and stored on the build runtime object. It is **not** part of the RuntimeEnvelope schema.
 
+Runtime fields:
+- `runtime.schedulerConfig` holds the resolved config values.
+- `runtime.scheduler` holds the scheduler instance used for stage wiring and queue adapters.
+
+When the scheduler is enabled (and not in low-resource bypass mode), runtime queues are
+adapter-backed and schedule work via the scheduler token pools instead of PQueue.
+Stage progress reporting includes scheduler stats in its metadata payload.
+
 Config path:
 - `indexing.scheduler.*` (config file)
 

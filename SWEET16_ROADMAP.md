@@ -15,7 +15,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | Phase | Status | Notes |
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
-| 16.1 | [@] | Core scheduler implemented; config + hooks done; tests + wiring pending |
+| 16.1 | [@] | Core scheduler + stage wiring done; embeddings integration + benches pending |
 | 16.2 | [ ] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
@@ -316,16 +316,16 @@ Parallel: Can run alongside 16.1.3 after 16.1.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
-- [ ] Task 16.1.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.1.2.a: Wire Stage1 file processing through scheduler queues.
-- [ ] Task 16.1.2.b: Wire Stage2 relations tasks through scheduler queues.
-- [ ] Task 16.1.2.c: Wire Stage4 sqlite build through scheduler queues.
-- [ ] Task 16.1.2.d: Replace per-stage IO caps with scheduler hooks.
-- [ ] Task 16.1.2.e: Ensure per-stage progress reporting uses scheduler metrics.
+- [x] Task 16.1.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.1.2.a: Wire Stage1 file processing through scheduler queues.
+- [x] Task 16.1.2.b: Wire Stage2 relations tasks through scheduler queues.
+- [x] Task 16.1.2.c: Wire Stage4 sqlite build through scheduler queues.
+- [x] Task 16.1.2.d: Replace per-stage IO caps with scheduler hooks.
+- [x] Task 16.1.2.e: Ensure per-stage progress reporting uses scheduler metrics.
 Notes: Keep a fallback mode to compare old behavior.
 
 Tests:
-- [ ] `tests/indexing/runtime/scheduler-stage-wiring.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/runtime/scheduler-stage-wiring.test.js` (perf lane) (new)
 
 ### Subphase 16.1.3 -- Embeddings + IO Integration
 Parallel: Can run alongside 16.1.2 after 16.1.1; coordinate file ownership.

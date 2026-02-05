@@ -64,4 +64,6 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Incremental updates only load chunk rows for changed/deleted files instead of scanning the full chunks table.
 
 ## Scheduler Notes
-- When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats (currently emitted in logs/diagnostics, not embedded in stage-audit output).
+- When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats.
+- Stage progress reporting includes scheduler stats in its metadata payload for each stage transition.
+- Stage wiring uses the scheduler queues (`stage1.files`, `stage1.postings`, `stage2.relations`, `stage4.sqlite`) to ensure global backpressure.

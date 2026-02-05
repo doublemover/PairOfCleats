@@ -58,6 +58,15 @@ const resolveQueueConfig = (value) => {
   return resolved;
 };
 
+export const SCHEDULER_QUEUE_NAMES = {
+  stage1Files: 'stage1.files',
+  stage1Postings: 'stage1.postings',
+  stage2Relations: 'stage2.relations',
+  stage4Sqlite: 'stage4.sqlite',
+  embeddingsCompute: 'embeddings.compute',
+  embeddingsIo: 'embeddings.io'
+};
+
 export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfig, runtimeConfig, envelope }) => {
   const schedulerConfig = (indexingConfig && indexingConfig.scheduler)
     || (runtimeConfig && runtimeConfig.scheduler)

@@ -10,7 +10,9 @@ import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { isTestingEnv } from '../../../shared/env.js';
+import { createBuildScheduler } from '../../../shared/concurrency.js';
+import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
+import { resolveSchedulerConfig, SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import {
   getCacheRoot,
@@ -194,6 +196,9 @@ export const runEmbeddingsStage = async ({
 export const runSqliteStage = async ({
   root,
   argv,
+  rawArgv,
+  userConfig,
+  envelope,
   sqliteModes,
   shouldBuildSqlite,
   includeSqlite,
@@ -210,6 +215,27 @@ export const runSqliteStage = async ({
     recordIndexMetric('stage4', 'ok', started);
     return result;
   };
+  const envConfig = getEnvConfig();
+  const schedulerConfig = resolveSchedulerConfig({
+    argv,
+    rawArgv: rawArgv || [],
+    envConfig,
+    indexingConfig: userConfig?.indexing || {},
+    runtimeConfig: userConfig?.runtime || null,
+    envelope
+  });
+  const scheduler = createBuildScheduler({
+    enabled: schedulerConfig.enabled,
+    lowResourceMode: schedulerConfig.lowResourceMode,
+    cpuTokens: schedulerConfig.cpuTokens,
+    ioTokens: schedulerConfig.ioTokens,
+    memoryTokens: schedulerConfig.memoryTokens,
+    starvationMs: schedulerConfig.starvationMs,
+    queues: schedulerConfig.queues
+  });
+  const scheduleSqlite = (fn) => (scheduler?.schedule
+    ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
+    : fn());
   try {
     throwIfAborted(abortSignal);
     if (!shouldBuildSqlite) {
@@ -225,13 +251,13 @@ export const runSqliteStage = async ({
       const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
       for (const mode of sqliteModeList) {
         throwIfAborted(abortSignal);
-        sqliteResult = await buildSqliteIndex(root, {
+        sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,
           incremental: argv.incremental === true,
           emitOutput: options.emitOutput !== false,
           exitOnError: false,
           logger: sqliteLogger
-        });
+        }));
       }
       if (includeSqlite && overallProgressRef?.current?.advance) {
         for (const modeItem of sqliteModes) {
@@ -390,6 +416,9 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
       const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
       if (shouldBuildSqlite && sqliteModes.length) {
         throwIfAborted(abortSignal);
+        const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
+          ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
+          : fn());
         const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
         const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
         const extractedProseDir = getIndexDir(root, 'extracted-prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -398,7 +427,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         const sqliteModeList = sqliteModes.length === 4 ? ['all'] : sqliteModes;
         for (const mode of sqliteModeList) {
           throwIfAborted(abortSignal);
-          sqliteResult = await buildSqliteIndex(root, {
+          sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
             mode,
             incremental: stageArgv.incremental === true,
             out: sqliteOut,
@@ -409,7 +438,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
             emitOutput: options.emitOutput !== false,
             exitOnError: false,
             logger: sqliteLogger
-          });
+          }));
         }
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'running');

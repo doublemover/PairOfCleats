@@ -48,6 +48,7 @@ import {
 import { buildAnalysisPolicy } from './policy.js';
 import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
+import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
@@ -194,6 +195,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     indexingConfig,
     runtimeConfig: userConfig.runtime || null,
     envelope
+  });
+  const scheduler = createBuildScheduler({
+    enabled: schedulerConfig.enabled,
+    lowResourceMode: schedulerConfig.lowResourceMode,
+    cpuTokens: schedulerConfig.cpuTokens,
+    ioTokens: schedulerConfig.ioTokens,
+    memoryTokens: schedulerConfig.memoryTokens,
+    starvationMs: schedulerConfig.starvationMs,
+    queues: schedulerConfig.queues
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
@@ -457,7 +467,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     cpuConcurrency,
     fileConcurrency,
     embeddingConcurrency,
-    pendingLimits: envelope.queues
+    pendingLimits: envelope.queues,
+    scheduler
   });
   const { queues } = queueConfig;
   const pythonAstRuntimeConfig = {
@@ -865,7 +876,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ioConcurrency,
     cpuConcurrency,
     queues,
-    scheduler: schedulerConfig,
+    scheduler,
+    schedulerConfig,
     incrementalEnabled,
     incrementalBundleFormat,
     debugCrash,

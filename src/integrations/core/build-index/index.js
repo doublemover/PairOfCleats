@@ -162,6 +162,9 @@ export async function buildIndex(repoRoot, options = {}) {
     return runSqliteStage({
       root,
       argv,
+      rawArgv,
+      userConfig,
+      envelope,
       sqliteModes,
       shouldBuildSqlite,
       includeSqlite,
@@ -202,6 +205,9 @@ export async function buildIndex(repoRoot, options = {}) {
     const stage4Result = await runSqliteStage({
       root,
       argv,
+      rawArgv,
+      userConfig,
+      envelope,
       sqliteModes,
       shouldBuildSqlite,
       includeSqlite,

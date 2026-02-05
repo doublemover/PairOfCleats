@@ -13,6 +13,7 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -182,6 +183,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   ];
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
+  const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
       const prevStage = stagePlan[stageIndex - 1];
@@ -192,7 +194,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       taskId: `stage:${mode}`,
       stage: stage.id,
       mode,
-      message: stage.label
+      message: stage.label,
+      scheduler: getSchedulerStats()
     });
   };
 
@@ -350,15 +353,29 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   if (postImportResult) importResult = postImportResult;
 
   advanceStage(stagePlan[3]);
-  const { crossFileEnabled, graphRelations } = await runCrossFileInference({
-    runtime: runtimeRef,
-    mode,
-    state,
-    crashLogger,
-    featureMetrics,
-    relationsEnabled,
-    abortSignal
-  });
+  const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
+    ? runtimeRef.scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1 },
+      () => runCrossFileInference({
+        runtime: runtimeRef,
+        mode,
+        state,
+        crashLogger,
+        featureMetrics,
+        relationsEnabled,
+        abortSignal
+      })
+    )
+    : runCrossFileInference({
+      runtime: runtimeRef,
+      mode,
+      state,
+      crashLogger,
+      featureMetrics,
+      relationsEnabled,
+      abortSignal
+    }));
   throwIfAborted(abortSignal);
   stageCheckpoints.record({
     stage: 'stage2',
@@ -422,7 +439,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(stagePlan[4]);
   throwIfAborted(abortSignal);
-  const postings = await buildIndexPostings({ runtime: runtimeRef, state });
+  const postings = await (runtimeRef.scheduler?.schedule
+    ? runtimeRef.scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage1Postings,
+      { cpu: 1 },
+      () => buildIndexPostings({ runtime: runtimeRef, state })
+    )
+    : buildIndexPostings({ runtime: runtimeRef, state }));
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'postings',

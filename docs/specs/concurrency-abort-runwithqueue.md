@@ -176,6 +176,21 @@ CLI overrides:
 * `--scheduler-low-resource` / `--no-scheduler-low-resource`
 * `--scheduler-starvation`
 
+### 5.5 Scheduler queue adapters (Phase 16.1.2)
+When the build scheduler is enabled, Stage1/2/4 wiring uses **scheduler queue adapters**
+instead of per-stage PQueue instances. These adapters expose the `add/onIdle/clear` surface
+expected by `runWithQueue`, but schedule work via the scheduler token pools.
+
+Required mappings:
+* Stage1 file processing → `stage1.files` queue (CPU/IO tokens as needed)
+* Stage1 postings → `stage1.postings` queue (CPU tokens)
+* Stage2 relations/cross-file → `stage2.relations` queue (CPU tokens)
+* Stage4 sqlite builds → `stage4.sqlite` queue (CPU+IO tokens)
+
+Fallback:
+* If the scheduler is disabled or in low-resource bypass mode, runtime queues
+  must fall back to PQueue-based concurrency to preserve existing caps.
+
 ---
 
 ## 6. `runWithQueue` contract v2 (Phase 4.3)

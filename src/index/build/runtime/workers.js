@@ -1,4 +1,5 @@
-import { createTaskQueues } from '../../../shared/concurrency.js';
+import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
 import { createCrashLogger } from '../crash-log.js';
@@ -63,7 +64,8 @@ export const createRuntimeQueues = ({
   cpuConcurrency,
   fileConcurrency,
   embeddingConcurrency,
-  pendingLimits
+  pendingLimits,
+  scheduler
 }) => {
   // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
   //
@@ -95,6 +97,34 @@ export const createRuntimeQueues = ({
   const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
     ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
     : null;
+
+  if (scheduler && scheduler.enabled && scheduler.lowResourceMode !== true && typeof scheduler.schedule === 'function') {
+    const stage1QueueName = SCHEDULER_QUEUE_NAMES.stage1Files;
+    const stage1MaxPending = Math.max(maxFilePending, maxIoPending);
+    const cpuQueue = createSchedulerQueueAdapter({
+      scheduler,
+      queueName: stage1QueueName,
+      tokens: { cpu: 1 },
+      maxPending: stage1MaxPending,
+      concurrency: cpuConcurrency
+    });
+    const ioQueue = createSchedulerQueueAdapter({
+      scheduler,
+      queueName: stage1QueueName,
+      tokens: { io: 1 },
+      maxPending: stage1MaxPending,
+      concurrency: ioConcurrency
+    });
+    const embeddingQueue = createSchedulerQueueAdapter({
+      scheduler,
+      queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
+      tokens: { cpu: 1 },
+      maxPending: maxEmbeddingPending,
+      concurrency: effectiveEmbeddingConcurrency
+    });
+    const queues = { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
+    return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
+  }
 
   const queues = createTaskQueues({
     ioConcurrency,
