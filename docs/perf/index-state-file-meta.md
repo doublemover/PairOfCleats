@@ -24,10 +24,13 @@ Artifacts:
 - **Columnar** (string-table compression for repeated fields)
 
 Loaders default to streaming row iteration for JSONL shards; materialized reads are explicit.
+`loadFileMetaRows` streams JSONL using offsets when present and falls back to JSONL shards in non-strict mode if a
+columnar/JSON payload exceeds `MAX_JSON_BYTES`.
 
 Artifacts:
 - `file_meta.json` or `file_meta.parts/*` + `file_meta.meta.json`
 - `file_meta.columnar.json` + `file_meta.meta.json`
+JSONL shard metadata includes offsets (`offsets` array) when enabled.
 
 The columnar format is an object with:
 - `columns`: ordered list of fields

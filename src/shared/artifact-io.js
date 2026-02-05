@@ -26,11 +26,13 @@ export {
   loadJsonArrayArtifactSync,
   loadJsonObjectArtifact,
   loadJsonObjectArtifactSync,
+  loadFileMetaRows,
   loadGraphRelations,
   loadGraphRelationsSync,
   loadChunkMeta,
   loadTokenPostings,
   loadMinhashSignatures,
+  loadMinhashSignatureRows,
   loadSymbolOccurrencesByFile,
   loadSymbolEdgesByFile
 } from './artifact-io/loaders.js';

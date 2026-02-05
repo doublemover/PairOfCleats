@@ -230,6 +230,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
       const metaRaw = readJsonFile(metaPath, { maxBytes });
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
+      const offsets = Array.isArray(meta?.offsets) ? meta.offsets : [];
       if (parts.length) {
         const partSet = new Set(entries.map((entry) => entry?.path));
         if (strict) {
@@ -241,15 +242,24 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
             }
           }
         }
+        if (strict && offsets.length && offsets.length !== parts.length) {
+          const err = new Error(`Manifest offsets length mismatch for ${name}`);
+          err.code = 'ERR_MANIFEST_INVALID';
+          throw err;
+        }
         const paths = parts
           .map((part) => resolveManifestPath(dir, part, strict))
+          .filter(Boolean);
+        const resolvedOffsets = offsets
+          .map((offset) => resolveManifestPath(dir, offset, strict))
           .filter(Boolean);
         if (paths.length) {
           return {
             format: resolveMetaFormat(meta, 'jsonl'),
             paths,
             meta,
-            metaPath
+            metaPath,
+            offsets: resolvedOffsets.length === paths.length ? resolvedOffsets : null
           };
         }
       }

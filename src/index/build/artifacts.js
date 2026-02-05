@@ -666,7 +666,8 @@ export async function writeIndexArtifacts(input) {
         piece: { type: 'chunks', name: 'file_meta' },
         metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,
-        gzipOptions: null
+        gzipOptions: null,
+        offsets: true
       });
     } else {
       enqueueJsonArray('file_meta', fileMeta, {

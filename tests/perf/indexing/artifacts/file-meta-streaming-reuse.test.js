@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { loadJsonArrayArtifactRows } from '../../../../src/shared/artifact-io.js';
+import { loadFileMetaRows } from '../../../../src/shared/artifact-io.js';
 
 const root = process.cwd();
 const outDir = path.join(root, '.testCache', 'file-meta-streaming-reuse');
@@ -17,7 +17,7 @@ const jsonPath = path.join(outDir, 'file_meta.json');
 await fs.writeFile(jsonPath, JSON.stringify(rows));
 
 const streamed = [];
-for await (const entry of loadJsonArrayArtifactRows(outDir, 'file_meta', {
+for await (const entry of loadFileMetaRows(outDir, {
   strict: false,
   materialize: true
 })) {
@@ -31,18 +31,39 @@ if (streamed.length !== rows.length) {
 
 let threw = false;
 try {
-  for await (const _entry of loadJsonArrayArtifactRows(outDir, 'file_meta', {
+  for await (const _entry of loadFileMetaRows(outDir, {
     strict: false,
     materialize: false
   })) {
     // consume
   }
 } catch (err) {
-  threw = /Materialized read required/.test(err?.message || '');
+  threw = true;
 }
 
-if (!threw) {
-  console.error('file-meta streaming reuse failed: expected materialize error.');
+if (threw) {
+  console.error('file-meta streaming reuse failed: materialized JSON should still load.');
+  process.exit(1);
+}
+
+const invalidDir = path.join(root, '.testCache', 'file-meta-streaming-invalid');
+await fs.rm(invalidDir, { recursive: true, force: true });
+await fs.mkdir(invalidDir, { recursive: true });
+const invalidRows = [
+  { id: 0, file: 'src/ok.js', ext: 'js' },
+  { file: 'src/missing-id.js', ext: 'js' }
+];
+await fs.writeFile(path.join(invalidDir, 'file_meta.jsonl'), invalidRows.map((row) => JSON.stringify(row)).join('\n'));
+let invalidThrew = false;
+try {
+  for await (const _entry of loadFileMetaRows(invalidDir, { strict: false })) {
+    // consume
+  }
+} catch (err) {
+  invalidThrew = /Invalid file_meta row/.test(err?.message || '');
+}
+if (!invalidThrew) {
+  console.error('file-meta streaming reuse failed: expected row validation error.');
   process.exit(1);
 }
 

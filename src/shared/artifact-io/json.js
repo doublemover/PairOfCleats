@@ -572,9 +572,9 @@ const parseJsonlStreamEntries = async (stream, {
 const readJsonLinesIteratorSingle = async function* (
   targetPath,
   {
-    maxBytes,
+    maxBytes = MAX_JSON_BYTES,
     requiredKeys,
-    validationMode,
+    validationMode = 'strict',
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,

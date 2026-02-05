@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  loadJsonArrayArtifact,
-  loadJsonArrayArtifactRows
+  loadFileMetaRows,
+  loadJsonArrayArtifact
 } from '../../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
 
@@ -22,7 +22,7 @@ await writeJsonLinesFile(jsonlPath, rows);
 
 const baseline = await loadJsonArrayArtifact(outDir, 'file_meta', { strict: false });
 const streamed = [];
-for await (const entry of loadJsonArrayArtifactRows(outDir, 'file_meta', { strict: false })) {
+for await (const entry of loadFileMetaRows(outDir, { strict: false })) {
   streamed.push(entry);
 }
 

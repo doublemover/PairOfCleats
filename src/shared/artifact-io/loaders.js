@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak, readShardFiles, resolveArtifactMtime, resolveDirMtime } from './fs.js';
@@ -31,12 +32,23 @@ import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts 
 import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
 
 const warnedNonStrictJsonFallback = new Set();
+const warnedMaterializeFallback = new Set();
 const warnNonStrictJsonFallback = (dir, name) => {
   const key = `${dir}:${name}`;
   if (warnedNonStrictJsonFallback.has(key)) return;
   warnedNonStrictJsonFallback.add(key);
   console.warn(
     `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`
+  );
+};
+
+const warnMaterializeFallback = (dir, name, format) => {
+  const key = `${dir}:${name}:${format}`;
+  if (warnedMaterializeFallback.has(key)) return;
+  warnedMaterializeFallback.add(key);
+  console.warn(
+    `[manifest] Streaming fallback: ${name} uses ${format}; ` +
+    'materialized read may be required for full validation.'
   );
 };
 
@@ -75,11 +87,18 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
   if (hasShards) {
     let parts = [];
     let metaFormat = null;
+    let offsets = [];
     if (existsOrBak(metaPath)) {
       try {
         const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         metaFormat = typeof meta?.format === 'string' ? meta.format : null;
+        if (Array.isArray(meta?.offsets) && meta.offsets.length) {
+          offsets = meta.offsets
+            .map((offset) => (typeof offset === 'string' ? offset : null))
+            .filter(Boolean)
+            .map((name) => path.join(dir, name));
+        }
         if (Array.isArray(meta?.parts) && meta.parts.length) {
           parts = meta.parts
             .map((part) => (typeof part === 'string' ? part : part?.path))
@@ -95,12 +114,54 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
       if (metaFormat === 'json' || metaFormat === 'columnar') {
         return { format: metaFormat, paths: [parts[0]] };
       }
-      return { format: 'jsonl', paths: parts };
+      return {
+        format: 'jsonl',
+        paths: parts,
+        offsets: offsets.length === parts.length ? offsets : null
+      };
     }
     return null;
   }
   if (hasJsonl) {
     return { format: 'jsonl', paths: [jsonlPath] };
+  }
+  return null;
+};
+
+const resolveJsonlFallbackSources = (dir, baseName) => {
+  const metaPath = path.join(dir, `${baseName}.meta.json`);
+  let offsets = [];
+  if (existsOrBak(metaPath)) {
+    try {
+      const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
+      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      if (Array.isArray(meta?.offsets) && meta.offsets.length) {
+        offsets = meta.offsets
+          .map((offset) => (typeof offset === 'string' ? offset : null))
+          .filter(Boolean)
+          .map((name) => path.join(dir, name));
+      }
+    } catch {}
+  }
+  const partsDir = path.join(dir, `${baseName}.parts`);
+  const parts = readShardFiles(partsDir, `${baseName}.part-`);
+  if (parts.length) {
+    return {
+      format: 'jsonl',
+      paths: parts,
+      offsets: offsets.length === parts.length ? offsets : null
+    };
+  }
+  const jsonlBase = path.join(dir, `${baseName}.jsonl`);
+  const hasJsonl = existsOrBak(jsonlBase)
+    || existsOrBak(`${jsonlBase}.gz`)
+    || existsOrBak(`${jsonlBase}.zst`);
+  if (hasJsonl) {
+    return {
+      format: 'jsonl',
+      paths: [jsonlBase],
+      offsets: offsets.length === 1 ? offsets : null
+    };
   }
   return null;
 };
@@ -371,6 +432,200 @@ export const loadJsonArrayArtifactRows = async function* (
     return;
   }
   throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
+const validateFileMetaRow = (row, label) => {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    throw new Error(`Invalid ${label} row: expected object`);
+  }
+  if (!Number.isFinite(row.id)) {
+    throw new Error(`Invalid ${label} row: missing numeric id`);
+  }
+  if (typeof row.file !== 'string') {
+    throw new Error(`Invalid ${label} row: missing file path`);
+  }
+  return row;
+};
+
+export const loadFileMetaRows = async function* (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true,
+    materialize = false,
+    maxInFlight = 0,
+    onBackpressure = null,
+    onResume = null
+  } = {}
+) {
+  const validationMode = strict ? 'strict' : 'trusted';
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedKeys = resolveJsonlRequiredKeys('file_meta');
+  const ensurePresent = (sources, label) => {
+    if (!sources?.paths?.length) {
+      throw new Error(`Missing manifest entry for ${label}`);
+    }
+    const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+    if (missingPaths.length) {
+      const err = new Error(`Missing manifest parts for ${label}: ${missingPaths.join(', ')}`);
+      err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+      throw err;
+    }
+  };
+  const streamRows = async function* (paths, offsetsPaths = null) {
+    for (let i = 0; i < paths.length; i += 1) {
+      const partPath = paths[i];
+      const offsetsPath = Array.isArray(offsetsPaths) ? offsetsPaths[i] : null;
+      if (offsetsPath) {
+        await ensureOffsetsValid(partPath, offsetsPath);
+      }
+      for await (const row of readJsonLinesIterator(partPath, {
+        maxBytes,
+        requiredKeys: resolvedKeys,
+        validationMode,
+        maxInFlight,
+        onBackpressure,
+        onResume
+      })) {
+        yield validateFileMetaRow(row, 'file_meta');
+      }
+    }
+  };
+  const yieldJsonRows = (payload, label, format) => {
+    if (!Array.isArray(payload)) {
+      throw new Error(`Invalid ${format} payload for ${label}`);
+    }
+    if (!materialize) {
+      warnMaterializeFallback(dir, label, format);
+    }
+    return (function* () {
+      for (const row of payload) {
+        yield validateFileMetaRow(row, label);
+      }
+    })();
+  };
+  const yieldColumnarRows = (payload, label) => {
+    const iterator = iterateColumnarRows(payload);
+    if (!iterator) {
+      throw new Error(`Invalid columnar payload for ${label}`);
+    }
+    if (!materialize) {
+      warnMaterializeFallback(dir, label, 'columnar');
+    }
+    return (function* () {
+      for (const row of iterator) {
+        yield validateFileMetaRow(row, label);
+      }
+    })();
+  };
+
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: 'file_meta',
+      strict: true,
+      maxBytes
+    });
+    ensurePresent(sources, 'file_meta');
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for file_meta');
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      for (const row of yieldJsonRows(payload, 'file_meta', 'json')) {
+        yield row;
+      }
+      return;
+    }
+    if (sources.format === 'columnar') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous columnar sources for file_meta');
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      for (const row of yieldColumnarRows(payload, 'file_meta')) {
+        yield row;
+      }
+      return;
+    }
+    for await (const row of streamRows(sources.paths, sources.offsets)) {
+      yield row;
+    }
+    return;
+  }
+
+  const manifestSources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'file_meta',
+    strict: false,
+    maxBytes
+  });
+  const sources = manifestSources || resolveJsonlArtifactSources(dir, 'file_meta');
+  if (sources?.paths?.length) {
+    const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+    if (missingPaths.length) {
+      const err = new Error(`Missing manifest parts for file_meta: ${missingPaths.join(', ')}`);
+      err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+      throw err;
+    }
+    if (!manifestSources) warnNonStrictJsonFallback(dir, 'file_meta');
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for file_meta');
+      }
+      try {
+        const payload = readJsonFile(sources.paths[0], { maxBytes });
+        for (const row of yieldJsonRows(payload, 'file_meta', 'json')) {
+          yield row;
+        }
+        return;
+      } catch (err) {
+        if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+        const fallback = resolveJsonlFallbackSources(dir, 'file_meta');
+        if (!fallback) throw err;
+        for await (const row of streamRows(fallback.paths, fallback.offsets)) {
+          yield row;
+        }
+        return;
+      }
+    }
+    if (sources.format === 'columnar') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous columnar sources for file_meta');
+      }
+      try {
+        const payload = readJsonFile(sources.paths[0], { maxBytes });
+        for (const row of yieldColumnarRows(payload, 'file_meta')) {
+          yield row;
+        }
+        return;
+      } catch (err) {
+        if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+        const fallback = resolveJsonlFallbackSources(dir, 'file_meta');
+        if (!fallback) throw err;
+        for await (const row of streamRows(fallback.paths, fallback.offsets)) {
+          yield row;
+        }
+        return;
+      }
+    }
+    for await (const row of streamRows(sources.paths, sources.offsets)) {
+      yield row;
+    }
+    return;
+  }
+  const jsonPath = path.join(dir, 'file_meta.json');
+  if (existsOrBak(jsonPath)) {
+    warnNonStrictJsonFallback(dir, 'file_meta');
+    const payload = readJsonFile(jsonPath, { maxBytes });
+    for (const row of yieldJsonRows(payload, 'file_meta', 'json')) {
+      yield row;
+    }
+    return;
+  }
+  throw new Error('Missing index artifact: file_meta.json');
 };
 
 export const loadJsonObjectArtifact = async (
@@ -1094,6 +1349,82 @@ export const loadMinhashSignatures = async (
   }
 };
 
+export const loadMinhashSignatureRows = async function* (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true,
+    materialize = false,
+    batchSize = 2048
+  } = {}
+) {
+  const packedPath = path.join(dir, 'minhash_signatures.packed.bin');
+  const metaPath = path.join(dir, 'minhash_signatures.packed.meta.json');
+  if (existsOrBak(packedPath) && existsOrBak(metaPath)) {
+    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+    const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+    if (!dims || !count) {
+      throw new Error('Invalid packed minhash meta');
+    }
+    const bytesPerSig = dims * 4;
+    const totalBytes = bytesPerSig * count;
+    const stat = await fsPromises.stat(packedPath);
+    if (stat.size < totalBytes) {
+      throw new Error('Packed minhash signatures truncated');
+    }
+    const handle = await fsPromises.open(packedPath, 'r');
+    const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
+    const buffer = Buffer.allocUnsafe(resolvedBatchSize * bytesPerSig);
+    try {
+      let docId = 0;
+      while (docId < count) {
+        const remaining = count - docId;
+        const batchCount = Math.min(resolvedBatchSize, remaining);
+        const bytesToRead = batchCount * bytesPerSig;
+        const { bytesRead } = await handle.read(buffer, 0, bytesToRead, docId * bytesPerSig);
+        if (bytesRead < bytesToRead) {
+          throw new Error('Packed minhash signatures truncated');
+        }
+        const view = new Uint32Array(buffer.buffer, buffer.byteOffset, bytesRead / 4);
+        for (let i = 0; i < batchCount; i += 1) {
+          const start = i * dims;
+          const end = start + dims;
+          const sig = view.subarray(start, end);
+          yield { docId: docId + i, sig };
+        }
+        docId += batchCount;
+      }
+    } finally {
+      await handle.close();
+    }
+    return;
+  }
+  let payload = null;
+  try {
+    payload = await loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+  } catch (err) {
+    const message = err?.message || '';
+    if (message.includes('Missing manifest entry for minhash_signatures')
+      || message.includes('Missing index artifact: minhash_signatures.json')) {
+      return;
+    }
+    throw err;
+  }
+  const signatures = Array.isArray(payload?.signatures) ? payload.signatures : null;
+  if (!signatures) return;
+  if (!materialize) {
+    warnMaterializeFallback(dir, 'minhash_signatures', 'json');
+  }
+  for (let docId = 0; docId < signatures.length; docId += 1) {
+    const sig = signatures[docId];
+    if (!sig) continue;
+    yield { docId, sig };
+  }
+};
+
 const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) => {
   const metaName = `${baseName}_by_file_meta`;
   const sources = resolveManifestArtifactSources({
@@ -1277,6 +1608,30 @@ const loadSymbolRowsForFile = async (
     if (row) rows.push(row);
   }
   return rows;
+};
+
+const iterateColumnarRows = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
+  if (!arrays) return null;
+  const columns = Array.isArray(payload.columns) ? payload.columns : Object.keys(arrays);
+  if (!columns.length) return (function* () {})();
+  const tables = payload.tables && typeof payload.tables === 'object' ? payload.tables : null;
+  const length = Number.isFinite(payload.length)
+    ? payload.length
+    : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
+  return (function* () {
+    for (let i = 0; i < length; i += 1) {
+      const row = {};
+      for (const column of columns) {
+        const values = arrays[column];
+        const value = Array.isArray(values) ? (values[i] ?? null) : null;
+        const table = tables && Array.isArray(tables[column]) ? tables[column] : null;
+        row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
+      }
+      yield row;
+    }
+  })();
 };
 
 export const loadSymbolOccurrencesByFile = async (dir, options = {}) => (

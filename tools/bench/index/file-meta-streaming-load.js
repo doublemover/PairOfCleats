@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadJsonArrayArtifact, loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io.js';
+import { loadFileMetaRows, loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 
 const parseArgs = (argv) => {
@@ -29,10 +29,7 @@ const loadFromIndex = async (indexDir) => {
 
   const currentStart = performance.now();
   let streamedCount = 0;
-  for await (const _entry of loadJsonArrayArtifactRows(indexDir, 'file_meta', {
-    strict: false,
-    materialize: true
-  })) {
+  for await (const _entry of loadFileMetaRows(indexDir, { strict: false })) {
     streamedCount += 1;
   }
   const currentMs = performance.now() - currentStart;
@@ -58,10 +55,7 @@ const loadFromGenerated = async (rows) => {
 
   const currentStart = performance.now();
   let streamedCount = 0;
-  for await (const _entry of loadJsonArrayArtifactRows(benchRoot, 'file_meta', {
-    strict: false,
-    materialize: true
-  })) {
+  for await (const _entry of loadFileMetaRows(benchRoot, { strict: false })) {
     streamedCount += 1;
   }
   const currentMs = performance.now() - currentStart;

@@ -1001,23 +1001,23 @@ Parallel: Run after 16.14.4; depends on 16.13.4 streaming loader work.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/artifact-io-pipeline.md`
 Touchpoints: `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/utils.js (anchor: loadIndex)`
 Tasks:
-- [ ] Task 16.14.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.14.5.a: Implement full streaming file_meta loader that yields rows without materializing arrays.
-- [ ] Task 16.14.5.a.1: Use offsets index when available and fall back to JSONL streaming when columnar is too large.
-- [ ] Task 16.14.5.a.2: Add row-level validation during streaming and abort on invalid rows.
-- [ ] Task 16.14.5.b: Update sqlite build to accept streaming file_meta iterator with backpressure.
-- [ ] Task 16.14.5.b.1: Add batch sizing by bytes + rows to keep steady memory usage.
-- [ ] Task 16.14.5.c: Remove minimal optional-array fallback in loadIndex; default to streaming unless explicitly materialized.
-- [ ] Task 16.14.5.d: Stream file_meta + minhash ingest in sqlite builder (no Promise handoff).
-- [ ] Task 16.14.5.e: Add benchmark comparing streaming vs materialized file_meta load with delta line.
-- [ ] Task 16.14.5.f: Add regression test for streaming correctness vs materialized load.
-- [ ] Task 16.14.5.g: Add regression test for streaming memory cap under large file_meta.
-- [ ] Task 16.14.5.h: Add regression test for MAX_JSON_BYTES behavior with streaming columnar fallback.
+- [x] Task 16.14.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.14.5.a: Implement full streaming file_meta loader that yields rows without materializing arrays.
+- [x] Task 16.14.5.a.1: Use offsets index when available and fall back to JSONL streaming when columnar is too large.
+- [x] Task 16.14.5.a.2: Add row-level validation during streaming and abort on invalid rows.
+- [x] Task 16.14.5.b: Update sqlite build to accept streaming file_meta iterator with backpressure.
+- [x] Task 16.14.5.b.1: Add batch sizing by bytes + rows to keep steady memory usage.
+- [x] Task 16.14.5.c: Remove minimal optional-array fallback in loadIndex; default to streaming unless explicitly materialized.
+- [x] Task 16.14.5.d: Stream file_meta + minhash ingest in sqlite builder (no Promise handoff).
+- [x] Task 16.14.5.e: Add benchmark comparing streaming vs materialized file_meta load with delta line.
+- [x] Task 16.14.5.f: Add regression test for streaming correctness vs materialized load.
+- [x] Task 16.14.5.g: Add regression test for streaming memory cap under large file_meta.
+- [x] Task 16.14.5.h: Add regression test for MAX_JSON_BYTES behavior with streaming columnar fallback.
 
 Tests:
-- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-roundtrip.test.js` (perf lane) (new)
-- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-memory.test.js` (perf lane) (new)
-- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-reuse.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/artifacts/file-meta-streaming-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/artifacts/file-meta-streaming-memory.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/artifacts/file-meta-streaming-reuse.test.js` (perf lane) (new)
 
 ---
 

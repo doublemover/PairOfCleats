@@ -157,3 +157,9 @@ Key mapping (non-exhaustive):
 
 - Offsets are in decoded text (UTF-16 code units). If tooling uses byte offsets, it must translate.
 - Any fields not defined above must be placed under `extensions` when strict schema enforcement is enabled.
+
+## 9) File Meta Linkage (Related Artifact)
+
+`chunk_meta` entries may include `fileId` (numeric) to link to `file_meta` rows.
+The `file_meta` artifact is stored separately and may be streamed during ingestion; only `id` and `file` are required
+for linkage. Consumers should tolerate missing `fileId` and fall back to `file` where needed.
