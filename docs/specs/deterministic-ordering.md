@@ -23,6 +23,8 @@
 ## Hashing
 - Hash ordered outputs with xxhash64.
 - Record in build truth ledger.
+- Ledger stage keys are `stage:mode` (e.g., `stage2:code`) when mode-specific.
+- Seed inputs (`discoveryHash`, `fileListHash`, `fileCount`) are recorded for diagnosis.
 
 ## Breaking Changes
 Ordering changes are allowed; consumers must follow this spec.

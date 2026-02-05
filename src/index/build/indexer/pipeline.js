@@ -6,7 +6,7 @@ import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { createCrashLogger } from '../crash-log.js';
-import { updateBuildState } from '../build-state.js';
+import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
@@ -217,6 +217,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       skipped: state.skippedFiles?.length || 0
     }
   });
+  await recordOrderingSeedInputs(runtime.buildRoot, {
+    discoveryHash: state.discoveryHash,
+    fileListHash: state.fileListHash,
+    fileCount: allEntries.length
+  }, { stage: 'stage1', mode });
   throwIfAborted(abortSignal);
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const runtimeRef = dictConfig === runtime.dictConfig

@@ -13,6 +13,7 @@ const STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
 const STATE_EVENTS_FILE = 'build_state.events.jsonl';
 const STATE_DELTAS_FILE = 'build_state.deltas.jsonl';
 const STATE_SCHEMA_VERSION = 1;
+const ORDERING_LEDGER_SCHEMA_VERSION = 1;
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -145,6 +146,9 @@ const mergeState = (base, patch) => {
     }
     merged.stageCheckpoints = next;
   }
+  if (patch.orderingLedger) {
+    merged.orderingLedger = mergeOrderingLedger(base?.orderingLedger || null, patch.orderingLedger);
+  }
   if (patch.ignore) {
     merged.ignore = { ...(base?.ignore || {}), ...patch.ignore };
   }
@@ -173,6 +177,72 @@ const mergeStageCheckpoints = (base, patch) => {
     } else {
       next[mode] = value;
     }
+  }
+  return next;
+};
+
+const normalizeOrderingLedger = (ledger) => {
+  if (!ledger || typeof ledger !== 'object') return null;
+  const version = Number.isFinite(Number(ledger.schemaVersion))
+    ? Number(ledger.schemaVersion)
+    : 0;
+  let next = {
+    schemaVersion: version || ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: ledger.seeds && typeof ledger.seeds === 'object' ? { ...ledger.seeds } : {},
+    stages: ledger.stages && typeof ledger.stages === 'object' ? { ...ledger.stages } : {}
+  };
+  if (version && version > ORDERING_LEDGER_SCHEMA_VERSION) {
+    return { ...next, schemaVersion: version };
+  }
+  if (version && version !== ORDERING_LEDGER_SCHEMA_VERSION) {
+    next = {
+      ...next,
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION
+    };
+  }
+  return next;
+};
+
+const mergeOrderingLedger = (base, patch) => {
+  if (!patch) return base || null;
+  const normalizedBase = normalizeOrderingLedger(base) || {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: {},
+    stages: {}
+  };
+  const normalizedPatch = normalizeOrderingLedger(patch) || {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: {},
+    stages: {}
+  };
+  const next = {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: { ...(normalizedBase.seeds || {}), ...(normalizedPatch.seeds || {}) },
+    stages: { ...(normalizedBase.stages || {}) }
+  };
+  for (const [stage, value] of Object.entries(normalizedPatch.stages || {})) {
+    if (!value || typeof value !== 'object') {
+      next.stages[stage] = value;
+      continue;
+    }
+    const baseStage = normalizedBase.stages?.[stage];
+    const mergedStage = {
+      ...(baseStage && typeof baseStage === 'object' ? baseStage : {}),
+      ...value
+    };
+    if (value.seeds && typeof value.seeds === 'object') {
+      mergedStage.seeds = {
+        ...(baseStage?.seeds && typeof baseStage.seeds === 'object' ? baseStage.seeds : {}),
+        ...value.seeds
+      };
+    }
+    if (value.artifacts && typeof value.artifacts === 'object') {
+      mergedStage.artifacts = {
+        ...(baseStage?.artifacts && typeof baseStage.artifacts === 'object' ? baseStage.artifacts : {}),
+        ...value.artifacts
+      };
+    }
+    next.stages[stage] = mergedStage;
   }
   return next;
 };
@@ -397,10 +467,12 @@ const ensureStateVersions = (state, buildRoot, loaded) => {
   if (loaded && (schemaVersion == null || signatureVersion == null)) {
     recordStateError(buildRoot, new Error('build_state missing schemaVersion/signatureVersion'));
   }
+  const orderingLedger = normalizeOrderingLedger(state?.orderingLedger);
   return {
     ...state,
     schemaVersion: schemaVersion ?? STATE_SCHEMA_VERSION,
-    signatureVersion
+    signatureVersion,
+    ...(orderingLedger ? { orderingLedger } : {})
   };
 };
 
@@ -631,6 +703,103 @@ export async function updateBuildState(buildRoot, patch) {
   if (!buildRoot || !patch) return null;
   const events = collectCheckpointEvents(patch.stageCheckpoints);
   return queueStatePatch(buildRoot, patch, events);
+}
+
+const normalizeSeedInputs = (inputs = {}) => ({
+  discoveryHash: typeof inputs.discoveryHash === 'string' ? inputs.discoveryHash : null,
+  fileListHash: typeof inputs.fileListHash === 'string' ? inputs.fileListHash : null,
+  fileCount: Number.isFinite(inputs.fileCount) ? inputs.fileCount : null,
+  mode: typeof inputs.mode === 'string' ? inputs.mode : null
+});
+
+const resolveStageKey = (stage, mode) => {
+  if (!stage) return null;
+  const stageKey = String(stage);
+  return mode ? `${stageKey}:${mode}` : stageKey;
+};
+
+export async function recordOrderingSeedInputs(buildRoot, inputs = {}, { stage = null, mode = null } = {}) {
+  if (!buildRoot) return null;
+  const seeds = normalizeSeedInputs({ ...inputs, mode });
+  const stageKey = resolveStageKey(stage, mode);
+  const now = new Date().toISOString();
+  const patch = {
+    orderingLedger: {
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+      seeds,
+      ...(stageKey ? { stages: { [stageKey]: { seeds } } } : {})
+    }
+  };
+  return updateBuildState(buildRoot, patch);
+}
+
+export async function recordOrderingHash(buildRoot, {
+  stage,
+  mode = null,
+  artifact,
+  hash,
+  rule = null,
+  count = null
+} = {}) {
+  if (!buildRoot || !stage || !artifact || !hash) return null;
+  const stageKey = resolveStageKey(stage, mode);
+  if (!stageKey) return null;
+  const loaded = await loadBuildState(buildRoot);
+  const currentLedger = normalizeOrderingLedger(loaded?.state?.orderingLedger);
+  const currentEntry = currentLedger?.stages?.[stageKey]?.artifacts?.[artifact];
+  const entry = {
+    hash,
+    rule,
+    count: Number.isFinite(count) ? count : null,
+    mode
+  };
+  if (currentEntry
+    && currentEntry.hash === entry.hash
+    && currentEntry.rule === entry.rule
+    && currentEntry.count === entry.count
+    && currentEntry.mode === entry.mode) {
+    return currentLedger;
+  }
+  const patch = {
+    orderingLedger: {
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+      stages: {
+        [stageKey]: {
+          artifacts: {
+            [artifact]: entry
+          }
+        }
+      }
+    }
+  };
+  return updateBuildState(buildRoot, patch);
+}
+
+export async function loadOrderingLedger(buildRoot) {
+  if (!buildRoot) return null;
+  const loaded = await loadBuildState(buildRoot);
+  return normalizeOrderingLedger(loaded?.state?.orderingLedger);
+}
+
+export function validateOrderingLedger(ledger) {
+  const normalized = normalizeOrderingLedger(ledger);
+  if (!normalized) return { ok: false, errors: ['orderingLedger missing'] };
+  const errors = [];
+  if (!Number.isFinite(Number(normalized.schemaVersion))) {
+    errors.push('orderingLedger.schemaVersion missing');
+  }
+  if (!normalized.stages || typeof normalized.stages !== 'object') {
+    errors.push('orderingLedger.stages missing');
+  }
+  return { ok: errors.length === 0, errors, value: normalized };
+}
+
+export async function exportOrderingLedger(buildRoot, outputPath = null) {
+  const ledger = await loadOrderingLedger(buildRoot);
+  if (outputPath && ledger) {
+    await writeJsonObjectFile(outputPath, { fields: ledger, atomic: true });
+  }
+  return ledger;
 }
 
 export async function flushBuildState(buildRoot) {

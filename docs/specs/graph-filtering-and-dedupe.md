@@ -93,6 +93,7 @@ Every change above must be covered by tests that assert:
 6. Edge de-duplication picks highest confidence/evidence deterministically.
 7. Symbol edge direction semantics align with `in/out/both`.
 8. Node/edge count mismatch produces warnings.
+9. Graph outputs follow shared ordering rules and record hashes in `build_state.json` orderingLedger.
 
 ## 10. Non-goals
 - Changing graph schema.

@@ -590,16 +590,16 @@ Parallel: Can run alongside 16.4.2; both must land before 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
-- [ ] Task 16.4.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.4.1.a: Implement ledger schema writer in build_state.
-- [ ] Task 16.4.1.b: Record per-stage ordering hashes.
-- [ ] Task 16.4.1.c: Add schema versioning and upgrade rules.
-- [ ] Task 16.4.1.d: Add ledger read/validate helpers.
-- [ ] Task 16.4.1.e: Add ledger export for tooling.
-- [ ] Task 16.4.1.f: Record ordering seed inputs (discovery/file list hashes) for diagnosis.
+- [x] Task 16.4.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.4.1.a: Implement ledger schema writer in build_state.
+- [x] Task 16.4.1.b: Record per-stage ordering hashes.
+- [x] Task 16.4.1.c: Add schema versioning and upgrade rules.
+- [x] Task 16.4.1.d: Add ledger read/validate helpers.
+- [x] Task 16.4.1.e: Add ledger export for tooling.
+- [x] Task 16.4.1.f: Record ordering seed inputs (discovery/file list hashes) for diagnosis.
 
 Tests:
-- [ ] `tests/indexing/build-state/ledger-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/build-state/ledger-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.4.2 -- Ordering Library
 Parallel: Can run alongside 16.4.1; both must land before 16.4.3.

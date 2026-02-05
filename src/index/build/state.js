@@ -245,6 +245,7 @@ export function createIndexState() {
     phrasePost: new Map(),
     discoveredFiles: [],
     discoveryHash: null,
+    fileListHash: null,
     scannedFiles: [],
     scannedFilesTimes: [],
     riskSummaries: [],
@@ -607,6 +608,9 @@ export function mergeIndexState(target, source) {
   }
   if (source.discoveryHash && !target.discoveryHash) {
     target.discoveryHash = source.discoveryHash;
+  }
+  if (source.fileListHash && !target.fileListHash) {
+    target.fileListHash = source.fileListHash;
   }
   if (Array.isArray(source.scannedFilesTimes)) {
     target.scannedFilesTimes.push(...source.scannedFilesTimes);

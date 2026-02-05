@@ -5,6 +5,7 @@ This document describes the stage audit checkpoints emitted during index builds.
 ## Output Locations
 - `metrics/stage-audit-<mode>.json` (per mode, per build)
 - `build_state.json` under `stageCheckpoints` (per mode)
+- `build_state.json` under `orderingLedger` (ordering hashes + seeds)
 
 ## Determinism
 Stage audit files are append-only per build and MUST be deterministic for the same input and config. Checkpoint ordering follows the stage/step execution order and is stable across runs.

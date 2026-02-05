@@ -69,6 +69,54 @@ const SIGNATURE_ENTRY = {
   }
 };
 
+const ORDERING_LEDGER_SEEDS = {
+  type: 'object',
+  additionalProperties: {
+    anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'null' }]
+  }
+};
+
+const ORDERING_LEDGER_ARTIFACT = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['hash'],
+  properties: {
+    hash: { type: 'string' },
+    rule: { type: ['string', 'null'] },
+    count: { type: ['number', 'null'] },
+    mode: { type: ['string', 'null'] }
+  }
+};
+
+const ORDERING_LEDGER_STAGE = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['artifacts'],
+  properties: {
+    updatedAt: ISO_DATE_TIME,
+    seeds: ORDERING_LEDGER_SEEDS,
+    artifacts: {
+      type: 'object',
+      additionalProperties: ORDERING_LEDGER_ARTIFACT
+    }
+  }
+};
+
+const ORDERING_LEDGER = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['schemaVersion', 'stages'],
+  properties: {
+    schemaVersion: { type: 'number' },
+    updatedAt: ISO_DATE_TIME,
+    seeds: ORDERING_LEDGER_SEEDS,
+    stages: {
+      type: 'object',
+      additionalProperties: ORDERING_LEDGER_STAGE
+    }
+  }
+};
+
 const REPO_HEAD = {
   type: ['object', 'null'],
   additionalProperties: false,
@@ -183,6 +231,7 @@ export const BUILD_STATE_SCHEMA = {
       type: 'object',
       additionalProperties: SIGNATURE_ENTRY
     },
+    orderingLedger: ORDERING_LEDGER,
     ignore: {
       type: 'object',
       additionalProperties: false,
