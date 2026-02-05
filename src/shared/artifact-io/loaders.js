@@ -834,7 +834,16 @@ export const loadMinhashSignatures = async (
     }
     return { signatures };
   }
-  return loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+  try {
+    return await loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+  } catch (err) {
+    const message = err?.message || '';
+    if (message.includes('Missing manifest entry for minhash_signatures')
+      || message.includes('Missing index artifact: minhash_signatures.json')) {
+      return null;
+    }
+    throw err;
+  }
 };
 
 const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) => {
