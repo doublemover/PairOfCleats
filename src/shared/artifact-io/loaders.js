@@ -118,7 +118,8 @@ export const loadJsonArrayArtifact = async (
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
     manifest = null,
-    strict = true
+    strict = true,
+    concurrency = null
   } = {}
 ) => {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -151,7 +152,8 @@ export const loadJsonArrayArtifact = async (
       return await readJsonLinesArray(sources.paths, {
         maxBytes,
         requiredKeys: resolvedKeys,
-        validationMode
+        validationMode,
+        concurrency
       });
     }
     throw new Error(`Missing manifest entry for ${baseName}`);
@@ -185,7 +187,8 @@ export const loadJsonArrayArtifact = async (
     return await readJsonLinesArray(sources.paths, {
       maxBytes,
       requiredKeys: resolvedKeys,
-      validationMode
+      validationMode,
+      concurrency
     });
   }
   const jsonPath = path.join(dir, `${baseName}.json`);
@@ -1061,12 +1064,16 @@ const loadSymbolRowsForFile = async (
       readOffsetAt(offsetsPath, resolvedFileId),
       readOffsetAt(offsetsPath, resolvedFileId + 1)
     ]);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return loadFullRows();
+    if (end < start) return loadFullRows();
+    if (end === start) return [];
     rowIndexes = await readVarintDeltasAt(dataPath, start, end);
   } catch {
     return loadFullRows();
   }
-  if (!rowIndexes.length) return [];
+  if (!rowIndexes.length) {
+    return end > start ? loadFullRows() : [];
+  }
   const requiredKeys = resolveJsonlRequiredKeys(baseName);
   const rows = [];
   const validatedParts = new Set();
