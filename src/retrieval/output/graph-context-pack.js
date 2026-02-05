@@ -47,8 +47,9 @@ export const renderGraphContextPack = (pack) => {
   lines.push('## Seed');
   lines.push(`- ${formatRef(pack.seed)}`);
 
+  const isSorted = pack?.stats?.sorted === true;
   const nodes = Array.isArray(pack.nodes) ? pack.nodes.slice() : [];
-  nodes.sort(compareGraphNodes);
+  if (!isSorted) nodes.sort(compareGraphNodes);
   lines.push('');
   lines.push('## Nodes');
   if (!nodes.length) {
@@ -61,7 +62,7 @@ export const renderGraphContextPack = (pack) => {
   }
 
   const edges = Array.isArray(pack.edges) ? pack.edges.slice() : [];
-  edges.sort(compareGraphEdges);
+  if (!isSorted) edges.sort(compareGraphEdges);
   lines.push('');
   lines.push('## Edges');
   if (!edges.length) {
@@ -74,7 +75,7 @@ export const renderGraphContextPack = (pack) => {
 
   const paths = Array.isArray(pack.paths) ? pack.paths.slice() : [];
   if (paths.length) {
-    paths.sort(compareWitnessPaths);
+    if (!isSorted) paths.sort(compareWitnessPaths);
     lines.push('');
     lines.push('## Witness Paths');
     for (const path of paths) {

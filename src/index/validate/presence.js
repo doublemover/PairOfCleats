@@ -119,16 +119,23 @@ export const createArtifactPresenceHelpers = ({
     if (name === 'chunk_meta') {
       const json = path.join(dir, 'chunk_meta.json');
       const jsonl = path.join(dir, 'chunk_meta.jsonl');
+      const columnar = path.join(dir, 'chunk_meta.columnar.json');
       const meta = path.join(dir, 'chunk_meta.meta.json');
       const partsDir = path.join(dir, 'chunk_meta.parts');
-      return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
+      return fs.existsSync(json)
+        || fs.existsSync(jsonl)
+        || fs.existsSync(columnar)
+        || fs.existsSync(meta)
+        || fs.existsSync(partsDir);
     }
     const hasJsonlArtifact = (baseName) => {
       const json = path.join(dir, `${baseName}.json`);
       const jsonl = path.join(dir, `${baseName}.jsonl`);
+      const columnar = path.join(dir, `${baseName}.columnar.json`);
       const meta = path.join(dir, `${baseName}.meta.json`);
       const partsDir = path.join(dir, `${baseName}.parts`);
       if (fs.existsSync(json) || fs.existsSync(`${json}.gz`)) return true;
+      if (fs.existsSync(columnar)) return true;
       return fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
     };
     if (name === 'file_relations') return hasJsonlArtifact('file_relations');

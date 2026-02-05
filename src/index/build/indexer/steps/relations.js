@@ -5,6 +5,7 @@ import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
 import { buildRelationGraphs } from '../../graphs.js';
 import { scanImports } from '../../imports.js';
 import { resolveImportLinks } from '../../import-resolution.js';
+import { loadImportResolutionCache, saveImportResolutionCache } from '../../import-resolution-cache.js';
 
 export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
@@ -61,7 +62,7 @@ export const preScanImports = async ({
   return { importResult, scanPlan };
 };
 
-export const postScanImports = ({
+export const postScanImports = async ({
   mode,
   relationsEnabled,
   scanPlan,
@@ -69,7 +70,9 @@ export const postScanImports = ({
   timing,
   runtime,
   entries,
-  importResult
+  importResult,
+  incrementalState,
+  fileTextByFile
 }) => {
   if (!scanPlan?.shouldScan) return null;
   if (!mode || mode !== 'code' || !relationsEnabled || !scanPlan.enableImportLinks) return null;
@@ -82,6 +85,28 @@ export const postScanImports = ({
       if (imports && imports.length) importsByFile[file] = imports;
     }
   }
+  const cacheEnabled = incrementalState?.enabled === true;
+  let cache = null;
+  let cachePath = null;
+  let fileHashes = null;
+  let cacheStats = null;
+  if (cacheEnabled) {
+    ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
+    fileHashes = new Map();
+    const manifestFiles = incrementalState?.manifest?.files || {};
+    for (const [file, entry] of Object.entries(manifestFiles)) {
+      if (entry?.hash) fileHashes.set(file, entry.hash);
+    }
+    if (fileTextByFile?.get) {
+      for (const file of Object.keys(importsByFile)) {
+        if (fileHashes.has(file)) continue;
+        const cached = fileTextByFile.get(file);
+        if (cached && typeof cached === 'object' && cached.hash) {
+          fileHashes.set(file, cached.hash);
+        }
+      }
+    }
+  }
   const resolution = resolveImportLinks({
     root: runtime.root,
     entries,
@@ -92,14 +117,21 @@ export const postScanImports = ({
     graphMeta: {
       toolVersion: runtime.toolInfo?.version || null,
       importScanMode: scanPlan.importScanMode || null
-    }
+    },
+    cache,
+    fileHashes,
+    cacheStats
   });
   if (resolution?.graph) {
     state.importResolutionGraph = resolution.graph;
   }
+  if (cacheEnabled && cache && cachePath) {
+    await saveImportResolutionCache({ cache, cachePath });
+  }
   const resolvedResult = {
     importsByFile,
     stats: resolution?.stats || null,
+    cacheStats: resolution?.cacheStats || cacheStats || null,
     durationMs: Date.now() - importStart
   };
   timing.importsMs = resolvedResult.durationMs;
@@ -192,7 +224,8 @@ export const runCrossFileInference = async ({
     ? buildRelationGraphs({
       chunks: state.chunks,
       fileRelations: state.fileRelations,
-      caps: runtime.indexingConfig?.graph?.caps
+      caps: runtime.indexingConfig?.graph?.caps,
+      emitNodes: false
     })
     : null;
   if (graphRelations?.caps) {

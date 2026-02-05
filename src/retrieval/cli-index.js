@@ -10,6 +10,7 @@ import {
   loadJsonArrayArtifact,
   loadTokenPostings,
   loadJsonObjectArtifact,
+  loadMinhashSignatures,
   loadPiecesManifest,
   resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
@@ -184,7 +185,7 @@ export async function loadIndex(dir, options) {
     fieldPostings,
     fieldTokens,
     minhash: includeMinhash
-      ? await loadOptionalObject('minhash_signatures', path.join(dir, 'minhash_signatures.json'))
+      ? await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict })
       : null,
     phraseNgrams: await loadOptionalObject('phrase_ngrams', path.join(dir, 'phrase_ngrams.json')),
     chargrams: await loadOptionalObject('chargram_postings', path.join(dir, 'chargram_postings.json'))

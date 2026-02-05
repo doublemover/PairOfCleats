@@ -16,7 +16,8 @@ export const writeIndexArtifactsForMode = async ({
   entries,
   perfProfile,
   graphRelations,
-  shardSummary
+  shardSummary,
+  stageCheckpoints
 }) => {
   const metaDebug = runtime?.argv?.verbose === true || runtime?.verboseCache === true;
   const metaCheck = finalizeMetaV2({
@@ -116,6 +117,7 @@ export const writeIndexArtifactsForMode = async ({
     mode,
     state,
     postings,
+    stageCheckpoints,
     postingsConfig: runtime.postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,

@@ -48,6 +48,20 @@ const findTopLevelIndex = (value, targetChar) => {
   return -1;
 };
 
+const findMatchingParen = (value, startIndex) => {
+  if (!value || startIndex < 0) return -1;
+  let depthParen = 0;
+  for (let i = startIndex; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === '(') depthParen += 1;
+    if (ch === ')') {
+      depthParen -= 1;
+      if (depthParen === 0) return i;
+    }
+  }
+  return -1;
+};
+
 const stripDefaultValue = (value) => {
   const idx = findTopLevelIndex(value, '=');
   return idx === -1 ? value : value.slice(0, idx);
@@ -81,7 +95,7 @@ export const parseSwiftSignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const candidate = detail.split('\n').find((line) => line.includes('(') && line.includes(')')) || detail;
   const open = candidate.indexOf('(');
-  const close = candidate.lastIndexOf(')');
+  const close = findMatchingParen(candidate, open);
   if (open === -1 || close === -1 || close < open) return null;
   const signature = candidate.trim();
   const paramsText = candidate.slice(open + 1, close).trim();
@@ -89,7 +103,18 @@ export const parseSwiftSignature = (detail) => {
   const arrowIndex = after.lastIndexOf('->');
   let returnType = null;
   if (arrowIndex !== -1) {
-    returnType = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
+    const resolved = normalizeSwiftType(after.slice(arrowIndex + 2).trim());
+    returnType = resolved || null;
+  }
+  if (!returnType && signature.includes('->')) {
+    const arrowMatch = signature.match(/->\s*([^{]+)/);
+    if (arrowMatch && arrowMatch[1]) {
+      const trimmed = arrowMatch[1].trim();
+      returnType = normalizeSwiftType(trimmed);
+    }
+  }
+  if (!returnType || returnType === '()') {
+    returnType = 'Void';
   }
 
   const paramTypes = {};

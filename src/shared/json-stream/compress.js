@@ -3,7 +3,7 @@ import { Gzip } from 'fflate';
 import { tryRequire } from '../optional-deps.js';
 import { warnOnce } from './runtime.js';
 
-const normalizeGzipOptions = (input) => {
+export const normalizeGzipOptions = (input) => {
   const output = input && typeof input === 'object' ? { ...input } : {};
   const supported = new Set(['level', 'mem', 'mtime']);
   for (const key of Object.keys(output)) {
@@ -59,7 +59,7 @@ export const createFflateGzipStream = (options = {}) => {
   return stream;
 };
 
-const resolveZstd = (options = {}) => {
+export const resolveZstd = (options = {}) => {
   const result = tryRequire('@mongodb-js/zstd', options);
   if (result.ok) return result.mod;
   const message = result.reason === 'missing'

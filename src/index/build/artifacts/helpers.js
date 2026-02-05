@@ -1,4 +1,447 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { once } from 'node:events';
+import { writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.js';
+import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
+import { compareStrings } from '../../../shared/sort.js';
+import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
+
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
+const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
+
+export class MinHeap {
+  constructor(compare) {
+    this.compare = compare;
+    this.items = [];
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(value) {
+    this.items.push(value);
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  pop() {
+    if (!this.items.length) return null;
+    const top = this.items[0];
+    const last = this.items.pop();
+    if (this.items.length && last) {
+      this.items[0] = last;
+      this.bubbleDown(0);
+    }
+    return top;
+  }
+
+  bubbleUp(index) {
+    const { items, compare } = this;
+    let i = index;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (compare(items[i], items[parent]) >= 0) break;
+      [items[i], items[parent]] = [items[parent], items[i]];
+      i = parent;
+    }
+  }
+
+  bubbleDown(index) {
+    const { items, compare } = this;
+    let i = index;
+    for (;;) {
+      const left = i * 2 + 1;
+      const right = left + 1;
+      let smallest = i;
+      if (left < items.length && compare(items[left], items[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < items.length && compare(items[right], items[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest === i) break;
+      [items[i], items[smallest]] = [items[smallest], items[i]];
+      i = smallest;
+    }
+  }
+}
+
+export const readJsonlRows = async function* (filePath) {
+  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  let buffer = '';
+  let lineNumber = 0;
+  try {
+    for await (const chunk of stream) {
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        lineNumber += 1;
+        const trimmed = line.trim();
+        if (!trimmed) {
+          newlineIndex = buffer.indexOf('\n');
+          continue;
+        }
+        try {
+          yield JSON.parse(trimmed);
+        } catch (err) {
+          const message = err?.message || 'JSON parse error';
+          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+        }
+        newlineIndex = buffer.indexOf('\n');
+      }
+    }
+    const trimmed = buffer.trim();
+    if (trimmed) {
+      lineNumber += 1;
+      try {
+        yield JSON.parse(trimmed);
+      } catch (err) {
+        const message = err?.message || 'JSON parse error';
+        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
+      }
+    }
+  } finally {
+    if (!stream.destroyed) stream.destroy();
+  }
+};
+
+export const mergeSortedRuns = async function* (runs, { compare, readRun = readJsonlRows } = {}) {
+  const compareFn = typeof compare === 'function' ? compare : compareStrings;
+  const advance = async (cursor) => {
+    const next = await cursor.iterator.next();
+    if (next.done) {
+      cursor.done = true;
+      cursor.row = null;
+      return false;
+    }
+    cursor.row = next.value;
+    return true;
+  };
+  const heap = new MinHeap((a, b) => {
+    const cmp = compareFn(a.row, b.row);
+    if (cmp !== 0) return cmp;
+    return a.order - b.order;
+  });
+  for (let i = 0; i < runs.length; i += 1) {
+    const run = runs[i];
+    if (!run) continue;
+    const iterator = readRun(run)[Symbol.asyncIterator]();
+    const cursor = { iterator, row: null, done: false, order: i };
+    const hasRow = await advance(cursor);
+    if (hasRow) heap.push(cursor);
+  }
+  while (heap.size) {
+    const best = heap.pop();
+    if (!best) break;
+    yield best.row;
+    const hasMore = await advance(best);
+    if (hasMore) heap.push(best);
+  }
+};
+
+export const writeJsonlRunFile = async (filePath, rows, { atomic = true, serialize = null } = {}) => {
+  if (typeof serialize !== 'function') {
+    return writeJsonLinesFile(filePath, rows, { atomic });
+  }
+  const writer = createJsonlBatchWriter(filePath, { atomic });
+  try {
+    for (const entry of rows) {
+      const line = serialize(entry);
+      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+      await writer.writeLine(line, lineBytes);
+    }
+    await writer.close();
+  } catch (err) {
+    try { await writer.destroy(err); } catch {}
+    throw err;
+  }
+};
+
+export const createByteTracker = ({ maxJsonBytes = null } = {}) => {
+  const stats = {
+    totalBytes: 0,
+    totalRows: 0,
+    maxRowBytes: 0
+  };
+  const track = (row, { stringified = null } = {}) => {
+    const line = stringified ?? JSON.stringify(row);
+    const lineBytes = Buffer.byteLength(line, 'utf8');
+    if (maxJsonBytes && lineBytes > maxJsonBytes) {
+      const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${maxJsonBytes}).`);
+      err.code = 'ERR_JSON_TOO_LARGE';
+      throw err;
+    }
+    stats.totalBytes += lineBytes + 1;
+    stats.totalRows += 1;
+    stats.maxRowBytes = Math.max(stats.maxRowBytes, lineBytes);
+    return { line, lineBytes };
+  };
+  return { stats, track };
+};
+
+export const trackBytesForRow = (stats, row, { stringified = null, maxJsonBytes = null } = {}) => {
+  if (!stats) return { line: null, lineBytes: 0 };
+  const line = stringified ?? JSON.stringify(row);
+  const lineBytes = Buffer.byteLength(line, 'utf8');
+  if (maxJsonBytes && lineBytes > maxJsonBytes) {
+    const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${maxJsonBytes}).`);
+    err.code = 'ERR_JSON_TOO_LARGE';
+    throw err;
+  }
+  stats.totalBytes = (stats.totalBytes || 0) + lineBytes + 1;
+  stats.totalRows = (stats.totalRows || 0) + 1;
+  stats.maxRowBytes = Math.max(stats.maxRowBytes || 0, lineBytes);
+  return { line, lineBytes };
+};
+
+export const createTrimStats = () => ({
+  totalRows: 0,
+  trimmedRows: 0,
+  droppedRows: 0,
+  totalBytes: 0,
+  maxRowBytes: 0
+});
+
+export const recordTrimStats = (stats, { rowBytes = 0, trimmed = false, dropped = false } = {}) => {
+  if (!stats) return;
+  stats.totalRows += dropped ? 0 : 1;
+  if (trimmed) stats.trimmedRows += 1;
+  if (dropped) stats.droppedRows += 1;
+  if (rowBytes) {
+    stats.totalBytes += rowBytes;
+    stats.maxRowBytes = Math.max(stats.maxRowBytes, rowBytes);
+  }
+};
+
+export const recordArtifactTelemetry = (recorder, {
+  stage,
+  artifact,
+  rows,
+  bytes,
+  maxRowBytes,
+  trimmedRows,
+  droppedRows,
+  extra = null
+} = {}) => {
+  if (!recorder?.record) return;
+  recorder.record({
+    stage: stage || 'artifacts',
+    step: 'artifact',
+    label: artifact || null,
+    extra: {
+      artifact: artifact || null,
+      rows: Number.isFinite(rows) ? rows : null,
+      bytes: Number.isFinite(bytes) ? bytes : null,
+      maxRowBytes: Number.isFinite(maxRowBytes) ? maxRowBytes : null,
+      trimmedRows: Number.isFinite(trimmedRows) ? trimmedRows : null,
+      droppedRows: Number.isFinite(droppedRows) ? droppedRows : null,
+      ...extra
+    }
+  });
+};
+
+export const createRowSpillCollector = ({
+  outDir,
+  runPrefix,
+  compare,
+  maxBufferBytes = 2 * 1024 * 1024,
+  maxBufferRows = 5000,
+  maxJsonBytes = null,
+  stats = createTrimStats(),
+  mapRow = null,
+  serialize = null
+} = {}) => {
+  const buffer = [];
+  let bufferBytes = 0;
+  let runsDir = null;
+  let runIndex = 0;
+  const runs = [];
+  const compareRows = typeof compare === 'function' ? compare : compareStrings;
+  const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
+  const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
+  const runDirName = `${runPrefix || 'rows'}.runs`;
+
+  const ensureRunsDir = async () => {
+    if (runsDir) return runsDir;
+    if (!outDir) throw new Error('row spill collector requires outDir');
+    runsDir = path.join(outDir, runDirName);
+    await fs.promises.mkdir(runsDir, { recursive: true });
+    return runsDir;
+  };
+
+  const spill = async () => {
+    if (!buffer.length) return;
+    buffer.sort(compareRows);
+    const dir = await ensureRunsDir();
+    const runName = `${runPrefix || 'rows'}.run-${String(runIndex).padStart(5, '0')}.jsonl`;
+    const runPath = path.join(dir, runName);
+    runIndex += 1;
+    await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
+    runs.push(runPath);
+    buffer.length = 0;
+    bufferBytes = 0;
+  };
+
+  const append = async (row, { trimmed = false, dropped = false, line = null, lineBytes = null } = {}) => {
+    if (!row || dropped) {
+      recordTrimStats(stats, { dropped: true });
+      return;
+    }
+    const resolvedLine = line ?? serializeRow(row);
+    const resolvedBytes = lineBytes == null
+      ? Buffer.byteLength(resolvedLine, 'utf8') + 1
+      : Math.max(0, Math.floor(Number(lineBytes)));
+    if (maxJsonBytes && resolvedBytes > maxJsonBytes) {
+      const err = new Error(`JSONL entry exceeds maxBytes (${resolvedBytes} > ${maxJsonBytes}).`);
+      err.code = 'ERR_JSON_TOO_LARGE';
+      throw err;
+    }
+    recordTrimStats(stats, { rowBytes: resolvedBytes, trimmed });
+    buffer.push(wrapRow(row, { line: resolvedLine, lineBytes: resolvedBytes }));
+    bufferBytes += resolvedBytes;
+    const overflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
+      || (maxBufferRows && buffer.length >= maxBufferRows);
+    if (overflow) {
+      await spill();
+    }
+  };
+
+  const finalize = async () => {
+    if (runs.length) {
+      if (buffer.length) await spill();
+      return {
+        runs: runs.slice(),
+        stats,
+        cleanup: async () => {
+          if (runsDir) {
+            await fs.promises.rm(runsDir, { recursive: true, force: true });
+          }
+        }
+      };
+    }
+    if (buffer.length) buffer.sort(compareRows);
+    return {
+      rows: buffer,
+      stats,
+      cleanup: async () => {
+        if (runsDir) {
+          await fs.promises.rm(runsDir, { recursive: true, force: true });
+        }
+      }
+    };
+  };
+
+  return {
+    append,
+    finalize,
+    stats
+  };
+};
+
+const writeBuffer = async (stream, buffer) => {
+  if (!buffer || buffer.length === 0) return;
+  if (!stream.write(buffer)) {
+    await once(stream, 'drain');
+  }
+};
+
+export const writePerFileVarintIndex = async ({
+  outDir,
+  baseName,
+  fileCount,
+  perFileRows,
+  atomic = true
+}) => {
+  if (!outDir || !baseName) return null;
+  if (!Number.isFinite(fileCount) || fileCount <= 0) return null;
+  if (!Array.isArray(perFileRows)) return null;
+  const dataPath = path.join(outDir, `${baseName}.bin`);
+  const offsetsPath = path.join(outDir, `${baseName}.offsets.bin`);
+  const targetPath = atomic ? createTempPath(dataPath) : dataPath;
+  const stream = fs.createWriteStream(targetPath);
+  const offsetsWriter = createOffsetsWriter(offsetsPath, { atomic });
+  let bytesWritten = 0;
+  try {
+    for (let i = 0; i < fileCount; i += 1) {
+      await offsetsWriter.writeOffset(bytesWritten);
+      const rows = Array.isArray(perFileRows[i]) ? perFileRows[i] : [];
+      if (!rows.length) continue;
+      const buffer = encodeVarintDeltas(rows);
+      bytesWritten += buffer.length;
+      await writeBuffer(stream, buffer);
+    }
+    await offsetsWriter.writeOffset(bytesWritten);
+    stream.end();
+    await once(stream, 'finish');
+    if (atomic) {
+      await replaceFile(targetPath, dataPath);
+    }
+    await offsetsWriter.close();
+  } catch (err) {
+    try { stream.destroy(err); } catch {}
+    try { await once(stream, 'close'); } catch {}
+    try { await offsetsWriter.destroy(err); } catch {}
+    if (atomic) {
+      try { await fs.promises.rm(targetPath, { force: true }); } catch {}
+    }
+    throw err;
+  }
+  return { dataPath, offsetsPath, bytesWritten };
+};
+
+export const compareSymbolOccurrenceRows = (a, b) => {
+  const fileCmp = compareStrings(a?.host?.file, b?.host?.file);
+  if (fileCmp) return fileCmp;
+  const uidCmp = compareStrings(a?.host?.chunkUid, b?.host?.chunkUid);
+  if (uidCmp) return uidCmp;
+  const roleCmp = compareStrings(a?.role, b?.role);
+  if (roleCmp) return roleCmp;
+  const nameCmp = compareStrings(a?.ref?.targetName, b?.ref?.targetName);
+  if (nameCmp) return nameCmp;
+  return compareStrings(a?.ref?.status, b?.ref?.status);
+};
+
+export const compareSymbolEdgeRows = (a, b) => {
+  const fromCmp = compareStrings(a?.from?.chunkUid, b?.from?.chunkUid);
+  if (fromCmp) return fromCmp;
+  const typeCmp = compareStrings(a?.type, b?.type);
+  if (typeCmp) return typeCmp;
+  const nameCmp = compareStrings(a?.to?.targetName, b?.to?.targetName);
+  if (nameCmp) return nameCmp;
+  return compareStrings(a?.to?.status, b?.to?.status);
+};
+
+export const compareChunkMetaRows = (a, b) => {
+  const fileCmp = compareStrings(a?.file, b?.file);
+  if (fileCmp) return fileCmp;
+  const uidCmp = compareStrings(a?.chunkUid, b?.chunkUid);
+  if (uidCmp) return uidCmp;
+  const idCmp = compareStrings(a?.chunkId ?? a?.id, b?.chunkId ?? b?.id);
+  if (idCmp) return idCmp;
+  const startA = Number.isFinite(Number(a?.start)) ? Number(a.start) : null;
+  const startB = Number.isFinite(Number(b?.start)) ? Number(b.start) : null;
+  if (startA != null && startB != null && startA !== startB) return startA - startB;
+  return compareStrings(a?.name, b?.name);
+};
+
+export const compareChunkMetaRowsById = (a, b) => {
+  const idA = Number.isFinite(Number(a?.id)) ? Number(a.id) : null;
+  const idB = Number.isFinite(Number(b?.id)) ? Number(b.id) : null;
+  if (idA != null && idB != null && idA !== idB) return idA - idB;
+  if (idA != null && idB == null) return -1;
+  if (idA == null && idB != null) return 1;
+  return compareChunkMetaRows(a, b);
+};
+
+export const compareGraphRelationRows = (a, b) => {
+  const graphCmp = (GRAPH_RELATION_ORDER.get(a?.graph) ?? 99) - (GRAPH_RELATION_ORDER.get(b?.graph) ?? 99);
+  if (graphCmp) return graphCmp;
+  return compareStrings(a?.node?.id, b?.node?.id);
+};
 
 export const formatBytes = (bytes) => {
   const value = Number(bytes);
@@ -48,14 +491,39 @@ export const summarizeFilterIndex = (value) => {
   };
 };
 
-export const createGraphRelationsIterator = (relations) => function* graphRelationsIterator() {
+export const createGraphRelationsIterator = (relations, options = {}) => function* graphRelationsIterator() {
   if (!relations || typeof relations !== 'object') return;
+  const { byteBudget = null, stats = null } = options;
+  let totalBytes = 0;
+  let dropping = false;
   for (const graphName of GRAPH_RELATION_GRAPHS) {
-    const graph = relations[graphName];
-    const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-    for (const node of nodes) {
+    const nodeIterator = iterateGraphNodes(relations, graphName);
+    for (const node of nodeIterator) {
       if (!node || typeof node !== 'object' || Array.isArray(node)) continue;
-      yield { graph: graphName, node };
+      const row = { graph: graphName, node };
+      if (byteBudget && !dropping) {
+        const lineBytes = Buffer.byteLength(JSON.stringify(row), 'utf8') + 1;
+        if (totalBytes + lineBytes > byteBudget) {
+          dropping = true;
+          if (stats) {
+            stats.byteBudget = byteBudget;
+            stats.truncated = true;
+          }
+        } else {
+          totalBytes += lineBytes;
+          yield row;
+          continue;
+        }
+      }
+      if (dropping) {
+        if (stats) {
+          stats.droppedRows = (stats.droppedRows || 0) + 1;
+          stats.droppedByGraph = stats.droppedByGraph || {};
+          stats.droppedByGraph[graphName] = (stats.droppedByGraph[graphName] || 0) + 1;
+        }
+        continue;
+      }
+      yield row;
     }
   }
 };
@@ -66,26 +534,39 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
   const graphSizes = {};
   let totalJsonlBytes = 0;
   let totalEntries = 0;
+  let maxRowBytes = 0;
   for (const graphName of GRAPH_RELATION_GRAPHS) {
     const graph = relations[graphName] || {};
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-    const nodeCount = Number.isFinite(graph.nodeCount) ? graph.nodeCount : nodes.length;
-    const edgeCount = Number.isFinite(graph.edgeCount)
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodesIterator = iterateGraphNodes(relations, graphName);
+    const graphKey = JSON.stringify(graphName);
+    const nodeCount = Number.isFinite(graph.nodeCount)
+      ? graph.nodeCount
+      : (graphObj ? graphObj.order : 0);
+    const hasEdgeCount = Number.isFinite(graph.edgeCount);
+    const hasGraphObj = !!graphObj;
+    let edgeCount = hasEdgeCount
       ? graph.edgeCount
-      : nodes.reduce((sum, node) => sum + (Array.isArray(node?.out) ? node.out.length : 0), 0);
+      : (hasGraphObj ? graphObj.size : 0);
+    const countEdgesFromNodes = !hasEdgeCount && !hasGraphObj;
     graphs[graphName] = { nodeCount, edgeCount };
     let nodesBytes = 0;
-    for (let i = 0; i < nodes.length; i += 1) {
-      const node = nodes[i];
+    let nodeIndex = 0;
+    for (const node of nodesIterator) {
       const nodeJson = JSON.stringify(node);
-      nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (i > 0 ? 1 : 0);
-      const line = JSON.stringify({ graph: graphName, node });
+      nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (nodeIndex > 0 ? 1 : 0);
+      const line = `{"graph":${graphKey},"node":${nodeJson}}`;
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
         throw new Error(`graph_relations entry exceeds max JSON size (${lineBytes} bytes).`);
       }
       totalJsonlBytes += lineBytes + 1;
       totalEntries += 1;
+      nodeIndex += 1;
+      if (countEdgesFromNodes) {
+        edgeCount += Array.isArray(node?.out) ? node.out.length : 0;
+      }
     }
     const baseGraphBytes = Buffer.byteLength(
       JSON.stringify({ nodeCount, edgeCount, nodes: [] }),
@@ -110,7 +591,109 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
     + graphSizes.callGraph - 2
     + graphSizes.usageGraph - 2
     + graphSizes.importGraph - 2;
-  return { totalJsonBytes, totalJsonlBytes, totalEntries, graphs, version, generatedAt };
+  return {
+    totalJsonBytes,
+    totalJsonlBytes,
+    totalEntries,
+    graphs,
+    version,
+    generatedAt,
+    maxRowBytes
+  };
+};
+
+export const iterateGraphNodes = (relations, graphName) => {
+  const graph = relations?.[graphName];
+  if (Array.isArray(graph?.nodes)) {
+    return graph.nodes[Symbol.iterator]();
+  }
+  const graphObj = relations?.__graphs?.[graphName];
+  if (!graphObj) {
+    return [][Symbol.iterator]();
+  }
+  const ids = graphObj.nodes().slice().sort(compareStrings);
+  return (function* graphNodeIterator() {
+    for (const id of ids) {
+      const attrs = graphObj.getNodeAttributes(id) || {};
+      const out = graphObj.outNeighbors(id).slice().sort();
+      const incoming = graphObj.inNeighbors(id).slice().sort();
+      yield { id, ...attrs, out, in: incoming };
+    }
+  })();
+};
+
+export const materializeGraphRelationsPayload = (relations) => {
+  if (!relations || typeof relations !== 'object') return relations;
+  const buildGraph = (graphName) => {
+    const graph = relations?.[graphName] || {};
+    if (Array.isArray(graph?.nodes)) return graph;
+    const nodes = [];
+    const nodeIterator = iterateGraphNodes(relations, graphName);
+    for (const node of nodeIterator) nodes.push(node);
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodeCount = Number.isFinite(graph?.nodeCount)
+      ? graph.nodeCount
+      : (graphObj ? graphObj.order : nodes.length);
+    const edgeCount = Number.isFinite(graph?.edgeCount)
+      ? graph.edgeCount
+      : (graphObj ? graphObj.size : 0);
+    return { nodeCount, edgeCount, nodes };
+  };
+  const output = {
+    version: Number.isFinite(relations.version) ? relations.version : 1,
+    generatedAt: typeof relations.generatedAt === 'string' ? relations.generatedAt : new Date().toISOString(),
+    callGraph: buildGraph('callGraph'),
+    usageGraph: buildGraph('usageGraph'),
+    importGraph: buildGraph('importGraph')
+  };
+  if (relations.caps !== undefined) output.caps = relations.caps;
+  return output;
+};
+
+export const buildGraphRelationsCsr = (relations) => {
+  if (!relations || typeof relations !== 'object') return null;
+  const version = Number.isFinite(relations.version) ? relations.version : 1;
+  const generatedAt = typeof relations.generatedAt === 'string'
+    ? relations.generatedAt
+    : new Date().toISOString();
+  const graphs = {};
+  for (const graphName of GRAPH_RELATION_GRAPHS) {
+    const graphObj = relations?.__graphs?.[graphName] || null;
+    const nodeEntries = graphObj ? null : Array.from(iterateGraphNodes(relations, graphName));
+    const nodes = graphObj
+      ? graphObj.nodes().slice().sort(compareStrings)
+      : nodeEntries.map((node) => node.id).sort(compareStrings);
+    const outById = nodeEntries
+      ? nodeEntries.reduce((acc, node) => {
+        acc.set(node.id, Array.isArray(node.out) ? node.out : []);
+        return acc;
+      }, new Map())
+      : null;
+    const idToIndex = new Map(nodes.map((id, index) => [id, index]));
+    const offsets = new Array(nodes.length + 1);
+    const edges = [];
+    offsets[0] = 0;
+    for (let i = 0; i < nodes.length; i += 1) {
+      const id = nodes[i];
+      const out = graphObj
+        ? graphObj.outNeighbors(id).slice().sort()
+        : (outById?.get(id) || []);
+      const outList = graphObj ? out : (Array.isArray(out) ? out.slice().sort() : []);
+      for (const target of outList) {
+        const targetIndex = idToIndex.get(target);
+        if (Number.isFinite(targetIndex)) edges.push(targetIndex);
+      }
+      offsets[i + 1] = edges.length;
+    }
+    graphs[graphName] = {
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      nodes,
+      offsets,
+      edges
+    };
+  }
+  return { version, generatedAt, graphs };
 };
 
 export const estimatePostingsBytes = (vocab, postingsList, sampleLimit = 200) => {

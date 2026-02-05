@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'code-map-determinism');
@@ -22,15 +23,24 @@ await fsPromises.writeFile(
   'import { alpha } from "./one.js";\nexport function beta() { return alpha(); }\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      embeddings: { enabled: false },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      treeSitter: {
+        deferMissing: false
+      }
+    },
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,

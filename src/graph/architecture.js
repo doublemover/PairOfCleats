@@ -4,6 +4,10 @@ import { normalizeCap } from '../shared/limits.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import { resolveProvenance } from '../shared/provenance.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
+import { sha1 } from '../shared/hash.js';
+
+const compiledRuleCache = new Map();
+const orderedNodeCache = new WeakMap();
 
 const buildMatcherSet = (patterns) => patterns.map((pattern) => picomatch(pattern, { dot: true }));
 
@@ -100,6 +104,42 @@ const buildOrderedNodes = (nodeIndex) => {
   return nodes;
 };
 
+const resolveCompiledRules = (rules, warnings) => {
+  const serialized = JSON.stringify(rules);
+  const rulesHash = sha1(serialized);
+  const cached = compiledRuleCache.get(rulesHash);
+  if (cached) {
+    for (const warning of cached.warnings) warnings.push(warning);
+    return cached.compiledRules;
+  }
+  const localWarnings = [];
+  const compiled = compileRules(rules, localWarnings);
+  compiledRuleCache.set(rulesHash, { compiledRules: compiled, warnings: localWarnings });
+  for (const warning of localWarnings) warnings.push(warning);
+  return compiled;
+};
+
+const resolveOrderedNodes = (graphRelations) => {
+  if (!graphRelations || typeof graphRelations !== 'object') return null;
+  if (orderedNodeCache.has(graphRelations)) return orderedNodeCache.get(graphRelations);
+  const callGraph = graphRelations.callGraph || null;
+  const importGraph = graphRelations.importGraph || null;
+  const callNodeIndex = buildNodeIndex(callGraph);
+  const importNodeIndex = buildNodeIndex(importGraph);
+  const callNodes = buildOrderedNodes(callNodeIndex);
+  const importNodes = buildOrderedNodes(importNodeIndex);
+  const cached = {
+    callGraph,
+    importGraph,
+    callNodeIndex,
+    importNodeIndex,
+    callNodes,
+    importNodes
+  };
+  orderedNodeCache.set(graphRelations, cached);
+  return cached;
+};
+
 const resolveNodeRef = (graphType, node, fallbackId, repoRoot) => {
   if (graphType === 'import') {
     const pathValue = normalizePathForRepo(node?.file || fallbackId, repoRoot);
@@ -167,7 +207,7 @@ export const buildArchitectureReport = ({
   });
 
   const normalizedRules = normalizeRulesInput(rules);
-  const compiledRules = compileRules(normalizedRules, warnings);
+  const compiledRules = resolveCompiledRules(normalizedRules, warnings);
   const summaries = compiledRules.map((rule) => ({
     id: rule.id,
     type: rule.type,
@@ -195,12 +235,13 @@ export const buildArchitectureReport = ({
     };
   }
 
-  const callGraph = graphRelations.callGraph || null;
-  const importGraph = graphRelations.importGraph || null;
-  const callNodeIndex = buildNodeIndex(callGraph);
-  const importNodeIndex = buildNodeIndex(importGraph);
-  const callNodes = buildOrderedNodes(callNodeIndex);
-  const importNodes = buildOrderedNodes(importNodeIndex);
+  const cachedNodes = resolveOrderedNodes(graphRelations);
+  const callGraph = cachedNodes?.callGraph || null;
+  const importGraph = cachedNodes?.importGraph || null;
+  const callNodeIndex = cachedNodes?.callNodeIndex || new Map();
+  const importNodeIndex = cachedNodes?.importNodeIndex || new Map();
+  const callNodes = cachedNodes?.callNodes || [];
+  const importNodes = cachedNodes?.importNodes || [];
 
   const callRules = compiledRules.filter((rule) => rule.type === 'forbiddenCall');
   const importRules = compiledRules.filter((rule) => rule.type === 'forbiddenImport' || rule.type === 'layering');

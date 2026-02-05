@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../shared/artifact-io.js';
 import { sha1 } from '../shared/hash.js';
@@ -8,6 +9,7 @@ import { stableStringify } from '../shared/stable-json.js';
 import {
   DEFAULT_LEGEND,
   DEFAULT_LIMITS,
+  DEFAULT_EDGE_WEIGHTS,
   MAP_MODEL_VERSION,
   VIEWER_DEFAULTS
 } from './constants.js';
@@ -23,6 +25,7 @@ import {
   writeMapJsonStream
 } from './build-map/io.js';
 import {
+  createStringInterner,
   normalizeArray,
   normalizeControlFlow,
   normalizeDataflow,
@@ -39,8 +42,8 @@ import {
   buildExportEdges,
   buildImportEdges
 } from './build-map/edges.js';
-import { normalizeIncludeList, resolveFocus } from './build-map/filters.js';
-import { buildFileNodes } from './build-map/nodes.js';
+import { createCollapseTransform, createScopeFilters, normalizeIncludeList, resolveFocus } from './build-map/filters.js';
+import { buildFileNodesIterable } from './build-map/nodes.js';
 
 const normalizeMemberId = (value) => (value === 0 || value ? String(value) : null);
 
@@ -76,6 +79,23 @@ const createBuildTimer = () => {
   return { stages, peak, track };
 };
 
+const createSectionHasher = () => {
+  const hash = createHash('sha1');
+  let hasAny = false;
+  return {
+    add(value) {
+      hash.update(stableStringify(value));
+      hash.update('\n');
+      hasAny = true;
+    },
+    digest() {
+      if (!hasAny) return hash.digest('hex');
+      return hash.digest('hex');
+    }
+  };
+};
+
+
 const compareNodes = (a, b) => String(a.path || '').localeCompare(String(b.path || ''));
 const edgeSortKey = (edge) => {
   const from = edge.from?.member || edge.from?.file || '';
@@ -103,62 +123,72 @@ const buildEdgeIteratorFactory = ({
   memberById,
   memberByChunkUid,
   aliasById,
-  membersByFile
+  membersByFile,
+  intern
 }) => {
+  const resolveGraphEdges = ({ graph, type, fallback }) => {
+    if (!graph) return fallback();
+    const iterator = buildEdgesFromGraph({
+      graph,
+      type,
+      memberById,
+      memberByChunkUid,
+      aliasById,
+      intern
+    });
+    const first = iterator.next();
+    if (first.done) return fallback();
+    return (function* () {
+      yield first.value;
+      for (const edge of iterator) yield edge;
+    })();
+  };
+
   const factories = [];
   if (includes.includes('imports')) {
-    factories.push(() => buildImportEdges({ fileRelations }));
+    factories.push(() => buildImportEdges({ fileRelations, intern }));
   }
   if (includes.includes('exports')) {
-    factories.push(() => buildExportEdges({ membersByFile }));
+    factories.push(() => buildExportEdges({ membersByFile, intern }));
   }
   if (includes.includes('calls')) {
-    factories.push(() => {
-      if (graphRelations?.callGraph) {
-        const edges = buildEdgesFromGraph({
-          graph: graphRelations.callGraph,
-          type: 'call',
-          memberById,
-          memberByChunkUid,
-          aliasById
-        });
-        if (edges.length) return edges;
-      }
-      return buildEdgesFromCalls({
+    factories.push(() => resolveGraphEdges({
+      graph: graphRelations?.callGraph,
+      type: 'call',
+      fallback: () => buildEdgesFromCalls({
         chunkMeta,
         memberIndex,
         memberById,
         memberByChunkUid,
-        aliasById
-      });
-    });
+        aliasById,
+        intern
+      })
+    }));
   }
   if (includes.includes('usages')) {
-    factories.push(() => {
-      if (graphRelations?.usageGraph) {
-        const edges = buildEdgesFromGraph({
-          graph: graphRelations.usageGraph,
-          type: 'usage',
-          memberById,
-          memberByChunkUid,
-          aliasById
-        });
-        if (edges.length) return edges;
-      }
-      return buildEdgesFromUsage({
+    factories.push(() => resolveGraphEdges({
+      graph: graphRelations?.usageGraph,
+      type: 'usage',
+      fallback: () => buildEdgesFromUsage({
         chunkMeta,
         memberIndex,
         memberById,
         memberByChunkUid,
-        aliasById
-      });
-    });
+        aliasById,
+        intern
+      })
+    }));
   }
   if (includes.includes('dataflow')) {
-    factories.push(() => buildEdgesFromCallSummaries({ chunkMeta, memberById, memberByChunkUid }));
+    factories.push(() => buildEdgesFromCallSummaries({
+      chunkMeta,
+      memberById,
+      memberByChunkUid,
+      intern
+    }));
   }
   if (includes.includes('aliases')) {
-    factories.push(() => buildAliasEdges({ membersByFile }));
+    factories.push(() => buildAliasEdges({ membersByFile, intern }));
   }
 
   return () => (function* () {
@@ -192,6 +222,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   });
 
   const timer = createBuildTimer();
+  const intern = createStringInterner();
+  const internPath = (value) => intern(normalizePath(value));
 
   const {
     repoMap,
@@ -231,18 +263,21 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   await timer.track('build-members', async () => {
     for (const entry of repoMap) {
       if (!entry?.file || !entry?.name) continue;
-      const file = normalizePath(entry.file);
+      const file = internPath(entry.file);
+      const name = intern(entry.name);
+      const kind = intern(entry.kind || null);
+      const signature = intern(entry.signature || null);
       const symbolId = buildSymbolId({
         file,
-        name: entry.name,
-        kind: entry.kind,
+        name,
+        kind,
         startLine: entry.startLine,
         chunkId: null
       });
       upsertMember(membersByFile, memberById, file, symbolId, {
-        name: entry.name,
-        kind: entry.kind,
-        signature: entry.signature || null,
+        name,
+        kind,
+        signature,
         exported: entry.exported === true,
         range: {
           startLine: Number.isFinite(entry.startLine) ? entry.startLine : null,
@@ -254,8 +289,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
 
     for (const chunk of chunkMeta) {
       const meta = chunk?.metaV2 || null;
-      const file = normalizePath(meta?.file || chunk?.file || '');
-      const name = meta?.name || chunk?.name || null;
+      const file = internPath(meta?.file || chunk?.file || '');
+      const name = intern(meta?.name || chunk?.name || null);
       if (!file || !name) continue;
       const resolvedChunkId = resolveChunkId(chunk);
       const chunkUid = meta?.chunkUid || chunk?.chunkUid || null;
@@ -266,12 +301,13 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
         continue;
       }
       const symbolIdentity = meta?.symbol || null;
+      const kind = intern(meta?.kind || chunk?.kind || null);
       const symbolId = buildSymbolId({
         symbolId: symbolIdentity?.symbolId || null,
         chunkUid,
         file,
         name,
-        kind: meta?.kind || chunk?.kind || null,
+        kind,
         startLine: meta?.range?.startLine || chunk?.startLine,
         chunkId: resolvedChunkId || meta?.chunkId || null
       });
@@ -284,17 +320,20 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       }
       const legacyKey = `${file}::${name}`;
       if (legacyKey && legacyKey !== symbolId) aliasById.set(legacyKey, symbolId);
-      const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow);
+      const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow, intern);
       const controlFlow = normalizeControlFlow(meta?.controlFlow || chunk?.docmeta?.controlFlow);
       if (dataflow) hasDataflow = true;
       if (controlFlow) hasControlFlow = true;
+      const params = normalizeArray(meta?.params || chunk?.docmeta?.params, intern);
+      const modifiers = normalizeModifiers(meta?.modifiers || chunk?.docmeta?.modifiers);
+      const returns = meta?.returns || chunk?.docmeta?.returns || null;
       upsertMember(membersByFile, memberById, file, symbolId, {
         name,
-        kind: meta?.kind || chunk?.kind || null,
-        signature: meta?.signature || chunk?.docmeta?.signature || null,
-        params: normalizeArray(meta?.params || chunk?.docmeta?.params),
-        returns: meta?.returns || chunk?.docmeta?.returns || null,
-        modifiers: normalizeModifiers(meta?.modifiers || chunk?.docmeta?.modifiers),
+        kind,
+        signature: intern(meta?.signature || chunk?.docmeta?.signature || null),
+        params,
+        returns,
+        modifiers,
         dataflow,
         controlFlow,
         range: {
@@ -323,7 +362,20 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     }
   }
 
-  let nodes = await timer.track('build-nodes', async () => buildFileNodes(membersByFile));
+  const tempDir = await createTempDir();
+  const nodeSorter = createSpillSorter({
+    label: 'nodes',
+    compare: compareNodes,
+    maxInMemory: options.nodeSpillThreshold || 5000,
+    tempDir
+  });
+  await timer.track('build-nodes', async () => {
+    for (const node of buildFileNodesIterable(membersByFile, { intern })) {
+      await nodeSorter.push(node);
+    }
+  });
+  const nodeFinalize = await nodeSorter.finalize();
+  const nodeItems = nodeFinalize.items;
 
   const memberIndex = buildMemberIndex(memberById);
   const edgeIteratorFactory = buildEdgeIteratorFactory({
@@ -335,136 +387,34 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     memberById,
     memberByChunkUid,
     aliasById,
-    membersByFile
+    membersByFile,
+    intern
   });
 
   const { scope, focus } = resolveFocus(options);
   const collapse = options.collapse || 'none';
   const topKByDegree = options.topKByDegree === true;
-  const normalizedFocus = typeof focus === 'string' ? normalizePath(focus) : '';
-
-  const applyScope = async () => {
-    if (scope === 'repo' || !normalizedFocus) {
-      return { nodes, edgeFilter: () => true, memberFocusId: null };
+  const scopeFilters = createScopeFilters({
+    scope,
+    focus,
+    edgeIteratorFactory,
+    normalizeMemberId
+  });
+  const scopedNodes = await timer.track('apply-scope', async () => {
+    const list = [];
+    for await (const node of nodeItems) {
+      const next = scopeFilters.nodeFilter(node);
+      if (next) list.push(next);
     }
+    return list;
+  });
+  await nodeSorter.cleanup();
 
-    if (scope === 'dir') {
-      const base = normalizedFocus.replace(/\/+$/, '');
-      const filteredNodes = nodes.filter((node) => (
-        node.path === base || node.path.startsWith(`${base}/`)
-      ));
-      const fileSet = new Set(filteredNodes.map((node) => node.path));
-      const edgeFilter = (edge) => {
-        const fromFile = edge.from?.file || null;
-        const toFile = edge.to?.file || null;
-        if (fromFile && !fileSet.has(fromFile)) return false;
-        if (toFile && !fileSet.has(toFile)) return false;
-        return true;
-      };
-      return { nodes: filteredNodes, edgeFilter, memberFocusId: null };
-    }
-
-    if (scope === 'file') {
-      const filteredNodes = nodes.filter((node) => node.path === normalizedFocus);
-      const memberSet = new Set();
-      for (const node of filteredNodes) {
-        for (const member of node.members || []) {
-          const id = normalizeMemberId(member.id);
-          if (id) memberSet.add(id);
-        }
-      }
-      const fileSet = new Set(filteredNodes.map((node) => node.path));
-      const edgeFilter = (edge) => {
-        const fromFile = edge.from?.file || null;
-        const toFile = edge.to?.file || null;
-        const fromMember = normalizeMemberId(edge.from?.member);
-        const toMember = normalizeMemberId(edge.to?.member);
-        if (fromFile && !fileSet.has(fromFile)) return false;
-        if (toFile && !fileSet.has(toFile)) return false;
-        if (fromMember && !memberSet.has(fromMember)) return false;
-        if (toMember && !memberSet.has(toMember)) return false;
-        return true;
-      };
-      return { nodes: filteredNodes, edgeFilter, memberFocusId: null };
-    }
-
-    if (scope === 'member') {
-      const memberId = normalizedFocus || focus;
-      const focusId = normalizeMemberId(memberId);
-      if (!focusId) return { nodes: [], edgeFilter: () => false, memberFocusId: null };
-      const memberSet = new Set([focusId]);
-      for (const edge of edgeIteratorFactory()) {
-        const fromMember = normalizeMemberId(edge.from?.member);
-        const toMember = normalizeMemberId(edge.to?.member);
-        if (fromMember === focusId || toMember === focusId) {
-          if (fromMember) memberSet.add(fromMember);
-          if (toMember) memberSet.add(toMember);
-        }
-      }
-      const filteredNodes = nodes
-        .map((node) => {
-          const members = (node.members || []).filter((member) => memberSet.has(normalizeMemberId(member.id)));
-          if (!members.length) return null;
-          return { ...node, members };
-        })
-        .filter(Boolean);
-      const edgeFilter = (edge) => {
-        const fromMember = normalizeMemberId(edge.from?.member);
-        const toMember = normalizeMemberId(edge.to?.member);
-        return fromMember === focusId || toMember === focusId;
-      };
-      return { nodes: filteredNodes, edgeFilter, memberFocusId: focusId };
-    }
-
-    return { nodes, edgeFilter: () => true, memberFocusId: null };
-  };
-
-  const scopeResult = await timer.track('apply-scope', applyScope);
-  nodes = scopeResult.nodes;
-  let edgeFilter = scopeResult.edgeFilter;
-  let edgeTransform = (edge) => edge;
-
-  if (collapse === 'file') {
-    nodes = nodes.map((node) => ({ ...node, members: [] }));
-    edgeTransform = (edge) => ({
-      ...edge,
-      from: edge.from?.file ? { file: edge.from.file } : null,
-      to: edge.to?.file ? { file: edge.to.file } : null
-    });
-  } else if (collapse === 'dir') {
-    const dirNodes = new Map();
-    const fileToDir = new Map();
-    for (const node of nodes) {
-      const parts = normalizePath(node.path).split('/');
-      const dir = parts.length > 1 ? parts[0] : parts[0] || 'root';
-      fileToDir.set(node.path, dir);
-      if (!dirNodes.has(dir)) {
-        dirNodes.set(dir, {
-          id: dir,
-          path: dir,
-          name: dir,
-          ext: null,
-          category: 'dir',
-          type: 'file',
-          members: []
-        });
-      }
-    }
-    nodes = Array.from(dirNodes.values());
-    edgeTransform = (edge) => {
-      const fromFile = edge.from?.file || null;
-      const toFile = edge.to?.file || null;
-      const fromDir = fromFile ? fileToDir.get(fromFile) : null;
-      const toDir = toFile ? fileToDir.get(toFile) : null;
-      return {
-        ...edge,
-        from: fromDir ? { file: fromDir } : null,
-        to: toDir ? { file: toDir } : null
-      };
-    };
-  }
-
-  const transformEdge = edgeTransform;
+  let nodes = scopedNodes;
+  let edgeFilter = scopeFilters.edgeFilter;
+  const collapseResult = createCollapseTransform({ collapse, nodes });
+  nodes = collapseResult.nodes;
+  const transformEdge = collapseResult.edgeTransform;
 
   const degreeMap = topKByDegree
     ? await timer.track('edge-degree', async () => {
@@ -530,7 +480,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     return true;
   };
 
-  const tempDir = await createTempDir();
+  const edgeWeights = DEFAULT_EDGE_WEIGHTS;
+  const edgeAggregateMap = new Map();
   const edgeSorter = createSpillSorter({
     label: 'edges',
     compare: compareEdges,
@@ -546,6 +497,29 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       if (keptEdges >= limits.maxEdges) {
         dropped.edges += 1;
         continue;
+      }
+      const fromFile = next.from?.file || null;
+      const toFile = next.to?.file || null;
+      if (fromFile && toFile) {
+        const key = `${next.type}:${fromFile}->${toFile}`;
+        let bucket = edgeAggregateMap.get(key);
+        if (!bucket) {
+          bucket = {
+            type: next.type,
+            fromFile,
+            toFile,
+            count: 0,
+            weight: 0,
+            minWeight: Infinity,
+            maxWeight: -Infinity
+          };
+          edgeAggregateMap.set(key, bucket);
+        }
+        const edgeWeight = edgeWeights[next.type] || 1;
+        bucket.count += 1;
+        bucket.weight += edgeWeight;
+        bucket.minWeight = Math.min(bucket.minWeight, edgeWeight);
+        bucket.maxWeight = Math.max(bucket.maxWeight, edgeWeight);
       }
       guards.edges.add(resolveJsonBytes(next));
       await edgeSorter.push(next);
@@ -565,11 +539,46 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   await edgeSorter.cleanup();
   await cleanupTempDir(tempDir);
 
+  const sortedNodes = sortBy(limitedNodes, (node) => node.path);
+  const sortedEdges = sortBy(limitedEdges, (edge) => {
+    const from = edge.from?.member || edge.from?.file || '';
+    const to = edge.to?.member || edge.to?.file || '';
+    return `${edge.type}:${from}->${to}:${edge.label || ''}`;
+  });
+  const edgeAggregates = sortBy(
+    Array.from(edgeAggregateMap.values()).map((entry) => ({
+      ...entry,
+      minWeight: Number.isFinite(entry.minWeight) ? entry.minWeight : null,
+      maxWeight: Number.isFinite(entry.maxWeight) ? entry.maxWeight : null
+    })),
+    (entry) => `${entry.type}:${entry.fromFile}->${entry.toFile}`
+  );
+
+  const nodeHasher = createSectionHasher();
+  const symbolHasher = createSectionHasher();
+  for (const node of sortedNodes) {
+    nodeHasher.add(node);
+    for (const member of node.members || []) {
+      symbolHasher.add(member);
+    }
+  }
+  const edgeHasher = createSectionHasher();
+  for (const edge of sortedEdges) edgeHasher.add(edge);
+  const edgeAggregateHasher = createSectionHasher();
+  for (const entry of edgeAggregates) edgeAggregateHasher.add(entry);
+
+  const sectionHashes = {
+    nodes: nodeHasher.digest(),
+    symbols: symbolHasher.digest(),
+    edges: edgeHasher.digest(),
+    edgeAggregates: edgeAggregateHasher.digest()
+  };
+
   const summary = {
     counts: {
-      files: limitedNodes.length,
-      members: limitedNodes.reduce((acc, node) => acc + (node.members?.length || 0), 0),
-      edges: limitedEdges.length
+      files: sortedNodes.length,
+      members: sortedNodes.reduce((acc, node) => acc + (node.members?.length || 0), 0),
+      edges: sortedEdges.length
     },
     dropped,
     truncated: dropped.files > 0 || dropped.members > 0 || dropped.edges > 0,
@@ -616,12 +625,10 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       topKByDegree
     },
     legend: DEFAULT_LEGEND,
-    nodes: sortBy(limitedNodes, (node) => node.path),
-    edges: sortBy(limitedEdges, (edge) => {
-      const from = edge.from?.member || edge.from?.file || '';
-      const to = edge.to?.member || edge.to?.file || '';
-      return `${edge.type}:${from}->${to}:${edge.label || ''}`;
-    }),
+    nodes: sortedNodes,
+    edges: sortedEdges,
+    edgeAggregates,
+    sectionHashes,
     viewer,
     summary,
     buildMetrics,

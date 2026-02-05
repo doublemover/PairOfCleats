@@ -203,6 +203,68 @@
         "ioConcurrencyCap": { "type": "number" },
         "maxFileBytes": { "type": "number" },
         "maxFileLines": { "type": "number" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string" },
+            "chunkMetaFormat": {
+              "type": "string",
+              "enum": ["auto", "json", "jsonl", "columnar"],
+              "description": "Controls chunk_meta output format. auto chooses json/jsonl based on size; columnar forces columnar output."
+            },
+            "chunkMetaJsonlThreshold": { "type": "number" },
+            "chunkMetaShardSize": { "type": "number" },
+            "symbolArtifactsFormat": {
+              "type": "string",
+              "enum": ["auto", "jsonl", "jsonl-sharded", "columnar"],
+              "description": "Controls symbol_occurrences/symbol_edges output. columnar forces columnar; other values use JSONL/sharded based on size."
+            },
+            "tokenPostingsFormat": { "type": "string" },
+            "tokenPostingsShardSize": { "type": "number" },
+            "tokenPostingsShardThreshold": { "type": "number" }
+          }
+        },
+        "postings": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enablePhraseNgrams": { "type": "boolean" },
+            "enableChargrams": { "type": "boolean" },
+            "phraseMinN": { "type": "number" },
+            "phraseMaxN": { "type": "number" },
+            "phraseSource": { "type": "string" },
+            "chargramMinN": { "type": "number" },
+            "chargramMaxN": { "type": "number" },
+            "chargramMaxTokenLength": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "boolean" },
+                { "type": "null" }
+              ]
+            },
+            "chargramSpillMaxUnique": { "type": "number" },
+            "chargramMaxDf": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Maximum document frequency for chargram postings (0 disables the cap)."
+            },
+            "chargramSource": { "type": "string" },
+            "fielded": { "type": "boolean" },
+            "tokenClassification": {
+              "anyOf": [
+                { "type": "boolean" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": { "type": "boolean" }
+                  }
+                }
+              ]
+            }
+          }
+        },
         "scm": {
           "type": "object",
           "additionalProperties": false,

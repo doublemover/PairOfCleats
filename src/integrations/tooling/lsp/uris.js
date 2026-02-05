@@ -3,6 +3,7 @@ import { checksumString } from '../../../shared/hash.js';
 const VFS_URI_SCHEME = 'poc-vfs';
 const TOKEN_PARAM = 'token';
 const TOKEN_CACHE = new Map();
+const TOKEN_CACHE_MAX = 20000;
 
 const normalizeTokenMode = (mode) => {
   if (!mode) return 'docHash+virtualPath';
@@ -50,12 +51,27 @@ export const buildVfsToken = async ({ virtualPath, docHash = null, mode = null }
 
 export const registerVfsTokenMapping = (token, virtualPath) => {
   if (!token || !virtualPath) return;
+  if (TOKEN_CACHE.has(token)) {
+    TOKEN_CACHE.delete(token);
+  }
   TOKEN_CACHE.set(token, virtualPath);
+  if (TOKEN_CACHE.size <= TOKEN_CACHE_MAX) return;
+  const overflow = TOKEN_CACHE.size - TOKEN_CACHE_MAX;
+  const iterator = TOKEN_CACHE.keys();
+  for (let i = 0; i < overflow; i += 1) {
+    const oldest = iterator.next();
+    if (oldest.done) break;
+    TOKEN_CACHE.delete(oldest.value);
+  }
 };
 
 export const resolveVfsVirtualPathFromToken = (token) => {
   if (!token) return null;
-  return TOKEN_CACHE.get(token) || null;
+  const mapped = TOKEN_CACHE.get(token) || null;
+  if (!mapped) return null;
+  TOKEN_CACHE.delete(token);
+  TOKEN_CACHE.set(token, mapped);
+  return mapped;
 };
 
 export const buildVfsTokenUri = ({ virtualPath, token }) => {

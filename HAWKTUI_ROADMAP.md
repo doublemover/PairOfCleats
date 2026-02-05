@@ -30,6 +30,8 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - Windows: `taskkill /T` then escalate to `/F`
   - POSIX: signal the process group (negative PID) when detached
 - `--json` outputs must be **stdout-only** (no additional stdout noise); logs and progress go to stderr/protocol.
+- **Line length cap**: decoder enforces a hard cap (default 1MB) and emits a `log` event indicating truncation.
+- **Error behavior**: any malformed JSONL line becomes a `log` event with `parseError=true` (never fatal).
 
 ### Locked decisions (remove ambiguity)
 - **Cancel exit code**: tools invoked under the supervisor must exit **130** on user‑initiated cancel (SIGINT/SIGTERM are normalized to 130).
@@ -47,6 +49,22 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`
   - `docs/specs/supervisor-artifacts-indexing-pass.md`
   - `docs/specs/tui-installation.md`
+
+### Tool JSON/JSONL stdout inventory (must remain exhaustive)
+Tools that emit JSON to stdout or JSONL progress (must never use `stdio: 'inherit'` for children):
+- `build_index.js` (progress JSONL / JSON summary)
+- `search.js` (JSON output modes)
+- `tools/reports/report-code-map.js` (JSON map output)
+- `tools/setup/*` (JSONL progress mode)
+- `tools/bootstrap/*` (JSONL progress mode)
+- `tools/bench/**` (JSON/JSONL in harness mode)
+- `tools/tooling/**` (install/detect/download report tools)
+- `tools/config/**` (inventory/contract scripts)
+
+Each listed tool must declare:
+- stdout mode (JSON vs JSONL vs human)
+- stderr mode (logs/protocol only)
+- child stdio policy (pipe vs inherit)
 
 ### Related but out-of-scope specs
 - `docs/specs/spimi-spill.md` (indexing perf roadmap; not part of TUI milestone work)
@@ -105,6 +123,16 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
 - **Line length cap**: enforce a maximum line size (e.g., 1MB) in the shared decoder to prevent memory blowups.
 - **Stdout discipline**: any tool that writes JSON to stdout must never run children in `stdio: 'inherit'`.
 - **Test determinism**: tests must run without network access unless explicitly mocked.
+
+### Protocol versioning + migration
+- v1 remains supported for legacy tools; supervisor accepts v1 but wraps into v2 envelope.
+- v2 is strict: missing `proto` or `event` becomes `log` (never fatal).
+- Version bump rules: breaking field changes require `@v3` and dual‑emit during migration window.
+
+### Packaging constraints
+- Rust TUI ships as standalone binary plus thin wrapper in `bin/`.
+- Supervisor is invoked via wrapper to guarantee PATH and Node version consistency.
+- Artifact naming must include platform and version (e.g., `poc-tui-vX.Y.Z-win32-x64.zip`).
 
 ---
 
@@ -170,38 +198,8 @@ Use this list to remove ambiguity about which tools already emit JSONL progress 
 - `tools/index/validate.js`
 - `tools/index/cache-gc.js`
 - `tools/index/report-artifacts.js`
-- `tools/sqlite/verify-extensions.js`
-- `tools/tooling/doctor.js`
-- `tools/tooling/detect.js`
-- `tools/config/validate.js`
-- `tools/config/dump.js`
-- `tools/config/reset.js`
-- `tools/reports/metrics-dashboard.js`
-- `tools/bench/language/cli.js`
-- `tools/bench/dict-seg.js`
-- `tools/bench/query-generator.js`
-- `tools/bench/symbol-resolution-bench.js`
-- `tools/bench/map/build-map-memory.js`
-- `tools/bench/map/build-map-streaming.js`
-- `tools/bench/micro/hash.js`
-- `tools/bench/micro/watch.js`
-- `tools/bench/micro/extractors.js`
-- `tools/bench/micro/tinybench.js`
-- `tools/bench/micro/compression.js`
-- `tools/bench/micro/run.js`
-- `tools/bench/micro/regex.js`
-- `tools/bench/vfs/bloom-negative-lookup.js`
-- `tools/bench/vfs/cdc-segmentation.js`
-- `tools/bench/vfs/coalesce-docs.js`
-- `tools/bench/vfs/hash-routing-lookup.js`
-- `tools/bench/vfs/io-batching.js`
-- `tools/bench/vfs/parallel-manifest-build.js`
-- `tools/bench/vfs/partial-lsp-open.js`
-- `tools/bench/vfs/merge-runs-heap.js`
-- `tools/bench/vfs/token-uri-encode.js`
-- `tools/bench/vfs/vfsidx-lookup.js`
-- `tools/bench/vfs/segment-hash-cache.js`
-- `tools/ingest/lsif.js`
+
+---
 
 **JSON file writers or pass-through (not stdout)**
 - `tools/docs/script-inventory.js` (writes JSON file)
@@ -967,3 +965,4 @@ Milestone 1 is complete when:
   - renders tasks + logs
   - cancels a job
   - exits without corrupting terminal state
+

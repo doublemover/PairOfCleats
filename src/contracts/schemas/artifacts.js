@@ -28,6 +28,19 @@ const chunkMetaEntry = {
   additionalProperties: true
 };
 
+const columnarEnvelope = {
+  type: 'object',
+  required: ['format', 'columns', 'length', 'arrays'],
+  properties: {
+    format: { type: 'string', const: 'columnar' },
+    columns: { type: 'array', items: { type: 'string' } },
+    length: intId,
+    arrays: { type: 'object' },
+    tables: { type: ['object', 'null'] }
+  },
+  additionalProperties: true
+};
+
 const postingEntry = {
   type: 'array',
   minItems: 2,
@@ -845,13 +858,29 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'dense_vectors_code_hnsw',
   'dense_vectors_lancedb',
   'dense_vectors_doc_lancedb',
-  'dense_vectors_code_lancedb'
+  'dense_vectors_code_lancedb',
+  'call_sites_offsets',
+  'chunk_meta_offsets',
+  'graph_relations_offsets',
+  'symbol_edges_offsets',
+  'symbol_occurrences_offsets',
+  'symbols_offsets',
+  'symbol_occurrences_by_file',
+  'symbol_occurrences_by_file_offsets',
+  'symbol_occurrences_by_file_meta',
+  'symbol_edges_by_file',
+  'symbol_edges_by_file_offsets',
+  'symbol_edges_by_file_meta',
+  'minhash_signatures_packed',
+  'minhash_signatures_packed_meta'
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
   chunk_meta: {
-    type: 'array',
-    items: chunkMetaEntry
+    anyOf: [
+      { type: 'array', items: chunkMetaEntry },
+      columnarEnvelope
+    ]
   },
   chunk_uid_map: {
     type: 'array',
@@ -870,20 +899,25 @@ export const ARTIFACT_SCHEMA_DEFS = {
     items: vfsManifestIndexRow
   },
   file_meta: {
-    type: 'array',
-    items: {
-      type: 'object',
-      required: ['id', 'file'],
-      properties: {
-        id: intId,
-        file: { type: 'string' },
-        ext: nullableString,
-        encoding: nullableString,
-        encodingFallback: { type: ['boolean', 'null'] },
-        encodingConfidence: { type: ['number', 'null'] }
+    anyOf: [
+      {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'file'],
+          properties: {
+            id: intId,
+            file: { type: 'string' },
+            ext: nullableString,
+            encoding: nullableString,
+            encodingFallback: { type: ['boolean', 'null'] },
+            encodingConfidence: { type: ['number', 'null'] }
+          },
+          additionalProperties: true
+        }
       },
-      additionalProperties: true
-    }
+      columnarEnvelope
+    ]
   },
   repo_map: {
     type: 'array',
@@ -918,12 +952,16 @@ export const ARTIFACT_SCHEMA_DEFS = {
     items: symbolRecord
   },
   symbol_occurrences: {
-    type: 'array',
-    items: symbolOccurrence
+    anyOf: [
+      { type: 'array', items: symbolOccurrence },
+      columnarEnvelope
+    ]
   },
   symbol_edges: {
-    type: 'array',
-    items: symbolEdge
+    anyOf: [
+      { type: 'array', items: symbolEdge },
+      columnarEnvelope
+    ]
   },
   call_sites: {
     type: 'array',

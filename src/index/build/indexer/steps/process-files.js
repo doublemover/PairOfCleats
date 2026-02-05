@@ -62,6 +62,7 @@ export const processFiles = async ({
   );
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
+  const debugOrdered = envConfig.debugOrdered === true;
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -76,6 +77,29 @@ export const processFiles = async ({
   const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
   let checkpoint = null;
   let progress = null;
+  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
+    // Avoid reordering: ordered appender waits on canonical order, and
+    // out-of-order processing can deadlock queue completion.
+    allowReorder: false
+  });
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (Number.isFinite(entry.processingOrderIndex)) {
+      entry.orderIndex = entry.processingOrderIndex;
+    }
+  }
+  const startOrderIndex = (() => {
+    let minIndex = null;
+    for (const entry of entries || []) {
+      if (!entry || typeof entry !== 'object') continue;
+      const value = Number.isFinite(entry.orderIndex)
+        ? entry.orderIndex
+        : (Number.isFinite(entry.canonicalOrderIndex) ? entry.canonicalOrderIndex : null);
+      if (!Number.isFinite(value)) continue;
+      minIndex = minIndex == null ? value : Math.min(minIndex, value);
+    }
+    return Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0;
+  })();
   const orderedAppender = buildOrderedAppender(
     async (result, stateRef, shardMeta) => {
       if (!result) return;
@@ -95,6 +119,35 @@ export const processFiles = async ({
         if (!stateRef.fileInfoByPath) stateRef.fileInfoByPath = new Map();
         stateRef.fileInfoByPath.set(result.relKey, result.fileInfo);
       }
+      if (result.relKey && Array.isArray(result.chunks) && result.chunks.length) {
+        if (!stateRef.fileDetailsByPath) stateRef.fileDetailsByPath = new Map();
+        if (!stateRef.fileDetailsByPath.has(result.relKey)) {
+          const first = result.chunks[0] || {};
+          const info = result.fileInfo || {};
+          stateRef.fileDetailsByPath.set(result.relKey, {
+            file: result.relKey,
+            ext: first.ext || fileExt(result.relKey),
+            size: Number.isFinite(info.size) ? info.size : (Number.isFinite(first.fileSize) ? first.fileSize : null),
+            hash: info.hash || first.fileHash || null,
+            hashAlgo: info.hashAlgo || first.fileHashAlgo || null,
+            externalDocs: first.externalDocs || null,
+            last_modified: first.last_modified || null,
+            last_author: first.last_author || null,
+            churn: first.churn || null,
+            churn_added: first.churn_added || null,
+            churn_deleted: first.churn_deleted || null,
+            churn_commits: first.churn_commits || null
+          });
+        }
+      }
+      if (Array.isArray(result.chunks) && result.chunks.length) {
+        if (!stateRef.chunkUidToFile) stateRef.chunkUidToFile = new Map();
+        for (const chunk of result.chunks) {
+          const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
+          if (!chunkUid || stateRef.chunkUidToFile.has(chunkUid)) continue;
+          stateRef.chunkUidToFile.set(chunkUid, result.relKey);
+        }
+      }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
@@ -110,11 +163,15 @@ export const processFiles = async ({
         await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
       }
     },
-    state
+    state,
+    {
+      expectedCount: Array.isArray(entries) ? entries.length : null,
+      startIndex: startOrderIndex,
+      log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
+      stallMs: debugOrdered ? 5000 : undefined,
+      debugOrdered
+    }
   );
-  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
-    allowReorder: runtime.shards?.enabled !== true
-  });
   const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
   if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
     const preloadPlan = resolveTreeSitterPreloadPlan(entries, treeSitterOptions);
@@ -282,20 +339,45 @@ export const processFiles = async ({
           onResult: (result, ctx) => {
             const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
             const entry = batchEntries[entryIndex];
-            const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : entryIndex;
+            const orderIndex = Number.isFinite(entry?.orderIndex)
+              ? entry.orderIndex
+              : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
             if (result?.defer) {
               deferredEntries.push({
                 entry,
                 missingLanguages: Array.isArray(result.missingLanguages) ? result.missingLanguages : []
               });
-              return orderedAppender.enqueue(orderIndex, null, shardMeta);
+              return orderedAppender.skip(orderIndex);
             }
             progress.tick();
             if (shardProgress) {
               shardProgress.count += 1;
               showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
             }
+            if (!result) {
+              return orderedAppender.skip(orderIndex);
+            }
             return orderedAppender.enqueue(orderIndex, result, shardMeta);
+          },
+          onError: async (err, ctx) => {
+            const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+            const entry = batchEntries[entryIndex];
+            const orderIndex = Number.isFinite(entry?.orderIndex)
+              ? entry.orderIndex
+              : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
+            const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+            logLine(
+              `[ordered] skipping failed file ${orderIndex} ${rel} (${err?.message || err})`,
+              {
+                kind: 'warning',
+                mode,
+                stage: 'processing',
+                file: rel,
+                fileIndex: entry?.fileIndex || null,
+                shardId: shardMeta?.id || null
+              }
+            );
+            await orderedAppender.skip(orderIndex);
           },
           retries: 2,
           retryDelayMs: 200
@@ -354,7 +436,8 @@ export const processFiles = async ({
           sortEntriesByTreeSitterBatchKey(nextEntries);
         }
         for (const entry of nextEntries) {
-          entry.orderIndex = orderIndexState.next++;
+          entry.processingOrderIndex = orderIndexState.next++;
+          entry.orderIndex = entry.processingOrderIndex;
         }
         pendingEntries = nextEntries;
       }

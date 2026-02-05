@@ -169,6 +169,8 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     phrasePost: state.phrasePost,
     triPost: state.triPost,
     postingsConfig: runtime.postingsConfig,
+    postingsGuard: state.postingsGuard,
+    buildRoot: runtime.buildRoot,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     log: sharedLog,

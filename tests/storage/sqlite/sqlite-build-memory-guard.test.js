@@ -90,7 +90,7 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
   atomic: true
 });
 
-const indexPieces = loadIndexPieces(indexDir, null);
+const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta parts');
 const stats = {};
 const count = await buildDatabaseFromArtifacts({

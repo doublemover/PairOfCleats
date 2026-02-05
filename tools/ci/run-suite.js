@@ -101,6 +101,19 @@ const main = async () => {
     }
   }
 
+  if (env.PAIROFCLEATS_CACHE_ROOT && !argv['dry-run']) {
+    const cacheRootPath = path.resolve(env.PAIROFCLEATS_CACHE_ROOT);
+    const cachePayload = {
+      cacheRoot: cacheRootPath,
+      repoRoot: path.join(cacheRootPath, 'repos')
+    };
+    await fsPromises.writeFile(
+      path.join(diagnosticsDir, 'cache-root.json'),
+      `${JSON.stringify(cachePayload, null, 2)}\n`
+    );
+    console.error(`Cache root: ${cacheRootPath}`);
+  }
+
   const steps = [
     { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
     { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },

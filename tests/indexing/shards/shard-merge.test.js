@@ -182,6 +182,7 @@ const normalizeIndexState = (value) => {
     }
   }
   if (copy.sqlite && typeof copy.sqlite === 'object') {
+    delete copy.sqlite.stats;
     delete copy.sqlite.updatedAt;
     delete copy.sqlite.path;
     delete copy.sqlite.note;

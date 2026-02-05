@@ -1,15 +1,15 @@
 # PairOfCleats FutureRoadmap
 
-    ## Status legend
-    
-    Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
-    - [x] Implemented and appears complete/correct based on code inspection and existing test coverage
-    - [@] In Progress, this work has been started
-    - [.] Work has been completed but has Not been tested
-    - [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
-    - [ ] Not complete
-    
-    Completed Phases: `COMPLETED_PHASES.md`
+## Status legend
+
+Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
+- [x] Implemented and appears complete/correct based on code inspection and existing test coverage
+- [@] In Progress, this work has been started
+- [.] Work has been completed but has Not been tested
+- [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
+- [ ] Not complete
+
+Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap List
 ### Features
@@ -20,6 +20,37 @@
 - Phase 20 -- Ratatui TUI + Node Supervisor (Protocol v2, Dispatcher, Tool Hygiene)
 
 ---
+
+## Decision Register (resolve before execution)
+
+| Decision | Description | Default if Unresolved | Owner | Due Phase | Decision deadline |
+| --- | --- | --- | --- | --- | --- |
+| D1 Phase 16 extraction deps | Which PDF/DOCX libraries are canonical? | Prefer pdfjs‑dist + mammoth | TBD | 16 | Before Phase 16 start |
+| D2 Phase 17 vector‑only | Which sparse artifacts are removed vs retained? | Keep minimal metadata for compatibility | TBD | 17 | Before Phase 17 start |
+| D3 Phase 18 packaging | Native packaging targets/priorities | Windows + macOS + Linux | TBD | 18 | Before Phase 18 start |
+| D4 Phase 19 lexicon | Promote LEXI into FUTUREROADMAP? | Yes (single source) | TBD | 19 | Before Phase 19 start |
+| D5 Phase 20 TUI | JSONL protocol v2 strictness | Strict + fail‑open log wrapping | TBD | 20 | Before Phase 20 start |
+
+### Dependency map (high-level)
+- Phase 16 extraction + routing precedes Phase 17 vector‑only profile defaults.
+- Phase 19 lexicon work should land before Phase 20 TUI if the TUI consumes lexicon signals/explain fields.
+- Phase 18 packaging should include any Phase 20 binaries once they exist.
+
+### Phase status summary (update as you go)
+| Phase | Status | Notes |
+| --- | --- | --- |
+| 16 | [ ] |  |
+| 17 | [ ] |  |
+| 18 | [ ] |  |
+| 19 | [ ] |  |
+| 20 | [ ] |  |
+
+### Per‑phase testing checklist (fill per phase)
+- [ ] Add/verify new tests for each phase’s core behaviors.
+- [ ] Run at least the intended lane(s) and record results.
+- [ ] Update docs/config inventory after schema changes.
+
+## Phase 16 — Prose Ingestion + Retrieval Routing Correctness (PDF/DOCX + FTS policy)
 
 ### Objective
 
@@ -86,8 +117,9 @@ Touchpoints:
   - [ ] Extract a fixture DOCX and assert known phrase is present.
  - [ ] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
    - [ ] Build-state records extractor version/capability info when extraction is enabled.
- - [ ] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
-   - [ ] Build-state/extraction report records source checksum and page/paragraph counts.
+- [ ] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
+
+---
 
 ### 16.2 Deterministic doc chunking (page/paragraph aware) + doc-mode limits that scale to large files
 
@@ -1007,3 +1039,4 @@ Identify and integrate optional native/WASM accelerators for the heaviest hot pa
 
 - [ ] Native/WASM acceleration is optional, deterministic, and easy to diagnose.
 - [ ] JS fallbacks always function without feature loss.
+

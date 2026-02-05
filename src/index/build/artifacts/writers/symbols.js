@@ -138,11 +138,14 @@ export const enqueueSymbolsArtifacts = async ({
   const symbolsPath = path.join(outDir, `symbols.${jsonlExtension}`);
   const symbolsMetaPath = path.join(outDir, 'symbols.meta.json');
   const symbolsPartsDir = path.join(outDir, 'symbols.parts');
+  const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
+  const offsetsPath = offsetsConfig ? `${symbolsPath}.${offsetsConfig.suffix}` : null;
 
   const removeJsonlVariants = async () => {
     await fs.rm(path.join(outDir, 'symbols.jsonl'), { force: true });
     await fs.rm(path.join(outDir, 'symbols.jsonl.gz'), { force: true });
     await fs.rm(path.join(outDir, 'symbols.jsonl.zst'), { force: true });
+    await fs.rm(path.join(outDir, 'symbols.jsonl.offsets.bin'), { force: true });
   };
 
   if (!useShards) {
@@ -152,7 +155,12 @@ export const enqueueSymbolsArtifacts = async ({
         await removeJsonlVariants();
         await fs.rm(symbolsMetaPath, { force: true });
         await fs.rm(symbolsPartsDir, { recursive: true, force: true });
-        await writeJsonLinesFile(symbolsPath, rows, { atomic: true, compression, gzipOptions });
+        await writeJsonLinesFile(symbolsPath, rows, {
+          atomic: true,
+          compression,
+          gzipOptions,
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+        });
       }
     );
     addPieceFile({
@@ -162,6 +170,14 @@ export const enqueueSymbolsArtifacts = async ({
       count: rows.length,
       compression: compression || null
     }, symbolsPath);
+    if (offsetsPath) {
+      addPieceFile({
+        type: 'symbols',
+        name: 'symbols_offsets',
+        format: 'bin',
+        count: rows.length
+      }, offsetsPath);
+    }
     return;
   }
 
@@ -180,13 +196,21 @@ export const enqueueSymbolsArtifacts = async ({
         maxBytes: maxJsonBytes,
         atomic: true,
         compression,
-        gzipOptions
+        gzipOptions,
+        offsets: offsetsConfig
       });
       const parts = result.parts.map((part, index) => ({
         path: part,
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
+      const offsetsMeta = result.offsets?.length
+        ? {
+          format: 'u64-le',
+          suffix: offsetsConfig?.suffix || null,
+          parts: result.offsets
+        }
+        : null;
       await writeJsonObjectFile(symbolsMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -199,6 +223,7 @@ export const enqueueSymbolsArtifacts = async ({
           maxPartRecords: result.maxPartRecords,
           maxPartBytes: result.maxPartBytes,
           targetMaxBytes: result.targetMaxBytes,
+          extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined,
           parts
         },
         atomic: true
@@ -213,6 +238,19 @@ export const enqueueSymbolsArtifacts = async ({
           count: result.counts[i] || 0,
           compression: compression || null
         }, absPath);
+      }
+      if (Array.isArray(result.offsets)) {
+        for (let i = 0; i < result.offsets.length; i += 1) {
+          const relPath = result.offsets[i];
+          if (!relPath) continue;
+          const absPath = path.join(outDir, fromPosix(relPath));
+          addPieceFile({
+            type: 'symbols',
+            name: 'symbols_offsets',
+            format: 'bin',
+            count: result.counts[i] || 0
+          }, absPath);
+        }
       }
       addPieceFile({ type: 'symbols', name: 'symbols_meta', format: 'json' }, symbolsMetaPath);
     }

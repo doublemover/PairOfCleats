@@ -1,8 +1,10 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { sha1 } from '../../shared/hash.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -16,10 +18,15 @@ const DEFAULT_IMPORT_EXTS = [
   '.json',
   '.d.ts'
 ];
+const DEFAULT_IMPORT_SUFFIXES = [
+  ...DEFAULT_IMPORT_EXTS,
+  ...DEFAULT_IMPORT_EXTS.map((ext) => `/index${ext}`)
+];
 
 const MAX_IMPORT_WARNINGS = 200;
 const MAX_GRAPH_EDGES = 200000;
 const MAX_GRAPH_NODES = 100000;
+const NEGATIVE_CACHE_TTL_MS = 60000;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -35,6 +42,57 @@ const normalizeRelPath = (value) => {
   return normalized.replace(/^\.\/?/, '');
 };
 
+const stripImportExtension = (value) => {
+  if (!value) return '';
+  if (value.endsWith('.d.ts')) {
+    return value.slice(0, -'.d.ts'.length) || '';
+  }
+  for (const ext of DEFAULT_IMPORT_EXTS) {
+    if (value.endsWith(ext)) {
+      return value.slice(0, -ext.length) || '';
+    }
+  }
+  return value;
+};
+
+const computeFileSetFingerprint = (fileSet) => {
+  if (!fileSet || typeof fileSet.size !== 'number' || fileSet.size === 0) return null;
+  const list = Array.from(fileSet);
+  list.sort(sortStrings);
+  const hash = crypto.createHash('sha1');
+  for (const rel of list) {
+    hash.update(rel);
+    hash.update('\n');
+  }
+  return hash.digest('hex');
+};
+
+const createPathTrie = () => ({ children: new Map() });
+
+const addPathToTrie = (trie, relPath) => {
+  if (!relPath) return;
+  const parts = relPath.split('/').filter(Boolean);
+  let node = trie;
+  for (const part of parts) {
+    if (!node.children.has(part)) {
+      node.children.set(part, { children: new Map() });
+    }
+    node = node.children.get(part);
+  }
+};
+
+const trieHasPrefix = (trie, relPath) => {
+  if (!relPath) return false;
+  const parts = relPath.split('/').filter(Boolean);
+  let node = trie;
+  for (const part of parts) {
+    const next = node.children.get(part);
+    if (!next) return false;
+    node = next;
+  }
+  return true;
+};
+
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
   if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
@@ -45,6 +103,8 @@ const createFileLookup = ({ entries, root }) => {
   const rootAbs = path.resolve(root);
   const fileSet = new Set();
   const fileLower = new Map();
+  const pathTrie = createPathTrie();
+  let hasTsconfig = false;
   for (const entry of entries) {
     const abs = typeof entry === 'string' ? entry : entry.abs;
     if (!abs) continue;
@@ -55,9 +115,20 @@ const createFileLookup = ({ entries, root }) => {
     if (!relPosix) continue;
     fileSet.add(relPosix);
     const lower = relPosix.toLowerCase();
+    if (lower.endsWith('tsconfig.json')) hasTsconfig = true;
     if (!fileLower.has(lower)) fileLower.set(lower, relPosix);
+    const basePath = stripImportExtension(relPosix);
+    if (basePath) addPathToTrie(pathTrie, basePath);
+    addPathToTrie(pathTrie, relPosix);
   }
-  return { rootAbs, fileSet, fileLower };
+  if (!hasTsconfig) {
+    try {
+      if (fs.existsSync(path.join(rootAbs, 'tsconfig.json'))) {
+        hasTsconfig = true;
+      }
+    } catch {}
+  }
+  return { rootAbs, fileSet, fileLower, hasTsconfig, pathTrie };
 };
 
 const resolveFromLookup = (relPath, lookup) => {
@@ -77,12 +148,12 @@ const resolveCandidate = (relPath, lookup) => {
   if (ext) {
     return resolveFromLookup(trimmed, lookup);
   }
-  for (const candidateExt of DEFAULT_IMPORT_EXTS) {
-    const candidate = resolveFromLookup(`${trimmed}${candidateExt}`, lookup);
-    if (candidate) return candidate;
+  const trieKey = stripImportExtension(trimmed);
+  if (lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
+    return null;
   }
-  for (const candidateExt of DEFAULT_IMPORT_EXTS) {
-    const candidate = resolveFromLookup(`${trimmed}/index${candidateExt}`, lookup);
+  for (const suffix of DEFAULT_IMPORT_SUFFIXES) {
+    const candidate = resolveFromLookup(`${trimmed}${suffix}`, lookup);
     if (candidate) return candidate;
   }
   return null;
@@ -90,14 +161,21 @@ const resolveCandidate = (relPath, lookup) => {
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const matchTsPattern = (pattern, spec) => {
-  if (!pattern || !spec) return null;
+const compileTsPattern = (pattern) => {
+  if (!pattern) return null;
   const starCount = (pattern.match(/\*/g) || []).length;
   const parts = pattern.split('*').map(escapeRegex);
   const regex = new RegExp(`^${parts.join('(.+?)')}$`);
-  const match = spec.match(regex);
+  return { pattern, regex, starCount };
+};
+
+const matchTsPattern = (pattern, spec) => {
+  if (!pattern || !spec) return null;
+  const compiled = compileTsPattern(pattern);
+  if (!compiled) return null;
+  const match = spec.match(compiled.regex);
   if (!match) return null;
-  return { captures: match.slice(1), starCount };
+  return { captures: match.slice(1), starCount: compiled.starCount };
 };
 
 const applyTsTemplate = (template, captures) => {
@@ -130,9 +208,10 @@ const resolveTsConfigExtends = (baseDir, extendsValue) => {
   return null;
 };
 
-const createTsConfigLoader = ({ rootAbs }) => {
+const createTsConfigLoader = ({ rootAbs, fileSet }) => {
   const tsconfigCache = new Map();
   const dirCache = new Map();
+  const fileLookup = fileSet instanceof Set ? fileSet : null;
   const isWithinRoot = (dir) => {
     const rel = path.relative(rootAbs, dir);
     return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
@@ -176,12 +255,29 @@ const createTsConfigLoader = ({ rootAbs }) => {
       : null;
     const basePaths = baseConfig?.paths || {};
     const paths = rawPaths ? { ...basePaths, ...rawPaths } : basePaths;
+    const compiledPaths = Object.entries(paths).flatMap(([pattern, replacements]) => {
+      const compiled = compileTsPattern(pattern);
+      if (!compiled) return [];
+      const list = Array.isArray(replacements) ? replacements : [replacements];
+      const filtered = list.filter((replacement) => typeof replacement === 'string');
+      if (!filtered.length) return [];
+      return [{
+        ...compiled,
+        replacements: filtered
+      }];
+    });
 
+    const fingerprint = sha1(JSON.stringify({
+      baseUrlAbs,
+      paths
+    }));
     const value = {
       tsconfigPath,
       compilerOptions,
       baseUrlAbs,
-      paths
+      paths,
+      compiledPaths,
+      fingerprint
     };
     tsconfigCache.set(tsconfigPath, { key: cacheKey, value });
     return value;
@@ -199,7 +295,19 @@ const createTsConfigLoader = ({ rootAbs }) => {
       }
       visited.push(dir);
       const candidate = path.join(dir, 'tsconfig.json');
-      if (fs.existsSync(candidate)) {
+      const candidateRel = resolveWithinRoot(rootAbs, candidate);
+      let hasCandidate = false;
+      if (candidateRel && fileLookup) {
+        hasCandidate = fileLookup.has(candidateRel);
+        if (!hasCandidate) {
+          hasCandidate = fs.existsSync(candidate);
+        }
+      } else if (candidateRel) {
+        hasCandidate = fs.existsSync(candidate);
+      } else {
+        hasCandidate = fs.existsSync(candidate);
+      }
+      if (hasCandidate) {
         for (const seen of visited) dirCache.set(seen, candidate);
         return candidate;
       }
@@ -222,16 +330,34 @@ const createTsConfigLoader = ({ rootAbs }) => {
 
 const resolveTsPaths = ({ spec, tsconfig, lookup }) => {
   if (!tsconfig?.paths || !spec) return null;
-  const entries = Object.entries(tsconfig.paths);
+  const compiled = Array.isArray(tsconfig.compiledPaths) ? tsconfig.compiledPaths : null;
+  const entries = compiled || Object.entries(tsconfig.paths);
   if (!entries.length) return null;
   const candidates = [];
-  for (const [pattern, replacements] of entries) {
-    const match = matchTsPattern(pattern, spec);
-    if (!match) continue;
+  for (const entry of entries) {
+    let pattern = null;
+    let replacements = null;
+    let captures = null;
+    let starCount = 0;
+    if (compiled) {
+      pattern = entry.pattern;
+      replacements = entry.replacements;
+      const match = spec.match(entry.regex);
+      if (!match) continue;
+      captures = match.slice(1);
+      starCount = entry.starCount || 0;
+    } else {
+      pattern = entry[0];
+      replacements = entry[1];
+      const match = matchTsPattern(pattern, spec);
+      if (!match) continue;
+      captures = match.captures;
+      starCount = match.starCount;
+    }
     const list = Array.isArray(replacements) ? replacements : [replacements];
     for (const replacement of list) {
       if (typeof replacement !== 'string') continue;
-      const substituted = applyTsTemplate(replacement, match.captures);
+      const substituted = applyTsTemplate(replacement, captures);
       const candidateAbs = path.resolve(tsconfig.baseUrlAbs, substituted);
       const rel = resolveWithinRoot(lookup.rootAbs, candidateAbs);
       if (!rel) continue;
@@ -240,7 +366,7 @@ const resolveTsPaths = ({ spec, tsconfig, lookup }) => {
       candidates.push({
         resolved,
         pattern,
-        starCount: match.starCount,
+        starCount,
         pathLength: resolved.length
       });
     }
@@ -264,9 +390,24 @@ const parsePackageName = (spec) => {
   return name || null;
 };
 
-const addGraphNode = (nodes, id, type) => {
+const resolvePackageFingerprint = (rootAbs) => {
+  if (!rootAbs) return null;
+  const packagePath = path.join(rootAbs, 'package.json');
+  if (!fs.existsSync(packagePath)) return null;
+  try {
+    const raw = fs.readFileSync(packagePath, 'utf8');
+    return sha1(raw);
+  } catch {
+    return null;
+  }
+};
+
+const addGraphNode = (nodes, id, type, stats) => {
   if (nodes.has(id)) return;
-  if (nodes.size >= MAX_GRAPH_NODES) return;
+  if (nodes.size >= MAX_GRAPH_NODES) {
+    if (stats) stats.truncatedNodes += 1;
+    return;
+  }
   nodes.set(id, { id, type });
 };
 
@@ -282,10 +423,51 @@ export function resolveImportLinks({
   fileRelations,
   log,
   enableGraph = true,
-  graphMeta = null
+  graphMeta = null,
+  cache = null,
+  fileHashes = null,
+  cacheStats = null
 }) {
   const lookup = createFileLookup({ entries, root });
-  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs });
+  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet });
+  const cacheState = cache && typeof cache === 'object' ? cache : null;
+  const cacheMetrics = cacheState
+    ? (cacheStats || {
+      files: 0,
+      filesHashed: 0,
+      filesReused: 0,
+      filesInvalidated: 0,
+      specs: 0,
+      specsReused: 0,
+      specsComputed: 0,
+      packageInvalidated: false
+    })
+    : null;
+  if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
+    cacheState.files = {};
+  }
+  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(lookup.fileSet) : null;
+  const fileSetChanged = !!(cacheState
+    && fileSetFingerprint
+    && cacheState.fileSetFingerprint !== fileSetFingerprint);
+  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs) : null;
+  if (cacheState && packageFingerprint && cacheState.packageFingerprint
+    && cacheState.packageFingerprint !== packageFingerprint) {
+    if (cacheMetrics) cacheMetrics.packageInvalidated = true;
+    cacheState.files = {};
+  }
+  if (cacheState && packageFingerprint) {
+    cacheState.packageFingerprint = packageFingerprint;
+  }
+  if (cacheState && fileSetFingerprint) {
+    cacheState.fileSetFingerprint = fileSetFingerprint;
+  }
+  const resolveFileHash = (relPath) => {
+    if (!fileHashes || !relPath) return null;
+    if (typeof fileHashes.get === 'function') return fileHashes.get(relPath) || null;
+    if (fileHashes && typeof fileHashes === 'object') return fileHashes[relPath] || null;
+    return null;
+  };
   const graph = enableGraph
     ? {
       generatedAt: new Date().toISOString(),
@@ -297,12 +479,20 @@ export function resolveImportLinks({
     }
     : null;
   const graphNodes = enableGraph ? new Map() : null;
+  const resolutionCache = new Map();
+  const cacheKeyFor = (importerRel, spec, tsconfig) => {
+    const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
+    return `${importerRel}|${tsKey}|${spec}`;
+  };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
   let externalCount = 0;
   let resolvedCount = 0;
   let edgeCount = 0;
   let edgeTotal = 0;
+  let truncatedEdges = 0;
+  const capStats = enableGraph ? { truncatedNodes: 0 } : null;
+  const truncatedByKind = { import: 0 };
 
   const warningList = enableGraph ? graph.warnings : null;
   const edges = enableGraph ? graph.edges : null;
@@ -310,65 +500,153 @@ export function resolveImportLinks({
   const importsEntries = importsByFile instanceof Map
     ? Array.from(importsByFile.entries())
     : Object.entries(importsByFile || {});
+  importsEntries.sort((a, b) => sortStrings(normalizeRelPath(a[0]), normalizeRelPath(b[0])));
   for (const [importerRel, rawImports] of importsEntries) {
     if (!importerRel || !Array.isArray(rawImports) || !rawImports.length) continue;
     const importLinks = new Set();
     const externalImports = new Set();
     const relNormalized = normalizeRelPath(importerRel);
     const importerAbs = path.resolve(lookup.rootAbs, relNormalized);
-    const tsconfig = tsConfigResolver.resolveForFile(importerAbs);
+    let tsconfig = null;
+    let tsconfigResolved = false;
 
-    if (enableGraph) addGraphNode(graphNodes, `file:${relNormalized}`, 'file');
+    if (enableGraph) addGraphNode(graphNodes, `file:${relNormalized}`, 'file', capStats);
 
     const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
     rawSpecs.sort(sortStrings);
+    const hasNonRelative = rawSpecs.some((rawSpec) => {
+      const spec = stripSpecifier(rawSpec);
+      return spec && !(spec.startsWith('.') || spec.startsWith('/'));
+    });
+    if (hasNonRelative && !tsconfigResolved) {
+      tsconfigResolved = true;
+      tsconfig = tsConfigResolver ? tsConfigResolver.resolveForFile(importerAbs) : null;
+    }
+    const tsconfigFingerprint = tsconfig?.fingerprint || null;
+    const fileHash = resolveFileHash(relNormalized);
+    const fileCache = cacheState?.files?.[relNormalized] || null;
+    const canReuseCache = !!(fileCache
+      && fileHash
+      && fileCache.hash === fileHash
+      && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
+    if (cacheMetrics) {
+      cacheMetrics.files += 1;
+      if (fileHash) cacheMetrics.filesHashed += 1;
+      if (fileCache && !canReuseCache && fileHash) cacheMetrics.filesInvalidated += 1;
+      if (canReuseCache) cacheMetrics.filesReused += 1;
+    }
+    const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
       const spec = stripSpecifier(rawSpec);
       if (!spec) continue;
+      const isRelative = spec.startsWith('.') || spec.startsWith('/');
+      if (!isRelative && !tsconfigResolved) {
+        tsconfigResolved = true;
+        tsconfig = tsConfigResolver ? tsConfigResolver.resolveForFile(importerAbs) : null;
+      }
       let resolvedType = null;
       let resolvedPath = null;
       let tsPathPattern = null;
       let tsconfigPath = null;
       let packageName = null;
       let edgeTarget = null;
-      let isExternal = false;
 
-      if (spec.startsWith('.') || spec.startsWith('/')) {
-        const base = spec.startsWith('/')
-          ? normalizeRelPath(spec.slice(1))
-          : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-        const candidate = resolveCandidate(base, lookup);
-        if (candidate) {
-          resolvedType = 'relative';
-          resolvedPath = candidate;
-        } else {
-          resolvedType = 'unresolved';
+      if (cacheMetrics) cacheMetrics.specs += 1;
+      let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
+        ? fileCache.specs[spec]
+        : null;
+      if (cachedSpec && fileSetChanged) {
+        if (cachedSpec.resolvedType === 'unresolved') {
+          cachedSpec = null;
+        } else if (cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
+          cachedSpec = null;
         }
+      }
+      if (cachedSpec) {
+        ({
+          resolvedType,
+          resolvedPath,
+          tsPathPattern,
+          tsconfigPath,
+          packageName
+        } = cachedSpec);
+        if (cacheMetrics) cacheMetrics.specsReused += 1;
       } else {
-        const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
-        if (tsResolved) {
-          resolvedType = 'ts-path';
-          resolvedPath = tsResolved.resolved;
-          tsPathPattern = tsResolved.pattern;
-          tsconfigPath = tsconfig?.tsconfigPath || null;
-        } else {
-          resolvedType = 'external';
-          isExternal = true;
-          packageName = parsePackageName(spec);
+        const cacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
+        let cached = resolutionCache.get(cacheKey);
+        if (cached?.expiresAt && cached.expiresAt < Date.now()) {
+          resolutionCache.delete(cacheKey);
+          cached = null;
         }
+        if (cached) {
+          ({
+            resolvedType,
+            resolvedPath,
+            tsPathPattern,
+            tsconfigPath,
+            packageName
+          } = cached);
+        } else if (isRelative) {
+          const base = spec.startsWith('/')
+            ? normalizeRelPath(spec.slice(1))
+            : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
+          const candidate = resolveCandidate(base, lookup);
+          if (candidate) {
+            resolvedType = 'relative';
+            resolvedPath = candidate;
+          } else {
+            resolvedType = 'unresolved';
+          }
+        } else {
+          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
+          if (tsResolved) {
+            resolvedType = 'ts-path';
+            resolvedPath = tsResolved.resolved;
+            tsPathPattern = tsResolved.pattern;
+            tsconfigPath = tsconfig?.tsconfigPath || null;
+          } else {
+            resolvedType = 'external';
+            packageName = parsePackageName(spec);
+          }
+        }
+
+        if (!cached) {
+          const expiresAt = resolvedType === 'unresolved'
+            ? Date.now() + NEGATIVE_CACHE_TTL_MS
+            : null;
+          resolutionCache.set(cacheKey, {
+            resolvedType,
+            resolvedPath,
+            tsPathPattern,
+            tsconfigPath,
+            packageName,
+            expiresAt
+          });
+        }
+        if (cacheMetrics) cacheMetrics.specsComputed += 1;
+      }
+
+      if (nextSpecCache) {
+        nextSpecCache[spec] = {
+          resolvedType,
+          resolvedPath,
+          tsPathPattern,
+          tsconfigPath,
+          packageName
+        };
       }
 
       if (resolvedType === 'relative' || resolvedType === 'ts-path') {
         importLinks.add(resolvedPath);
         resolvedCount += 1;
         edgeTarget = `file:${resolvedPath}`;
-        if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'file');
+        if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'file', capStats);
       } else if (resolvedType === 'external') {
         externalImports.add(rawSpec);
         externalCount += 1;
         edgeTarget = `ext:${spec}`;
-        if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external');
+        if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external', capStats);
       } else {
         unresolvedCount += 1;
         if (enableGraph) {
@@ -385,25 +663,37 @@ export function resolveImportLinks({
       }
 
       edgeTotal += 1;
-      if (enableGraph && edges.length < MAX_GRAPH_EDGES) {
-        const tsconfigRel = tsconfigPath
-          ? resolveWithinRoot(lookup.rootAbs, tsconfigPath)
-          : null;
-        edges.push({
-          from: `file:${relNormalized}`,
-          to: edgeTarget,
-          rawSpecifier: rawSpec,
-          kind: 'import',
-          resolvedType,
-          resolvedPath: resolvedPath || null,
-          packageName: packageName || null,
-          tsconfigPath: tsconfigRel ? normalizeRelPath(tsconfigRel) : null,
-          tsPathPattern: tsPathPattern || null
-        });
-        edgeCount += 1;
+      if (enableGraph) {
+        if (edges.length < MAX_GRAPH_EDGES) {
+          const tsconfigRel = tsconfigPath
+            ? resolveWithinRoot(lookup.rootAbs, tsconfigPath)
+            : null;
+          edges.push({
+            from: `file:${relNormalized}`,
+            to: edgeTarget,
+            rawSpecifier: rawSpec,
+            kind: 'import',
+            resolvedType,
+            resolvedPath: resolvedPath || null,
+            packageName: packageName || null,
+            tsconfigPath: tsconfigRel ? normalizeRelPath(tsconfigRel) : null,
+            tsPathPattern: tsPathPattern || null
+          });
+          edgeCount += 1;
+        } else {
+          truncatedEdges += 1;
+          truncatedByKind.import += 1;
+        }
       }
     }
 
+    if (nextSpecCache && fileHash && cacheState) {
+      cacheState.files[relNormalized] = {
+        hash: fileHash,
+        tsconfigFingerprint,
+        specs: nextSpecCache
+      };
+    }
     const existing = fileRelations.get(relNormalized);
     if (existing) {
       const imports = Array.isArray(existing.imports) && existing.imports.length
@@ -454,12 +744,16 @@ export function resolveImportLinks({
     }
     graph.stats = {
       files: importsEntries.length,
+      nodes: graphNodes.size,
       edges: edgeTotal,
       resolved: resolvedCount,
       external: externalCount,
       unresolved: unresolvedCount,
-      truncatedEdges: edgeTotal > MAX_GRAPH_EDGES,
-      truncatedNodes: graphNodes.size >= MAX_GRAPH_NODES,
+      truncatedEdges,
+      truncatedEdgesByKind: truncatedByKind,
+      truncatedNodes: capStats?.truncatedNodes ?? 0,
+      maxEdges: MAX_GRAPH_EDGES,
+      maxNodes: MAX_GRAPH_NODES,
       warningSuppressed: suppressedWarnings
     };
     if (suppressedWarnings > 0 && log) {
@@ -470,11 +764,16 @@ export function resolveImportLinks({
   return {
     stats: {
       files: importsEntries.length,
+      nodes: enableGraph ? graphNodes.size : null,
       edges: resolvedCount + externalCount + unresolvedCount,
       resolved: resolvedCount,
       external: externalCount,
-      unresolved: unresolvedCount
+      unresolved: unresolvedCount,
+      truncatedEdges,
+      truncatedNodes: capStats?.truncatedNodes ?? 0,
+      warningSuppressed: suppressedWarnings
     },
-    graph
+    graph,
+    cacheStats: cacheMetrics
   };
 }

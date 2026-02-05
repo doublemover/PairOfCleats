@@ -38,11 +38,27 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
     'phrase_ngrams',
     'chargram_postings'
   ]);
+  const overrides = {};
+  if (compressionConfig.perArtifact && typeof compressionConfig.perArtifact === 'object') {
+    for (const [name, value] of Object.entries(compressionConfig.perArtifact)) {
+      if (!name || !value || typeof value !== 'object') continue;
+      const overrideMode = resolveCompressionMode(value.mode || compressionMode);
+      const overrideEnabled = typeof value.enabled === 'boolean'
+        ? value.enabled && overrideMode
+        : (compressionEnabled && overrideMode);
+      overrides[name] = {
+        enabled: Boolean(overrideEnabled),
+        mode: overrideMode,
+        keepRaw: typeof value.keepRaw === 'boolean' ? value.keepRaw : compressionKeepRaw
+      };
+    }
+  }
   return {
     compressionEnabled,
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
-    compressibleArtifacts
+    compressibleArtifacts,
+    compressionOverrides: overrides
   };
 };

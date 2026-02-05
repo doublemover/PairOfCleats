@@ -33,8 +33,11 @@ import { createInsertStatements } from './statements.js';
 import {
   MAX_JSON_BYTES,
   readJsonLinesEach,
-  resolveJsonlRequiredKeys
+  resolveJsonlRequiredKeys,
+  loadMinhashSignatures
 } from '../../../shared/artifact-io.js';
+
+const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
 
 const listShardFiles = (dir, prefix, extensions) => {
   if (!dir || typeof dir !== 'string' || !fsSync.existsSync(dir)) return [];
@@ -69,19 +72,27 @@ const resolveChunkMetaSources = (dir) => {
   if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
     let parts = [];
     if (fsSync.existsSync(metaPath)) {
-      try {
-        const metaRaw = readJson(metaPath);
-        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        const entries = normalizeMetaParts(meta?.parts);
-        if (entries.length) {
-          parts = entries.map((name) => path.join(dir, name));
+      const metaRaw = readJson(metaPath);
+      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const entries = normalizeMetaParts(meta?.parts);
+      if (entries.length) {
+        const missing = [];
+        parts = entries.map((name) => {
+          const candidate = path.join(dir, name);
+          if (!fsSync.existsSync(candidate)) missing.push(name);
+          return candidate;
+        });
+        if (missing.length) {
+          throw new Error(`[sqlite] chunk_meta parts missing: ${missing.join(', ')}`);
         }
-      } catch {}
+      }
     }
     if (!parts.length) {
       parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl', '.jsonl.gz', '.jsonl.zst']);
     }
-    return parts.length ? { format: 'jsonl', paths: parts } : null;
+    if (parts.length) {
+      return { format: 'jsonl', paths: parts };
+    }
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const jsonlCandidates = [jsonlPath, `${jsonlPath}.gz`, `${jsonlPath}.zst`];
@@ -135,7 +146,7 @@ const readJsonLinesFile = async (
  * @param {string} [modelId]
  * @returns {object|null}
  */
-export const loadIndexPieces = (dirOrOptions, modelId) => {
+export const loadIndexPieces = async (dirOrOptions, modelId) => {
   if (dirOrOptions && typeof dirOrOptions === 'object' && !Array.isArray(dirOrOptions)) {
     const { indexDir, modes, modelId: modelIdOverride } = dirOrOptions;
     const baseDir = typeof indexDir === 'string' ? indexDir : null;
@@ -146,7 +157,7 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
       for (const mode of modeList) {
         const suffix = `${path.sep}index-${mode}`;
         const modeDir = baseDir.endsWith(suffix) ? baseDir : path.join(baseDir, `index-${mode}`);
-        const pieces = loadIndexPieces(modeDir, resolvedModelId);
+        const pieces = await loadIndexPieces(modeDir, resolvedModelId);
         if (pieces) piecesByMode[mode] = pieces;
       }
       return piecesByMode;
@@ -160,6 +171,14 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
   if (!sources) return null;
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  let minhash = null;
+  try {
+    minhash = await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
+    }
+  }
   return {
     chunkMeta: null,
     dir,
@@ -167,7 +186,7 @@ export const loadIndexPieces = (dirOrOptions, modelId) => {
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash: loadOptional(dir, 'minhash_signatures.json'),
+    minhash,
     tokenPostings: null
   };
 };
@@ -274,8 +293,13 @@ export async function buildDatabaseFromArtifacts({
   let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
-  const useBuildPragmas = buildPragmas !== false;
-  const useOptimize = optimize !== false;
+  const resolvedInputBytes = Number(inputBytes);
+  const hasInputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0;
+  const defaultOptimize = hasInputBytes
+    ? resolvedInputBytes >= ARTIFACT_BUILD_PRAGMA_MIN_BYTES
+    : true;
+  const useBuildPragmas = typeof buildPragmas === 'boolean' ? buildPragmas : defaultOptimize;
+  const useOptimize = typeof optimize === 'boolean' ? optimize : defaultOptimize;
   const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
 
   let count = 0;

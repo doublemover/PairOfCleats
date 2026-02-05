@@ -27,14 +27,6 @@ jobs:
         with:
           node-version: '24.13.0'
 
-      - name: Node and npm versions
-        run: |
-          node -v
-          npm -v
-
-      - name: Install deps
-        run: npm ci
-
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
         with:
@@ -43,12 +35,34 @@ jobs:
             .ci-cache/pairofcleats/dictionaries
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json') }}
+
+      - name: Install deps and report versions
+        shell: bash
+        run: |
+          node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
+          if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
+            npm ci
+          else
+            echo "node_modules cache hit; skipping npm ci."
+          fi
+          node -v
+          npm -v
+
       - name: Nightly suite
         run: node tools/ci/run-suite.js --mode nightly
 
       - name: Prune PairOfCleats cache
         if: always()
+        shell: pwsh
         run: |
+          $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
+          $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
           node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
 
       - name: Upload test artifacts

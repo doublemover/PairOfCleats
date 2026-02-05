@@ -335,7 +335,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
 
-  const postImportResult = postScanImports({
+  const postImportResult = await postScanImports({
     mode,
     relationsEnabled,
     scanPlan,
@@ -343,7 +343,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     timing,
     runtime: runtimeRef,
     entries: allEntries,
-    importResult
+    importResult,
+    incrementalState,
+    fileTextByFile
   });
   if (postImportResult) importResult = postImportResult;
 
@@ -363,13 +365,32 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     step: 'relations',
     extra: {
       fileRelations: state.fileRelations?.size || 0,
+      importGraphCache: postImportResult?.cacheStats
+        ? {
+          files: Number(postImportResult.cacheStats.files) || 0,
+          filesHashed: Number(postImportResult.cacheStats.filesHashed) || 0,
+          filesReused: Number(postImportResult.cacheStats.filesReused) || 0,
+          filesInvalidated: Number(postImportResult.cacheStats.filesInvalidated) || 0,
+          specs: Number(postImportResult.cacheStats.specs) || 0,
+          specsReused: Number(postImportResult.cacheStats.specsReused) || 0,
+          specsComputed: Number(postImportResult.cacheStats.specsComputed) || 0,
+          packageInvalidated: postImportResult.cacheStats.packageInvalidated === true,
+          reuseRatio: postImportResult.cacheStats.files
+            ? Number(postImportResult.cacheStats.filesReused || 0) / Number(postImportResult.cacheStats.files || 1)
+            : 0
+        }
+        : null,
       importGraph: state.importResolutionGraph?.stats
         ? {
           files: Number(state.importResolutionGraph.stats.files) || 0,
+          nodes: Number(state.importResolutionGraph.stats.nodes) || 0,
           edges: Number(state.importResolutionGraph.stats.edges) || 0,
           resolved: Number(state.importResolutionGraph.stats.resolved) || 0,
           external: Number(state.importResolutionGraph.stats.external) || 0,
-          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0
+          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0,
+          truncatedEdges: Number(state.importResolutionGraph.stats.truncatedEdges) || 0,
+          truncatedNodes: Number(state.importResolutionGraph.stats.truncatedNodes) || 0,
+          warningSuppressed: Number(state.importResolutionGraph.stats.warningSuppressed) || 0
         }
         : null,
       graphs: summarizeGraphRelations(graphRelations)
@@ -409,6 +430,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       tokenVocab: postings.tokenVocab?.length || 0,
       phraseVocab: postings.phraseVocab?.length || 0,
       chargramVocab: postings.chargramVocab?.length || 0,
+      chargramStats: postings.chargramStats || null,
       denseVectors: postings.quantizedVectors?.length || 0,
       docVectors: postings.quantizedDocVectors?.length || 0,
       codeVectors: postings.quantizedCodeVectors?.length || 0
@@ -427,7 +449,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     entries: allEntries,
     perfProfile,
     graphRelations,
-    shardSummary
+    shardSummary,
+    stageCheckpoints
   });
   const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
   const vfsExtra = vfsStats

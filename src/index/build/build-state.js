@@ -1,15 +1,80 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
+import { createTempPath, replaceFile } from '../../shared/json-stream/atomic.js';
+import { sha1 } from '../../shared/hash.js';
+import { estimateJsonBytes } from '../../shared/cache.js';
 
 const STATE_FILE = 'build_state.json';
+const STATE_PROGRESS_FILE = 'build_state.progress.json';
+const STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
+const STATE_EVENTS_FILE = 'build_state.events.jsonl';
+const STATE_DELTAS_FILE = 'build_state.deltas.jsonl';
 const STATE_SCHEMA_VERSION = 1;
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
+const DEFAULT_DEBOUNCE_MS = 250;
+const LONG_DEBOUNCE_MS = 500;
+const VERY_LONG_DEBOUNCE_MS = 1000;
+const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
+const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
+const LARGE_PATCH_BYTES = 64 * 1024;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
+const stateCaches = new Map();
+const statePending = new Map();
+const stateTimers = new Map();
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
+const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
+const resolveCheckpointsPath = (buildRoot) => path.join(buildRoot, STATE_CHECKPOINTS_FILE);
+const resolveEventsPath = (buildRoot) => path.join(buildRoot, STATE_EVENTS_FILE);
+const resolveDeltasPath = (buildRoot) => path.join(buildRoot, STATE_DELTAS_FILE);
+
+const resolveDebounceMs = (patch) => {
+  if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
+  const patchBytes = estimateJsonBytes(patch);
+  if (patchBytes > LARGE_PATCH_BYTES) return VERY_LONG_DEBOUNCE_MS;
+  if (patch.heartbeat) return LONG_DEBOUNCE_MS;
+  if (patch.progress || patch.stageCheckpoints) return LONG_DEBOUNCE_MS;
+  return DEFAULT_DEBOUNCE_MS;
+};
+
+const getCacheEntry = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  if (!stateCaches.has(key)) {
+    stateCaches.set(key, {
+      state: null,
+      fingerprint: null,
+      progress: null,
+      progressFingerprint: null,
+      progressHash: null,
+      progressSerialized: null,
+      stageCheckpoints: null,
+      checkpointsFingerprint: null,
+      checkpointsHash: null,
+      checkpointsSerialized: null,
+      lastHash: null,
+      lastComparableHash: null
+    });
+  }
+  return stateCaches.get(key);
+};
+
+const fingerprintsMatch = (a, b) => (
+  a && b && a.mtimeMs === b.mtimeMs && a.size === b.size
+);
+
+const readFingerprint = async (filePath) => {
+  try {
+    const stat = await fs.stat(filePath);
+    return { mtimeMs: stat.mtimeMs, size: stat.size };
+  } catch {
+    return null;
+  }
+};
 
 const buildRootExists = async (buildRoot) => {
   if (!buildRoot) return false;
@@ -86,6 +151,65 @@ const mergeState = (base, patch) => {
   return merged;
 };
 
+const mergeProgress = (base, patch) => {
+  if (!patch) return base || {};
+  const next = { ...(base || {}) };
+  for (const [mode, value] of Object.entries(patch)) {
+    if (value && typeof value === 'object') {
+      next[mode] = { ...(next[mode] || {}), ...value };
+    } else {
+      next[mode] = value;
+    }
+  }
+  return next;
+};
+
+const mergeStageCheckpoints = (base, patch) => {
+  if (!patch) return base || {};
+  const next = { ...(base || {}) };
+  for (const [mode, value] of Object.entries(patch)) {
+    if (value && typeof value === 'object') {
+      next[mode] = { ...(next[mode] || {}), ...value };
+    } else {
+      next[mode] = value;
+    }
+  }
+  return next;
+};
+
+const splitPatch = (patch) => {
+  if (!patch || typeof patch !== 'object') return { main: patch, progress: null, checkpoints: null };
+  const { progress, stageCheckpoints, ...rest } = patch;
+  return { main: rest, progress: progress || null, checkpoints: stageCheckpoints || null };
+};
+
+const sanitizeMainState = (state) => {
+  if (!state || typeof state !== 'object') return state;
+  const next = { ...state };
+  if ('stageCheckpoints' in next) delete next.stageCheckpoints;
+  return next;
+};
+
+const collectCheckpointEvents = (stageCheckpoints, fallbackAt = null) => {
+  if (!stageCheckpoints || typeof stageCheckpoints !== 'object') return [];
+  const events = [];
+  const fallback = fallbackAt || new Date().toISOString();
+  for (const [mode, stages] of Object.entries(stageCheckpoints)) {
+    if (!stages || typeof stages !== 'object') continue;
+    for (const [stage, summary] of Object.entries(stages)) {
+      const generatedAt = summary?.generatedAt || fallback;
+      events.push({
+        at: generatedAt,
+        type: 'checkpoint',
+        mode,
+        stage,
+        checkpointCount: Array.isArray(summary?.checkpoints) ? summary.checkpoints.length : null
+      });
+    }
+  }
+  return events;
+};
+
 const recordStateError = (buildRoot, err) => {
   if (!buildRoot || !err) return;
   const key = path.resolve(buildRoot);
@@ -101,6 +225,81 @@ const recordStateError = (buildRoot, err) => {
   console.warn(`[build_state] ${message}`);
 };
 
+const compressRotatedLog = async (filePath) => {
+  try {
+    const payload = await fs.readFile(filePath);
+    const gzPath = `${filePath}.gz`;
+    const gzPayload = zlib.gzipSync(payload);
+    await fs.writeFile(gzPath, gzPayload);
+    await fs.unlink(filePath);
+  } catch {}
+};
+
+const appendEventLog = async (buildRoot, events) => {
+  if (!buildRoot || !events || !events.length) return;
+  const filePath = resolveEventsPath(buildRoot);
+  try {
+    const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
+    if (stat && stat.size >= EVENT_LOG_MAX_BYTES) {
+      const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
+      try { fsSync.renameSync(filePath, rotated); } catch {}
+      await compressRotatedLog(rotated);
+    }
+    const lines = events.map((event) => JSON.stringify(event)).join('\n') + '\n';
+    await fs.appendFile(filePath, lines, 'utf8');
+  } catch (err) {
+    recordStateError(buildRoot, err);
+  }
+};
+
+const buildDeltaEntries = ({ main, progress, checkpoints, ts }) => {
+  const entries = [];
+  const now = ts || new Date().toISOString();
+  const push = (pathValue, value) => {
+    entries.push({ op: 'set', path: pathValue, value, ts: now });
+  };
+  if (main && typeof main === 'object') {
+    for (const [key, value] of Object.entries(main)) {
+      push(`/${key}`, value);
+    }
+  }
+  if (progress && typeof progress === 'object') {
+    for (const [mode, value] of Object.entries(progress)) {
+      push(`/progress/${mode}`, value);
+    }
+  }
+  if (checkpoints && typeof checkpoints === 'object') {
+    for (const [mode, value] of Object.entries(checkpoints)) {
+      push(`/stageCheckpoints/${mode}`, value);
+    }
+  }
+  return entries;
+};
+
+const appendDeltaLog = async (buildRoot, deltas, snapshot = null) => {
+  if (!buildRoot || !deltas || !deltas.length) return;
+  const filePath = resolveDeltasPath(buildRoot);
+  try {
+    const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
+    if (stat && stat.size >= DELTA_LOG_MAX_BYTES) {
+      const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
+      try { fsSync.renameSync(filePath, rotated); } catch {}
+      await compressRotatedLog(rotated);
+      if (snapshot) {
+        const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
+        await fs.writeFile(filePath, snapshotLine, 'utf8');
+      }
+    } else if (!stat && snapshot) {
+      const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
+      await fs.writeFile(filePath, snapshotLine, 'utf8');
+    }
+    const lines = deltas.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
+    await fs.appendFile(filePath, lines, 'utf8');
+  } catch (err) {
+    recordStateError(buildRoot, err);
+  }
+};
+
 const enqueueStateUpdate = (buildRoot, action) => {
   if (!buildRoot) return Promise.resolve(null);
   const key = path.resolve(buildRoot);
@@ -112,15 +311,80 @@ const enqueueStateUpdate = (buildRoot, action) => {
   return next;
 };
 
-const loadBuildState = async (buildRoot) => {
-  const statePath = resolveStatePath(buildRoot);
+const readJsonFile = async (filePath) => {
   try {
-    const parsed = JSON.parse(await fs.readFile(statePath, 'utf8'));
+    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
     if (!parsed || typeof parsed !== 'object') return null;
-    return { state: parsed, loaded: true };
+    return parsed;
   } catch {
-    return { state: null, loaded: false };
+    return null;
   }
+};
+
+const stripUpdatedAt = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const next = { ...value };
+  if ('updatedAt' in next) next.updatedAt = null;
+  return next;
+};
+
+const hashJson = (value) => {
+  if (value == null) return null;
+  return sha1(JSON.stringify(value));
+};
+
+const hashJsonString = (value) => {
+  if (value == null) return null;
+  return sha1(value);
+};
+
+const writeJsonStringAtomic = async (filePath, jsonString) => {
+  if (!filePath) return null;
+  const tempPath = createTempPath(filePath);
+  await fs.writeFile(tempPath, jsonString, 'utf8');
+  await replaceFile(tempPath, filePath);
+  return filePath;
+};
+
+const loadBuildState = async (buildRoot) => {
+  const cache = getCacheEntry(buildRoot);
+  const statePath = resolveStatePath(buildRoot);
+  const fingerprint = await readFingerprint(statePath);
+  if (fingerprintsMatch(fingerprint, cache.fingerprint) && cache.state) {
+    return { state: cache.state, loaded: true, cache };
+  }
+  const parsed = fingerprint ? await readJsonFile(statePath) : null;
+  cache.state = parsed;
+  cache.fingerprint = fingerprint;
+  cache.lastHash = parsed ? hashJson(parsed) : null;
+  cache.lastComparableHash = parsed ? hashJson(stripUpdatedAt(parsed)) : null;
+  return { state: parsed, loaded: Boolean(parsed), cache };
+};
+
+const loadSidecar = async (buildRoot, type) => {
+  const cache = getCacheEntry(buildRoot);
+  const filePath = type === 'progress'
+    ? resolveProgressPath(buildRoot)
+    : resolveCheckpointsPath(buildRoot);
+  const fingerprint = await readFingerprint(filePath);
+  if (type === 'progress') {
+    if (fingerprintsMatch(fingerprint, cache.progressFingerprint) && cache.progress) {
+      return cache.progress;
+    }
+    const parsed = fingerprint ? await readJsonFile(filePath) : null;
+    cache.progress = parsed;
+    cache.progressFingerprint = fingerprint;
+    cache.progressHash = parsed ? hashJson(parsed) : null;
+    return parsed;
+  }
+  if (fingerprintsMatch(fingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
+    return cache.stageCheckpoints;
+  }
+  const parsed = fingerprint ? await readJsonFile(filePath) : null;
+  cache.stageCheckpoints = parsed;
+  cache.checkpointsFingerprint = fingerprint;
+  cache.checkpointsHash = parsed ? hashJson(parsed) : null;
+  return parsed;
 };
 
 const ensureStateVersions = (state, buildRoot, loaded) => {
@@ -138,6 +402,188 @@ const ensureStateVersions = (state, buildRoot, loaded) => {
     schemaVersion: schemaVersion ?? STATE_SCHEMA_VERSION,
     signatureVersion
   };
+};
+
+const writeStateFile = async (buildRoot, state, cache, { comparableHash = null } = {}) => {
+  if (!buildRoot || !state) return null;
+  const statePath = resolveStatePath(buildRoot);
+  const fullHash = hashJson(state);
+  if (fullHash && cache.lastHash === fullHash) {
+    cache.state = state;
+    if (comparableHash) cache.lastComparableHash = comparableHash;
+    return state;
+  }
+  try {
+    await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+    const fingerprint = await readFingerprint(statePath);
+    cache.state = state;
+    cache.fingerprint = fingerprint;
+    cache.lastHash = fullHash;
+    if (comparableHash) cache.lastComparableHash = comparableHash;
+    return state;
+  } catch (err) {
+    if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
+    recordStateError(buildRoot, err);
+    return null;
+  }
+};
+
+const writeSidecarFile = async (buildRoot, type, payload, cache) => {
+  if (!buildRoot || !payload) return null;
+  const filePath = type === 'progress'
+    ? resolveProgressPath(buildRoot)
+    : resolveCheckpointsPath(buildRoot);
+  const jsonString = `${JSON.stringify(payload)}\n`;
+  const nextHash = hashJsonString(jsonString);
+  const cachedHash = type === 'progress' ? cache.progressHash : cache.checkpointsHash;
+  if (nextHash && cachedHash === nextHash) {
+    if (type === 'progress') {
+      cache.progress = payload;
+      cache.progressSerialized = jsonString;
+    }
+    if (type === 'checkpoints') {
+      cache.stageCheckpoints = payload;
+      cache.checkpointsSerialized = jsonString;
+    }
+    return payload;
+  }
+  try {
+    await writeJsonStringAtomic(filePath, jsonString);
+    const fingerprint = await readFingerprint(filePath);
+    if (type === 'progress') {
+      cache.progress = payload;
+      cache.progressFingerprint = fingerprint;
+      cache.progressHash = nextHash;
+      cache.progressSerialized = jsonString;
+    } else {
+      cache.stageCheckpoints = payload;
+      cache.checkpointsFingerprint = fingerprint;
+      cache.checkpointsHash = nextHash;
+      cache.checkpointsSerialized = jsonString;
+    }
+    return payload;
+  } catch (err) {
+    if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
+    recordStateError(buildRoot, err);
+    return null;
+  }
+};
+
+const applyStatePatch = async (buildRoot, patch, events = []) => {
+  if (!buildRoot || !patch) return null;
+  if (!(await buildRootExists(buildRoot))) return null;
+  const { main, progress, checkpoints } = splitPatch(patch);
+  const cache = getCacheEntry(buildRoot);
+  const loadedState = await loadBuildState(buildRoot);
+  let state = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
+  state = await hydrateStateDefaults(state, buildRoot);
+  const deltaEntries = buildDeltaEntries({ main, progress, checkpoints });
+
+  let nextProgress = null;
+  if (progress) {
+    const baseProgress = await loadSidecar(buildRoot, 'progress') || state.progress || {};
+    nextProgress = mergeProgress(baseProgress, progress);
+  }
+
+  let nextCheckpoints = null;
+  if (checkpoints) {
+    const baseCheckpoints = await loadSidecar(buildRoot, 'checkpoints') || state.stageCheckpoints || {};
+    nextCheckpoints = mergeStageCheckpoints(baseCheckpoints, checkpoints);
+  }
+
+  const writes = [];
+  if (progress) writes.push(writeSidecarFile(buildRoot, 'progress', nextProgress, cache));
+  if (checkpoints) writes.push(writeSidecarFile(buildRoot, 'checkpoints', nextCheckpoints, cache));
+
+  let merged = state;
+  if (main && Object.keys(main).length > 0) {
+    merged = mergeState(state, main);
+    merged = sanitizeMainState(ensureStateVersions(merged, buildRoot, false));
+    const comparableHash = hashJson(stripUpdatedAt(merged));
+    const shouldWrite = comparableHash && comparableHash !== cache.lastComparableHash;
+    if (shouldWrite) {
+      merged.updatedAt = new Date().toISOString();
+      writes.push(writeStateFile(buildRoot, merged, cache, { comparableHash }));
+    } else {
+      if (comparableHash) cache.lastComparableHash = comparableHash;
+      cache.state = merged;
+    }
+  }
+
+  if (writes.length) {
+    await Promise.all(writes);
+  }
+  if (events?.length) {
+    await appendEventLog(buildRoot, events);
+  }
+  if (deltaEntries.length) {
+    void appendDeltaLog(buildRoot, deltaEntries, merged);
+  }
+  return merged;
+};
+
+const getPendingEntry = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  if (!statePending.has(key)) {
+    statePending.set(key, {
+      patch: null,
+      events: [],
+      timer: null,
+      resolves: [],
+      rejects: []
+    });
+  }
+  return statePending.get(key);
+};
+
+const flushPendingState = async (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  const pending = statePending.get(key);
+  if (!pending || !pending.patch) return null;
+  const patch = pending.patch;
+  const events = pending.events;
+  const resolves = pending.resolves;
+  const rejects = pending.rejects;
+  pending.patch = null;
+  pending.events = [];
+  pending.resolves = [];
+  pending.rejects = [];
+  try {
+    const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
+    resolves.forEach((resolve) => resolve(result));
+    if (!pending.patch && !pending.timer) statePending.delete(key);
+    return result;
+  } catch (err) {
+    rejects.forEach((reject) => reject(err));
+    recordStateError(buildRoot, err);
+    if (!pending.patch && !pending.timer) statePending.delete(key);
+    return null;
+  }
+};
+
+const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {}) => {
+  if (!buildRoot || !patch) return Promise.resolve(null);
+  const pending = getPendingEntry(buildRoot);
+  pending.patch = pending.patch ? mergeState(pending.patch, patch) : patch;
+  if (events.length) pending.events.push(...events);
+  const promise = new Promise((resolve, reject) => {
+    pending.resolves.push(resolve);
+    pending.rejects.push(reject);
+  });
+  if (pending.timer) {
+    clearTimeout(pending.timer);
+    pending.timer = null;
+  }
+  if (flushNow) {
+    void flushPendingState(buildRoot);
+  } else {
+    const delay = resolveDebounceMs(pending.patch);
+    pending.timer = setTimeout(() => {
+      pending.timer = null;
+      void flushPendingState(buildRoot);
+    }, delay);
+  }
+  return promise;
 };
 
 export async function initBuildState({
@@ -183,63 +629,53 @@ export async function initBuildState({
 
 export async function updateBuildState(buildRoot, patch) {
   if (!buildRoot || !patch) return null;
-  return enqueueStateUpdate(buildRoot, async () => {
-    if (!(await buildRootExists(buildRoot))) return null;
-    const statePath = resolveStatePath(buildRoot);
-    const loadedState = await loadBuildState(buildRoot);
-    let state = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
-    state = await hydrateStateDefaults(state, buildRoot);
-    const now = new Date().toISOString();
-    const merged = mergeState(state, { ...patch, updatedAt: now });
-    if (!Number.isFinite(Number(merged.schemaVersion))) merged.schemaVersion = STATE_SCHEMA_VERSION;
-    try {
-      await writeJsonObjectFile(statePath, { fields: merged, atomic: true });
-      return merged;
-    } catch (err) {
-      if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
-      recordStateError(buildRoot, err);
-      return null;
-    }
-  });
+  const events = collectCheckpointEvents(patch.stageCheckpoints);
+  return queueStatePatch(buildRoot, patch, events);
+}
+
+export async function flushBuildState(buildRoot) {
+  if (!buildRoot) return null;
+  const key = path.resolve(buildRoot);
+  const pending = statePending.get(key);
+  if (pending?.timer) {
+    clearTimeout(pending.timer);
+    pending.timer = null;
+  }
+  return flushPendingState(buildRoot);
 }
 
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
   if (!buildRoot || !phase || !status) return null;
-  return enqueueStateUpdate(buildRoot, async () => {
-    if (!(await buildRootExists(buildRoot))) return null;
-    const now = new Date().toISOString();
-    const statePath = resolveStatePath(buildRoot);
-    const loadedState = await loadBuildState(buildRoot);
-    let current = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
-    const existing = current?.phases?.[phase] || {};
-    const next = {
-      ...existing,
-      status,
-      detail: detail || existing.detail || null,
-      updatedAt: now
-    };
-    if (status === 'running' && !existing.startedAt) next.startedAt = now;
-    if (status === 'done' || status === 'failed') next.finishedAt = now;
-    const finishedAt = (status === 'done' || status === 'failed')
-      && (phase === 'promote' || phase === 'watch')
-      ? now
-      : current?.finishedAt || null;
-    const merged = mergeState(current, {
-      currentPhase: phase,
-      phases: { [phase]: next },
-      finishedAt,
-      updatedAt: now
-    });
-    if (!Number.isFinite(Number(merged.schemaVersion))) merged.schemaVersion = STATE_SCHEMA_VERSION;
-    try {
-      await writeJsonObjectFile(statePath, { fields: merged, atomic: true });
-      return merged;
-    } catch (err) {
-      if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
-      recordStateError(buildRoot, err);
-      return null;
-    }
-  });
+  if (!(await buildRootExists(buildRoot))) return null;
+  const now = new Date().toISOString();
+  const loadedState = await loadBuildState(buildRoot);
+  let current = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
+  const existing = current?.phases?.[phase] || {};
+  const next = {
+    ...existing,
+    status,
+    detail: detail || existing.detail || null,
+    updatedAt: now
+  };
+  if (status === 'running' && !existing.startedAt) next.startedAt = now;
+  if (status === 'done' || status === 'failed') next.finishedAt = now;
+  const finishedAt = (status === 'done' || status === 'failed')
+    && (phase === 'promote' || phase === 'watch')
+    ? now
+    : current?.finishedAt || null;
+  const patch = {
+    currentPhase: phase,
+    phases: { [phase]: next },
+    finishedAt
+  };
+  const events = [{
+    at: now,
+    type: 'phase',
+    phase,
+    status,
+    detail: detail || null
+  }];
+  return queueStatePatch(buildRoot, patch, events);
 }
 
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
@@ -249,6 +685,7 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   const stop = () => {
     active = false;
     clearInterval(timer);
+    void flushBuildState(buildRoot);
   };
   const tick = async () => {
     if (!active) return;
