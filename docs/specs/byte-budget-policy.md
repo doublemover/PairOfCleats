@@ -10,12 +10,14 @@
 ## Budget Model
 - Global budget pool per stage.
 - Per-artifact budget allocations with defaults.
+- A shared `resolveByteBudget(artifact, config)` helper returns effective caps.
 
 ## Enforcement
 - If artifact exceeds budget, apply one of:
   - spill to disk
   - shard more aggressively
   - skip with warning (only if allowed)
+- Perf lane enforces strict overflow behavior by default.
 
 ## Budget Table
 - chunk_meta: medium

@@ -677,16 +677,20 @@ Parallel: Must land before 16.5.2/16.5.3.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
-- [ ] Task 16.5.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.5.1.a: Implement shared k-way merge core in `src/shared/merge.js`.
-- [ ] Task 16.5.1.b: Add bounded heap and chunked write support.
-- [ ] Task 16.5.1.c: Add stable ordering guarantees for merges.
-- [ ] Task 16.5.1.d: Add cleanup hooks for spill files.
-- [ ] Task 16.5.1.e: Add telemetry counters for merge throughput.
-- [ ] Task 16.5.1.f: Add resumable merge checkpoints for large merges.
+- [x] Task 16.5.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.5.1.a: Implement shared k-way merge core in `src/shared/merge.js`.
+- [x] Task 16.5.1.b: Add bounded heap and chunked write support.
+- [x] Task 16.5.1.c: Add stable ordering guarantees for merges.
+- [x] Task 16.5.1.d: Add cleanup hooks for spill files.
+- [x] Task 16.5.1.e: Add telemetry counters for merge throughput.
+- [x] Task 16.5.1.f: Add resumable merge checkpoints for large merges.
+- [x] Task 16.5.1.g: Define merge core API contract (inputs/outputs, comparator contract, serialization hooks).
+- [x] Task 16.5.1.h: Add comparator total-order validation guard for debug builds.
+- [x] Task 16.5.1.i: Define spill run manifest schema + naming conventions.
+- [x] Task 16.5.1.j: Add standardized spill recovery + cleanup path.
 
 Tests:
-- [ ] `tests/shared/merge/merge-core.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/merge-core.test.js` (perf lane) (new)
 
 ### Subphase 16.5.2 -- Postings Adoption
 Parallel: Can run alongside 16.5.3 after 16.5.1; coordinate file ownership.
@@ -699,9 +703,12 @@ Tasks:
 - [ ] Task 16.5.2.c: Add deterministic merge ordering for postings.
 - [ ] Task 16.5.2.d: Add merge stats to build_state.
 - [ ] Task 16.5.2.e: Add tests for spill/merge determinism.
+- [ ] Task 16.5.2.f: Define postings merge comparator + tie-break rules in code/docs.
+- [ ] Task 16.5.2.g: Add baseline compatibility check against legacy postings output.
 
 Tests:
 - [ ] `tests/indexing/postings/spill-merge-unified.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/spill-merge-compat.test.js` (perf lane) (new)
 
 ### Subphase 16.5.3 -- VFS/Relations/Artifacts Adoption
 Parallel: Can run alongside 16.5.2 after 16.5.1; coordinate file ownership.
@@ -714,9 +721,13 @@ Tasks:
 - [ ] Task 16.5.3.c: Replace artifact shard merge with shared merge core.
 - [ ] Task 16.5.3.d: Ensure byte thresholds are used consistently.
 - [ ] Task 16.5.3.e: Add unified cleanup for spill artifacts.
+- [ ] Task 16.5.3.f: Define per-adopter comparator + serializer contracts for VFS/relations/artifacts.
+- [ ] Task 16.5.3.g: Add byte-budget policy mapping for VFS/relations/artifacts (fail vs truncate).
+- [ ] Task 16.5.3.h: Add spill cleanup regression test for VFS/relations/artifacts.
 
 Tests:
 - [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane) (new)
+- [ ] `tests/indexing/relations/merge-core-integration.test.js` (perf lane) (new)
 
 ### Subphase 16.5.4 -- Byte Budget Policy
 Parallel: Can run alongside 16.5.1; must land before 16.5.5.
@@ -729,6 +740,9 @@ Tasks:
 - [ ] Task 16.5.4.c: Add enforcement hooks to writers.
 - [ ] Task 16.5.4.d: Add warnings/abort policy for overages.
 - [ ] Task 16.5.4.e: Add telemetry outputs for budget usage.
+- [ ] Task 16.5.4.f: Define byte-budget policy table (artifact -> cap -> overflow behavior).
+- [ ] Task 16.5.4.g: Add strict perf-lane budget enforcement policy.
+- [ ] Task 16.5.4.h: Add shared `resolveByteBudget(artifactName, config)` helper.
 
 Tests:
 - [ ] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)
@@ -745,6 +759,9 @@ Tasks:
 - [ ] Task 16.5.5.d: Add documentation updates for budgets and merges.
 - [ ] Task 16.5.5.e: Add build_state counters for spill/merge.
 - [ ] Task 16.5.5.f: Add merge cleanup/compaction regression test.
+- [ ] Task 16.5.5.g: Add benchmark metrics for throughput + heap + spill bytes.
+- [ ] Task 16.5.5.h: Add baseline/current delta line (amount, throughput, percent, duration).
+- [ ] Task 16.5.5.i: Add failure simulation bench for missing run file handling.
 
 Tests:
 - [ ] `tests/shared/merge/merge-benchmark-contract.test.js` (perf lane) (new)

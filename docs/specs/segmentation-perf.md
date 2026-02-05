@@ -39,6 +39,8 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 ## Performance expectations
 - Parsing should occur once per Markdown file.
 - Large files should not cause extra allocations beyond the existing segment list.
+- When segmentation artifacts spill or shard, use the shared merge core to preserve deterministic ordering
+  and ensure spill cleanup is centralized.
 
 ## Touchpoints
 - `src/index/segments/markdown.js`

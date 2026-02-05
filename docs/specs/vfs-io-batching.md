@@ -81,6 +81,13 @@ Emit counters:
 
 ---
 
+## 5.1) Spill/Merge Integration
+
+When VFS artifacts spill or require merge/compaction, use the shared merge core (`src/shared/merge.js`)
+so ordering and cleanup are consistent with other artifact pipelines.
+
+---
+
 ## 6) Related specs
 
 - `docs/specs/vfs-cold-start-cache.md`

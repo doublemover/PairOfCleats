@@ -178,6 +178,13 @@ If `segments.length > maxSegmentsOpen`:
 
 This prevents “too many open files” errors on Windows and some CI environments.
 
+### 5.4 Shared merge core (implementation contract)
+SPIMI uses the shared merge core in `src/shared/merge.js`:
+- Each spill run writes a JSON run manifest (schema versioned) alongside the run file.
+- Hierarchical merge is planned with `maxOpenRuns` and produces intermediate runs.
+- Merge checkpoints are written after each group to allow resuming partial merges.
+- Cleanup must remove intermediate runs and manifests on success or failure.
+
 ---
 
 ## 6. Integration points (exact codebase changes)
