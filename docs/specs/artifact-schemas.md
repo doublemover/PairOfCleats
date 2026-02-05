@@ -24,6 +24,13 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 
 Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
 
+Offsets metadata (when present) is stored under `extensions.offsets`:
+- `version` (int, currently 1)
+- `format` (`u64-le`)
+- `compression` (`none`)
+- `suffix` (e.g. `offsets.bin`)
+- `parts` (array of offsets shard paths)
+
 ## Artifact registry
 
 All artifacts below are JSON unless noted. Required fields are listed.

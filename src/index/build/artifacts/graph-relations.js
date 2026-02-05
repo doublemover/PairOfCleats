@@ -4,6 +4,7 @@ import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning
 import { fromPosix } from '../../../shared/files.js';
 import {
   buildGraphRelationsCsr,
+  createOffsetsMeta,
   createGraphRelationsIterator,
   materializeGraphRelationsPayload,
   measureGraphRelations
@@ -70,13 +71,11 @@ export async function enqueueGraphRelationsArtifacts({
           records: result.counts[index] || 0,
           bytes: result.bytes[index] || 0
         }));
-        const offsetsMeta = result.offsets?.length
-          ? {
-            format: 'u64-le',
-            suffix: offsetsConfig.suffix,
-            parts: result.offsets
-          }
-          : null;
+        const offsetsMeta = createOffsetsMeta({
+          suffix: offsetsConfig.suffix,
+          parts: result.offsets,
+          compression: 'none'
+        });
         await writeJsonObjectFile(graphMetaPath, {
           fields: {
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,

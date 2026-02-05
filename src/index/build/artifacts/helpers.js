@@ -7,9 +7,32 @@ import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
+import {
+  OFFSETS_COMPRESSION,
+  OFFSETS_FORMAT,
+  OFFSETS_FORMAT_VERSION
+} from '../../../shared/artifact-io/offsets.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
 const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
+export const createOffsetsMeta = ({ suffix = null, parts = null, compression = null } = {}) => {
+  if (!Array.isArray(parts) || !parts.length) return null;
+  return {
+    version: OFFSETS_FORMAT_VERSION,
+    format: OFFSETS_FORMAT,
+    compression: compression || OFFSETS_COMPRESSION,
+    suffix: suffix || null,
+    parts
+  };
+};
+
+export const createOffsetsIndexMeta = ({ path: offsetsPath = null, count = null, compression = null } = {}) => ({
+  version: OFFSETS_FORMAT_VERSION,
+  format: OFFSETS_FORMAT,
+  compression: compression || OFFSETS_COMPRESSION,
+  path: offsetsPath,
+  count
+});
 
 export class MinHeap {
   constructor(compare) {

@@ -2,6 +2,10 @@ import fs from 'node:fs/promises';
 import { parseJsonlLine } from './jsonl.js';
 import { MAX_JSON_BYTES } from './constants.js';
 
+export const OFFSETS_FORMAT_VERSION = 1;
+export const OFFSETS_FORMAT = 'u64-le';
+export const OFFSETS_COMPRESSION = 'none';
+
 const OFFSET_BYTES = 8;
 
 const readOffsetValue = (buffer, index) => {

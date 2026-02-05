@@ -1,5 +1,19 @@
 # Repository Guidelines
 
+## You are working in PowerShell 7.5
+- Avoid bash-style heredocs (`<<EOF`) or use python
+- Quoting: use single quotes for literal strings, double quotes only when you need `$env:VAR` or `$(...)` expansion.
+- Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. 
+	- In single quotes, escape a `'` by doubling it (`''`).
+- Avoid unquoted paths with spaces, Wrap in single quotes when no expansion is needed.
+- JSON/CLI args: prefer single-quoted JSON (`'{"k":"v"}'`) to avoid accidental expansion
+	- If you must use double quotes, escape `$` as `` `$ ``.
+- Paths: use `C:\...` or `.\relative\path`; 
+	- You generally do not need to escape backslashes.
+- Here-strings (heredocs):
+	- `@"` ... `"@` for expandable
+	- `@'` ... `'@` for literal
+
 ## Project Structure & Module Organization
 - `src/` contains the core library (indexing, retrieval, storage, config, shared utilities).
 - `bin/` hosts the CLI entrypoint (`bin/pairofcleats.js`).
@@ -18,6 +32,7 @@
 - `node bin/pairofcleats.js <command>` runs the CLI from source.
 - `npm run lint` checks style; `npm run format` auto-fixes via ESLint.
 - Important Note: The script should be setting `PAIROFCLEATS_TESTING=1`, or other `PAIROFCLEATS_TEST_*` env vars will be ignored.
+	- There is a helper you can import to handle this boilerplate.
 
 ## Script Policy References
 - `docs/tooling/script-inventory.json` (generated inventory)
@@ -33,25 +48,9 @@
   - the date and PR/commit
 - Contracts in `src/contracts/**` remain authoritative; specs must be updated to match them.
 
-## PowerShell 7.5 Notes
-- Avoid bash-style heredocs (`<<EOF`) or use python
-- You are working in PowerShell 7.5; Be mindful of how it is different.
-- Quoting: use single quotes for literal strings, double quotes only when you need `$env:VAR` or `$(...)` expansion.
-- You are already in PowerShell; do not prefix commands with `powershell -NoProfile -Command` (it breaks here-strings and other quoting).
-- Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. 
-	- In single quotes, escape a `'` by doubling it (`''`).
-- Avoid unquoted paths with spaces, Wrap in single quotes when no expansion is needed.
-- JSON/CLI args: prefer single-quoted JSON (`'{"k":"v"}'`) to avoid accidental expansion
-	- If you must use double quotes, escape `$` as `` `$ ``.
-- Paths: use `C:\\...` or `.\\relative\\path`; 
-	- You generally do not need to escape backslashes.
-- Here-strings (heredocs):
-	- `@"` ... `"@` for expandable
-	- `@'` ... `'@` for literal
-
 ## Coding Style & Naming Conventions
 - JavaScript, ESM (`"type": "module"` in `package.json`).
-- Indentation: 2 spaces; keep files under ~1200 lines (ESLint `max-lines`).
+- Indentation: 2 spaces; try to keep files under ~1200 lines (ESLint `max-lines`).
 - Prefer descriptive, hyphenated test filenames (e.g., `sqlite-bundle-missing.js`).
 - Run `npm run format` before committing. 
 

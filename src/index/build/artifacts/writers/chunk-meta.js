@@ -14,6 +14,7 @@ import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import {
   compareChunkMetaRows,
+  createOffsetsMeta,
   createRowSpillCollector,
   mergeSortedRuns,
   recordArtifactTelemetry
@@ -775,13 +776,11 @@ export const enqueueChunkMetaArtifacts = async ({
             records: result.counts[index] || 0,
             bytes: result.bytes[index] || 0
           }));
-          const offsetsMeta = result.offsets?.length
-            ? {
-              format: 'u64-le',
-              suffix: offsetsConfig?.suffix || null,
-              parts: result.offsets
-            }
-            : null;
+          const offsetsMeta = createOffsetsMeta({
+            suffix: offsetsConfig?.suffix || null,
+            parts: result.offsets,
+            compression: 'none'
+          });
           await writeJsonObjectFile(metaPath, {
             fields: {
               schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,

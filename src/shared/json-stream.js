@@ -9,6 +9,15 @@ import { createOffsetsWriter } from './json-stream/offsets.js';
 
 export { createTempPath, replaceFile };
 
+const normalizeShardLimit = (value) => (
+  Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0
+);
+
+const resolveShardLimits = ({ maxBytes, maxItems }) => ({
+  maxBytes: normalizeShardLimit(maxBytes),
+  maxItems: normalizeShardLimit(maxItems)
+});
+
 /**
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
@@ -143,8 +152,7 @@ export async function writeJsonLinesSharded(input) {
   if (offsets && resolvedCompression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
-  const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
-  const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
+  const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
   const partsDir = path.join(dir, partsDirName);
   await fsPromises.rm(partsDir, { recursive: true, force: true });
   await fsPromises.mkdir(partsDir, { recursive: true });
@@ -328,8 +336,7 @@ export async function writeJsonLinesShardedAsync(input) {
   if (offsets && resolvedCompression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
-  const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
-  const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
+  const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
   const partsDir = path.join(dir, partsDirName);
   await fsPromises.rm(partsDir, { recursive: true, force: true });
   await fsPromises.mkdir(partsDir, { recursive: true });

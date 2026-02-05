@@ -7,6 +7,7 @@ import {
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { createOffsetsMeta } from '../helpers.js';
 
 const MAX_ROW_BYTES = 32768;
 
@@ -204,13 +205,11 @@ export const enqueueSymbolsArtifacts = async ({
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
-      const offsetsMeta = result.offsets?.length
-        ? {
-          format: 'u64-le',
-          suffix: offsetsConfig?.suffix || null,
-          parts: result.offsets
-        }
-        : null;
+      const offsetsMeta = createOffsetsMeta({
+        suffix: offsetsConfig?.suffix || null,
+        parts: result.offsets,
+        compression: 'none'
+      });
       await writeJsonObjectFile(symbolsMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,

@@ -9,6 +9,7 @@ import { sha1 } from '../../../../shared/hash.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { createOffsetsMeta } from '../helpers.js';
 
 const MAX_ARGS_PER_CALL = 5;
 const MAX_ARG_TEXT_LEN = 80;
@@ -263,13 +264,11 @@ export const enqueueCallSitesArtifacts = ({
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
-      const offsetsMeta = result.offsets?.length
-        ? {
-          format: 'u64-le',
-          suffix: offsetsConfig?.suffix || null,
-          parts: result.offsets
-        }
-        : null;
+      const offsetsMeta = createOffsetsMeta({
+        suffix: offsetsConfig?.suffix || null,
+        parts: result.offsets,
+        compression: 'none'
+      });
       await writeJsonObjectFile(callSitesMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,

@@ -392,16 +392,16 @@ Parallel: Can run alongside 16.2.1; complete before 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
-- [ ] Task 16.2.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.2.2.a: Define unified offsets format and shared writer.
-- [ ] Task 16.2.2.b: Generate offsets during write (no second pass).
-- [ ] Task 16.2.2.c: Standardize byte-based sharding thresholds.
-- [ ] Task 16.2.2.d: Ensure compression suffix matches per-artifact mode.
-- [ ] Task 16.2.2.e: Add offset index validation in loaders.
-- [ ] Task 16.2.2.f: Add explicit offsets version + compression mode to shard metadata.
+- [x] Task 16.2.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.2.2.a: Define unified offsets format and shared writer.
+- [x] Task 16.2.2.b: Generate offsets during write (no second pass).
+- [x] Task 16.2.2.c: Standardize byte-based sharding thresholds.
+- [x] Task 16.2.2.d: Ensure compression suffix matches per-artifact mode.
+- [x] Task 16.2.2.e: Add offset index validation in loaders.
+- [x] Task 16.2.2.f: Add explicit offsets version + compression mode to shard metadata.
 
 Tests:
-- [ ] `tests/shared/artifact-io/offsets-unified.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/offsets-unified.test.js` (perf lane) (new)
 
 ### Subphase 16.2.3 -- Writer Migration
 Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.4 with clear file ownership.

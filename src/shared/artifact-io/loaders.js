@@ -3,7 +3,15 @@ import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak, readShardFiles, resolveArtifactMtime, resolveDirMtime } from './fs.js';
 import { fromPosix } from '../files.js';
-import { readJsonlRowAt, readOffsetAt, resolveOffsetsCount } from './offsets.js';
+import {
+  OFFSETS_COMPRESSION,
+  OFFSETS_FORMAT,
+  OFFSETS_FORMAT_VERSION,
+  readJsonlRowAt,
+  readOffsetAt,
+  resolveOffsetsCount,
+  validateOffsetsAgainstFile
+} from './offsets.js';
 import { readVarintDeltasAt } from './varint.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync } from './json.js';
 import { resolveJsonlRequiredKeys } from './jsonl.js';
@@ -19,6 +27,15 @@ const warnNonStrictJsonFallback = (dir, name) => {
   console.warn(
     `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`
   );
+};
+
+const validatedOffsets = new Set();
+const ensureOffsetsValid = async (jsonlPath, offsetsPath) => {
+  const key = `${jsonlPath}::${offsetsPath}`;
+  if (validatedOffsets.has(key)) return true;
+  await validateOffsetsAgainstFile(jsonlPath, offsetsPath);
+  validatedOffsets.add(key);
+  return true;
 };
 
 const resolveJsonlArtifactSources = (dir, baseName) => {
@@ -962,6 +979,9 @@ const loadSymbolRowsForFile = async (
   const meta = perFileMeta.meta;
   const offsetsInfo = meta?.offsets && typeof meta.offsets === 'object' ? meta.offsets : null;
   if (!offsetsInfo?.path || !meta?.data) return loadFullRows();
+  if (offsetsInfo.format && offsetsInfo.format !== OFFSETS_FORMAT) return loadFullRows();
+  if (offsetsInfo.version && offsetsInfo.version !== OFFSETS_FORMAT_VERSION) return loadFullRows();
+  if (offsetsInfo.compression && offsetsInfo.compression !== OFFSETS_COMPRESSION) return loadFullRows();
   const dataPath = path.join(dir, fromPosix(meta.data));
   const offsetsPath = path.join(dir, fromPosix(offsetsInfo.path));
   const sources = resolveRowSourcesFromPerFileMeta(dir, meta);
@@ -989,12 +1009,23 @@ const loadSymbolRowsForFile = async (
   if (!rowIndexes.length) return [];
   const requiredKeys = resolveJsonlRequiredKeys(baseName);
   const rows = [];
+  const validatedParts = new Set();
   for (const rowIndex of rowIndexes) {
     const resolved = resolvePartIndex(sources.counts, rowIndex);
     if (!resolved) continue;
+    const partPath = sources.parts[resolved.partIndex];
+    const partOffsets = sources.offsets[resolved.partIndex];
+    if (!validatedParts.has(resolved.partIndex)) {
+      try {
+        await ensureOffsetsValid(partPath, partOffsets);
+        validatedParts.add(resolved.partIndex);
+      } catch {
+        return loadFullRows();
+      }
+    }
     const row = await readJsonlRowAt(
-      sources.parts[resolved.partIndex],
-      sources.offsets[resolved.partIndex],
+      partPath,
+      partOffsets,
       resolved.localIndex,
       { maxBytes, requiredKeys }
     );

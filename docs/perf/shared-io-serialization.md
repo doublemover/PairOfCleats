@@ -46,3 +46,7 @@ Telemetry only fires when:
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.
 - Large array writes are streaming and avoid building full JSON strings in memory.
 - IO telemetry stays opt-in and low-overhead when disabled.
+
+## Offsets Metadata
+- Offsets sidecars use the unified `u64-le` format with an explicit `version`.
+- Sharded JSONL meta records offsets `format`, `version`, `compression`, and `suffix`.

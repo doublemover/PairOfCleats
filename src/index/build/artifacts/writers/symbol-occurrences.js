@@ -11,6 +11,8 @@ import { fromPosix, toPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import {
   compareSymbolOccurrenceRows,
+  createOffsetsIndexMeta,
+  createOffsetsMeta,
   createRowSpillCollector,
   createTrimStats,
   mergeSortedRuns,
@@ -356,11 +358,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
               fileCount,
               rows: totalRows,
               data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
-              offsets: {
-                format: 'u64-le',
+              offsets: createOffsetsIndexMeta({
                 path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
-                count: fileCount + 1
-              },
+                count: fileCount + 1,
+                compression: 'none'
+              }),
               jsonl: {
                 format: 'jsonl',
                 parts: [relativeJsonl],
@@ -449,13 +451,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
-      const offsetsMeta = result.offsets?.length
-        ? {
-          format: 'u64-le',
-          suffix: offsetsConfig?.suffix || null,
-          parts: result.offsets
-        }
-        : null;
+      const offsetsMeta = createOffsetsMeta({
+        suffix: offsetsConfig?.suffix || null,
+        parts: result.offsets,
+        compression: 'none'
+      });
       await writeJsonObjectFile(occurrencesMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -499,11 +499,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
             fileCount,
             rows: totalRows,
             data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
-            offsets: {
-              format: 'u64-le',
+            offsets: createOffsetsIndexMeta({
               path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
-              count: fileCount + 1
-            },
+              count: fileCount + 1,
+              compression: 'none'
+            }),
             jsonl: {
               format: 'jsonl-sharded',
               parts,
