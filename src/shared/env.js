@@ -124,3 +124,11 @@ export function setVerboseEnv(enabled, env = process.env) {
     delete env.PAIROFCLEATS_VERBOSE;
   }
 }
+
+export function setCacheRebuildEnv(enabled, env = process.env) {
+  if (enabled) {
+    env.PAIROFCLEATS_CACHE_REBUILD = '1';
+  } else if (env.PAIROFCLEATS_CACHE_REBUILD != null) {
+    delete env.PAIROFCLEATS_CACHE_REBUILD;
+  }
+}

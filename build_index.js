@@ -9,7 +9,7 @@ import { setProgressHandlers } from './src/shared/progress.js';
 import { buildAutoPolicy } from './src/shared/auto-policy.js';
 import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
-import { setVerboseEnv } from './src/shared/env.js';
+import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -35,7 +35,7 @@ if (argv.verbose === true) {
   setVerboseEnv(true);
 }
 if (argv['cache-rebuild'] === true) {
-  process.env.PAIROFCLEATS_CACHE_REBUILD = '1';
+  setCacheRebuildEnv(true);
 }
 
 const display = createDisplay({
