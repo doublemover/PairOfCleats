@@ -13,11 +13,13 @@
 - graph_relations: order by graph order (callGraph, usageGraph, importGraph), then node id, then sorted neighbor ids.
 - graph edges: order by src, dst, kind, then weight.
 - repo map: order by file, name, kind, signature, then startLine.
+- filter_index: treated as an optional lookup artifact; when present its serialized maps are unordered JSON objects. Any bitmap acceleration is derived at hydration time and MUST NOT affect ordering hashes.
 
 ## Tie-breakers
 - Use stable string comparisons on normalized paths.
 - Use numeric ordering for IDs and offsets.
 - When computing ordering hashes, hash the exact emitted JSONL line representation (no pretty printing) to avoid key-order drift.
+  - For artifacts that dedupe after sorting (e.g. repo_map), the dedupe key MUST be computed from the stable sort keys so duplicates are removed deterministically.
 
 ## Ordering Helpers
 - stableOrder(list, keys)

@@ -61,8 +61,9 @@ Use these reports to prioritize optimization work before implementing algorithmi
 ## Stage2 Memory Notes
 - `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.
 - Spill buffers are bounded by bytes/rows and use a staging directory under the index output that is cleaned up after finalization.
-- Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention.
-- Filter index maps/sets are released after serialization to reduce retention during artifact writes.
+- Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention; legacy variants are removed only after successful writes to preserve rollback safety.
+- Filter index maps/sets are released after serialization to reduce retention during artifact writes; filter_index build is best-effort and may be skipped on build errors.
+- Filter index hydration builds bitmap sidecars (including per-file chunk bitmaps for large files) to accelerate file path prefiltering without changing serialized output.
 
 ## Stage4 Memory Notes
 - SQLite inserts are chunked into bounded transactions based on input size to reduce WAL and statement retention.

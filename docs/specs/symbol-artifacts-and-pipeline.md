@@ -96,6 +96,8 @@ Phase 9 should not create a new "parallel pipeline." It should consume existing 
 - Chunk records with finalized `metaV2` and stable `chunkUid`.
 - Relations outputs (callLinks/usageLinks) and (when available) callsite artifacts from Phase 6.
 - `graph_relations` is derived from chunk relations + file relations and may be emitted as sharded JSONL (consumers should use the artifact loaders/manifest, not raw filenames).
+- `repo_map` is derived from chunk metadata and may be emitted as sharded JSONL; consumers MUST load via the artifact loaders + pieces manifest.
+- `filter_index` is derived from chunk metadata and is optional (build may skip it on error). At query time, hydration may add bitmap sidecars for large sets without changing the serialized artifact format.
 
 ### Producers
 1. **Native symbol extractor**:
