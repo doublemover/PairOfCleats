@@ -46,6 +46,7 @@ Telemetry only fires when:
 - Small JSONL files use a buffer scan fast path to avoid stream overhead.
 - Zstd reads use streaming decompression for large shards; buffer decompression is limited to small files.
 - Sharded JSONL reads support bounded parallelism with deterministic ordering.
+- Validation modes: strict (required keys checked) vs trusted (skip required-key checks for hot paths).
 
 ## Expectations
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.

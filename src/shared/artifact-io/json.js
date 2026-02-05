@@ -43,7 +43,17 @@ const resolveJsonlReadPlan = (byteSize) => {
   return { highWaterMark: JSONL_HIGH_WATERMARK_LARGE, chunkSize: JSONL_HIGH_WATERMARK_LARGE, smallFile: false };
 };
 
-const scanJsonlBuffer = (buffer, sourcePath, { maxBytes, requiredKeys = null, onEntry = null, collect = null } = {}) => {
+const scanJsonlBuffer = (
+  buffer,
+  sourcePath,
+  {
+    maxBytes,
+    requiredKeys = null,
+    validationMode = 'strict',
+    onEntry = null,
+    collect = null
+  } = {}
+) => {
   if (buffer.length > maxBytes) {
     throw toJsonTooLargeError(sourcePath, buffer.length);
   }
@@ -52,7 +62,7 @@ const scanJsonlBuffer = (buffer, sourcePath, { maxBytes, requiredKeys = null, on
   const lines = raw.split(/\r?\n/);
   let rows = 0;
   for (let i = 0; i < lines.length; i += 1) {
-    const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys);
+    const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys, validationMode);
     if (entry !== null) {
       rows += 1;
       if (onEntry) onEntry(entry);
@@ -64,7 +74,14 @@ const scanJsonlBuffer = (buffer, sourcePath, { maxBytes, requiredKeys = null, on
 
 const scanJsonlStream = async (
   stream,
-  { targetPath, maxBytes, requiredKeys = null, onEntry = null, collect = null } = {}
+  {
+    targetPath,
+    maxBytes,
+    requiredKeys = null,
+    validationMode = 'strict',
+    onEntry = null,
+    collect = null
+  } = {}
 ) => {
   let buffer = '';
   let lineNumber = 0;
@@ -72,7 +89,7 @@ const scanJsonlStream = async (
   let bytes = 0;
   const pushLine = (line) => {
     lineNumber += 1;
-    const entry = parseJsonlLine(line, targetPath, lineNumber, maxBytes, requiredKeys);
+    const entry = parseJsonlLine(line, targetPath, lineNumber, maxBytes, requiredKeys, validationMode);
     if (entry !== null) {
       rows += 1;
       if (onEntry) onEntry(entry);
@@ -178,11 +195,16 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
 export const readJsonLinesEach = async (
   filePath,
   onEntry,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
 ) => {
   if (typeof onEntry !== 'function') return;
   const readJsonlFromBuffer = (buffer, sourcePath) => (
-    scanJsonlBuffer(buffer, sourcePath, { maxBytes, requiredKeys, onEntry })
+    scanJsonlBuffer(buffer, sourcePath, {
+      maxBytes,
+      requiredKeys,
+      validationMode,
+      onEntry
+    })
   );
   const readJsonlFromStream = async (targetPath, stream, { rawBytes, compression, cleanup = false } = {}) => {
     const shouldMeasure = hasArtifactReadObserver();
@@ -194,6 +216,7 @@ export const readJsonLinesEach = async (
         targetPath,
         maxBytes,
         requiredKeys,
+        validationMode,
         onEntry
       }));
     } catch (err) {
@@ -410,12 +433,22 @@ export const readJsonLinesEach = async (
 
 export const readJsonLinesArray = async (
   filePath,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, concurrency = null } = {}
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    validationMode = 'strict',
+    concurrency = null
+  } = {}
 ) => {
   const readJsonLinesArraySingle = async (targetPath) => {
     const readJsonlFromBuffer = (buffer, sourcePath) => {
       const parsed = [];
-      scanJsonlBuffer(buffer, sourcePath, { maxBytes, requiredKeys, collect: parsed });
+      scanJsonlBuffer(buffer, sourcePath, {
+        maxBytes,
+        requiredKeys,
+        validationMode,
+        collect: parsed
+      });
       return parsed;
     };
     const readJsonlFromStream = async (sourcePath, stream, { rawBytes, compression, cleanup = false } = {}) => {
@@ -429,6 +462,7 @@ export const readJsonLinesArray = async (
           targetPath: sourcePath,
           maxBytes,
           requiredKeys,
+          validationMode,
           collect: parsed
         }));
       } catch (err) {
@@ -664,7 +698,7 @@ export const readJsonLinesArray = async (
 
 export const readJsonLinesArraySync = (
   filePath,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
 ) => {
   const useCache = !requiredKeys;
   const readCached = (targetPath) => (useCache ? readCache(targetPath) : null);
@@ -677,7 +711,14 @@ export const readJsonLinesArraySync = (
     if (!raw.trim()) return parsed;
     const lines = raw.split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
-      const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys);
+      const entry = parseJsonlLine(
+        lines[i],
+        sourcePath,
+        i + 1,
+        maxBytes,
+        requiredKeys,
+        validationMode
+      );
       if (entry !== null) parsed.push(entry);
     }
     return parsed;
@@ -724,7 +765,14 @@ export const readJsonLinesArraySync = (
     const lines = raw.split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
       const lineNumber = i + 1;
-      const entry = parseJsonlLine(lines[i], targetPath, lineNumber, maxBytes, requiredKeys);
+      const entry = parseJsonlLine(
+        lines[i],
+        targetPath,
+        lineNumber,
+        maxBytes,
+        requiredKeys,
+        validationMode
+      );
       if (entry !== null) parsed.push(entry);
     }
     if (cleanup) cleanupBak(targetPath);

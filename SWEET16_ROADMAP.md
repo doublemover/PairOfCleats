@@ -16,7 +16,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
 | 16.1 | [x] | Scheduler core + stage wiring + embeddings integration + tests/bench complete |
-| 16.2 | [@] |  |
+| 16.2 | [x] | Shared artifact IO pipeline complete |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
@@ -440,9 +440,9 @@ Parallel: Run after 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
-- [ ] Task 16.2.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.2.5.a: Add trusted fast-path validation mode for hot paths.
-- [ ] Task 16.2.5.b: Add strict validation mode for CI/validation flows.
+  - [x] Task 16.2.5.doc: Update docs/specs and touchpoints listed for this subphase.
+  - [x] Task 16.2.5.a: Add trusted fast-path validation mode for hot paths.
+  - [x] Task 16.2.5.b: Add strict validation mode for CI/validation flows.
 - [ ] Task 16.2.5.c: Add `artifact-io-read` benchmark baseline/current.
 - [ ] Task 16.2.5.d: Add `jsonl-offset-index` benchmark on real index.
 - [ ] Task 16.2.5.e: Add docs update referencing the unified pipeline.

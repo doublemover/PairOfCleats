@@ -121,6 +121,7 @@ export const loadJsonArrayArtifact = async (
     strict = true
   } = {}
 ) => {
+  const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   if (strict) {
     const sources = resolveManifestArtifactSources({
@@ -147,7 +148,11 @@ export const loadJsonArrayArtifact = async (
         if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
         return inflated;
       }
-      return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys: resolvedKeys });
+      return await readJsonLinesArray(sources.paths, {
+        maxBytes,
+        requiredKeys: resolvedKeys,
+        validationMode
+      });
     }
     throw new Error(`Missing manifest entry for ${baseName}`);
   }
@@ -177,7 +182,11 @@ export const loadJsonArrayArtifact = async (
       if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
       return inflated;
     }
-    return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys: resolvedKeys });
+    return await readJsonLinesArray(sources.paths, {
+      maxBytes,
+      requiredKeys: resolvedKeys,
+      validationMode
+    });
   }
   const jsonPath = path.join(dir, `${baseName}.json`);
   if (existsOrBak(jsonPath)) {
@@ -313,6 +322,7 @@ export const loadJsonArrayArtifactSync = (
     strict = true
   } = {}
 ) => {
+  const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   if (strict) {
     const sources = resolveManifestArtifactSources({
@@ -341,7 +351,11 @@ export const loadJsonArrayArtifactSync = (
       }
       const out = [];
       for (const partPath of sources.paths) {
-        const part = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys: resolvedKeys });
+        const part = readJsonLinesArraySync(partPath, {
+          maxBytes,
+          requiredKeys: resolvedKeys,
+          validationMode
+        });
         for (const entry of part) out.push(entry);
       }
       return out;
@@ -376,7 +390,11 @@ export const loadJsonArrayArtifactSync = (
     }
     const out = [];
     for (const partPath of sources.paths) {
-      const part = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys: resolvedKeys });
+      const part = readJsonLinesArraySync(partPath, {
+        maxBytes,
+        requiredKeys: resolvedKeys,
+        validationMode
+      });
       for (const entry of part) out.push(entry);
     }
     return out;
@@ -398,6 +416,7 @@ export const loadGraphRelations = async (
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   if (strict) {
     const sources = resolveManifestArtifactSources({
@@ -416,7 +435,11 @@ export const loadGraphRelations = async (
       }
       const payload = createGraphRelationsShell(sources.meta || null);
       for (const partPath of sources.paths) {
-        const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+        const entries = await readJsonLinesArray(partPath, {
+          maxBytes,
+          requiredKeys,
+          validationMode
+        });
         appendGraphRelationsEntries(payload, entries, partPath);
       }
       return finalizeGraphRelations(payload);
@@ -440,7 +463,11 @@ export const loadGraphRelations = async (
     }
     const payload = createGraphRelationsShell(sources.meta || null);
     for (const partPath of sources.paths) {
-      const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+      const entries = await readJsonLinesArray(partPath, {
+        maxBytes,
+        requiredKeys,
+        validationMode
+      });
       appendGraphRelationsEntries(payload, entries, partPath);
     }
     return finalizeGraphRelations(payload);
@@ -460,7 +487,11 @@ export const loadGraphRelations = async (
     }
     const payload = createGraphRelationsShell(meta);
     for (const partPath of parts) {
-      const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+      const entries = await readJsonLinesArray(partPath, {
+        maxBytes,
+        requiredKeys,
+        validationMode
+      });
       appendGraphRelationsEntries(payload, entries, partPath);
     }
     return finalizeGraphRelations(payload);
@@ -468,7 +499,11 @@ export const loadGraphRelations = async (
   const jsonlPath = path.join(dir, 'graph_relations.jsonl');
   if (existsOrBak(jsonlPath)) {
     const payload = createGraphRelationsShell(null);
-    const entries = await readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
+    const entries = await readJsonLinesArray(jsonlPath, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
     appendGraphRelationsEntries(payload, entries, jsonlPath);
     return finalizeGraphRelations(payload);
   }
@@ -488,6 +523,7 @@ export const loadGraphRelationsSync = (
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   if (strict) {
     const sources = resolveManifestArtifactSources({
@@ -506,7 +542,11 @@ export const loadGraphRelationsSync = (
       }
       const payload = createGraphRelationsShell(sources.meta || null);
       for (const partPath of sources.paths) {
-        const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+        const entries = readJsonLinesArraySync(partPath, {
+          maxBytes,
+          requiredKeys,
+          validationMode
+        });
         appendGraphRelationsEntries(payload, entries, partPath);
       }
       return finalizeGraphRelations(payload);
@@ -530,7 +570,11 @@ export const loadGraphRelationsSync = (
     }
     const payload = createGraphRelationsShell(sources.meta || null);
     for (const partPath of sources.paths) {
-      const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+      const entries = readJsonLinesArraySync(partPath, {
+        maxBytes,
+        requiredKeys,
+        validationMode
+      });
       appendGraphRelationsEntries(payload, entries, partPath);
     }
     return finalizeGraphRelations(payload);
@@ -550,7 +594,11 @@ export const loadGraphRelationsSync = (
     }
     const payload = createGraphRelationsShell(meta);
     for (const partPath of parts) {
-      const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+      const entries = readJsonLinesArraySync(partPath, {
+        maxBytes,
+        requiredKeys,
+        validationMode
+      });
       appendGraphRelationsEntries(payload, entries, partPath);
     }
     return finalizeGraphRelations(payload);
@@ -558,7 +606,11 @@ export const loadGraphRelationsSync = (
   const jsonlPath = path.join(dir, 'graph_relations.jsonl');
   if (existsOrBak(jsonlPath)) {
     const payload = createGraphRelationsShell(null);
-    const entries = readJsonLinesArraySync(jsonlPath, { maxBytes, requiredKeys });
+    const entries = readJsonLinesArraySync(jsonlPath, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
     appendGraphRelationsEntries(payload, entries, jsonlPath);
     return finalizeGraphRelations(payload);
   }
@@ -578,6 +630,7 @@ export const loadChunkMeta = async (
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
+  const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   if (strict) {
     const sources = resolveManifestArtifactSources({
@@ -603,7 +656,11 @@ export const loadChunkMeta = async (
         if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
         return inflated;
       }
-      return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys });
+      return await readJsonLinesArray(sources.paths, {
+        maxBytes,
+        requiredKeys,
+        validationMode
+      });
     }
     throw new Error('Missing manifest entry for chunk_meta');
   }
@@ -631,7 +688,11 @@ export const loadChunkMeta = async (
       if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
       return inflated;
     }
-    return await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys });
+    return await readJsonLinesArray(sources.paths, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
   }
 
   const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
