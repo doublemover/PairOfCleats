@@ -2,7 +2,6 @@ import { log } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
-import { buildRelationGraphs } from '../../graphs.js';
 import { scanImports } from '../../imports.js';
 import { resolveImportLinks } from '../../import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../import-resolution-cache.js';
@@ -221,30 +220,6 @@ export const runCrossFileInference = async ({
       );
     }
   }
-  const graphRelations = mode === 'code' && relationsEnabled
-    ? buildRelationGraphs({
-      chunks: state.chunks,
-      fileRelations: state.fileRelations,
-      caps: runtime.indexingConfig?.graph?.caps,
-      emitNodes: false
-    })
-    : null;
-  if (graphRelations?.caps) {
-    const formatSamples = (samples) => (samples || [])
-      .map((sample) => {
-        const file = sample?.file || 'unknown';
-        const chunkId = sample?.chunkId ? `#${sample.chunkId}` : '';
-        return `${file}${chunkId}`;
-      })
-      .filter(Boolean)
-      .join(', ');
-    for (const [label, cap] of Object.entries(graphRelations.caps)) {
-      if (!cap?.reason) continue;
-      const sampleText = formatSamples(cap.samples);
-      const suffix = sampleText ? ` Examples: ${sampleText}` : '';
-      log(`[relations] ${label} capped (${cap.reason}).${suffix}`);
-    }
-  }
   if (shouldBuildRiskSummaries) {
     crashLogger.updatePhase('risk-summaries');
     const summaryStart = Date.now();
@@ -261,5 +236,7 @@ export const runCrossFileInference = async ({
       log(`Risk summaries: ${stats.emitted.toLocaleString()} rows`);
     }
   }
-  return { crossFileEnabled, graphRelations };
+  // graph_relations is written during the artifact phase from streamed edges to avoid
+  // materializing Graphology graphs in memory.
+  return { crossFileEnabled, graphRelations: null };
 };

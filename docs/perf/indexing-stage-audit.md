@@ -59,7 +59,8 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
 
 ## Stage2 Memory Notes
-- Call-site edges are added directly during graph construction to avoid buffering large edge lists.
+- `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.
+- Spill buffers are bounded by bytes/rows and use a staging directory under the index output that is cleaned up after finalization.
 - Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention.
 - Filter index maps/sets are released after serialization to reduce retention during artifact writes.
 

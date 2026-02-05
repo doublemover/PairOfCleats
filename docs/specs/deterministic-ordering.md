@@ -10,13 +10,14 @@
 - chunk_meta: order by file, chunkUid, chunkId/id, start, then name.
 - relations: order by srcId, dstId, edgeType, then callSiteId.
 - file_relations: order by file path.
-- graph_relations: order by graph name, node id, then sorted neighbor ids.
+- graph_relations: order by graph order (callGraph, usageGraph, importGraph), then node id, then sorted neighbor ids.
 - graph edges: order by src, dst, kind, then weight.
 - repo map: order by file, name, kind, signature, then startLine.
 
 ## Tie-breakers
 - Use stable string comparisons on normalized paths.
 - Use numeric ordering for IDs and offsets.
+- When computing ordering hashes, hash the exact emitted JSONL line representation (no pretty printing) to avoid key-order drift.
 
 ## Ordering Helpers
 - stableOrder(list, keys)

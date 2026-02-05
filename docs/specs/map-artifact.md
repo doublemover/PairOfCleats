@@ -146,6 +146,8 @@ Ordering MUST be stable:
 
 `sectionHashes` MUST be computed from the deterministic ordering above.
 
+When consuming index relations (`graph_relations`, `file_relations`, `repo_map`, etc.), tooling MUST load via the artifact loaders + pieces manifest so sharded formats do not change behavior.
+
 ## Error behavior
 - Missing inputs SHOULD emit warnings and produce a reduced map.
 - Strict mode SHOULD raise an error for missing `chunkUid` when building members.

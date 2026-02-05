@@ -95,6 +95,7 @@ Phase 9 should not create a new "parallel pipeline." It should consume existing 
 ### Inputs
 - Chunk records with finalized `metaV2` and stable `chunkUid`.
 - Relations outputs (callLinks/usageLinks) and (when available) callsite artifacts from Phase 6.
+- `graph_relations` is derived from chunk relations + file relations and may be emitted as sharded JSONL (consumers should use the artifact loaders/manifest, not raw filenames).
 
 ### Producers
 1. **Native symbol extractor**:

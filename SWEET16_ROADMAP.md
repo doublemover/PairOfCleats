@@ -1123,11 +1123,15 @@ Tasks:
 - [ ] Task 16.7.1.b: Implement two-phase streaming relations build.
 - [ ] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
 - [ ] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
+- [ ] Task 16.7.1.b.3: Eliminate in-memory Graphology relation graphs; build `graph_relations` from streamed edges during write phase.
+- [ ] Task 16.7.1.b.4: Preserve `graph_relations` ordering hash compatibility with `src/index/validate.js` (row serialization must match).
 - [ ] Task 16.7.1.c: Add deterministic ordering without global sort.
 - [ ] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
+- [ ] Task 16.7.1.c.2: Preserve stable JSON key ordering for `graph_relations` rows and node fields to prevent ordering hash drift.
 - [ ] Task 16.7.1.d: Add edge dedupe via compact hashes.
 - [ ] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
 - [ ] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
+- [ ] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
 - [ ] Task 16.7.1.e: Add spill thresholds by bytes.
 - [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
 - [ ] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
@@ -1153,6 +1157,7 @@ Tasks:
 - [ ] Task 16.7.2.e: Add fallback to previous filter index on failure.
 - [ ] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
 - [ ] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
+- [ ] Task 16.7.2.f.1: Update piece manifest only after successful swap; retain previous pieces on failure.
 
 Tests:
 - [ ] `tests/indexing/filter-index/bitmap-roundtrip.test.js` (perf lane) (new)
@@ -1177,6 +1182,7 @@ Tasks:
 - [ ] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
 - [ ] Task 16.7.3.g: Add collision regression test for hash dedupe.
 - [ ] Task 16.7.3.h: Update script inventory + commands docs for new bench scripts.
+- [ ] Task 16.7.3.i: Update any tests that directly read `graph_relations.json`/filter index files to load via artifact loaders (shards/legacy compatible).
 
 Tests:
 - [ ] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)

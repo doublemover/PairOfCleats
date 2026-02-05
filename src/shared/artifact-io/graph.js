@@ -36,7 +36,8 @@ export const createGraphRelationsShell = (meta) => {
     usageGraph: createGraphPayload(graphsMeta.usageGraph),
     importGraph: createGraphPayload(graphsMeta.importGraph)
   };
-  if (meta?.caps != null) payload.caps = meta.caps;
+  const caps = extensions?.caps ?? meta?.caps ?? null;
+  if (caps != null) payload.caps = caps;
   return payload;
 };
 

@@ -1090,6 +1090,9 @@ export async function writeIndexArtifacts(input) {
   }
   const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
     graphRelations,
+    chunks: state?.chunks || [],
+    fileRelations: state?.fileRelations || null,
+    caps: indexingConfig?.graph?.caps || null,
     outDir,
     maxJsonBytes: graphRelationsMaxBytes,
     byteBudget: graphRelationsBudget,
