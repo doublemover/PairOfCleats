@@ -7,6 +7,7 @@ import { resolveProvenance } from '../shared/provenance.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import { toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -69,12 +70,15 @@ const compileTestMatchers = (patterns) => {
   if (!normalized.length) {
     return { matchers: null, key: '' };
   }
-  const cacheKey = normalized.join('|');
-  const cached = getCachedValue(testMatcherCache, cacheKey);
-  if (cached) return { matchers: cached, key: cacheKey };
+  const cacheKeyInfo = buildLocalCacheKey({
+    namespace: 'test-matcher',
+    payload: normalized
+  });
+  const cached = getCachedValue(testMatcherCache, cacheKeyInfo.key);
+  if (cached) return { matchers: cached, key: cacheKeyInfo.key };
   const matchers = normalized.map((pattern) => picomatch(pattern, { dot: true }));
-  setCachedValue(testMatcherCache, cacheKey, matchers, TEST_MATCHER_CACHE_MAX);
-  return { matchers, key: cacheKey };
+  setCachedValue(testMatcherCache, cacheKeyInfo.key, matchers, TEST_MATCHER_CACHE_MAX);
+  return { matchers, key: cacheKeyInfo.key };
 };
 
 const matchesTestPatterns = (relPath, matchers) => {
@@ -131,8 +135,15 @@ const resolveCachedTests = ({
   testMatchers,
   patternKey
 }) => {
-  const cacheKey = `${repoRoot || ''}|${patternKey || ''}|max:${maxCandidates ?? 'all'}`;
-  const cached = getCachedValue(testDiscoveryCache, cacheKey);
+  const cacheKeyInfo = buildLocalCacheKey({
+    namespace: 'test-discovery',
+    payload: {
+      repoRoot: repoRoot || null,
+      patternKey: patternKey || null,
+      maxCandidates: maxCandidates ?? 'all'
+    }
+  });
+  const cached = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
   if (cached) return cached;
   const tests = discoverCandidateTests({
     repoRoot,
@@ -140,7 +151,7 @@ const resolveCachedTests = ({
     recordTruncation,
     testMatchers
   });
-  setCachedValue(testDiscoveryCache, cacheKey, tests, TEST_DISCOVERY_CACHE_MAX);
+  setCachedValue(testDiscoveryCache, cacheKeyInfo.key, tests, TEST_DISCOVERY_CACHE_MAX);
   return tests;
 };
 

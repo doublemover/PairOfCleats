@@ -8,6 +8,7 @@ import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
 import { getQueryEmbedding } from '../embedding.js';
 import { buildIndexSignature } from '../index-cache.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import {
   buildContextIndex,
   expandContext,
@@ -284,9 +285,15 @@ export async function runSearchSession({
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
-    const cacheKeyLocal = useStubEmbeddings
-      ? `${modelId}:${resolvedDims}:${normalizeFlag ? 'norm' : 'raw'}`
-      : `${modelId}:${normalizeFlag ? 'norm' : 'raw'}`;
+    const cacheKeyLocal = buildLocalCacheKey({
+      namespace: 'embedding-query',
+      payload: {
+        modelId,
+        dims: useStubEmbeddings ? resolvedDims : null,
+        normalize: normalizeFlag,
+        stub: useStubEmbeddings
+      }
+    }).key;
     if (embeddingCache.has(cacheKeyLocal)) {
       incCacheEvent({ cache: 'embedding', result: 'hit' });
       return embeddingCache.get(cacheKeyLocal);

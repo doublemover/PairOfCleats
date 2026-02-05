@@ -8,6 +8,7 @@ import {
 } from '../../tools/sqlite/vector-extension.js';
 
 import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 
 const sqliteChunkCountCache = new Map();
 
@@ -263,7 +264,13 @@ export async function getSqliteChunkCount(dbPath, mode) {
   let cacheKey = '';
   try {
     const stat = fsSync.statSync(dbPath);
-    cacheKey = `${dbPath}:${mode}`;
+    cacheKey = buildLocalCacheKey({
+      namespace: 'sqlite-chunk-count',
+      payload: {
+        dbPath,
+        mode: mode || null
+      }
+    }).key;
     const cached = sqliteChunkCountCache.get(cacheKey);
     if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
 

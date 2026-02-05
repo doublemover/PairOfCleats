@@ -8,6 +8,7 @@ import {
   DEFAULT_CACHE_TTL_MS,
   estimateJsonBytes
 } from '../shared/cache.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { isAbsolutePathNative, toPosix } from '../shared/files.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
@@ -90,7 +91,13 @@ export async function getGitMetaForFile(file, options = {}) {
   const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
   const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
   const fileArg = toPosix(relFile);
-  const cacheKey = `${baseDir}::${fileArg}`;
+  const cacheKey = buildLocalCacheKey({
+    namespace: 'git-meta',
+    payload: {
+      baseDir,
+      file: fileArg
+    }
+  }).key;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
   const signal = options.signal || null;
 
@@ -116,7 +123,13 @@ export async function getGitMetaForFile(file, options = {}) {
     }
 
     if (!blameEnabled) return meta;
-    const blameKey = `${cacheKey}::blame`;
+    const blameKey = buildLocalCacheKey({
+      namespace: 'git-blame',
+      payload: {
+        baseDir,
+        file: fileArg
+      }
+    }).key;
     let lineAuthors = gitBlameCache.get(blameKey);
     if (!lineAuthors) {
       let blame = null;

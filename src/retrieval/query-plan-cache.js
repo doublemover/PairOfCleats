@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics.js';
-import { sha1 } from '../shared/hash.js';
-import { stableStringifyForSignature } from '../shared/stable-json.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,
@@ -25,9 +24,11 @@ const normalizeDiskLimit = (value, fallback) => {
 
 const normalizeQueryText = (query) => String(query ?? '').trim();
 
-const hashSignature = (value) => {
-  const raw = stableStringifyForSignature(value ?? null);
-  return sha1(raw);
+const hashSignature = (value, namespace = 'signature') => {
+  return buildLocalCacheKey({
+    namespace,
+    payload: value ?? null
+  }).digest;
 };
 
 /**
@@ -319,7 +320,7 @@ export function buildQueryPlanConfigSignature({
  * @returns {string}
  */
 export function buildQueryPlanIndexSignature(indexSignature) {
-  return hashSignature(indexSignature ?? null);
+  return hashSignature(indexSignature ?? null, 'query-plan-index');
 }
 
 /**
@@ -336,7 +337,11 @@ export function buildQueryPlanCacheKey({ query, configSignature, indexSignature 
     parserVersion: QUERY_PARSER_VERSION,
     tokenizerVersion: QUERY_TOKENIZER_VERSION
   };
-  return { key: hashSignature(payload), payload };
+  const keyInfo = buildLocalCacheKey({
+    namespace: 'query-plan',
+    payload
+  });
+  return { key: keyInfo.key, payload };
 }
 
 /**

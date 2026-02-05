@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
@@ -285,9 +285,11 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
  * @returns {{key:string,payload:object}}
  */
 export function buildQueryCacheKey(payload) {
-  const raw = JSON.stringify(payload);
-  const key = crypto.createHash('sha1').update(raw).digest('hex');
-  return { key, payload };
+  const keyInfo = buildLocalCacheKey({
+    namespace: 'query-cache',
+    payload
+  });
+  return { key: keyInfo.key, payload };
 }
 
 /**

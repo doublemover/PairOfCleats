@@ -31,6 +31,12 @@ Normalization:
 - pathPolicy defaults to `native` on Windows, `posix` elsewhere unless explicitly set.
 - cacheNamespace defaults to `pairofcleats` and can be overridden via `PAIROFCLEATS_CACHE_NAMESPACE`.
 
+## Local Cache Keys
+In-memory caches should use the shared helper with a namespaced payload:
+- `buildLocalCacheKey({ namespace, payload })` hashes a stable, versioned payload.
+- Local keys are versioned via `LOCAL_CACHE_KEY_VERSION` for safe invalidation.
+- Use descriptive namespaces (e.g., `graph-index`, `query-plan`, `context-pack-excerpt`).
+
 ## Repo Hash
 - Derived from discovery list, file hashes, and ignore rules.
 - Must change if any file content changes.

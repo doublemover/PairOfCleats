@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { buildLocalCacheKey } from '../cache-key.js';
 
 const PIECE_CACHE_LIMIT = 8;
 const pieceCache = new Map();
@@ -6,7 +7,14 @@ const pieceCache = new Map();
 const buildCacheKey = (filePath) => {
   try {
     const stat = fs.statSync(filePath);
-    return `${filePath}:${stat.size}:${stat.mtimeMs}`;
+    return buildLocalCacheKey({
+      namespace: 'artifact-io',
+      payload: {
+        filePath,
+        size: stat.size,
+        mtimeMs: stat.mtimeMs
+      }
+    }).key;
   } catch {
     return null;
   }

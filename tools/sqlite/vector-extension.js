@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incFallback } from '../../src/shared/metrics.js';
@@ -220,15 +221,18 @@ const getLoadCache = (db) => {
 
 const getLoadCacheKey = (config) => {
   const extPath = resolveVectorExtensionPath(config) || '';
-  return [
-    config?.provider || '',
-    config?.module || '',
-    config?.table || '',
-    config?.column || '',
-    config?.encoding || '',
-    config?.options || '',
-    extPath
-  ].join('|');
+  return buildLocalCacheKey({
+    namespace: 'sqlite-vector-ext',
+    payload: {
+      provider: config?.provider || null,
+      module: config?.module || null,
+      table: config?.table || null,
+      column: config?.column || null,
+      encoding: config?.encoding || null,
+      options: config?.options || null,
+      extPath
+    }
+  }).key;
 };
 
 /**

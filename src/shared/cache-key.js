@@ -4,6 +4,7 @@ import { getEnvConfig } from './env.js';
 
 export const CACHE_KEY_VERSION = 'ck1';
 export const DEFAULT_CACHE_NAMESPACE = 'pairofcleats';
+export const LOCAL_CACHE_KEY_VERSION = 'lk1';
 
 const normalizeToken = (value) => {
   if (value == null) return '';
@@ -104,6 +105,25 @@ export const buildCacheKey = (options = {}) => {
     key: `${namespace}:${version}:${digest}`,
     namespace,
     version,
+    digest,
+    serialized,
+    payload
+  };
+};
+
+export const buildLocalCacheKey = ({ namespace = 'local', version, payload } = {}) => {
+  const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
+  const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
+  const serialized = stableStringifyForSignature({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    payload: payload ?? null
+  });
+  const digest = sha1(serialized);
+  return {
+    key: `${resolvedNamespace}:${resolvedVersion}:${digest}`,
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
     digest,
     serialized,
     payload

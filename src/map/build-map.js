@@ -4,7 +4,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../shared/artifact-io.js';
-import { sha1 } from '../shared/hash.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { stableStringify } from '../shared/stable-json.js';
 import {
   DEFAULT_LEGEND,
@@ -684,6 +684,9 @@ export function buildNodeList(mapModel) {
 
 export function buildMapCacheKey({ buildId, options }) {
   const payload = { buildId: buildId || null, options: options || null };
-  return sha1(stableStringify(payload));
+  return buildLocalCacheKey({
+    namespace: 'code-map',
+    payload
+  }).key;
 }
 

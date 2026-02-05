@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../shared/hash.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import {
   normalizeLimit,
   normalizeOptionalNumber
@@ -248,8 +249,17 @@ const resolveExcerpt = ({
   maxBytes,
   maxTokens
 }) => {
-  const cacheKey = `${filePath}|${start ?? ''}|${end ?? ''}|${maxBytes ?? ''}|${maxTokens ?? ''}`;
-  const cached = getCachedValue(excerptCache, cacheKey);
+  const cacheKeyInfo = buildLocalCacheKey({
+    namespace: 'context-pack-excerpt',
+    payload: {
+      filePath,
+      start: start ?? null,
+      end: end ?? null,
+      maxBytes: maxBytes ?? null,
+      maxTokens: maxTokens ?? null
+    }
+  });
+  const cached = getCachedValue(excerptCache, cacheKeyInfo.key);
   if (cached) return cached;
   let text = '';
   if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
@@ -272,7 +282,7 @@ const resolveExcerpt = ({
     }
   }
   const payload = { excerpt: deduped, truncated, excerptHash };
-  setCachedValue(excerptCache, cacheKey, payload, EXCERPT_CACHE_MAX);
+  setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
 

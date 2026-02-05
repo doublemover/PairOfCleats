@@ -11,6 +11,7 @@ import { isTreeSitterEnabled } from './options.js';
 import { getTreeSitterParser, preloadTreeSitterLanguages } from './runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
 
 const loggedParseFailures = new Set();
 const loggedParseTimeouts = new Set();
@@ -203,7 +204,13 @@ const resolveChunkCacheKey = (options, resolvedId) => {
   if (rawKey == null || rawKey === '') return null;
   const base = typeof rawKey === 'string' ? rawKey : String(rawKey);
   if (!base) return null;
-  return `${resolvedId}:${base}`;
+  return buildLocalCacheKey({
+    namespace: 'tree-sitter-chunk',
+    payload: {
+      languageId: resolvedId,
+      key: base
+    }
+  }).key;
 };
 
 const resolveChunkCacheMaxEntries = (options) => {

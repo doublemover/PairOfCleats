@@ -482,7 +482,15 @@ Touchpoints:
 - `src/retrieval/output/format.js` (anchor: formatCache)
 - `src/retrieval/cli-sqlite.js` (anchor: sqliteChunkCountCache)
 - `src/retrieval/cli-index.js` (anchor: buildQueryCacheKey)
+- `src/retrieval/cli/run-search-session.js` (anchor: embeddingCache)
+- `src/retrieval/query-plan-cache.js` (anchor: buildQueryPlanCacheKey)
 - `src/retrieval/index-cache.js` (anchor: indexSignatureCache)
+- `src/context-pack/assemble.js` (anchor: excerptCache)
+- `src/graph/suggest-tests.js` (anchor: testMatcherCache)
+- `src/graph/store.js` (anchor: buildGraphIndexCacheKey)
+- `src/map/build-map.js` (anchor: buildMapCacheKey)
+- `src/index/git.js` (anchor: gitMetaCache)
+- `src/shared/artifact-io/cache.js` (anchor: pieceCache)
 - `src/shared/embedding-adapter.js` (anchor: pipelineCache)
 - `tools/build/embeddings/cache.js` (anchor: buildCacheKey)
 - `tools/build/embeddings/runner.js` (anchor: buildCacheIdentity)
@@ -502,6 +510,7 @@ Tasks:
 - [x] Task 16.3.1.d: Add config-based overrides for cache namespace.
 - [x] Task 16.3.1.e: Add migration note in spec and docs.
 - [x] Task 16.3.1.f: Include normalized path policy and feature flags in cache keys.
+- [x] Task 16.3.1.g: Add local cache key helper and migrate in-memory cache keys (graph/query/map/git/context-pack/sqlite/artifact-io).
 
 Tests:
 - [x] `tests/perf/cache-key-builder.test.js` (perf lane) (new)

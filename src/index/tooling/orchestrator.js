@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { sha1 } from '../../shared/hash.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 
@@ -21,7 +21,15 @@ const computeDocumentsKey = (documents) => {
 
 const computeCacheKey = ({ providerId, providerVersion, configHash, documents }) => {
   const docKey = computeDocumentsKey(documents || []);
-  return sha1(`${providerId}|${providerVersion}|${configHash}|${docKey}`);
+  return buildLocalCacheKey({
+    namespace: 'tooling-provider',
+    payload: {
+      providerId,
+      providerVersion,
+      configHash,
+      documents: docKey
+    }
+  }).key;
 };
 
 const ensureCacheDir = async (dir) => {

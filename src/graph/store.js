@@ -13,6 +13,7 @@ import {
   buildPrefixTable,
   normalizeImportPath
 } from './indexes.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 
 const GRAPH_INDEX_CACHE_MAX = 3;
 const graphIndexCache = new Map();
@@ -75,13 +76,19 @@ export const buildGraphIndexCacheKey = ({
   includeCsr = false
 } = {}) => {
   if (!indexSignature) return null;
-  const repoTag = repoRoot ? `|repo:${repoRoot}` : '';
   const graphList = normalizeGraphList(graphs);
-  const graphTag = graphList?.length
-    ? `|graphs:${graphList.map((entry) => String(entry)).sort().join(',')}`
-    : '';
-  const csrTag = includeCsr ? '|csr:1' : '';
-  return `graph-index:${indexSignature}${repoTag}${graphTag}${csrTag}`;
+  const normalizedGraphs = graphList?.length
+    ? graphList.map((entry) => String(entry)).sort()
+    : null;
+  return buildLocalCacheKey({
+    namespace: 'graph-index',
+    payload: {
+      indexSignature,
+      repoRoot: repoRoot || null,
+      graphs: normalizedGraphs,
+      includeCsr: Boolean(includeCsr)
+    }
+  }).key;
 };
 
 /**
