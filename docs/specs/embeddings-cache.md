@@ -96,16 +96,26 @@ Vector sections (in order: code, doc, merged):
 
 ## Cache keys and invalidation
 
-Cache key:
+Cache key (unified schema):
 
 ```
-cacheKey = sha1(`${file}:${fileHash}:${chunkSignature}:${identityKey}`)
+cacheKey = buildCacheKey({
+  repoHash: repoId,
+  buildConfigHash: identityKey,
+  mode,
+  schemaVersion: 'embeddings-cache-v1',
+  featureFlags: ['normalize', 'stub', 'mode:inline'],
+  pathPolicy: 'posix',
+  extra: { file, hash: fileHash, signature: chunkSignature }
+})
 ```
 
+- `repoId` is the stable repo identifier from index_state.
 - `file` is the normalized repo-relative POSIX path.
 - `fileHash` comes from manifest metadata when available, otherwise computed from file contents.
 - `chunkSignature` is `sha1(start:end:docSignature)` per chunk (docSignature is sha1 of `chunk.docmeta.doc`), joined by `|`.
 - `identityKey` is sha1 of the normalized embedding identity (provider, modelId, dims, quantization, pooling, truncation, etc).
+- `featureFlags` are normalized and sorted per the cache-key spec.
 
 An entry is valid only when:
 - `cached.chunkSignature === chunkSignature`
@@ -137,6 +147,11 @@ Pruning uses LRU metadata in the cache index:
 - `dir`: explicit cache root override (absolute)
 - `maxGb`: size limit for pruning
 - `maxAgeDays`: age limit for pruning
+
+## Telemetry
+
+`index_state.embeddings.cacheStats` records per-run cache usage:
+- `attempts`, `hits`, `misses`, `rejected`, `fastRejects`
 
 ## Examples
 

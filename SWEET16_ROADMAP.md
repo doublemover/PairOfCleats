@@ -503,15 +503,15 @@ Parallel: Can run alongside 16.3.3 after 16.3.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
 Touchpoints: see Phase 16.3 list (primary anchors: `tools/build/embeddings/cache.js`, `tools/build/embeddings/runner.js`, `src/shared/cache-key.js`).
 Tasks:
-- [ ] Task 16.3.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.3.2.a: Apply new key schema to embeddings cache.
-- [ ] Task 16.3.2.b: Add cache validation fast-path (bitset + checksum).
-- [ ] Task 16.3.2.c: Ensure cross-mode reuse is keyed consistently.
-- [ ] Task 16.3.2.d: Add invalidation when model/quant changes.
-- [ ] Task 16.3.2.e: Record cache hit stats in build telemetry.
+- [x] Task 16.3.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.3.2.a: Apply new key schema to embeddings cache.
+- [x] Task 16.3.2.b: Add cache validation fast-path (bitset + checksum).
+- [x] Task 16.3.2.c: Ensure cross-mode reuse is keyed consistently.
+- [x] Task 16.3.2.d: Add invalidation when model/quant changes.
+- [x] Task 16.3.2.e: Record cache hit stats in build telemetry.
 
 Tests:
-- [ ] `tests/indexing/embeddings/cache-key-schema.test.js` (perf lane) (new)
+- [x] `tests/perf/embeddings-cache-key-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.3.3 -- File Meta, Import, VFS
 Parallel: Can run alongside 16.3.2 after 16.3.1; coordinate file ownership.

@@ -175,6 +175,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
       resolvedModelPath: resolvedOnnxModelPath
     } : null
   });
+  const cacheKeyFlags = [
+    embeddingProvider ? `provider:${embeddingProvider}` : null,
+    resolvedEmbeddingMode ? `mode:${resolvedEmbeddingMode}` : null,
+    embeddingNormalize ? 'normalize' : 'no-normalize',
+    useStubEmbeddings ? 'stub' : null
+  ].filter(Boolean);
 
   const embedder = createEmbedder({
     rootDir: root,
@@ -247,6 +253,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         completedModes += 1;
         modeTask.set(completedModes, modes.length, { message });
       };
+      let cacheAttempts = 0;
+      let cacheHits = 0;
+      let cacheMisses = 0;
+      let cacheRejected = 0;
+      let cacheFastRejects = 0;
       const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
       const stateNow = new Date().toISOString();
@@ -266,6 +277,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         lastError: null,
         updatedAt: stateNow
       };
+      const cacheRepoId = indexState?.repoId || null;
       try {
         await scheduleIo(() => writeIndexState(statePath, indexState));
       } catch {
@@ -608,12 +620,35 @@ export async function runBuildEmbeddingsWithConfig(config) {
             file: normalizedRel,
             hash: fileHash,
             signature: chunkSignature,
-            identityKey: cacheIdentityKey
+            identityKey: cacheIdentityKey,
+            repoId: cacheRepoId,
+            mode,
+            featureFlags: cacheKeyFlags,
+            pathPolicy: 'posix'
           });
-          const cachedResult = cacheEligible && cacheKey
-            ? await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex))
-            : null;
+          let cachedResult = null;
+          if (cacheEligible && cacheKey) {
+            cacheAttempts += 1;
+            const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
+            const identityMatches = !cacheIdentityKey
+              || !cacheIndex?.identityKey
+              || cacheIndex.identityKey === cacheIdentityKey;
+            const hashMatches = !fileHash
+              || !indexEntry?.hash
+              || indexEntry.hash === fileHash;
+            const signatureMatches = !chunkSignature
+              || !indexEntry?.chunkSignature
+              || indexEntry.chunkSignature === chunkSignature;
+            if (!identityMatches || !hashMatches || !signatureMatches) {
+              cacheFastRejects += 1;
+            } else {
+              cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+            }
+          }
           const cached = cachedResult?.entry;
+          if (!cached && cacheEligible && cacheKey) {
+            cacheMisses += 1;
+          }
           if (cached) {
             try {
               const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
@@ -664,12 +699,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }
                   cacheIndexDirty = true;
                 }
+                cacheHits += 1;
                 processedFiles += 1;
                 continue;
               }
             } catch (err) {
               if (isDimsMismatch(err)) throw err;
               // Ignore cache parse errors.
+              cacheRejected += 1;
             }
           }
 
@@ -698,12 +735,35 @@ export async function runBuildEmbeddingsWithConfig(config) {
               file: normalizedRel,
               hash: fileHash,
               signature: chunkSignature,
-              identityKey: cacheIdentityKey
+              identityKey: cacheIdentityKey,
+              repoId: cacheRepoId,
+              mode,
+              featureFlags: cacheKeyFlags,
+              pathPolicy: 'posix'
             });
-            const cachedAfterHash = cacheEligible && cacheKey
-              ? await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex))
-              : null;
+            let cachedAfterHash = null;
+            if (cacheEligible && cacheKey) {
+              cacheAttempts += 1;
+              const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
+              const identityMatches = !cacheIdentityKey
+                || !cacheIndex?.identityKey
+                || cacheIndex.identityKey === cacheIdentityKey;
+              const hashMatches = !fileHash
+                || !indexEntry?.hash
+                || indexEntry.hash === fileHash;
+              const signatureMatches = !chunkSignature
+                || !indexEntry?.chunkSignature
+                || indexEntry.chunkSignature === chunkSignature;
+              if (!identityMatches || !hashMatches || !signatureMatches) {
+                cacheFastRejects += 1;
+              } else {
+                cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+              }
+            }
             const cached = cachedAfterHash?.entry;
+            if (!cached && cacheEligible && cacheKey) {
+              cacheMisses += 1;
+            }
             if (cached) {
               try {
                 const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
@@ -754,12 +814,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     }
                     cacheIndexDirty = true;
                   }
+                  cacheHits += 1;
                   processedFiles += 1;
                   continue;
                 }
               } catch (err) {
                 if (isDimsMismatch(err)) throw err;
                 // Ignore cache parse errors.
+                cacheRejected += 1;
               }
             }
           }
@@ -1083,6 +1145,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
           embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
           embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
           lastError: null,
+          cacheStats: {
+            attempts: cacheAttempts,
+            hits: cacheHits,
+            misses: cacheMisses,
+            rejected: cacheRejected,
+            fastRejects: cacheFastRejects
+          },
           backends: {
             ...(indexState.embeddings?.backends || {}),
             hnsw: hnswState,

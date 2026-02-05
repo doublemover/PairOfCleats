@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { sha1 } from '../../../src/shared/hash.js';
+import { buildCacheKey as buildUnifiedCacheKey } from '../../../src/shared/cache-key.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
 import {
   decodeEmbeddingsCache,
@@ -16,6 +16,7 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
 const CACHE_INDEX_VERSION = 1;
+const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 
@@ -441,9 +442,31 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
  * @param {{file?:string,hash?:string,signature?:string,identityKey?:string}} input
  * @returns {string|null}
  */
-export const buildCacheKey = ({ file, hash, signature, identityKey }) => {
+export const buildCacheKey = ({
+  file,
+  hash,
+  signature,
+  identityKey,
+  repoId,
+  mode,
+  featureFlags,
+  pathPolicy
+}) => {
   if (!hash) return null;
-  return sha1(`${file}:${hash}:${signature}:${identityKey}`);
+  const keyInfo = buildUnifiedCacheKey({
+    repoHash: repoId || null,
+    buildConfigHash: identityKey || null,
+    mode: mode || null,
+    schemaVersion: CACHE_KEY_SCHEMA_VERSION,
+    featureFlags: featureFlags || null,
+    pathPolicy: pathPolicy || 'posix',
+    extra: {
+      file: file || null,
+      hash,
+      signature: signature || null
+    }
+  });
+  return keyInfo.key;
 };
 
 /**
