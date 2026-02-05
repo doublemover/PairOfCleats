@@ -15,7 +15,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | Phase | Status | Notes |
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
-| 16.1 | [@] | Core scheduler + stage wiring + embeddings integration done; benches pending |
+| 16.1 | [x] | Scheduler core + stage wiring + embeddings integration + tests/bench complete |
 | 16.2 | [ ] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
@@ -348,16 +348,18 @@ Parallel: Run after 16.1.1–16.1.3.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
-- [ ] Task 16.1.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.1.4.a: Add benchmark comparing scheduler on/off for large builds.
-- [ ] Task 16.1.4.b: Add benchmark for IO starvation avoidance.
-- [ ] Task 16.1.4.c: Add regression test ensuring scheduler does not change outputs.
-- [ ] Task 16.1.4.d: Add telemetry assertions in tests.
-- [ ] Task 16.1.4.e: Add docs update to reference scheduler config.
-- [ ] Task 16.1.4.f: Add deterministic scheduling tests with synthetic CPU-only workloads.
+- [x] Task 16.1.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.1.4.a: Add benchmark comparing scheduler on/off for large builds.
+- [x] Task 16.1.4.b: Add benchmark for IO starvation avoidance.
+- [x] Task 16.1.4.c: Add regression test ensuring scheduler does not change outputs.
+- [x] Task 16.1.4.d: Add telemetry assertions in tests.
+- [x] Task 16.1.4.e: Add docs update to reference scheduler config.
+- [x] Task 16.1.4.f: Add deterministic scheduling tests with synthetic CPU-only workloads.
 
 Tests:
-- [ ] `tests/indexing/runtime/scheduler-no-output-regression.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/runtime/scheduler-no-output-regression.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/runtime/scheduler-telemetry.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/runtime/scheduler-deterministic.test.js` (perf lane) (new)
 
 ---
 

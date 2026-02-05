@@ -339,6 +339,16 @@ Create: `tests/shared/concurrency/concurrency-run-with-queue-abort.test.js`
   * function rejects with AbortError
   * no unhandled rejection warnings
 
+### 8.6 Scheduler validation (Phase 16.1)
+Create:
+* `tests/perf/indexing/runtime/scheduler-no-output-regression.test.js`
+* `tests/perf/indexing/runtime/scheduler-telemetry.test.js`
+* `tests/perf/indexing/runtime/scheduler-deterministic.test.js`
+
+Bench:
+* `tools/bench/index/scheduler-build.js`
+* `tools/bench/index/scheduler-io-starvation.js`
+
 ---
 
 ## 9. Files to modify (Phase 4.2-4.4)
