@@ -1082,31 +1082,30 @@ Parallel: Run after 16.6.1/16.6.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
-- [ ] Task 16.6.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.6.3.a: Implement `postings-real` benchmark baseline/current.
-- [ ] Task 16.6.3.a.1: Define a fixed fixture corpus for `postings-real` (size + source documented).
-- [ ] Task 16.6.3.a.2: Add `tools/bench/index/postings-real.js` with stable baseline/current schema + Stage1 config.
-- [ ] Task 16.6.3.b: Add chargram throughput benchmark.
-- [ ] Task 16.6.3.b.1: Extend `tools/bench/index/chargram-postings.js` to cover rolling-hash path + baseline/current compare.
-- [ ] Task 16.6.3.b.2: Add contract test for chargram benchmark output format.
-- [ ] Task 16.6.3.c: Add heap plateau regression test.
-- [ ] Task 16.6.3.c.1: Promote `postings-heap-plateau` to perf lane and cover Stage1 end-to-end.
-- [ ] Task 16.6.3.c.2: Assert plateau after postings build completes + pool cleanup.
-- [ ] Task 16.6.3.d: Add determinism regression test for chunk_meta.
-- [ ] Task 16.6.3.d.1: Run Stage1 twice with different concurrency and compare `chunk_meta.json`.
-- [ ] Task 16.6.3.d.2: Compare stable vocab ordering artifact (from 16.6.1.f) between runs.
-- [ ] Task 16.6.3.e: Add documentation update for Stage1 changes.
-- [ ] Task 16.6.3.e.1: Document bench usage + perf lane coverage for Stage1 changes.
-- [ ] Task 16.6.3.f: Add memory budget enforcement regression test for Stage1.
-- [ ] Task 16.6.3.f.1: Use tiny memory budget to trigger backpressure/spill and assert metrics from 16.6.2.
-- [ ] Task 16.6.3.g: Update script inventory + commands docs for new bench scripts.
+- [x] Task 16.6.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.6.3.a: Implement `postings-real` benchmark baseline/current.
+- [x] Task 16.6.3.a.1: Define a fixed fixture corpus for `postings-real` (size + source documented).
+- [x] Task 16.6.3.a.2: Add `tools/bench/index/postings-real.js` with stable baseline/current schema + Stage1 config.
+- [x] Task 16.6.3.b: Add chargram throughput benchmark.
+- [x] Task 16.6.3.b.1: Extend `tools/bench/index/chargram-postings.js` to cover rolling-hash path + baseline/current compare.
+- [x] Task 16.6.3.b.2: Add contract test for chargram benchmark output format.
+- [x] Task 16.6.3.c: Add heap plateau regression test.
+- [x] Task 16.6.3.c.1: Promote `postings-heap-plateau` to perf lane and cover Stage1 end-to-end.
+- [x] Task 16.6.3.c.2: Assert plateau after postings build completes + pool cleanup.
+- [x] Task 16.6.3.d: Add determinism regression test for chunk_meta.
+- [x] Task 16.6.3.d.1: Run Stage1 twice with different concurrency and compare `chunk_meta.json`.
+- [x] Task 16.6.3.d.2: Compare stable vocab ordering artifact (from 16.6.1.f) between runs.
+- [x] Task 16.6.3.e: Add documentation update for Stage1 changes.
+- [x] Task 16.6.3.e.1: Document bench usage + perf lane coverage for Stage1 changes.
+- [x] Task 16.6.3.f: Add memory budget enforcement regression test for Stage1.
+- [x] Task 16.6.3.f.1: Use tiny memory budget to trigger backpressure/spill and assert metrics from 16.6.2.
 
 Tests:
-- [ ] `tests/indexing/postings/postings-real-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/chargram-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/postings-heap-plateau.test.js` (perf lane) (existing)
-- [ ] `tests/indexing/postings/chunk-meta-determinism.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/stage1-memory-budget.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/postings-real-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/chargram-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/postings/postings-heap-plateau.test.js` (perf lane) (existing)
+- [x] `tests/indexing/postings/chunk-meta-determinism.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/postings/stage1-memory-budget.test.js` (perf lane) (new)
 
 ---
 
@@ -1117,68 +1116,68 @@ Parallel: Can run alongside 16.7.2 with clear file ownership.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
-- [ ] Task 16.7.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.7.1.a: Implement typed edge storage during build.
+- [x] Task 16.7.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.7.1.a: Implement typed edge storage during build.
 - [ ] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
-- [ ] Task 16.7.1.b: Implement two-phase streaming relations build.
-- [ ] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
-- [ ] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
-- [ ] Task 16.7.1.b.3: Eliminate in-memory Graphology relation graphs; build `graph_relations` from streamed edges during write phase.
-- [ ] Task 16.7.1.b.4: Preserve `graph_relations` ordering hash compatibility with `src/index/validate.js` (row serialization must match).
-- [ ] Task 16.7.1.c: Add deterministic ordering without global sort.
-- [ ] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
-- [ ] Task 16.7.1.c.2: Preserve stable JSON key ordering for `graph_relations` rows and node fields to prevent ordering hash drift.
+- [x] Task 16.7.1.b: Implement two-phase streaming relations build.
+- [x] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
+- [x] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
+- [x] Task 16.7.1.b.3: Eliminate in-memory Graphology relation graphs; build `graph_relations` from streamed edges during write phase.
+- [x] Task 16.7.1.b.4: Preserve `graph_relations` ordering hash compatibility with `src/index/validate.js` (row serialization must match).
+- [x] Task 16.7.1.c: Add deterministic ordering without global sort.
+- [x] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
+- [x] Task 16.7.1.c.2: Preserve stable JSON key ordering for `graph_relations` rows and node fields to prevent ordering hash drift.
 - [ ] Task 16.7.1.d: Add edge dedupe via compact hashes.
 - [ ] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
-- [ ] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
-- [ ] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
-- [ ] Task 16.7.1.e: Add spill thresholds by bytes.
+- [x] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
+- [x] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
+- [x] Task 16.7.1.e: Add spill thresholds by bytes.
 - [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
 - [ ] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
 - [ ] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
 
 Tests:
-- [ ] `tests/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
 
 ### Subphase 16.7.2 -- Filter Index + Repo Map
 Parallel: Can run alongside 16.7.1 with clear file ownership.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
-- [ ] Task 16.7.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.7.2.a: Add per-file bitmaps in filter index.
+- [x] Task 16.7.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.7.2.a: Add per-file bitmaps in filter index.
 - [ ] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
-- [ ] Task 16.7.2.b: Add repo map batching + delta compression.
+- [x] Task 16.7.2.b: Add repo map batching + safer writes (defer delta compression).
 - [ ] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
 - [ ] Task 16.7.2.c: Add concurrency split for relations IO.
 - [ ] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
-- [ ] Task 16.7.2.d: Add filter index size telemetry.
+- [x] Task 16.7.2.d: Add filter index size telemetry.
 - [ ] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
-- [ ] Task 16.7.2.e: Add fallback to previous filter index on failure.
+- [x] Task 16.7.2.e: Add fallback to previous filter index on failure.
 - [ ] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
-- [ ] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
-- [ ] Task 16.7.2.f.1: Update piece manifest only after successful swap; retain previous pieces on failure.
+- [x] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
+- [x] Task 16.7.2.f.1: Update piece manifest only after successful swap; retain previous pieces on failure.
 
 Tests:
-- [ ] `tests/indexing/filter-index/bitmap-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/filter-index/bitmap-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.7.3 -- Tests + Bench
 Parallel: Run after 16.7.1/16.7.2.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
-- [ ] Task 16.7.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.7.3.a: Add `filter-index-build` benchmark baseline/current.
-- [ ] Task 16.7.3.a.1: Add `relations-build` benchmark baseline/current.
-- [ ] Task 16.7.3.a.2: Add `repo-map-compress` benchmark baseline/current.
-- [ ] Task 16.7.3.b: Add relations memory regression test.
-- [ ] Task 16.7.3.b.1: Assert memory budget throttling + metrics for relations build.
-- [ ] Task 16.7.3.c: Add determinism test for relations output.
+- [x] Task 16.7.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.7.3.a: Add `filter-index-build` benchmark baseline/current.
+- [x] Task 16.7.3.a.1: Add `relations-build` benchmark baseline/current.
+- [x] Task 16.7.3.a.2: Add `repo-map-compress` benchmark baseline/current.
+- [x] Task 16.7.3.b: Add relations memory regression test.
+- [x] Task 16.7.3.b.1: Assert memory budget throttling + metrics for relations build.
+- [x] Task 16.7.3.c: Add determinism test for relations output.
 - [ ] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
 - [ ] Task 16.7.3.d: Add repo map delta compression test.
 - [ ] Task 16.7.3.d.1: Roundtrip delta compression with versioned header.
-- [ ] Task 16.7.3.e: Add docs update for Stage2 changes.
-- [ ] Task 16.7.3.e.1: Document staging/atomic swap + fallback behavior.
+- [x] Task 16.7.3.e: Add docs update for Stage2 changes.
+- [x] Task 16.7.3.e.1: Document staging/atomic swap + fallback behavior.
 - [ ] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
 - [ ] Task 16.7.3.g: Add collision regression test for hash dedupe.
 - [ ] Task 16.7.3.h: Update script inventory + commands docs for new bench scripts.
@@ -1187,10 +1186,10 @@ Tasks:
 Tests:
 - [ ] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
 - [ ] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
-- [ ] `tests/indexing/relations/relations-memory-budget.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-memory-budget.test.js` (perf lane) (new)
 - [ ] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
-- [ ] `tests/indexing/filter-index/filter-index-metrics.test.js` (perf lane) (new)
-- [ ] `tests/indexing/repo-map/repo-map-delta-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/filter-index/filter-index-metrics.test.js` (perf lane) (new)
+- [x] `tests/indexing/repo-map/repo-map-delta-roundtrip.test.js` (perf lane) (new)
 
 ---
 
