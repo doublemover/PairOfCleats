@@ -22,6 +22,7 @@ import {
   buildVfsHashVirtualPath
 } from '../../../tooling/vfs.js';
 import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
@@ -387,12 +388,14 @@ export const enqueueVfsManifestArtifacts = async ({
   mode,
   rows,
   maxJsonBytes = MAX_JSON_BYTES,
+  byteBudget = null,
   compression = null,
   gzipOptions = null,
   hashRouting = false,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const resolved = await resolveRowsInput({ rows, log });
   const measurement = resolved.measurement;
@@ -416,6 +419,13 @@ export const enqueueVfsManifestArtifacts = async ({
     await resolved.cleanup();
     throw new Error(`vfs_manifest row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: measurement.totalBytes,
+    label: 'vfs_manifest',
+    stageCheckpoints,
+    logger: log
+  });
   const useShards = maxJsonBytes && measurement.totalBytes > maxJsonBytes;
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `vfs_manifest.${jsonlExtension}`;

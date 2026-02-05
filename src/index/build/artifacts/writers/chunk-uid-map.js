@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const resolveJsonlExtension = (value) => {
   if (value === 'gzip') return 'jsonl.gz';
@@ -52,11 +53,13 @@ export const enqueueChunkUidMapArtifacts = async ({
   mode,
   chunks,
   maxJsonBytes = MAX_JSON_BYTES,
+  byteBudget = null,
   compression = null,
   gzipOptions = null,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const rows = buildRows(chunks);
   if (!rows.length) {
@@ -72,6 +75,13 @@ export const enqueueChunkUidMapArtifacts = async ({
   if (maxJsonBytes && measurement.maxLineBytes > maxJsonBytes) {
     throw new Error(`chunk_uid_map row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: measurement.totalBytes,
+    label: 'chunk_uid_map',
+    stageCheckpoints,
+    logger: null
+  });
   const useShards = maxJsonBytes && measurement.totalBytes > maxJsonBytes;
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `chunk_uid_map.${jsonlExtension}`;

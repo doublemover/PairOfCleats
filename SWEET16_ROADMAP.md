@@ -670,12 +670,12 @@ Tests:
 ### Objective
 Provide shared spill/merge and consistent byte-budget enforcement across artifacts.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
-Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
+Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/build-state.js (anchor: byteBudgets)`, `src/index/build/byte-budget.js (anchor: resolveByteBudgetMap)`
 
 ### Subphase 16.5.1 -- Merge Core
 Parallel: Must land before 16.5.2/16.5.3.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
-Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
+Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/build-state.js (anchor: byteBudgets)`, `src/index/build/byte-budget.js (anchor: resolveByteBudgetMap)`
 Tasks:
 - [x] Task 16.5.1.doc: Update docs/specs and touchpoints listed for this subphase.
 - [x] Task 16.5.1.a: Implement shared k-way merge core in `src/shared/merge.js`.
@@ -734,15 +734,15 @@ Parallel: Can run alongside 16.5.1; must land before 16.5.5.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
-- [ ] Task 16.5.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.5.4.a: Implement global byte budget map in build_state.
-- [ ] Task 16.5.4.b: Add per-artifact budget caps and defaults.
-- [ ] Task 16.5.4.c: Add enforcement hooks to writers.
-- [ ] Task 16.5.4.d: Add warnings/abort policy for overages.
-- [ ] Task 16.5.4.e: Add telemetry outputs for budget usage.
-- [ ] Task 16.5.4.f: Define byte-budget policy table (artifact -> cap -> overflow behavior).
-- [ ] Task 16.5.4.g: Add strict perf-lane budget enforcement policy.
-- [ ] Task 16.5.4.h: Add shared `resolveByteBudget(artifactName, config)` helper.
+- [x] Task 16.5.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.5.4.a: Implement global byte budget map in build_state.
+- [x] Task 16.5.4.b: Add per-artifact budget caps and defaults.
+- [x] Task 16.5.4.c: Add enforcement hooks to writers.
+- [x] Task 16.5.4.d: Add warnings/abort policy for overages.
+- [x] Task 16.5.4.e: Add telemetry outputs for budget usage.
+- [x] Task 16.5.4.f: Define byte-budget policy table (artifact -> cap -> overflow behavior).
+- [x] Task 16.5.4.g: Add strict perf-lane budget enforcement policy.
+- [x] Task 16.5.4.h: Add shared `resolveByteBudget(artifactName, config)` helper.
 
 Tests:
 - [ ] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)

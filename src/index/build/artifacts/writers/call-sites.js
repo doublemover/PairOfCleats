@@ -10,6 +10,7 @@ import { fromPosix } from '../../../../shared/files.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createOffsetsMeta } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const MAX_ARGS_PER_CALL = 5;
 const MAX_ARG_TEXT_LEN = 80;
@@ -163,13 +164,15 @@ export const enqueueCallSitesArtifacts = ({
   state,
   outDir,
   maxJsonBytes = null,
+  byteBudget = null,
   compression = null,
   gzipOptions = null,
   forceEmpty = false,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
-  log = null
+  log = null,
+  stageCheckpoints
 }) => {
   const rows = createCallSites({ chunks: state?.chunks || [] });
   if (!rows.length && !forceEmpty) return null;
@@ -207,6 +210,13 @@ export const enqueueCallSitesArtifacts = ({
     throw new Error(`call_sites row exceeds max JSON size (${maxLineBytes} bytes).`);
   }
   const useShards = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes,
+    label: 'call_sites',
+    stageCheckpoints,
+    logger: log
+  });
   if (!useShards) {
     enqueueWrite(
       formatArtifactLabel(callSitesPath),

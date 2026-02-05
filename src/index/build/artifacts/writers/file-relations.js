@@ -8,6 +8,7 @@ import {
 import { fromPosix } from '../../../../shared/files.js';
 import { createOrderingHasher, stableOrderMapEntries } from '../../../../shared/order.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 export const createFileRelationsIterator = (relations) => function* fileRelationsIterator() {
   if (!relations || typeof relations.entries !== 'function') return;
@@ -25,12 +26,14 @@ export const enqueueFileRelationsArtifacts = ({
   state,
   outDir,
   maxJsonBytes = null,
+  byteBudget = null,
   log = null,
   compression = null,
   gzipOptions = null,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   if (!state.fileRelations || !state.fileRelations.size) return;
   const fileRelationsIterator = createFileRelationsIterator(state.fileRelations);
@@ -56,6 +59,14 @@ export const enqueueFileRelationsArtifacts = ({
   const orderingCount = orderingResult?.count || 0;
 
   const useJsonl = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
+  const budgetBytes = useJsonl ? totalJsonlBytes : totalBytes;
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: budgetBytes,
+    label: 'file_relations',
+    stageCheckpoints,
+    logger: log
+  });
   const resolveJsonExtension = (value) => {
     if (value === 'gzip') return 'json.gz';
     if (value === 'zstd') return 'json.zst';

@@ -3,6 +3,7 @@ import { writeJsonArrayFile, writeJsonLinesSharded, writeJsonObjectFile } from '
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/files.js';
 import { createOrderingHasher } from '../../../shared/order.js';
+import { applyByteBudget } from '../byte-budget.js';
 
 export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
   let totalEntries = 0;
@@ -36,13 +37,15 @@ export async function enqueueRepoMapArtifacts({
   repoMapMeasurement,
   useRepoMapJsonl,
   maxJsonBytes,
+  byteBudget = null,
   repoMapCompression,
   compressionGzipOptions,
   log,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
-  removeArtifact
+  removeArtifact,
+  stageCheckpoints
 }) {
   const resolveJsonExtension = (value) => {
     if (value === 'gzip') return 'json.gz';
@@ -62,6 +65,16 @@ export async function enqueueRepoMapArtifacts({
     await removeArtifact(path.join(outDir, 'repo_map.json.gz'));
     await removeArtifact(path.join(outDir, 'repo_map.json.zst'));
   };
+  const budgetBytes = useRepoMapJsonl
+    ? repoMapMeasurement.totalJsonlBytes
+    : repoMapMeasurement.totalBytes;
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: budgetBytes,
+    label: 'repo_map',
+    stageCheckpoints,
+    logger: log
+  });
 
   if (!useRepoMapJsonl) {
     enqueueWrite(

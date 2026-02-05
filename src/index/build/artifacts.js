@@ -44,7 +44,8 @@ import {
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
-import { recordOrderingHash } from './build-state.js';
+import { recordOrderingHash, updateBuildState } from './build-state.js';
+import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 
 /**
  * Write index artifacts and metrics.
@@ -144,11 +145,53 @@ export async function writeIndexArtifacts(input) {
     : 200000;
 
   const maxJsonBytes = MAX_JSON_BYTES;
+  const byteBudgetState = resolveByteBudgetMap({ indexingConfig, maxJsonBytes });
+  const byteBudgetPolicies = byteBudgetState.policies || {};
+  const resolveBudget = (name) => byteBudgetPolicies?.[name] || null;
+  const resolveBudgetMaxBytes = (name, fallback) => {
+    const budget = resolveBudget(name);
+    return Number.isFinite(budget?.maxBytes) ? budget.maxBytes : fallback;
+  };
+  const byteBudgetSnapshot = {
+    generatedAt: new Date().toISOString(),
+    maxJsonBytes,
+    strict: !!byteBudgetState.strict,
+    policies: byteBudgetPolicies
+  };
+  if (buildRoot) {
+    await updateBuildState(buildRoot, { byteBudgets: byteBudgetSnapshot });
+  }
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;
+  const fileMetaBudget = resolveBudget('file_meta');
+  const chunkMetaBudget = resolveBudget('chunk_meta');
+  const tokenPostingsBudget = resolveBudget('token_postings');
+  const repoMapBudget = resolveBudget('repo_map');
+  const fileRelationsBudget = resolveBudget('file_relations');
+  const vfsBudget = resolveBudget('vfs_manifest');
+  const symbolEdgesBudget = resolveBudget('symbol_edges');
+  const symbolOccurrencesBudget = resolveBudget('symbol_occurrences');
+  const callSitesBudget = resolveBudget('call_sites');
+  const chunkUidMapBudget = resolveBudget('chunk_uid_map');
+  const graphRelationsBudget = resolveBudget('graph_relations');
+  const fileMetaMaxBytes = resolveBudgetMaxBytes('file_meta', maxJsonBytes);
+  const chunkMetaMaxBytes = resolveBudgetMaxBytes('chunk_meta', maxJsonBytes);
+  const tokenPostingsMaxBytes = resolveBudgetMaxBytes('token_postings', maxJsonBytes);
+  const repoMapMaxBytes = resolveBudgetMaxBytes('repo_map', maxJsonBytes);
+  const fileRelationsMaxBytes = resolveBudgetMaxBytes('file_relations', maxJsonBytes);
+  const vfsMaxBytes = resolveBudgetMaxBytes('vfs_manifest', maxJsonBytes);
+  const symbolEdgesMaxBytes = resolveBudgetMaxBytes('symbol_edges', maxJsonBytes);
+  const symbolOccurrencesMaxBytes = resolveBudgetMaxBytes('symbol_occurrences', maxJsonBytes);
+  const callSitesMaxBytes = resolveBudgetMaxBytes('call_sites', maxJsonBytes);
+  const chunkUidMapMaxBytes = resolveBudgetMaxBytes('chunk_uid_map', maxJsonBytes);
+  const graphRelationsMaxBytes = resolveBudgetMaxBytes('graph_relations', maxJsonBytes);
+  const tokenPostingsMaxBytesSoft = Number.isFinite(tokenPostingsMaxBytes) ? tokenPostingsMaxBytes * 0.9 : maxJsonBytesSoft;
+  const tokenPostingsShardTargetBytes = Number.isFinite(tokenPostingsMaxBytes)
+    ? tokenPostingsMaxBytes * 0.75
+    : shardTargetBytes;
   const fileMetaColumnarThreshold = Number.isFinite(Number(artifactConfig.fileMetaColumnarThresholdBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaColumnarThresholdBytes)))
-    : maxJsonBytes;
+    : fileMetaMaxBytes;
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   const resolveFileMetaFiles = () => {
@@ -186,7 +229,7 @@ export async function writeIndexArtifacts(input) {
     const metaPath = path.join(outDir, 'file_meta.meta.json');
     try {
       if (fsSync.existsSync(metaPath)) {
-        const metaRaw = readJsonFile(metaPath, { maxBytes: maxJsonBytes });
+        const metaRaw = readJsonFile(metaPath, { maxBytes: fileMetaMaxBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
         const cachedCacheKey = meta?.cacheKey ?? meta?.extensions?.cacheKey ?? null;
@@ -194,7 +237,10 @@ export async function writeIndexArtifacts(input) {
         const fingerprintMatches = !!(cachedFingerprint && fileMetaFingerprint && cachedFingerprint === fileMetaFingerprint);
         if (cacheKeyMatches || (!cachedCacheKey && fingerprintMatches)) {
           fileMetaMeta = meta;
-          const cached = await loadJsonArrayArtifact(outDir, 'file_meta', { maxBytes, strict: false });
+          const cached = await loadJsonArrayArtifact(outDir, 'file_meta', {
+            maxBytes: fileMetaMaxBytes,
+            strict: false
+          });
           if (Array.isArray(cached)) {
             fileMeta = cached;
             fileMetaFromCache = true;
@@ -288,7 +334,7 @@ export async function writeIndexArtifacts(input) {
     fileIdByPath,
     resolvedTokenMode,
     tokenSampleSize,
-    maxJsonBytes,
+    maxJsonBytes: chunkMetaMaxBytes,
     order: chunkMetaOrder
   });
   const chunkMetaPlan = resolveChunkMetaPlan({
@@ -298,7 +344,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaFormatConfig,
     chunkMetaJsonlThreshold,
     chunkMetaShardSize,
-    maxJsonBytes
+    maxJsonBytes: chunkMetaMaxBytes
   });
   const {
     tokenPostingsFormat,
@@ -311,11 +357,20 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsShardSize,
     tokenPostingsShardThreshold,
     postings,
-    maxJsonBytes,
-    maxJsonBytesSoft,
-    shardTargetBytes,
+    maxJsonBytes: tokenPostingsMaxBytes,
+    maxJsonBytesSoft: tokenPostingsMaxBytesSoft,
+    shardTargetBytes: tokenPostingsShardTargetBytes,
     log
   });
+  if (tokenPostingsEstimate?.estimatedBytes) {
+    applyByteBudget({
+      budget: tokenPostingsBudget,
+      totalBytes: tokenPostingsEstimate.estimatedBytes,
+      label: 'token_postings',
+      stageCheckpoints,
+      logger: log
+    });
+  }
   tokenPostingsShardSize = resolvedTokenPostingsShardSize;
   await ensureDiskSpace({
     targetPath: outDir,
@@ -541,13 +596,23 @@ export async function writeIndexArtifacts(input) {
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
   const fileMetaFormat = fileMetaFormatConfig || 'auto';
-  const fileMetaExceedsMax = fileMetaEstimatedBytes > maxJsonBytes;
+  const fileMetaExceedsMax = Number.isFinite(fileMetaMaxBytes)
+    ? fileMetaEstimatedBytes > fileMetaMaxBytes
+    : false;
   const fileMetaUseColumnar = !fileMetaExceedsMax
     && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
     && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
   const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
     || fileMetaExceedsMax
-    || (!fileMetaUseColumnar && fileMetaEstimatedBytes > maxJsonBytes);
+    || (!fileMetaUseColumnar && Number.isFinite(fileMetaMaxBytes)
+      && fileMetaEstimatedBytes > fileMetaMaxBytes);
+  applyByteBudget({
+    budget: fileMetaBudget,
+    totalBytes: fileMetaEstimatedBytes,
+    label: 'file_meta',
+    stageCheckpoints,
+    logger: log
+  });
   const fileMetaMetaPath = path.join(outDir, 'file_meta.meta.json');
   if (!fileMetaFromCache) {
     if (fileMetaUseColumnar) {
@@ -594,7 +659,7 @@ export async function writeIndexArtifacts(input) {
         }
       );
       enqueueJsonArraySharded('file_meta', fileMeta, {
-        maxBytes: maxJsonBytes,
+        maxBytes: fileMetaMaxBytes,
         piece: { type: 'chunks', name: 'file_meta' },
         metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,
@@ -699,7 +764,8 @@ export async function writeIndexArtifacts(input) {
     mode,
     chunkMetaIterator,
     chunkMetaPlan,
-    maxJsonBytes,
+    maxJsonBytes: chunkMetaMaxBytes,
+    byteBudget: chunkMetaBudget,
     compression: chunkMetaCompression,
     gzipOptions: chunkMetaCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueJsonArray,
@@ -714,30 +780,34 @@ export async function writeIndexArtifacts(input) {
     outDir,
     mode,
     chunks: state.chunks,
-    maxJsonBytes,
+    maxJsonBytes: chunkUidMapMaxBytes,
+    byteBudget: chunkUidMapBudget,
     compression: chunkUidMapCompression,
     gzipOptions: chunkUidMapCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
   const vfsManifestCompression = resolveShardCompression('vfs_manifest');
   await enqueueVfsManifestArtifacts({
     outDir,
     mode,
     rows: state.vfsManifestCollector || state.vfsManifestRows,
-    maxJsonBytes,
+    maxJsonBytes: vfsMaxBytes,
+    byteBudget: vfsBudget,
     compression: vfsManifestCompression,
     gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,
     hashRouting: vfsHashRouting,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
-  const repoMapMeasurement = measureRepoMap({ repoMapIterator, maxJsonBytes });
+  const repoMapMeasurement = measureRepoMap({ repoMapIterator, maxJsonBytes: repoMapMaxBytes });
   const useRepoMapJsonl = repoMapMeasurement.totalEntries
-    && maxJsonBytes
-    && repoMapMeasurement.totalBytes > maxJsonBytes;
+    && repoMapMaxBytes
+    && repoMapMeasurement.totalBytes > repoMapMaxBytes;
   await ensureDiskSpace({
     targetPath: outDir,
     requiredBytes: useRepoMapJsonl ? repoMapMeasurement.totalJsonlBytes : repoMapMeasurement.totalBytes,
@@ -749,14 +819,16 @@ export async function writeIndexArtifacts(input) {
     repoMapIterator,
     repoMapMeasurement,
     useRepoMapJsonl,
-    maxJsonBytes,
+    maxJsonBytes: repoMapMaxBytes,
+    byteBudget: repoMapBudget,
     repoMapCompression,
     compressionGzipOptions,
     log,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
-    removeArtifact
+    removeArtifact,
+    stageCheckpoints
   });
   await recordOrdering('repo_map', repoMapMeasurement, 'repo_map:file,name,kind,signature,startLine');
   if (filterIndex) {
@@ -882,13 +954,15 @@ export async function writeIndexArtifacts(input) {
   const fileRelationsOrdering = enqueueFileRelationsArtifacts({
     state,
     outDir,
-    maxJsonBytes,
+    maxJsonBytes: fileRelationsMaxBytes,
+    byteBudget: fileRelationsBudget,
     log,
     compression: fileRelationsCompression,
     gzipOptions: fileRelationsCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
   await recordOrdering('file_relations', fileRelationsOrdering, 'file_relations:file');
   const callSitesCompression = resolveShardCompression('call_sites');
@@ -907,14 +981,16 @@ export async function writeIndexArtifacts(input) {
     ? enqueueCallSitesArtifacts({
       state,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: callSitesMaxBytes,
+      byteBudget: callSitesBudget,
       log,
       forceEmpty: callSitesRequired,
       compression: callSitesCompression,
       gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     })
     : null;
   const riskSummariesCompression = resolveShardCompression('risk_summaries');
@@ -954,7 +1030,8 @@ export async function writeIndexArtifacts(input) {
       fileIdByPath,
       chunkUidToFileId,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: symbolOccurrencesMaxBytes,
+      byteBudget: symbolOccurrencesBudget,
       log,
       format: symbolArtifactsFormatConfig,
       compression: symbolOccurrencesCompression,
@@ -970,7 +1047,8 @@ export async function writeIndexArtifacts(input) {
       fileIdByPath,
       chunkUidToFileId,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: symbolEdgesMaxBytes,
+      byteBudget: symbolEdgesBudget,
       log,
       format: symbolArtifactsFormatConfig,
       compression: symbolEdgesCompression,
@@ -984,7 +1062,8 @@ export async function writeIndexArtifacts(input) {
   const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
     graphRelations,
     outDir,
-    maxJsonBytes,
+    maxJsonBytes: graphRelationsMaxBytes,
+    byteBudget: graphRelationsBudget,
     log,
     enqueueWrite,
     addPieceFile,

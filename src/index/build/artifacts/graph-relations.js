@@ -9,16 +9,19 @@ import {
   materializeGraphRelationsPayload,
   measureGraphRelations
 } from './helpers.js';
+import { applyByteBudget } from '../byte-budget.js';
 
 export async function enqueueGraphRelationsArtifacts({
   graphRelations,
   outDir,
   maxJsonBytes,
+  byteBudget = null,
   log,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
-  removeArtifact
+  removeArtifact,
+  stageCheckpoints
 }) {
   if (!graphRelations || typeof graphRelations !== 'object') return;
   const graphMeasurement = measureGraphRelations(graphRelations, { maxJsonBytes });
@@ -32,6 +35,14 @@ export async function enqueueGraphRelationsArtifacts({
   const offsetsConfig = { suffix: 'offsets.bin' };
   const csrPath = path.join(outDir, 'graph_relations.csr.json');
   const useGraphJsonl = maxJsonBytes && graphMeasurement.totalJsonBytes > maxJsonBytes;
+  const budgetBytes = useGraphJsonl ? graphMeasurement.totalJsonlBytes : graphMeasurement.totalJsonBytes;
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: budgetBytes,
+    label: 'graph_relations',
+    stageCheckpoints,
+    logger: log
+  });
   if (!useGraphJsonl) {
     enqueueWrite(
       formatArtifactLabel(graphPath),

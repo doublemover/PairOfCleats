@@ -149,6 +149,9 @@ const mergeState = (base, patch) => {
   if (patch.orderingLedger) {
     merged.orderingLedger = mergeOrderingLedger(base?.orderingLedger || null, patch.orderingLedger);
   }
+  if (patch.byteBudgets) {
+    merged.byteBudgets = patch.byteBudgets;
+  }
   if (patch.ignore) {
     merged.ignore = { ...(base?.ignore || {}), ...patch.ignore };
   }

@@ -19,6 +19,7 @@ import {
   recordArtifactTelemetry,
   writePerFileVarintIndex
 } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const MAX_ROW_BYTES = 32768;
 
@@ -208,6 +209,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
   chunkUidToFileId = null,
   outDir,
   maxJsonBytes = null,
+  byteBudget = null,
   log = null,
   format = null,
   compression = null,
@@ -235,6 +237,13 @@ export const enqueueSymbolEdgesArtifacts = async ({
   }
   const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
   const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
+  const budgetInfo = applyByteBudget({
+    budget: byteBudget,
+    totalBytes,
+    label: 'symbol_edges',
+    stageCheckpoints,
+    logger: log
+  });
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'symbol_edges',
@@ -243,7 +252,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: formatLabel }
+    extra: { format: formatLabel, budget: budgetInfo }
   });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { recursive: true, force: true }).catch(() => {});

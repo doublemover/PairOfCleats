@@ -20,6 +20,7 @@ import {
   createRowSpillCollector,
   recordArtifactTelemetry
 } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const ORDER_BUCKET_TARGET = 64;
 const ORDER_BUCKET_MIN = 5000;
@@ -462,6 +463,7 @@ export const enqueueChunkMetaArtifacts = async ({
   chunkMetaIterator,
   chunkMetaPlan,
   maxJsonBytes = MAX_JSON_BYTES,
+  byteBudget = null,
   compression = null,
   gzipOptions = null,
   enqueueJsonArray,
@@ -644,6 +646,13 @@ export const enqueueChunkMetaArtifacts = async ({
     ? trimmedFields
     : null;
   if (resolvedUseJsonl && jsonlScan) {
+    const budgetInfo = applyByteBudget({
+      budget: byteBudget,
+      totalBytes: jsonlScan.totalJsonlBytes,
+      label: 'chunk_meta',
+      stageCheckpoints,
+      logger: log
+    });
     const orderInfo = {
       ordered: jsonlScan.ordered,
       sortedBy: outOfOrder ? 'id' : 'none',
@@ -664,10 +673,18 @@ export const enqueueChunkMetaArtifacts = async ({
         format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
         trimmedMetaV2,
         trimmedFields: trimmedFieldsPayload,
-        order: orderInfo
+        order: orderInfo,
+        budget: budgetInfo
       }
     });
   } else if (measured) {
+    const budgetInfo = applyByteBudget({
+      budget: byteBudget,
+      totalBytes: measured.totalJsonBytes,
+      label: 'chunk_meta',
+      stageCheckpoints,
+      logger: log
+    });
     recordArtifactTelemetry(stageCheckpoints, {
       stage: 'stage2',
       artifact: 'chunk_meta',
@@ -679,7 +696,8 @@ export const enqueueChunkMetaArtifacts = async ({
       extra: {
         format: 'json',
         trimmedMetaV2,
-        trimmedFields: trimmedFieldsPayload
+        trimmedFields: trimmedFieldsPayload,
+        budget: budgetInfo
       }
     });
   }

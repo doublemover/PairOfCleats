@@ -19,6 +19,7 @@ import {
   recordArtifactTelemetry,
   writePerFileVarintIndex
 } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
 
 const MAX_ROW_BYTES = 32768;
 
@@ -230,6 +231,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   chunkUidToFileId = null,
   outDir,
   maxJsonBytes = null,
+  byteBudget = null,
   log = null,
   format = null,
   compression = null,
@@ -257,6 +259,13 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   }
   const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
   const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
+  const budgetInfo = applyByteBudget({
+    budget: byteBudget,
+    totalBytes,
+    label: 'symbol_occurrences',
+    stageCheckpoints,
+    logger: log
+  });
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'symbol_occurrences',
@@ -265,7 +274,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: formatLabel }
+    extra: { format: formatLabel, budget: budgetInfo }
   });
   if (!totalRows) {
     await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { recursive: true, force: true }).catch(() => {});
