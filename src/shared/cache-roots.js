@@ -6,6 +6,7 @@ import { CACHE_KEY_VERSION } from './cache-key.js';
 
 const CACHE_VERSION_FILE = 'cache-version.json';
 const purgedRoots = new Set();
+const rebuiltRoots = new Set();
 
 const resolveVersionedRoot = (baseRoot, version = CACHE_KEY_VERSION) => {
   const resolvedBase = path.resolve(baseRoot || '');
@@ -101,7 +102,11 @@ export function getCacheRoot() {
   const versionedRoot = resolveVersionedRoot(baseRoot, CACHE_KEY_VERSION);
   purgeLegacyCacheRoot(baseRoot, versionedRoot);
   if (envConfig.cacheRebuild) {
-    purgeVersionedCacheRoot(versionedRoot);
+    const resolvedRoot = path.resolve(versionedRoot || '');
+    if (!rebuiltRoots.has(resolvedRoot)) {
+      rebuiltRoots.add(resolvedRoot);
+      purgeVersionedCacheRoot(versionedRoot);
+    }
   }
   return versionedRoot;
 }
