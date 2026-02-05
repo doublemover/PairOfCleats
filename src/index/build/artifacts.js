@@ -705,6 +705,53 @@ export async function writeIndexArtifacts(input) {
       count: postings.minhashSigs.length
     }
   });
+  const packMinhashSignatures = (signatures) => {
+    if (!Array.isArray(signatures) || !signatures.length) return null;
+    const first = signatures[0];
+    if (!Array.isArray(first) || !first.length) return null;
+    const dims = first.length;
+    const count = signatures.length;
+    const total = dims * count;
+    const buffer = Buffer.allocUnsafe(total * 4);
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, total);
+    let offset = 0;
+    for (const sig of signatures) {
+      if (!Array.isArray(sig) || sig.length !== dims) return null;
+      for (let i = 0; i < dims; i += 1) {
+        const value = sig[i];
+        view[offset] = Number.isFinite(value) ? value : 0;
+        offset += 1;
+      }
+    }
+    return { buffer, dims, count };
+  };
+  const packedMinhash = packMinhashSignatures(postings.minhashSigs);
+  if (packedMinhash) {
+    const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
+    const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
+    enqueueWrite(
+      formatArtifactLabel(packedPath),
+      async () => {
+        await fs.writeFile(packedPath, packedMinhash.buffer);
+        await writeJsonObjectFile(packedMetaPath, {
+          fields: {
+            format: 'u32',
+            endian: 'le',
+            dims: packedMinhash.dims,
+            count: packedMinhash.count
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({
+      type: 'postings',
+      name: 'minhash_signatures_packed',
+      format: 'bin',
+      count: packedMinhash.count
+    }, packedPath);
+    addPieceFile({ type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' }, packedMetaPath);
+  }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
   await enqueueTokenPostingsArtifacts({
     outDir,

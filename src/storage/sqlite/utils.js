@@ -5,6 +5,7 @@ import {
   MAX_JSON_BYTES,
   loadChunkMeta,
   loadTokenPostings,
+  loadMinhashSignatures,
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
@@ -155,7 +156,17 @@ export async function loadIndex(dir, modelId) {
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash: loadOptional(dir, 'minhash_signatures.json'),
+    minhash: (() => {
+      try {
+        return loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
+      } catch (err) {
+        if (err?.code === 'ERR_JSON_TOO_LARGE') {
+          console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
+          return null;
+        }
+        return null;
+      }
+    })(),
     tokenPostings: (() => {
       const direct = loadOptional(dir, 'token_postings.json');
       if (direct) return direct;

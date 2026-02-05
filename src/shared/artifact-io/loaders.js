@@ -803,6 +803,40 @@ export const loadTokenPostings = (
   throw new Error('Missing index artifact: token_postings.json');
 };
 
+export const loadMinhashSignatures = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const packedPath = path.join(dir, 'minhash_signatures.packed.bin');
+  const metaPath = path.join(dir, 'minhash_signatures.packed.meta.json');
+  if (existsOrBak(packedPath) && existsOrBak(metaPath)) {
+    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+    const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+    if (!dims || !count) {
+      throw new Error('Invalid packed minhash meta');
+    }
+    const buffer = fs.readFileSync(packedPath);
+    const total = dims * count;
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
+    if (view.length < total) {
+      throw new Error('Packed minhash signatures truncated');
+    }
+    const signatures = new Array(count);
+    for (let i = 0; i < count; i += 1) {
+      const start = i * dims;
+      signatures[i] = view.subarray(start, start + dims);
+    }
+    return { signatures };
+  }
+  return loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+};
+
 const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) => {
   const metaName = `${baseName}_by_file_meta`;
   const sources = resolveManifestArtifactSources({

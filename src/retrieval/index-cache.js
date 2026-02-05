@@ -26,6 +26,8 @@ const INDEX_FILES = [
   'field_postings.json',
   'field_tokens.json',
   'minhash_signatures.json',
+  'minhash_signatures.packed.bin',
+  'minhash_signatures.packed.meta.json',
   'file_meta.json',
   'filter_index.json',
   'index_state.json'

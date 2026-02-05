@@ -28,6 +28,7 @@ export {
   loadGraphRelationsSync,
   loadChunkMeta,
   loadTokenPostings,
+  loadMinhashSignatures,
   loadSymbolOccurrencesByFile,
   loadSymbolEdgesByFile
 } from './artifact-io/loaders.js';
