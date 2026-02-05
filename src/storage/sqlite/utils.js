@@ -6,6 +6,7 @@ import {
   loadChunkMeta,
   loadTokenPostings,
   loadMinhashSignatures,
+  loadJsonArrayArtifact,
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
@@ -132,6 +133,22 @@ export function loadOptional(dir, name) {
   }
 }
 
+export async function loadOptionalArrayArtifact(dir, name) {
+  if (!dir || !name) return null;
+  try {
+    return await loadJsonArrayArtifact(dir, name, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+      return null;
+    }
+    if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 /**
  * Load file-backed index artifacts from a directory.
  * @param {string} dir
@@ -158,9 +175,10 @@ export async function loadIndex(dir, modelId) {
       console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
     }
   }
+  const fileMeta = await loadOptionalArrayArtifact(dir, 'file_meta');
   return {
     chunkMeta,
-    fileMeta: loadOptional(dir, 'file_meta.json'),
+    fileMeta,
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),

@@ -12,6 +12,7 @@ import {
   normalizeFilePath,
   readJson,
   loadOptional,
+  loadOptionalArrayArtifact,
   removeSqliteSidecars,
   resolveSqliteBatchSize,
   bumpSqliteBatchStat
@@ -179,10 +180,11 @@ export const loadIndexPieces = async (dirOrOptions, modelId) => {
       console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
     }
   }
+  const fileMeta = await loadOptionalArrayArtifact(dir, 'file_meta');
   return {
     chunkMeta: null,
     dir,
-    fileMeta: loadOptional(dir, 'file_meta.json'),
+    fileMeta,
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
@@ -783,7 +785,7 @@ export async function buildDatabaseFromArtifacts({
       const fileMetaById = new Map();
       const fileMetaRaw = Array.isArray(indexData?.fileMeta)
         ? indexData.fileMeta
-        : (indexDir ? loadOptional(indexDir, 'file_meta.json') : null);
+        : (indexDir ? await loadOptionalArrayArtifact(indexDir, 'file_meta') : null);
       if (Array.isArray(fileMetaRaw)) {
         for (const entry of fileMetaRaw) {
           if (!entry || !Number.isFinite(entry.id)) continue;
