@@ -92,8 +92,8 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 - Phase 16.10: 16.10.1 and 16.10.2 can run in parallel; 16.10.3 last.
 - Phase 16.11: 16.11.1 and 16.11.2 can run in parallel with clear file ownership; 16.11.3 last.
 - Phase 16.12: 16.12.1 and 16.12.2 can run in parallel with clear module ownership; 16.12.3 last.
-- Phase 16.13: 16.13.1 and 16.13.2 can run in parallel; 16.13.3 last.
-- Phase 16.14: 16.14.1, 16.14.2, and 16.14.3 can run in parallel; 16.14.4 last.
+- Phase 16.13: 16.13.1 and 16.13.2 can run in parallel; 16.13.3 then 16.13.4.
+- Phase 16.14: 16.14.1, 16.14.2, and 16.14.3 can run in parallel; 16.14.4 then 16.14.5.
 - Phase 16.15: 16.15.1 can run in parallel with 16.15.2/16.15.3; ensure bench harness exists before validating outputs.
 
 ## Roadmap Table of Contents
@@ -103,8 +103,8 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 - Phase 16.3 -- Global Cache Key + Invalidation (Subphases: 16.3.1 Schema + Helpers; 16.3.2 Embeddings Cache; 16.3.3 File Meta/Import/VFS; 16.3.4 Cache Reset + Cleanup; 16.3.5 Tests + Bench)
 - Phase 16.4 -- Build Truth Ledger + Deterministic Ordering (Subphases: 16.4.1 Ledger Core; 16.4.2 Ordering Library; 16.4.3 Wiring; 16.4.4 Validation; 16.4.5 Tests + Bench)
 - Phase 16.5 -- Unified Spill/Merge + Byte Budget (Subphases: 16.5.1 Merge Core; 16.5.2 Postings Adoption; 16.5.3 VFS/Relations/Artifacts Adoption; 16.5.4 Byte Budget Policy; 16.5.5 Tests + Bench)
-- Phase 16.13 -- Artifact Pipeline Optimization (Subphases: 16.13.1 Offsets + Shards; 16.13.2 Loader Parallelism; 16.13.3 Tests + Bench)
-- Phase 16.14 -- Index State + File Meta + Minhash (Subphases: 16.14.1 Index State; 16.14.2 File Meta; 16.14.3 Minhash; 16.14.4 Tests + Bench)
+- Phase 16.13 -- Artifact Pipeline Optimization (Subphases: 16.13.1 Offsets + Shards; 16.13.2 Loader Parallelism; 16.13.3 Tests + Bench; 16.13.4 Full Streaming Loaders + Minimal-Impl Hardening)
+- Phase 16.14 -- Index State + File Meta + Minhash (Subphases: 16.14.1 Index State; 16.14.2 File Meta; 16.14.3 Minhash; 16.14.4 Tests + Bench; 16.14.5 Full Streaming File Meta + Minimal-Impl Hardening)
 - Phase 16.6 -- Stage1 Postings Throughput (Subphases: 16.6.1 Token/Postings Core; 16.6.2 Backpressure + Concurrency; 16.6.3 Tests + Bench)
 - Phase 16.7 -- Stage2 Relations + Filter Index (Subphases: 16.7.1 Relations Core; 16.7.2 Filter Index + Repo Map; 16.7.3 Tests + Bench)
 - Phase 16.8 -- Embeddings Pipeline Throughput (Subphases: 16.8.1 Cache + Keys; 16.8.2 IO + Batching; 16.8.3 Tests + Bench)
@@ -866,6 +866,29 @@ Tests:
 - [x] `tests/shared/artifact-io/artifact-io-bench-contract.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/validation-fastpath.test.js` (perf lane) (new)
 
+### Subphase 16.13.4 -- Full Streaming Loaders + Minimal-Impl Hardening
+Parallel: Run after 16.13.3; depends on offsets + loader parallelism.
+Docs/specs to update: `docs/specs/artifact-io-pipeline.md`, `docs/perf/shared-io-serialization.md`, `docs/perf/index-artifact-pipelines.md`
+Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/artifact-io/offsets.js (anchor: readOffsetsIndex)`, `src/shared/json-stream.js (anchor: readJsonlRows)`, `src/index/build/artifacts/helpers.js (anchor: mergeSortedRuns)`
+Tasks:
+- [ ] Task 16.13.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [ ] Task 16.13.4.a: Add streaming row iterator API that never materializes arrays by default.
+- [ ] Task 16.13.4.a.1: Support offsets index to jump to shard ranges and stream rows in order.
+- [ ] Task 16.13.4.a.2: Add max in-flight row cap + backpressure hooks.
+- [ ] Task 16.13.4.b: Switch loader fast-paths to streaming when offsets exist; require explicit opt-in to materialize.
+- [ ] Task 16.13.4.b.1: Add `materialize` option to load helpers and update call sites.
+- [ ] Task 16.13.4.c: Convert artifact consumers that read large JSONL arrays to use iterators (graph, relations, file_meta, symbol artifacts).
+- [ ] Task 16.13.4.d: Enforce strict missing-part checks for streaming loaders (no partial results).
+- [ ] Task 16.13.4.e: Add streaming vs materialized benchmark and output delta line (duration, throughput, percent, heap).
+- [ ] Task 16.13.4.f: Add regression test for streaming correctness vs full scan (row hash match).
+- [ ] Task 16.13.4.g: Add regression test for streaming memory cap under large artifacts.
+- [ ] Task 16.13.4.h: Add determinism stress test under streaming + parallel loads.
+
+Tests:
+- [ ] `tests/shared/artifact-io/streaming-vs-full.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/streaming-memory-cap.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/streaming-determinism.test.js` (perf lane) (new)
+
 ---
 
 ## Phase 16.14 -- Index State + File Meta + Minhash
@@ -972,6 +995,29 @@ Tasks:
 Tests:
 -- [x] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
 -- [x] `tests/indexing/artifacts/minhash-packed-bench-contract.test.js` (perf lane) (new)
+
+### Subphase 16.14.5 -- Full Streaming File Meta + Minimal-Impl Hardening
+Parallel: Run after 16.14.4; depends on 16.13.4 streaming loader work.
+Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/artifact-io-pipeline.md`
+Touchpoints: `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/utils.js (anchor: loadIndex)`
+Tasks:
+- [ ] Task 16.14.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [ ] Task 16.14.5.a: Implement full streaming file_meta loader that yields rows without materializing arrays.
+- [ ] Task 16.14.5.a.1: Use offsets index when available and fall back to JSONL streaming when columnar is too large.
+- [ ] Task 16.14.5.a.2: Add row-level validation during streaming and abort on invalid rows.
+- [ ] Task 16.14.5.b: Update sqlite build to accept streaming file_meta iterator with backpressure.
+- [ ] Task 16.14.5.b.1: Add batch sizing by bytes + rows to keep steady memory usage.
+- [ ] Task 16.14.5.c: Remove minimal optional-array fallback in loadIndex; default to streaming unless explicitly materialized.
+- [ ] Task 16.14.5.d: Stream file_meta + minhash ingest in sqlite builder (no Promise handoff).
+- [ ] Task 16.14.5.e: Add benchmark comparing streaming vs materialized file_meta load with delta line.
+- [ ] Task 16.14.5.f: Add regression test for streaming correctness vs materialized load.
+- [ ] Task 16.14.5.g: Add regression test for streaming memory cap under large file_meta.
+- [ ] Task 16.14.5.h: Add regression test for MAX_JSON_BYTES behavior with streaming columnar fallback.
+
+Tests:
+- [ ] `tests/indexing/artifacts/file-meta-streaming-roundtrip.test.js` (perf lane) (new)
+- [ ] `tests/indexing/artifacts/file-meta-streaming-memory.test.js` (perf lane) (new)
+- [ ] `tests/indexing/artifacts/file-meta-streaming-reuse.test.js` (perf lane) (new)
 
 ---
 
