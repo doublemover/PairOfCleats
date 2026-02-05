@@ -19,6 +19,10 @@
 ## Ordering Helpers
 - stableOrder(list, keys)
 - stableBucketOrder(list, bucketKey, keys)
+- stableOrderMapEntries(map, keys)
+- orderRepoMapEntries(entries)
+
+Helpers live in `src/shared/order.js` and must be used for new ordering logic.
 
 ## Hashing
 - Hash ordered outputs with xxhash64.

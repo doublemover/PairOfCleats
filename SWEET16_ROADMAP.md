@@ -606,15 +606,15 @@ Parallel: Can run alongside 16.4.1; both must land before 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
-- [ ] Task 16.4.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.4.2.a: Implement shared ordering helpers in `src/shared/order.js`.
-- [ ] Task 16.4.2.b: Define stable bucket ordering and tie-breakers.
-- [ ] Task 16.4.2.c: Add helpers for deterministic map/repo-map ordering.
-- [ ] Task 16.4.2.d: Add tests for ordering stability.
-- [ ] Task 16.4.2.e: Add docs for ordering rules.
+- [x] Task 16.4.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.4.2.a: Implement shared ordering helpers in `src/shared/order.js`.
+- [x] Task 16.4.2.b: Define stable bucket ordering and tie-breakers.
+- [x] Task 16.4.2.c: Add helpers for deterministic map/repo-map ordering.
+- [x] Task 16.4.2.d: Add tests for ordering stability.
+- [x] Task 16.4.2.e: Add docs for ordering rules.
 
 Tests:
-- [ ] `tests/shared/order/order-stability.test.js` (perf lane) (new)
+- [x] `tests/shared/order/order-stability.test.js` (perf lane) (new)
 
 ### Subphase 16.4.3 -- Wiring
 Parallel: Run after 16.4.1/16.4.2.
