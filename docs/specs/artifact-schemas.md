@@ -7,6 +7,7 @@ This document defines the on-disk index artifact contracts. Schema validation is
 ## General expectations
 
 - Strict readers resolve artifacts via `pieces/manifest.json` (manifest-first).
+- Strict readers fail fast when manifest parts are missing on disk (no silent partial loads).
 - Non-strict readers may fall back to file-system discovery with warnings when manifest entries are missing.
 - Paths are relative and POSIX-normalized; `..` and absolute paths are invalid.
 - Unknown top-level fields are errors when a schema sets `additionalProperties: false`.

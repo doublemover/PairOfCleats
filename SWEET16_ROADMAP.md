@@ -777,92 +777,94 @@ Parallel: Can run alongside 16.13.2 with clear file ownership.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/artifact-io/offsets.js (anchor: readOffsetsIndex)`, `src/shared/artifact-io/manifest.js (anchor: readPiecesManifest)`, `src/index/build/artifacts/*.js (anchor: writeArtifacts)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
-- [ ] Task 16.13.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.13.1.doc.1: Audit existing offsets/manifest formats and enumerate legacy readers/writers.
-- [ ] Task 16.13.1.doc.2: Define versioned offsets schema and migration notes in specs.
-- [ ] Task 16.13.1.a: Implement unified offsets format across JSONL artifacts.
-- [ ] Task 16.13.1.a.1: Standardize offsets header fields (version, rows, bytes, shardCount, compression).
-- [ ] Task 16.13.1.a.2: Add offsets writer helper that emits per-shard offset tables.
-- [ ] Task 16.13.1.a.3: Update manifest/pieces metadata to reference offsets file names.
-- [ ] Task 16.13.1.b: Generate offsets during write (no second pass).
-- [ ] Task 16.13.1.b.1: Extend JSONL writer to capture byte positions during streaming writes.
-- [ ] Task 16.13.1.b.2: Ensure offsets match post-compression byte positions.
-- [ ] Task 16.13.1.b.3: Add guard for empty shard creation at max-byte boundary.
-- [ ] Task 16.13.1.c: Enforce byte-based sharding for all artifacts.
-- [ ] Task 16.13.1.c.1: Normalize shard thresholds via shared helper (maxBytes and minRows).
-- [ ] Task 16.13.1.c.2: Add per-artifact override mapping in writeArtifacts.
-- [ ] Task 16.13.1.c.3: Emit shard byte counts in sharded meta for validators.
-- [ ] Task 16.13.1.d: Add atomic swap for artifact sets.
-- [ ] Task 16.13.1.d.1: Write into temp dir and rename into place on success.
-- [ ] Task 16.13.1.d.2: Ensure manifest update is atomic with shard set.
-- [ ] Task 16.13.1.d.3: Add cleanup on failure and ensure partial shards are removed.
-- [ ] Task 16.13.1.e: Add lazy validation mode for hot paths.
-- [ ] Task 16.13.1.e.1: Add load flag to skip full JSON validation when offsets are trusted.
-- [ ] Task 16.13.1.e.2: Add sampling-based validation to detect drift.
-- [ ] Task 16.13.1.e.3: Force strict validation in perf lane and during schema upgrades.
+- [x] Task 16.13.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.13.1.doc.1: Audit existing offsets/manifest formats and enumerate legacy readers/writers.
+- [x] Task 16.13.1.doc.2: Define versioned offsets schema and migration notes in specs.
+- [x] Task 16.13.1.a: Implement unified offsets format across JSONL artifacts.
+- [x] Task 16.13.1.a.1: Standardize offsets header fields (version, rows, bytes, shardCount, compression).
+- [x] Task 16.13.1.a.2: Add offsets writer helper that emits per-shard offset tables.
+- [x] Task 16.13.1.a.3: Update manifest/pieces metadata to reference offsets file names.
+- [x] Task 16.13.1.b: Generate offsets during write (no second pass).
+- [x] Task 16.13.1.b.1: Extend JSONL writer to capture byte positions during streaming writes.
+- [x] Task 16.13.1.b.2: Ensure offsets match post-compression byte positions.
+- [x] Task 16.13.1.b.3: Add guard for empty shard creation at max-byte boundary.
+- [x] Task 16.13.1.c: Enforce byte-based sharding for all artifacts.
+- [x] Task 16.13.1.c.1: Normalize shard thresholds via shared helper (maxBytes and minRows).
+- [x] Task 16.13.1.c.2: Add per-artifact override mapping in writeArtifacts.
+- [x] Task 16.13.1.c.3: Emit shard byte counts in sharded meta for validators.
+- [x] Task 16.13.1.d: Add atomic swap for artifact sets.
+- [x] Task 16.13.1.d.1: Write into temp dir and rename into place on success.
+- [x] Task 16.13.1.d.2: Ensure manifest update is atomic with shard set.
+- [x] Task 16.13.1.d.3: Add cleanup on failure and ensure partial shards are removed.
+- [x] Task 16.13.1.e: Add lazy validation mode for hot paths.
+- [x] Task 16.13.1.e.1: Add load flag to skip full JSON validation when offsets are trusted.
+- [x] Task 16.13.1.e.2: Add sampling-based validation to detect drift.
+- [x] Task 16.13.1.e.3: Force strict validation in perf lane and during schema upgrades.
 
 Tests:
-- [ ] `tests/indexing/artifacts/offsets-unified-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/offsets-unified-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.13.2 -- Loader Parallelism
 Parallel: Can run alongside 16.13.1 with clear file ownership.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/artifact-io/jsonl.js (anchor: readJsonlRows)`, `src/shared/artifact-io/manifest.js (anchor: readPiecesManifest)`, `src/shared/artifact-io/offsets.js (anchor: readOffsetsIndex)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
-- [ ] Task 16.13.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.13.2.doc.1: Document loader concurrency caps + default values.
-- [ ] Task 16.13.2.doc.2: Document fallback/strict error behavior for missing parts.
-- [ ] Task 16.13.2.a: Add bounded parallel artifact loads.
-- [ ] Task 16.13.2.a.1: Implement queue with max concurrency and max pending.
-- [ ] Task 16.13.2.a.2: Separate IO vs CPU parsing limits for loaders.
-- [ ] Task 16.13.2.a.3: Add scheduler tokens for large artifact loads.
-- [ ] Task 16.13.2.b: Add hot parse cache for manifest/meta files.
-- [ ] Task 16.13.2.b.1: Add LRU keyed by path+mtime+size hash.
-- [ ] Task 16.13.2.b.2: Cache parse errors briefly to avoid retry storms.
-- [ ] Task 16.13.2.b.3: Track cache hit rate in telemetry.
-- [ ] Task 16.13.2.c: Add fallback to full scan when per-file index invalid.
-- [ ] Task 16.13.2.c.1: Detect missing offsets/data shards and mark index unusable.
-- [ ] Task 16.13.2.c.2: Fall back to full JSONL scan with warning.
-- [ ] Task 16.13.2.c.3: Add guard to prevent partial results when index invalid.
-- [ ] Task 16.13.2.d: Add missing-part detection and failure mode.
-- [ ] Task 16.13.2.d.1: Fail fast when manifest lists missing shards.
-- [ ] Task 16.13.2.d.2: Include artifact name + shard id in error.
-- [ ] Task 16.13.2.d.3: Add optional strict/lenient toggle in loader options.
-- [ ] Task 16.13.2.e: Add loader telemetry sampling.
-- [ ] Task 16.13.2.e.1: Record bytes read, rows parsed, time per artifact.
-- [ ] Task 16.13.2.e.2: Emit sampling rate and skipped samples.
-- [ ] Task 16.13.2.f: Add loader determinism stress test under parallel loads.
-- [ ] Task 16.13.2.f.1: Run repeated parallel loads and compare hashes.
-- [ ] Task 16.13.2.f.2: Inject randomized ordering to ensure stability.
+- [x] Task 16.13.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.13.2.doc.1: Document loader concurrency caps + default values.
+- [x] Task 16.13.2.doc.2: Document fallback/strict error behavior for missing parts.
+- [x] Task 16.13.2.a: Add bounded parallel artifact loads.
+- [x] Task 16.13.2.a.1: Implement queue with max concurrency and max pending.
+- [x] Task 16.13.2.a.2: Separate IO vs CPU parsing limits for loaders.
+- [x] Task 16.13.2.a.3: Add scheduler tokens for large artifact loads.
+- [x] Task 16.13.2.b: Add hot parse cache for manifest/meta files.
+- [x] Task 16.13.2.b.1: Add LRU keyed by path+mtime+size hash.
+- [x] Task 16.13.2.b.2: Cache parse errors briefly to avoid retry storms.
+- [x] Task 16.13.2.b.3: Track cache hit rate in telemetry.
+- [x] Task 16.13.2.c: Add fallback to full scan when per-file index invalid.
+- [x] Task 16.13.2.c.1: Detect missing offsets/data shards and mark index unusable.
+- [x] Task 16.13.2.c.2: Fall back to full JSONL scan with warning.
+- [x] Task 16.13.2.c.3: Add guard to prevent partial results when index invalid.
+- [x] Task 16.13.2.d: Add missing-part detection and failure mode.
+- [x] Task 16.13.2.d.1: Fail fast when manifest lists missing shards.
+- [x] Task 16.13.2.d.2: Include artifact name + shard id in error.
+- [x] Task 16.13.2.d.3: Add optional strict/lenient toggle in loader options.
+- [x] Task 16.13.2.e: Add loader telemetry sampling.
+- [x] Task 16.13.2.e.1: Record bytes read, rows parsed, time per artifact.
+- [x] Task 16.13.2.e.2: Emit sampling rate and skipped samples.
+- [x] Task 16.13.2.f: Add loader determinism stress test under parallel loads.
+- [x] Task 16.13.2.f.1: Run repeated parallel loads and compare hashes.
+- [x] Task 16.13.2.f.2: Inject randomized ordering to ensure stability.
 
 Tests:
-- [ ] `tests/shared/artifact-io/loader-parallelism.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/loader-parallelism.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/broken-offsets-fallback.test.js` (perf lane) (new)
 
 ### Subphase 16.13.3 -- Tests + Bench
 Parallel: Run after 16.13.1/16.13.2.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/artifact-io/offsets.js (anchor: readOffsetsIndex)`, `src/shared/artifact-io/manifest.js (anchor: readPiecesManifest)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
-- [ ] Task 16.13.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.13.3.doc.1: Define benchmark CLI flags and expected output schema.
-- [ ] Task 16.13.3.doc.2: Document perf lane coverage for artifact pipeline tests.
-- [ ] Task 16.13.3.a: Implement `jsonl-offset-index` benchmark on real index.
-- [ ] Task 16.13.3.a.1: Baseline uses full scan loader; current uses offsets.
-- [ ] Task 16.13.3.a.2: Output delta line (duration, throughput, percent).
-- [ ] Task 16.13.3.b: Add artifact IO throughput benchmark baseline/current.
-- [ ] Task 16.13.3.b.1: Compare sharded vs unsharded for same artifact.
-- [ ] Task 16.13.3.b.2: Record heap delta and bytes read.
-- [ ] Task 16.13.3.c: Add regression test for loader determinism.
-- [ ] Task 16.13.3.c.1: Repeat load with parallelism and compare hash of rows.
-- [ ] Task 16.13.3.d: Add docs update for artifact pipeline.
-- [ ] Task 16.13.3.d.1: Include failure modes for missing shards and offsets.
-- [ ] Task 16.13.3.e: Add validation fast-path regression test.
-- [ ] Task 16.13.3.e.1: Ensure fast-path rejects invalid schema.
-- [ ] Task 16.13.3.f: Add broken-offsets fallback regression test (full scan).
-- [ ] Task 16.13.3.f.1: Simulate missing offsets and ensure fallback loads rows.
+- [x] Task 16.13.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.13.3.doc.1: Define benchmark CLI flags and expected output schema.
+- [x] Task 16.13.3.doc.2: Document perf lane coverage for artifact pipeline tests.
+- [x] Task 16.13.3.a: Implement `jsonl-offset-index` benchmark on real index.
+- [x] Task 16.13.3.a.1: Baseline uses full scan loader; current uses offsets.
+- [x] Task 16.13.3.a.2: Output delta line (duration, throughput, percent).
+- [x] Task 16.13.3.b: Add artifact IO throughput benchmark baseline/current.
+- [x] Task 16.13.3.b.1: Compare sharded vs unsharded for same artifact.
+- [x] Task 16.13.3.b.2: Record heap delta and bytes read.
+- [x] Task 16.13.3.c: Add regression test for loader determinism.
+- [x] Task 16.13.3.c.1: Repeat load with parallelism and compare hash of rows.
+- [x] Task 16.13.3.d: Add docs update for artifact pipeline.
+- [x] Task 16.13.3.d.1: Include failure modes for missing shards and offsets.
+- [x] Task 16.13.3.e: Add validation fast-path regression test.
+- [x] Task 16.13.3.e.1: Ensure fast-path rejects invalid schema.
+- [x] Task 16.13.3.f: Add broken-offsets fallback regression test (full scan).
+- [x] Task 16.13.3.f.1: Simulate missing offsets and ensure fallback loads rows.
 
 Tests:
-- [ ] `tests/shared/artifact-io/artifact-io-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/artifact-io-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/validation-fastpath.test.js` (perf lane) (new)
 
 ---
 

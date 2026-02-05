@@ -17,6 +17,8 @@ Run benchmarks from the repo root.
 9. `node tools/bench/index/jsonl-compression-pipeline.js --mode compare`
 10. `node tools/bench/index/import-graph-incremental.js --mode compare`
 11. `node tools/bench/index/artifact-io-read.js --mode compare`
+12. `node tools/bench/artifact-io/jsonl-offset-index.js`
+13. `node tools/bench/artifact-io/artifact-io-throughput.js`
 
 Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
 

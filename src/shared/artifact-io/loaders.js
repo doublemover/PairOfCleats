@@ -134,6 +134,12 @@ export const loadJsonArrayArtifact = async (
     });
     const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
     if (sources?.paths?.length) {
+      const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+      if (missingPaths.length) {
+        const err = new Error(`Missing manifest parts for ${baseName}: ${missingPaths.join(', ')}`);
+        err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+        throw err;
+      }
       if (sources.format === 'json') {
         if (sources.paths.length > 1) {
           throw new Error(`Ambiguous JSON sources for ${baseName}`);
@@ -168,6 +174,12 @@ export const loadJsonArrayArtifact = async (
   const sources = manifestSources || resolveJsonlArtifactSources(dir, baseName);
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   if (sources?.paths?.length) {
+    const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+    if (missingPaths.length) {
+      const err = new Error(`Missing manifest parts for ${baseName}: ${missingPaths.join(', ')}`);
+      err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+      throw err;
+    }
     if (!manifestSources) warnNonStrictJsonFallback(dir, baseName);
     if (sources.format === 'json') {
       if (sources.paths.length > 1) {

@@ -72,3 +72,59 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     }
   }
 };
+
+export const replaceDir = async (tempPath, finalPath, options = {}) => {
+  const keepBackup = options.keepBackup === true;
+  const bakPath = `${finalPath}.bak`;
+  const finalExists = fs.existsSync(finalPath);
+  if (!fs.existsSync(tempPath)) {
+    const err = new Error(`Temp dir missing before replace: ${tempPath}`);
+    err.code = 'ERR_TEMP_MISSING';
+    throw err;
+  }
+  let backupAvailable = fs.existsSync(bakPath);
+  const restoreBackup = async () => {
+    if (!backupAvailable) return;
+    try {
+      if (fs.existsSync(finalPath)) {
+        await fsPromises.rm(finalPath, { recursive: true, force: true });
+      }
+    } catch {}
+    try {
+      await fsPromises.rename(bakPath, finalPath);
+    } catch {}
+  };
+  if (finalExists && !backupAvailable) {
+    try {
+      await fsPromises.rename(finalPath, bakPath);
+      backupAvailable = true;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        backupAvailable = fs.existsSync(bakPath);
+      }
+    }
+  }
+  try {
+    await fsPromises.rename(tempPath, finalPath);
+    if (!keepBackup && backupAvailable) {
+      try { await fsPromises.rm(bakPath, { recursive: true, force: true }); } catch {}
+    }
+  } catch (err) {
+    if (!['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV'].includes(err?.code)) {
+      await restoreBackup();
+      throw err;
+    }
+    try {
+      if (fs.existsSync(finalPath)) {
+        await fsPromises.rm(finalPath, { recursive: true, force: true });
+      }
+      await fsPromises.rename(tempPath, finalPath);
+      if (!keepBackup && backupAvailable) {
+        try { await fsPromises.rm(bakPath, { recursive: true, force: true }); } catch {}
+      }
+    } catch (renameErr) {
+      await restoreBackup();
+      throw renameErr;
+    }
+  }
+};
