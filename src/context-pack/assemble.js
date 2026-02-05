@@ -8,6 +8,8 @@ import {
 import { resolveProvenance } from '../shared/provenance.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
+import { readFileRangeSync } from '../shared/files.js';
+import { normalizePathForRepo } from '../shared/path-normalize.js';
 
 const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -21,34 +23,65 @@ const resolveSeedCandidates = (seed) => {
   const candidates = Array.isArray(seed.candidates) ? seed.candidates : [];
   const resolved = seed.resolved && typeof seed.resolved === 'object' ? seed.resolved : null;
   const out = [];
-  if (resolved) out.push(resolved);
-  out.push(...candidates);
+  const seen = new Set();
+  const pushUnique = (candidate) => {
+    if (!candidate || typeof candidate !== 'object') return;
+    const key = candidate.chunkUid
+      ? `chunk:${candidate.chunkUid}`
+      : candidate.symbolId
+        ? `symbol:${candidate.symbolId}`
+        : candidate.path
+          ? `file:${candidate.path}`
+          : null;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(candidate);
+  };
+  if (resolved) pushUnique(resolved);
+  for (const candidate of candidates) pushUnique(candidate);
   return out;
 };
 
-const resolveChunkBySeed = (seedRef, chunkMeta, warnings) => {
+/**
+ * Build a reusable index of chunk metadata to resolve seed refs efficiently.
+ */
+export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
   const byFile = new Map();
   const bySymbol = new Map();
   for (const chunk of chunkMeta) {
     if (!chunk) continue;
-    const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
-    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, chunk);
-    if (chunk.file) {
-      const list = byFile.get(chunk.file) || [];
-      list.push(chunk);
-      byFile.set(chunk.file, list);
+    const entry = { ...chunk };
+    const chunkUid = entry.chunkUid || entry.metaV2?.chunkUid || null;
+    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+    const normalizedFile = normalizePathForRepo(entry.file, repoRoot);
+    if (normalizedFile) {
+      const list = byFile.get(normalizedFile) || [];
+      list.push(entry);
+      byFile.set(normalizedFile, list);
     }
-    const symbolId = chunk.metaV2?.symbol?.symbolId || null;
-    if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, chunk);
+    const symbolId = entry.metaV2?.symbol?.symbolId || null;
+    if (symbolId && !bySymbol.has(symbolId)) bySymbol.set(symbolId, entry);
   }
+  return {
+    byChunkUid,
+    byFile,
+    bySymbol,
+    normalizePath: (value) => normalizePathForRepo(value, repoRoot)
+  };
+};
+
+const resolveChunkBySeed = (seedRef, chunkIndex, warnings) => {
+  if (!chunkIndex) return null;
+  const { byChunkUid, byFile, bySymbol, normalizePath } = chunkIndex;
 
   const resolveFromNode = (node) => {
     if (!node || typeof node !== 'object') return null;
     if (node.type === 'chunk') return byChunkUid.get(node.chunkUid) || null;
     if (node.type === 'file') {
-      const list = byFile.get(node.path) || [];
+      const normalizedPath = normalizePath ? normalizePath(node.path) : node.path;
+      const list = (normalizedPath && byFile.get(normalizedPath)) || byFile.get(node.path) || [];
       return list[0] || null;
     }
     if (node.type === 'symbol') return bySymbol.get(node.symbolId) || null;
@@ -107,6 +140,39 @@ const trimUtf8Buffer = (buffer) => {
   return buffer.subarray(0, Math.max(0, end - 1));
 };
 
+// Excerpt caches avoid repeated IO and token slicing for identical ranges.
+const EXCERPT_CACHE_MAX = 128;
+const FILE_RANGE_CACHE_MAX = 64;
+const EXCERPT_HASH_CACHE_MAX = 256;
+const excerptCache = new Map();
+const fileRangeCache = new Map();
+const excerptHashCache = new Map();
+
+export const clearContextPackCaches = () => {
+  excerptCache.clear();
+  fileRangeCache.clear();
+  excerptHashCache.clear();
+};
+
+const getCachedValue = (cache, key) => {
+  if (!key) return null;
+  if (!cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+};
+
+const setCachedValue = (cache, key, value, maxSize) => {
+  if (!key) return;
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > maxSize) {
+    const oldest = cache.keys().next().value;
+    cache.delete(oldest);
+  }
+};
+
 const readFilePrefix = (filePath, maxBytes) => {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
   let fd = null;
@@ -118,6 +184,32 @@ const readFilePrefix = (filePath, maxBytes) => {
     return slice.toString('utf8');
   } finally {
     if (fd) fs.closeSync(fd);
+  }
+};
+
+const readFileRangeCached = (filePath, start, end) => {
+  const key = `${filePath}|${start}|${end}`;
+  const cached = getCachedValue(fileRangeCache, key);
+  if (cached != null) return cached;
+  const buffer = readFileRangeSync(filePath, start, end);
+  const text = trimUtf8Buffer(buffer).toString('utf8');
+  setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+  return text;
+};
+
+const prefetchFileRanges = (ranges) => {
+  if (!Array.isArray(ranges) || !ranges.length) return;
+  for (const range of ranges) {
+    if (!range?.filePath) continue;
+    const key = `${range.filePath}|${range.start}|${range.end}`;
+    if (fileRangeCache.has(key)) continue;
+    try {
+      const buffer = readFileRangeSync(range.filePath, range.start, range.end);
+      const text = trimUtf8Buffer(buffer).toString('utf8');
+      setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+    } catch {
+      // Best-effort prefetch.
+    }
   }
 };
 
@@ -149,6 +241,41 @@ const sliceExcerpt = (text, maxBytes, maxTokens) => {
   return { excerpt, truncated };
 };
 
+const resolveExcerpt = ({
+  filePath,
+  start,
+  end,
+  maxBytes,
+  maxTokens
+}) => {
+  const cacheKey = `${filePath}|${start ?? ''}|${end ?? ''}|${maxBytes ?? ''}|${maxTokens ?? ''}`;
+  const cached = getCachedValue(excerptCache, cacheKey);
+  if (cached) return cached;
+  let text = '';
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    const safeMaxBytes = normalizeOptionalNumber(maxBytes);
+    const readEnd = safeMaxBytes ? Math.min(end, start + safeMaxBytes) : end;
+    prefetchFileRanges([{ filePath, start, end: readEnd }]);
+    text = readFileRangeCached(filePath, start, readEnd);
+  } else {
+    text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes));
+  }
+  const { excerpt, truncated } = sliceExcerpt(text, maxBytes, maxTokens);
+  const excerptHash = excerpt ? sha1(excerpt) : null;
+  let deduped = excerpt;
+  if (excerptHash) {
+    const cached = getCachedValue(excerptHashCache, excerptHash);
+    if (cached) {
+      deduped = cached;
+    } else {
+      setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
+    }
+  }
+  const payload = { excerpt: deduped, truncated, excerptHash };
+  setCachedValue(excerptCache, cacheKey, payload, EXCERPT_CACHE_MAX);
+  return payload;
+};
+
 const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings }) => {
   if (!chunk) {
     warnings.push({ code: 'MISSING_PRIMARY', message: 'Primary chunk not found for seed.' });
@@ -156,6 +283,9 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
   }
   const filePath = chunk.file ? path.resolve(repoRoot, chunk.file) : null;
   let text = '';
+  let excerpt = '';
+  let excerptHash = null;
+  let truncated = false;
   if (filePath) {
     if (!isPathInsideRepo(repoRoot, filePath)) {
       warnings.push({
@@ -163,21 +293,18 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
         message: 'Primary chunk path resolves outside repo root.'
       });
     } else if (fs.existsSync(filePath)) {
-      const start = Number.isFinite(chunk.start) ? chunk.start : null;
-      const end = Number.isFinite(chunk.end) ? chunk.end : null;
       const maxBytesNum = normalizeOptionalNumber(maxBytes);
-      if (maxBytesNum && (start == null || end == null || end <= start)) {
-        text = readFilePrefix(filePath, maxBytesNum);
-      } else {
-        const fileText = fs.readFileSync(filePath, 'utf8');
-        const safeStart = Number.isFinite(start) ? start : 0;
-        const safeEnd = Number.isFinite(end) ? end : fileText.length;
-        if (safeEnd > safeStart) {
-          text = fileText.slice(safeStart, safeEnd);
-        } else {
-          text = fileText;
-        }
-      }
+      const maxTokensNum = normalizeOptionalNumber(maxTokens);
+      const resolvedExcerpt = resolveExcerpt({
+        filePath,
+        start: Number.isFinite(chunk.start) ? chunk.start : null,
+        end: Number.isFinite(chunk.end) ? chunk.end : null,
+        maxBytes: maxBytesNum,
+        maxTokens: maxTokensNum
+      });
+      excerpt = resolvedExcerpt.excerpt || '';
+      truncated = resolvedExcerpt.truncated;
+      excerptHash = resolvedExcerpt.excerptHash || null;
     } else {
       warnings.push({
         code: 'PRIMARY_PATH_MISSING',
@@ -190,18 +317,22 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
     text = String(chunk.docmeta.doc);
   }
 
-  const { excerpt, truncated } = sliceExcerpt(
-    text,
-    normalizeOptionalNumber(maxBytes),
-    normalizeOptionalNumber(maxTokens)
-  );
+  if (!filePath || !excerpt) {
+    const { excerpt: sliced, truncated: slicedTruncated } = sliceExcerpt(
+      text,
+      normalizeOptionalNumber(maxBytes),
+      normalizeOptionalNumber(maxTokens)
+    );
+    excerpt = sliced;
+    truncated = truncated || slicedTruncated;
+    excerptHash = excerpt ? sha1(excerpt) : null;
+  }
   if (truncated) {
     warnings.push({
       code: 'PRIMARY_EXCERPT_TRUNCATED',
       message: 'Primary excerpt truncated due to maxBytes/maxTokens.'
     });
   }
-  const excerptHash = excerpt ? sha1(excerpt) : null;
   const range = (Number.isFinite(chunk.startLine) || Number.isFinite(chunk.endLine))
     ? {
       startLine: Number.isFinite(chunk.startLine) ? chunk.startLine : null,
@@ -274,10 +405,12 @@ const normalizeTypeFacts = (seedRef, chunk, maxTypeEntries, warnings) => {
 export const assembleCompositeContextPack = ({
   seed = null,
   chunkMeta = null,
+  chunkIndex = null,
   repoRoot = process.cwd(),
   graphRelations = null,
   symbolEdges = null,
   callSites = null,
+  graphIndex = null,
   includeGraph = true,
   includeTypes = false,
   includeRisk = false,
@@ -297,10 +430,13 @@ export const assembleCompositeContextPack = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  const timingStart = process.hrtime.bigint();
+  const memoryStart = process.memoryUsage();
   const warnings = [];
   const truncation = [];
   const seedRef = resolveSeedRef(seed);
-  const primaryChunk = resolveChunkBySeed(seedRef, chunkMeta, warnings);
+  const resolvedChunkIndex = chunkIndex || buildChunkIndex(chunkMeta);
+  const primaryChunk = resolveChunkBySeed(seedRef, resolvedChunkIndex, warnings);
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
 
   const primary = {
@@ -322,6 +458,7 @@ export const assembleCompositeContextPack = ({
   primary.range = excerptPayload.range;
   primary.excerpt = excerptPayload.excerpt;
   primary.excerptHash = excerptPayload.excerptHash;
+  const excerptBytes = primary.excerpt ? Buffer.byteLength(primary.excerpt, 'utf8') : 0;
 
   let graph = null;
   if (includeGraph && primaryRef) {
@@ -335,6 +472,7 @@ export const assembleCompositeContextPack = ({
       graphRelations,
       symbolEdges,
       callSites,
+      graphIndex,
       direction: 'both',
       depth: normalizeLimit(depth, 1),
       edgeFilters,
@@ -386,6 +524,21 @@ export const assembleCompositeContextPack = ({
     label: 'CompositeContextPack'
   });
 
+  const memoryEnd = process.memoryUsage();
+  const snapshotMemory = (value) => ({
+    heapUsed: value.heapUsed,
+    rss: value.rss,
+    external: value.external,
+    arrayBuffers: value.arrayBuffers
+  });
+  const peakMemory = {
+    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
+    rss: Math.max(memoryStart.rss, memoryEnd.rss),
+    external: Math.max(memoryStart.external, memoryEnd.external),
+    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
+  };
+  const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+
   return {
     version: '1.0.0',
     seed: primaryRef || seedRef || { v: 1, status: 'unresolved', candidates: [], resolved: null },
@@ -395,6 +548,15 @@ export const assembleCompositeContextPack = ({
     types,
     risk,
     truncation: truncation.length ? truncation : null,
-    warnings: warnings.length ? warnings : null
+    warnings: warnings.length ? warnings : null,
+    stats: {
+      timing: { elapsedMs },
+      memory: {
+        start: snapshotMemory(memoryStart),
+        end: snapshotMemory(memoryEnd),
+        peak: peakMemory
+      },
+      excerptBytes
+    }
   };
 };

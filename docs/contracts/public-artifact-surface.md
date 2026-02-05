@@ -35,6 +35,12 @@ These artifacts define the public surface and must be present when referenced:
   - `dense_vectors_code_lancedb` + `dense_vectors_code_lancedb_meta`
   - `dense_vectors_sqlite_vec_meta` (optional sqlite-vec marker)
 
+## Artifact format notes
+
+- `chunk_meta` may be emitted as `chunk_meta.json`, `chunk_meta.jsonl`, sharded `chunk_meta.parts/` + `chunk_meta.meta.json`, or `chunk_meta.columnar.json`.
+- `symbol_occurrences` and `symbol_edges` may be emitted as JSONL/sharded JSONL or as `*.columnar.json` when `indexing.artifacts.symbolArtifactsFormat=columnar`.
+- `pieces/manifest.json` may include `format: "columnar"` for columnar artifacts; readers must treat columnar as equivalent to JSON/JSONL rows after inflation.
+
 ## Reserved / invariant fields
 
 The following fields are reserved and must not change meaning across versions:

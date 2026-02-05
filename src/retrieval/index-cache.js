@@ -26,6 +26,8 @@ const INDEX_FILES = [
   'field_postings.json',
   'field_tokens.json',
   'minhash_signatures.json',
+  'minhash_signatures.packed.bin',
+  'minhash_signatures.packed.meta.json',
   'file_meta.json',
   'filter_index.json',
   'index_state.json'
@@ -146,6 +148,13 @@ const chunkMetaSignature = async (dir) => {
 };
 
 const tokenPostingsSignature = async (dir) => {
+  const packedPath = path.join(dir, 'token_postings.packed.bin');
+  const packedSig = await fileSignature(packedPath);
+  if (packedSig) {
+    const offsetsSig = await fileSignature(path.join(dir, 'token_postings.packed.offsets.bin'));
+    const metaSig = await fileSignature(path.join(dir, 'token_postings.packed.meta.json'));
+    return `token_postings.packed.bin:${packedSig}|offsets:${offsetsSig || 'missing'}|meta:${metaSig || 'missing'}`;
+  }
   const jsonPath = path.join(dir, 'token_postings.json');
   const jsonSig = await fileSignature(jsonPath);
   if (jsonSig) return `token_postings.json:${jsonSig}`;

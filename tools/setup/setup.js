@@ -235,7 +235,7 @@ if (argv['skip-models']) {
     const shouldDownload = await promptYesNo(`Download embedding model ${modelConfig.id}?`, true);
     if (shouldDownload) {
       const result = runCommand(process.execPath, [
-        path.join(toolRoot, 'tools', 'download-models.js'),
+        path.join(toolRoot, 'tools', 'download', 'models.js'),
         '--model',
         modelConfig.id,
         '--cache-dir',

@@ -1,0 +1,72 @@
+# Index Artifact Pipeline Benchmarks
+
+This document covers the Phase 14 performance benchmarks for index artifact pipelines. All benchmarks write into `.benchCache/` under the repo root.
+
+## Running The Benchmarks
+
+Run benchmarks from the repo root.
+
+1. `node tools/bench/index/build-state-write.js --mode compare`
+2. `node tools/bench/index/import-resolution-graph.js --mode compare`
+3. `node tools/bench/index/symbol-artifacts.js --mode compare`
+4. `node tools/bench/index/chunk-meta-stream.js --mode compare`
+5. `node tools/bench/index/graph-relations.js --mode compare`
+6. `node tools/bench/index/chargram-postings.js --mode compare`
+7. `node tools/bench/index/jsonl-offset-index.js --mode compare`
+8. `node tools/bench/index/postings-packed.js --mode compare`
+9. `node tools/bench/index/jsonl-compression-pipeline.js --mode compare`
+10. `node tools/bench/index/import-graph-incremental.js --mode compare`
+
+Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
+
+## Expected Deltas
+
+### Build state write
+
+- Target: fewer writes + lower p50/p95 latency for `updateBuildState`.
+- Output: total ms, p50/p95 latency, and write count delta.
+
+### Import resolution graph
+
+- Target: higher nodes+edges throughput and stable cap behavior.
+- Output: nodes, edges, throughput, and cap stats.
+
+### Symbol artifacts
+
+- Target: lower peak heap with identical output hash.
+- Output: peak heap, duration, and hash match indicator.
+
+### Chunk meta streaming
+
+- Target: lower peak heap with identical output hash and trim stats.
+- Output: peak heap, duration, hash, trim stats.
+
+### Graph relations
+
+- Target: higher bytes/sec and stable shard counts.
+- Output: bytes/sec, shard counts, and delta.
+
+### Chargram postings
+
+- Target: bounded heap growth with stable throughput.
+- Output: heap delta, spill counts, vocab size, and delta.
+
+### JSONL offset index
+
+- Target: lower p50/p95 latency for random row fetch.
+- Output: scan vs offset-index latency.
+
+### Packed postings
+
+- Target: size ratio < 1.0 with tolerable decode delta.
+- Output: size ratio and decode time delta.
+
+### JSONL compression pipeline
+
+- Target: lower wall time with acceptable size ratio when worker compression is enabled.
+- Output: wall time delta, CPU time delta, and size ratio.
+
+### Import graph incremental
+
+- Target: high reuse ratio with faster warm runs.
+- Output: reuse ratio, invalidations, and duration delta.

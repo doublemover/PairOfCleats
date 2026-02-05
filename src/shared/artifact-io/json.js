@@ -12,8 +12,21 @@ import {
   readBuffer
 } from './compression.js';
 import { parseJsonlLine } from './jsonl.js';
+import { tryRequire } from '../optional-deps.js';
 import { shouldAbortForHeap, shouldTreatAsTooLarge, toJsonTooLargeError } from './limits.js';
 import { hasArtifactReadObserver, recordArtifactRead } from './telemetry.js';
+
+let cachedZstd = null;
+let checkedZstd = false;
+const resolveOptionalZstd = () => {
+  if (checkedZstd) return cachedZstd;
+  checkedZstd = true;
+  const result = tryRequire('@mongodb-js/zstd');
+  if (result.ok && typeof result.mod?.decompress === 'function') {
+    cachedZstd = result.mod;
+  }
+  return cachedZstd;
+};
 
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer, sourcePath) => {
@@ -202,6 +215,47 @@ export const readJsonLinesEach = async (
       });
     }
   };
+  const readJsonlFromZstdBuffer = async (targetPath, cleanup = false) => {
+    const zstd = resolveOptionalZstd();
+    if (!zstd) return null;
+    const stat = fs.statSync(targetPath);
+    if (stat.size > maxBytes) {
+      throw toJsonTooLargeError(targetPath, stat.size);
+    }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
+    let decoded;
+    try {
+      const buffer = readBuffer(targetPath, maxBytes);
+      decoded = await zstd.decompress(buffer);
+      const payload = Buffer.isBuffer(decoded) ? decoded : Buffer.from(decoded);
+      if (payload.length > maxBytes || shouldAbortForHeap(payload.length)) {
+        throw toJsonTooLargeError(targetPath, payload.length);
+      }
+      const lines = payload.toString('utf8').split(/\r?\n/);
+      for (let i = 0; i < lines.length; i += 1) {
+        const entry = parseJsonlLine(lines[i], targetPath, i + 1, maxBytes, requiredKeys);
+        if (entry !== null) onEntry(entry);
+      }
+      if (cleanup) cleanupBak(targetPath);
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: targetPath,
+          format: 'jsonl',
+          compression: 'zstd',
+          rawBytes: stat.size,
+          bytes: payload.length,
+          durationMs: performance.now() - start
+        });
+      }
+      return true;
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, stat.size);
+      }
+      throw err;
+    }
+  };
 
   const tryRead = async (targetPath, cleanup = false) => {
     const compression = detectCompression(targetPath);
@@ -211,6 +265,8 @@ export const readJsonLinesEach = async (
         return;
       }
       if (compression === 'zstd') {
+        const handled = await readJsonlFromZstdBuffer(targetPath, cleanup);
+        if (handled) return;
         try {
           await readJsonlFromZstdStream(targetPath, cleanup);
           return;
@@ -324,6 +380,43 @@ export const readJsonLinesArray = async (
       if (entry !== null) parsed.push(entry);
     }
     return parsed;
+  };
+  const readJsonlFromZstdBuffer = async (targetPath, cleanup = false) => {
+    const zstd = resolveOptionalZstd();
+    if (!zstd) return null;
+    const stat = fs.statSync(targetPath);
+    if (stat.size > maxBytes) {
+      throw toJsonTooLargeError(targetPath, stat.size);
+    }
+    const shouldMeasure = hasArtifactReadObserver();
+    const start = shouldMeasure ? performance.now() : 0;
+    let decompressed;
+    try {
+      const buffer = readBuffer(targetPath, maxBytes);
+      decompressed = await zstd.decompress(buffer);
+      const decoded = Buffer.isBuffer(decompressed) ? decompressed : Buffer.from(decompressed);
+      if (decoded.length > maxBytes || shouldAbortForHeap(decoded.length)) {
+        throw toJsonTooLargeError(targetPath, decoded.length);
+      }
+      const parsed = readJsonlFromBuffer(decoded, targetPath);
+      if (cleanup) cleanupBak(targetPath);
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: targetPath,
+          format: 'jsonl',
+          compression: 'zstd',
+          rawBytes: stat.size,
+          bytes: decoded.length,
+          durationMs: performance.now() - start
+        });
+      }
+      return parsed;
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, stat.size);
+      }
+      throw err;
+    }
   };
   const readJsonlFromGzipStream = async (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
@@ -446,6 +539,10 @@ export const readJsonLinesArray = async (
         return await readJsonlFromGzipStream(targetPath, cleanup);
       }
       if (compression === 'zstd') {
+        const zstdParsed = await readJsonlFromZstdBuffer(targetPath, cleanup);
+        if (zstdParsed !== null) {
+          return zstdParsed;
+        }
         try {
           return await readJsonlFromZstdStream(targetPath, cleanup);
         } catch (err) {

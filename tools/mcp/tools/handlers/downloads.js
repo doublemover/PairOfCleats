@@ -15,7 +15,7 @@ export async function downloadModels(args = {}, context = {}) {
   const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
-  const scriptArgs = [path.join(toolRoot, 'tools', 'download-models.js'), '--model', model, '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'models.js'), '--model', model, '--repo', repoPath];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
   const progress = typeof context.progress === 'function' ? context.progress : null;
   const progressLine = progress

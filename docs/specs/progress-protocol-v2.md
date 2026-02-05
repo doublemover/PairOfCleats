@@ -74,7 +74,7 @@ All events share this envelope:
 | `ts` | string | ✅ | ISO-8601 timestamp (`new Date().toISOString()`) |
 | `runId` | string | ✅ | Unique per TUI session (supervisor instance) |
 | `jobId` | string | ✅* | Required for all job-scoped events; not required for `hello` |
-| `seq` | integer | ✅ | Monotonic per supervisor stream; starts at 1 |
+| `seq` | integer | ✅ | Monotonic per **job** when `jobId` exists; otherwise per supervisor stream; starts at 1 |
 | `pid` | integer \| null | ⛔️ | PID of the child that produced the event (if relevant) |
 | `stream` | `"stdout"` \| `"stderr"` \| null | ⛔️ | Only for forwarded child output or wrapped log |
 
@@ -112,12 +112,22 @@ Additional fields:
 - `title`: string (UI label)
 - `requested`: object (optional; structured request summary)
 
+Example:
+```json
+{"proto":"poc.progress@2","event":"job:start","ts":"2026-02-04T12:00:00.000Z","seq":1,"runId":"run-1","jobId":"job-1","command":["build_index.js"],"cwd":"C:/repo","title":"Index build"}
+```
+
 #### `job:spawn`
 Emitted after the subprocess is spawned.
 
 Additional fields:
 - `pid`: integer
 - `spawnedAt`: ISO string (optional; can equal `ts`)
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"job:spawn","ts":"2026-02-04T12:00:00.050Z","seq":2,"runId":"run-1","jobId":"job-1","pid":12345,"spawnedAt":"2026-02-04T12:00:00.050Z"}
+```
 
 #### `job:end`
 Emitted exactly once per job.
@@ -132,12 +142,22 @@ Additional fields:
   - `message`: string
   - `code`: string \| null
 
+Example:
+```json
+{"proto":"poc.progress@2","event":"job:end","ts":"2026-02-04T12:00:10.000Z","seq":500,"runId":"run-1","jobId":"job-1","status":"ok","exitCode":0,"durationMs":10000,"result":{"summary":{"chunks":120}}}
+```
+
 #### `job:artifacts`
 Emitted after `job:end` when the supervisor completes the artifacts indexing pass.
 
 Additional fields:
 - `artifacts`: array of artifact records (see `docs/specs/supervisor-artifacts-indexing-pass.md`)
 - `artifactsIndexed`: boolean (true when pass completed)
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"job:artifacts","ts":"2026-02-04T12:00:10.010Z","seq":501,"runId":"run-1","jobId":"job-1","artifactsIndexed":true,"artifacts":[{"kind":"index","label":"sqlite","path":"C:/repo/.cache/index-sqlite","exists":true,"bytes":12345,"mtime":"2026-02-04T12:00:09.000Z","mime":"application/x-sqlite3"}]}
+```
 
 ### 5.3 Task progress events (from `src/shared/cli/display.js`)
 
@@ -160,12 +180,26 @@ These are already emitted by `createDisplay()` when `--progress jsonl`.
 #### `task:start`
 - Emitted when a task is first created (`ensureTask()` in `display.js`).
 
+Example:
+```json
+{"proto":"poc.progress@2","event":"task:start","ts":"2026-02-04T12:00:00.010Z","seq":3,"runId":"run-1","jobId":"job-1","taskId":"code:scan","name":"Scanning code","stage":"code"}
+```
+
 #### `task:progress`
 - Emitted on update (`updateTask()` in `display.js`).
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"task:progress","ts":"2026-02-04T12:00:00.120Z","seq":4,"runId":"run-1","jobId":"job-1","taskId":"code:scan","current":24,"total":120,"unit":"files","percent":20}
+```
 
 #### `task:end`
 - Emitted when a task completes (`done` or `fail`).
 
+Example:
+```json
+{"proto":"poc.progress@2","event":"task:end","ts":"2026-02-04T12:00:01.200Z","seq":5,"runId":"run-1","jobId":"job-1","taskId":"code:scan","status":"ok","durationMs":1190}
+```
 ### 5.4 Log events
 
 #### `log`
@@ -183,6 +217,11 @@ Notes:
 - When wrapping raw lines, supervisor SHOULD:
   - use `level="info"` for stdout lines
   - use `level="info"` for stderr lines unless the line matches `^\[error\]` or similar heuristics
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"log","ts":"2026-02-04T12:00:00.030Z","seq":6,"runId":"run-1","jobId":"job-1","level":"info","stream":"stderr","message":"indexing started"}
+```
 
 ---
 

@@ -17,7 +17,7 @@ import {
   loadPiecesManifest,
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
-import { createGraphStore } from '../../graph/store.js';
+import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
 const parseList = (value) => {
@@ -145,29 +145,31 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     };
 
     const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-    const graphRelations = graphStore.hasArtifact('graph_relations')
-      ? await graphStore.loadGraph()
-      : null;
-    const symbolEdges = graphStore.hasArtifact('symbol_edges')
-      ? await graphStore.loadSymbolEdges()
-      : null;
-    const callSites = graphStore.hasArtifact('call_sites')
-      ? await graphStore.loadCallSites()
-      : null;
-
     const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
       maxBytes: MAX_JSON_BYTES,
       strict: true
     });
     const indexSignature = await buildIndexSignature(indexDir);
+    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
+    const graphSelection = graphs.length ? graphs : null;
+    const includeCsr = graphStore.hasArtifact('graph_relations_csr');
+    const graphCacheKey = buildGraphIndexCacheKey({
+      indexSignature,
+      repoRoot,
+      graphs: graphSelection,
+      includeCsr
+    });
+    const graphIndex = await graphStore.loadGraphIndex({
+      repoRoot,
+      cacheKey: graphCacheKey,
+      graphs: graphSelection,
+      includeCsr
+    });
 
     const payload = buildImpactAnalysis({
       seed,
       changed: seed ? null : changed,
-      graphRelations,
-      symbolEdges,
-      callSites,
+      graphIndex,
       direction,
       depth: Math.max(0, Math.floor(Number(argv.depth))),
       edgeFilters,
@@ -177,6 +179,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
       indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
     });
+    if (seed && changed.length) {
+      const warning = {
+        code: 'CHANGED_IGNORED',
+        message: 'Changed inputs are ignored when --seed is provided.'
+      };
+      if (Array.isArray(payload.warnings)) {
+        payload.warnings.push(warning);
+      } else {
+        payload.warnings = [warning];
+      }
+    }
 
     const validation = validateGraphImpact(payload);
     if (!validation.ok) {

@@ -1,3 +1,5 @@
+import { compareGraphNodes } from '../../graph/ordering.js';
+
 const formatNodeRef = (ref) => {
   if (!ref || typeof ref !== 'object') return 'unknown';
   if (ref.type === 'chunk') return `chunk:${ref.chunkUid}`;
@@ -25,6 +27,15 @@ const formatWitnessPath = (path) => {
   return path.nodes.map(formatNodeRef).join(' -> ');
 };
 
+const formatTruncation = (record) => {
+  if (!record) return '';
+  const pieces = [`${record.cap}`];
+  if (record.limit != null) pieces.push(`limit=${JSON.stringify(record.limit)}`);
+  if (record.observed != null) pieces.push(`observed=${JSON.stringify(record.observed)}`);
+  if (record.omitted != null) pieces.push(`omitted=${JSON.stringify(record.omitted)}`);
+  return pieces.join(' ');
+};
+
 export const renderGraphImpact = (payload) => {
   const lines = [];
   lines.push('Graph Impact');
@@ -33,18 +44,41 @@ export const renderGraphImpact = (payload) => {
   lines.push(`Depth: ${payload?.depth ?? 0}`);
   lines.push('');
   lines.push('Impacted:');
-  const impacted = Array.isArray(payload?.impacted) ? payload.impacted : [];
+  const impacted = Array.isArray(payload?.impacted) ? payload.impacted.slice() : [];
+  impacted.sort((a, b) => compareGraphNodes(
+    { ref: a?.ref, distance: a?.distance },
+    { ref: b?.ref, distance: b?.distance }
+  ));
   if (!impacted.length) {
     lines.push('- (none)');
-    return lines.join('\n');
+  } else {
+    for (const entry of impacted) {
+      const ref = formatNodeRef(entry?.ref);
+      const distance = Number.isFinite(entry?.distance) ? entry.distance : '?';
+      lines.push(`- ${ref} (distance ${distance})`);
+      const witness = formatWitnessPath(entry?.witnessPath);
+      if (witness) {
+        lines.push(`  path: ${witness}`);
+      }
+    }
   }
-  for (const entry of impacted) {
-    const ref = formatNodeRef(entry?.ref);
-    const distance = Number.isFinite(entry?.distance) ? entry.distance : '?';
-    lines.push(`- ${ref} (distance ${distance})`);
-    const witness = formatWitnessPath(entry?.witnessPath);
-    if (witness) {
-      lines.push(`  path: ${witness}`);
+
+  const truncation = Array.isArray(payload?.truncation) ? payload.truncation : [];
+  if (truncation.length) {
+    lines.push('');
+    lines.push('Truncation:');
+    for (const record of truncation) {
+      lines.push(`- ${formatTruncation(record)}`);
+    }
+  }
+
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  if (warnings.length) {
+    lines.push('');
+    lines.push('Warnings:');
+    for (const warning of warnings) {
+      const key = warning?.code ? `${warning.code}: ` : '';
+      lines.push(`- ${key}${warning?.message || ''}`.trim());
     }
   }
   return lines.join('\n');

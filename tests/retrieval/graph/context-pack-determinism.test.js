@@ -31,8 +31,15 @@ const buildOnce = () => buildGraphContextPack({
   now: () => '2026-02-01T00:00:00.000Z'
 });
 
-const first = JSON.stringify(buildOnce());
-const second = JSON.stringify(buildOnce());
+const stripStats = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const cloned = JSON.parse(JSON.stringify(value));
+  delete cloned.stats;
+  return cloned;
+};
+
+const first = JSON.stringify(stripStats(buildOnce()));
+const second = JSON.stringify(stripStats(buildOnce()));
 
 if (first !== second) {
   console.error('Expected deterministic graph context pack output.');

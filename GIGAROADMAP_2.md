@@ -1,15 +1,21 @@
 # PairOfCleats GigaRoadmap
 
-    ## Status legend
-    
-    Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
-    - [x] Implemented and appears complete/correct based on code inspection and existing test coverage
-    - [@] In Progress, this work has been started
-    - [.] Work has been completed but has Not been tested
-    - [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
-    - [x] Not complete
-    
-    Completed Phases: `COMPLETED_PHASES.md`
+## Status legend
+
+Checkboxes represent the state of the work, update them to reflect the state of work as its being done:
+- [x] Implemented and appears complete/correct based on code inspection and existing test coverage
+- [@] In Progress, this work has been started
+- [.] Work has been completed but has Not been tested
+- [?] There is a correctness gap **or** there is missing/insufficient test proving behavior
+- [ ] Not complete
+
+Completed Phases: `COMPLETED_PHASES.md`
+
+### Phase status summary (update as you go)
+| Phase | Status | Notes |
+| --- | --- | --- |
+| 14 | [ ] |  |
+| 15 | [ ] |  |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -77,6 +83,13 @@ This roadmap includes explicit tasks to enforce this process (see Phase 10 doc m
   + 15.5 Federated query cache (keying + invalidation + canonicalization)
   + 15.6 Cache taxonomy, CAS, GC, and scale-out ergonomics
 
+### Dependency map (high-level)
+- Phase 14.1 (artifact surface + contracts) must land before any snapshot creation or diff computation.
+- Phase 14.2/14.3 depend on 14.1.1–14.1.3 (IndexRef parsing + atomic writes).
+- Phase 14.4 diff computation depends on 14.1–14.3 artifacts.
+- Phase 14.5 retrieval/tooling integration depends on 14.2–14.4.
+- Phase 15.1/15.2 must land before 15.3 (federated search), which must land before 15.5 (federated cache).
+
 ---
 
 ## Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
@@ -109,6 +122,12 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - **Pointer snapshots** (cheap metadata references to validated builds).
 - **Frozen snapshots** (immutable, self-contained archival copies).
 - **Diff artifacts** (bounded, deterministic change sets + summaries).
+
+### Phase 14 Acceptance (explicit)
+- [ ] Snapshot artifacts are schema‑valid and deterministic across runs.
+- [ ] “As‑of” retrieval can target a snapshot without fallback to live builds.
+- [ ] Diff artifacts are bounded, deterministic, and machine‑readable.
+- [ ] Snapshot/diff tooling surfaces are present in CLI/API.
 
 
 ### 14.1 Snapshot & diff artifact surface (contracts, retention, safety)
@@ -675,6 +694,12 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - safe-by-default compatibility gating (cohorts) with explicit overrides and loud diagnostics
 - clear cache layering with an eventual content-addressed store (CAS) and manifest-driven garbage collection (GC)
 
+### Phase 15 Acceptance (explicit)
+- [ ] Workspace config + manifest schemas are enforced and validated.
+- [ ] Federated search works across repo sets with deterministic ordering.
+- [ ] Cohort gating prevents unsafe mixed‑version query plans.
+- [ ] Federated query cache is keyed and invalidated deterministically.
+
 ### Canonical specs and required updates
 
 Phase 15 MUST align with these authoritative docs:
@@ -970,4 +995,47 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] `tests/indexing/cache/cas-reuse-across-repos.test.js`
 - [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
 - [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
+
+---
+
+### 15.7 Index stats reporter (single-shot + JSON)
+
+> **Spec to draft:** `docs/specs/index-stats.md`
+
+- [ ] Add a dedicated index stats reporter tool.
+  - [ ] CLI entrypoint: `pairofcleats index stats` (or `node tools/index/stats.js`).
+  - [ ] Input: `--repo <path>` or `--index-dir <path>`, optional `--mode`.
+  - [ ] Output: human summary + `--json` for structured output.
+  - [ ] Must use `pieces/manifest.json` as the source of truth (manifest-first).
+
+- [ ] Report per-mode artifact stats with counts + bytes.
+  - [ ] `chunk_meta` total rows, parts count, bytes per part.
+  - [ ] `token_postings`, `phrase_ngrams`, `chargram_postings` counts + bytes.
+  - [ ] `symbols`, `symbol_occurrences`, `symbol_edges` counts + bytes.
+  - [ ] `graph_relations` rows + bytes; `call_sites` rows + bytes.
+  - [ ] embeddings (dense vectors, hnsw, lancedb): count + bytes where present.
+
+- [ ] Report index-level summary.
+  - [ ] Total chunk count (per mode + aggregate).
+  - [ ] Total file count (from `file_meta` or manifest counts).
+  - [ ] Manifest compatibility key + build id + artifact surface version.
+  - [ ] Size totals by artifact family (chunks, postings, symbols, relations, embeddings).
+
+- [ ] Add a lightweight “missing/invalid” validator mode.
+  - [ ] `--verify` checks required artifacts exist and sizes match manifest.
+  - [ ] Warn on missing or mismatched checksum/bytes.
+
+**Touchpoints:**
+- `tools/index/stats.js` (new)
+- `tools/shared/dict-utils.js` (index root resolution)
+- `src/shared/artifact-io/manifest.js` (manifest parsing helpers)
+- `src/integrations/core/status.js` (optional reuse)
+
+**Tests**
+- [ ] `tests/tooling/index-stats/index-stats-json.test.js`
+- [ ] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
+- [ ] `tests/tooling/index-stats/index-stats-aggregate.test.js`
+
+---
+
 

@@ -42,7 +42,7 @@ const buildInitLine = ({ context, entry, now = Date.now() }) => {
   const labelText = entry.label || 'INIT';
   const labelMode = entry.labelMode || 'init';
   const label = formatLabel(labelText, { useColor, mode: labelMode });
-  const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+  const gap = ' ';
   const elapsedMs = now - entry.startedAt;
   const duration = formatDurationBadge(elapsedMs, { useColor });
   const line = `${label}${gap}${duration} ${entry.test.id}`;
@@ -318,7 +318,7 @@ export const reportTestResult = ({ context, result }) => {
       unitColor: ANSI.fgTimeoutUnit
     });
     const label = formatLabel('TIME', { useColor, mode: 'timeout' });
-    const gap = useColor ? `${ANSI.bgFailLine} ${ANSI.reset}` : ' ';
+    const gap = ' ';
     const timeoutLine = `${label}${gap}${duration} ${result.id} - timeout`;
     const render = () => {
       consoleStream.write(`${applyLineBackground(timeoutLine, {
@@ -348,31 +348,18 @@ export const reportTestResult = ({ context, result }) => {
       render();
     }
   } else if (result.status === 'redo' && showFailures) {
-    const duration = formatDurationBadge(result.durationMs, { useColor, bg: ANSI.bgBlack });
+    const duration = formatDurationBadge(result.durationMs, { useColor });
     const detail = formatFailure(result);
+    const detailText = useColor ? colorize(detail, ANSI.fgOrangeDeep, useColor) : detail;
     const label = formatLabel('REDO', { useColor, mode: 'redo' });
-    const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
-    const redoLine = `${label}${gap}${duration} ${result.id} (${detail}) - redo queued`;
+    const gap = ' ';
+    const nameText = formatTestId(result.id, { useColor });
+    const redoLine = `${label}${gap}${duration} ${nameText} (${detailText})`;
     const render = () => {
       consoleStream.write(`${applyLineBackground(redoLine, {
         useColor,
         columns: consoleStream.columns
       })}\n`);
-      let wroteLog = false;
-      if (result.logs && result.logs.length) {
-        const logLine = formatLogLine(result.logs[result.logs.length - 1], { useColor, root });
-        consoleStream.write(`${applyLineBackground(logLine, {
-          useColor,
-          columns: consoleStream.columns,
-          bg: ANSI.bgLogLine
-        })}\n`);
-        wroteLog = true;
-      }
-      if (captureOutput && !context.argv.json) {
-        renderCapturedOutput({ context, result, mode: 'failure' });
-      } else if (wroteLog) {
-        consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
-      }
     };
     if (initReporter) {
       initReporter.complete(result.id, render);
@@ -384,7 +371,7 @@ export const reportTestResult = ({ context, result }) => {
     const detail = formatFailure(result);
     const attemptInfo = result.attempts > 1 ? ` after ${result.attempts} attempts` : '';
     const label = formatLabel('FAIL', { useColor, mode: 'fail' });
-    const gap = useColor ? `${ANSI.bgFailLine} ${ANSI.reset}` : ' ';
+    const gap = ' ';
     const failLine = `${label}${gap}${duration} ${result.id} ${detail}${attemptInfo}`;
     const render = () => {
       consoleStream.write(`${applyLineBackground(failLine, {
@@ -416,7 +403,7 @@ export const reportTestResult = ({ context, result }) => {
   } else if (result.status === 'passed' && showPass) {
     const duration = formatDurationBadge(result.durationMs, { useColor });
     const label = formatLabel('PASS', { useColor, mode: 'pass' });
-    const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+    const gap = ' ';
     const nameText = formatTestId(result.id, { useColor });
     const passLine = `${label}${gap}${duration} ${nameText}`;
     const render = () => {
@@ -433,7 +420,7 @@ export const reportTestResult = ({ context, result }) => {
   } else if (result.status === 'skipped' && showSkip) {
     const reason = formatSkipReason(result.skipReason, { useColor });
     const label = formatLabel('SKIP', { useColor, mode: 'skip' });
-    const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+    const gap = ' ';
     const pad = ' '.repeat(10);
     const nameText = useColor ? `${ANSI.fgDarkGray}${result.id}${ANSI.reset}` : result.id;
     const skipLine = `${label}${gap}${pad}${nameText}${reason}`;
@@ -459,6 +446,19 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
   const durationLabelName = 'Duration';
   const slowestLabelName = 'Slowest';
   const labelWidth = Math.max(summaryLabelName.length, durationLabelName.length, slowestLabelName.length);
+  const resolveCompletionLabel = () => {
+    const lane = String(context.laneLabel || '').toLowerCase();
+    if (lane === 'ci') return 'CI Lane Complete!';
+    if (lane === 'ci-lite') return 'CI-Lite Complete!';
+    if (lane === 'ci-long') return 'CI-Long Complete!';
+    if (lane && lane !== 'tests' && lane !== 'multi') {
+      const pretty = lane.split('-')
+        .map((part, idx) => (idx === 0 ? part.toUpperCase() : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`))
+        .join('-');
+      return `${pretty} Lane Complete!`;
+    }
+    return 'Test Complete!';
+  };
   const renderLabel = (label, color) => {
     const padded = label.padEnd(labelWidth);
     if (!useColor) return `${padded}:`;
@@ -498,53 +498,11 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
   const summarySkipWord = resolveWord(skippedOnly.length, 'Skip', 'Skipped');
 
   consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
-  const completeText = useColor
-    ? `${ANSI.bold}${ANSI.fgBrightWhite}Test Complete!${ANSI.reset}`
-    : 'Test Complete!';
-  consoleStream.write(`${applyLineBackground(`${completeIndent}${completeText}`, summaryBg)}\n`);
-  consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
-  consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
-  const summaryLine = `${summaryIndent}${renderLabel(summaryLabelName, ANSI.fgLightBlue)} ${passedValue} ${passedText} | ` +
-    `${failedValue} ${colorize(summaryFailedWord, ANSI.fgRed, useColor)} | ` +
-    `${timeoutsValue} ${colorize(summaryTimeoutWord, ANSI.fgOrange, useColor)} | ` +
-    `${skippedValue} ${colorize(summarySkipWord, ANSI.fgPink, useColor)}`;
-  consoleStream.write(`${applyLineBackground(summaryLine, summaryBg)}\n`);
-  const durationLine = `${summaryIndent}${renderLabel(durationLabelName, TIME_LABEL_COLOR)} ${formatDurationValue(summary.durationMs, { useColor })}`;
-  consoleStream.write(`${applyLineBackground(durationLine, summaryBg)}\n`);
-  const slowest = results.reduce((best, result) => {
-    if (!Number.isFinite(result?.durationMs)) return best;
-    if (!best || result.durationMs > best.durationMs) return result;
-    return best;
-  }, null);
-  if (slowest) {
-    const slowestColor = resolveSlowestColor(slowest.durationMs, context.timeoutMs);
-    const slowestLabel = useColor
-      ? `${slowestColor}${slowestLabelName.padEnd(labelWidth)}:${ANSI.reset}`
-      : `${slowestLabelName.padEnd(labelWidth)}:`;
-    if (timeouts.length > 1 || slowest.timedOut) {
-      const timeoutCount = timeouts.length || 1;
-      const timeoutWord = timeoutCount === 1 ? 'Test' : 'Tests';
-      const baseText = `${timeoutCount} ${timeoutWord} Timed Out`;
-      const thresholds = [2, 5, 10, 15, 20, 25, 50, 100];
-      const extraMarks = thresholds.reduce((count, value) => (timeoutCount >= value ? count + 1 : count), 0);
-      const marks = extraMarks ? '!'.repeat(extraMarks) : '';
-      const message = `${baseText}${marks}`;
-      const slowestLine = `${summaryIndent}${slowestLabel} ${colorize(message, ANSI.fgBrightWhite, useColor)}`;
-      consoleStream.write(`${applyLineBackground(slowestLine, summaryBg)}\n`);
-    } else {
-      const slowestName = colorize(slowest.id, ANSI.fgBrightWhite, useColor);
-      const slowestStatus = slowest.status === 'passed'
-        ? colorize('PASS', ANSI.fgGreen, useColor)
-        : (slowest.status === 'skipped'
-          ? colorize('SKIP', ANSI.fgPink, useColor)
-          : colorize('FAIL', ANSI.fgRed, useColor));
-      const slowestTime = formatDurationBadge(slowest.durationMs, { useColor });
-      const slowestLine = `${summaryIndent}${slowestLabel} ${slowestName} | ${slowestStatus} ${slowestTime}`;
-      consoleStream.write(`${applyLineBackground(slowestLine, summaryBg)}\n`);
-    }
+  if (runLogDir) {
+    const logsLine = `${formatLabel('LOGS:', { useColor, mode: 'log' })} ${formatLogPath(runLogDir, root)}`;
+    consoleStream.write(`${applyLineBackground(logsLine, summaryBg)}\n`);
+    consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
   }
-  consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
-  consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
   if (excludedSkips.length) {
     const exclusions = new Set();
     for (const skip of excludedSkips) {
@@ -616,11 +574,13 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     consoleStream.write(`${applyLineBackground(failureHeader, summaryBg)}\n`);
     for (const failure of failedOnly) {
       const detail = formatFailure(failure);
+      const detailColor = failure.status === 'redo' ? ANSI.fgOrangeDeep : ANSI.fgBrightWhite;
       const detailText = useColor
-        ? `${ANSI.bold}${ANSI.fgBrightWhite}${detail}${ANSI.reset}`
+        ? `${ANSI.bold}${detailColor}${detail}${ANSI.reset}`
         : detail;
       const bullet = useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- ';
-      const nameText = useColor ? `${ANSI.fgRed}${failure.id}${ANSI.reset}` : failure.id;
+      const nameColor = failure.status === 'redo' ? ANSI.fgOrangeDeep : ANSI.fgRed;
+      const nameText = useColor ? `${nameColor}${failure.id}${ANSI.reset}` : failure.id;
       const duration = formatDurationBadge(failure.durationMs, { useColor });
       const lineText = `${itemIndent}${bullet}${duration} ${nameText} (${detailText})`;
       consoleStream.write(`${applyLineBackground(lineText, summaryBg)}\n`);
@@ -631,16 +591,14 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
           mode: 'failure',
           ignorePatterns: outputIgnorePatterns
         });
+        const firstLine = outputLines.length ? outputLines[0] : null;
         const hasLogs = failure.logs && failure.logs.length;
-        const hasDetails = outputLines.length || hasLogs;
-        if (outputLines.length) {
-          const dedupedLines = collapseDuplicateLines(outputLines);
+        const hasDetails = Boolean(firstLine) || hasLogs;
+        if (firstLine) {
           const subIndent = `${itemIndent}    `;
-          for (const line of dedupedLines) {
-            const subLine = `${subIndent}${line}`;
-            const coloredSubLine = useColor ? `${ANSI.fgDarkGray}${subLine}${ANSI.reset}` : subLine;
-            consoleStream.write(`${applyLineBackground(coloredSubLine, summaryBg)}\n`);
-          }
+          const subLine = `${subIndent}${firstLine}`;
+          const coloredSubLine = useColor ? `${ANSI.fgDarkGray}${subLine}${ANSI.reset}` : subLine;
+          consoleStream.write(`${applyLineBackground(coloredSubLine, summaryBg)}\n`);
         }
         if (hasLogs) {
           const subIndent = `${itemIndent}    `;
@@ -656,9 +614,52 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     }
     consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
   }
-  if (runLogDir) {
-    const logsLine = `  ${formatLabel('LOGS:', { useColor, mode: 'log' })} ${formatLogPath(runLogDir, root)}`;
-    consoleStream.write(`${applyLineBackground(logsLine, summaryBg)}\n`);
+  consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
+  const completeLabel = resolveCompletionLabel();
+  const completeText = useColor
+    ? `${ANSI.bold}${ANSI.fgBrightWhite}${completeLabel}${ANSI.reset}`
+    : completeLabel;
+  consoleStream.write(`${applyLineBackground(`${completeIndent}${completeText}`, summaryBg)}\n`);
+  consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+  consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
+  const summaryLine = `${summaryIndent}${renderLabel(summaryLabelName, ANSI.fgLightBlue)} ${passedValue} ${passedText} | ` +
+    `${failedValue} ${colorize(summaryFailedWord, ANSI.fgRed, useColor)} | ` +
+    `${timeoutsValue} ${colorize(summaryTimeoutWord, ANSI.fgOrange, useColor)} | ` +
+    `${skippedValue} ${colorize(summarySkipWord, ANSI.fgPink, useColor)}`;
+  consoleStream.write(`${applyLineBackground(summaryLine, summaryBg)}\n`);
+  const durationLine = `${summaryIndent}${renderLabel(durationLabelName, TIME_LABEL_COLOR)} ${formatDurationValue(summary.durationMs, { useColor })}`;
+  consoleStream.write(`${applyLineBackground(durationLine, summaryBg)}\n`);
+  const slowest = results.reduce((best, result) => {
+    if (!Number.isFinite(result?.durationMs)) return best;
+    if (!best || result.durationMs > best.durationMs) return result;
+    return best;
+  }, null);
+  if (slowest) {
+    const slowestColor = resolveSlowestColor(slowest.durationMs, context.timeoutMs);
+    const slowestLabel = useColor
+      ? `${slowestColor}${slowestLabelName.padEnd(labelWidth)}:${ANSI.reset}`
+      : `${slowestLabelName.padEnd(labelWidth)}:`;
+    if (timeouts.length > 1 || slowest.timedOut) {
+      const timeoutCount = timeouts.length || 1;
+      const timeoutWord = timeoutCount === 1 ? 'Test' : 'Tests';
+      const baseText = `${timeoutCount} ${timeoutWord} Timed Out`;
+      const thresholds = [2, 5, 10, 15, 20, 25, 50, 100];
+      const extraMarks = thresholds.reduce((count, value) => (timeoutCount >= value ? count + 1 : count), 0);
+      const marks = extraMarks ? '!'.repeat(extraMarks) : '';
+      const message = `${baseText}${marks}`;
+      const slowestLine = `${summaryIndent}${slowestLabel} ${colorize(message, ANSI.fgBrightWhite, useColor)}`;
+      consoleStream.write(`${applyLineBackground(slowestLine, summaryBg)}\n`);
+    } else {
+      const slowestName = colorize(slowest.id, ANSI.fgBrightWhite, useColor);
+      const slowestStatus = slowest.status === 'passed'
+        ? colorize('PASS', ANSI.fgGreen, useColor)
+        : (slowest.status === 'skipped'
+          ? colorize('SKIP', ANSI.fgPink, useColor)
+          : colorize('FAIL', ANSI.fgRed, useColor));
+      const slowestTime = formatDurationBadge(slowest.durationMs, { useColor });
+      const slowestLine = `${summaryIndent}${slowestLabel} ${slowestName} | ${slowestStatus} ${slowestTime}`;
+      consoleStream.write(`${applyLineBackground(slowestLine, summaryBg)}\n`);
+    }
   }
   consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
 };

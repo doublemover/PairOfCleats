@@ -9,6 +9,7 @@ This document describes the current performance strategy for Stage4 (SQLite buil
 
 ## Build Pragmas
 SQLite build pragmas are applied during Stage4 to improve throughput and bound WAL growth. Pragmas are restored after build completion.
+For artifact builds, pragmas/optimize are enabled only when input bytes exceed 128MB unless explicitly overridden.
 
 Applied during build (adaptive values):
 - `journal_mode = WAL`

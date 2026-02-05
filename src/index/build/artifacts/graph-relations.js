@@ -2,7 +2,12 @@ import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/files.js';
-import { createGraphRelationsIterator, measureGraphRelations } from './helpers.js';
+import {
+  buildGraphRelationsCsr,
+  createGraphRelationsIterator,
+  materializeGraphRelationsPayload,
+  measureGraphRelations
+} from './helpers.js';
 
 export async function enqueueGraphRelationsArtifacts({
   graphRelations,
@@ -21,6 +26,8 @@ export async function enqueueGraphRelationsArtifacts({
   const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
   const graphMetaPath = path.join(outDir, 'graph_relations.meta.json');
   const graphPartsDir = path.join(outDir, 'graph_relations.parts');
+  const offsetsConfig = { suffix: 'offsets.bin' };
+  const csrPath = path.join(outDir, 'graph_relations.csr.json');
   const useGraphJsonl = maxJsonBytes && graphMeasurement.totalJsonBytes > maxJsonBytes;
   if (!useGraphJsonl) {
     enqueueWrite(
@@ -29,7 +36,9 @@ export async function enqueueGraphRelationsArtifacts({
         await removeArtifact(graphJsonlPath);
         await removeArtifact(graphMetaPath);
         await removeArtifact(graphPartsDir);
-        await writeJsonObjectFile(graphPath, { fields: graphRelations, atomic: true });
+        await removeArtifact(csrPath);
+        const payload = materializeGraphRelationsPayload(graphRelations);
+        await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
       }
     );
     addPieceFile({ type: 'relations', name: 'graph_relations', format: 'json' }, graphPath);
@@ -43,19 +52,31 @@ export async function enqueueGraphRelationsArtifacts({
       async () => {
         await removeArtifact(graphPath);
         await removeArtifact(graphJsonlPath);
+        const byteBudget = Number.isFinite(graphRelations?.caps?.maxBytes)
+          ? Math.max(0, Math.floor(Number(graphRelations.caps.maxBytes)))
+          : null;
+        const capStats = byteBudget ? { droppedRows: 0, droppedByGraph: {}, byteBudget } : null;
         const result = await writeJsonLinesSharded({
           dir: outDir,
           partsDirName: 'graph_relations.parts',
           partPrefix: 'graph_relations.part-',
-          items: createGraphRelationsIterator(graphRelations)(),
+          items: createGraphRelationsIterator(graphRelations, { byteBudget, stats: capStats })(),
           maxBytes: maxJsonBytes,
-          atomic: true
+          atomic: true,
+          offsets: offsetsConfig
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
           records: result.counts[index] || 0,
           bytes: result.bytes[index] || 0
         }));
+        const offsetsMeta = result.offsets?.length
+          ? {
+            format: 'u64-le',
+            suffix: offsetsConfig.suffix,
+            parts: result.offsets
+          }
+          : null;
         await writeJsonObjectFile(graphMetaPath, {
           fields: {
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -72,7 +93,9 @@ export async function enqueueGraphRelationsArtifacts({
             extensions: {
               graphs: graphMeasurement.graphs,
               caps: graphRelations.caps ?? null,
-              version: graphMeasurement.version
+              version: graphMeasurement.version,
+              ...(capStats ? { byteCaps: capStats } : {}),
+              ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
           },
           atomic: true
@@ -87,7 +110,25 @@ export async function enqueueGraphRelationsArtifacts({
             count: result.counts[i] || 0
           }, absPath);
         }
+        if (Array.isArray(result.offsets)) {
+          for (let i = 0; i < result.offsets.length; i += 1) {
+            const relPath = result.offsets[i];
+            if (!relPath) continue;
+            const absPath = path.join(outDir, fromPosix(relPath));
+            addPieceFile({
+              type: 'relations',
+              name: 'graph_relations_offsets',
+              format: 'bin',
+              count: result.counts[i] || 0
+            }, absPath);
+          }
+        }
         addPieceFile({ type: 'relations', name: 'graph_relations_meta', format: 'json' }, graphMetaPath);
+        const csrPayload = buildGraphRelationsCsr(graphRelations);
+        if (csrPayload) {
+          await writeJsonObjectFile(csrPath, { fields: csrPayload, atomic: true });
+          addPieceFile({ type: 'relations', name: 'graph_relations_csr', format: 'json' }, csrPath);
+        }
       }
     );
   }

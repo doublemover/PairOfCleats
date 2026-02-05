@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -60,4 +61,27 @@ export function isAbsolutePathNative(value, platform = process.platform) {
 export function isAbsolutePathAny(value) {
   if (typeof value !== 'string') return false;
   return path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
+}
+
+/**
+ * Read a byte range from a file (synchronous).
+ * @param {string} filePath
+ * @param {number} start
+ * @param {number} end
+ * @returns {Buffer}
+ */
+export function readFileRangeSync(filePath, start, end) {
+  const safeStart = Number.isFinite(start) ? Math.max(0, Math.floor(start)) : 0;
+  const safeEnd = Number.isFinite(end) ? Math.max(safeStart, Math.floor(end)) : safeStart;
+  const length = Math.max(0, safeEnd - safeStart);
+  if (!length) return Buffer.alloc(0);
+  let fd = null;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.allocUnsafe(length);
+    const bytesRead = fs.readSync(fd, buffer, 0, length, safeStart);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    if (fd) fs.closeSync(fd);
+  }
 }

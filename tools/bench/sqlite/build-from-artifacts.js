@@ -34,7 +34,7 @@ const parseArgs = () => {
 };
 
 const args = parseArgs();
-const chunkCount = Number(args.chunks) || 10000;
+const chunkCount = Number(args.chunks) || 100000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
@@ -195,7 +195,7 @@ if (mode !== 'current') {
   });
 }
 if (mode !== 'baseline') {
-  const indexPieces = loadIndexPieces(indexDir, null);
+  const indexPieces = await loadIndexPieces(indexDir, null);
   currentResult = await runBuild({
     label: 'current',
     outPath: outPathCurrent,

@@ -28,9 +28,10 @@ Artifacts live under the per-repo cache and are promoted atomically via a curren
 
 Each `index-<mode>/` directory contains:
 
-- `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`)
+- `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`, or `chunk_meta.columnar.json`)
   - Array/JSONL of chunk metadata entries.
   - Each entry includes `id`, `fileId`, `start`, `end`, `startLine`, `endLine`, `kind`, `name`, plus optional metadata.
+  - Columnar form (`chunk_meta.columnar.json`) stores a `{ format: "columnar", columns, arrays, length }` payload that inflates to the same row schema.
   - Sharded JSONL meta (`chunk_meta.meta.json`) uses the jsonl-sharded schema:
     - `schemaVersion`, `artifact`, `format: jsonl-sharded`, `generatedAt`, `compression`
     - `totalRecords`, `totalBytes`, `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
@@ -44,6 +45,12 @@ Each `index-<mode>/` directory contains:
   - Flattened symbol list for repo map output.
 - `file_relations.json` (optional)
   - Per-file relation metadata (imports/exports/relations).
+- `symbols.jsonl` (optional; JSONL or sharded JSONL)
+  - Symbol rows (`symbolId`, `symbolKey`, `qualifiedName`, `kindGroup`, etc.).
+- `symbol_occurrences.jsonl` (optional; JSONL or sharded JSONL) or `symbol_occurrences.columnar.json`
+  - `symbol_occurrences.columnar.json` stores a `{ format: "columnar", columns, arrays, length, tables? }` payload that inflates to the JSONL row schema.
+- `symbol_edges.jsonl` (optional; JSONL or sharded JSONL) or `symbol_edges.columnar.json`
+  - `symbol_edges.columnar.json` stores a `{ format: "columnar", columns, arrays, length, tables? }` payload that inflates to the JSONL row schema.
 - `call_sites.jsonl` (optional; JSONL or sharded JSONL)
   - Evidence-rich callsite records (Phase 6). Emits `callSiteId`, caller chunk identity, location, callee info, and bounded args.
   - Sharded form uses `call_sites.meta.json` + `call_sites.parts/`.
@@ -84,7 +91,7 @@ Compressed artifacts may appear as `.json.gz` or `.json.zst` sidecars. The JSON 
 
 ### Loader precedence (chunk/meta artifacts)
 - If both sharded JSONL (`chunk_meta.meta.json` + `chunk_meta.parts/`) and `chunk_meta.jsonl` exist, the newer mtime wins.
-- `chunk_meta.jsonl` supersedes `chunk_meta.json` when present.
+- `chunk_meta.jsonl` supersedes `chunk_meta.columnar.json`, which supersedes `chunk_meta.json` when present.
 - For `.json`/`.jsonl` artifacts, loaders read the raw file first; `.json.zst`/`.json.gz` sidecars are only used when the raw file is missing.
 
 ## Incremental bundles

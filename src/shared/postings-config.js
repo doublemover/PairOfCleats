@@ -9,6 +9,8 @@
  *   chargramMinN:number,
  *   chargramMaxN:number,
  *   chargramMaxTokenLength:number|null,
+ *   chargramSpillMaxUnique:number,
+ *   chargramMaxDf:number,
  *   chargramSource:string,
  *   phraseSource:string,
  *   fielded:boolean,
@@ -16,6 +18,8 @@
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
+  const MAX_CHARGRAM_N = 8;
+  const MAX_CHARGRAM_TOKEN_LENGTH = 128;
   const cfg = input && typeof input === 'object' ? input : {};
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
@@ -59,6 +63,9 @@ export function normalizePostingsConfig(input = {}) {
 
   const phraseRange = normalizeRange(cfg.phraseMinN, cfg.phraseMaxN, { min: 2, max: 4 });
   const chargramRange = normalizeRange(cfg.chargramMinN, cfg.chargramMaxN, { min: 3, max: 5 });
+  if (chargramRange.min > MAX_CHARGRAM_N) chargramRange.min = MAX_CHARGRAM_N;
+  if (chargramRange.max > MAX_CHARGRAM_N) chargramRange.max = MAX_CHARGRAM_N;
+  if (chargramRange.max < chargramRange.min) chargramRange.max = chargramRange.min;
   let chargramMaxTokenLength = 48;
   if (cfg.chargramMaxTokenLength === 0 || cfg.chargramMaxTokenLength === false) {
     chargramMaxTokenLength = null;
@@ -67,7 +74,18 @@ export function normalizePostingsConfig(input = {}) {
     if (Number.isFinite(maxTokenRaw)) {
       chargramMaxTokenLength = Math.max(2, Math.floor(maxTokenRaw));
     }
+    if (Number.isFinite(chargramMaxTokenLength)) {
+      chargramMaxTokenLength = Math.min(chargramMaxTokenLength, MAX_CHARGRAM_TOKEN_LENGTH);
+    }
   }
+  const chargramSpillRaw = Number(cfg.chargramSpillMaxUnique);
+  const chargramSpillMaxUnique = Number.isFinite(chargramSpillRaw)
+    ? Math.max(0, Math.floor(chargramSpillRaw))
+    : 500000;
+  const chargramMaxDfRaw = Number(cfg.chargramMaxDf);
+  const chargramMaxDf = Number.isFinite(chargramMaxDfRaw)
+    ? Math.max(0, Math.floor(chargramMaxDfRaw))
+    : 0;
 
   return {
     enablePhraseNgrams,
@@ -78,6 +96,8 @@ export function normalizePostingsConfig(input = {}) {
     chargramMinN: chargramRange.min,
     chargramMaxN: chargramRange.max,
     chargramMaxTokenLength,
+    chargramSpillMaxUnique,
+    chargramMaxDf,
     chargramSource,
     fielded,
     tokenClassification: {

@@ -335,11 +335,27 @@ export async function collectLspTypes({
       if (!next) return base;
       if (!base) return next;
       const merged = { ...base };
-      if (!merged.returnType && next.returnType) merged.returnType = next.returnType;
-      if (!merged.signature && next.signature) merged.signature = next.signature;
-      const baseParams = Object.keys(merged.paramTypes || {});
-      const nextParams = Object.keys(next.paramTypes || {});
-      if (!baseParams.length && nextParams.length) merged.paramTypes = next.paramTypes;
+      if ((!merged.returnType || merged.returnType === 'Void')
+        && next.returnType
+        && next.returnType !== 'Void') {
+        merged.returnType = next.returnType;
+      }
+      if (!merged.signature
+        || (!merged.signature.includes('->') && next.signature?.includes('->'))) {
+        if (next.signature) merged.signature = next.signature;
+      }
+      const baseParamTypes = merged.paramTypes && typeof merged.paramTypes === 'object'
+        ? merged.paramTypes
+        : null;
+      const nextParamTypes = next.paramTypes && typeof next.paramTypes === 'object'
+        ? next.paramTypes
+        : null;
+      if (nextParamTypes) {
+        merged.paramTypes = {
+          ...nextParamTypes,
+          ...(baseParamTypes || {})
+        };
+      }
       if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
         merged.paramNames = next.paramNames;
       }
@@ -350,9 +366,18 @@ export async function collectLspTypes({
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
-      let info = parseSignature ? parseSignature(symbol.detail || symbol.name, doc.languageId, symbol.name) : null;
-      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
-      if (!info || !info.returnType || !hasParamTypes) {
+      const detailText = symbol.detail || symbol.name;
+      let info = parseSignature ? parseSignature(detailText, doc.languageId, symbol.name) : null;
+      const paramNames = Array.isArray(info?.paramNames) ? info.paramNames : [];
+      const paramTypes = info?.paramTypes && typeof info.paramTypes === 'object' ? info.paramTypes : null;
+      const hasAnyParamTypes = !!paramTypes && Object.keys(paramTypes).length > 0;
+      const hasCompleteParamTypes = paramNames.length
+        ? paramNames.every((name) => paramTypes?.[name])
+        : hasAnyParamTypes;
+      const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
+      const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
+      const treatVoidAsMissing = info?.returnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
+      if (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
@@ -373,12 +398,21 @@ export async function collectLspTypes({
         if (strict) throw new Error('LSP output missing chunkUid.');
         continue;
       }
+      const normalizedSignature = normalizeTypeText(info.signature);
+      let normalizedReturn = normalizeTypeText(info.returnType);
+      if (normalizedReturn === 'Void' && normalizedSignature?.includes('->')) {
+        const arrowMatch = normalizedSignature.split('->').pop();
+        const trimmed = arrowMatch ? arrowMatch.trim() : '';
+        if (trimmed) {
+          normalizedReturn = trimmed === '()' ? 'Void' : trimmed;
+        }
+      }
       byChunkUid[chunkUid] = {
         chunk: target.chunkRef,
         payload: {
-          returnType: normalizeTypeText(info.returnType),
+          returnType: normalizedReturn,
           paramTypes: normalizeParamTypes(info.paramTypes),
-          signature: normalizeTypeText(info.signature)
+          signature: normalizedSignature
         },
         provenance: {
           provider: cmd,

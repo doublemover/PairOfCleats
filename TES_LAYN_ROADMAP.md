@@ -19,10 +19,42 @@ How to use this roadmap:
 - **Appendix E**: subsystem matrix (goals, edge cases, tests).
 - **Appendices F–O**: execution aids (fixtures, schema versions, negatives, goldens, perf, mixed repo, ordering, toggles).
 
+Appendix D2 is encoded in `tests/lang/matrix/lang-artifact-presence.json` and must remain in sync with this document.
+
 Conventions:
 - If an artifact is optional for a language, tests must assert **absent/empty** per Appendix D2.
 - Counts in Appendix D are **minimums**; update them alongside fixtures.
 - Language order in tables follows `registry-data.js` for stable diffs.
+
+---
+
+## Execution policy (budgets, sharding, skips, triage)
+
+### Runtime budgets (per lane)
+- `lang-full` lane target: <= 30 minutes on CI, <= 15 minutes locally on a modern dev laptop.
+- Per-shard target: <= 10 minutes on CI, <= 5 minutes locally.
+- Per-test target: <= 30 seconds (aligns with repo test policy; auto-cancel beyond 30s).
+
+### Sharding strategy
+- Deterministic sharding by language ID list in `registry-data.js`.
+- Shard manifest files (checked in) define the exact ordered test list per shard.
+- Shard count is configurable via env (`LANG_FULL_SHARD_COUNT`), and shards are selected by index (`LANG_FULL_SHARD_INDEX`).
+- Sharding must preserve per-language ordering within a shard to keep diffs stable.
+
+### Fixture generation strategy
+- Fixtures are curated and checked in; avoid network dependencies in tests.
+- Any auto-generated fixtures must have a committed generator script and a fixed seed.
+- Fixture updates must include a changelog entry in `tests/fixtures/README.md` describing intent.
+
+### Skip rules
+- Missing optional tools (clangd, sourcekit-lsp, gtags, ctags, lsif/scip) may skip only the tool-specific subset, not the entire lane.
+- Skips must include a reason code and the missing tool/version in test output.
+- Skips are not allowed for core indexing artifacts (chunks, imports, relations, risk summaries).
+
+### Failure triage checklist
+- Classify failures as: fixture regression, tool/runtime dependency, schema drift, performance regression.
+- Capture: failing test name, shard id, tool versions, and the affected artifacts list.
+- Provide a minimal reproduction command in the test log.
 
 ---
 
@@ -49,8 +81,9 @@ Conventions:
   - Add `frameworks` array (e.g., `react`, `vue`) for JS/TS.
 - [ ] Create `tests/lang/matrix/lang-fixtures.json` mapping language → fixture directory + main files.
 - [ ] Create `tests/lang/matrix/lang-expectations.json` for expected minimum counts (chunks/imports/relations) per language.
+- [ ] Create `tests/lang/matrix/lang-artifact-presence.json` to encode Appendix D2 (required/optional/absent artifacts per language).
 - [ ] Add `tests/lang/matrix/lang-matrix-completeness.test.js`:
-  - verify every registry language ID appears in all 3 JSON files.
+  - verify every registry language ID appears in all 4 JSON files.
   - verify JSON schema (required keys, no unknown keys).
 
 **Per-language tasks**: see Section 0.A (per‑language subphases). Apply Appendix B/F for language‑unique fixture + expectation details.
@@ -134,12 +167,24 @@ Conventions:
 **Tasks**
 - [ ] Add lane to `tests/run.js`, `tests/run.rules.jsonc`, `tests/run.config.jsonc`.
 - [ ] Create `tests/lang-full/lang-full.order.txt` ordered by language and by capability.
+- [ ] Add sharding support using `LANG_FULL_SHARD_INDEX`/`LANG_FULL_SHARD_COUNT` and shard manifests derived from `lang-full.order.txt`.
 - [ ] Add lane description to `docs/guides/commands.md`.
+
+**Touchpoints**
+- `tests/run.js` (~L1-L487)
+- `tests/run.rules.jsonc` (~L1-L139)
+- `tests/run.config.jsonc` (~L1-L14)
+- `tests/lang-full/lang-full.order.txt` (new)
+- `tests/lang-full/lang-full.order.json` (new)
+- `tests/lang-full/shards/*.txt` (new)
+- `docs/guides/commands.md` (~L1-L165)
 
 **Per-language tasks**: see Section 1.A; ensure ordering entry exists for every language.
 
 **Tests**
 - `tests/runner/lane-ordering-lang-full.test.js`
+
+---
 
 ### 1.A Per-language subphases (inline)
 
@@ -202,6 +247,15 @@ Conventions:
 **Tasks**
 - [ ] Implement `tests/lang/<id>/fixture-sanity.test.js` via harness.
 
+**Touchpoints**
+- `tests/fixtures/languages/<id>/**` (new/expanded)
+- `tests/fixtures/README.md` (new)
+- `tests/lang/<id>/fixture-sanity.test.js` (new)
+- `tests/lang/fixtures/<id>/fixture-inventory.json` (new)
+- `tests/lang/harness/fixtures.js` (new)
+- `tests/lang/harness/expectations.js` (new)
+- `tests/lang/matrix/lang-fixtures.json` (new)
+
 **Per-language tasks**: see Section 2.A; add fixture‑sanity test per language and bind to fixture inventory (Appendix F).
 
 ### 2.A Per-language subphases (inline)
@@ -248,6 +302,12 @@ Conventions:
 ## Phase 3 — AST + control/data flow coverage
 
 **References**: Appendix C (per‑artifact sub‑checks), Appendix E (subsystem matrix)
+
+**Touchpoints**
+- `tests/lang/<id>/ast-flow.test.js` (new)
+- `tests/lang/harness/expectations.js` (new)
+- `tests/lang/goldens/<id>/<artifact>.json` (new)
+- `tests/lang/determinism-matrix.test.js` (new)
 
 ### 3.1 AST extraction validation
 
@@ -308,6 +368,12 @@ Conventions:
 
 **References**: Appendix C (per‑artifact sub‑checks), Appendix D2 (artifact presence)
 
+**Touchpoints**
+- `tests/lang/<id>/relations.test.js` (new)
+- `tests/lang/<id>/symbol-graph.test.js` (new)
+- `tests/lang/goldens/<id>/graph_relations*.json` (new)
+- `tests/lang/harness/expectations.js` (new)
+
 ### 4.1 Relations coverage
 
 **Tasks**
@@ -366,6 +432,12 @@ Conventions:
 ## Phase 5 — Risk pack + interprocedural gating
 
 **References**: Appendix C (risk sub‑checks), Appendix D2 (artifact presence)
+
+**Touchpoints**
+- `tests/lang/<id>/risk-local.test.js` (new)
+- `tests/lang/risk-interprocedural-matrix.test.js` (new)
+- `tests/lang/goldens/<id>/risk_*.json` (new)
+- `tests/lang/harness/expectations.js` (new)
 
 ### 5.1 Local risk
 
@@ -426,6 +498,12 @@ Conventions:
 
 **References**: Appendix E (API boundary), Appendix B (language constructs)
 
+**Touchpoints**
+- `tests/lang/<id>/search-filters.test.js` (new)
+- `tests/lang/api/search-language.test.js` (new)
+- `src/retrieval/filters.js` (~L1-L294)
+- `src/retrieval/cli-args.js` (~L1-L193)
+
 ### 6.1 CLI search filters per language
 
 **Tasks**
@@ -485,6 +563,12 @@ Conventions:
 
 **References**: Appendix D (minimum counts), Appendix D2 (artifact presence)
 
+**Touchpoints**
+- `tests/lang/<id>/determinism.test.js` (new)
+- `tests/lang/determinism-matrix.test.js` (new)
+- `tests/lang/goldens/<id>/**` (new)
+- `tests/lang/harness/expectations.js` (new)
+
 ### 7.1 Determinism per language
 
 **Tasks**
@@ -543,6 +627,14 @@ Conventions:
 ## Phase 8 — CI wiring + reporting
 
 **References**: Appendix M (roadmap tags), Appendix N (ordering)
+
+**Touchpoints**
+- `.github/workflows/ci.yml` (new lane wiring)
+- `tests/run.js` (~L1-L487)
+- `tests/run.rules.jsonc` (~L1-L139)
+- `docs/tooling/lang-matrix-report.json` (new)
+- `docs/guides/commands.md` (~L1-L165)
+- `docs/contracts/indexing.md` (~L1-L90)
 
 ### 8.1 CI integration
 
@@ -604,6 +696,12 @@ Conventions:
 ## Phase 9 — Cleanup + dedupe
 
 **References**: Appendix P (per‑phase tables)
+
+**Touchpoints**
+- `tests/lang/harness/expectations.js` (new)
+- `tests/lang/harness/fixtures.js` (new)
+- `tests/lang/<id>/*.test.js` (refactor to shared harness)
+- `tests/lang/<id>/fixture-sanity.test.js` (refactor to shared harness)
 
 ### 9.1 Harness consolidation
 
@@ -2818,3 +2916,4 @@ Legend: **P** = present with content, **E** = empty allowed, **A** = absent expe
 | graphql | use shared harness + expectations helper |
 
 ---
+

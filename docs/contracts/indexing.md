@@ -23,7 +23,7 @@
 
 ## Artifact minimum set
 Required (baseline search):
-- `chunk_meta.json` (or `chunk_meta.jsonl` / sharded `chunk_meta.parts` + `chunk_meta.meta.json`).
+- `chunk_meta.json` (or `chunk_meta.jsonl` / sharded `chunk_meta.parts` + `chunk_meta.meta.json` / `chunk_meta.columnar.json`).
 - `token_postings.json` (or sharded `token_postings.shards` + `token_postings.meta.json`).
 - `file_meta.json` when chunk metadata uses `fileId` indirection.
 - `index_state.json` for stage gating.
@@ -41,7 +41,7 @@ Optional (feature/config driven):
 
 ## Format precedence
 - If a pieces manifest is present and strict mode is enabled, loaders follow the manifest and treat missing entries as errors.
-- `chunk_meta` (non-strict): if both `chunk_meta.meta.json` + `chunk_meta.parts/` and `chunk_meta.jsonl` exist, the newer mtime wins; otherwise use whichever exists, falling back to `chunk_meta.json`.
+- `chunk_meta` (non-strict): if both `chunk_meta.meta.json` + `chunk_meta.parts/` and `chunk_meta.jsonl` exist, the newer mtime wins; otherwise use whichever exists, falling back to `chunk_meta.columnar.json` and then `chunk_meta.json`.
 - `token_postings` (non-strict): prefer `token_postings.meta.json` + `token_postings.shards/`, then `token_postings.json`.
 - Raw-first compression: if `.json`/`.jsonl` exists, it is read even if `.json.gz`/`.json.zst` or `.jsonl.gz`/`.jsonl.zst` sidecars exist; sidecars are used only when raw is missing.
 
@@ -75,6 +75,11 @@ Key requirements:
 - `token_postings.meta.json` uses a sharded JSON schema with fields + arrays:
   - `fields`: `{ format: "sharded", shardSize, vocabCount, parts, avgDocLen, totalDocs, compression }`
   - `arrays`: `{ docLengths }`
+
+## Columnar artifacts
+- `chunk_meta.columnar.json` is a columnar variant of `chunk_meta` and is valid when `indexing.artifacts.chunkMetaFormat=columnar`.
+- `symbol_occurrences.columnar.json` and `symbol_edges.columnar.json` are valid when `indexing.artifacts.symbolArtifactsFormat=columnar`.
+- When columnar variants are present, readers should prefer them over JSON/JSONL.
 
 ## References
 - `docs/contracts/artifact-contract.md`

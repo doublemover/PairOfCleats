@@ -30,6 +30,8 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - Windows: `taskkill /T` then escalate to `/F`
   - POSIX: signal the process group (negative PID) when detached
 - `--json` outputs must be **stdout-only** (no additional stdout noise); logs and progress go to stderr/protocol.
+- **Line length cap**: decoder enforces a hard cap (default 1MB) and emits a `log` event indicating truncation.
+- **Error behavior**: any malformed JSONL line becomes a `log` event with `parseError=true` (never fatal).
 
 ### Locked decisions (remove ambiguity)
 - **Cancel exit code**: tools invoked under the supervisor must exit **130** on user‑initiated cancel (SIGINT/SIGTERM are normalized to 130).
@@ -48,22 +50,89 @@ Deliver a **standalone Rust Ratatui TUI** that owns the terminal and drives exis
   - `docs/specs/supervisor-artifacts-indexing-pass.md`
   - `docs/specs/tui-installation.md`
 
+### Tool JSON/JSONL stdout inventory (must remain exhaustive)
+Tools that emit JSON to stdout or JSONL progress (must never use `stdio: 'inherit'` for children):
+- `build_index.js` (progress JSONL / JSON summary)
+- `search.js` (JSON output modes)
+- `tools/reports/report-code-map.js` (JSON map output)
+- `tools/setup/*` (JSONL progress mode)
+- `tools/bootstrap/*` (JSONL progress mode)
+- `tools/bench/**` (JSON/JSONL in harness mode)
+- `tools/tooling/**` (install/detect/download report tools)
+- `tools/config/**` (inventory/contract scripts)
+
+Each listed tool must declare:
+- stdout mode (JSON vs JSONL vs human)
+- stderr mode (logs/protocol only)
+- child stdio policy (pipe vs inherit)
+
 ### Related but out-of-scope specs
 - `docs/specs/spimi-spill.md` (indexing perf roadmap; not part of TUI milestone work)
 
-### Implementation order (dependency-aware)
-1) Sub-phase 0 (tooling normalization + kill-tree) — required for any supervised execution.
-2) Sub-phase 1 (protocol v2 + shared parser) — required for supervisor correctness.
-3) Sub-phase 2 (supervisor + dispatch refactor + artifacts pass).
-4) Sub-phase 3 (Rust TUI MVP).
-5) Sub-phase 4 (cancellation hardening).
-6) Sub-phase 5 (installation + distribution).
+### Implementation order (dependency-aware, cross‑cutting first)
+**Foundational work (must land first)**
+1) **Sub‑phase 0.2 + 1.1–1.3**: shared kill‑tree, strict protocol v2, shared stream decoder, stdout guard.
+2) **Sub‑phase 0.3–0.7**: tool JSONL/JSON hygiene + bench/setup/bootstrap refactors (can proceed in parallel per tool).
+
+**Core runtime**
+3) **Sub‑phase 2.1–2.2**: supervisor protocol + implementation.
+4) **Sub‑phase 2.3–2.4**: dispatch refactor + artifacts pass (needs protocol + manifest fields defined).
+
+**Product layer**
+5) **Sub‑phase 3**: Rust TUI MVP (can start once protocol/manifest shapes are locked; can use mocked supervisor streams).
+6) **Sub‑phase 4**: cancellation hardening (depends on supervisor + UI).
+7) **Sub‑phase 5**: installation + distribution (can start once crate skeleton exists).
+
+### Parallelization map (non‑overlapping work)
+- **Track A (protocol + helpers)**: Sub‑phase 0.2, 1.1–1.3, plus 0.7 stdout guard.
+- **Track B (tool hygiene)**: Sub‑phase 0.3–0.6 can be split by tool family:
+  - B1: `build_index.js` + `tools/setup/*`
+  - B2: bench harness (`tools/bench/language-*`)
+  - B3: support tools invoked by setup/bench (`tools/tooling/*`, downloads)
+- **Track C (dispatch)**: Sub‑phase 2.3 can proceed in parallel with Track B once protocol shapes are fixed.
+- **Track D (supervisor core)**: Sub‑phase 2.2 can proceed in parallel with Track C (needs protocol + kill‑tree only).
+- **Track E (Rust TUI)**: Sub‑phase 3 can begin after 2.1 spec + manifest field list are frozen (mock data OK).
+- **Track F (install/dist)**: Sub‑phase 5 can begin after 3.1 crate skeleton (no dependency on supervisor runtime).
+
+### Dependency matrix (phase → prerequisites)
+| Phase / Sub‑phase | Requires | Notes |
+|---|---|---|
+| 0.1 TUI tool contract | — | Spec + audit only |
+| 0.2 Kill‑tree unify | — | Hard dependency for supervisor + cancellation |
+| 0.3 build_index JSONL cleanup | 0.2 (kill‑tree) | For abort correctness |
+| 0.4 bench harness cleanup | 0.2 + 1.1/1.3 | Uses shared decoder + kill‑tree |
+| 0.5 setup cleanup | 1.1/1.2 | Needs progress context + protocol strictness |
+| 0.6 bootstrap cleanup | 1.1/1.2 | Same as setup |
+| 0.7 stdout guard | — | Can ship early; used by all |
+| 1.1 protocol v2 spec | — | Foundation for 1.2/1.3 |
+| 1.2 context propagation | 1.1 | Adds env + display wiring |
+| 1.3 progress stream decoder | 1.1 | Used by bench + supervisor |
+| 2.1 supervisor protocol spec | 1.1 | Requires v2 protocol definitions |
+| 2.2 supervisor implementation | 0.2 + 1.1–1.3 | Needs kill‑tree + decoder |
+| 2.3 dispatch refactor | 1.1 | Needs stable manifest fields |
+| 2.4 artifacts pass | 2.2 + 2.3 | Uses dispatch registry + job lifecycle |
+| 3.1 Rust crate skeleton | — | Can begin early |
+| 3.2 supervisor integration | 2.2 | Needs working supervisor |
+| 3.3 UI behaviors | 3.1 + 2.3 | Needs manifest fields for palette |
+| 4.1–4.3 cancellation hardening | 2.2 + 3.2 | Requires live supervisor + UI |
+| 5.1 install + wrapper | 3.1 | Needs crate skeleton |
+| 5.2 CI artifacts | 5.1 | Depends on build outputs |
 
 ### Cross-cutting constraints (apply to all phases)
 - **Protocol strictness**: if a line is not v2 JSONL, it must be wrapped as a `log` event.
 - **Line length cap**: enforce a maximum line size (e.g., 1MB) in the shared decoder to prevent memory blowups.
 - **Stdout discipline**: any tool that writes JSON to stdout must never run children in `stdio: 'inherit'`.
 - **Test determinism**: tests must run without network access unless explicitly mocked.
+
+### Protocol versioning + migration
+- v1 remains supported for legacy tools; supervisor accepts v1 but wraps into v2 envelope.
+- v2 is strict: missing `proto` or `event` becomes `log` (never fatal).
+- Version bump rules: breaking field changes require `@v3` and dual‑emit during migration window.
+
+### Packaging constraints
+- Rust TUI ships as standalone binary plus thin wrapper in `bin/`.
+- Supervisor is invoked via wrapper to guarantee PATH and Node version consistency.
+- Artifact naming must include platform and version (e.g., `poc-tui-vX.Y.Z-win32-x64.zip`).
 
 ---
 
@@ -100,6 +169,48 @@ Use this list to remove ambiguity about which tools already emit JSONL progress 
 - `tools/setup/setup.js`
 - `tools/setup/bootstrap.js`
 - `tools/tooling/install.js` and `tools/tooling/detect.js` (when invoked by setup/bootstrap)
+
+### 0.0.1 JSON stdout inventory (must audit child stdio)
+**Scope**: tools with `--json` (or `--format json`) that **emit JSON to stdout**.  
+**Goal**: verify any child process use **never** runs with `stdio: 'inherit'` when JSON is expected.
+
+**JSON stdout + child processes (direct or indirect)**
+- `build_index.js` (JSON stdout; **no direct spawn**, but verify any nested runners do not inherit)
+- `tools/setup/setup.js` (**child: yes** via `runCommandBase`; defaults to `stdio: 'inherit'` unless JSON)
+- `tools/setup/bootstrap.js` (**child: yes** via `runCommand/runCommandOrExit`; uses `stdio: 'inherit'` today)
+- `tools/tooling/install.js` (**child: yes** via `spawnSync`, currently uses `stdio: 'inherit'`)
+- `tools/triage/context-pack.js` (**child: yes** via `spawnSubprocessSync` → `search.js`)
+- `tools/ci/run-suite.js` (**child: yes** via `spawnSubprocess`)
+- `tools/reports/combined-summary.js` (**child: yes** via `spawnSubprocessSync`)
+- `tools/reports/compare-models.js` (**child: yes** via `spawnSubprocessSync`)
+- `tools/reports/report-code-map.js` (**child: yes** via `spawnSync('dot', ...)`)
+- `tools/bench/vfs/cold-start-cache.js` (**child: yes** via `spawnSync`)
+- `tools/ingest/ctags.js` (**child: yes** via `spawn`)
+- `tools/ingest/gtags.js` (**child: yes** via `spawn`)
+- `tools/ingest/scip.js` (**child: yes** via `spawn`)
+- `tools/bench/language-repos.js` (**child: yes**, indirect via `tools/bench/language/process.js`)
+- `tools/bench/language/process.js` (not JSON tool itself, but spawns benchmark jobs and must be JSONL‑safe)
+
+**JSON stdout + no direct child spawn detected**
+- `tools/analysis/structural-search.js` (JSON or JSONL via `--format`)
+- `tools/analysis/explain-risk.js`
+- `tools/eval/run.js`
+- `tools/index/validate.js`
+- `tools/index/cache-gc.js`
+- `tools/index/report-artifacts.js`
+
+---
+
+**JSON file writers or pass-through (not stdout)**
+- `tools/docs/script-inventory.js` (writes JSON file)
+- `tools/docs/repo-inventory.js` (writes JSON file)
+- `tools/ci/capability-gate.js` (writes JSON file)
+- `tools/mcp/tools/search-args.js` (builds args; no stdout JSON)
+- `tools/mcp/tools/handlers/downloads.js` (passes `--json` to verify-extensions)
+- `tools/mcp/tools/handlers/artifacts.js` (passes `--json` to cache-gc)
+- `tools/api/server.js` / `tools/api/router/search.js` (server/pass-through)
+
+**Action**: for each **child** tool above, enforce piped stdio in JSON modes and add a regression test in Sub‑phase 0.T2/0.T4.
 
 ### Tasks
 
@@ -353,12 +464,34 @@ Turn the existing “parse JSON else treat as log” convention into a **strict,
     - `job:end`: `jobId`, `status`, `exitCode`, `durationMs`, `result?`, `ts`, `seq`
     - `job:artifacts`: `jobId`, `artifacts[]`, `ts`, `seq`
   - Require `seq` monotonicity **per job** (if `jobId` exists) to allow stable ordering in TUI.
+- **(Spec examples)** include concrete JSONL examples for each event type:
+  - `log`:
+    - `{"proto":"poc.progress@2","event":"log","ts":"2026-02-04T12:00:00.000Z","seq":42,"level":"info","stream":"stderr","message":"indexing started","jobId":"job-1"}`
+  - `task:start`:
+    - `{"proto":"poc.progress@2","event":"task:start","ts":"2026-02-04T12:00:00.010Z","seq":1,"jobId":"job-1","taskId":"code:scan","name":"Scanning code","stage":"code"}`
+  - `task:progress`:
+    - `{"proto":"poc.progress@2","event":"task:progress","ts":"2026-02-04T12:00:00.120Z","seq":2,"jobId":"job-1","taskId":"code:scan","current":24,"total":120,"unit":"files","percent":20}`
+  - `task:end`:
+    - `{"proto":"poc.progress@2","event":"task:end","ts":"2026-02-04T12:00:01.200Z","seq":3,"jobId":"job-1","taskId":"code:scan","status":"ok","durationMs":1190}`
+  - `job:start`:
+    - `{"proto":"poc.progress@2","event":"job:start","ts":"2026-02-04T12:00:00.000Z","seq":0,"jobId":"job-1","command":"build_index","args":["--progress","jsonl"],"cwd":"C:/repo"}`
+  - `job:end`:
+    - `{"proto":"poc.progress@2","event":"job:end","ts":"2026-02-04T12:00:10.000Z","seq":500,"jobId":"job-1","status":"ok","exitCode":0,"durationMs":10000,"result":{"summary":{"chunks":120}}}`
+  - `job:artifacts`:
+    - `{"proto":"poc.progress@2","event":"job:artifacts","ts":"2026-02-04T12:00:10.010Z","seq":501,"jobId":"job-1","artifacts":[{"kind":"index","label":"sqlite","path":"...","exists":true,"bytes":12345,"mtime":"2026-02-04T12:00:09.000Z","mime":"application/x-sqlite3"}]}`
 - **(Code)** `src/shared/cli/progress-events.js`
   - `formatProgressEvent(eventName, payload, { context })`:
     - inject `proto`, `ts`, `seq`, and context fields (jobId/runId)
   - `parseProgressEventLine(line, { strict })`:
     - strict mode requires `proto` + allowlisted `event`
     - non-strict mode may be retained for backward compatibility, but must never accept arbitrary JSON
+  - **Touchpoints for `seq` + `ts` fields**:
+    - `src/shared/cli/progress-events.js` (default `ts`, increment `seq`)
+    - `src/shared/cli/display.js` (when emitting `task:*` + `log` events)
+    - `src/shared/cli/progress-stream.js` (when wrapping non‑protocol lines into `log`)
+    - `tools/tui/supervisor.js` (inject `seq` for job events + wrapped logs)
+    - `tools/bench/language/process.js` (decoder wrapper emits `log` events)
+    - `tools/bench/language-repos.js` (direct `display` calls should not bypass `seq`)
 
 #### 1.2 Context propagation (jobId/runId injection)
 - **(Code)** `src/shared/cli/display.js`
@@ -418,6 +551,10 @@ Turn the existing “parse JSON else treat as log” convention into a **strict,
 - Emit a single line larger than maxLineBytes and assert:
   - decoder truncates safely
   - emits a `log` event indicating truncation
+
+#### 1.T5 Context propagation test
+- Set `PAIROFCLEATS_PROGRESS_CONTEXT={"jobId":"j1","runId":"r1"}` and emit a JSONL event.
+- Assert every emitted event includes the merged `jobId`/`runId`.
 
 ---
 
@@ -537,6 +674,12 @@ Implement a standalone Node supervisor that:
   - `supportsJson` and `supportsNonInteractive`
   - `artifacts` list (expected kinds + labels for preview)
   - `defaultArgs` (safe defaults for UI run palette)
+- **Touchpoints for capability fields**
+  - `src/shared/dispatch/registry.js` (single source of truth for `supports*`, `defaultArgs`, `artifacts`)
+  - `src/shared/dispatch/manifest.js` (ensure fields are serialized)
+  - `bin/pairofcleats.js` (dispatch describe uses shared manifest)
+  - `tools/tui/supervisor.js` (`supervisor:hello` includes manifest summary)
+  - `crates/pairofcleats-tui/` (run palette reads `supports*`, `defaultArgs`)
 - **(Tests)** Add:
   - `tests/dispatch/manifest-list.test.js`
   - `tests/dispatch/manifest-describe-search.test.js`
@@ -625,6 +768,7 @@ Create the Rust TUI that owns the terminal, talks to the supervisor, and renders
   - `model/` (jobs/tasks/log buffers)
   - `ui/` (widgets, layout)
   - `app.rs` (event loop)
+- Command palette should be sourced from the supervisor `capabilities` + dispatch manifest (no hard-coded command lists in Rust).
 
 #### 3.2 Supervisor integration
 - Spawn `node tools/tui/supervisor.js` with piped stdin/stdout
@@ -641,6 +785,7 @@ Create the Rust TUI that owns the terminal, talks to the supervisor, and renders
   - Left: job list (status, start time, duration)
   - Right top: tasks (sorted by stage + recent updates)
   - Right bottom: logs (ring buffer, tailing)
+  - Optional panel: artifacts list for the selected job (paths + sizes)
 - UI model rules:
   - job list ordered by most recent activity
   - tasks grouped by `stage` then `name`
@@ -649,6 +794,7 @@ Create the Rust TUI that owns the terminal, talks to the supervisor, and renders
   - `r`: open “run command” palette (choose setup/index/search/bootstrap)
   - `c`: cancel selected job
   - `q`: quit (cancel all jobs, shutdown supervisor)
+  - `?`: toggle help overlay (keybindings + status legend)
 - Ensure TUI never relies on subprocess TTY:
   - always run jobs with piped stdio via supervisor
 
@@ -701,6 +847,9 @@ Make cancellation robust under real-world failure modes:
   - wait bounded time for `job:end` events
   - send supervisor shutdown
   - restore terminal state even if errors occur
+- On `Ctrl+C`:
+  - first press → cancel active job (or all jobs if none selected)
+  - second press within grace window → force-exit (after restoring terminal)
 
 #### 4.3 “Never hang” guarantees
 - Add watchdog timeouts:
@@ -756,6 +905,9 @@ Make `pairofcleats-tui` easy to run after `npm install`, with secure fallback me
 - **Config surface (if downloads are configurable)**:
   - extend `.pairofcleats.json` with `tui.install.*` keys
   - document in `docs/config/schema.json` + `docs/config/contract.md`
+- **Docs**
+  - add `pairofcleats-tui` to `docs/guides/commands.md`
+  - add a short `docs/guides/tui.md` with install + troubleshooting
 
 **Primary touchpoints**
 - `bin/pairofcleats-tui.js`
@@ -813,3 +965,4 @@ Milestone 1 is complete when:
   - renders tasks + logs
   - cancels a job
   - exits without corrupting terminal state
+

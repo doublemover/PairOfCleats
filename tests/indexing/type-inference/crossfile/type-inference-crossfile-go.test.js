@@ -155,8 +155,15 @@ const env = applyTestEnv({
   testConfig: {
     indexing: {
       scm: { provider: 'none' },
+      embeddings: { enabled: false },
       typeInference: true,
-      typeInferenceCrossFile: true
+      typeInferenceCrossFile: true,
+      treeSitter: {
+        deferMissing: false
+      }
+    },
+    tooling: {
+      autoEnableOnDetect: false
     }
   }
 });

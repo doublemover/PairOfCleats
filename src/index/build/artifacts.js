@@ -1,17 +1,21 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
-import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
+import { estimateJsonBytes } from '../../shared/cache.js';
+import { sha1 } from '../../shared/hash.js';
+import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
 import { writeFileLists } from './artifacts/file-lists.js';
-import { buildFileMeta } from './artifacts/file-meta.js';
+import { buildFileMeta, buildFileMetaColumnar, computeFileMetaFingerprint } from './artifacts/file-meta.js';
 import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
@@ -33,7 +37,9 @@ import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts,
-  resolveChunkMetaPlan
+  resolveChunkMetaPlan,
+  resolveChunkMetaOrder,
+  resolveChunkMetaOrderById
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
@@ -60,6 +66,7 @@ export async function writeIndexArtifacts(input) {
     perfProfile,
     indexState,
     graphRelations,
+    stageCheckpoints,
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
@@ -75,17 +82,30 @@ export async function writeIndexArtifacts(input) {
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
-    compressibleArtifacts
+    compressibleArtifacts,
+    compressionOverrides
   } = resolveCompressionConfig(indexingConfig);
-  const resolveShardCompression = (base) => (
-    compressionEnabled && !compressionKeepRaw && compressibleArtifacts.has(base)
-      ? compressionMode
+  const resolveCompressionOverride = (base) => (
+    compressionOverrides && Object.prototype.hasOwnProperty.call(compressionOverrides, base)
+      ? compressionOverrides[base]
       : null
   );
+  const resolveShardCompression = (base) => {
+    const override = resolveCompressionOverride(base);
+    if (override) {
+      return override.enabled ? override.mode : null;
+    }
+    return compressionEnabled && !compressionKeepRaw && compressibleArtifacts.has(base)
+      ? compressionMode
+      : null;
+  };
   const artifactConfig = indexingConfig.artifacts || {};
   const artifactMode = typeof artifactConfig.mode === 'string'
     ? artifactConfig.mode.toLowerCase()
     : 'auto';
+  const fileMetaFormatConfig = typeof artifactConfig.fileMetaFormat === 'string'
+    ? artifactConfig.fileMetaFormat.toLowerCase()
+    : null;
   const chunkMetaFormatConfig = typeof artifactConfig.chunkMetaFormat === 'string'
     ? artifactConfig.chunkMetaFormat.toLowerCase()
     : null;
@@ -95,6 +115,9 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
     : 100000;
+  const symbolArtifactsFormatConfig = typeof artifactConfig.symbolArtifactsFormat === 'string'
+    ? artifactConfig.symbolArtifactsFormat.toLowerCase()
+    : null;
   const tokenPostingsFormatConfig = typeof artifactConfig.tokenPostingsFormat === 'string'
     ? artifactConfig.tokenPostingsFormat.toLowerCase()
     : null;
@@ -108,9 +131,92 @@ export async function writeIndexArtifacts(input) {
   const maxJsonBytes = MAX_JSON_BYTES;
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;
+  const fileMetaColumnarThreshold = Number.isFinite(Number(artifactConfig.fileMetaColumnarThresholdBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaColumnarThresholdBytes)))
+    : maxJsonBytes;
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
-  const { fileMeta, fileIdByPath } = buildFileMeta(state);
+  const resolveFileMetaFiles = () => {
+    if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
+      return state.discoveredFiles.slice();
+    }
+    if (state?.fileInfoByPath && typeof state.fileInfoByPath.keys === 'function') {
+      return Array.from(state.fileInfoByPath.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+    }
+    return [];
+  };
+  const fileMetaFiles = resolveFileMetaFiles();
+  let fileMetaFingerprint = fileMetaFiles.length
+    ? computeFileMetaFingerprint({ files: fileMetaFiles, fileInfoByPath: state?.fileInfoByPath })
+    : null;
+  let fileMeta = null;
+  let fileIdByPath = new Map();
+  let fileMetaFromCache = false;
+  let fileMetaMeta = null;
+  if (incrementalEnabled && fileMetaFingerprint) {
+    const metaPath = path.join(outDir, 'file_meta.meta.json');
+    try {
+      if (fsSync.existsSync(metaPath)) {
+        const metaRaw = readJsonFile(metaPath, { maxBytes: maxJsonBytes });
+        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+        const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
+        if (cachedFingerprint === fileMetaFingerprint) {
+          fileMetaMeta = meta;
+          const cached = await loadJsonArrayArtifact(outDir, 'file_meta', { maxBytes, strict: false });
+          if (Array.isArray(cached)) {
+            fileMeta = cached;
+            fileMetaFromCache = true;
+            for (const entry of cached) {
+              if (entry?.file && Number.isFinite(entry.id)) {
+                fileIdByPath.set(entry.file, entry.id);
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+  if (!fileMeta) {
+    const built = buildFileMeta(state);
+    fileMeta = built.fileMeta;
+    fileIdByPath = built.fileIdByPath;
+    fileMetaFingerprint = built.fingerprint || fileMetaFingerprint;
+  }
+  if (indexState && typeof indexState === 'object') {
+    if (!indexState.extensions || typeof indexState.extensions !== 'object') {
+      indexState.extensions = {};
+    }
+    if (state?.discoveryHash) {
+      indexState.extensions.discoveryHash = state.discoveryHash;
+    }
+    if (fileMetaFingerprint) {
+      indexState.extensions.fileMetaFingerprint = fileMetaFingerprint;
+    }
+    if (postings?.minhashGuard) {
+      indexState.extensions.minhashGuard = postings.minhashGuard;
+    }
+  }
+  const chunkUidToFileId = new Map();
+  if (state?.chunkUidToFile && typeof state.chunkUidToFile.entries === 'function') {
+    for (const [chunkUid, file] of state.chunkUidToFile.entries()) {
+      const fileId = fileIdByPath.get(file);
+      if (!Number.isFinite(fileId)) continue;
+      if (!chunkUidToFileId.has(chunkUid)) {
+        chunkUidToFileId.set(chunkUid, fileId);
+      }
+    }
+  } else {
+    for (const chunk of state?.chunks || []) {
+      const file = chunk?.file || chunk?.metaV2?.file || null;
+      const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
+      if (!file || !chunkUid) continue;
+      const fileId = fileIdByPath.get(file);
+      if (!Number.isFinite(fileId)) continue;
+      if (!chunkUidToFileId.has(chunkUid)) {
+        chunkUidToFileId.set(chunkUid, fileId);
+      }
+    }
+  }
   const repoMapIterator = createRepoMapIterator({
     chunks: state.chunks,
     fileRelations: state.fileRelations
@@ -139,12 +245,19 @@ export async function writeIndexArtifacts(input) {
     );
   }
   const denseScale = 2 / 255;
+  const chunkMetaHasIds = Array.isArray(state.chunks)
+    && state.chunks.length > 0
+    && state.chunks.every((chunk) => Number.isFinite(chunk?.id));
+  const chunkMetaOrder = chunkMetaHasIds
+    ? resolveChunkMetaOrderById(state.chunks)
+    : resolveChunkMetaOrder(state.chunks);
   const chunkMetaIterator = createChunkMetaIterator({
     chunks: state.chunks,
     fileIdByPath,
     resolvedTokenMode,
     tokenSampleSize,
-    maxJsonBytes
+    maxJsonBytes,
+    order: chunkMetaOrder
   });
   const chunkMetaPlan = resolveChunkMetaPlan({
     chunks: state.chunks,
@@ -156,6 +269,7 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes
   });
   const {
+    tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize: resolvedTokenPostingsShardSize,
     tokenPostingsEstimate
@@ -185,6 +299,23 @@ export async function writeIndexArtifacts(input) {
     await removeArtifact(path.join(outDir, `${base}.json.gz`));
     await removeArtifact(path.join(outDir, `${base}.json.zst`));
   };
+  const removePackedPostings = async () => {
+    await removeArtifact(path.join(outDir, 'token_postings.packed.bin'));
+    await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'));
+    await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'));
+  };
+  const removePackedMinhash = async () => {
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'));
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.meta.json'));
+  };
+  if (tokenPostingsFormat === 'packed') {
+    await removeArtifact(path.join(outDir, 'token_postings.json'));
+    await removeCompressedArtifact('token_postings');
+    await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
+    await removeArtifact(path.join(outDir, 'token_postings.shards'));
+  } else {
+    await removePackedPostings();
+  }
   if (tokenPostingsUseShards) {
     await removeArtifact(path.join(outDir, 'token_postings.json'));
     await removeCompressedArtifact('token_postings');
@@ -199,6 +330,7 @@ export async function writeIndexArtifacts(input) {
   let completedWrites = 0;
   let lastWriteLog = 0;
   let lastWriteLabel = '';
+  const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
@@ -224,18 +356,105 @@ export async function writeIndexArtifacts(input) {
       logLine(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`, { kind: 'status' });
     }
   };
+  const recordArtifactMetric = (label, metric) => {
+    if (!label) return;
+    const existing = artifactMetrics.get(label) || { path: label };
+    artifactMetrics.set(label, { ...existing, ...metric });
+  };
   const enqueueWrite = (label, job) => {
-    writes.push({ label, job });
+    writes.push({
+      label,
+      job: async () => {
+        const started = Date.now();
+        await job();
+        const durationMs = Date.now() - started;
+        let bytes = null;
+        if (label) {
+          try {
+            const stat = await fs.stat(path.join(outDir, label));
+            bytes = stat.size;
+          } catch {}
+        }
+        recordArtifactMetric(label, { durationMs, bytes });
+      }
+    });
   };
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');
-    enqueueWrite(
-      formatArtifactLabel(indexStatePath),
-      () => writeJsonObjectFile(indexStatePath, { fields: indexState, atomic: true })
-    );
+    const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
+    const stableState = { ...indexState };
+    if ('generatedAt' in stableState) delete stableState.generatedAt;
+    if ('updatedAt' in stableState) delete stableState.updatedAt;
+    const stableHash = sha1(stableStringifyForSignature(stableState));
+    let canSkipIndexState = false;
+    try {
+      if (fsSync.existsSync(indexStateMetaPath) && fsSync.existsSync(indexStatePath)) {
+        const metaRaw = readJsonFile(indexStateMetaPath, { maxBytes: maxJsonBytes });
+        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+        if (meta?.stableHash === stableHash) {
+          canSkipIndexState = true;
+        }
+      }
+    } catch {}
+    const indexStateWarnBytes = Math.max(1024 * 64, Math.floor(maxJsonBytes * 0.1));
+    const indexStateCompressThreshold = Math.max(1024 * 128, Math.floor(maxJsonBytes * 0.2));
+    const writeIndexStateMeta = async (bytes) => {
+      await writeJsonObjectFile(indexStateMetaPath, {
+        fields: {
+          stableHash,
+          generatedAt: indexState.generatedAt || null,
+          updatedAt: new Date().toISOString(),
+          bytes: Number.isFinite(bytes) ? bytes : null
+        },
+        atomic: true
+      });
+    };
+    if (!canSkipIndexState) {
+      enqueueWrite(
+        formatArtifactLabel(indexStatePath),
+        async () => {
+          await writeJsonObjectFile(indexStatePath, { fields: indexState, atomic: true });
+          let bytes = null;
+          try {
+            const stat = await fs.stat(indexStatePath);
+            bytes = stat.size;
+          } catch {}
+          if (Number.isFinite(bytes) && bytes > indexStateWarnBytes) {
+            log(
+              `index_state ~${formatBytes(bytes)}; consider pruning volatile fields or enabling compression.`
+            );
+          }
+          if (compressionEnabled && compressionMode && Number.isFinite(bytes) && bytes > indexStateCompressThreshold) {
+            const compressedPath = path.join(
+              outDir,
+              `index_state.${compressionMode === 'zstd' ? 'json.zst' : 'json.gz'}`
+            );
+            await writeJsonObjectFile(compressedPath, {
+              fields: indexState,
+              compression: compressionMode,
+              gzipOptions: compressionGzipOptions,
+              atomic: true
+            });
+          }
+          await writeIndexStateMeta(bytes);
+        }
+      );
+    } else {
+      enqueueWrite(
+        formatArtifactLabel(indexStateMetaPath),
+        async () => {
+          let bytes = null;
+          try {
+            const stat = await fs.stat(indexStatePath);
+            bytes = stat.size;
+          } catch {}
+          await writeIndexStateMeta(bytes);
+        }
+      );
+    }
     addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
   }
-  const { enqueueJsonObject, enqueueJsonArray } = createArtifactWriter({
+  const { enqueueJsonObject, enqueueJsonArray, enqueueJsonArraySharded } = createArtifactWriter({
     outDir,
     enqueueWrite,
     addPieceFile,
@@ -244,7 +463,8 @@ export async function writeIndexArtifacts(input) {
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
-    compressibleArtifacts
+    compressibleArtifacts,
+    compressionOverrides
   });
   if (state.importResolutionGraph) {
     const importGraphDir = path.join(outDir, 'artifacts');
@@ -287,10 +507,131 @@ export async function writeIndexArtifacts(input) {
       }
     });
   }
-  enqueueJsonArray('file_meta', fileMeta, {
-    compressible: false,
-    piece: { type: 'chunks', name: 'file_meta', count: fileMeta.length }
-  });
+  const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
+  const fileMetaFormat = fileMetaFormatConfig || 'auto';
+  const fileMetaExceedsMax = fileMetaEstimatedBytes > maxJsonBytes;
+  const fileMetaUseColumnar = !fileMetaExceedsMax
+    && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
+    && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
+  const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
+    || fileMetaExceedsMax
+    || (!fileMetaUseColumnar && fileMetaEstimatedBytes > maxJsonBytes);
+  const fileMetaMetaPath = path.join(outDir, 'file_meta.meta.json');
+  if (!fileMetaFromCache) {
+    if (fileMetaUseColumnar) {
+      const columnarPath = path.join(outDir, 'file_meta.columnar.json');
+      enqueueWrite(
+        formatArtifactLabel(columnarPath),
+        async () => {
+          await removeArtifact(path.join(outDir, 'file_meta.json'));
+          await removeCompressedArtifact('file_meta');
+          await removeArtifact(path.join(outDir, 'file_meta.parts'));
+          const payload = buildFileMetaColumnar(fileMeta);
+          await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
+          await writeJsonObjectFile(fileMetaMetaPath, {
+            fields: {
+              schemaVersion: '1.0.0',
+              artifact: 'file_meta',
+              format: 'columnar',
+              generatedAt: new Date().toISOString(),
+              compression: 'none',
+              totalRecords: fileMeta.length,
+              totalBytes: fileMetaEstimatedBytes,
+              maxPartRecords: fileMeta.length,
+              maxPartBytes: fileMetaEstimatedBytes,
+              targetMaxBytes: null,
+              parts: [{ path: 'file_meta.columnar.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              extensions: {
+                fingerprint: fileMetaFingerprint || null
+              }
+            },
+            atomic: true
+          });
+        }
+      );
+      addPieceFile({ type: 'chunks', name: 'file_meta', format: 'columnar', count: fileMeta.length }, columnarPath);
+      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
+    } else if (fileMetaUseJsonl) {
+      enqueueWrite(
+        formatArtifactLabel(path.join(outDir, 'file_meta.parts')),
+        async () => {
+          await removeArtifact(path.join(outDir, 'file_meta.json'));
+          await removeCompressedArtifact('file_meta');
+        }
+      );
+      enqueueJsonArraySharded('file_meta', fileMeta, {
+        maxBytes: maxJsonBytes,
+        piece: { type: 'chunks', name: 'file_meta' },
+        metaExtensions: { fingerprint: fileMetaFingerprint || null },
+        compression: null,
+        gzipOptions: null
+      });
+    } else {
+      enqueueJsonArray('file_meta', fileMeta, {
+        compressible: false,
+        piece: { type: 'chunks', name: 'file_meta', count: fileMeta.length }
+      });
+      enqueueWrite(
+        formatArtifactLabel(fileMetaMetaPath),
+        async () => {
+          await writeJsonObjectFile(fileMetaMetaPath, {
+            fields: {
+              schemaVersion: '1.0.0',
+              artifact: 'file_meta',
+              format: 'json',
+              generatedAt: new Date().toISOString(),
+              compression: 'none',
+              totalRecords: fileMeta.length,
+              totalBytes: fileMetaEstimatedBytes,
+              maxPartRecords: fileMeta.length,
+              maxPartBytes: fileMetaEstimatedBytes,
+              targetMaxBytes: null,
+              parts: [{ path: 'file_meta.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              extensions: {
+                fingerprint: fileMetaFingerprint || null
+              }
+            },
+            atomic: true
+          });
+        }
+      );
+    }
+  } else {
+    const cachedFormat = typeof fileMetaMeta?.format === 'string' ? fileMetaMeta.format : 'json';
+    if (cachedFormat === 'jsonl-sharded' && Array.isArray(fileMetaMeta?.parts)) {
+      for (const part of fileMetaMeta.parts) {
+        const relPath = typeof part === 'string' ? part : part?.path;
+        if (!relPath) continue;
+        const absPath = path.join(outDir, relPath);
+        addPieceFile({
+          type: 'chunks',
+          name: 'file_meta',
+          format: 'jsonl',
+          count: typeof part === 'object' && Number.isFinite(part.records) ? part.records : null,
+          compression: fileMetaMeta?.compression || null
+        }, absPath);
+      }
+      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
+    } else if (cachedFormat === 'columnar' && Array.isArray(fileMetaMeta?.parts)) {
+      const part = fileMetaMeta.parts[0];
+      const relPath = typeof part === 'string' ? part : part?.path;
+      if (relPath) {
+        const absPath = path.join(outDir, relPath);
+        addPieceFile({
+          type: 'chunks',
+          name: 'file_meta',
+          format: 'columnar',
+          count: typeof part === 'object' && Number.isFinite(part.records) ? part.records : null
+        }, absPath);
+      }
+      addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
+    } else {
+      addPieceFile({ type: 'chunks', name: 'file_meta', format: 'json', count: fileMeta.length }, path.join(outDir, 'file_meta.json'));
+      if (fsSync.existsSync(fileMetaMetaPath)) {
+        addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
+      }
+    }
+  }
   if (denseVectorsEnabled) {
     enqueueJsonObject('dense_vectors_doc_uint8', {
       fields: { model: modelId, dims: postings.dims, scale: denseScale },
@@ -328,7 +669,8 @@ export async function writeIndexArtifacts(input) {
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
   const chunkUidMapCompression = resolveShardCompression('chunk_uid_map');
   await enqueueChunkUidMapArtifacts({
@@ -385,18 +727,101 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'chunks', name: 'filter_index' }
     });
   }
-  enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } }, {
+  const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
+    ? postings.minhashSigs
+    : null;
+  const minhashStream = postings.minhashStream && Array.isArray(state?.chunks) && state.chunks.length;
+  const minhashCount = minhashFromPostings
+    ? postings.minhashSigs.length
+    : (minhashStream ? state.chunks.length : (postings.minhashSigs?.length || 0));
+  const minhashIterable = minhashFromPostings
+    ? minhashFromPostings
+    : (minhashStream
+      ? (function* () {
+        for (const chunk of state.chunks) {
+          yield chunk?.minhashSig;
+        }
+      })()
+      : (postings.minhashSigs || []));
+  enqueueJsonObject('minhash_signatures', { arrays: { signatures: minhashIterable } }, {
     piece: {
       type: 'postings',
       name: 'minhash_signatures',
-      count: postings.minhashSigs.length
+      count: minhashCount
     }
   });
+  const packMinhashSignatures = ({ signatures, chunks }) => {
+    const source = Array.isArray(signatures) && signatures.length ? signatures : null;
+    const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
+    if (!source && !sourceChunks) return null;
+    const first = source ? source[0] : sourceChunks[0]?.minhashSig;
+    if (!Array.isArray(first) || !first.length) return null;
+    const dims = first.length;
+    const count = source ? source.length : sourceChunks.length;
+    const total = dims * count;
+    const buffer = Buffer.allocUnsafe(total * 4);
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, total);
+    let offset = 0;
+    if (source) {
+      for (const sig of source) {
+        if (!Array.isArray(sig) || sig.length !== dims) return null;
+        for (let i = 0; i < dims; i += 1) {
+          const value = sig[i];
+          view[offset] = Number.isFinite(value) ? value : 0;
+          offset += 1;
+        }
+      }
+    } else {
+      for (const chunk of sourceChunks) {
+        const sig = chunk?.minhashSig;
+        if (!Array.isArray(sig) || sig.length !== dims) return null;
+        for (let i = 0; i < dims; i += 1) {
+          const value = sig[i];
+          view[offset] = Number.isFinite(value) ? value : 0;
+          offset += 1;
+        }
+      }
+    }
+    return { buffer, dims, count };
+  };
+  const packedMinhash = packMinhashSignatures({
+    signatures: minhashFromPostings,
+    chunks: minhashStream ? state.chunks : null
+  });
+  if (packedMinhash) {
+    const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
+    const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
+    enqueueWrite(
+      formatArtifactLabel(packedPath),
+      async () => {
+        await fs.writeFile(packedPath, packedMinhash.buffer);
+        await writeJsonObjectFile(packedMetaPath, {
+          fields: {
+            format: 'u32',
+            endian: 'le',
+            dims: packedMinhash.dims,
+            count: packedMinhash.count
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({
+      type: 'postings',
+      name: 'minhash_signatures_packed',
+      format: 'bin',
+      count: packedMinhash.count
+    }, packedPath);
+    addPieceFile({ type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' }, packedMetaPath);
+  } else {
+    await removePackedMinhash();
+  }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
   await enqueueTokenPostingsArtifacts({
     outDir,
     postings,
     state,
+    tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize,
     tokenPostingsCompression,
@@ -487,26 +912,34 @@ export async function writeIndexArtifacts(input) {
     const symbolOccurrencesCompression = resolveShardCompression('symbol_occurrences');
     await enqueueSymbolOccurrencesArtifacts({
       state,
+      fileIdByPath,
+      chunkUidToFileId,
       outDir,
       maxJsonBytes,
       log,
+      format: symbolArtifactsFormatConfig,
       compression: symbolOccurrencesCompression,
       gzipOptions: symbolOccurrencesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     });
     const symbolEdgesCompression = resolveShardCompression('symbol_edges');
     await enqueueSymbolEdgesArtifacts({
       state,
+      fileIdByPath,
+      chunkUidToFileId,
       outDir,
       maxJsonBytes,
       log,
+      format: symbolArtifactsFormatConfig,
       compression: symbolEdgesCompression,
       gzipOptions: symbolEdgesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     });
   }
   await enqueueGraphRelationsArtifacts({
@@ -560,6 +993,22 @@ export async function writeIndexArtifacts(input) {
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+
+  for (const entry of pieceEntries) {
+    if (!entry?.path) continue;
+    const metric = artifactMetrics.get(entry.path) || { path: entry.path };
+    if (Number.isFinite(entry.count)) metric.count = entry.count;
+    if (Number.isFinite(entry.dims)) metric.dims = entry.dims;
+    if (entry.compression) metric.compression = entry.compression;
+    artifactMetrics.set(entry.path, metric);
+  }
+  if (timing) {
+    timing.artifacts = Array.from(artifactMetrics.values()).sort((a, b) => {
+      const aPath = String(a?.path || '');
+      const bPath = String(b?.path || '');
+      return aPath.localeCompare(bPath);
+    });
+  }
 
   pieceEntries.sort((a, b) => {
     const pathA = String(a?.path || '');

@@ -12,15 +12,21 @@ import {
 export const TIME_LABEL_COLOR = ANSI.fgDarkGray;
 export const TIME_BRACKET_COLOR = `${ANSI.dim}${ANSI.fgDarkGray}`;
 
-export const applyLineBackground = (text, { useColor = false, columns = 0, bg = ANSI.bgBlack } = {}) => (
-  applyLineBackgroundRaw(text, { enabled: useColor, columns, bg })
-);
+export const applyLineBackground = (text, { useColor = false, columns = 0, bg = null } = {}) => {
+  const visible = stripAnsi(text).length;
+  const width = Number.isFinite(columns) ? columns : 0;
+  const padded = width && visible < width ? `${text}${' '.repeat(width - visible)}` : text;
+  if (!useColor) return padded;
+  if (!bg) return padded;
+  return applyLineBackgroundRaw(text, { enabled: true, columns, bg });
+};
 
 export const applySplitBackground = (
   text,
-  { useColor = false, columns = 0, bgText = ANSI.bgBlack, bgTail = ANSI.bgBlack } = {}
+  { useColor = false, columns = 0, bgText = null, bgTail = null } = {}
 ) => {
   if (!useColor) return text;
+  if (!bgText || !bgTail) return text;
   const visible = stripAnsi(text).length;
   const width = Number.isFinite(columns) ? columns : 0;
   const padding = width && visible < width ? width - visible : 0;
@@ -45,13 +51,13 @@ export const formatDurationCell = (ms) => {
 
 export const formatLabel = (label, { useColor = false, mode = 'plain' } = {}) => {
   if (!useColor) return label;
-  if (mode === 'pass') return `${ANSI.bgBlack}${ANSI.fgGreen}${label}${ANSI.reset}`;
+  if (mode === 'pass') return `${ANSI.fgGreen}${label}${ANSI.reset}`;
   if (mode === 'fail') return `${ANSI.fgRed}${label}${ANSI.reset}`;
   if (mode === 'redo') return `${ANSI.fgOrangeDeep}${label}${ANSI.reset}`;
   if (mode === 'warn') return `${ANSI.fgYellow}${label}${ANSI.reset}`;
   if (mode === 'log') return `${ANSI.fgLightBlue}${label}${ANSI.reset}`;
-  if (mode === 'skip') return `${ANSI.bgBlack}${ANSI.fgPink}${label}${ANSI.reset}`;
-  if (mode === 'init') return `${ANSI.bgBlack}${ANSI.fgBrightWhite}${label}${ANSI.reset}`;
+  if (mode === 'skip') return `${ANSI.fgPink}${label}${ANSI.reset}`;
+  if (mode === 'init') return `${ANSI.fgBrightWhite}${label}${ANSI.reset}`;
   if (mode === 'timeout') return `${ANSI.fgOrange}${label}${ANSI.reset}`;
   return label;
 };
@@ -60,7 +66,7 @@ export const formatDurationBadge = (
   ms,
   {
     useColor = false,
-    bg = ANSI.bgBlack,
+    bg = null,
     bracketColor = TIME_BRACKET_COLOR,
     numberColor = ANSI.fgBrightWhite,
     decimalColor = numberColor,
@@ -75,6 +81,9 @@ export const formatDurationBadge = (
   const coloredNumber = Array.from(numberPart)
     .map((ch) => (ch === '.' ? `${decimalColor}${ch}` : `${numberColor}${ch}`))
     .join('');
+  if (!bg) {
+    return `${bracketColor}[${coloredNumber}${unitColor}${unit}${bracketColor}]${ANSI.reset}`;
+  }
   return `${bg}${bracketColor}[${coloredNumber}${unitColor}${unit}` +
     `${bg}${bracketColor}]${ANSI.reset}`;
 };

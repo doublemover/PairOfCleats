@@ -189,11 +189,14 @@ export const enqueueCallSitesArtifacts = ({
   const callSitesPath = path.join(outDir, `call_sites.${jsonlExtension}`);
   const callSitesMetaPath = path.join(outDir, 'call_sites.meta.json');
   const callSitesPartsDir = path.join(outDir, 'call_sites.parts');
+  const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
+  const offsetsPath = offsetsConfig ? `${callSitesPath}.${offsetsConfig.suffix}` : null;
 
   const removeJsonlVariants = async () => {
     await fs.rm(path.join(outDir, 'call_sites.jsonl'), { force: true });
     await fs.rm(path.join(outDir, 'call_sites.jsonl.gz'), { force: true });
     await fs.rm(path.join(outDir, 'call_sites.jsonl.zst'), { force: true });
+    await fs.rm(path.join(outDir, 'call_sites.jsonl.offsets.bin'), { force: true });
   };
 
   const useShards = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
@@ -204,7 +207,12 @@ export const enqueueCallSitesArtifacts = ({
         await removeJsonlVariants();
         await fs.rm(callSitesMetaPath, { force: true });
         await fs.rm(callSitesPartsDir, { recursive: true, force: true });
-        await writeJsonLinesFile(callSitesPath, rows, { atomic: true, compression, gzipOptions });
+        await writeJsonLinesFile(callSitesPath, rows, {
+          atomic: true,
+          compression,
+          gzipOptions,
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+        });
       }
     );
     addPieceFile({
@@ -214,6 +222,14 @@ export const enqueueCallSitesArtifacts = ({
       count: rows.length,
       compression: compression || null
     }, callSitesPath);
+    if (offsetsPath) {
+      addPieceFile({
+        type: 'relations',
+        name: 'call_sites_offsets',
+        format: 'bin',
+        count: rows.length
+      }, offsetsPath);
+    }
     return {
       name: 'call_sites',
       format: 'jsonl',
@@ -239,13 +255,21 @@ export const enqueueCallSitesArtifacts = ({
         maxBytes: resolvedMaxBytes,
         atomic: true,
         compression,
-        gzipOptions
+        gzipOptions,
+        offsets: offsetsConfig
       });
       const parts = result.parts.map((part, index) => ({
         path: part,
         records: result.counts[index] || 0,
         bytes: result.bytes[index] || 0
       }));
+      const offsetsMeta = result.offsets?.length
+        ? {
+          format: 'u64-le',
+          suffix: offsetsConfig?.suffix || null,
+          parts: result.offsets
+        }
+        : null;
       await writeJsonObjectFile(callSitesMetaPath, {
         fields: {
           schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
@@ -258,6 +282,7 @@ export const enqueueCallSitesArtifacts = ({
           maxPartRecords: result.maxPartRecords,
           maxPartBytes: result.maxPartBytes,
           targetMaxBytes: result.targetMaxBytes,
+          extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined,
           parts
         },
         atomic: true
@@ -272,6 +297,19 @@ export const enqueueCallSitesArtifacts = ({
           count: result.counts[i] || 0,
           compression: compression || null
         }, absPath);
+      }
+      if (Array.isArray(result.offsets)) {
+        for (let i = 0; i < result.offsets.length; i += 1) {
+          const relPath = result.offsets[i];
+          if (!relPath) continue;
+          const absPath = path.join(outDir, fromPosix(relPath));
+          addPieceFile({
+            type: 'relations',
+            name: 'call_sites_offsets',
+            format: 'bin',
+            count: result.counts[i] || 0
+          }, absPath);
+        }
       }
       addPieceFile({ type: 'relations', name: 'call_sites_meta', format: 'json' }, callSitesMetaPath);
     }

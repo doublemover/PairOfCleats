@@ -11,6 +11,8 @@ import {
   loadPiecesManifest,
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
+import { resolveManifestArtifactSources } from '../../shared/artifact-io/manifest.js';
+import { readJsonlRows } from '../../index/build/artifacts/helpers.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
@@ -26,6 +28,52 @@ const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
   return caps;
 };
 
+const resolveJsonlSources = (indexDir, manifest, name) => {
+  const sources = resolveManifestArtifactSources({
+    dir: indexDir,
+    manifest,
+    name,
+    strict: true,
+    maxBytes: MAX_JSON_BYTES
+  });
+  if (!sources?.paths?.length) return null;
+  if (sources.format === 'json') return null;
+  const jsonlPaths = sources.paths.filter((target) => target.endsWith('.jsonl'));
+  if (!jsonlPaths.length || jsonlPaths.length !== sources.paths.length) return null;
+  return jsonlPaths;
+};
+
+const loadJsonlRowsIntoArray = async (paths) => {
+  const rows = [];
+  for (const target of paths) {
+    for await (const row of readJsonlRows(target)) {
+      rows.push(row);
+    }
+  }
+  return rows;
+};
+
+const loadCallSitesByTarget = async (indexDir, manifest) => {
+  const jsonlPaths = resolveJsonlSources(indexDir, manifest, 'call_sites');
+  if (!jsonlPaths) return null;
+  const map = new Map();
+  for (const target of jsonlPaths) {
+    for await (const callSite of readJsonlRows(target)) {
+      if (!callSite) continue;
+      const keys = new Set();
+      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
+      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
+      for (const key of keys) {
+        if (!key) continue;
+        const list = map.get(key) || [];
+        list.push(callSite);
+        map.set(key, list);
+      }
+    }
+  }
+  return map;
+};
+
 
 const isExportedSymbol = (symbol) => {
   const kind = String(symbol.kind || '').toLowerCase();
@@ -34,6 +82,8 @@ const isExportedSymbol = (symbol) => {
   if (group.includes('export')) return true;
   return false;
 };
+
+const signatureArityCache = new Map();
 
 const parseSignatureArity = (signature) => {
   if (!signature || typeof signature !== 'string') return null;
@@ -257,9 +307,19 @@ const parseSignatureArity = (signature) => {
   };
 };
 
+const resolveSignatureArity = (signature) => {
+  if (!signature) return null;
+  const key = String(signature);
+  if (signatureArityCache.has(key)) return signatureArityCache.get(key);
+  const parsed = parseSignatureArity(key);
+  signatureArityCache.set(key, parsed);
+  return parsed;
+};
+
 export const buildApiContractsReport = ({
   symbols = [],
   callSites = [],
+  callSitesByTarget = null,
   onlyExports = false,
   failOnWarn = false,
   caps = {},
@@ -303,27 +363,48 @@ export const buildApiContractsReport = ({
     selected = selected.slice(0, maxSymbols);
   }
 
-  const callSitesByTarget = new Map();
-  for (const callSite of Array.isArray(callSites) ? callSites : []) {
-    if (!callSite) continue;
-    const key = callSite.targetChunkUid || callSite.calleeNormalized || null;
-    if (!key) continue;
-    const list = callSitesByTarget.get(key) || [];
-    list.push(callSite);
-    callSitesByTarget.set(key, list);
+  const resolvedCallSitesByTarget = callSitesByTarget instanceof Map
+    ? callSitesByTarget
+    : new Map();
+  if (!(callSitesByTarget instanceof Map)) {
+    for (const callSite of Array.isArray(callSites) ? callSites : []) {
+      if (!callSite) continue;
+      const keys = new Set();
+      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
+      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
+      for (const key of keys) {
+        if (!key) continue;
+        const list = resolvedCallSitesByTarget.get(key) || [];
+        list.push(callSite);
+        resolvedCallSitesByTarget.set(key, list);
+      }
+    }
+  }
+  const sortCallSites = (a, b) => {
+    const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
+    if (fileCmp) return fileCmp;
+    const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
+    if (lineCmp) return lineCmp;
+    return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
+  };
+  for (const list of resolvedCallSitesByTarget.values()) {
+    list.sort(sortCallSites);
   }
 
   const symbolEntries = selected.map((symbol) => {
     const symbolId = symbol.symbolId || symbol.id || null;
-    const targetKey = symbol.chunkUid || symbolId || symbol.name || null;
-    const rawCalls = targetKey ? (callSitesByTarget.get(targetKey) || []) : [];
-    rawCalls.sort((a, b) => {
-      const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
-      if (fileCmp) return fileCmp;
-      const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
-      if (lineCmp) return lineCmp;
-      return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
-    });
+    const targetCandidates = [];
+    if (symbol.chunkUid) targetCandidates.push(symbol.chunkUid);
+    if (symbolId) targetCandidates.push(symbolId);
+    if (symbol.name) targetCandidates.push(symbol.name);
+    let rawCalls = [];
+    for (const key of targetCandidates) {
+      const list = resolvedCallSitesByTarget.get(key);
+      if (list && list.length) {
+        rawCalls = list;
+        break;
+      }
+    }
 
     let observedCalls = rawCalls;
     const entryTruncation = [];
@@ -338,7 +419,7 @@ export const buildApiContractsReport = ({
       observedCalls = observedCalls.slice(0, maxCallsPerSymbol);
     }
 
-    const signatureInfo = parseSignatureArity(symbol.signature);
+    const signatureInfo = resolveSignatureArity(symbol.signature);
     const entryWarnings = [];
     if (signatureInfo) {
       const requiredCount = Number.isFinite(signatureInfo.requiredCount) ? signatureInfo.requiredCount : null;
@@ -465,8 +546,14 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   }
 
   const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  const symbols = await loadJsonArrayArtifact(indexDir, 'symbols', { manifest, strict: true });
-  const callSites = await loadJsonArrayArtifact(indexDir, 'call_sites', { manifest, strict: true }).catch(() => []);
+  const symbolJsonlPaths = resolveJsonlSources(indexDir, manifest, 'symbols');
+  const symbols = symbolJsonlPaths
+    ? await loadJsonlRowsIntoArray(symbolJsonlPaths)
+    : await loadJsonArrayArtifact(indexDir, 'symbols', { manifest, strict: true });
+  const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest);
+  const callSites = callSitesByTarget
+    ? []
+    : await loadJsonArrayArtifact(indexDir, 'call_sites', { manifest, strict: true }).catch(() => []);
 
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
     maxBytes: MAX_JSON_BYTES,
@@ -485,6 +572,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const report = buildApiContractsReport({
     symbols,
     callSites,
+    callSitesByTarget,
     onlyExports: argv.onlyExports === true,
     failOnWarn: argv.failOnWarn === true,
     caps,

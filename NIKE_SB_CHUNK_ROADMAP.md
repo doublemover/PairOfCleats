@@ -4,21 +4,27 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 
 ---
 
+## Dependency map (high-level)
+
+Phase 1 is the foundation for schema/contract hygiene. Phase 2 depends on Phase 1 rules (trim policy + determinism rules). Phase 3 depends on Phase 1 contract/versioning and Phase 2 artifact stability. Phase 4 depends on Phase 1 schema rules and Phase 3 output contracts. Phase 5 depends on Phase 1 contract rules and Phase 4 workspace/SCM integrity for CI coverage. Phase 6 depends on Phase 3 output contracts and Phase 5 runner outputs for consistent error telemetry.
+
+Note: each phase's "Exit Criteria" section is the acceptance criteria for that phase.
+
 ## Decision Register (resolve before execution)
 
-| Decision | Description | Default if Unresolved | Owner | Due Phase |
-| --- | --- | --- | --- | --- |
-| D1 `api_contracts_meta` | Add schema + writer vs remove from docs. | Remove from docs and keep it out of the contract until a schema exists. | TBD | Phase 2 |
-| D2 N‑1 major support for 0.x | Change code or document current behavior. | Document current behavior, add a compatibility note, and revisit in Phase 5. | TBD | Phase 3 |
-| D3 Extensions-only vs extra fields | Tighten schemas or relax docs. | Tighten schemas; explicitly whitelist extension fields if needed. | TBD | Phase 2 |
-| D4 Graph explain shape | Update docs or change output. | Align output to docs and version the explain schema. | TBD | Phase 3 |
-| D5 Impact empty inputs | Enforce error or document warning+empty result. | Default to error; allow legacy warning only with explicit flag. | TBD | Phase 3 |
-| D6 Graph product surfaces spec | Keep authoritative + update or archive. | Keep authoritative and update docs to match behavior. | TBD | Phase 3 |
-| D7 Risk trimming/ordering | Enforce spec in code or update specs. | Enforce spec in code, add deterministic trimming rules. | TBD | Phase 2 |
-| D8 Tooling IO `fileTextByFile` | Implement cache or update spec to VFS. | Update spec to VFS and treat cache as optional. | TBD | Phase 4 |
-| D9 TS provider heuristic IDs | Remove from code or allow in spec. | Allow in spec with explicit marker and phase-out plan. | TBD | Phase 3 |
-| D10 VFS manifest trimming | Enforce deterministic trim or update spec. | Enforce deterministic trim with counters. | TBD | Phase 2 |
-| D11 Promote `docs/new_docs/*` | Promote into specs or archive/remove. | Promote only docs with implementation + tests; archive the rest. | TBD | Phase 6 |
+| Decision | Description | Default if Unresolved | Owner | Due Phase | Decision deadline |
+| --- | --- | --- | --- | --- | --- |
+| D1 `api_contracts_meta` | Add schema + writer vs remove from docs. | Remove from docs and keep it out of the contract until a schema exists. | TBD | Phase 2 | Before Phase 2 start |
+| D2 N‑1 major support for 0.x | Change code or document current behavior. | Document current behavior, add a compatibility note, and revisit in Phase 5. | TBD | Phase 3 | Before Phase 3 start |
+| D3 Extensions-only vs extra fields | Tighten schemas or relax docs. | Tighten schemas; explicitly whitelist extension fields if needed. | TBD | Phase 2 | Before Phase 2 start |
+| D4 Graph explain shape | Update docs or change output. | Align output to docs and version the explain schema. | TBD | Phase 3 | Before Phase 3 start |
+| D5 Impact empty inputs | Enforce error or document warning+empty result. | Default to error; allow legacy warning only with explicit flag. | TBD | Phase 3 | Before Phase 3 start |
+| D6 Graph product surfaces spec | Keep authoritative + update or archive. | Keep authoritative and update docs to match behavior. | TBD | Phase 3 | Before Phase 3 start |
+| D7 Risk trimming/ordering | Enforce spec in code or update specs. | Enforce spec in code, add deterministic trimming rules. | TBD | Phase 2 | Before Phase 2 start |
+| D8 Tooling IO `fileTextByFile` | Implement cache or update spec to VFS. | Update spec to VFS and treat cache as optional. | TBD | Phase 4 | Before Phase 4 start |
+| D9 TS provider heuristic IDs | Remove from code or allow in spec. | Allow in spec with explicit marker and phase-out plan. | TBD | Phase 3 | Before Phase 3 start |
+| D10 VFS manifest trimming | Enforce deterministic trim or update spec. | Enforce deterministic trim with counters. | TBD | Phase 2 | Before Phase 2 start |
+| D11 Promote `docs/new_docs/*` | Promote into specs or archive/remove. | Promote only docs with implementation + tests; archive the rest. | TBD | Phase 6 | Before Phase 6 start |
 
 ## Glossary
 
@@ -26,6 +32,18 @@ A phased roadmap to implement targeted platform improvements. Each phase include
 - Explain schema: the structured, versioned JSON emitted by `--explain`.
 - Trim policy: deterministic rules for dropping optional fields when rows exceed size limits.
 - Determinism report: artifact listing known nondeterministic fields and their sources.
+
+## Config surface classification (public vs internal)
+
+- Public config: must appear in `docs/config/schema.json` and `docs/config/inventory.*`, include schema validation, and be documented in the relevant contract/guides.
+- Internal config: must be scoped under `internal.*` or `experimental.*`, must not appear in docs/config inventory, and must be annotated with `@internal` in code comments.
+- Promotion rule: internal configs can be promoted only with docs, schema validation, and tests; no silent behavior changes.
+
+## Spec gate consolidation
+
+- All spec guardrails flow through a single entrypoint (`tools/ci/run-suite.js`) with a shared allowlist and output format.
+- Contract drift checks must emit machine-readable summaries and fail only on curated allowlists, not on informational sections.
+- Each guardrail must define: scope, authoritative source, allowed drift, and explicit remediation command.
 
 ## Phase 1 — Foundations & Contract Hygiene
 
@@ -75,10 +93,27 @@ Establish shared contracts, helpers, and rules that later phases depend on. This
 - Acceptance:
   - [ ] Deterministic hashing is enforced in contracts and tests.
 
+### 1.4 Spec gate consolidation
+- Goal: remove duplicated spec checks and ensure consistent guardrail behavior across CI and local runs.
+- Touchpoints:
+  - `tools/ci/run-suite.js`
+  - `tools/doc-contract-drift.js`
+  - `docs/tooling/script-inventory.json`
+  - `docs/guides/commands.md`
+- Tasks:
+  - [ ] Define a single guardrail registry with scope + allowlists.
+  - [ ] Ensure each guardrail emits a summarized diff and a remediation command.
+  - [ ] Align exit codes and `--fail` behavior across guardrails.
+- Tests:
+  - [ ] Guardrail registry test ensures all checks have scope + remediation.
+- Acceptance:
+  - [ ] Guardrails are unified, deterministic, and consistent in CI/local runs.
+
 ### Phase 1 Exit Criteria
 - [ ] Contract versioning and forward-compat rules are documented and tested.
 - [ ] Path normalization policy is defined and validated.
 - [ ] Deterministic serialization rules are enforced in code and tests.
+- [ ] Spec gate consolidation is implemented and tested.
 
 ### Phase 1 Non-goals
 - [ ] Broad refactors of unrelated contracts.
@@ -484,5 +519,9 @@ Required work (future):
   - Use shard stats only on cache miss, and cache results for TTL
 - [ ] Add tests:
   - [ ] Search path does not perform sync fs (mock fs + verify no sync calls)
-  - [ ] Signature invalidation when `index_state.json` changes
-  - [ ] Fallback signature path still detects shard changes
+- [ ] Signature invalidation when `index_state.json` changes
+- [ ] Fallback signature path still detects shard changes
+
+---
+
+

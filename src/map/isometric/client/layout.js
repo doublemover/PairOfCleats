@@ -16,6 +16,7 @@ import {
   layoutDependencyLanes,
   layoutSpiralItems
 } from './layout-utils.js';
+import { DEFAULT_EDGE_WEIGHTS } from '../../constants.js';
 
 export const createShapeGeometry = (shape) => {
   const { THREE } = state;
@@ -68,14 +69,7 @@ export const computeLayout = () => {
   const memberHeightScale = numberValue(layout.memberHeightScale, layoutDefaults.memberHeightScale) * scaleFactor;
   const memberHeightMax = numberValue(layout.memberHeightMax, layoutDefaults.memberHeightMax) * scaleFactor;
 
-  const edgeWeights = {
-    import: 3,
-    export: 3,
-    call: 2.5,
-    usage: 2,
-    dataflow: 2,
-    alias: 1.5
-  };
+  const edgeWeights = DEFAULT_EDGE_WEIGHTS;
 
   const resolveEdgeFile = (endpoint) => {
     if (!endpoint) return null;

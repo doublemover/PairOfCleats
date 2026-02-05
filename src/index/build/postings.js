@@ -2,6 +2,8 @@ import { quantizeVec } from '../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../shared/embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { isVectorLike } from '../../shared/embedding-utils.js';
+import { estimateJsonBytes } from '../../shared/cache.js';
+import { createRowSpillCollector, mergeSortedRuns } from './artifacts/helpers.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -49,6 +51,8 @@ export async function buildPostings(input) {
     phrasePost,
     triPost,
     postingsConfig,
+    postingsGuard = null,
+    buildRoot = null,
     modelId,
     useStubEmbeddings,
     log,
@@ -63,6 +67,26 @@ export async function buildPostings(input) {
     : [];
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const minhashMaxDocsRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.minhashMaxDocs)
+    : NaN;
+  const minhashMaxDocs = Number.isFinite(minhashMaxDocsRaw)
+    ? Math.max(0, Math.floor(minhashMaxDocsRaw))
+    : 0;
+  const minhashStream = !(postingsConfig && typeof postingsConfig === 'object')
+    || postingsConfig.minhashStream !== false;
+  const phraseSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.phraseSpillMaxBytes)
+    : NaN;
+  const phraseSpillMaxBytes = Number.isFinite(phraseSpillMaxBytesRaw)
+    ? Math.max(0, Math.floor(phraseSpillMaxBytesRaw))
+    : 0;
+  const chargramSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.chargramSpillMaxBytes)
+    : NaN;
+  const chargramSpillMaxBytes = Number.isFinite(chargramSpillMaxBytesRaw)
+    ? Math.max(0, Math.floor(chargramSpillMaxBytesRaw))
+    : 0;
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
@@ -107,6 +131,8 @@ export async function buildPostings(input) {
       tokenPostingsList: [],
       avgDocLen: 0,
       minhashSigs: [],
+      minhashStream: false,
+      minhashGuard: null,
       dims: embeddingsEnabled ? DEFAULT_STUB_DIMS : 0,
       quantizedVectors: [],
       quantizedDocVectors: [],
@@ -116,6 +142,12 @@ export async function buildPostings(input) {
 
   const phraseEnabled = resolvedConfig.enablePhraseNgrams !== false;
   const chargramEnabled = resolvedConfig.enableChargrams !== false;
+  const chargramSpillMaxUnique = Number.isFinite(resolvedConfig.chargramSpillMaxUnique)
+    ? Math.max(0, Math.floor(resolvedConfig.chargramSpillMaxUnique))
+    : 0;
+  const chargramMaxDf = Number.isFinite(resolvedConfig.chargramMaxDf)
+    ? Math.max(0, Math.floor(resolvedConfig.chargramMaxDf))
+    : 0;
 
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
@@ -134,6 +166,45 @@ export async function buildPostings(input) {
     const sorted = Array.from(new Set(list));
     sorted.sort((a, b) => a - b);
     return sorted;
+  };
+  const mergeIdLists = (left, right) => {
+    if (left == null) return normalizeIdList(right);
+    if (right == null) return normalizeIdList(left);
+    const listA = normalizeDocIdList(left);
+    const listB = normalizeDocIdList(right);
+    if (!listA.length) return listB;
+    if (!listB.length) return listA;
+    const lastA = listA[listA.length - 1];
+    const firstB = listB[0];
+    if (isSortedIds(listA) && isSortedIds(listB) && Number.isFinite(lastA) && Number.isFinite(firstB) && lastA <= firstB) {
+      return listA.concat(listB);
+    }
+    const merged = listA.concat(listB);
+    if (isSortedIds(merged)) return merged;
+    const sorted = Array.from(new Set(merged));
+    sorted.sort((a, b) => a - b);
+    return sorted;
+  };
+  const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  const shouldSpillByBytes = (map, maxBytes) => {
+    if (!maxBytes || !map || typeof map.entries !== 'function') return false;
+    let total = 0;
+    for (const [token, posting] of map.entries()) {
+      total += estimateJsonBytes({ token, postings: posting });
+      if (total >= maxBytes) return true;
+    }
+    return false;
+  };
+  let droppedHighDf = 0;
+  let maxChargramDf = 0;
+  const normalizeChargramPosting = (value) => {
+    const list = normalizeIdList(value);
+    maxChargramDf = Math.max(maxChargramDf, list.length);
+    if (chargramMaxDf && list.length > chargramMaxDf) {
+      droppedHighDf += 1;
+      return null;
+    }
+    return list;
   };
   const normalizeTfPostingList = (value) => {
     if (!Array.isArray(value)) return [];
@@ -366,31 +437,234 @@ export async function buildPostings(input) {
   let phraseVocab = [];
   let phrasePostings = [];
   if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
-    phraseVocab = new Array(entries.length);
-    phrasePostings = new Array(entries.length);
-    for (let i = 0; i < entries.length; i += 1) {
-      const [key, posting] = entries[i];
-      phraseVocab[i] = key;
-      phrasePostings[i] = normalizeIdList(posting);
-      phrasePost.delete(key);
+    const phraseShouldSpill = buildRoot
+      && phraseSpillMaxBytes
+      && shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);
+    if (phraseShouldSpill) {
+      const collector = createRowSpillCollector({
+        outDir: buildRoot,
+        runPrefix: 'phrase_postings',
+        compare: compareChargramRows,
+        maxBufferBytes: 4 * 1024 * 1024,
+        maxBufferRows: 5000,
+        maxJsonBytes: null
+      });
+      for (const [key, posting] of phrasePost.entries()) {
+        await collector.append({
+          token: key,
+          postings: normalizeIdList(posting)
+        });
+        phrasePost.delete(key);
+      }
+      const collected = await collector.finalize();
+      const rows = collected?.rows || null;
+      const runs = collected?.runs || null;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareChargramRows })
+        : rows;
+      const vocab = [];
+      const postingsList = [];
+      let currentToken = null;
+      let currentPosting = null;
+      if (items) {
+        const iterator = runs ? items : items[Symbol.iterator]();
+        if (runs) {
+          for await (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeIdList(currentPosting);
+              if (normalized.length) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        } else {
+          for (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeIdList(currentPosting);
+              if (normalized.length) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        }
+      }
+      if (currentToken !== null) {
+        const normalized = normalizeIdList(currentPosting);
+        if (normalized.length) {
+          vocab.push(currentToken);
+          postingsList.push(normalized);
+        }
+      }
+      phraseVocab = vocab;
+      phrasePostings = postingsList;
+      if (collected?.cleanup) await collected.cleanup();
+    } else {
+      const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
+      phraseVocab = new Array(entries.length);
+      phrasePostings = new Array(entries.length);
+      for (let i = 0; i < entries.length; i += 1) {
+        const [key, posting] = entries[i];
+        phraseVocab[i] = key;
+        phrasePostings[i] = normalizeIdList(posting);
+        phrasePost.delete(key);
+      }
+      if (typeof phrasePost.clear === 'function') phrasePost.clear();
     }
-    if (typeof phrasePost.clear === 'function') phrasePost.clear();
   }
 
   let chargramVocab = [];
   let chargramPostings = [];
+  let chargramStats = null;
+  const triPostSize = triPost?.size || 0;
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    const entries = Array.from(triPost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
-    chargramVocab = new Array(entries.length);
-    chargramPostings = new Array(entries.length);
-    for (let i = 0; i < entries.length; i += 1) {
-      const [key, posting] = entries[i];
-      chargramVocab[i] = key;
-      chargramPostings[i] = normalizeIdList(posting);
-      triPost.delete(key);
+    const spillByBytes = buildRoot
+      && chargramSpillMaxBytes
+      && shouldSpillByBytes(triPost, chargramSpillMaxBytes);
+    const shouldSpill = buildRoot
+      && ((chargramSpillMaxUnique && triPost.size >= chargramSpillMaxUnique) || spillByBytes);
+    if (shouldSpill) {
+      const collector = createRowSpillCollector({
+        outDir: buildRoot,
+        runPrefix: 'chargram_postings',
+        compare: compareChargramRows,
+        maxBufferBytes: 4 * 1024 * 1024,
+        maxBufferRows: 5000,
+        maxJsonBytes: null
+      });
+      for (const [key, posting] of triPost.entries()) {
+        await collector.append({
+          token: key,
+          postings: normalizeIdList(posting)
+        });
+        triPost.delete(key);
+      }
+      const collected = await collector.finalize();
+      const rows = collected?.rows || null;
+      const runs = collected?.runs || null;
+      const stats = collected?.stats || null;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareChargramRows })
+        : rows;
+      const vocab = [];
+      const postingsList = [];
+      let currentToken = null;
+      let currentPosting = null;
+      if (items) {
+        const iterator = runs ? items : items[Symbol.iterator]();
+        if (runs) {
+          for await (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeChargramPosting(currentPosting);
+              if (normalized) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        } else {
+          for (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeChargramPosting(currentPosting);
+              if (normalized) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        }
+      }
+      if (currentToken !== null) {
+        const normalized = normalizeChargramPosting(currentPosting);
+        if (normalized) {
+          vocab.push(currentToken);
+          postingsList.push(normalized);
+        }
+      }
+      chargramVocab = vocab;
+      chargramPostings = postingsList;
+      if (collected?.cleanup) await collected.cleanup();
+      const guard = postingsGuard?.chargram || null;
+      const guardStats = guard
+        ? {
+          maxUnique: guard.maxUnique,
+          maxPerChunk: guard.maxPerChunk,
+          dropped: guard.dropped,
+          truncatedChunks: guard.truncatedChunks,
+          peakUnique: guard.peakUnique
+        }
+        : null;
+      chargramStats = {
+        spillEnabled: true,
+        spillRuns: runs?.length || 0,
+        spillRows: stats?.totalRows || 0,
+        spillBytes: stats?.totalBytes || 0,
+        spillMaxRowBytes: stats?.maxRowBytes || 0,
+        peakUnique: guard?.peakUnique || triPostSize || 0,
+        droppedHighDf,
+        maxDf: maxChargramDf,
+        guard: guardStats
+      };
+    } else {
+      const entries = Array.from(triPost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
+      chargramVocab = [];
+      chargramPostings = [];
+      for (let i = 0; i < entries.length; i += 1) {
+        const [key, posting] = entries[i];
+        const normalized = normalizeChargramPosting(posting);
+        if (normalized) {
+          chargramVocab.push(key);
+          chargramPostings.push(normalized);
+        }
+        triPost.delete(key);
+      }
+      if (typeof triPost.clear === 'function') triPost.clear();
     }
-    if (typeof triPost.clear === 'function') triPost.clear();
   }
 
   const tokenVocab = Array.from(tokenPostings.keys()).sort(sortStrings);
@@ -405,7 +679,14 @@ export async function buildPostings(input) {
     ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
 
-  const minhashSigs = chunks.map((c) => c.minhashSig);
+  const allowMinhash = !minhashMaxDocs || chunks.length <= minhashMaxDocs;
+  const minhashSigs = allowMinhash && !minhashStream ? chunks.map((c) => c.minhashSig) : [];
+  const minhashGuard = (!allowMinhash && minhashMaxDocs)
+    ? { skipped: true, maxDocs: minhashMaxDocs, totalDocs: chunks.length }
+    : null;
+  if (!allowMinhash && typeof log === 'function') {
+    log(`[postings] minhash skipped: ${chunks.length} docs exceeds max ${minhashMaxDocs}.`);
+  }
 
   const buildFieldPostings = () => {
     if (!fieldPostings || !fieldDocLengths) return null;
@@ -439,6 +720,29 @@ export async function buildPostings(input) {
     return Object.keys(fields).length ? { fields } : null;
   };
 
+  const guard = postingsGuard?.chargram || null;
+  if (!chargramStats) {
+    chargramStats = {
+      spillEnabled: false,
+      spillRuns: 0,
+      spillRows: 0,
+      spillBytes: 0,
+      spillMaxRowBytes: 0,
+      peakUnique: guard?.peakUnique || triPostSize || 0,
+      droppedHighDf,
+      maxDf: maxChargramDf,
+      guard: guard
+        ? {
+          maxUnique: guard.maxUnique,
+          maxPerChunk: guard.maxPerChunk,
+          dropped: guard.dropped,
+          truncatedChunks: guard.truncatedChunks,
+          peakUnique: guard.peakUnique
+        }
+        : null
+    };
+  }
+
   return {
     k1,
     b,
@@ -449,10 +753,13 @@ export async function buildPostings(input) {
     phrasePostings,
     chargramVocab,
     chargramPostings,
+    chargramStats,
     tokenVocab,
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
+    minhashStream: allowMinhash && minhashStream,
+    minhashGuard,
     dims,
     quantizedVectors,
     quantizedDocVectors,

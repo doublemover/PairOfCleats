@@ -1,5 +1,7 @@
 import { log, logLine } from '../../../../shared/progress.js';
 import { compareStrings } from '../../../../shared/sort.js';
+import { sha1 } from '../../../../shared/hash.js';
+import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { discoverFiles } from '../../discover.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 
@@ -57,7 +59,20 @@ export const runDiscovery = async ({
   }
   throwIfAborted(abortSignal);
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
-  entries = entries.map((entry, index) => ({ ...entry, orderIndex: index }));
+  entries = entries.map((entry, index) => ({
+    ...entry,
+    canonicalOrderIndex: index,
+    orderIndex: index
+  }));
+  if (state) {
+    const discoveryList = entries.map((entry) => ({
+      file: entry.rel,
+      size: Number.isFinite(entry?.stat?.size) ? entry.stat.size : null,
+      mtimeMs: Number.isFinite(entry?.stat?.mtimeMs) ? entry.stat.mtimeMs : null
+    }));
+    state.discoveredFiles = entries.map((entry) => entry.rel);
+    state.discoveryHash = sha1(stableStringifyForSignature(discoveryList));
+  }
   log(`→ Found ${entries.length} files.`);
   if (timing) timing.discoverMs = Date.now() - discoverStart;
   return entries;

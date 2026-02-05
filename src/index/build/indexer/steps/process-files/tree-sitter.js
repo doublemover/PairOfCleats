@@ -110,7 +110,7 @@ export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, {
       return compareStrings(a.rel || '', b.rel || '');
     });
     entries.forEach((entry, index) => {
-      entry.orderIndex = index;
+      entry.processingOrderIndex = index;
     });
   }
 
@@ -153,7 +153,8 @@ export const resolveNextOrderIndex = (entries) => {
   for (const entry of entries || []) {
     if (!entry || typeof entry !== 'object') continue;
     if (!Number.isFinite(entry.orderIndex)) {
-      entry.orderIndex = nextOrderIndex;
+      const canonical = Number.isFinite(entry.canonicalOrderIndex) ? entry.canonicalOrderIndex : nextOrderIndex;
+      entry.orderIndex = canonical;
     }
     nextOrderIndex = Math.max(nextOrderIndex, entry.orderIndex + 1);
   }

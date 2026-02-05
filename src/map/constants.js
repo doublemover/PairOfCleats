@@ -51,6 +51,15 @@ export const DEFAULT_LEGEND = {
   }
 };
 
+export const DEFAULT_EDGE_WEIGHTS = {
+  import: 3,
+  export: 3,
+  call: 2.5,
+  usage: 2,
+  dataflow: 2,
+  alias: 1.5
+};
+
 export const FILE_CATEGORY_RULES = {
   test: {
     extensions: ['.spec', '.test'],

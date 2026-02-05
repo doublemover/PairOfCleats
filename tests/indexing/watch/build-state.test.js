@@ -27,8 +27,15 @@ await Promise.all([
 
 const statePath = resolveBuildStatePath(buildRoot);
 const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
+let progress = state.progress;
+if (!progress?.code) {
+  const progressPath = path.join(buildRoot, 'build_state.progress.json');
+  try {
+    progress = JSON.parse(await fs.readFile(progressPath, 'utf8'));
+  } catch {}
+}
 
-assert.ok(state.progress?.code, 'expected progress update to persist');
+assert.ok(progress?.code, 'expected progress update to persist');
 assert.ok(state.phases?.processing, 'expected phase update to persist');
 assert.equal(state.currentPhase, 'processing', 'expected currentPhase to be set');
 assert.ok(!Object.prototype.hasOwnProperty.call(state, 'phase'), 'unexpected legacy phase field');

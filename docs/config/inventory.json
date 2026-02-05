@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T00:35:05.201Z",
+  "generatedAt": "2026-02-04T23:16:07.426Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -33,6 +33,7 @@
       "PAIROFCLEATS_CACHE_ROOT",
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
+      "PAIROFCLEATS_DEBUG_ORDERED",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DOC_EXTRACT",
@@ -91,6 +92,14 @@
     ],
     "knownConfigKeys": [
       "cache.root",
+      "indexing.artifacts.chunkMetaFormat",
+      "indexing.artifacts.chunkMetaJsonlThreshold",
+      "indexing.artifacts.chunkMetaShardSize",
+      "indexing.artifacts.mode",
+      "indexing.artifacts.symbolArtifactsFormat",
+      "indexing.artifacts.tokenPostingsFormat",
+      "indexing.artifacts.tokenPostingsShardSize",
+      "indexing.artifacts.tokenPostingsShardThreshold",
       "indexing.concurrency",
       "indexing.embeddings.cache.dir",
       "indexing.embeddings.cache.maxAgeDays",
@@ -120,6 +129,19 @@
       "indexing.ioConcurrencyCap",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.postings.chargramMaxDf",
+      "indexing.postings.chargramMaxN",
+      "indexing.postings.chargramMaxTokenLength",
+      "indexing.postings.chargramMinN",
+      "indexing.postings.chargramSource",
+      "indexing.postings.chargramSpillMaxUnique",
+      "indexing.postings.enableChargrams",
+      "indexing.postings.enablePhraseNgrams",
+      "indexing.postings.fielded",
+      "indexing.postings.phraseMaxN",
+      "indexing.postings.phraseMinN",
+      "indexing.postings.phraseSource",
+      "indexing.postings.tokenClassification",
       "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "indexing.riskInterprocedural.caps.maxDepth",
       "indexing.riskInterprocedural.caps.maxEdgeExpansions",
@@ -252,8 +274,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 200,
-    "leafKeys": 158,
+    "totalKeys": 223,
+    "leafKeys": 179,
     "topLevel": [
       {
         "key": "cache",
@@ -261,7 +283,7 @@
       },
       {
         "key": "indexing",
-        "count": 70
+        "count": 93
       },
       {
         "key": "mcp",
@@ -307,6 +329,61 @@
     {
       "path": "indexing",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaFormat",
+      "type": "string",
+      "enum": [
+        "auto",
+        "json",
+        "jsonl",
+        "columnar"
+      ]
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaJsonlThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.mode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.symbolArtifactsFormat",
+      "type": "string",
+      "enum": [
+        "auto",
+        "jsonl",
+        "jsonl-sharded",
+        "columnar"
+      ]
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardThreshold",
+      "type": "number",
       "enum": null
     },
     {
@@ -536,6 +613,76 @@
     {
       "path": "indexing.maxFileLines",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxDf",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxTokenLength",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramSource",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramSpillMaxUnique",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.enableChargrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.enablePhraseNgrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.fielded",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseSource",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.tokenClassification",
+      "type": null,
       "enum": null
     },
     {
@@ -1404,7 +1551,6 @@
         "tests/indexing/imports/prose-skip-imports.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-graphviz-fallback.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
@@ -1488,6 +1634,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DEBUG_ORDERED",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
@@ -1541,7 +1694,6 @@
         "tests/indexing/imports/prose-skip-imports.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-graphviz-fallback.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
@@ -1986,7 +2138,6 @@
         "tests/indexing/extracted-prose/extracted-prose.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-determinism.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
@@ -2156,7 +2307,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 292,
+    "totalFlags": 295,
     "publicFlags": [
       "backend",
       "host",
@@ -2244,6 +2395,7 @@
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
+      "fanout",
       "fields",
       "files",
       "finding",
@@ -2278,6 +2430,7 @@
       "inputs",
       "interactive",
       "interval",
+      "iterations",
       "justification",
       "keep",
       "keep-backup",
@@ -2343,6 +2496,7 @@
       "no-compact",
       "no-fallback",
       "node-list-out",
+      "nodes",
       "non-interactive",
       "non-strict",
       "only-exported",
@@ -2712,6 +2866,12 @@
         ]
       },
       {
+        "file": "tests/map/map-edge-aggregate-stability.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
         "file": "tests/retrieval/context-expansion/context-expansion-determinism.test.js",
         "flags": [
           "includeCalls",
@@ -2899,6 +3059,44 @@
           "graphFixture",
           "index",
           "outDir"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/context-pack-latency.js",
+        "flags": [
+          "depth",
+          "index",
+          "iterations",
+          "mode",
+          "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/neighborhood-cache.js",
+        "flags": [
+          "depth",
+          "fanout",
+          "iterations",
+          "mode",
+          "nodes"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/render-sort.js",
+        "flags": [
+          "iterations",
+          "mode",
+          "size"
+        ]
+      },
+      {
+        "file": "tools/bench/graph/store-lazy-load.js",
+        "flags": [
+          "index",
+          "iterations",
+          "mode",
+          "repo"
         ]
       },
       {
@@ -3718,7 +3916,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 56,
+        "count": 58,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -3729,6 +3927,8 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -3875,11 +4075,16 @@
       },
       {
         "flag": "mode",
-        "count": 23,
+        "count": 28,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
+          "tests/map/map-edge-aggregate-stability.test.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -3904,12 +4109,13 @@
       },
       {
         "flag": "seed",
-        "count": 13,
+        "count": 14,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "tests/fixtures/medium/generate.js",
+          "tools/bench/graph/context-pack-latency.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -4148,6 +4354,17 @@
         ]
       },
       {
+        "flag": "depth",
+        "count": 5,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js"
+        ]
+      },
+      {
         "flag": "force",
         "count": 5,
         "files": [
@@ -4288,6 +4505,26 @@
         ]
       },
       {
+        "flag": "index",
+        "count": 4,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
+        "flag": "iterations",
+        "count": 4,
+        "files": [
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
         "flag": "limit",
         "count": 4,
         "files": [
@@ -4398,6 +4635,16 @@
         ]
       },
       {
+        "flag": "size",
+        "count": 4,
+        "files": [
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
         "flag": "strict",
         "count": 4,
         "files": [
@@ -4442,15 +4689,6 @@
           "tools/config/reset.js",
           "tools/config/validate.js",
           "tools/service/indexer-service.js"
-        ]
-      },
-      {
-        "flag": "depth",
-        "count": 3,
-        "files": [
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tools/bench/graph-caps-harness.js"
         ]
       },
       {
@@ -4522,15 +4760,6 @@
         "files": [
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "size",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/cdc-segmentation.js",
-          "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
         ]
       },
@@ -4748,14 +4977,6 @@
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js"
-        ]
-      },
-      {
-        "flag": "index",
-        "count": 2,
-        "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js"
         ]
       },
       {
