@@ -50,6 +50,7 @@ export const processChunks = async (context) => {
     getChunkEmbedding,
     getChunkEmbeddings,
     runEmbedding,
+    runProc,
     workerPool,
     workerDictOverride,
     workerState,
@@ -139,6 +140,9 @@ export const processChunks = async (context) => {
     && workerPool.shouldUseForFile
     ? workerPool.shouldUseForFile(fileStat.size)
     : false;
+  const runTokenize = useWorkerForTokens && typeof workerPool?.runTokenize === 'function'
+    ? (payload) => (runProc ? runProc(() => workerPool.runTokenize(payload)) : workerPool.runTokenize(payload))
+    : null;
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
@@ -316,11 +320,11 @@ export const processChunks = async (context) => {
     const fieldChargramTokens = null;
 
     let tokenPayload = null;
-    if (useWorkerForTokens) {
+    if (runTokenize) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
-        tokenPayload = await workerPool.runTokenize({
+        tokenPayload = await runTokenize({
           text: tokenText,
           mode: chunkMode,
           ext: effectiveExt,

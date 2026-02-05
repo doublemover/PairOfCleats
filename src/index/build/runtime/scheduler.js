@@ -61,6 +61,7 @@ const resolveQueueConfig = (value) => {
 export const SCHEDULER_QUEUE_NAMES = {
   stage1Cpu: 'stage1.cpu',
   stage1Io: 'stage1.io',
+  stage1Proc: 'stage1.proc',
   stage1Postings: 'stage1.postings',
   stage2Relations: 'stage2.relations',
   stage4Sqlite: 'stage4.sqlite',

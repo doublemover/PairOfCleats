@@ -262,6 +262,7 @@ export function createIndexState() {
       freq: new Map(),
       fieldFreq: new Map()
     },
+    postingsQueueStats: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)

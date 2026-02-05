@@ -59,13 +59,21 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
   };
 };
 
+const coercePositiveInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
 export const createRuntimeQueues = ({
   ioConcurrency,
   cpuConcurrency,
   fileConcurrency,
   embeddingConcurrency,
   pendingLimits,
-  scheduler
+  scheduler,
+  stage1Queues = null,
+  procConcurrency = null
 }) => {
   // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
   //
@@ -79,9 +87,13 @@ export const createRuntimeQueues = ({
   //
   // Keep a small, CPU-scaled window to cap worst-case buffering without requiring
   // users to tweak configuration.
-  const maxFilePending = Number.isFinite(pendingLimits?.cpu?.maxPending)
-    ? pendingLimits.cpu.maxPending
-    : Math.max(16, cpuConcurrency * 4);
+  const tokenizeConfig = stage1Queues?.tokenize || {};
+  const tokenizeConcurrency = coercePositiveInt(tokenizeConfig?.concurrency);
+  const effectiveCpuConcurrency = tokenizeConcurrency ?? cpuConcurrency;
+  const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
+    ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
+      ? pendingLimits.cpu.maxPending
+      : Math.max(16, effectiveCpuConcurrency * 4));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
     : Math.max(8, ioConcurrency * 4);
@@ -91,12 +103,13 @@ export const createRuntimeQueues = ({
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
     : Math.max(16, effectiveEmbeddingConcurrency * 4);
-  const procConcurrency = Number.isFinite(pendingLimits?.proc?.concurrency)
-    ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
-    : null;
+  const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
+    ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
+      ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
+      : null);
   const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
     ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
-    : null;
+    : (resolvedProcConcurrency ? Math.max(4, resolvedProcConcurrency * 4) : null);
 
   if (scheduler && scheduler.enabled && scheduler.lowResourceMode !== true && typeof scheduler.schedule === 'function') {
     const cpuQueue = createSchedulerQueueAdapter({
@@ -104,7 +117,7 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.stage1Cpu,
       tokens: { cpu: 1 },
       maxPending: maxFilePending,
-      concurrency: cpuConcurrency
+      concurrency: effectiveCpuConcurrency
     });
     const ioQueue = createSchedulerQueueAdapter({
       scheduler,
@@ -120,15 +133,26 @@ export const createRuntimeQueues = ({
       maxPending: maxEmbeddingPending,
       concurrency: effectiveEmbeddingConcurrency
     });
-    const queues = { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
+    const procQueue = resolvedProcConcurrency
+      ? createSchedulerQueueAdapter({
+        scheduler,
+        queueName: SCHEDULER_QUEUE_NAMES.stage1Proc,
+        tokens: { cpu: 1 },
+        maxPending: procPendingLimit,
+        concurrency: resolvedProcConcurrency
+      })
+      : null;
+    const queues = procQueue
+      ? { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue, proc: procQueue }
+      : { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
     return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
   }
 
   const queues = createTaskQueues({
     ioConcurrency,
-    cpuConcurrency,
+    cpuConcurrency: effectiveCpuConcurrency,
     embeddingConcurrency,
-    procConcurrency,
+    procConcurrency: resolvedProcConcurrency,
     ioPendingLimit: maxIoPending,
     cpuPendingLimit: maxFilePending,
     embeddingPendingLimit: maxEmbeddingPending,

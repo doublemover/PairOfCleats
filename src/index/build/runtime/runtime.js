@@ -57,6 +57,53 @@ import {
   createRuntimeWorkerPools
 } from './workers.js';
 
+const coercePositiveInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
+const coerceFraction = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.min(1, parsed);
+};
+
+const resolveStage1Queues = (indexingConfig = {}) => {
+  const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
+    ? indexingConfig.stage1
+    : {};
+  const tokenize = stage1?.tokenize && typeof stage1.tokenize === 'object'
+    ? stage1.tokenize
+    : {};
+  const postings = stage1?.postings && typeof stage1.postings === 'object'
+    ? stage1.postings
+    : {};
+
+  const tokenizeConcurrency = coercePositiveInt(tokenize.concurrency);
+  const tokenizeMaxPending = coercePositiveInt(tokenize.maxPending);
+
+  const postingsMaxPending = coercePositiveInt(
+    postings.maxPending ?? postings.concurrency
+  );
+  const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
+  const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
+  const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+
+  return {
+    tokenize: {
+      concurrency: tokenizeConcurrency,
+      maxPending: tokenizeMaxPending
+    },
+    postings: {
+      maxPending: postingsMaxPending,
+      maxPendingRows: postingsMaxPendingRows,
+      maxPendingBytes: postingsMaxPendingBytes,
+      maxHeapFraction: postingsMaxHeapFraction
+    }
+  };
+};
+
 /**
  * Create runtime configuration for build_index.
  * @param {{root:string,argv:object,rawArgv:string[]}} input
@@ -205,6 +252,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     starvationMs: schedulerConfig.starvationMs,
     queues: schedulerConfig.queues
   });
+  const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
@@ -471,15 +519,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbedding,
     getChunkEmbeddings
   } = embeddingRuntime;
-  const queueConfig = createRuntimeQueues({
-    ioConcurrency,
-    cpuConcurrency,
-    fileConcurrency,
-    embeddingConcurrency,
-    pendingLimits: envelope.queues,
-    scheduler
-  });
-  const { queues } = queueConfig;
   const pythonAstRuntimeConfig = {
     ...pythonAstConfig,
     defaultMaxWorkers: Math.min(4, fileConcurrency),
@@ -491,6 +530,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     cpuConcurrency,
     fileConcurrency
   });
+  const procConcurrency = workerPoolConfig?.enabled !== false && Number.isFinite(workerPoolConfig?.maxWorkers)
+    ? Math.max(1, Math.min(cpuConcurrency, Math.floor(workerPoolConfig.maxWorkers)))
+    : null;
+  const queueConfig = createRuntimeQueues({
+    ioConcurrency,
+    cpuConcurrency,
+    fileConcurrency,
+    embeddingConcurrency,
+    pendingLimits: envelope.queues,
+    scheduler,
+    stage1Queues,
+    procConcurrency
+  });
+  const { queues } = queueConfig;
 
   const incrementalEnabled = argv.incremental === true;
   const incrementalBundlesConfig = indexingConfig.incrementalBundles || {};
@@ -887,6 +940,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     queues,
     scheduler,
     schedulerConfig,
+    stage1Queues,
+    procConcurrency,
     incrementalEnabled,
     incrementalBundleFormat,
     debugCrash,

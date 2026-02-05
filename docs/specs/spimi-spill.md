@@ -15,6 +15,7 @@ During indexing, `src/index/build/state.js::appendChunk()` appends into:
 This grows monotonically for the entire repository. Later, `src/index/build/postings.js::buildPostings()` materializes **sorted** `tokenEntries`, `tokenVocab`, and `tokenPostingsList`, temporarily creating a second copy of the same information (peak live set). On large repos (e.g., Swift), V8 cannot reclaim enough because most objects are still reachable, causing OOM near heap limit.
 
 **Phase 16.6 note:** token postings keys may be canonical token IDs (64-bit hex) with a `tokenIdMap` mapping back to token strings; `token_postings` artifacts can include `vocabIds` aligned with `token_vocab` to preserve determinism.
+**Phase 16.6 note:** Stage1 now enforces a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
 
 SPIMI (“Single-Pass In-Memory Indexing”) fixes this by flushing sorted postings blocks to disk and merging them later, bounding in-memory growth.
 

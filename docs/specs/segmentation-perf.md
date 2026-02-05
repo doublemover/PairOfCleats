@@ -56,6 +56,8 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 - Tokenization now emits canonical 64-bit token IDs alongside token strings; chunk metadata may include packed token IDs for retention.
 - Chargram postings are generated via a rolling 64-bit hash (`h64:`) to avoid substring allocations; legacy string chargrams remain readable.
 - Stable vocab ordering hashes are recorded in `vocab_order` and in the build ordering ledger to enforce determinism.
+- Stage1 now enforces a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
+- Tokenization concurrency/backpressure can be tuned separately from postings apply via `indexing.stage1.tokenize.*`.
 
 ## Benchmarks
 - `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)

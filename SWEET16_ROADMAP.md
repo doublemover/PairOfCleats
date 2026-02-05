@@ -1058,24 +1058,24 @@ Parallel: Run after 16.6.1.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
-- [ ] Task 16.6.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.6.2.a: Add bounded queue between tokenization and postings.
-- [ ] Task 16.6.2.a.1: Define chunk-queue limits (rows + bytes) and enforce ordering during async postings apply.
-- [ ] Task 16.6.2.a.2: Emit backpressure when postings queue reaches maxPending and surface wait time.
-- [ ] Task 16.6.2.b: Split CPU vs IO concurrency knobs for Stage1.
-- [ ] Task 16.6.2.b.1: Add Stage1 postings concurrency + pending limit config keys.
-- [ ] Task 16.6.2.b.2: Add Stage1 tokenize concurrency + pending limit config keys (worker pool or CPU queue).
-- [ ] Task 16.6.2.c: Add scheduler integration hooks for Stage1.
-- [ ] Task 16.6.2.c.1: Add scheduler queue for postings apply with CPU+memory tokens.
-- [ ] Task 16.6.2.c.2: Route tokenization worker jobs through scheduler/proc queue.
-- [ ] Task 16.6.2.d: Add memory-based throttling in postings build.
-- [ ] Task 16.6.2.d.1: Implement heap-pressure throttling that reduces postings concurrency and queue depth.
-- [ ] Task 16.6.2.e: Add metrics for queue depth and backpressure events.
-- [ ] Task 16.6.2.e.1: Record queue depth high-water + backpressure wait in build_state/metrics.
+- [x] Task 16.6.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.6.2.a: Add bounded queue between tokenization and postings.
+- [x] Task 16.6.2.a.1: Define chunk-queue limits (rows + bytes) and enforce ordering during async postings apply.
+- [x] Task 16.6.2.a.2: Emit backpressure when postings queue reaches maxPending and surface wait time.
+- [x] Task 16.6.2.b: Split CPU vs IO concurrency knobs for Stage1.
+- [x] Task 16.6.2.b.1: Add Stage1 postings concurrency + pending limit config keys.
+- [x] Task 16.6.2.b.2: Add Stage1 tokenize concurrency + pending limit config keys (worker pool or CPU queue).
+- [x] Task 16.6.2.c: Add scheduler integration hooks for Stage1.
+- [x] Task 16.6.2.c.1: Add scheduler queue for postings apply with CPU+memory tokens.
+- [x] Task 16.6.2.c.2: Route tokenization worker jobs through scheduler/proc queue.
+- [x] Task 16.6.2.d: Add memory-based throttling in postings build.
+- [x] Task 16.6.2.d.1: Implement heap-pressure throttling that reduces postings concurrency and queue depth.
+- [x] Task 16.6.2.e: Add metrics for queue depth and backpressure events.
+- [x] Task 16.6.2.e.1: Record queue depth high-water + backpressure wait in build_state/metrics.
 
 Tests:
-- [ ] `tests/indexing/postings/backpressure-queue.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/postings-queue-metrics.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/backpressure-queue.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/postings-queue-metrics.test.js` (perf lane) (new)
 
 ### Subphase 16.6.3 -- Tests + Bench
 Parallel: Run after 16.6.1/16.6.2.
