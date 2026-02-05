@@ -967,6 +967,14 @@ export const ARTIFACT_SCHEMA_DEFS = {
     type: 'array',
     items: callSiteEntry
   },
+  vocab_order: {
+    type: 'object',
+    properties: {
+      fields: { type: 'object' },
+      vocab: { type: 'object' }
+    },
+    additionalProperties: true
+  },
   api_contracts: {
     type: 'array',
     items: {

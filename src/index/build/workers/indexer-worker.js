@@ -238,6 +238,7 @@ const sanitizeTokenizeResult = (result) => {
   const stats = result && typeof result.stats === 'object' ? result.stats : {};
   return {
     tokens: normalizeStringArray(result?.tokens),
+    tokenIds: normalizeStringArray(result?.tokenIds),
     seq: normalizeStringArray(result?.seq),
     ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
     chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,

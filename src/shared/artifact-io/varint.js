@@ -13,6 +13,19 @@ const encodeUnsignedVarint = (value, output) => {
   output.push(next);
 };
 
+const encodeUnsignedVarint64 = (value, output) => {
+  let next = BigInt(value);
+  if (next < 0n) {
+    throw new Error(`Invalid varint value: ${value}`);
+  }
+  while (next >= 0x80n) {
+    const byte = Number((next & 0x7fn) | 0x80n);
+    output.push(byte);
+    next >>= 7n;
+  }
+  output.push(Number(next));
+};
+
 export const encodeVarintDeltas = (values) => {
   if (!Array.isArray(values) || values.length === 0) {
     return Buffer.alloc(0);
@@ -77,4 +90,40 @@ export const readVarintDeltasAt = async (filePath, start, end) => {
   } finally {
     await handle.close();
   }
+};
+
+export const encodeVarint64List = (values) => {
+  if (!Array.isArray(values) || values.length === 0) {
+    return Buffer.alloc(0);
+  }
+  const output = [];
+  for (const value of values) {
+    encodeUnsignedVarint64(value, output);
+  }
+  return Buffer.from(output);
+};
+
+export const decodeVarint64List = (buffer) => {
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
+  const values = [];
+  let current = 0n;
+  let shift = 0n;
+  for (let i = 0; i < bytes.length; i += 1) {
+    const byte = BigInt(bytes[i]);
+    current |= (byte & 0x7fn) << shift;
+    if ((byte & 0x80n) === 0n) {
+      values.push(current);
+      current = 0n;
+      shift = 0n;
+      continue;
+    }
+    shift += 7n;
+    if (shift > 63n) {
+      throw new Error('Varint decode overflow.');
+    }
+  }
+  if (shift !== 0n) {
+    throw new Error('Truncated varint sequence.');
+  }
+  return values;
 };

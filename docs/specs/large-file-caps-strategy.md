@@ -220,6 +220,11 @@ Maintenance note: if `watch.js` grows again, prefer extracting additional pure h
 * Threading `languageId` is already done in `file-processor.js` (via `getLanguageForFile`), so no additional IO is introduced.
 * Mode-specific caps (`byMode`) are optional and backward compatible; absence yields existing behavior.
 
+### 7.1 Stage1 Postings Guardrails (Phase 16.6)
+* Chargram generation now uses a rolling 64-bit hash (`h64:`) and enforces `chargramMaxTokenLength` even when precomputed chargrams are supplied.
+* Token IDs are canonicalized at tokenize time (64-bit hash) to make postings deterministic independent of discovery order.
+* Chunk metadata can store packed token IDs to reduce retention overhead; large-file caps still apply before tokenization.
+
 ## 8. Future Phase Alignment
 
 * Phase 9/19 scaling work benefits from deterministic, bounded skipping.

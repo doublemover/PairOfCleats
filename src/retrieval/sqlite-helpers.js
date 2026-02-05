@@ -1,4 +1,5 @@
 import { extractNgrams, tri } from '../shared/tokenize.js';
+import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
 import { chunkArray } from '../storage/sqlite/utils.js';
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
@@ -46,7 +47,8 @@ export function createSqliteHelpers(options) {
 
   const sqliteCache = {
     tokenStats: new Map(),
-    docLengths: new Map()
+    docLengths: new Map(),
+    chargramHashMode: new Map()
   };
   const statementCache = new WeakMap();
   const ftsAvailability = new WeakMap();
@@ -441,6 +443,15 @@ export function createSqliteHelpers(options) {
     if (!db) return null;
     const candidates = new Set();
     let matched = false;
+    const hashedChargrams = (() => {
+      if (sqliteCache.chargramHashMode?.has(mode)) return sqliteCache.chargramHashMode.get(mode);
+      const row = db.prepare('SELECT gram FROM chargram_vocab WHERE mode = ? LIMIT 1').get(mode);
+      const value = row?.gram;
+      const hashed = typeof value === 'string' && value.startsWith('h64:');
+      if (!sqliteCache.chargramHashMode) sqliteCache.chargramHashMode = new Map();
+      sqliteCache.chargramHashMode.set(mode, hashed);
+      return hashed;
+    })();
     const addCandidate = (id) => {
       candidates.add(id);
       return candidateCap && candidates.size >= candidateCap;
@@ -463,9 +474,22 @@ export function createSqliteHelpers(options) {
       const gramSet = new Set();
       for (const token of tokens) {
         if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
-        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
-          for (const gram of tri(token, n)) {
-            gramSet.add(gram);
+        if (hashedChargrams) {
+          forEachRollingChargramHash(
+            token,
+            postingsConfig.chargramMinN,
+            postingsConfig.chargramMaxN,
+            { maxTokenLength: chargramMaxTokenLength },
+            (gram) => {
+              gramSet.add(gram);
+              return true;
+            }
+          );
+        } else {
+          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
+            for (const gram of tri(token, n)) {
+              gramSet.add(gram);
+            }
           }
         }
       }

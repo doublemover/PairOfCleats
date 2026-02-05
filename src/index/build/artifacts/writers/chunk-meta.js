@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
+import { encodeVarint64List } from '../../../../shared/artifact-io/varint.js';
+import { parseHash64 } from '../../../../shared/token-id.js';
 import { ensureDiskSpace } from '../../../../shared/disk-space.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
 import {
@@ -138,6 +140,14 @@ const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   if ('tokens' in trimmed) {
     delete trimmed.tokens;
     tokenFields.push('tokens');
+  }
+  if ('token_ids_packed' in trimmed) {
+    delete trimmed.token_ids_packed;
+    tokenFields.push('token_ids_packed');
+  }
+  if ('token_ids_count' in trimmed) {
+    delete trimmed.token_ids_count;
+    tokenFields.push('token_ids_count');
   }
   if ('ngrams' in trimmed) {
     delete trimmed.ngrams;
@@ -338,6 +348,15 @@ export const createChunkMetaIterator = ({
           : ngrams;
         entry.tokens = tokenOut;
         entry.ngrams = ngramOut;
+        const tokenIds = Array.isArray(c.tokenIds) ? c.tokenIds : null;
+        if (tokenIds && tokenIds.length) {
+          const packInput = resolvedTokenMode === 'sample'
+            ? tokenIds.slice(0, tokenSampleSize)
+            : tokenIds;
+          const packed = encodeVarint64List(packInput.map((value) => parseHash64(value)));
+          entry.token_ids_packed = packed.toString('base64');
+          entry.token_ids_count = packInput.length;
+        }
       }
       const hadMetaV2 = !!entry.metaV2;
       const compacted = compactChunkMetaEntry(entry, maxJsonBytes, trackStats ? stats : null);

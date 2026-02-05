@@ -1,6 +1,8 @@
 import { SimpleMinHash } from '../minhash.js';
 import { CLIKE_RESERVED_WORDS, CPP_RESERVED_WORDS, OBJC_RESERVED_WORDS, STOP, SYN } from '../constants.js';
-import { extractNgrams, extractPunctuationTokens, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
+import { extractNgrams, extractPunctuationTokens, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
+import { hashTokenId } from '../../shared/token-id.js';
+import { buildChargramHashSet } from '../../shared/chargram-hash.js';
 import { normalizeCodeDictLanguage } from '../../shared/code-dictionaries.js';
 import { COMMON_NAME_NODE_TYPES } from '../../lang/tree-sitter/ast.js';
 import { getTreeSitterParser } from '../../lang/tree-sitter/runtime.js';
@@ -431,6 +433,7 @@ export function createTokenizationBuffers() {
   return {
     tokens: [],
     seq: [],
+    tokenIds: [],
     scratch: [],
     scratch2: [],
     chargramSet: new Set(),
@@ -560,7 +563,7 @@ export function buildTokenSequence({
 }
 
 /**
- * Build chargrams from tokens with configurable n-gram limits.
+ * Build hashed chargrams from tokens with configurable n-gram limits.
  * @param {string[]} tokens
  * @param {{chargramMinN:number,chargramMaxN:number,chargramMaxTokenLength?:number}} options
  * @param {{chargramSet:Set<string>}|null} [buffers]
@@ -568,22 +571,13 @@ export function buildTokenSequence({
  */
 export function buildChargramsFromTokens(tokens, options, buffers = null) {
   const { chargramMinN, chargramMaxN, chargramMaxTokenLength } = options;
-  const charSet = buffers?.chargramSet || new Set();
-  if (buffers?.chargramSet) {
-    charSet.clear();
-  }
-  const maxLen = Number.isFinite(chargramMaxTokenLength) ? chargramMaxTokenLength : null;
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (maxLen && token.length > maxLen) continue;
-    for (let n = chargramMinN; n <= chargramMaxN; ++n) {
-      tri(token, n).forEach((g) => charSet.add(g));
-    }
-  }
+  const charSet = buildChargramHashSet(tokens, {
+    minN: chargramMinN,
+    maxN: chargramMaxN,
+    maxTokenLength: Number.isFinite(chargramMaxTokenLength) ? chargramMaxTokenLength : null
+  }, buffers);
   const out = Array.from(charSet);
-  if (buffers?.chargramSet) {
-    charSet.clear();
-  }
+  if (buffers?.chargramSet) charSet.clear();
   return out;
 }
 
@@ -630,6 +624,13 @@ export function tokenizeChunkText(input) {
     buffers
   });
 
+  const tokenIdsOut = buffers?.tokenIds || [];
+  if (buffers?.tokenIds) tokenIdsOut.length = 0;
+  for (let i = 0; i < tokens.length; i += 1) {
+    tokenIdsOut.push(hashTokenId(tokens[i]));
+  }
+  const tokenIds = buffers?.tokenIds ? tokenIdsOut.slice() : tokenIdsOut;
+
   const classificationEnabled = context?.tokenClassification?.enabled === true && mode === 'code';
   const classification = classificationEnabled
     ? classifyTokenBuckets({
@@ -655,6 +656,7 @@ export function tokenizeChunkText(input) {
   return {
     tokens,
     seq,
+    tokenIds,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
     stats: computeTokenStats(tokens),
     ...(classification ? {

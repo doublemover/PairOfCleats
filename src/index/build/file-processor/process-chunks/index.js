@@ -387,6 +387,7 @@ export const processChunks = async (context) => {
 
     const {
       tokens,
+      tokenIds,
       seq,
       minhashSig,
       stats,
@@ -446,6 +447,7 @@ export const processChunks = async (context) => {
       fileHashAlgo,
       fileSize: fileStat.size,
       tokens,
+      tokenIds,
       identifierTokens,
       keywordTokens,
       operatorTokens,

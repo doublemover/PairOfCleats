@@ -1,4 +1,5 @@
 import { extractNgrams, tri } from '../../shared/tokenize.js';
+import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 
 /**
  * Create a candidate-set builder for sparse retrieval.
@@ -55,20 +56,48 @@ export const createCandidateSetBuilder = ({
     if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
       const vocabIndex = idx.chargrams.vocabIndex
         || (idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i])));
+      const sample = idx.chargrams.vocab[0];
+      const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
+        || (typeof sample === 'string' && sample.startsWith('h64:'));
       for (const token of tokens) {
         if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
-        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
-          for (const gram of tri(token, n)) {
-            const hit = vocabIndex.get(gram);
-            if (hit === undefined) continue;
-            const posting = idx.chargrams.postings[hit] || [];
-            for (const id of posting) {
-              if (addCandidate(id)) {
-                if (candidatePool?.release) candidatePool.release(candidates);
-                return null;
+        if (hashedChargrams) {
+          let stopEarly = false;
+          forEachRollingChargramHash(
+            token,
+            postingsConfig.chargramMinN,
+            postingsConfig.chargramMaxN,
+            { maxTokenLength: chargramMaxTokenLength },
+            (gram) => {
+              const hit = vocabIndex.get(gram);
+              if (hit === undefined) return true;
+              const posting = idx.chargrams.postings[hit] || [];
+              for (const id of posting) {
+                if (addCandidate(id)) {
+                  if (candidatePool?.release) candidatePool.release(candidates);
+                  stopEarly = true;
+                  return false;
+                }
               }
+              matched = matched || posting.length > 0;
+              return true;
             }
-            matched = matched || posting.length > 0;
+          );
+          if (stopEarly) return null;
+        } else {
+          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
+            for (const gram of tri(token, n)) {
+              const hit = vocabIndex.get(gram);
+              if (hit === undefined) continue;
+              const posting = idx.chargrams.postings[hit] || [];
+              for (const id of posting) {
+                if (addCandidate(id)) {
+                  if (candidatePool?.release) candidatePool.release(candidates);
+                  return null;
+                }
+              }
+              matched = matched || posting.length > 0;
+            }
           }
         }
       }

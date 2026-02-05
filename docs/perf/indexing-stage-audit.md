@@ -53,6 +53,9 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Token sequences share the token array when no synonyms are present to reduce duplicate retention.
 - Field/comment tokens are only materialized when fielded/phrase/chargram sources require them.
 - Postings maps are cleared as soon as dense arrays are materialized to keep peak heap lower.
+- Token IDs are canonicalized at tokenize time (64-bit hash); chunk meta can retain packed token IDs to reduce memory pressure.
+- Chargram postings use rolling 64-bit hashes (`h64:`) with a max token length guard to cap per-chunk growth.
+- Stable vocab ordering hashes are recorded in `vocab_order` and the ordering ledger for determinism audits.
 
 ## Stage2 Memory Notes
 - Call-site edges are added directly during graph construction to avoid buffering large edge lists.

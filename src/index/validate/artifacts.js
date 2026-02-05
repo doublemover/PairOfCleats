@@ -22,7 +22,8 @@ export const buildArtifactLists = (userConfig, postingsConfig) => {
     'repo_map',
     'filter_index',
     'field_postings',
-    'field_tokens'
+    'field_tokens',
+    'vocab_order'
   ];
   if (userConfig.search?.annDefault !== false) {
     optionalArtifacts.push('dense_vectors');

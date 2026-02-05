@@ -1028,30 +1028,30 @@ Parallel: Must land before 16.6.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
-- [ ] Task 16.6.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.6.1.a: Implement token ID canonicalization at tokenize time.
-- [ ] Task 16.6.1.a.1: Define deterministic token ID assignment (order-independent) and persist `token_vocab` mapping.
-- [ ] Task 16.6.1.a.2: Plumb token IDs through `chunk_meta` + postings (retain legacy string tokens as optional fallback).
-- [ ] Task 16.6.1.b: Replace substring chargrams with rolling hash generation.
-- [ ] Task 16.6.1.b.1: Use a 64-bit rolling hash for chargrams (no substring allocations) with fixed seed/salt.
-- [ ] Task 16.6.1.b.2: Record hash parameters in artifacts and update retrieval/SQLite to consume hashed chargrams.
-- [ ] Task 16.6.1.b.3: Provide compatibility fallback for legacy string-chargram artifacts.
-- [ ] Task 16.6.1.c: Implement compact chunk token representation.
-- [ ] Task 16.6.1.c.1: Add packed/varint token ID encoding for chunk tokens and update readers/validators.
-- [ ] Task 16.6.1.d: Add pooling for hot arrays in postings.
-- [ ] Task 16.6.1.d.1: Pool per-chunk frequency maps/arrays and reuse buffers across chunks.
-- [ ] Task 16.6.1.e: Validate determinism across new token pipelines.
-- [ ] Task 16.6.1.e.1: Add ordering hash for token/chargram vocab outputs and enforce via validation.
-- [ ] Task 16.6.1.f: Enforce stable vocab ordering artifact to prevent nondeterminism.
-- [ ] Task 16.6.1.f.1: Emit a dedicated vocab-order artifact with stable hash (token/phrase/chargram).
-- [ ] Task 16.6.1.g: Add max token length guard in rolling chargram flow.
-- [ ] Task 16.6.1.g.1: Apply max token-length guard even when precomputed chargrams are supplied.
+- [x] Task 16.6.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.6.1.a: Implement token ID canonicalization at tokenize time.
+- [x] Task 16.6.1.a.1: Define deterministic token ID assignment (order-independent) and persist `token_vocab` mapping.
+- [x] Task 16.6.1.a.2: Plumb token IDs through `chunk_meta` + postings (retain legacy string tokens as optional fallback).
+- [x] Task 16.6.1.b: Replace substring chargrams with rolling hash generation.
+- [x] Task 16.6.1.b.1: Use a 64-bit rolling hash for chargrams (no substring allocations) with fixed seed/salt.
+- [x] Task 16.6.1.b.2: Record hash parameters in artifacts and update retrieval/SQLite to consume hashed chargrams.
+- [x] Task 16.6.1.b.3: Provide compatibility fallback for legacy string-chargram artifacts.
+- [x] Task 16.6.1.c: Implement compact chunk token representation.
+- [x] Task 16.6.1.c.1: Add packed/varint token ID encoding for chunk tokens and update readers/validators.
+- [x] Task 16.6.1.d: Add pooling for hot arrays in postings.
+- [x] Task 16.6.1.d.1: Pool per-chunk frequency maps/arrays and reuse buffers across chunks.
+- [x] Task 16.6.1.e: Validate determinism across new token pipelines.
+- [x] Task 16.6.1.e.1: Add ordering hash for token/chargram vocab outputs and enforce via validation.
+- [x] Task 16.6.1.f: Enforce stable vocab ordering artifact to prevent nondeterminism.
+- [x] Task 16.6.1.f.1: Emit a dedicated vocab-order artifact with stable hash (token/phrase/chargram).
+- [x] Task 16.6.1.g: Add max token length guard in rolling chargram flow.
+- [x] Task 16.6.1.g.1: Apply max token-length guard even when precomputed chargrams are supplied.
 
 Tests:
-- [ ] `tests/indexing/postings/token-id-canonicalization.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/chargram-rolling-hash.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/compact-token-roundtrip.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/vocab-order-determinism.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/token-id-canonicalization.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/chargram-rolling-hash.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/compact-token-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/vocab-order-determinism.test.js` (perf lane) (new)
 
 ### Subphase 16.6.2 -- Backpressure + Concurrency
 Parallel: Run after 16.6.1.

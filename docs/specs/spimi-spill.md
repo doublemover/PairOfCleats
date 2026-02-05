@@ -14,6 +14,8 @@ During indexing, `src/index/build/state.js::appendChunk()` appends into:
 
 This grows monotonically for the entire repository. Later, `src/index/build/postings.js::buildPostings()` materializes **sorted** `tokenEntries`, `tokenVocab`, and `tokenPostingsList`, temporarily creating a second copy of the same information (peak live set). On large repos (e.g., Swift), V8 cannot reclaim enough because most objects are still reachable, causing OOM near heap limit.
 
+**Phase 16.6 note:** token postings keys may be canonical token IDs (64-bit hex) with a `tokenIdMap` mapping back to token strings; `token_postings` artifacts can include `vocabIds` aligned with `token_vocab` to preserve determinism.
+
 SPIMI (“Single-Pass In-Memory Indexing”) fixes this by flushing sorted postings blocks to disk and merging them later, bounding in-memory growth.
 
 ---
@@ -368,6 +370,7 @@ Modify `src/index/build/artifacts/token-postings.js::enqueueTokenPostingsArtifac
   - write shard file via the shared shard writer (compression supported)
 - Track `vocabCount` during streaming, and write meta at end.
 - `postings.tokenVocabCount` must be set for metrics/logging compatibility.
+- If canonical token IDs are enabled, emit `vocabIds` aligned with vocab entries in each shard.
 
 ### 7.2 Changes to resolve plan
 In `resolveTokenPostingsPlan(...)`:

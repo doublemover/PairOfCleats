@@ -52,5 +52,10 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 - Equivalence test: `segment-pipeline` outputs are byte-for-byte equivalent for Markdown inputs.
 - Determinism test: two runs on the same Markdown input produce identical segment ordering.
 
+## Phase 16.6 Stage1 Notes
+- Tokenization now emits canonical 64-bit token IDs alongside token strings; chunk metadata may include packed token IDs for retention.
+- Chargram postings are generated via a rolling 64-bit hash (`h64:`) to avoid substring allocations; legacy string chargrams remain readable.
+- Stable vocab ordering hashes are recorded in `vocab_order` and in the build ordering ledger to enforce determinism.
+
 ## Benchmarks
 - `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)

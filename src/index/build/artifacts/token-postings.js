@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
@@ -71,6 +72,8 @@ export async function enqueueTokenPostingsArtifacts({
   addPieceFile,
   formatArtifactLabel
 }) {
+  const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
+  const tokenIdMeta = vocabIds ? TOKEN_ID_META : null;
   const writePackedTokenPostings = async () => {
     const packedPath = path.join(outDir, 'token_postings.packed.bin');
     const offsetsPath = path.join(outDir, 'token_postings.packed.offsets.bin');
@@ -108,10 +111,12 @@ export async function enqueueTokenPostingsArtifacts({
             encoding: 'delta-varint',
             blockSize: packed.blockSize,
             vocabCount: postings.tokenVocab.length,
-            offsets: path.posix.basename(offsetsPath)
+            offsets: path.posix.basename(offsetsPath),
+            ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
           },
           arrays: {
             vocab: postings.tokenVocab,
+            ...(vocabIds ? { vocabIds } : {}),
             docLengths: state.docLengths
           },
           atomic: true
@@ -164,6 +169,7 @@ export async function enqueueTokenPostingsArtifacts({
           await writeJsonObjectFile(partPath, {
             arrays: {
               vocab: postings.tokenVocab.slice(part.start, part.end),
+              ...(vocabIds ? { vocabIds: vocabIds.slice(part.start, part.end) } : {}),
               postings: postings.tokenPostingsList.slice(part.start, part.end)
             },
             compression: tokenPostingsCompression,
@@ -185,7 +191,8 @@ export async function enqueueTokenPostingsArtifacts({
             shardSize: tokenPostingsShardSize,
             vocabCount: postings.tokenVocab.length,
             parts,
-            compression: tokenPostingsCompression || null
+            compression: tokenPostingsCompression || null,
+            ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
           },
           arrays: {
             docLengths: state.docLengths
@@ -198,10 +205,12 @@ export async function enqueueTokenPostingsArtifacts({
     enqueueJsonObject('token_postings', {
       fields: {
         avgDocLen: postings.avgDocLen,
-        totalDocs: state.docLengths.length
+        totalDocs: state.docLengths.length,
+        ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
       },
       arrays: {
         vocab: postings.tokenVocab,
+        ...(vocabIds ? { vocabIds } : {}),
         postings: postings.tokenPostingsList,
         docLengths: state.docLengths
       }

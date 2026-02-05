@@ -46,6 +46,8 @@ import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.j
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
 import { recordOrderingHash, updateBuildState } from './build-state.js';
 import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
+import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
+import { createOrderingHasher } from '../../shared/order.js';
 
 /**
  * Write index artifacts and metrics.
@@ -85,6 +87,20 @@ export async function writeIndexArtifacts(input) {
       rule,
       count: ordering.orderingCount
     });
+  };
+  const measureVocabOrdering = (vocab = []) => {
+    if (!Array.isArray(vocab) || !vocab.length) {
+      return { orderingHash: null, orderingCount: 0 };
+    }
+    const orderingHasher = createOrderingHasher();
+    for (const entry of vocab) {
+      orderingHasher.update(entry);
+    }
+    const result = orderingHasher.digest();
+    return {
+      orderingHash: result?.hash || null,
+      orderingCount: result?.count || 0
+    };
   };
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
@@ -944,6 +960,15 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  const vocabOrder = {};
+  const tokenOrdering = measureVocabOrdering(postings.tokenVocab);
+  await recordOrdering('token_vocab', tokenOrdering, 'token_vocab:token');
+  if (tokenOrdering.orderingHash) {
+    vocabOrder.token = {
+      hash: tokenOrdering.orderingHash,
+      count: tokenOrdering.orderingCount
+    };
+  }
   if (postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
       piece: { type: 'postings', name: 'field_postings' }
@@ -1081,12 +1106,40 @@ export async function writeIndexArtifacts(input) {
     }, {
       piece: { type: 'postings', name: 'phrase_ngrams', count: postings.phraseVocab.length }
     });
+    const phraseOrdering = measureVocabOrdering(postings.phraseVocab);
+    await recordOrdering('phrase_ngrams', phraseOrdering, 'phrase_ngrams:ngram');
+    if (phraseOrdering.orderingHash) {
+      vocabOrder.phrase = {
+        hash: phraseOrdering.orderingHash,
+        count: phraseOrdering.orderingCount
+      };
+    }
   }
   if (resolvedConfig.enableChargrams !== false) {
     enqueueJsonObject('chargram_postings', {
+      fields: { hash: CHARGRAM_HASH_META },
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
     }, {
       piece: { type: 'postings', name: 'chargram_postings', count: postings.chargramVocab.length }
+    });
+    const chargramOrdering = measureVocabOrdering(postings.chargramVocab);
+    await recordOrdering('chargram_postings', chargramOrdering, 'chargram_postings:gram');
+    if (chargramOrdering.orderingHash) {
+      vocabOrder.chargram = {
+        hash: chargramOrdering.orderingHash,
+        count: chargramOrdering.orderingCount
+      };
+    }
+  }
+  if (Object.keys(vocabOrder).length) {
+    enqueueJsonObject('vocab_order', {
+      fields: {
+        algo: 'sha1',
+        generatedAt: new Date().toISOString()
+      },
+      vocab: vocabOrder
+    }, {
+      piece: { type: 'postings', name: 'vocab_order' }
     });
   }
   totalWrites = writes.length;

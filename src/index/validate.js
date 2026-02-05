@@ -72,6 +72,15 @@ const hashGraphRelationsRows = (relations) => {
   return hasher.digest();
 };
 
+const hashVocabList = (vocab) => {
+  if (!Array.isArray(vocab) || vocab.length === 0) return null;
+  const hasher = createOrderingHasher();
+  for (const entry of vocab) {
+    hasher.update(entry);
+  }
+  return hasher.digest();
+};
+
 const resolveLedgerStageKey = (ledger, stage, mode) => {
   if (!ledger?.stages || typeof ledger.stages !== 'object') return null;
   const stageKey = stage ? String(stage) : null;
@@ -339,6 +348,8 @@ export async function validateIndexArtifacts(input = {}) {
       }
 
       let tokenNormalized = null;
+      let phraseNormalized = null;
+      let chargramNormalized = null;
       try {
         const tokenIndex = loadTokenPostings(dir, { manifest, strict });
         tokenNormalized = normalizeTokenPostings(tokenIndex);
@@ -355,6 +366,13 @@ export async function validateIndexArtifacts(input = {}) {
           'Rebuild index artifacts for this mode.',
           { strictSchema: strict }
         );
+        const vocabIds = Array.isArray(tokenNormalized.vocabIds) ? tokenNormalized.vocabIds : [];
+        if (vocabIds.length && vocabIds.length !== tokenNormalized.vocab.length) {
+          const issue = `token_postings vocabIds mismatch (${vocabIds.length} !== ${tokenNormalized.vocab.length})`;
+          modeReport.ok = false;
+          modeReport.missing.push(issue);
+          report.issues.push(`[${mode}] ${issue}`);
+        }
         const docLengths = tokenNormalized.docLengths || [];
         if (docLengths.length && chunkMeta.length !== docLengths.length) {
           const issue = `docLengths mismatch (${docLengths.length} !== ${chunkMeta.length})`;
@@ -466,7 +484,10 @@ export async function validateIndexArtifacts(input = {}) {
             chunk_meta: hashJsonRows(chunkMeta),
             file_relations: relations ? hashJsonRows(relations) : null,
             repo_map: repoMap ? hashJsonRows(repoMap) : null,
-            graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null
+            graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null,
+            token_vocab: tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null,
+            phrase_ngrams: phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null,
+            chargram_postings: chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null
           };
           for (const [artifact, expected] of Object.entries(ledgerStage.artifacts)) {
             const actual = actualHashes[artifact] || null;
@@ -657,16 +678,38 @@ export async function validateIndexArtifacts(input = {}) {
 
       const phraseRaw = readJsonArtifact('phrase_ngrams');
       if (phraseRaw) {
-        const phrase = normalizePhrasePostings(phraseRaw);
-        validateSchema(report, mode, 'phrase_ngrams', phrase, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'phrase_ngrams', phrase.postings, chunkMeta.length);
+        phraseNormalized = normalizePhrasePostings(phraseRaw);
+        validateSchema(report, mode, 'phrase_ngrams', phraseNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'phrase_ngrams', phraseNormalized.postings, chunkMeta.length);
       }
 
       const chargramRaw = readJsonArtifact('chargram_postings');
       if (chargramRaw) {
-        const chargram = normalizePhrasePostings(chargramRaw);
-        validateSchema(report, mode, 'chargram_postings', chargram, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'chargram_postings', chargram.postings, chunkMeta.length);
+        chargramNormalized = normalizePhrasePostings(chargramRaw);
+        validateSchema(report, mode, 'chargram_postings', chargramNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'chargram_postings', chargramNormalized.postings, chunkMeta.length);
+      }
+
+      const vocabOrder = readJsonArtifact('vocab_order');
+      if (vocabOrder && typeof vocabOrder === 'object') {
+        const tokenHash = tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null;
+        const phraseHash = phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null;
+        const chargramHash = chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null;
+        const expectToken = vocabOrder?.vocab?.token?.hash || null;
+        const expectPhrase = vocabOrder?.vocab?.phrase?.hash || null;
+        const expectChargram = vocabOrder?.vocab?.chargram?.hash || null;
+        if (expectToken && tokenHash?.hash && expectToken !== tokenHash.hash) {
+          addIssue(report, mode, 'vocab_order token hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
+        if (expectPhrase && phraseHash?.hash && expectPhrase !== phraseHash.hash) {
+          addIssue(report, mode, 'vocab_order phrase hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
+        if (expectChargram && chargramHash?.hash && expectChargram !== chargramHash.hash) {
+          addIssue(report, mode, 'vocab_order chargram hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
       }
 
       const denseTargets = [

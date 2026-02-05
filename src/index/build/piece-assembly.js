@@ -3,6 +3,7 @@ import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { hashTokenId } from '../../shared/token-id.js';
 import { createIndexState } from './state.js';
 import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
@@ -200,6 +201,7 @@ export async function assembleIndexPieces({
 
   const sortKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
   const tokenVocab = Array.from(mergedTokenPostings.keys()).sort(sortKey);
+  const tokenVocabIds = tokenVocab.map((token) => hashTokenId(token));
   const tokenPostingsList = tokenVocab.map((token) => normalizeTfPostings(mergedTokenPostings.get(token)));
   const phraseVocab = Array.from(mergedPhrasePostings.keys()).sort(sortKey);
   const phrasePostings = phraseVocab.map((token) => normalizeIdList(mergedPhrasePostings.get(token)));
@@ -243,6 +245,7 @@ export async function assembleIndexPieces({
     chargramVocab,
     chargramPostings,
     tokenVocab,
+    tokenVocabIds,
     tokenPostingsList,
     avgDocLen,
     minhashSigs: mergedMinhash,
