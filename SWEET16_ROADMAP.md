@@ -898,103 +898,103 @@ Parallel: Can run alongside 16.14.2/16.14.3 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
--- [x] Task 16.14.1.doc: Update docs/specs and touchpoints listed for this subphase.
--- [x] Task 16.14.1.doc.1: Enumerate current index_state fields and delta log format.
--- [x] Task 16.14.1.doc.2: Define compatibility rules for compressed vs plain state.
--- [x] Task 16.14.1.a: Implement index_state delta compression.
--- [x] Task 16.14.1.a.1: Define delta encoding (patch list + binary diff) with schema version.
--- [x] Task 16.14.1.a.2: Add reader that replays deltas into a snapshot.
--- [x] Task 16.14.1.a.3: Add corruption detection and fallback to last full snapshot.
--- [x] Task 16.14.1.b: Add comparable-hash skip logic for unchanged writes.
--- [x] Task 16.14.1.b.1: Track lastComparableHash only after successful write.
--- [x] Task 16.14.1.b.2: Add guard to reset hash on error.
--- [x] Task 16.14.1.c: Add size instrumentation with thresholds.
--- [x] Task 16.14.1.c.1: Emit size stats in build_state and stage audit.
--- [x] Task 16.14.1.c.2: Define warning/abort thresholds in policy.
--- [x] Task 16.14.1.d: Add compressed write path for large state.
--- [x] Task 16.14.1.d.1: Use jsonl + zstd for large state snapshots.
--- [x] Task 16.14.1.d.2: Ensure loader auto-detects compression by extension.
--- [x] Task 16.14.1.e: Add ledger integration for index_state.
--- [x] Task 16.14.1.e.1: Store ordering ledger hash in index_state metadata.
--- [x] Task 16.14.1.f: Add full snapshot after N deltas to cap chain length.
--- [x] Task 16.14.1.f.1: Add rolling snapshot cadence (configurable N).
+- [x] Task 16.14.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.14.1.doc.1: Enumerate current index_state fields and delta log format.
+- [x] Task 16.14.1.doc.2: Define compatibility rules for compressed vs plain state.
+- [x] Task 16.14.1.a: Implement index_state delta compression.
+- [x] Task 16.14.1.a.1: Define delta encoding (patch list + binary diff) with schema version.
+- [x] Task 16.14.1.a.2: Add reader that replays deltas into a snapshot.
+- [x] Task 16.14.1.a.3: Add corruption detection and fallback to last full snapshot.
+- [x] Task 16.14.1.b: Add comparable-hash skip logic for unchanged writes.
+- [x] Task 16.14.1.b.1: Track lastComparableHash only after successful write.
+- [x] Task 16.14.1.b.2: Add guard to reset hash on error.
+- [x] Task 16.14.1.c: Add size instrumentation with thresholds.
+- [x] Task 16.14.1.c.1: Emit size stats in build_state and stage audit.
+- [x] Task 16.14.1.c.2: Define warning/abort thresholds in policy.
+- [x] Task 16.14.1.d: Add compressed write path for large state.
+- [x] Task 16.14.1.d.1: Use jsonl + zstd for large state snapshots.
+- [x] Task 16.14.1.d.2: Ensure loader auto-detects compression by extension.
+- [x] Task 16.14.1.e: Add ledger integration for index_state.
+- [x] Task 16.14.1.e.1: Store ordering ledger hash in index_state metadata.
+- [x] Task 16.14.1.f: Add full snapshot after N deltas to cap chain length.
+- [x] Task 16.14.1.f.1: Add rolling snapshot cadence (configurable N).
 
 Tests:
--- [ ] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
+- [ ] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
 
 ### Subphase 16.14.2 -- File Meta
 Parallel: Can run alongside 16.14.1/16.14.3 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
--- [x] Task 16.14.2.doc: Update docs/specs and touchpoints listed for this subphase.
--- [x] Task 16.14.2.doc.1: Define columnar schema fields and binary layout.
--- [x] Task 16.14.2.doc.2: Document fallback behavior and max-bytes thresholds.
--- [x] Task 16.14.2.a: Default to binary columnar for large repos.
--- [x] Task 16.14.2.a.1: Add size estimator to choose columnar vs JSONL.
--- [x] Task 16.14.2.a.2: Emit columnar meta with row counts and checksums.
--- [x] Task 16.14.2.b: Add JSONL fallback when columnar exceeds cap.
--- [x] Task 16.14.2.b.1: Detect oversize columnar output and re-run JSONL path.
--- [x] Task 16.14.2.b.2: Ensure fallback removes columnar outputs to avoid stale reads.
--- [x] Task 16.14.2.c: Stream file_meta into sqlite build.
--- [x] Task 16.14.2.c.1: Allow sqlite builder to accept async iterator of rows.
--- [x] Task 16.14.2.c.2: Add batch insert size config for file_meta ingest.
--- [x] Task 16.14.2.d: Add reuse cache based on file hash list.
--- [x] Task 16.14.2.d.1: Persist fingerprint (hash list) in meta extensions.
--- [x] Task 16.14.2.d.2: Validate fingerprint before reuse and log reuse reason.
--- [x] Task 16.14.2.e: Add file_meta validity checks.
--- [x] Task 16.14.2.e.1: Validate required fields + row count parity.
--- [x] Task 16.14.2.e.2: Detect stale columnar payload and fall back to JSONL.
--- [x] Task 16.14.2.f: Add MAX_JSON_BYTES guard to force sharding for large columnar outputs.
--- [x] Task 16.14.2.f.1: Ensure loader uses JSONL when columnar exceeds cap.
+- [x] Task 16.14.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.14.2.doc.1: Define columnar schema fields and binary layout.
+- [x] Task 16.14.2.doc.2: Document fallback behavior and max-bytes thresholds.
+- [x] Task 16.14.2.a: Default to binary columnar for large repos.
+- [x] Task 16.14.2.a.1: Add size estimator to choose columnar vs JSONL.
+- [x] Task 16.14.2.a.2: Emit columnar meta with row counts and checksums.
+- [x] Task 16.14.2.b: Add JSONL fallback when columnar exceeds cap.
+- [x] Task 16.14.2.b.1: Detect oversize columnar output and re-run JSONL path.
+- [x] Task 16.14.2.b.2: Ensure fallback removes columnar outputs to avoid stale reads.
+- [x] Task 16.14.2.c: Stream file_meta into sqlite build.
+- [x] Task 16.14.2.c.1: Allow sqlite builder to accept async iterator of rows.
+- [x] Task 16.14.2.c.2: Add batch insert size config for file_meta ingest.
+- [x] Task 16.14.2.d: Add reuse cache based on file hash list.
+- [x] Task 16.14.2.d.1: Persist fingerprint (hash list) in meta extensions.
+- [x] Task 16.14.2.d.2: Validate fingerprint before reuse and log reuse reason.
+- [x] Task 16.14.2.e: Add file_meta validity checks.
+- [x] Task 16.14.2.e.1: Validate required fields + row count parity.
+- [x] Task 16.14.2.e.2: Detect stale columnar payload and fall back to JSONL.
+- [x] Task 16.14.2.f: Add MAX_JSON_BYTES guard to force sharding for large columnar outputs.
+- [x] Task 16.14.2.f.1: Ensure loader uses JSONL when columnar exceeds cap.
 
 Tests:
--- [ ] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
--- [ ] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
+- [ ] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.14.3 -- Minhash
 Parallel: Can run alongside 16.14.1/16.14.2 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
--- [x] Task 16.14.3.doc: Update docs/specs and touchpoints listed for this subphase.
--- [x] Task 16.14.3.doc.1: Document packed layout (endianness, alignment, row order).
--- [x] Task 16.14.3.doc.2: Define skip behavior and cache invalidation rules.
--- [x] Task 16.14.3.a: Implement SIMD-friendly packed minhash layout.
--- [x] Task 16.14.3.a.1: Define fixed-width row structure with SIMD alignment.
--- [x] Task 16.14.3.a.2: Add packer/unpacker utilities with schema version.
--- [x] Task 16.14.3.b: Add packed consistency checks (checksum + count).
--- [x] Task 16.14.3.b.1: Store checksum + row count in packed meta file.
--- [x] Task 16.14.3.b.2: Reject packed reads on mismatch and fall back to JSONL.
--- [x] Task 16.14.3.c: Add streaming minhash emission to avoid full arrays.
--- [x] Task 16.14.3.c.1: Emit minhash rows during postings build.
--- [x] Task 16.14.3.c.2: Allow packer to stream from iterator.
--- [x] Task 16.14.3.d: Add cleanup of stale packed artifacts when skipped.
--- [x] Task 16.14.3.d.1: Remove packed files when minhash is intentionally skipped.
--- [x] Task 16.14.3.e: Add skip guard for large corpora with telemetry.
--- [x] Task 16.14.3.e.1: Add threshold config and stage audit output.
--- [x] Task 16.14.3.f: Ensure packed minhash always invalidates when skipped in a build.
--- [x] Task 16.14.3.f.1: Gate packed loads on manifest or current build signature.
+- [x] Task 16.14.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.14.3.doc.1: Document packed layout (endianness, alignment, row order).
+- [x] Task 16.14.3.doc.2: Define skip behavior and cache invalidation rules.
+- [x] Task 16.14.3.a: Implement SIMD-friendly packed minhash layout.
+- [x] Task 16.14.3.a.1: Define fixed-width row structure with SIMD alignment.
+- [x] Task 16.14.3.a.2: Add packer/unpacker utilities with schema version.
+- [x] Task 16.14.3.b: Add packed consistency checks (checksum + count).
+- [x] Task 16.14.3.b.1: Store checksum + row count in packed meta file.
+- [x] Task 16.14.3.b.2: Reject packed reads on mismatch and fall back to JSONL.
+- [x] Task 16.14.3.c: Add streaming minhash emission to avoid full arrays.
+- [x] Task 16.14.3.c.1: Emit minhash rows during postings build.
+- [x] Task 16.14.3.c.2: Allow packer to stream from iterator.
+- [x] Task 16.14.3.d: Add cleanup of stale packed artifacts when skipped.
+- [x] Task 16.14.3.d.1: Remove packed files when minhash is intentionally skipped.
+- [x] Task 16.14.3.e: Add skip guard for large corpora with telemetry.
+- [x] Task 16.14.3.e.1: Add threshold config and stage audit output.
+- [x] Task 16.14.3.f: Ensure packed minhash always invalidates when skipped in a build.
+- [x] Task 16.14.3.f.1: Gate packed loads on manifest or current build signature.
 
 Tests:
--- [x] `tests/indexing/artifacts/minhash-packed-roundtrip.test.js` (perf lane)
--- [x] `tests/indexing/artifacts/minhash-packed-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/minhash-packed-roundtrip.test.js` (perf lane)
+- [x] `tests/indexing/artifacts/minhash-packed-bench-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.14.4 -- Tests + Bench
 Parallel: Run after 16.14.1–16.14.3.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
--- [x] Task 16.14.4.doc: Update docs/specs and touchpoints listed for this subphase.
--- [x] Task 16.14.4.a: Add `file-meta-compare` benchmark baseline/current.
--- [x] Task 16.14.4.b: Add `minhash-packed` benchmark baseline/current.
--- [x] Task 16.14.4.c: Add regression test for file_meta reuse.
--- [x] Task 16.14.4.d: Add docs update for index_state/file_meta/minhash.
--- [x] Task 16.14.4.e: Add load-time benchmark for sqlite file_meta ingestion.
+- [x] Task 16.14.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.14.4.a: Add `file-meta-compare` benchmark baseline/current.
+- [x] Task 16.14.4.b: Add `minhash-packed` benchmark baseline/current.
+- [x] Task 16.14.4.c: Add regression test for file_meta reuse.
+- [x] Task 16.14.4.d: Add docs update for index_state/file_meta/minhash.
+- [x] Task 16.14.4.e: Add load-time benchmark for sqlite file_meta ingestion.
 
 Tests:
--- [x] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
--- [x] `tests/indexing/artifacts/minhash-packed-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/minhash-packed-bench-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.14.5 -- Full Streaming File Meta + Minimal-Impl Hardening
 Parallel: Run after 16.14.4; depends on 16.13.4 streaming loader work.
@@ -1030,15 +1030,28 @@ Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/b
 Tasks:
 - [ ] Task 16.6.1.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.6.1.a: Implement token ID canonicalization at tokenize time.
+- [ ] Task 16.6.1.a.1: Define deterministic token ID assignment (order-independent) and persist `token_vocab` mapping.
+- [ ] Task 16.6.1.a.2: Plumb token IDs through `chunk_meta` + postings (retain legacy string tokens as optional fallback).
 - [ ] Task 16.6.1.b: Replace substring chargrams with rolling hash generation.
+- [ ] Task 16.6.1.b.1: Use a 64-bit rolling hash for chargrams (no substring allocations) with fixed seed/salt.
+- [ ] Task 16.6.1.b.2: Record hash parameters in artifacts and update retrieval/SQLite to consume hashed chargrams.
+- [ ] Task 16.6.1.b.3: Provide compatibility fallback for legacy string-chargram artifacts.
 - [ ] Task 16.6.1.c: Implement compact chunk token representation.
+- [ ] Task 16.6.1.c.1: Add packed/varint token ID encoding for chunk tokens and update readers/validators.
 - [ ] Task 16.6.1.d: Add pooling for hot arrays in postings.
+- [ ] Task 16.6.1.d.1: Pool per-chunk frequency maps/arrays and reuse buffers across chunks.
 - [ ] Task 16.6.1.e: Validate determinism across new token pipelines.
+- [ ] Task 16.6.1.e.1: Add ordering hash for token/chargram vocab outputs and enforce via validation.
 - [ ] Task 16.6.1.f: Enforce stable vocab ordering artifact to prevent nondeterminism.
+- [ ] Task 16.6.1.f.1: Emit a dedicated vocab-order artifact with stable hash (token/phrase/chargram).
 - [ ] Task 16.6.1.g: Add max token length guard in rolling chargram flow.
+- [ ] Task 16.6.1.g.1: Apply max token-length guard even when precomputed chargrams are supplied.
 
 Tests:
 - [ ] `tests/indexing/postings/token-id-canonicalization.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/chargram-rolling-hash.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/compact-token-roundtrip.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/vocab-order-determinism.test.js` (perf lane) (new)
 
 ### Subphase 16.6.2 -- Backpressure + Concurrency
 Parallel: Run after 16.6.1.
@@ -1047,13 +1060,22 @@ Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/b
 Tasks:
 - [ ] Task 16.6.2.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.6.2.a: Add bounded queue between tokenization and postings.
+- [ ] Task 16.6.2.a.1: Define chunk-queue limits (rows + bytes) and enforce ordering during async postings apply.
+- [ ] Task 16.6.2.a.2: Emit backpressure when postings queue reaches maxPending and surface wait time.
 - [ ] Task 16.6.2.b: Split CPU vs IO concurrency knobs for Stage1.
+- [ ] Task 16.6.2.b.1: Add Stage1 postings concurrency + pending limit config keys.
+- [ ] Task 16.6.2.b.2: Add Stage1 tokenize concurrency + pending limit config keys (worker pool or CPU queue).
 - [ ] Task 16.6.2.c: Add scheduler integration hooks for Stage1.
+- [ ] Task 16.6.2.c.1: Add scheduler queue for postings apply with CPU+memory tokens.
+- [ ] Task 16.6.2.c.2: Route tokenization worker jobs through scheduler/proc queue.
 - [ ] Task 16.6.2.d: Add memory-based throttling in postings build.
+- [ ] Task 16.6.2.d.1: Implement heap-pressure throttling that reduces postings concurrency and queue depth.
 - [ ] Task 16.6.2.e: Add metrics for queue depth and backpressure events.
+- [ ] Task 16.6.2.e.1: Record queue depth high-water + backpressure wait in build_state/metrics.
 
 Tests:
 - [ ] `tests/indexing/postings/backpressure-queue.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/postings-queue-metrics.test.js` (perf lane) (new)
 
 ### Subphase 16.6.3 -- Tests + Bench
 Parallel: Run after 16.6.1/16.6.2.
@@ -1062,14 +1084,29 @@ Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/b
 Tasks:
 - [ ] Task 16.6.3.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.6.3.a: Implement `postings-real` benchmark baseline/current.
+- [ ] Task 16.6.3.a.1: Define a fixed fixture corpus for `postings-real` (size + source documented).
+- [ ] Task 16.6.3.a.2: Add `tools/bench/index/postings-real.js` with stable baseline/current schema + Stage1 config.
 - [ ] Task 16.6.3.b: Add chargram throughput benchmark.
+- [ ] Task 16.6.3.b.1: Extend `tools/bench/index/chargram-postings.js` to cover rolling-hash path + baseline/current compare.
+- [ ] Task 16.6.3.b.2: Add contract test for chargram benchmark output format.
 - [ ] Task 16.6.3.c: Add heap plateau regression test.
+- [ ] Task 16.6.3.c.1: Promote `postings-heap-plateau` to perf lane and cover Stage1 end-to-end.
+- [ ] Task 16.6.3.c.2: Assert plateau after postings build completes + pool cleanup.
 - [ ] Task 16.6.3.d: Add determinism regression test for chunk_meta.
+- [ ] Task 16.6.3.d.1: Run Stage1 twice with different concurrency and compare `chunk_meta.json`.
+- [ ] Task 16.6.3.d.2: Compare stable vocab ordering artifact (from 16.6.1.f) between runs.
 - [ ] Task 16.6.3.e: Add documentation update for Stage1 changes.
+- [ ] Task 16.6.3.e.1: Document bench usage + perf lane coverage for Stage1 changes.
 - [ ] Task 16.6.3.f: Add memory budget enforcement regression test for Stage1.
+- [ ] Task 16.6.3.f.1: Use tiny memory budget to trigger backpressure/spill and assert metrics from 16.6.2.
+- [ ] Task 16.6.3.g: Update script inventory + commands docs for new bench scripts.
 
 Tests:
 - [ ] `tests/indexing/postings/postings-real-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/chargram-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/postings-heap-plateau.test.js` (perf lane) (existing)
+- [ ] `tests/indexing/postings/chunk-meta-determinism.test.js` (perf lane) (new)
+- [ ] `tests/indexing/postings/stage1-memory-budget.test.js` (perf lane) (new)
 
 ---
 
@@ -1082,11 +1119,19 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [ ] Task 16.7.1.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.7.1.a: Implement typed edge storage during build.
+- [ ] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
 - [ ] Task 16.7.1.b: Implement two-phase streaming relations build.
+- [ ] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
+- [ ] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
 - [ ] Task 16.7.1.c: Add deterministic ordering without global sort.
+- [ ] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
 - [ ] Task 16.7.1.d: Add edge dedupe via compact hashes.
+- [ ] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
+- [ ] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
 - [ ] Task 16.7.1.e: Add spill thresholds by bytes.
+- [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
 - [ ] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
+- [ ] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
 
 Tests:
 - [ ] `tests/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
@@ -1098,10 +1143,16 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [ ] Task 16.7.2.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.7.2.a: Add per-file bitmaps in filter index.
+- [ ] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
 - [ ] Task 16.7.2.b: Add repo map batching + delta compression.
+- [ ] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
 - [ ] Task 16.7.2.c: Add concurrency split for relations IO.
+- [ ] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
 - [ ] Task 16.7.2.d: Add filter index size telemetry.
+- [ ] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
 - [ ] Task 16.7.2.e: Add fallback to previous filter index on failure.
+- [ ] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
+- [ ] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
 
 Tests:
 - [ ] `tests/indexing/filter-index/bitmap-roundtrip.test.js` (perf lane) (new)
@@ -1113,14 +1164,27 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [ ] Task 16.7.3.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.7.3.a: Add `filter-index-build` benchmark baseline/current.
+- [ ] Task 16.7.3.a.1: Add `relations-build` benchmark baseline/current.
+- [ ] Task 16.7.3.a.2: Add `repo-map-compress` benchmark baseline/current.
 - [ ] Task 16.7.3.b: Add relations memory regression test.
+- [ ] Task 16.7.3.b.1: Assert memory budget throttling + metrics for relations build.
 - [ ] Task 16.7.3.c: Add determinism test for relations output.
+- [ ] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
 - [ ] Task 16.7.3.d: Add repo map delta compression test.
+- [ ] Task 16.7.3.d.1: Roundtrip delta compression with versioned header.
 - [ ] Task 16.7.3.e: Add docs update for Stage2 changes.
+- [ ] Task 16.7.3.e.1: Document staging/atomic swap + fallback behavior.
 - [ ] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
+- [ ] Task 16.7.3.g: Add collision regression test for hash dedupe.
+- [ ] Task 16.7.3.h: Update script inventory + commands docs for new bench scripts.
 
 Tests:
 - [ ] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
+- [ ] `tests/indexing/relations/relations-memory-budget.test.js` (perf lane) (new)
+- [ ] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
+- [ ] `tests/indexing/filter-index/filter-index-metrics.test.js` (perf lane) (new)
+- [ ] `tests/indexing/repo-map/repo-map-delta-roundtrip.test.js` (perf lane) (new)
 
 ---
 
@@ -1452,5 +1516,14 @@ Tests:
 
 ---
 
-## Reminders
+## Post-Phase Tasks (For the next Roadmap)
 - Unify shard threshold normalization across writer/loader paths (ensure a single shared helper is used everywhere).
+- Fix --help on `node tests/run.js --help`, it currently starts running tests after printing its help output
+- what generates artifacts directory? Just junit xml output? That should probably be emitted to a better location like in .testlogs
+- do we deliberately have an empty tools/perf/ folder?
+- We need to evaluate the performance of indexing and searching on the repo itself to determine correct limits/safeguards/values
+- Confirm that when I see `[budget] symbol_edges exceeded budget 128.0MB by 58.2MB (trim).` It doesn't mean we're just chopping off all of the extra data. We can totally include all of this. 
+- Have been seeing errors like `[tooling] Invalid virtualRange for tests/fixtures/languages/src/javascript_component.jsx (117-157); skipping target.`, let's ensure that is fixed by now
+- ensure we're wasming correctly
+- evaluate context window sizing
+- we need a 'merged' c8 coverage generation ci job
