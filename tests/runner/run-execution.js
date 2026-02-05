@@ -274,10 +274,11 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
         const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
         const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
         results[index] = finalResult;
-        if (reportDirect) {
-          reportDirect(finalResult);
-        } else if (reportResult) {
+        if (reportResult) {
           reportResult(finalResult, index);
+        }
+        if (reportDirect && reportDirect !== reportResult) {
+          reportDirect(finalResult);
         }
       });
     });

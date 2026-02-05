@@ -505,9 +505,12 @@ export async function writeIndexArtifacts(input) {
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
   const fileMetaFormat = fileMetaFormatConfig || 'auto';
-  const fileMetaUseColumnar = (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
+  const fileMetaExceedsMax = fileMetaEstimatedBytes > maxJsonBytes;
+  const fileMetaUseColumnar = !fileMetaExceedsMax
+    && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
     && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
   const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
+    || fileMetaExceedsMax
     || (!fileMetaUseColumnar && fileMetaEstimatedBytes > maxJsonBytes);
   const fileMetaMetaPath = path.join(outDir, 'file_meta.meta.json');
   if (!fileMetaFromCache) {
