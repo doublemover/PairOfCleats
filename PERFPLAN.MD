@@ -1848,8 +1848,8 @@ Details: Touchpoints `src/index/build/postings.js`, `src/index/build/state.js`.
   - Success: minhash is skipped when size guard triggers, without breaking validation.
 
 ### Acceptance
-- [ ] index_state writes are skipped when unchanged and instrumented.
-- [ ] file_meta writes are smaller and bounded (string‑table/JSONL for large repos).
-- [ ] minhash signatures use packed format by default, with JSON fallback.
-- [ ] JSON artifact writer uses byte‑based sharding and per‑artifact compression.
-- [ ] Benchmarks show measurable improvements and are documented.
+- [x] index_state writes are skipped when unchanged and instrumented.
+- [x] file_meta writes are smaller and bounded (string‑table/JSONL for large repos).
+- [x] minhash signatures use packed format by default, with JSON fallback.
+- [x] JSON artifact writer uses byte‑based sharding and per‑artifact compression.
+- [x] Benchmarks show measurable improvements and are documented.
