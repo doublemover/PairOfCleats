@@ -408,15 +408,15 @@ Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.4 with clear file ow
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
-- [ ] Task 16.2.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.2.3.a: Migrate chunk_meta writer to unified pipeline.
-- [ ] Task 16.2.3.b: Migrate symbol artifacts writers to unified pipeline.
-- [ ] Task 16.2.3.c: Migrate relations/map writers to unified pipeline.
-- [ ] Task 16.2.3.d: Enforce atomic swap for all artifact sets.
-- [ ] Task 16.2.3.e: Add writer-side byte-budget guards.
+  - [x] Task 16.2.3.doc: Update docs/specs and touchpoints listed for this subphase.
+  - [x] Task 16.2.3.a: Migrate chunk_meta writer to unified pipeline.
+  - [x] Task 16.2.3.b: Migrate symbol artifacts writers to unified pipeline.
+  - [x] Task 16.2.3.c: Migrate relations/map writers to unified pipeline.
+  - [x] Task 16.2.3.d: Enforce atomic swap for all artifact sets.
+  - [x] Task 16.2.3.e: Add writer-side byte-budget guards.
 
 Tests:
-- [ ] `tests/indexing/artifacts/writer-unified-pipeline.test.js` (perf lane) (new)
+  - [x] `tests/perf/writer-unified-pipeline.test.js` (perf lane) (new)
 
 ### Subphase 16.2.4 -- Loader Migration
 Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.3 with clear file ownership.
@@ -1256,3 +1256,8 @@ Tests:
 - [ ] Determinism is enforced via ledger + ordering helpers.
 - [ ] All phases have baseline/current benchmarks with deltas.
 - [ ] Usage checklist is complete and verified.
+
+---
+
+## Reminders
+- Unify shard threshold normalization across writer/loader paths (ensure a single shared helper is used everywhere).

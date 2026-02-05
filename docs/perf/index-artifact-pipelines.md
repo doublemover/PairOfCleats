@@ -20,6 +20,9 @@ Run benchmarks from the repo root.
 
 Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
 
+## Writer guardrails (Phase 16.2.3)
+Unsharded JSONL writers now pass `maxBytes` into `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast. This keeps byte budgets enforced even when a writer stays in the single-file path.
+
 ## Expected Deltas
 
 ### Build state write

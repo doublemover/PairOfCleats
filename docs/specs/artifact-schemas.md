@@ -14,6 +14,7 @@ This document defines the on-disk index artifact contracts. Schema validation is
 - Columnar artifacts use `{ format: "columnar", columns, arrays, length, tables? }` and inflate to the same row schema as JSON/JSONL.
 - JSONL readers may process shards in parallel but must preserve shard order when concatenating results.
 - JSONL readers use buffer scanning (not line interfaces) and may use small-file fast paths.
+- JSONL writers should pass `maxBytes` to unsharded `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast.
 
 ## Sharded JSONL meta schema
 

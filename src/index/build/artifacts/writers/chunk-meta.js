@@ -845,7 +845,8 @@ export const enqueueChunkMetaArtifacts = async ({
               atomic: true,
               compression,
               gzipOptions,
-              offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+              offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
+              maxBytes: resolvedMaxJsonBytes
             }
           );
           if (collected?.cleanup) await collected.cleanup();

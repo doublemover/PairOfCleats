@@ -236,4 +236,5 @@ Add keepBackup case:
 - Large zstd/gzip shards use streaming decompression; buffer decompression is reserved for small files.
 - Sharded reads may run in parallel but must preserve shard order when concatenating rows.
 - Offsets metadata records `version`, `format`, and `compression` for deterministic loader validation.
+- Unsharded JSONL writers should pass `maxBytes` into `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast with `ERR_JSON_TOO_LARGE`.
 

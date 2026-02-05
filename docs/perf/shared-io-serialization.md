@@ -4,6 +4,7 @@ This document captures the shared JSON streaming and artifact IO performance wor
 
 ## JSON Streaming Controls
 - `writeJsonLinesFile`, `writeJsonLinesSharded`, `writeJsonArrayFile`, and `writeJsonObjectFile` now accept `highWaterMark`.
+- `writeJsonLinesFile` and `writeJsonLinesFileAsync` accept `maxBytes` to fail fast when a single JSONL row exceeds the budget.
 - `highWaterMark` is applied to the JSON write stream buffer.
 - `highWaterMark` is applied to compression transforms (gzip/zstd).
 - `highWaterMark` is applied to the byte counter transform.

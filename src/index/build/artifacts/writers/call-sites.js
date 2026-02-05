@@ -176,9 +176,12 @@ export const enqueueCallSitesArtifacts = ({
 
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
   let totalBytes = 0;
+  let maxLineBytes = 0;
   for (const row of rows) {
     const line = JSON.stringify(row);
-    totalBytes += Buffer.byteLength(line, 'utf8') + 1;
+    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+    totalBytes += lineBytes;
+    if (lineBytes > maxLineBytes) maxLineBytes = lineBytes;
   }
 
   const resolveJsonlExtension = (value) => {
@@ -200,6 +203,9 @@ export const enqueueCallSitesArtifacts = ({
     await fs.rm(path.join(outDir, 'call_sites.jsonl.offsets.bin'), { force: true });
   };
 
+  if (resolvedMaxBytes && maxLineBytes > resolvedMaxBytes) {
+    throw new Error(`call_sites row exceeds max JSON size (${maxLineBytes} bytes).`);
+  }
   const useShards = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
   if (!useShards) {
     enqueueWrite(
@@ -212,7 +218,8 @@ export const enqueueCallSitesArtifacts = ({
           atomic: true,
           compression,
           gzipOptions,
-          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
+          maxBytes: resolvedMaxBytes
         });
       }
     );

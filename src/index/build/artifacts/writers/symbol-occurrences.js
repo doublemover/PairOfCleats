@@ -338,7 +338,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           atomic: true,
           compression,
           gzipOptions,
-          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
+          maxBytes: maxJsonBytes
         });
         if (tracker?.perFileRows && offsetsPath) {
           const perFileIndex = await writePerFileVarintIndex({

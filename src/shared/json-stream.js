@@ -22,7 +22,7 @@ const resolveShardLimits = ({ maxBytes, maxItems }) => ({
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean}}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
@@ -32,8 +32,10 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
     gzipOptions = null,
     highWaterMark = null,
     signal = null,
-    offsets = null
+    offsets = null,
+    maxBytes = null
   } = options;
+  const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (offsets?.path && compression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
@@ -54,6 +56,11 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
       const line = stringifyJsonValue(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
+      if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
+        const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}).`);
+        err.code = 'ERR_JSON_TOO_LARGE';
+        throw err;
+      }
       if (offsetsWriter) {
         await offsetsWriter.writeOffset(bytesWritten);
       }
@@ -77,7 +84,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
  * Stream JSON lines to disk from an async iterable.
  * @param {string} filePath
  * @param {AsyncIterable<any>|Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean}}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
@@ -87,8 +94,10 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
     gzipOptions = null,
     highWaterMark = null,
     signal = null,
-    offsets = null
+    offsets = null,
+    maxBytes = null
   } = options;
+  const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (offsets?.path && compression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
@@ -109,6 +118,11 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
       const line = stringifyJsonValue(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
+      if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
+        const err = new Error(`JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}).`);
+        err.code = 'ERR_JSON_TOO_LARGE';
+        throw err;
+      }
       if (offsetsWriter) {
         await offsetsWriter.writeOffset(bytesWritten);
       }
