@@ -304,6 +304,10 @@ export async function writeIndexArtifacts(input) {
     await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'));
     await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'));
   };
+  const removePackedMinhash = async () => {
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'));
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.meta.json'));
+  };
   if (tokenPostingsFormat === 'packed') {
     await removeArtifact(path.join(outDir, 'token_postings.json'));
     await removeCompressedArtifact('token_postings');
@@ -505,9 +509,12 @@ export async function writeIndexArtifacts(input) {
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
   const fileMetaFormat = fileMetaFormatConfig || 'auto';
-  const fileMetaUseColumnar = (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
+  const fileMetaExceedsMax = fileMetaEstimatedBytes > maxJsonBytes;
+  const fileMetaUseColumnar = !fileMetaExceedsMax
+    && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
     && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
   const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
+    || fileMetaExceedsMax
     || (!fileMetaUseColumnar && fileMetaEstimatedBytes > maxJsonBytes);
   const fileMetaMetaPath = path.join(outDir, 'file_meta.meta.json');
   if (!fileMetaFromCache) {
@@ -806,6 +813,8 @@ export async function writeIndexArtifacts(input) {
       count: packedMinhash.count
     }, packedPath);
     addPieceFile({ type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' }, packedMetaPath);
+  } else {
+    await removePackedMinhash();
   }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
   await enqueueTokenPostingsArtifacts({

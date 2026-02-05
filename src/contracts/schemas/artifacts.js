@@ -870,7 +870,9 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'symbol_occurrences_by_file_meta',
   'symbol_edges_by_file',
   'symbol_edges_by_file_offsets',
-  'symbol_edges_by_file_meta'
+  'symbol_edges_by_file_meta',
+  'minhash_signatures_packed',
+  'minhash_signatures_packed_meta'
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
