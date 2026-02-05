@@ -18,10 +18,7 @@ function normalizeEnabled(value) {
   return true;
 }
 
-const DEFAULT_DISABLED_LANGUAGES = (() => {
-  if (process.platform === 'win32') return new Set(['swift']);
-  return new Set();
-})();
+const DEFAULT_DISABLED_LANGUAGES = new Set();
 
 export function isTreeSitterEnabled(options, languageId) {
   const config = options?.treeSitter || {};

@@ -566,15 +566,15 @@ Parallel: Run after 16.3.2–16.3.4.
 Docs/specs to update: `docs/specs/cache-key-invalidation.md`, `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
 Touchpoints: see Phase 16.3 list (primary anchors: `tools/bench/*`, `tests/perf/*`).
 Tasks:
-- [ ] Task 16.3.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.3.5.a: Add cache hit/miss benchmark to `cache-hit-rate`.
-- [ ] Task 16.3.5.b: Add determinism tests for cache reuse.
-- [ ] Task 16.3.5.c: Add regression test for missing-file invalidation.
-- [ ] Task 16.3.5.d: Add docs update for cache key schema.
-- [ ] Task 16.3.5.e: Add telemetry sampling for cache performance.
+- [x] Task 16.3.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.3.5.a: Add cache hit/miss benchmark to `cache-hit-rate`.
+- [x] Task 16.3.5.b: Add determinism tests for cache reuse.
+- [x] Task 16.3.5.c: Add regression test for missing-file invalidation.
+- [x] Task 16.3.5.d: Add docs update for cache key schema.
+- [x] Task 16.3.5.e: Add telemetry sampling for cache performance.
 
 Tests:
-- [ ] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane) (new)
 
 ---
 

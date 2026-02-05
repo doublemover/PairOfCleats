@@ -1,4 +1,5 @@
 import { Counter, Gauge, Histogram, Registry } from 'prom-client';
+import { getEnvConfig } from './env.js';
 
 const registry = new Registry();
 let initialized = false;
@@ -47,6 +48,25 @@ const normalizeAnn = (value) => {
   if (value === true || value === 'on') return 'on';
   if (value === false || value === 'off') return 'off';
   return normalizeLabel(value, ANN);
+};
+
+const CACHE_EVENT_SAMPLE_RATE = (() => {
+  try {
+    const envConfig = getEnvConfig();
+    const raw = envConfig?.cacheMetricsSampleRate;
+    if (raw == null) return 1;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(0, Math.min(1, parsed));
+  } catch {
+    return 1;
+  }
+})();
+
+const shouldSampleCacheEvent = () => {
+  if (CACHE_EVENT_SAMPLE_RATE >= 1) return true;
+  if (CACHE_EVENT_SAMPLE_RATE <= 0) return false;
+  return Math.random() <= CACHE_EVENT_SAMPLE_RATE;
 };
 
 const ensureMetrics = () => {
@@ -297,6 +317,7 @@ export function incWatchBurst() {
  * @param {{ cache: string, result: string }} input
  */
 export function incCacheEvent({ cache, result }) {
+  if (!shouldSampleCacheEvent()) return;
   ensureMetrics();
   metrics.cacheEvents.inc({
     cache: normalizeCache(cache),

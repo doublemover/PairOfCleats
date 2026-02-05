@@ -70,6 +70,7 @@ Include:
 
 ## Logging
 - Log cache hits/misses with key prefix and reason.
+- Cache metrics sampling can be controlled via `PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE` (0–1).
 
 ## Breaking Changes
 No backward compatibility; old caches are purged.
