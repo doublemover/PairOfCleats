@@ -1,5 +1,7 @@
 import path from 'node:path';
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream.js';
+
+import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
+import { estimateJsonBytes } from '../../../shared/cache.js';
 
 export const createArtifactWriter = ({
   outDir,
@@ -117,8 +119,80 @@ export const createArtifactWriter = ({
     }
   };
 
+  const enqueueJsonArraySharded = (
+    base,
+    items,
+    {
+      maxBytes = 0,
+      piece = null,
+      compression = null,
+      gzipOptions = null,
+      metaExtensions = null
+    } = {}
+  ) => {
+    const estimatedBytes = estimateJsonBytes(items);
+    const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
+    if (!resolvedMaxBytes || estimatedBytes <= resolvedMaxBytes) {
+      enqueueJsonArray(base, items, { compressible: false, piece });
+      return;
+    }
+    const partsDirName = `${base}.parts`;
+    const partPrefix = `${base}.part-`;
+    const partsDirPath = path.join(outDir, partsDirName);
+    enqueueWrite(
+      formatArtifactLabel(partsDirPath),
+      async () => {
+        const result = await writeJsonLinesSharded({
+          dir: outDir,
+          partsDirName,
+          partPrefix,
+          items,
+          maxBytes: resolvedMaxBytes,
+          atomic: true,
+          compression: compression || null,
+          gzipOptions: compression ? gzipOptions : null
+        });
+        const parts = result.parts.map((part, index) => ({
+          path: part,
+          records: result.counts[index] || 0,
+          bytes: result.bytes[index] || 0
+        }));
+        const metaPath = path.join(outDir, `${base}.meta.json`);
+        await writeJsonObjectFile(metaPath, {
+          fields: {
+            schemaVersion: '1.0.0',
+            artifact: base,
+            format: 'jsonl-sharded',
+            generatedAt: new Date().toISOString(),
+            compression: compression || 'none',
+            totalRecords: result.total,
+            totalBytes: result.totalBytes,
+            maxPartRecords: result.maxPartRecords,
+            maxPartBytes: result.maxPartBytes,
+            targetMaxBytes: result.targetMaxBytes,
+            parts,
+            extensions: metaExtensions || undefined
+          },
+          atomic: true
+        });
+        for (let i = 0; i < result.parts.length; i += 1) {
+          const relPath = result.parts[i];
+          const absPath = path.join(outDir, relPath);
+          addPieceFile({
+            ...(piece || {}),
+            format: 'jsonl',
+            count: result.counts[i] || 0,
+            compression: compression || null
+          }, absPath);
+        }
+        addPieceFile({ type: piece?.type || 'chunks', name: `${base}_meta`, format: 'json' }, metaPath);
+      }
+    );
+  };
+
   return {
     enqueueJsonObject,
-    enqueueJsonArray
+    enqueueJsonArray,
+    enqueueJsonArraySharded
   };
 };

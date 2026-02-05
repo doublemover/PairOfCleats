@@ -1763,46 +1763,46 @@ Reduce serialization/IO cost for index_state, file_meta, minhash_signatures, and
 - `docs/perf/index-state-file-meta.md` (new)
 
 ### Tasks
-- [ ] **15.4 JSON artifact streaming + compression**
-- [ ] Task 15.4.a: Use size‑based sharding in `createArtifactWriter` (byte budgets, not row counts).
-- [ ] Task 15.4.b: Extend per‑artifact compression config and default zstd for large artifacts.
-- [ ] Task 15.4.c: Add write‑path metrics (bytes, rows, wall time) per artifact.
+- [x] **15.4 JSON artifact streaming + compression**
+- [x] Task 15.4.a: Use size‑based sharding in `createArtifactWriter` (byte budgets, not row counts).
+- [x] Task 15.4.b: Extend per‑artifact compression config and default zstd for large artifacts.
+- [x] Task 15.4.c: Add write‑path metrics (bytes, rows, wall time) per artifact.
 Details: Touchpoints `src/index/build/artifacts/writer.js`, `src/index/build/artifacts/helpers.js`, `src/shared/json-stream.js`, `src/shared/artifact-io/compression.js`. Implementation notes: enforce byte budgets before allocating buffers; record artifact sizes in build state or perf profile; keep compression opt-in per artifact to avoid regressions.
 
-- [ ] **15.6 Discovery + file list reuse**
-- [ ] Task 15.6.a: Emit a stable discovery file list with file hashes to power file_meta and avoid per‑chunk scans.
-- [ ] Task 15.6.b: Persist discovery list hash for incremental reuse.
+- [x] **15.6 Discovery + file list reuse**
+- [x] Task 15.6.a: Emit a stable discovery file list with file hashes to power file_meta and avoid per‑chunk scans.
+- [x] Task 15.6.b: Persist discovery list hash for incremental reuse.
 Details: Touchpoints `src/index/build/indexer/steps/discover.js`, `src/index/build/state.js`.
 
-- [ ] **15.7 Chunk-to-file metadata reuse**
-- [ ] Task 15.7.a: Maintain chunkUid -> fileId map during chunk creation instead of rescan in artifacts.
-- [ ] Task 15.7.b: Record per-file aggregate metadata once per file rather than per chunk.
+- [x] **15.7 Chunk-to-file metadata reuse**
+- [x] Task 15.7.a: Maintain chunkUid -> fileId map during chunk creation instead of rescan in artifacts.
+- [x] Task 15.7.b: Record per-file aggregate metadata once per file rather than per chunk.
 Details: Touchpoints `src/index/build/indexer/steps/process-files.js`, `src/index/build/artifacts.js`.
 
-- [ ] **15.1 Index state write optimization**
-- [ ] Task 15.1.a: Skip index_state writes when a comparable hash is unchanged (cache last hash by buildRoot).
-- [ ] Task 15.1.b: Split stable vs volatile sections and only re‑serialize volatile on incremental updates.
-- [ ] Task 15.1.c: Add size instrumentation and warn when index_state grows beyond a soft threshold.
-- [ ] Task 15.1.d: Allow compression for index_state when over threshold (zstd preferred).
+- [x] **15.1 Index state write optimization**
+- [x] Task 15.1.a: Skip index_state writes when a comparable hash is unchanged (cache last hash by buildRoot).
+- [x] Task 15.1.b: Split stable vs volatile sections and only re‑serialize volatile on incremental updates.
+- [x] Task 15.1.c: Add size instrumentation and warn when index_state grows beyond a soft threshold.
+- [x] Task 15.1.d: Allow compression for index_state when over threshold (zstd preferred).
 Details: Touchpoints `src/index/build/indexer/steps/write.js`, `src/index/build/artifacts.js`, `src/shared/json-stream.js`. Implementation notes: compute a comparable hash that ignores `generatedAt` and other volatile fields; write a sidecar cache to skip redundant writes; keep schema compatibility by storing stable+volatile sections under existing top-level keys.
 
-- [ ] **15.2 File meta construction + storage**
-- [ ] Task 15.2.a: Build file_meta from fileInfoByPath (or file list) without per‑chunk scans when available.
-- [ ] Task 15.2.b: Add string‑table/columnar option for file_meta to reduce repeated file strings.
-- [ ] Task 15.2.c: Switch to JSONL + sharding for large file_meta outputs (size‑based).
-- [ ] Task 15.2.d: Cache file_meta across incremental builds when file hash list is unchanged.
+- [x] **15.2 File meta construction + storage**
+- [x] Task 15.2.a: Build file_meta from fileInfoByPath (or file list) without per‑chunk scans when available.
+- [x] Task 15.2.b: Add string‑table/columnar option for file_meta to reduce repeated file strings.
+- [x] Task 15.2.c: Switch to JSONL + sharding for large file_meta outputs (size‑based).
+- [x] Task 15.2.d: Cache file_meta across incremental builds when file hash list is unchanged.
 Details: Touchpoints `src/index/build/artifacts/file-meta.js`, `src/index/build/artifacts.js`, `src/shared/artifact-io/loaders.js`, `src/storage/sqlite/build/from-artifacts.js`. Implementation notes: prefer `state.fileInfoByPath` + discovery file list; keep stable fileId ordering by sorted path list; emit `file_meta` columnar format only when size exceeds threshold; add a metadata hash to allow incremental reuse.
 
-- [ ] **15.3 Minhash signatures packing**
-- [ ] Task 15.3.a: Write packed binary minhash signatures (uint32 deltas or fixed‑width) with offsets + meta JSON.
-- [ ] Task 15.3.b: Prefer packed load path; keep JSON fallback for compatibility.
-- [ ] Task 15.3.c: Stream minhash rows during build to avoid full in‑memory arrays.
-- [ ] Task 15.3.d: Add a max‑docs guard to skip minhash when the corpus is too large (configurable).
+- [x] **15.3 Minhash signatures packing**
+- [x] Task 15.3.a: Write packed binary minhash signatures (uint32 deltas or fixed‑width) with offsets + meta JSON.
+- [x] Task 15.3.b: Prefer packed load path; keep JSON fallback for compatibility.
+- [x] Task 15.3.c: Stream minhash rows during build to avoid full in‑memory arrays.
+- [x] Task 15.3.d: Add a max‑docs guard to skip minhash when the corpus is too large (configurable).
 Details: Touchpoints `src/index/build/postings.js`, `src/index/build/artifacts.js`, `src/shared/artifact-io/loaders.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/retrieval/cli-index.js`. Implementation notes: keep JSON artifact for back-compat; packed format should include endian flag + width metadata; use streaming writer for minhash rows during build; document the guard behavior in perf doc.
 
-- [ ] **15.5 Build state sidecar tuning**
-- [ ] Task 15.5.a: Coalesce build_state sidecar writes using a size‑aware debounce.
-- [ ] Task 15.5.b: Optionally compress event/delta JSONL logs when they exceed a cap.
+- [x] **15.5 Build state sidecar tuning**
+- [x] Task 15.5.a: Coalesce build_state sidecar writes using a size‑aware debounce.
+- [x] Task 15.5.b: Optionally compress event/delta JSONL logs when they exceed a cap.
 Details: Touchpoints `src/index/build/build-state.js`, `src/shared/json-stream.js`. Implementation notes: base debounce on serialized byte size; rotate logs before compression; keep logs readable in small builds.
 
 ### Touchpoints (indexing process review)
@@ -1819,9 +1819,9 @@ Details: Touchpoints `src/index/build/build-state.js`, `src/shared/json-stream.j
 - `src/shared/json-stream.js`
 
 ### Additional Tasks (indexing pipeline opportunities)
-- [ ] **15.8 Postings memory guards**
-- [ ] Task 15.8.a: Skip minhash emission when `minhashMaxDocs` is exceeded and record a guard event.
-- [ ] Task 15.8.b: Ensure chargram/phrase spill thresholds are enforced by bytes, not only counts.
+- [x] **15.8 Postings memory guards**
+- [x] Task 15.8.a: Skip minhash emission when `minhashMaxDocs` is exceeded and record a guard event.
+- [x] Task 15.8.b: Ensure chargram/phrase spill thresholds are enforced by bytes, not only counts.
 Details: Touchpoints `src/index/build/postings.js`, `src/index/build/state.js`.
 
 ### Benchmarks

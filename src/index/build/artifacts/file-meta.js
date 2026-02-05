@@ -15,6 +15,68 @@ export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
   return sha1(stableStringifyForSignature(list));
 };
 
+export const buildFileMetaColumnar = (fileMeta) => {
+  const rows = Array.isArray(fileMeta) ? fileMeta : [];
+  const fileTable = [];
+  const fileIndex = new Map();
+  const extTable = [];
+  const extIndex = new Map();
+  const pushTable = (value, table, index) => {
+    if (!value) return null;
+    if (index.has(value)) return index.get(value);
+    const id = table.length;
+    table.push(value);
+    index.set(value, id);
+    return id;
+  };
+  const arrays = {
+    id: [],
+    file: [],
+    ext: [],
+    size: [],
+    hash: [],
+    hashAlgo: [],
+    encoding: [],
+    encodingFallback: [],
+    encodingConfidence: [],
+    externalDocs: [],
+    last_modified: [],
+    last_author: [],
+    churn: [],
+    churn_added: [],
+    churn_deleted: [],
+    churn_commits: []
+  };
+  for (const row of rows) {
+    arrays.id.push(row?.id ?? null);
+    arrays.file.push(pushTable(row?.file || null, fileTable, fileIndex));
+    arrays.ext.push(pushTable(row?.ext || null, extTable, extIndex));
+    arrays.size.push(row?.size ?? null);
+    arrays.hash.push(row?.hash ?? null);
+    arrays.hashAlgo.push(row?.hashAlgo ?? null);
+    arrays.encoding.push(row?.encoding ?? null);
+    arrays.encodingFallback.push(typeof row?.encodingFallback === 'boolean' ? row.encodingFallback : null);
+    arrays.encodingConfidence.push(row?.encodingConfidence ?? null);
+    arrays.externalDocs.push(row?.externalDocs ?? null);
+    arrays.last_modified.push(row?.last_modified ?? null);
+    arrays.last_author.push(row?.last_author ?? null);
+    arrays.churn.push(row?.churn ?? null);
+    arrays.churn_added.push(row?.churn_added ?? null);
+    arrays.churn_deleted.push(row?.churn_deleted ?? null);
+    arrays.churn_commits.push(row?.churn_commits ?? null);
+  }
+  return {
+    format: 'columnar',
+    columns: Object.keys(arrays),
+    length: rows.length,
+    arrays,
+    tables: {
+      file: fileTable,
+      ext: extTable
+    }
+  };
+};
+
 export function buildFileMeta(state) {
   const fileMeta = [];
   const fileIdByPath = new Map();

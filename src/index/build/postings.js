@@ -2,6 +2,7 @@ import { quantizeVec } from '../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../shared/embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { isVectorLike } from '../../shared/embedding-utils.js';
+import { estimateJsonBytes } from '../../shared/cache.js';
 import { createRowSpillCollector, mergeSortedRuns } from './artifacts/helpers.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
@@ -72,6 +73,20 @@ export async function buildPostings(input) {
   const minhashMaxDocs = Number.isFinite(minhashMaxDocsRaw)
     ? Math.max(0, Math.floor(minhashMaxDocsRaw))
     : 0;
+  const minhashStream = !(postingsConfig && typeof postingsConfig === 'object')
+    || postingsConfig.minhashStream !== false;
+  const phraseSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.phraseSpillMaxBytes)
+    : NaN;
+  const phraseSpillMaxBytes = Number.isFinite(phraseSpillMaxBytesRaw)
+    ? Math.max(0, Math.floor(phraseSpillMaxBytesRaw))
+    : 0;
+  const chargramSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.chargramSpillMaxBytes)
+    : NaN;
+  const chargramSpillMaxBytes = Number.isFinite(chargramSpillMaxBytesRaw)
+    ? Math.max(0, Math.floor(chargramSpillMaxBytesRaw))
+    : 0;
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
@@ -116,6 +131,8 @@ export async function buildPostings(input) {
       tokenPostingsList: [],
       avgDocLen: 0,
       minhashSigs: [],
+      minhashStream: false,
+      minhashGuard: null,
       dims: embeddingsEnabled ? DEFAULT_STUB_DIMS : 0,
       quantizedVectors: [],
       quantizedDocVectors: [],
@@ -169,6 +186,15 @@ export async function buildPostings(input) {
     return sorted;
   };
   const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  const shouldSpillByBytes = (map, maxBytes) => {
+    if (!maxBytes || !map || typeof map.entries !== 'function') return false;
+    let total = 0;
+    for (const [token, posting] of map.entries()) {
+      total += estimateJsonBytes({ token, postings: posting });
+      if (total >= maxBytes) return true;
+    }
+    return false;
+  };
   let droppedHighDf = 0;
   let maxChargramDf = 0;
   const normalizeChargramPosting = (value) => {
@@ -411,16 +437,103 @@ export async function buildPostings(input) {
   let phraseVocab = [];
   let phrasePostings = [];
   if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
-    phraseVocab = new Array(entries.length);
-    phrasePostings = new Array(entries.length);
-    for (let i = 0; i < entries.length; i += 1) {
-      const [key, posting] = entries[i];
-      phraseVocab[i] = key;
-      phrasePostings[i] = normalizeIdList(posting);
-      phrasePost.delete(key);
+    const phraseShouldSpill = buildRoot
+      && phraseSpillMaxBytes
+      && shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);
+    if (phraseShouldSpill) {
+      const collector = createRowSpillCollector({
+        outDir: buildRoot,
+        runPrefix: 'phrase_postings',
+        compare: compareChargramRows,
+        maxBufferBytes: 4 * 1024 * 1024,
+        maxBufferRows: 5000,
+        maxJsonBytes: null
+      });
+      for (const [key, posting] of phrasePost.entries()) {
+        await collector.append({
+          token: key,
+          postings: normalizeIdList(posting)
+        });
+        phrasePost.delete(key);
+      }
+      const collected = await collector.finalize();
+      const rows = collected?.rows || null;
+      const runs = collected?.runs || null;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareChargramRows })
+        : rows;
+      const vocab = [];
+      const postingsList = [];
+      let currentToken = null;
+      let currentPosting = null;
+      if (items) {
+        const iterator = runs ? items : items[Symbol.iterator]();
+        if (runs) {
+          for await (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeIdList(currentPosting);
+              if (normalized.length) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        } else {
+          for (const row of iterator) {
+            const token = row?.token;
+            if (!token) continue;
+            if (currentToken === null) {
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            if (token !== currentToken) {
+              const normalized = normalizeIdList(currentPosting);
+              if (normalized.length) {
+                vocab.push(currentToken);
+                postingsList.push(normalized);
+              }
+              currentToken = token;
+              currentPosting = row.postings;
+              continue;
+            }
+            currentPosting = mergeIdLists(currentPosting, row.postings);
+          }
+        }
+      }
+      if (currentToken !== null) {
+        const normalized = normalizeIdList(currentPosting);
+        if (normalized.length) {
+          vocab.push(currentToken);
+          postingsList.push(normalized);
+        }
+      }
+      phraseVocab = vocab;
+      phrasePostings = postingsList;
+      if (collected?.cleanup) await collected.cleanup();
+    } else {
+      const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
+      phraseVocab = new Array(entries.length);
+      phrasePostings = new Array(entries.length);
+      for (let i = 0; i < entries.length; i += 1) {
+        const [key, posting] = entries[i];
+        phraseVocab[i] = key;
+        phrasePostings[i] = normalizeIdList(posting);
+        phrasePost.delete(key);
+      }
+      if (typeof phrasePost.clear === 'function') phrasePost.clear();
     }
-    if (typeof phrasePost.clear === 'function') phrasePost.clear();
   }
 
   let chargramVocab = [];
@@ -428,7 +541,11 @@ export async function buildPostings(input) {
   let chargramStats = null;
   const triPostSize = triPost?.size || 0;
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    const shouldSpill = buildRoot && chargramSpillMaxUnique && triPost.size >= chargramSpillMaxUnique;
+    const spillByBytes = buildRoot
+      && chargramSpillMaxBytes
+      && shouldSpillByBytes(triPost, chargramSpillMaxBytes);
+    const shouldSpill = buildRoot
+      && ((chargramSpillMaxUnique && triPost.size >= chargramSpillMaxUnique) || spillByBytes);
     if (shouldSpill) {
       const collector = createRowSpillCollector({
         outDir: buildRoot,
@@ -563,7 +680,10 @@ export async function buildPostings(input) {
     : 0;
 
   const allowMinhash = !minhashMaxDocs || chunks.length <= minhashMaxDocs;
-  const minhashSigs = allowMinhash ? chunks.map((c) => c.minhashSig) : [];
+  const minhashSigs = allowMinhash && !minhashStream ? chunks.map((c) => c.minhashSig) : [];
+  const minhashGuard = (!allowMinhash && minhashMaxDocs)
+    ? { skipped: true, maxDocs: minhashMaxDocs, totalDocs: chunks.length }
+    : null;
   if (!allowMinhash && typeof log === 'function') {
     log(`[postings] minhash skipped: ${chunks.length} docs exceeds max ${minhashMaxDocs}.`);
   }
@@ -638,6 +758,8 @@ export async function buildPostings(input) {
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
+    minhashStream: allowMinhash && minhashStream,
+    minhashGuard,
     dims,
     quantizedVectors,
     quantizedDocVectors,

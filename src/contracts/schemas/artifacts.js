@@ -897,20 +897,25 @@ export const ARTIFACT_SCHEMA_DEFS = {
     items: vfsManifestIndexRow
   },
   file_meta: {
-    type: 'array',
-    items: {
-      type: 'object',
-      required: ['id', 'file'],
-      properties: {
-        id: intId,
-        file: { type: 'string' },
-        ext: nullableString,
-        encoding: nullableString,
-        encodingFallback: { type: ['boolean', 'null'] },
-        encodingConfidence: { type: ['number', 'null'] }
+    anyOf: [
+      {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'file'],
+          properties: {
+            id: intId,
+            file: { type: 'string' },
+            ext: nullableString,
+            encoding: nullableString,
+            encodingFallback: { type: ['boolean', 'null'] },
+            encodingConfidence: { type: ['number', 'null'] }
+          },
+          additionalProperties: true
+        }
       },
-      additionalProperties: true
-    }
+      columnarEnvelope
+    ]
   },
   repo_map: {
     type: 'array',
