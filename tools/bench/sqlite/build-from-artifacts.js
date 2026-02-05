@@ -195,7 +195,7 @@ if (mode !== 'current') {
   });
 }
 if (mode !== 'baseline') {
-  const indexPieces = loadIndexPieces(indexDir, null);
+  const indexPieces = await loadIndexPieces(indexDir, null);
   currentResult = await runBuild({
     label: 'current',
     outPath: outPathCurrent,

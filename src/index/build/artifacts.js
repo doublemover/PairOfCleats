@@ -304,6 +304,10 @@ export async function writeIndexArtifacts(input) {
     await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'));
     await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'));
   };
+  const removePackedMinhash = async () => {
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'));
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.meta.json'));
+  };
   if (tokenPostingsFormat === 'packed') {
     await removeArtifact(path.join(outDir, 'token_postings.json'));
     await removeCompressedArtifact('token_postings');
@@ -809,6 +813,8 @@ export async function writeIndexArtifacts(input) {
       count: packedMinhash.count
     }, packedPath);
     addPieceFile({ type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' }, packedMetaPath);
+  } else {
+    await removePackedMinhash();
   }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
   await enqueueTokenPostingsArtifacts({
