@@ -33,5 +33,16 @@ Helpers live in `src/shared/order.js` and must be used for new ordering logic.
 - Seed inputs (`discoveryHash`, `fileListHash`, `fileCount`) are recorded for diagnosis.
 - Validation compares ledger hashes against loaded artifacts; `--validate-ordering` upgrades mismatches to errors.
 
+## Benchmarks
+- `node tools/bench/index/ordering-ledger.js --mode compare`
+  - Runs baseline (ledger off) vs current (ledger on) and prints a delta line with duration/throughput differences.
+  - Uses `--ledger on|off` to force a single run.
+  - Uses `.index-root/index-code` if present, otherwise generates synthetic rows.
+
+## Tests
+- `tests/shared/order/order-hash.test.js` validates ordering hash stability.
+- `tests/indexing/determinism/chunk-meta-ordering-drift.test.js` ensures drift is detected.
+- `tests/indexing/validate/ledger-validation.test.js` covers warning vs error policy.
+
 ## Breaking Changes
 Ordering changes are allowed; consumers must follow this spec.

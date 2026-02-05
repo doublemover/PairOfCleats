@@ -652,15 +652,16 @@ Parallel: Run after 16.4.1–16.4.4.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
-- [ ] Task 16.4.5.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.4.5.a: Add determinism bench on large repo.
-- [ ] Task 16.4.5.b: Add unit tests for ledger hash computation.
-- [ ] Task 16.4.5.c: Add regression test for chunk_meta ordering drift.
-- [ ] Task 16.4.5.d: Add docs update for ledger usage.
-- [ ] Task 16.4.5.e: Add benchmark flag for ledger on/off.
+- [x] Task 16.4.5.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.4.5.a: Add determinism bench on large repo.
+- [x] Task 16.4.5.b: Add unit tests for ledger hash computation.
+- [x] Task 16.4.5.c: Add regression test for chunk_meta ordering drift.
+- [x] Task 16.4.5.d: Add docs update for ledger usage.
+- [x] Task 16.4.5.e: Add benchmark flag for ledger on/off.
 
 Tests:
-- [ ] `tests/indexing/determinism/ledger-benchmark-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/order/order-hash.test.js` (perf lane) (new)
+- [x] `tests/indexing/determinism/chunk-meta-ordering-drift.test.js` (perf lane) (new)
 
 ---
 
