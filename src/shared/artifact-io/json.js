@@ -971,7 +971,9 @@ export const readJsonLinesArray = async (
   const out = [];
   for (const part of results) {
     if (Array.isArray(part)) {
-      out.push(...part);
+      for (const entry of part) {
+        out.push(entry);
+      }
     }
   }
   return out;
