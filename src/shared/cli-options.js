@@ -30,6 +30,7 @@ export const INDEX_BUILD_OPTIONS = {
   'config-dump': { type: 'boolean', default: false },
   'log-file': { type: 'string', describe: 'write structured logs to a file (implies --log-format json unless set)' },
   'log-format': { type: 'string', describe: 'text|json|pretty (overrides logging.format)' },
+  'validate-ordering': { type: 'boolean', default: false, describe: 'fail validation if ordering ledger mismatches' },
   json: { type: 'boolean', default: false },
   verbose: { type: 'boolean', default: false },
   quiet: { type: 'boolean', default: false }

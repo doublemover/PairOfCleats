@@ -448,7 +448,8 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         indexRoot: runtime.buildRoot,
         modes,
         userConfig: runtime.userConfig,
-        sqliteEnabled: sqliteEnabledForValidation
+        sqliteEnabled: sqliteEnabledForValidation,
+        validateOrdering: stageArgv['validate-ordering'] === true
       });
       const validationSummary = {
         ok: validation.ok,

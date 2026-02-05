@@ -636,16 +636,16 @@ Parallel: Run after 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
-- [ ] Task 16.4.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.4.4.a: Add validator to check ledger hashes on load.
-- [ ] Task 16.4.4.b: Add warning vs error policy for mismatches.
-- [ ] Task 16.4.4.c: Add reporting for mismatch source.
-- [ ] Task 16.4.4.d: Add fallback path to rebuild ordering.
-- [ ] Task 16.4.4.e: Add CLI flag to force validation.
-- [ ] Task 16.4.4.f: Add determinism drift report with artifact + rule attribution.
+- [x] Task 16.4.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.4.4.a: Add validator to check ledger hashes on load.
+- [x] Task 16.4.4.b: Add warning vs error policy for mismatches.
+- [x] Task 16.4.4.c: Add reporting for mismatch source.
+- [x] Task 16.4.4.d: Add fallback path to rebuild ordering.
+- [x] Task 16.4.4.e: Add CLI flag to force validation.
+- [x] Task 16.4.4.f: Add determinism drift report with artifact + rule attribution.
 
 Tests:
-- [ ] `tests/indexing/validate/ledger-validation.test.js` (perf lane) (new)
+- [x] `tests/indexing/validate/ledger-validation.test.js` (perf lane) (new)
 
 ### Subphase 16.4.5 -- Tests + Bench
 Parallel: Run after 16.4.1–16.4.4.

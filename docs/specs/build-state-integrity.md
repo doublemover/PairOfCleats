@@ -46,6 +46,7 @@ Make `build_state.json` concurrency-safe, validated, and useful for debugging.
 ## Safety requirements
 - Reject unsafe or out-of-root `current.json` promotion.
 - Readers fail closed on invalid roots.
+- Ordering ledger mismatches warn by default; `--validate-ordering` upgrades to errors.
 
 ## Docs impact
 - Update any build state docs to reflect schema fields and writer guarantees.

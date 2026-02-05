@@ -21,6 +21,7 @@ import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
+import { createOrderingHasher } from '../shared/order.js';
 import {
   extractArray,
   normalizeDenseVectors,
@@ -37,6 +38,8 @@ import { loadAndValidateManifest, sumManifestCounts } from './validate/manifest.
 import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
 import { validateRiskInterproceduralArtifacts } from './validate/risk-interprocedural.js';
+import { loadOrderingLedger } from './build/build-state.js';
+import { createGraphRelationsIterator } from './build/artifacts/helpers.js';
 import {
   validateChunkIds,
   validateChunkIdentity,
@@ -49,6 +52,77 @@ import {
 } from './validate/checks.js';
 
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
+
+const hashJsonRows = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const hasher = createOrderingHasher();
+  for (const row of rows) {
+    hasher.update(JSON.stringify(row));
+  }
+  return hasher.digest();
+};
+
+const hashGraphRelationsRows = (relations) => {
+  if (!relations || typeof relations !== 'object') return null;
+  const hasher = createOrderingHasher();
+  const iterator = createGraphRelationsIterator(relations)();
+  for (const row of iterator) {
+    hasher.update(JSON.stringify(row));
+  }
+  return hasher.digest();
+};
+
+const resolveLedgerStageKey = (ledger, stage, mode) => {
+  if (!ledger?.stages || typeof ledger.stages !== 'object') return null;
+  const stageKey = stage ? String(stage) : null;
+  const modeKey = stageKey && mode ? `${stageKey}:${mode}` : null;
+  if (modeKey && ledger.stages[modeKey]) return modeKey;
+  if (stageKey && ledger.stages[stageKey]) return stageKey;
+  if (mode) {
+    const match = Object.keys(ledger.stages).find((key) => key.endsWith(`:${mode}`));
+    if (match) return match;
+  }
+  const keys = Object.keys(ledger.stages);
+  return keys.length ? keys[0] : null;
+};
+
+const recordOrderingDrift = ({
+  report,
+  modeReport,
+  mode,
+  stageKey,
+  artifact,
+  expected,
+  actual,
+  strict,
+  source = null
+}) => {
+  const expectedHash = expected?.hash || null;
+  const actualHash = actual?.hash || null;
+  const rule = expected?.rule || null;
+  const issueLabel = `ordering ledger mismatch for ${artifact}`;
+  const detail = `${issueLabel} (expected ${expectedHash ?? 'null'}, got ${actualHash ?? 'null'})`;
+  const note = `[${mode}] ${detail}`;
+  const drift = {
+    stage: stageKey,
+    mode,
+    artifact,
+    rule,
+    expectedHash,
+    actualHash,
+    source
+  };
+  report.orderingDrift.push(drift);
+  if (strict) {
+    modeReport.ok = false;
+    modeReport.missing.push(detail);
+    report.issues.push(note);
+  } else {
+    modeReport.warnings.push(issueLabel);
+    report.warnings.push(note);
+  }
+  report.hints.push('Rebuild ordering ledger by re-running index build.');
+};
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -72,8 +146,11 @@ export async function validateIndexArtifacts(input = {}) {
     strict,
     issues: [],
     warnings: [],
-    hints: []
+    hints: [],
+    orderingDrift: []
   };
+  const orderingLedger = await loadOrderingLedger(indexRoot || root);
+  const orderingStrict = input.validateOrdering === true;
 
   const {
     requiredArtifacts,
@@ -369,6 +446,59 @@ export async function validateIndexArtifacts(input = {}) {
       }
       if (relations) {
         validateSchema(report, mode, 'file_relations', relations, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
+      if (orderingLedger) {
+        const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
+        const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
+        if (!ledgerStage || !ledgerStage.artifacts) {
+          const warning = `[${mode}] ordering ledger missing stage ${stageKey || 'unknown'}`;
+          if (orderingStrict) {
+            modeReport.ok = false;
+            modeReport.missing.push(warning);
+            report.issues.push(warning);
+          } else {
+            modeReport.warnings.push('ordering ledger stage missing');
+            report.warnings.push(warning);
+          }
+        } else {
+          const actualHashes = {
+            chunk_meta: hashJsonRows(chunkMeta),
+            file_relations: relations ? hashJsonRows(relations) : null,
+            repo_map: repoMap ? hashJsonRows(repoMap) : null,
+            graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null
+          };
+          for (const [artifact, expected] of Object.entries(ledgerStage.artifacts)) {
+            const actual = actualHashes[artifact] || null;
+            if (!actual) {
+              recordOrderingDrift({
+                report,
+                modeReport,
+                mode,
+                stageKey,
+                artifact,
+                expected,
+                actual,
+                strict: orderingStrict,
+                source: 'missing-artifact'
+              });
+              continue;
+            }
+            if (expected?.hash && expected.hash !== actual.hash) {
+              recordOrderingDrift({
+                report,
+                modeReport,
+                mode,
+                stageKey,
+                artifact,
+                expected,
+                actual,
+                strict: orderingStrict,
+                source: 'hash-mismatch'
+              });
+            }
+          }
+        }
       }
 
       let callSites = null;
