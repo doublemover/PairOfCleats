@@ -15,10 +15,10 @@ export const createArtifactWriter = ({
   compressibleArtifacts,
   compressionOverrides
 }) => {
-  const compressedSuffix = compressionMode === 'zstd' ? 'json.zst' : 'json.gz';
-  const artifactPath = (base, compressed) => path.join(
+  const resolveCompressedSuffix = (mode) => (mode === 'zstd' ? 'json.zst' : 'json.gz');
+  const artifactPath = (base, mode) => path.join(
     outDir,
-    compressed ? `${base}.${compressedSuffix}` : `${base}.json`
+    mode ? `${base}.${resolveCompressedSuffix(mode)}` : `${base}.json`
   );
 
   const resolveOverride = (base) => (
@@ -46,7 +46,7 @@ export const createArtifactWriter = ({
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
-      const gzPath = artifactPath(base, true);
+      const gzPath = artifactPath(base, compression);
       enqueueWrite(
         formatArtifactLabel(gzPath),
         () => writeJsonObjectFile(gzPath, {
@@ -85,7 +85,7 @@ export const createArtifactWriter = ({
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
-      const gzPath = artifactPath(base, true);
+      const gzPath = artifactPath(base, compression);
       enqueueWrite(
         formatArtifactLabel(gzPath),
         () => writeJsonArrayFile(gzPath, items, {

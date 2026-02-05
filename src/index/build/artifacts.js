@@ -159,7 +159,8 @@ export async function writeIndexArtifacts(input) {
       if (fsSync.existsSync(metaPath)) {
         const metaRaw = readJsonFile(metaPath, { maxBytes: maxJsonBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        if (meta?.fingerprint === fileMetaFingerprint) {
+        const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
+        if (cachedFingerprint === fileMetaFingerprint) {
           fileMetaMeta = meta;
           const cached = await loadJsonArrayArtifact(outDir, 'file_meta', { maxBytes, strict: false });
           if (Array.isArray(cached)) {
