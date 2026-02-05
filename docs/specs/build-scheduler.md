@@ -46,7 +46,8 @@ Applies to indexing pipeline stages and embeddings runner. The scheduler owns ad
 - shutdown(): stop accepting new work and drain queues.
 
 ## Queue Classes
-- stage1.files
+- stage1.cpu
+- stage1.io
 - stage1.postings
 - stage2.relations
 - stage4.sqlite
@@ -111,7 +112,8 @@ Required logs:
 
 ## Examples
 Pseudo-usage:
-- schedule("stage1.files", {cpu:1, io:1, mem:"small"}, processFile)
+- schedule("stage1.cpu", {cpu:1, mem:"small"}, processFile)
+- schedule("stage1.io", {io:1, mem:"small"}, readFile)
 
 ## Breaking Changes
 No backward compatibility requirements. Config keys are authoritative in this spec.

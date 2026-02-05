@@ -59,7 +59,8 @@ const resolveQueueConfig = (value) => {
 };
 
 export const SCHEDULER_QUEUE_NAMES = {
-  stage1Files: 'stage1.files',
+  stage1Cpu: 'stage1.cpu',
+  stage1Io: 'stage1.io',
   stage1Postings: 'stage1.postings',
   stage2Relations: 'stage2.relations',
   stage4Sqlite: 'stage4.sqlite',
@@ -111,7 +112,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     envValue: envConfig?.schedulerCpuTokens,
     configValue: schedulerConfig?.cpuTokens,
     fallback: defaultCpu,
-    allowZero: true
+    allowZero: false
   });
 
   const ioTokens = resolveNumber({
@@ -120,7 +121,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     envValue: envConfig?.schedulerIoTokens,
     configValue: schedulerConfig?.ioTokens,
     fallback: defaultIo,
-    allowZero: true
+    allowZero: false
   });
 
   const memoryTokens = resolveNumber({
@@ -129,7 +130,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     envValue: envConfig?.schedulerMemoryTokens,
     configValue: schedulerConfig?.memoryTokens,
     fallback: defaultMem,
-    allowZero: true
+    allowZero: false
   });
 
   const starvationMs = resolveNumber({
@@ -146,9 +147,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
   return {
     enabled,
     lowResourceMode,
-    cpuTokens,
-    ioTokens,
-    memoryTokens,
+    cpuTokens: Math.max(1, cpuTokens || 1),
+    ioTokens: Math.max(1, ioTokens || 1),
+    memoryTokens: Math.max(1, memoryTokens || 1),
     starvationMs,
     queues
   };

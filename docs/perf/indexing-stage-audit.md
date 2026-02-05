@@ -67,5 +67,5 @@ Use these reports to prioritize optimization work before implementing algorithmi
 ## Scheduler Notes
 - When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats.
 - Stage progress reporting includes scheduler stats in its metadata payload for each stage transition.
-- Stage wiring uses the scheduler queues (`stage1.files`, `stage1.postings`, `stage2.relations`, `stage4.sqlite`) to ensure global backpressure.
+- Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.postings`, `stage2.relations`, `stage4.sqlite`) to ensure global backpressure.
 - Stage3 embeddings uses scheduler queues (`embeddings.compute`, `embeddings.io`) for batch compute and artifact/cache IO.

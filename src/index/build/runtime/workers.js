@@ -99,20 +99,18 @@ export const createRuntimeQueues = ({
     : null;
 
   if (scheduler && scheduler.enabled && scheduler.lowResourceMode !== true && typeof scheduler.schedule === 'function') {
-    const stage1QueueName = SCHEDULER_QUEUE_NAMES.stage1Files;
-    const stage1MaxPending = Math.max(maxFilePending, maxIoPending);
     const cpuQueue = createSchedulerQueueAdapter({
       scheduler,
-      queueName: stage1QueueName,
+      queueName: SCHEDULER_QUEUE_NAMES.stage1Cpu,
       tokens: { cpu: 1 },
-      maxPending: stage1MaxPending,
+      maxPending: maxFilePending,
       concurrency: cpuConcurrency
     });
     const ioQueue = createSchedulerQueueAdapter({
       scheduler,
-      queueName: stage1QueueName,
+      queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
       tokens: { io: 1 },
-      maxPending: stage1MaxPending,
+      maxPending: maxIoPending,
       concurrency: ioConcurrency
     });
     const embeddingQueue = createSchedulerQueueAdapter({

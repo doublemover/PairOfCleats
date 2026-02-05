@@ -182,7 +182,7 @@ instead of per-stage PQueue instances. These adapters expose the `add/onIdle/cle
 expected by `runWithQueue`, but schedule work via the scheduler token pools.
 
 Required mappings:
-* Stage1 file processing → `stage1.files` queue (CPU/IO tokens as needed)
+* Stage1 file processing → `stage1.cpu` and `stage1.io` queues (CPU/IO tokens split)
 * Stage1 postings → `stage1.postings` queue (CPU tokens)
 * Stage2 relations/cross-file → `stage2.relations` queue (CPU tokens)
 * Stage4 sqlite builds → `stage4.sqlite` queue (CPU+IO tokens)

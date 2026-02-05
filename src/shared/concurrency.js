@@ -207,9 +207,14 @@ export function createBuildScheduler(input = {}) {
   const starvationMs = Number.isFinite(Number(input.starvationMs))
     ? Math.max(0, Math.floor(Number(input.starvationMs)))
     : 30000;
-  let cpuTokens = Math.max(0, Math.floor(Number(input.cpuTokens ?? 1)));
-  let ioTokens = Math.max(0, Math.floor(Number(input.ioTokens ?? 1)));
-  let memoryTokens = Math.max(0, Math.floor(Number(input.memoryTokens ?? 1)));
+  const normalizeTokenPool = (value) => {
+    const parsed = Math.floor(Number(value ?? 1));
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(1, parsed);
+  };
+  let cpuTokens = normalizeTokenPool(input.cpuTokens);
+  let ioTokens = normalizeTokenPool(input.ioTokens);
+  let memoryTokens = normalizeTokenPool(input.memoryTokens);
 
   const queueConfig = input.queues || {};
   const queues = new Map();
