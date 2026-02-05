@@ -697,18 +697,18 @@ Parallel: Can run alongside 16.5.3 after 16.5.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
-- [ ] Task 16.5.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.5.2.a: Replace postings spill/merge with shared merge core.
-- [ ] Task 16.5.2.b: Add byte-based spill threshold for postings.
-- [ ] Task 16.5.2.c: Add deterministic merge ordering for postings.
-- [ ] Task 16.5.2.d: Add merge stats to build_state.
-- [ ] Task 16.5.2.e: Add tests for spill/merge determinism.
-- [ ] Task 16.5.2.f: Define postings merge comparator + tie-break rules in code/docs.
-- [ ] Task 16.5.2.g: Add baseline compatibility check against legacy postings output.
+- [x] Task 16.5.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.5.2.a: Replace postings spill/merge with shared merge core.
+- [x] Task 16.5.2.b: Add byte-based spill threshold for postings.
+- [x] Task 16.5.2.c: Add deterministic merge ordering for postings.
+- [x] Task 16.5.2.d: Add merge stats to build_state.
+- [x] Task 16.5.2.e: Add tests for spill/merge determinism.
+- [x] Task 16.5.2.f: Define postings merge comparator + tie-break rules in code/docs.
+- [x] Task 16.5.2.g: Add baseline compatibility check against legacy postings output.
 
 Tests:
-- [ ] `tests/indexing/postings/spill-merge-unified.test.js` (perf lane) (new)
-- [ ] `tests/indexing/postings/spill-merge-compat.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/spill-merge-unified.test.js` (perf lane) (new)
+- [x] `tests/indexing/postings/spill-merge-compat.test.js` (perf lane) (new)
 
 ### Subphase 16.5.3 -- VFS/Relations/Artifacts Adoption
 Parallel: Can run alongside 16.5.2 after 16.5.1; coordinate file ownership.

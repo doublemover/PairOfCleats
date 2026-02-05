@@ -168,6 +168,13 @@ Segments are token-sorted. We must produce global token order:
   - concatenate postings arrays (fast path)
   - optionally validate monotonicity in test mode
 - Decode only the current record per segment (streaming); do not pre-read entire segments.
+Comparator contract:
+- Token ordering is lexicographic by UTF-8 codepoint order.
+- Tie-breaker uses run order (stable merge) to preserve determinism.
+
+Postings spill/merge adoption:
+- Phrase/chargram spill runs use the shared merge core and the token comparator above.
+- Merge stats (runs/rows/bytes) are recorded in stage checkpoints for diagnostics.
 
 ### 5.3 Too many segments / FD limits
 If `segments.length > maxSegmentsOpen`:
