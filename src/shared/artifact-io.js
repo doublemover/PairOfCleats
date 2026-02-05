@@ -4,7 +4,8 @@ export {
   readJsonFile,
   readJsonLinesArray,
   readJsonLinesArraySync,
-  readJsonLinesEach
+  readJsonLinesEach,
+  readJsonLinesIterator
 } from './artifact-io/json.js';
 export {
   DEFAULT_ARTIFACT_READ_THRESHOLD,
@@ -21,6 +22,7 @@ export {
 } from './artifact-io/manifest.js';
 export {
   loadJsonArrayArtifact,
+  loadJsonArrayArtifactRows,
   loadJsonArrayArtifactSync,
   loadJsonObjectArtifact,
   loadJsonObjectArtifactSync,

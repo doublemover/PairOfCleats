@@ -13,10 +13,20 @@ import {
   validateOffsetsAgainstFile
 } from './offsets.js';
 import { readVarintDeltasAt } from './varint.js';
-import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync } from './json.js';
+import {
+  readJsonFile,
+  readJsonLinesArray,
+  readJsonLinesArraySync,
+  readJsonLinesIterator
+} from './json.js';
 import { readCache, writeCache } from './cache.js';
 import { resolveJsonlRequiredKeys } from './jsonl.js';
-import { createGraphRelationsShell, appendGraphRelationsEntries, finalizeGraphRelations } from './graph.js';
+import {
+  createGraphRelationsShell,
+  appendGraphRelationsEntry,
+  appendGraphRelationsEntries,
+  finalizeGraphRelations
+} from './graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
 
@@ -207,6 +217,150 @@ export const loadJsonArrayArtifact = async (
   if (existsOrBak(jsonPath)) {
     warnNonStrictJsonFallback(dir, baseName);
     return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
+export const loadJsonArrayArtifactRows = async function* (
+  dir,
+  baseName,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    manifest = null,
+    strict = true,
+    materialize = false,
+    maxInFlight = 0,
+    onBackpressure = null,
+    onResume = null
+  } = {}
+) {
+  const validationMode = strict ? 'strict' : 'trusted';
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
+  const ensurePresent = (sources, label) => {
+    if (!sources?.paths?.length) {
+      throw new Error(`Missing manifest entry for ${label}`);
+    }
+    const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+    if (missingPaths.length) {
+      const err = new Error(`Missing manifest parts for ${label}: ${missingPaths.join(', ')}`);
+      err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+      throw err;
+    }
+  };
+  const yieldMaterialized = (payload, label) => {
+    if (!materialize) {
+      throw new Error(`Materialized read required for ${label}; pass materialize=true to load`);
+    }
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    const inflated = inflateColumnarRows(payload);
+    if (!inflated) {
+      throw new Error(`Invalid columnar payload for ${label}`);
+    }
+    return inflated;
+  };
+  const streamRows = async function* (paths, offsetsPaths = null) {
+    for (let i = 0; i < paths.length; i += 1) {
+      const partPath = paths[i];
+      const offsetsPath = Array.isArray(offsetsPaths) ? offsetsPaths[i] : null;
+      if (offsetsPath) {
+        await ensureOffsetsValid(partPath, offsetsPath);
+      }
+      for await (const row of readJsonLinesIterator(partPath, {
+        maxBytes,
+        requiredKeys: resolvedKeys,
+        validationMode,
+        maxInFlight,
+        onBackpressure,
+        onResume
+      })) {
+        yield row;
+      }
+    }
+  };
+
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict: true,
+      maxBytes
+    });
+    ensurePresent(sources, baseName);
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      const rows = yieldMaterialized(payload, baseName);
+      for (const row of rows) yield row;
+      return;
+    }
+    if (sources.format === 'columnar') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous columnar sources for ${baseName}`);
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      const rows = yieldMaterialized(payload, baseName);
+      for (const row of rows) yield row;
+      return;
+    }
+    for await (const row of streamRows(sources.paths, sources.offsets)) {
+      yield row;
+    }
+    return;
+  }
+
+  const manifestSources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: baseName,
+    strict: false,
+    maxBytes
+  });
+  const sources = manifestSources || resolveJsonlArtifactSources(dir, baseName);
+  if (sources?.paths?.length) {
+    const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
+    if (missingPaths.length) {
+      const err = new Error(`Missing manifest parts for ${baseName}: ${missingPaths.join(', ')}`);
+      err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+      throw err;
+    }
+    if (!manifestSources) warnNonStrictJsonFallback(dir, baseName);
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      const rows = yieldMaterialized(payload, baseName);
+      for (const row of rows) yield row;
+      return;
+    }
+    if (sources.format === 'columnar') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous columnar sources for ${baseName}`);
+      }
+      const payload = readJsonFile(sources.paths[0], { maxBytes });
+      const rows = yieldMaterialized(payload, baseName);
+      for (const row of rows) yield row;
+      return;
+    }
+    for await (const row of streamRows(sources.paths, sources.offsets)) {
+      yield row;
+    }
+    return;
+  }
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  if (existsOrBak(jsonPath)) {
+    warnNonStrictJsonFallback(dir, baseName);
+    const payload = readJsonFile(jsonPath, { maxBytes });
+    const rows = yieldMaterialized(payload, baseName);
+    for (const row of rows) yield row;
+    return;
   }
   throw new Error(`Missing index artifact: ${baseName}.json`);
 };
@@ -450,12 +604,13 @@ export const loadGraphRelations = async (
       }
       const payload = createGraphRelationsShell(sources.meta || null);
       for (const partPath of sources.paths) {
-        const entries = await readJsonLinesArray(partPath, {
+        for await (const entry of readJsonLinesIterator(partPath, {
           maxBytes,
           requiredKeys,
           validationMode
-        });
-        appendGraphRelationsEntries(payload, entries, partPath);
+        })) {
+          appendGraphRelationsEntry(payload, entry, partPath);
+        }
       }
       return finalizeGraphRelations(payload);
     }
@@ -478,12 +633,13 @@ export const loadGraphRelations = async (
     }
     const payload = createGraphRelationsShell(sources.meta || null);
     for (const partPath of sources.paths) {
-      const entries = await readJsonLinesArray(partPath, {
+      for await (const entry of readJsonLinesIterator(partPath, {
         maxBytes,
         requiredKeys,
         validationMode
-      });
-      appendGraphRelationsEntries(payload, entries, partPath);
+      })) {
+        appendGraphRelationsEntry(payload, entry, partPath);
+      }
     }
     return finalizeGraphRelations(payload);
   }
@@ -502,24 +658,26 @@ export const loadGraphRelations = async (
     }
     const payload = createGraphRelationsShell(meta);
     for (const partPath of parts) {
-      const entries = await readJsonLinesArray(partPath, {
+      for await (const entry of readJsonLinesIterator(partPath, {
         maxBytes,
         requiredKeys,
         validationMode
-      });
-      appendGraphRelationsEntries(payload, entries, partPath);
+      })) {
+        appendGraphRelationsEntry(payload, entry, partPath);
+      }
     }
     return finalizeGraphRelations(payload);
   }
   const jsonlPath = path.join(dir, 'graph_relations.jsonl');
   if (existsOrBak(jsonlPath)) {
     const payload = createGraphRelationsShell(null);
-    const entries = await readJsonLinesArray(jsonlPath, {
+    for await (const entry of readJsonLinesIterator(jsonlPath, {
       maxBytes,
       requiredKeys,
       validationMode
-    });
-    appendGraphRelationsEntries(payload, entries, jsonlPath);
+    })) {
+      appendGraphRelationsEntry(payload, entry, jsonlPath);
+    }
     return finalizeGraphRelations(payload);
   }
   const jsonPath = path.join(dir, 'graph_relations.json');

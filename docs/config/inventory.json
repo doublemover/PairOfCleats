@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T03:07:19.241Z",
+  "generatedAt": "2026-02-05T10:33:59.036Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -30,6 +30,9 @@
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_RUN",
       "PAIROFCLEATS_BUNDLE_THREADS",
+      "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
+      "PAIROFCLEATS_CACHE_NAMESPACE",
+      "PAIROFCLEATS_CACHE_REBUILD",
       "PAIROFCLEATS_CACHE_ROOT",
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
@@ -233,6 +236,8 @@
       "tooling.autoInstallOnDetect",
       "tooling.cache.dir",
       "tooling.cache.enabled",
+      "tooling.cache.maxBytes",
+      "tooling.cache.maxEntries",
       "tooling.circuitBreakerThreshold",
       "tooling.clangd.compileCommandsDir",
       "tooling.clangd.requireCompilationDatabase",
@@ -288,8 +293,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 234,
-    "leafKeys": 187,
+    "totalKeys": 236,
+    "leafKeys": 189,
     "topLevel": [
       {
         "key": "cache",
@@ -325,7 +330,7 @@
       },
       {
         "key": "tooling",
-        "count": 65
+        "count": 67
       }
     ]
   },
@@ -1254,6 +1259,16 @@
       "enum": null
     },
     {
+      "path": "tooling.cache.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.cache.maxEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "tooling.circuitBreakerThreshold",
       "type": "number",
       "enum": null
@@ -1586,6 +1601,28 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_NAMESPACE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_REBUILD",
+      "files": [
+        "src/shared/env.js",
+        "tests/shared/cache/cache-migration.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
         "src/shared/env.js",
@@ -1648,6 +1685,7 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/cache/cache-gc.test.js",
+        "tests/shared/cache/cache-migration.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
@@ -1683,6 +1721,7 @@
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
+        "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -1993,6 +2032,9 @@
       "name": "PAIROFCLEATS_SCHEDULER",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
+        "tests/perf/indexing/runtime/scheduler-no-output-regression.test.js",
+        "tools/bench/index/scheduler-build.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2000,6 +2042,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_CPU",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2007,6 +2050,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_IO",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2021,6 +2065,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3055,6 +3100,15 @@
         ]
       },
       {
+        "file": "tests/shared/cache/cache-reuse-determinism.test.js",
+        "flags": [
+          "focus",
+          "include",
+          "onlyExported",
+          "scope"
+        ]
+      },
+      {
         "file": "tests/shared/contracts/phase11-schemas-validate.test.js",
         "flags": [
           "caps",
@@ -3533,6 +3587,14 @@
           "quiet",
           "repo",
           "verbose"
+        ]
+      },
+      {
+        "file": "tools/cache/clear-cache.js",
+        "flags": [
+          "all",
+          "cache-root",
+          "force"
         ]
       },
       {
@@ -4272,6 +4334,21 @@
         ]
       },
       {
+        "flag": "include",
+        "count": 9,
+        "files": [
+          "src/map/build-map.js",
+          "tests/indexing/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-chunkuid-join.test.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "quiet",
         "count": 9,
         "files": [
@@ -4297,20 +4374,6 @@
           "src/integrations/tooling/impact.js",
           "src/integrations/tooling/suggest-tests.js",
           "tools/analysis/structural-search.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "include",
-        "count": 8,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/map/map-build-symbol-identity.test.js",
-          "tests/indexing/map/map-chunkuid-join.test.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
         ]
       },
@@ -4356,6 +4419,19 @@
         ]
       },
       {
+        "flag": "focus",
+        "count": 7,
+        "files": [
+          "src/map/build-map.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
+        ]
+      },
+      {
         "flag": "incremental",
         "count": 7,
         "files": [
@@ -4382,6 +4458,19 @@
         ]
       },
       {
+        "flag": "scope",
+        "count": 7,
+        "files": [
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 7,
         "files": [
@@ -4395,15 +4484,15 @@
         ]
       },
       {
-        "flag": "focus",
+        "flag": "force",
         "count": 6,
         "files": [
-          "src/map/build-map.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js"
+          "tools/cache/clear-cache.js",
+          "tools/ci/restore-artifacts.js",
+          "tools/config/reset.js",
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/index/assemble-pieces.js"
         ]
       },
       {
@@ -4416,18 +4505,6 @@
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
           "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
           "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
-        ]
-      },
-      {
-        "flag": "scope",
-        "count": 6,
-        "files": [
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -4473,17 +4550,6 @@
           "tools/bench/graph-caps-harness.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js"
-        ]
-      },
-      {
-        "flag": "force",
-        "count": 5,
-        "files": [
-          "tools/ci/restore-artifacts.js",
-          "tools/config/reset.js",
-          "tools/download/dicts.js",
-          "tools/download/extensions.js",
-          "tools/index/assemble-pieces.js"
         ]
       },
       {
@@ -4583,6 +4649,16 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "all",
+        "count": 4,
+        "files": [
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/cache/clear-cache.js",
+          "tools/index/clean-artifacts.js",
+          "tools/index/report-artifacts.js"
         ]
       },
       {
@@ -4776,15 +4852,6 @@
         ]
       },
       {
-        "flag": "all",
-        "count": 3,
-        "files": [
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/report-artifacts.js"
-        ]
-      },
-      {
         "flag": "args",
         "count": 3,
         "files": [
@@ -4920,6 +4987,14 @@
         "files": [
           "tools/download/models.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "cache-root",
+        "count": 2,
+        "files": [
+          "tools/cache/clear-cache.js",
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -5144,6 +5219,14 @@
         "files": [
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
+        ]
+      },
+      {
+        "flag": "onlyExported",
+        "count": 2,
+        "files": [
+          "src/map/build-map.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js"
         ]
       },
       {

@@ -1,6 +1,6 @@
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-io/manifest.js';
-import { loadGraphRelations, loadJsonArrayArtifact } from '../shared/artifact-io/loaders.js';
+import { loadGraphRelations, loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders.js';
 import {
   buildCallSiteIndex,
   buildAdjacencyIndex,
@@ -223,17 +223,29 @@ export const createGraphStore = ({
     strict
   }));
 
-  const loadSymbolEdges = () => loadOnce('symbol_edges', () => loadJsonArrayArtifact(indexDir, 'symbol_edges', {
-    manifest: resolvedManifest,
-    maxBytes,
-    strict
-  }));
+  const loadSymbolEdges = () => loadOnce('symbol_edges', async () => {
+    const rows = [];
+    for await (const entry of loadJsonArrayArtifactRows(indexDir, 'symbol_edges', {
+      manifest: resolvedManifest,
+      maxBytes,
+      strict
+    })) {
+      rows.push(entry);
+    }
+    return rows;
+  });
 
-  const loadCallSites = () => loadOnce('call_sites', () => loadJsonArrayArtifact(indexDir, 'call_sites', {
-    manifest: resolvedManifest,
-    maxBytes,
-    strict
-  }));
+  const loadCallSites = () => loadOnce('call_sites', async () => {
+    const rows = [];
+    for await (const entry of loadJsonArrayArtifactRows(indexDir, 'call_sites', {
+      manifest: resolvedManifest,
+      maxBytes,
+      strict
+    })) {
+      rows.push(entry);
+    }
+    return rows;
+  });
 
   const loadGraphIndex = async ({
     repoRoot = null,

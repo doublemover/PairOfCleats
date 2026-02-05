@@ -8,6 +8,7 @@ import {
   MAX_JSON_BYTES,
   loadChunkMeta,
   loadJsonArrayArtifact,
+  loadJsonArrayArtifactRows,
   loadTokenPostings,
   loadJsonObjectArtifact,
   loadMinhashSignatures,
@@ -70,16 +71,35 @@ export async function loadIndex(dir, options) {
       return null;
     }
   };
-  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict });
-  const fileMetaRaw = await loadOptionalArray('file_meta');
-  let fileMetaById = null;
-  if (Array.isArray(fileMetaRaw)) {
-    fileMetaById = new Map();
-    for (const entry of fileMetaRaw) {
-      if (!entry || entry.id == null) continue;
-      fileMetaById.set(entry.id, entry);
+  const loadOptionalRows = (baseName) => (async function* () {
+    try {
+      for await (const row of loadJsonArrayArtifactRows(dir, baseName, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict
+      })) {
+        yield row;
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(
+          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
+        );
+        return;
+      }
+      throw err;
     }
+  })();
+  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict });
+  let fileMetaById = null;
+  fileMetaById = new Map();
+  let fileMetaLoaded = false;
+  for await (const entry of loadOptionalRows('file_meta')) {
+    fileMetaLoaded = true;
+    if (!entry || entry.id == null) continue;
+    fileMetaById.set(entry.id, entry);
   }
+  if (!fileMetaLoaded) fileMetaById = null;
   if (!fileMetaById) {
     const missingMeta = chunkMeta.some((chunk) => chunk && chunk.fileId != null && !chunk.file);
     if (missingMeta) {
@@ -101,16 +121,24 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const fileRelationsRaw = includeFileRelations ? await loadOptionalArray('file_relations') : null;
-  const repoMap = includeRepoMap ? await loadOptionalArray('repo_map') : null;
+  const fileRelationsRows = includeFileRelations ? loadOptionalRows('file_relations') : null;
+  const repoMapRows = includeRepoMap ? loadOptionalRows('repo_map') : null;
   let fileRelations = null;
-  if (Array.isArray(fileRelationsRaw)) {
+  if (fileRelationsRows) {
     const map = new Map();
-    for (const entry of fileRelationsRaw) {
+    for await (const entry of fileRelationsRows) {
       if (!entry || !entry.file) continue;
       map.set(entry.file, entry.relations || null);
     }
     fileRelations = map;
+  }
+  let repoMap = null;
+  if (repoMapRows) {
+    const list = [];
+    for await (const entry of repoMapRows) {
+      list.push(entry);
+    }
+    repoMap = list;
   }
   const indexState = await loadOptionalObject('index_state', path.join(dir, 'index_state.json'));
   const embeddingsState = indexState?.embeddings || null;

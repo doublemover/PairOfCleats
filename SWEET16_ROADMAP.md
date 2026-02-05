@@ -871,23 +871,23 @@ Parallel: Run after 16.13.3; depends on offsets + loader parallelism.
 Docs/specs to update: `docs/specs/artifact-io-pipeline.md`, `docs/perf/shared-io-serialization.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/artifact-io/offsets.js (anchor: readOffsetsIndex)`, `src/shared/json-stream.js (anchor: readJsonlRows)`, `src/index/build/artifacts/helpers.js (anchor: mergeSortedRuns)`
 Tasks:
-- [ ] Task 16.13.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.13.4.a: Add streaming row iterator API that never materializes arrays by default.
-- [ ] Task 16.13.4.a.1: Support offsets index to jump to shard ranges and stream rows in order.
-- [ ] Task 16.13.4.a.2: Add max in-flight row cap + backpressure hooks.
-- [ ] Task 16.13.4.b: Switch loader fast-paths to streaming when offsets exist; require explicit opt-in to materialize.
-- [ ] Task 16.13.4.b.1: Add `materialize` option to load helpers and update call sites.
-- [ ] Task 16.13.4.c: Convert artifact consumers that read large JSONL arrays to use iterators (graph, relations, file_meta, symbol artifacts).
-- [ ] Task 16.13.4.d: Enforce strict missing-part checks for streaming loaders (no partial results).
-- [ ] Task 16.13.4.e: Add streaming vs materialized benchmark and output delta line (duration, throughput, percent, heap).
-- [ ] Task 16.13.4.f: Add regression test for streaming correctness vs full scan (row hash match).
-- [ ] Task 16.13.4.g: Add regression test for streaming memory cap under large artifacts.
-- [ ] Task 16.13.4.h: Add determinism stress test under streaming + parallel loads.
+- [x] Task 16.13.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.13.4.a: Add streaming row iterator API that never materializes arrays by default.
+- [x] Task 16.13.4.a.1: Support offsets index to jump to shard ranges and stream rows in order.
+- [x] Task 16.13.4.a.2: Add max in-flight row cap + backpressure hooks.
+- [x] Task 16.13.4.b: Switch loader fast-paths to streaming when offsets exist; require explicit opt-in to materialize.
+- [x] Task 16.13.4.b.1: Add `materialize` option to load helpers and update call sites.
+- [x] Task 16.13.4.c: Convert artifact consumers that read large JSONL arrays to use iterators (graph, relations, file_meta, symbol artifacts).
+- [x] Task 16.13.4.d: Enforce strict missing-part checks for streaming loaders (no partial results).
+- [x] Task 16.13.4.e: Add streaming vs materialized benchmark and output delta line (duration, throughput, percent, heap).
+- [x] Task 16.13.4.f: Add regression test for streaming correctness vs full scan (row hash match).
+- [x] Task 16.13.4.g: Add regression test for streaming memory cap under large artifacts.
+- [x] Task 16.13.4.h: Add determinism stress test under streaming + parallel loads.
 
 Tests:
-- [ ] `tests/shared/artifact-io/streaming-vs-full.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/streaming-memory-cap.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/streaming-determinism.test.js` (perf lane) (new)
+- [x] `tests/perf/artifact-io/streaming-vs-full.test.js` (perf lane) (new)
+- [x] `tests/perf/artifact-io/streaming-memory-cap.test.js` (perf lane) (new)
+- [x] `tests/perf/artifact-io/streaming-determinism.test.js` (perf lane) (new)
 
 ---
 
@@ -1015,9 +1015,9 @@ Tasks:
 - [ ] Task 16.14.5.h: Add regression test for MAX_JSON_BYTES behavior with streaming columnar fallback.
 
 Tests:
-- [ ] `tests/indexing/artifacts/file-meta-streaming-roundtrip.test.js` (perf lane) (new)
-- [ ] `tests/indexing/artifacts/file-meta-streaming-memory.test.js` (perf lane) (new)
-- [ ] `tests/indexing/artifacts/file-meta-streaming-reuse.test.js` (perf lane) (new)
+- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-roundtrip.test.js` (perf lane) (new)
+- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-memory.test.js` (perf lane) (new)
+- [ ] `tests/perf/indexing/artifacts/file-meta-streaming-reuse.test.js` (perf lane) (new)
 
 ---
 

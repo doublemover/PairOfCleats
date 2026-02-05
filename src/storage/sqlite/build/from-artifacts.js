@@ -12,7 +12,7 @@ import {
   normalizeFilePath,
   readJson,
   loadOptional,
-  loadOptionalArrayArtifact,
+  loadOptionalArrayArtifactRows,
   removeSqliteSidecars,
   resolveSqliteBatchSize,
   bumpSqliteBatchStat
@@ -180,7 +180,7 @@ export const loadIndexPieces = async (dirOrOptions, modelId) => {
       console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
     }
   }
-  const fileMeta = await loadOptionalArrayArtifact(dir, 'file_meta');
+  const fileMeta = loadOptionalArrayArtifactRows(dir, 'file_meta', { materialize: true });
   return {
     chunkMeta: null,
     dir,
@@ -743,11 +743,24 @@ export async function buildDatabaseFromArtifacts({
           insertFts.run(row);
         }
       });
+      const maxBatchBytes = resolvedBatchSize * 4096;
+      let batchBytes = 0;
       const flush = () => {
         if (!rows.length) return;
         insert(rows);
         rows.length = 0;
+        batchBytes = 0;
         recordBatch('chunkMetaBatches');
+      };
+      const estimateRowBytes = (row) => {
+        if (!row) return 0;
+        let bytes = 128;
+        if (row.file) bytes += row.file.length;
+        if (row.ext) bytes += row.ext.length;
+        if (row.lang) bytes += row.lang.length;
+        if (row.token) bytes += row.token.length;
+        if (row.symbol) bytes += row.symbol.length;
+        return bytes;
       };
       let chunkCount = 0;
       const handleChunk = (chunk) => {
@@ -760,8 +773,9 @@ export async function buildDatabaseFromArtifacts({
           fileCounts.set(row.file, (fileCounts.get(row.file) || 0) + 1);
         }
         rows.push(row);
+        batchBytes += estimateRowBytes(row);
         chunkCount += 1;
-        if (rows.length >= resolvedBatchSize) flush();
+        if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
       };
       if (sources.format === 'json') {
         const data = readJson(sources.paths[0]);
@@ -783,15 +797,29 @@ export async function buildDatabaseFromArtifacts({
     async function ingestIndex(indexData, targetMode, indexDir) {
       if (!indexData && !indexDir) return 0;
       const fileMetaById = new Map();
-      const fileMetaRaw = Array.isArray(indexData?.fileMeta)
-        ? indexData.fileMeta
-        : (indexDir ? await loadOptionalArrayArtifact(indexDir, 'file_meta') : null);
-      if (Array.isArray(fileMetaRaw)) {
-        for (const entry of fileMetaRaw) {
-          if (!entry || !Number.isFinite(entry.id)) continue;
-          fileMetaById.set(entry.id, entry);
+      const fileMetaSource = indexData?.fileMeta
+        ?? (indexDir ? loadOptionalArrayArtifactRows(indexDir, 'file_meta', { materialize: true }) : null);
+      const populateFileMeta = async (source) => {
+        if (!source) return false;
+        if (Array.isArray(source)) {
+          for (const entry of source) {
+            if (!entry || !Number.isFinite(entry.id)) continue;
+            fileMetaById.set(entry.id, entry);
+          }
+          return true;
         }
-      }
+        if (typeof source?.[Symbol.asyncIterator] === 'function') {
+          let used = false;
+          for await (const entry of source) {
+            used = true;
+            if (!entry || !Number.isFinite(entry.id)) continue;
+            fileMetaById.set(entry.id, entry);
+          }
+          return used;
+        }
+        return false;
+      };
+      await populateFileMeta(fileMetaSource);
       let chunkCount = 0;
       let fileCounts = new Map();
       let chunkMetaLoaded = false;
@@ -810,11 +838,24 @@ export async function buildDatabaseFromArtifacts({
           }
         });
         const rows = [];
+        const maxBatchBytes = resolvedBatchSize * 4096;
+        let batchBytes = 0;
         const flush = () => {
           if (!rows.length) return;
           insert(rows);
           rows.length = 0;
+          batchBytes = 0;
           recordBatch('chunkMetaBatches');
+        };
+        const estimateRowBytes = (row) => {
+          if (!row) return 0;
+          let bytes = 128;
+          if (row.file) bytes += row.file.length;
+          if (row.ext) bytes += row.ext.length;
+          if (row.lang) bytes += row.lang.length;
+          if (row.token) bytes += row.token.length;
+          if (row.symbol) bytes += row.symbol.length;
+          return bytes;
         };
         for (let i = 0; i < indexData.chunkMeta.length; i += 1) {
           const chunk = indexData.chunkMeta[i];
@@ -827,8 +868,9 @@ export async function buildDatabaseFromArtifacts({
           if (row.file) {
             fileCounts.set(row.file, (fileCounts.get(row.file) || 0) + 1);
           }
+          batchBytes += estimateRowBytes(row);
           chunkCount += 1;
-          if (rows.length >= resolvedBatchSize) flush();
+          if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
         }
         flush();
         const durationMs = performance.now() - start;

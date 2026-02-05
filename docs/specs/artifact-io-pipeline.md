@@ -39,6 +39,8 @@
 - JSONL parsing uses buffer scanning (no readline).
 - CRLF normalization on read.
 - Per-line validation in strict mode; trusted fast-path skips validation.
+- Default reader path is streaming row iteration; materialized reads must be explicitly requested.
+- Streaming readers apply backpressure via async iteration (no unbounded buffering).
 
 ## Atomic Writes
 - Write to temp dir: .tmp/<artifact>/

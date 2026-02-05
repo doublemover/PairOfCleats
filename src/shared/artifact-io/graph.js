@@ -40,25 +40,29 @@ export const createGraphRelationsShell = (meta) => {
   return payload;
 };
 
+export const appendGraphRelationsEntry = (payload, entry, sourceLabel) => {
+  if (!entry) return;
+  const graphName = entry.graph;
+  if (!GRAPH_RELATION_GRAPHS.includes(graphName)) {
+    const err = new Error(
+      `Invalid graph_relations entry in ${sourceLabel}: unknown graph "${graphName}"`
+    );
+    err.code = 'ERR_JSONL_INVALID';
+    throw err;
+  }
+  const node = entry.node;
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    const err = new Error(`Invalid graph_relations entry in ${sourceLabel}: node must be an object`);
+    err.code = 'ERR_JSONL_INVALID';
+    throw err;
+  }
+  payload[graphName].nodes.push(node);
+};
+
 export const appendGraphRelationsEntries = (payload, entries, sourceLabel) => {
-  if (!Array.isArray(entries)) return;
+  if (!entries) return;
   for (const entry of entries) {
-    if (!entry) continue;
-    const graphName = entry.graph;
-    if (!GRAPH_RELATION_GRAPHS.includes(graphName)) {
-      const err = new Error(
-        `Invalid graph_relations entry in ${sourceLabel}: unknown graph "${graphName}"`
-      );
-      err.code = 'ERR_JSONL_INVALID';
-      throw err;
-    }
-    const node = entry.node;
-    if (!node || typeof node !== 'object' || Array.isArray(node)) {
-      const err = new Error(`Invalid graph_relations entry in ${sourceLabel}: node must be an object`);
-      err.code = 'ERR_JSONL_INVALID';
-      throw err;
-    }
-    payload[graphName].nodes.push(node);
+    appendGraphRelationsEntry(payload, entry, sourceLabel);
   }
 };
 

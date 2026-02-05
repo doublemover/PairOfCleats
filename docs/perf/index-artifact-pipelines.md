@@ -19,6 +19,8 @@ Run benchmarks from the repo root.
 11. `node tools/bench/index/artifact-io-read.js --mode compare`
 12. `node tools/bench/artifact-io/jsonl-offset-index.js`
 13. `node tools/bench/artifact-io/artifact-io-throughput.js`
+14. `node tools/bench/artifact-io/streaming-vs-materialize.js`
+15. `node tools/bench/index/file-meta-streaming-load.js --index-dir <path>`
 
 Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
 
@@ -82,3 +84,8 @@ Unsharded JSONL writers now pass `maxBytes` into `writeJsonLinesFile`/`writeJson
 - Target: higher rows/sec with deterministic shard ordering.
 - Output: rows/sec, bytes/sec, and delta vs baseline.
 - Note: manifest/meta hot-cache reduces repeated parse overhead in tight loops.
+
+### Streaming vs materialized JSONL
+
+- Target: lower heap and competitive rows/sec when using streaming iterator.
+- Output: rows/sec, heap delta, and delta vs baseline materialized read.

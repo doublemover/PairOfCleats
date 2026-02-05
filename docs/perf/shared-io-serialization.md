@@ -49,6 +49,8 @@ Telemetry only fires when:
 - Sharded JSONL reads support bounded parallelism with deterministic ordering.
 - Validation modes: strict (required keys checked) vs trusted (skip required-key checks for hot paths).
 - Missing shard parts are treated as errors in strict mode (surface missing paths early).
+- Streaming row iterators are the default for large JSONL reads; materialized arrays require explicit opt-in.
+- Streaming iterators support backpressure and optional in-flight row caps.
 
 ## Expectations
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.

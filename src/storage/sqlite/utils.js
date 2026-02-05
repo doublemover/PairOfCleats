@@ -7,6 +7,7 @@ import {
   loadTokenPostings,
   loadMinhashSignatures,
   loadJsonArrayArtifact,
+  loadJsonArrayArtifactRows,
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
@@ -149,6 +150,30 @@ export async function loadOptionalArrayArtifact(dir, name) {
   }
 }
 
+export function loadOptionalArrayArtifactRows(dir, name, { materialize = false } = {}) {
+  return (async function* () {
+    if (!dir || !name) return;
+    try {
+      for await (const row of loadJsonArrayArtifactRows(dir, name, {
+        maxBytes: MAX_JSON_BYTES,
+        strict: false,
+        materialize
+      })) {
+        yield row;
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+        return;
+      }
+      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+        return;
+      }
+      throw err;
+    }
+  })();
+}
+
 /**
  * Load file-backed index artifacts from a directory.
  * @param {string} dir
@@ -175,7 +200,7 @@ export async function loadIndex(dir, modelId) {
       console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
     }
   }
-  const fileMeta = await loadOptionalArrayArtifact(dir, 'file_meta');
+  const fileMeta = loadOptionalArrayArtifactRows(dir, 'file_meta', { materialize: true });
   return {
     chunkMeta,
     fileMeta,

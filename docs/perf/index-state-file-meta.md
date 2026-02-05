@@ -23,6 +23,8 @@ Artifacts:
 - **JSONL sharded** (when size exceeds `MAX_JSON_BYTES` or format is `jsonl`)
 - **Columnar** (string-table compression for repeated fields)
 
+Loaders default to streaming row iteration for JSONL shards; materialized reads are explicit.
+
 Artifacts:
 - `file_meta.json` or `file_meta.parts/*` + `file_meta.meta.json`
 - `file_meta.columnar.json` + `file_meta.meta.json`
@@ -57,6 +59,7 @@ If `postings.minhashMaxDocs` is set and the corpus exceeds the limit, minhash em
 ## Benchmarks
 - `tools/bench/index/index-state-write.js`
 - `tools/bench/index/file-meta-compare.js`
+- `tools/bench/index/file-meta-streaming-load.js`
 - `tools/bench/index/minhash-packed.js`
 
 Run these with `--mode compare` to see baseline vs current output and deltas.

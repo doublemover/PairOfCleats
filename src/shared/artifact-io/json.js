@@ -430,6 +430,288 @@ export const readJsonLinesEach = async (
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
+const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume = null } = {}) => {
+  const buffer = [];
+  const waiters = [];
+  let drainResolver = null;
+  let done = false;
+  let error = null;
+  let backpressured = false;
+  const maxBuffer = Number.isFinite(maxPending) ? Math.max(0, maxPending) : 0;
+
+  const resolveDrain = () => {
+    if (!drainResolver) return;
+    if (maxBuffer && buffer.length >= maxBuffer) return;
+    const resolve = drainResolver;
+    drainResolver = null;
+    if (backpressured) {
+      backpressured = false;
+      if (typeof onResume === 'function') onResume(buffer.length);
+    }
+    resolve();
+  };
+
+  const push = async (value) => {
+    if (done) return;
+    if (waiters.length) {
+      const waiter = waiters.shift();
+      waiter({ value, done: false });
+      return;
+    }
+    buffer.push(value);
+    if (maxBuffer && buffer.length >= maxBuffer) {
+      if (!backpressured && typeof onBackpressure === 'function') {
+        backpressured = true;
+        onBackpressure(buffer.length);
+      }
+      await new Promise((resolve) => {
+        drainResolver = resolve;
+      });
+    }
+  };
+
+  const finish = (err = null) => {
+    if (done) return;
+    done = true;
+    error = err;
+    if (drainResolver) {
+      const resolve = drainResolver;
+      drainResolver = null;
+      resolve();
+    }
+    while (waiters.length) {
+      const waiter = waiters.shift();
+      waiter({ value: undefined, done: true });
+    }
+  };
+
+  const iterator = async function* () {
+    while (true) {
+      if (buffer.length) {
+        const value = buffer.shift();
+        resolveDrain();
+        yield value;
+        continue;
+      }
+      if (done) {
+        if (error) throw error;
+        return;
+      }
+      const result = await new Promise((resolve) => {
+        waiters.push(resolve);
+      });
+      if (result.done) {
+        if (error) throw error;
+        return;
+      }
+      yield result.value;
+    }
+  };
+
+  return { push, finish, iterator };
+};
+
+const parseJsonlBufferEntries = (buffer, sourcePath, { maxBytes, requiredKeys, validationMode } = {}) => {
+  if (buffer.length > maxBytes) {
+    throw toJsonTooLargeError(sourcePath, buffer.length);
+  }
+  const raw = buffer.toString('utf8');
+  if (!raw.trim()) return { entries: [], bytes: buffer.length };
+  const lines = raw.split(/\r?\n/);
+  const entries = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys, validationMode);
+    if (entry !== null) entries.push(entry);
+  }
+  return { entries, bytes: buffer.length };
+};
+
+const parseJsonlStreamEntries = async (stream, {
+  targetPath,
+  maxBytes,
+  requiredKeys,
+  validationMode,
+  onEntry
+} = {}) => {
+  let buffer = '';
+  let lineNumber = 0;
+  let rows = 0;
+  let bytes = 0;
+  const pushLine = async (line) => {
+    lineNumber += 1;
+    const entry = parseJsonlLine(line, targetPath, lineNumber, maxBytes, requiredKeys, validationMode);
+    if (entry !== null) {
+      rows += 1;
+      await onEntry(entry);
+    }
+  };
+  for await (const chunk of stream) {
+    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
+    if (bytes > maxBytes) {
+      throw toJsonTooLargeError(targetPath, bytes);
+    }
+    buffer += text;
+    let newlineIndex = buffer.indexOf('\n');
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex);
+      buffer = buffer.slice(newlineIndex + 1);
+      await pushLine(line);
+      newlineIndex = buffer.indexOf('\n');
+    }
+    if (buffer.length > maxBytes) {
+      throw toJsonTooLargeError(targetPath, Buffer.byteLength(buffer, 'utf8'));
+    }
+  }
+  if (buffer.length) {
+    await pushLine(buffer);
+  }
+  return { rows, bytes };
+};
+
+const readJsonLinesIteratorSingle = async function* (
+  targetPath,
+  {
+    maxBytes,
+    requiredKeys,
+    validationMode,
+    maxInFlight = 0,
+    onBackpressure = null,
+    onResume = null,
+    byteRange = null
+  } = {}
+) {
+  const shouldMeasure = hasArtifactReadObserver();
+  const start = shouldMeasure ? performance.now() : 0;
+  let rows = 0;
+  let bytes = 0;
+  let rawBytes = null;
+  let compression = null;
+  let cleanup = null;
+  let stream = null;
+  let sourcePath = targetPath;
+  const queue = createRowQueue({
+    maxPending: maxInFlight,
+    onBackpressure,
+    onResume
+  });
+
+  const producer = (async () => {
+    try {
+      const candidates = targetPath.endsWith('.jsonl')
+        ? collectCompressedJsonlCandidates(targetPath)
+        : [];
+      const sources = candidates.length
+        ? candidates
+        : [{ path: targetPath, compression: detectCompression(targetPath), cleanup: false }];
+      let lastErr = null;
+      for (const candidate of sources) {
+        try {
+          sourcePath = candidate.path;
+          compression = candidate.compression ?? detectCompression(candidate.path);
+          cleanup = candidate.cleanup;
+          const stat = fs.statSync(sourcePath);
+          rawBytes = stat.size;
+          if (stat.size > maxBytes) {
+            throw toJsonTooLargeError(sourcePath, stat.size);
+          }
+          const range = byteRange && Number.isFinite(byteRange.start) && Number.isFinite(byteRange.end)
+            ? { start: Math.max(0, byteRange.start), end: Math.max(0, byteRange.end - 1) }
+            : null;
+          stream = fs.createReadStream(sourcePath, range || undefined);
+          if (compression === 'gzip') {
+            const gunzip = createGunzip();
+            stream = stream.pipe(gunzip);
+          } else if (compression === 'zstd') {
+            const zstd = resolveOptionalZstd();
+            if (zstd && rawBytes <= ZSTD_STREAM_THRESHOLD) {
+              const buffer = readBuffer(sourcePath, maxBytes);
+              const decoded = await zstd.decompress(buffer);
+              const payload = Buffer.isBuffer(decoded) ? decoded : Buffer.from(decoded);
+              const parsed = parseJsonlBufferEntries(payload, sourcePath, {
+                maxBytes,
+                requiredKeys,
+                validationMode
+              });
+              rows = parsed.entries.length;
+              bytes = parsed.bytes;
+              for (const entry of parsed.entries) {
+                await queue.push(entry);
+              }
+              if (cleanup) cleanupBak(sourcePath);
+              queue.finish();
+              if (shouldMeasure) {
+                recordArtifactRead({
+                  path: sourcePath,
+                  format: 'jsonl',
+                  compression,
+                  rawBytes: rawBytes ?? bytes,
+                  bytes,
+                  rows,
+                  durationMs: performance.now() - start
+                });
+              }
+              return;
+            }
+            const zstdStream = createZstdDecompress();
+            stream = stream.pipe(zstdStream);
+          }
+          break;
+        } catch (err) {
+          lastErr = err;
+          stream = null;
+        }
+      }
+      if (!stream) {
+        throw lastErr || new Error(`Missing JSONL artifact: ${targetPath}`);
+      }
+      ({ rows, bytes } = await parseJsonlStreamEntries(stream, {
+        targetPath: sourcePath,
+        maxBytes,
+        requiredKeys,
+        validationMode,
+        onEntry: async (entry) => {
+          await queue.push(entry);
+        }
+      }));
+      if (cleanup) cleanupBak(sourcePath);
+      queue.finish();
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: sourcePath,
+          format: 'jsonl',
+          compression,
+          rawBytes: rawBytes ?? bytes,
+          bytes,
+          rows,
+          durationMs: performance.now() - start
+        });
+      }
+    } catch (err) {
+      queue.finish(err);
+    } finally {
+      if (stream) stream.destroy();
+    }
+  })();
+
+  try {
+    for await (const entry of queue.iterator()) {
+      yield entry;
+    }
+  } finally {
+    await producer.catch(() => {});
+  }
+};
+
+export const readJsonLinesIterator = function (filePath, options = {}) {
+  const paths = Array.isArray(filePath) ? filePath : [filePath];
+  return (async function* () {
+    for (const sourcePath of paths) {
+      yield* readJsonLinesIteratorSingle(sourcePath, options);
+    }
+  })();
+};
+
 
 export const readJsonLinesArray = async (
   filePath,

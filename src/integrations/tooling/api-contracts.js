@@ -7,7 +7,7 @@ import { resolveProvenance } from '../../shared/provenance.js';
 import { validateApiContracts } from '../../contracts/validators/analysis.js';
 import {
   MAX_JSON_BYTES,
-  loadJsonArrayArtifact,
+  loadJsonArrayArtifactRows,
   loadPiecesManifest,
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
@@ -49,6 +49,14 @@ const loadJsonlRowsIntoArray = async (paths) => {
     for await (const row of readJsonlRows(target)) {
       rows.push(row);
     }
+  }
+  return rows;
+};
+
+const collectRows = async (iterator) => {
+  const rows = [];
+  for await (const row of iterator) {
+    rows.push(row);
   }
   return rows;
 };
@@ -549,11 +557,11 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const symbolJsonlPaths = resolveJsonlSources(indexDir, manifest, 'symbols');
   const symbols = symbolJsonlPaths
     ? await loadJsonlRowsIntoArray(symbolJsonlPaths)
-    : await loadJsonArrayArtifact(indexDir, 'symbols', { manifest, strict: true });
+    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'symbols', { manifest, strict: true }));
   const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest);
   const callSites = callSitesByTarget
     ? []
-    : await loadJsonArrayArtifact(indexDir, 'call_sites', { manifest, strict: true }).catch(() => []);
+    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true })).catch(() => []);
 
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
     maxBytes: MAX_JSON_BYTES,
