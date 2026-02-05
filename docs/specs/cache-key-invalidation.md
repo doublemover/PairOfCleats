@@ -16,8 +16,20 @@ Key fields (concatenated and hashed):
 - featureFlags: normalized feature toggle list
 - pathPolicy: posix or native
 
-Example key string:
+Key prefix:
+- cacheNamespace: normalized namespace for cache isolation
+- cacheKeyVersion: version tag for schema changes
+
+Example key payload string:
 repoHash|buildConfigHash|mode|schemaVersion|featureFlags|pathPolicy
+
+Example full key:
+cacheNamespace:cacheKeyVersion:sha1(payload)
+
+Normalization:
+- featureFlags are sorted and comma-joined.
+- pathPolicy defaults to `native` on Windows, `posix` elsewhere unless explicitly set.
+- cacheNamespace defaults to `pairofcleats` and can be overridden via `PAIROFCLEATS_CACHE_NAMESPACE`.
 
 ## Repo Hash
 - Derived from discovery list, file hashes, and ignore rules.

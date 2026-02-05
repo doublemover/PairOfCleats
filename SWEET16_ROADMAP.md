@@ -17,7 +17,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.0 | [@] | Specs drafted; tests pending |
 | 16.1 | [x] | Scheduler core + stage wiring + embeddings integration + tests/bench complete |
 | 16.2 | [x] | Shared artifact IO pipeline complete |
-| 16.3 | [ ] |  |
+| 16.3 | [@] | Cache key schema/helpers in progress |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
 | 16.13 | [ ] |  |
@@ -456,29 +456,52 @@ Tests:
 
 ### Objective
 Apply a unified cache key schema and invalidation rules across caches.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
+Touchpoints:
+- `src/shared/cache-key.js` (anchor: buildCacheKey)
+- `src/shared/cache.js` (anchor: createCache)
+- `src/shared/artifact-io/cache.js` (anchor: buildCacheKey)
+- `src/context-pack/assemble.js` (anchor: EXCERPT_CACHE_MAX)
+- `src/config/validate.js` (anchor: validatorCache)
+- `src/index/tooling/vfs.js` (anchor: VFS_DISK_CACHE)
+- `src/index/build/vfs-segment-hash-cache.js` (anchor: buildSegmentHashCacheKey)
+- `src/index/build/import-resolution.js` (anchor: cacheKeyFor)
+- `src/index/build/tokenization.js` (anchor: cacheKey)
+- `src/index/build/file-processor/process-chunks/index.js` (anchor: complexityCache)
+- `src/index/build/file-processor/cpu.js` (anchor: treeSitterCacheKey)
+- `src/index/git.js` (anchor: gitMetaCache)
+- `src/index/tooling/orchestrator.js` (anchor: computeCacheKey)
+- `src/retrieval/cli/run-search-session.js` (anchor: buildQueryCacheKey)
+- `src/retrieval/query-plan-cache.js` (anchor: buildQueryCacheKey)
+- `src/shared/onnx-embeddings.js` (anchor: onnxCache)
+- `src/lang/tree-sitter/chunking.js` (anchor: resolveChunkCacheKey)
+- `src/graph/store.js` (anchor: buildGraphIndexCacheKey)
+- `src/graph/suggest-tests.js` (anchor: TEST_MATCHER_CACHE_MAX)
+- `tools/build/embeddings/cache.js` (anchor: buildCacheKey)
+- `tools/build/embeddings/runner.js` (anchor: buildCacheIdentity)
+- `tools/reports/report-code-map.js` (anchor: buildMapCacheKey)
+- `tools/sqlite/vector-extension.js` (anchor: getLoadCacheKey)
 
 ### Subphase 16.3.1 -- Schema + Helpers
 Parallel: Must land before 16.3.2/16.3.3/16.3.4.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/cache-key-invalidation.md`, `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
+Touchpoints: see Phase 16.3 list (primary anchors: `src/shared/cache-key.js`, `src/shared/cache.js`, `tools/build/embeddings/cache.js`).
 Tasks:
-- [ ] Task 16.3.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.3.1.a: Implement cache key builder with repo hash + build config.
-- [ ] Task 16.3.1.b: Include mode + schema version tags in keys.
-- [ ] Task 16.3.1.c: Add helpers for key serialization and hashing.
-- [ ] Task 16.3.1.d: Add config-based overrides for cache namespace.
-- [ ] Task 16.3.1.e: Add migration note in spec and docs.
-- [ ] Task 16.3.1.f: Include normalized path policy and feature flags in cache keys.
+- [x] Task 16.3.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.3.1.a: Implement cache key builder with repo hash + build config.
+- [x] Task 16.3.1.b: Include mode + schema version tags in keys.
+- [x] Task 16.3.1.c: Add helpers for key serialization and hashing.
+- [x] Task 16.3.1.d: Add config-based overrides for cache namespace.
+- [x] Task 16.3.1.e: Add migration note in spec and docs.
+- [x] Task 16.3.1.f: Include normalized path policy and feature flags in cache keys.
 
 Tests:
-- [ ] `tests/shared/cache/cache-key-builder.test.js` (perf lane) (new)
+- [x] `tests/perf/cache-key-builder.test.js` (perf lane) (new)
 
 ### Subphase 16.3.2 -- Embeddings Cache
 Parallel: Can run alongside 16.3.3 after 16.3.1; coordinate file ownership.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
+Touchpoints: see Phase 16.3 list (primary anchors: `tools/build/embeddings/cache.js`, `tools/build/embeddings/runner.js`, `src/shared/cache-key.js`).
 Tasks:
 - [ ] Task 16.3.2.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.3.2.a: Apply new key schema to embeddings cache.
@@ -492,8 +515,8 @@ Tests:
 
 ### Subphase 16.3.3 -- File Meta, Import, VFS
 Parallel: Can run alongside 16.3.2 after 16.3.1; coordinate file ownership.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, `docs/specs/file-meta.md`
+Touchpoints: see Phase 16.3 list (primary anchors: `src/index/build/import-resolution.js`, `src/index/tooling/vfs.js`, `src/index/build/vfs-segment-hash-cache.js`, `src/index/build/artifacts/file-meta.js`).
 Tasks:
 - [ ] Task 16.3.3.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.3.3.a: Apply key schema to file_meta cache reuse.
@@ -508,8 +531,8 @@ Tests:
 
 ### Subphase 16.3.4 -- Cache Reset + Cleanup
 Parallel: Run after 16.3.1; can overlap with 16.3.2/16.3.3 if isolated to tooling.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/cache-key-invalidation.md`, `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
+Touchpoints: see Phase 16.3 list (primary anchors: `src/shared/cache-key.js`, `tools/build/embeddings/cache.js`, `src/index/tooling/orchestrator.js`).
 Tasks:
 - [ ] Task 16.3.4.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.3.4.a: Introduce a versioned cache root (breaking change).
@@ -523,8 +546,8 @@ Tests:
 
 ### Subphase 16.3.5 -- Tests + Bench
 Parallel: Run after 16.3.2–16.3.4.
-Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
-Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
+Docs/specs to update: `docs/specs/cache-key-invalidation.md`, `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
+Touchpoints: see Phase 16.3 list (primary anchors: `tools/bench/*`, `tests/perf/*`).
 Tasks:
 - [ ] Task 16.3.5.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.3.5.a: Add cache hit/miss benchmark to `cache-hit-rate`.
