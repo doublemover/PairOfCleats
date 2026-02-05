@@ -1825,26 +1825,26 @@ Details: Touchpoints `src/index/build/build-state.js`, `src/shared/json-stream.j
 Details: Touchpoints `src/index/build/postings.js`, `src/index/build/state.js`.
 
 ### Benchmarks
-- [ ] `tools/bench/index/index-state-write.js`
+- [x] `tools/bench/index/index-state-write.js`
   - Baseline: always write; Current: skip unchanged hash.
   - Report: total time, write count, delta %, bytes written.
-- [ ] `tools/bench/index/file-meta-compare.js`
+- [x] `tools/bench/index/file-meta-compare.js`
   - Baseline: current JSON array; Current: string‑table/JSONL or columnar.
   - Report: file count, bytes, parse time, delta %.
-- [ ] `tools/bench/index/minhash-packed.js`
+- [x] `tools/bench/index/minhash-packed.js`
   - Baseline: JSON signatures; Current: packed binary.
   - Report: size ratio, load time, delta %.
 
 ### Tests
-- [ ] `tests/indexing/artifacts/index-state-skip-write.test.js` (new)
+- [x] `tests/indexing/artifacts/index-state-skip-write.test.js` (new)
   - Success: unchanged index_state does not update mtime.
-- [ ] `tests/indexing/artifacts/file-meta-stable-ids.test.js` (new)
+- [x] `tests/indexing/artifacts/file-meta-stable-ids.test.js` (new)
   - Success: file_id mapping is stable across incremental builds.
-- [ ] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (new)
+- [x] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (new)
   - Success: columnar/string‑table inflates to baseline rows.
-- [ ] `tests/indexing/artifacts/minhash-packed-roundtrip.test.js` (new)
+- [x] `tests/indexing/artifacts/minhash-packed-roundtrip.test.js` (new)
   - Success: packed signatures decode to baseline JSON arrays.
-- [ ] `tests/indexing/artifacts/minhash-max-docs-guard.test.js` (new)
+- [x] `tests/indexing/artifacts/minhash-max-docs-guard.test.js` (new)
   - Success: minhash is skipped when size guard triggers, without breaking validation.
 
 ### Acceptance
