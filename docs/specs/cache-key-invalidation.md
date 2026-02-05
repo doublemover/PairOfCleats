@@ -57,6 +57,11 @@ Include:
 - Cache root is versioned by schemaVersion.
 - Old caches are purged on schema change.
 
+## Cache Rebuild + Clear
+- `PAIROFCLEATS_CACHE_REBUILD=1` forces the versioned cache root to be removed before use.
+- `build-index --cache-rebuild` sets `PAIROFCLEATS_CACHE_REBUILD=1`.
+- `pairofcleats cache clear` deletes the versioned cache root (use `--all` to remove legacy roots).
+
 ## Logging
 - Log cache hits/misses with key prefix and reason.
 

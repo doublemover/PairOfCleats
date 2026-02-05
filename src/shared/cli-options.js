@@ -14,6 +14,7 @@ export const INDEX_BUILD_OPTIONS = {
   'scheduler-starvation': { type: 'number', describe: 'scheduler starvation threshold (ms)' },
   'scheduler-low-resource': { type: 'boolean', describe: 'force scheduler low-resource mode' },
   incremental: { type: 'boolean', default: false, alias: 'i' },
+  'cache-rebuild': { type: 'boolean', default: false, describe: 'purge caches before build' },
   'stub-embeddings': { type: 'boolean', default: false, describe: 'use stub embeddings for faster builds' },
   watch: { type: 'boolean', default: false },
   'watch-poll': { type: 'number', default: 2000 },

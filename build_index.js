@@ -34,6 +34,9 @@ if (argv['config-dump'] === true) {
 if (argv.verbose === true) {
   setVerboseEnv(true);
 }
+if (argv['cache-rebuild'] === true) {
+  process.env.PAIROFCLEATS_CACHE_REBUILD = '1';
+}
 
 const display = createDisplay({
   stream: process.stderr,

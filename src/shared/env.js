@@ -39,6 +39,7 @@ export function getEnvConfig(env = process.env) {
     homeRoot: normalizeString(env.PAIROFCLEATS_HOME),
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
     cacheNamespace: normalizeString(env.PAIROFCLEATS_CACHE_NAMESPACE),
+    cacheRebuild: normalizeBoolean(env.PAIROFCLEATS_CACHE_REBUILD),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
     threads: normalizeNumber(env.PAIROFCLEATS_THREADS),

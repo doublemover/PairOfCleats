@@ -76,10 +76,7 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const repoId = getRepoId(repoRoot);
-  const repoCacheRoot = path.join(cacheRoot, 'repos', repoId);
-  const legacyRoot = path.join(cacheRoot, 'repos', getLegacyRepoId(repoRoot));
-  if (fs.existsSync(legacyRoot) && !fs.existsSync(repoCacheRoot)) return legacyRoot;
-  return repoCacheRoot;
+  return path.join(cacheRoot, 'repos', repoId);
 }
 
 /**

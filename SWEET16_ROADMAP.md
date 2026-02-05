@@ -459,6 +459,7 @@ Apply a unified cache key schema and invalidation rules across caches.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
 Touchpoints:
 - `src/shared/cache-key.js` (anchor: buildCacheKey)
+- `src/shared/cache-roots.js` (anchor: getCacheRoot)
 - `src/shared/cache.js` (anchor: createCache)
 - `src/shared/artifact-io/cache.js` (anchor: buildCacheKey)
 - `src/context-pack/assemble.js` (anchor: EXCERPT_CACHE_MAX)
@@ -485,6 +486,7 @@ Touchpoints:
 - `src/shared/embedding-adapter.js` (anchor: pipelineCache)
 - `tools/build/embeddings/cache.js` (anchor: buildCacheKey)
 - `tools/build/embeddings/runner.js` (anchor: buildCacheIdentity)
+- `tools/cache/clear-cache.js` (anchor: clear-cache)
 - `tools/reports/report-code-map.js` (anchor: buildMapCacheKey)
 - `tools/sqlite/vector-extension.js` (anchor: getLoadCacheKey)
 
@@ -540,15 +542,15 @@ Parallel: Run after 16.3.1; can overlap with 16.3.2/16.3.3 if isolated to toolin
 Docs/specs to update: `docs/specs/cache-key-invalidation.md`, `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`
 Touchpoints: see Phase 16.3 list (primary anchors: `src/shared/cache-key.js`, `tools/build/embeddings/cache.js`, `src/index/tooling/orchestrator.js`).
 Tasks:
-- [ ] Task 16.3.4.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.3.4.a: Introduce a versioned cache root (breaking change).
-- [ ] Task 16.3.4.b: Purge all legacy cache layouts unconditionally on upgrade.
-- [ ] Task 16.3.4.c: Add CLI/env flag to force cache rebuild.
-- [ ] Task 16.3.4.d: Add cache size cap + eviction for on-disk caches.
-- [ ] Task 16.3.4.e: Add clear-cache tooling command with safety prompt.
+- [x] Task 16.3.4.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.3.4.a: Introduce a versioned cache root (breaking change).
+- [x] Task 16.3.4.b: Purge all legacy cache layouts unconditionally on upgrade.
+- [x] Task 16.3.4.c: Add CLI/env flag to force cache rebuild.
+- [x] Task 16.3.4.d: Add cache size cap + eviction for on-disk caches.
+- [x] Task 16.3.4.e: Add clear-cache tooling command with safety prompt.
 
 Tests:
-- [ ] `tests/shared/cache/cache-migration.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-migration.test.js` (perf lane) (new)
 
 ### Subphase 16.3.5 -- Tests + Bench
 Parallel: Run after 16.3.2–16.3.4.

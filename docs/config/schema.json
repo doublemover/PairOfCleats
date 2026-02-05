@@ -134,7 +134,9 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "dir": { "type": "string" }
+            "dir": { "type": "string" },
+            "maxBytes": { "type": "number" },
+            "maxEntries": { "type": "number" }
           }
         },
         "typescript": {

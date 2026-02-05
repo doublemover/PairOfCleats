@@ -77,6 +77,21 @@ function resolveCommand(primary, rest) {
     validateArgs(rest, [], []);
     return { script: 'tools/setup/bootstrap.js', extraArgs: [], args: rest };
   }
+  if (primary === 'cache') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('cache requires a subcommand: clear');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'clear') {
+      validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
+      return { script: 'tools/cache/clear-cache.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown cache subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'report') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {

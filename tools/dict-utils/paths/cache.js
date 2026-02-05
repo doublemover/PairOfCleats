@@ -118,13 +118,23 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const maxFiles = Number(typescript.maxFiles);
   const maxFileBytes = Number(typescript.maxFileBytes);
   const maxProgramFiles = Number(typescript.maxProgramFiles);
+  const toolingCacheMaxBytesRaw = Number(toolingCache.maxBytes);
+  const toolingCacheMaxEntriesRaw = Number(toolingCache.maxEntries);
+  const toolingCacheMaxBytes = Number.isFinite(toolingCacheMaxBytesRaw)
+    ? Math.max(0, Math.floor(toolingCacheMaxBytesRaw))
+    : null;
+  const toolingCacheMaxEntries = Number.isFinite(toolingCacheMaxEntriesRaw)
+    ? Math.max(0, Math.floor(toolingCacheMaxEntriesRaw))
+    : null;
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
     autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
     strict: tooling.strict !== false,
     cache: {
       enabled: toolingCache.enabled !== false,
-      dir: typeof toolingCache.dir === 'string' ? toolingCache.dir : ''
+      dir: typeof toolingCache.dir === 'string' ? toolingCache.dir : '',
+      ...(Number.isFinite(toolingCacheMaxBytes) ? { maxBytes: toolingCacheMaxBytes } : {}),
+      ...(Number.isFinite(toolingCacheMaxEntries) ? { maxEntries: toolingCacheMaxEntries } : {})
     },
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     maxRetries: Number.isFinite(maxRetries) ? Math.max(0, Math.floor(maxRetries)) : null,
