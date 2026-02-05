@@ -78,6 +78,24 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 
 ---
 
+## Parallelism Guide
+- Phase 16.0: Subphases 16.0.1–16.0.7 can run in parallel with a shared glossary/terminology pass at the end.
+- Phase 16.1: 16.1.1 first; then 16.1.2 and 16.1.3 in parallel; 16.1.4 last.
+- Phase 16.2: 16.2.1 and 16.2.2 can run in parallel; 16.2.3 and 16.2.4 after core readers; 16.2.5 last.
+- Phase 16.3: 16.3.1 first; then 16.3.2 and 16.3.3 in parallel; 16.3.4 after schema; 16.3.5 last.
+- Phase 16.4: 16.4.1 and 16.4.2 in parallel; 16.4.3 after both; 16.4.4 next; 16.4.5 last.
+- Phase 16.5: 16.5.1 first; 16.5.4 can run in parallel with 16.5.1; 16.5.2 and 16.5.3 after merge core; 16.5.5 last.
+- Phase 16.6: 16.6.1 before 16.6.2; 16.6.3 last.
+- Phase 16.7: 16.7.1 and 16.7.2 can run in parallel if file ownership is split; 16.7.3 last.
+- Phase 16.8: 16.8.1 and 16.8.2 can run in parallel with clear file ownership; 16.8.3 last.
+- Phase 16.9: 16.9.1 before 16.9.2; 16.9.3 last.
+- Phase 16.10: 16.10.1 and 16.10.2 can run in parallel; 16.10.3 last.
+- Phase 16.11: 16.11.1 and 16.11.2 can run in parallel with clear file ownership; 16.11.3 last.
+- Phase 16.12: 16.12.1 and 16.12.2 can run in parallel with clear module ownership; 16.12.3 last.
+- Phase 16.13: 16.13.1 and 16.13.2 can run in parallel; 16.13.3 last.
+- Phase 16.14: 16.14.1, 16.14.2, and 16.14.3 can run in parallel; 16.14.4 last.
+- Phase 16.15: 16.15.1 can run in parallel with 16.15.2/16.15.3; ensure bench harness exists before validating outputs.
+
 ## Roadmap Table of Contents
 - Phase 16.0 -- Cross-cutting Spec Foundations (Subphases: 16.0.1 Build Scheduler Spec; 16.0.2 Artifact IO Spec; 16.0.3 Cache Key Spec; 16.0.4 Build Truth Ledger Spec; 16.0.5 Spill/Merge Spec; 16.0.6 Byte Budget Spec; 16.0.7 Deterministic Ordering Spec)
 - Phase 16.1 -- Unified Build Scheduler + Backpressure Implementation (Subphases: 16.1.1 Core Scheduler; 16.1.2 Stage Wiring; 16.1.3 Embeddings/IO Integration; 16.1.4 Scheduler Tests + Bench)
@@ -115,6 +133,7 @@ Touchpoints: `docs/specs/build-scheduler.md` (anchor: Goals), `docs/specs/artifa
 Touchpoints: `docs/specs/build-scheduler.md` (anchor: Goals), `docs/specs/artifact-io-pipeline.md` (anchor: Overview), `docs/specs/cache-key-invalidation.md` (anchor: Key Schema), `docs/specs/build-truth-ledger.md` (anchor: Schema), `docs/specs/spill-merge-framework.md` (anchor: API), `docs/specs/byte-budget-policy.md` (anchor: Budgets), `docs/specs/deterministic-ordering.md` (anchor: Ordering Rules)
 
 ### Subphase 16.0.1 -- Build Scheduler Spec
+Parallel: Can run alongside 16.0.2–16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -138,6 +157,7 @@ Tests:
 - [ ] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
 
 ### Subphase 16.0.2 -- Artifact IO Pipeline Spec
+Parallel: Can run alongside 16.0.1 and 16.0.3–16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -158,6 +178,7 @@ Tests:
 - [ ] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.3 -- Cache Key + Invalidation Spec
+Parallel: Can run alongside 16.0.1–16.0.2 and 16.0.4–16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -178,6 +199,7 @@ Tests:
 - [ ] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.0.4 -- Build Truth Ledger Spec
+Parallel: Can run alongside 16.0.1–16.0.3 and 16.0.5–16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -198,6 +220,7 @@ Tests:
 - [ ] `tests/indexing/build-state/build-truth-ledger-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.5 -- Spill/Merge Framework Spec
+Parallel: Can run alongside 16.0.1–16.0.4 and 16.0.6–16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -218,6 +241,7 @@ Tests:
 - [ ] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.6 -- Byte Budget Policy Spec
+Parallel: Can run alongside 16.0.1–16.0.5 and 16.0.7; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -238,6 +262,7 @@ Tests:
 - [ ] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.7 -- Deterministic Ordering Spec
+Parallel: Can run alongside 16.0.1–16.0.6; reconcile glossary/terms at end of Phase 16.0.
 Touchpoints: `docs/specs/*` (anchor: section headers in the spec for this subphase)
 Docs/specs to update: `docs/specs/build-scheduler.md`, `docs/specs/artifact-io-pipeline.md`, `docs/specs/cache-key-invalidation.md`, `docs/specs/build-truth-ledger.md`, `docs/specs/spill-merge-framework.md`, `docs/specs/byte-budget-policy.md`, `docs/specs/deterministic-ordering.md`
 Tasks:
@@ -266,6 +291,7 @@ Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/spec
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 
 ### Subphase 16.1.1 -- Core Scheduler
+Parallel: Must land before 16.1.2 and 16.1.3.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
@@ -286,6 +312,7 @@ Tests:
 - [ ] `tests/shared/concurrency/scheduler-starvation-detection.test.js` (perf lane) (new)
 
 ### Subphase 16.1.2 -- Stage Wiring
+Parallel: Can run alongside 16.1.3 after 16.1.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
@@ -301,6 +328,7 @@ Tests:
 - [ ] `tests/indexing/runtime/scheduler-stage-wiring.test.js` (perf lane) (new)
 
 ### Subphase 16.1.3 -- Embeddings + IO Integration
+Parallel: Can run alongside 16.1.2 after 16.1.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
@@ -316,6 +344,7 @@ Tests:
 - [ ] `tests/indexing/embeddings/scheduler-backpressure.test.js` (perf lane) (new)
 
 ### Subphase 16.1.4 -- Scheduler Tests + Bench
+Parallel: Run after 16.1.1–16.1.3.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
@@ -340,6 +369,7 @@ Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/ar
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 
 ### Subphase 16.2.1 -- Core Readers
+Parallel: Can run alongside 16.2.2; complete before 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
@@ -356,6 +386,7 @@ Tests:
 - [ ] `tests/shared/artifact-io/jsonl-concurrency-order.test.js` (perf lane) (new)
 
 ### Subphase 16.2.2 -- Compression + Offsets
+Parallel: Can run alongside 16.2.1; complete before 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
@@ -371,6 +402,7 @@ Tests:
 - [ ] `tests/shared/artifact-io/offsets-unified.test.js` (perf lane) (new)
 
 ### Subphase 16.2.3 -- Writer Migration
+Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.4 with clear file ownership.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
@@ -385,6 +417,7 @@ Tests:
 - [ ] `tests/indexing/artifacts/writer-unified-pipeline.test.js` (perf lane) (new)
 
 ### Subphase 16.2.4 -- Loader Migration
+Parallel: Start after 16.2.1/16.2.2; can run alongside 16.2.3 with clear file ownership.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
@@ -401,6 +434,7 @@ Tests:
 - [ ] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
 
 ### Subphase 16.2.5 -- Validation + Bench
+Parallel: Run after 16.2.3/16.2.4.
 Docs/specs to update: `docs/specs/json-stream-atomic-replace.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`
 Tasks:
@@ -424,6 +458,7 @@ Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resol
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 
 ### Subphase 16.3.1 -- Schema + Helpers
+Parallel: Must land before 16.3.2/16.3.3/16.3.4.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 Tasks:
@@ -439,6 +474,7 @@ Tests:
 - [ ] `tests/shared/cache/cache-key-builder.test.js` (perf lane) (new)
 
 ### Subphase 16.3.2 -- Embeddings Cache
+Parallel: Can run alongside 16.3.3 after 16.3.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 Tasks:
@@ -453,6 +489,7 @@ Tests:
 - [ ] `tests/indexing/embeddings/cache-key-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.3.3 -- File Meta, Import, VFS
+Parallel: Can run alongside 16.3.2 after 16.3.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 Tasks:
@@ -468,6 +505,7 @@ Tests:
 - [ ] `tests/indexing/imports/cache-invalidation.test.js` (perf lane) (new)
 
 ### Subphase 16.3.4 -- Cache Reset + Cleanup
+Parallel: Run after 16.3.1; can overlap with 16.3.2/16.3.3 if isolated to tooling.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 Tasks:
@@ -482,6 +520,7 @@ Tests:
 - [ ] `tests/shared/cache/cache-migration.test.js` (perf lane) (new)
 
 ### Subphase 16.3.5 -- Tests + Bench
+Parallel: Run after 16.3.2–16.3.4.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/import-resolution.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-hash-routing.md`, ``
 Touchpoints: `src/shared/cache.js (anchor: createCache)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/index/build/import-resolution.js (anchor: resolveImports)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`
 Tasks:
@@ -505,6 +544,7 @@ Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/determi
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 
 ### Subphase 16.4.1 -- Ledger Core
+Parallel: Can run alongside 16.4.2; both must land before 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
@@ -520,6 +560,7 @@ Tests:
 - [ ] `tests/indexing/build-state/ledger-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.4.2 -- Ordering Library
+Parallel: Can run alongside 16.4.1; both must land before 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
@@ -534,6 +575,7 @@ Tests:
 - [ ] `tests/shared/order/order-stability.test.js` (perf lane) (new)
 
 ### Subphase 16.4.3 -- Wiring
+Parallel: Run after 16.4.1/16.4.2.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
@@ -548,6 +590,7 @@ Tests:
 - [ ] `tests/indexing/determinism/ordering-ledger-integration.test.js` (perf lane) (new)
 
 ### Subphase 16.4.4 -- Validation
+Parallel: Run after 16.4.3.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
@@ -563,6 +606,7 @@ Tests:
 - [ ] `tests/indexing/validate/ledger-validation.test.js` (perf lane) (new)
 
 ### Subphase 16.4.5 -- Tests + Bench
+Parallel: Run after 16.4.1–16.4.4.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
@@ -586,6 +630,7 @@ Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 
 ### Subphase 16.5.1 -- Merge Core
+Parallel: Must land before 16.5.2/16.5.3.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
@@ -601,6 +646,7 @@ Tests:
 - [ ] `tests/shared/merge/merge-core.test.js` (perf lane) (new)
 
 ### Subphase 16.5.2 -- Postings Adoption
+Parallel: Can run alongside 16.5.3 after 16.5.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
@@ -615,6 +661,7 @@ Tests:
 - [ ] `tests/indexing/postings/spill-merge-unified.test.js` (perf lane) (new)
 
 ### Subphase 16.5.3 -- VFS/Relations/Artifacts Adoption
+Parallel: Can run alongside 16.5.2 after 16.5.1; coordinate file ownership.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
@@ -629,6 +676,7 @@ Tests:
 - [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane) (new)
 
 ### Subphase 16.5.4 -- Byte Budget Policy
+Parallel: Can run alongside 16.5.1; must land before 16.5.5.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
@@ -643,6 +691,7 @@ Tests:
 - [ ] `tests/indexing/runtime/byte-budget-enforcement.test.js` (perf lane) (new)
 
 ### Subphase 16.5.5 -- Tests + Bench
+Parallel: Run after 16.5.1–16.5.4.
 Docs/specs to update: `docs/specs/spimi-spill.md`, `docs/specs/segmentation-perf.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/byte-budget-policy.md`
 Touchpoints: `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/build/postings.js (anchor: buildPostings)`, `src/index/vfs/merge.js (anchor: mergeRuns)`, `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/state.js (anchor: byteBudgets)`
 Tasks:
@@ -662,6 +711,7 @@ Tests:
 ## Phase 16.13 -- Artifact Pipeline Optimization
 
 ### Subphase 16.13.1 -- Offsets + Shards
+Parallel: Can run alongside 16.13.2 with clear file ownership.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/index/build/artifacts/*.js (anchor: writeArtifacts)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
@@ -676,6 +726,7 @@ Tests:
 - [ ] `tests/indexing/artifacts/offsets-unified-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.13.2 -- Loader Parallelism
+Parallel: Can run alongside 16.13.1 with clear file ownership.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/index/build/artifacts/*.js (anchor: writeArtifacts)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
@@ -691,6 +742,7 @@ Tests:
 - [ ] `tests/shared/artifact-io/loader-parallelism.test.js` (perf lane) (new)
 
 ### Subphase 16.13.3 -- Tests + Bench
+Parallel: Run after 16.13.1/16.13.2.
 Docs/specs to update: `docs/specs/artifact-schemas.md`, `docs/specs/json-stream-atomic-replace.md`, `docs/perf/index-artifact-pipelines.md`, `docs/perf/shared-io-serialization.md`
 Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`, `src/index/build/artifacts/*.js (anchor: writeArtifacts)`, `src/shared/json-stream.js (anchor: writeJsonLinesShardedAsync)`
 Tasks:
@@ -710,6 +762,7 @@ Tests:
 ## Phase 16.14 -- Index State + File Meta + Minhash
 
 ### Subphase 16.14.1 -- Index State
+Parallel: Can run alongside 16.14.2/16.14.3 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
@@ -725,6 +778,7 @@ Tests:
 - [ ] `tests/indexing/artifacts/index-state-delta-compression.test.js` (perf lane) (new)
 
 ### Subphase 16.14.2 -- File Meta
+Parallel: Can run alongside 16.14.1/16.14.3 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
@@ -740,6 +794,7 @@ Tests:
 - [ ] `tests/indexing/artifacts/file-meta-binary-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.14.3 -- Minhash
+Parallel: Can run alongside 16.14.1/16.14.2 with clear ownership.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
@@ -755,6 +810,7 @@ Tests:
 - [ ] `tests/indexing/postings/minhash-packed-consistency.test.js` (perf lane) (new)
 
 ### Subphase 16.14.4 -- Tests + Bench
+Parallel: Run after 16.14.1–16.14.3.
 Docs/specs to update: `docs/perf/index-state-file-meta.md`, `docs/specs/metadata-schema-v2.md`, `docs/specs/symbol-artifacts-and-pipeline.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeIndexState)`, `src/index/build/artifacts/file-meta.js (anchor: buildFileMeta)`, `src/index/build/postings.js (anchor: buildMinhash)`, `src/shared/artifact-io/loaders.js (anchor: loadMinhashSignatures)`
 Tasks:
@@ -773,6 +829,7 @@ Tests:
 ## Phase 16.6 -- Stage1 Postings Throughput
 
 ### Subphase 16.6.1 -- Token/Postings Core
+Parallel: Must land before 16.6.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
@@ -789,6 +846,7 @@ Tests:
 - [ ] `tests/indexing/postings/token-id-canonicalization.test.js` (perf lane) (new)
 
 ### Subphase 16.6.2 -- Backpressure + Concurrency
+Parallel: Run after 16.6.1.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
@@ -803,6 +861,7 @@ Tests:
 - [ ] `tests/indexing/postings/backpressure-queue.test.js` (perf lane) (new)
 
 ### Subphase 16.6.3 -- Tests + Bench
+Parallel: Run after 16.6.1/16.6.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/specs/spimi-spill.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/build/postings.js (anchor: buildPostings)`, `src/index/build/tokenization.js (anchor: tokenizeFile)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/postings.js (anchor: buildPostingsStep)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`
 Tasks:
@@ -822,6 +881,7 @@ Tests:
 ## Phase 16.7 -- Stage2 Relations + Filter Index
 
 ### Subphase 16.7.1 -- Relations Core
+Parallel: Can run alongside 16.7.2 with clear file ownership.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
@@ -837,6 +897,7 @@ Tests:
 - [ ] `tests/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
 
 ### Subphase 16.7.2 -- Filter Index + Repo Map
+Parallel: Can run alongside 16.7.1 with clear file ownership.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
@@ -851,6 +912,7 @@ Tests:
 - [ ] `tests/indexing/filter-index/bitmap-roundtrip.test.js` (perf lane) (new)
 
 ### Subphase 16.7.3 -- Tests + Bench
+Parallel: Run after 16.7.1/16.7.2.
 Docs/specs to update: `docs/specs/symbol-artifacts-and-pipeline.md`, `docs/specs/map-artifact.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/deterministic-ordering.md`
 Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations)`, `src/index/build/artifacts/filter-index.js (anchor: writeFilterIndex)`, `src/index/build/artifacts/writers/repo-map.js (anchor: writeRepoMap)`, `src/shared/hash.js (anchor: hash64)`
 Tasks:
@@ -870,6 +932,7 @@ Tests:
 ## Phase 16.8 -- Embeddings Pipeline Throughput
 
 ### Subphase 16.8.1 -- Cache + Keys
+Parallel: Can run alongside 16.8.2 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
@@ -885,6 +948,7 @@ Tests:
 - [ ] `tests/indexing/embeddings/cache-fastpath.test.js` (perf lane) (new)
 
 ### Subphase 16.8.2 -- IO + Batching
+Parallel: Can run alongside 16.8.1 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
@@ -900,6 +964,7 @@ Tests:
 - [ ] `tests/indexing/embeddings/batcher-autotune.test.js` (perf lane) (new)
 
 ### Subphase 16.8.3 -- Tests + Bench
+Parallel: Run after 16.8.1/16.8.2.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
@@ -918,6 +983,7 @@ Tests:
 ## Phase 16.9 -- SQLite Build Throughput
 
 ### Subphase 16.9.1 -- Bulk Load Core
+Parallel: Must land before 16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
 Tasks:
@@ -933,6 +999,7 @@ Tests:
 - [ ] `tests/storage/sqlite/bulk-load-transaction.test.js` (perf lane) (new)
 
 ### Subphase 16.9.2 -- FTS/Index Build
+Parallel: Run after 16.9.1.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
 Tasks:
@@ -948,6 +1015,7 @@ Tests:
 - [ ] `tests/storage/sqlite/fts-deferred-build.test.js` (perf lane) (new)
 
 ### Subphase 16.9.3 -- Tests + Bench
+Parallel: Run after 16.9.1/16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
 Tasks:
@@ -967,6 +1035,7 @@ Tests:
 ## Phase 16.10 -- VFS Manifest Throughput
 
 ### Subphase 16.10.1 -- Segment IO
+Parallel: Can run alongside 16.10.2 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
 Tasks:
@@ -983,6 +1052,7 @@ Tests:
 - [ ] `tests/indexing/vfs/segment-bloom-negative.test.js` (perf lane) (new)
 
 ### Subphase 16.10.2 -- Merge/Compaction
+Parallel: Can run alongside 16.10.1 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
 Tasks:
@@ -998,6 +1068,7 @@ Tests:
 - [ ] `tests/indexing/vfs/compaction-byte-threshold.test.js` (perf lane) (new)
 
 ### Subphase 16.10.3 -- Tests + Bench
+Parallel: Run after 16.10.1/16.10.2.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
 Tasks:
@@ -1016,6 +1087,7 @@ Tests:
 ## Phase 16.11 -- Tree-sitter Throughput
 
 ### Subphase 16.11.1 -- Grammar/Parser Caching
+Parallel: Can run alongside 16.11.2 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
 Tasks:
@@ -1031,6 +1103,7 @@ Tests:
 - [ ] `tests/indexing/tree-sitter/grammar-cache.test.js` (perf lane) (new)
 
 ### Subphase 16.11.2 -- Parse Scheduling
+Parallel: Can run alongside 16.11.1 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
 Tasks:
@@ -1046,6 +1119,7 @@ Tests:
 - [ ] `tests/indexing/tree-sitter/parse-scheduling.test.js` (perf lane) (new)
 
 ### Subphase 16.11.3 -- Tests + Bench
+Parallel: Run after 16.11.1/16.11.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
 Tasks:
@@ -1065,6 +1139,7 @@ Tests:
 ## Phase 16.12 -- Graph + Context Pack Throughput
 
 ### Subphase 16.12.1 -- Graph Store
+Parallel: Can run alongside 16.12.2 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
@@ -1079,6 +1154,7 @@ Tests:
 - [ ] `tests/retrieval/graph/graph-store-columnar.test.js` (perf lane) (new)
 
 ### Subphase 16.12.2 -- Traversal + Filtering
+Parallel: Can run alongside 16.12.1 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
@@ -1094,6 +1170,7 @@ Tests:
 - [ ] `tests/retrieval/graph/filter-first-traversal.test.js` (perf lane) (new)
 
 ### Subphase 16.12.3 -- Tests + Bench
+Parallel: Run after 16.12.1/16.12.2.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
@@ -1113,6 +1190,7 @@ Tests:
 ## Phase 16.15 -- Usage Verification + Cross-Phase Bench Coverage
 
 ### Subphase 16.15.1 -- Usage Checklist
+Parallel: Can run alongside 16.15.2/16.15.3.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
@@ -1138,6 +1216,7 @@ Tests:
 - [ ] `tests/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
 
 ### Subphase 16.15.2 -- Bench Harness
+Parallel: Can run alongside 16.15.1; ensure bench harness exists before validating outputs.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
@@ -1152,6 +1231,7 @@ Tests:
 - [ ] `tests/tooling/bench/bench-runner-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.15.3 -- Bench Output Contracts
+Parallel: Run after 16.15.2; can overlap with 16.15.1.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
