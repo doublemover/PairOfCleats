@@ -192,7 +192,7 @@ export async function enqueueTokenPostingsArtifacts({
             vocabCount: postings.tokenVocab.length,
             parts,
             compression: tokenPostingsCompression || null,
-            ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
+            ...(tokenIdMeta ? { extensions: { tokenId: tokenIdMeta } } : {})
           },
           arrays: {
             docLengths: state.docLengths

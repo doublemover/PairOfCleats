@@ -1532,3 +1532,5 @@ Tests:
 - ensure we're wasming correctly
 - evaluate context window sizing
 - we need a 'merged' c8 coverage generation ci job
+- what is tools/dict-utils/, why is it named that? it seems like it does a lot of stuff completely unrelated to dictionaries and is referenced by a lot, perhaps that code should be moved to shared?
+- what is pairofcleats.json used for anymore? it doesn't seem necessary?
