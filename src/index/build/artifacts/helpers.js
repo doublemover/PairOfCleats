@@ -6,6 +6,7 @@ import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 import {
   OFFSETS_COMPRESSION,
@@ -558,6 +559,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
   let totalJsonlBytes = 0;
   let totalEntries = 0;
   let maxRowBytes = 0;
+  const orderingHasher = createOrderingHasher();
   for (const graphName of GRAPH_RELATION_GRAPHS) {
     const graph = relations[graphName] || {};
     const graphObj = relations?.__graphs?.[graphName] || null;
@@ -580,6 +582,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
       nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (nodeIndex > 0 ? 1 : 0);
       const line = `{"graph":${graphKey},"node":${nodeJson}}`;
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      orderingHasher.update(line);
       maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
         throw new Error(`graph_relations entry exceeds max JSON size (${lineBytes} bytes).`);
@@ -614,6 +617,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
     + graphSizes.callGraph - 2
     + graphSizes.usageGraph - 2
     + graphSizes.importGraph - 2;
+  const orderingResult = totalEntries ? orderingHasher.digest() : null;
   return {
     totalJsonBytes,
     totalJsonlBytes,
@@ -621,25 +625,28 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
     graphs,
     version,
     generatedAt,
-    maxRowBytes
+    maxRowBytes,
+    orderingHash: orderingResult?.hash || null,
+    orderingCount: orderingResult?.count || 0
   };
 };
 
 export const iterateGraphNodes = (relations, graphName) => {
   const graph = relations?.[graphName];
   if (Array.isArray(graph?.nodes)) {
-    return graph.nodes[Symbol.iterator]();
+    const nodes = stableOrder(graph.nodes, [(node) => node?.id ?? null]);
+    return nodes[Symbol.iterator]();
   }
   const graphObj = relations?.__graphs?.[graphName];
   if (!graphObj) {
     return [][Symbol.iterator]();
   }
-  const ids = graphObj.nodes().slice().sort(compareStrings);
+  const ids = stableOrder(graphObj.nodes().slice(), [(id) => id]);
   return (function* graphNodeIterator() {
     for (const id of ids) {
       const attrs = graphObj.getNodeAttributes(id) || {};
-      const out = graphObj.outNeighbors(id).slice().sort();
-      const incoming = graphObj.inNeighbors(id).slice().sort();
+      const out = stableOrder(graphObj.outNeighbors(id).slice(), [(value) => value]);
+      const incoming = stableOrder(graphObj.inNeighbors(id).slice(), [(value) => value]);
       yield { id, ...attrs, out, in: incoming };
     }
   })();
@@ -684,8 +691,8 @@ export const buildGraphRelationsCsr = (relations) => {
     const graphObj = relations?.__graphs?.[graphName] || null;
     const nodeEntries = graphObj ? null : Array.from(iterateGraphNodes(relations, graphName));
     const nodes = graphObj
-      ? graphObj.nodes().slice().sort(compareStrings)
-      : nodeEntries.map((node) => node.id).sort(compareStrings);
+      ? stableOrder(graphObj.nodes().slice(), [(id) => id])
+      : stableOrder(nodeEntries.map((node) => node.id), [(id) => id]);
     const outById = nodeEntries
       ? nodeEntries.reduce((acc, node) => {
         acc.set(node.id, Array.isArray(node.out) ? node.out : []);
@@ -699,9 +706,9 @@ export const buildGraphRelationsCsr = (relations) => {
     for (let i = 0; i < nodes.length; i += 1) {
       const id = nodes[i];
       const out = graphObj
-        ? graphObj.outNeighbors(id).slice().sort()
+        ? stableOrder(graphObj.outNeighbors(id).slice(), [(value) => value])
         : (outById?.get(id) || []);
-      const outList = graphObj ? out : (Array.isArray(out) ? out.slice().sort() : []);
+      const outList = graphObj ? out : (Array.isArray(out) ? stableOrder(out.slice(), [(value) => value]) : []);
       for (const target of outList) {
         const targetIndex = idToIndex.get(target);
         if (Number.isFinite(targetIndex)) edges.push(targetIndex);

@@ -113,6 +113,7 @@ export const writeIndexArtifactsForMode = async ({
     }
   }
   await writeIndexArtifacts({
+    buildRoot: runtime.buildRoot,
     outDir,
     mode,
     state,

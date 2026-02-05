@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   stableOrder,
+  stableOrderWithComparator,
   stableBucketOrder,
   stableOrderMapEntries,
   orderRepoMapEntries
@@ -16,6 +17,12 @@ const items = [
 
 const ordered = stableOrder(items, ['key', 'value']);
 assert.deepEqual(ordered.map((item) => item.id), [3, 2, 4, 1]);
+
+const comparatorOrdered = stableOrderWithComparator(items, (left, right) => {
+  if (left.key !== right.key) return left.key.localeCompare(right.key);
+  return left.value - right.value;
+});
+assert.deepEqual(comparatorOrdered.map((item) => item.id), [3, 2, 4, 1]);
 
 const bucketed = stableBucketOrder(items, 'bucket', ['key', 'value']);
 assert.deepEqual(bucketed.map((item) => item.id), [3, 2, 4, 1]);

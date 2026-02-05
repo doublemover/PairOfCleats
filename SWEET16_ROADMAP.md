@@ -621,15 +621,15 @@ Parallel: Run after 16.4.1/16.4.2.
 Docs/specs to update: `docs/specs/build-state-integrity.md`, `docs/specs/deterministic-ordering.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/graph-filtering-and-dedupe.md`
 Touchpoints: `src/index/build/build-state.js (anchor: writeBuildState)`, `src/shared/order.js (anchor: stableOrder)`, `src/index/build/artifacts/chunk-meta.js (anchor: writeChunkMeta)`, `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/index/validate/index-validate.js (anchor: validateIndex)`
 Tasks:
-- [ ] Task 16.4.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.4.3.a: Apply ordering helpers to chunk_meta emission.
-- [ ] Task 16.4.3.b: Apply ordering helpers to relations emission.
-- [ ] Task 16.4.3.c: Apply ordering helpers to graph outputs.
-- [ ] Task 16.4.3.d: Apply ordering helpers to repo map outputs.
-- [ ] Task 16.4.3.e: Record ordering hashes in ledger for each artifact.
+- [x] Task 16.4.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.4.3.a: Apply ordering helpers to chunk_meta emission.
+- [x] Task 16.4.3.b: Apply ordering helpers to relations emission.
+- [x] Task 16.4.3.c: Apply ordering helpers to graph outputs.
+- [x] Task 16.4.3.d: Apply ordering helpers to repo map outputs.
+- [x] Task 16.4.3.e: Record ordering hashes in ledger for each artifact.
 
 Tests:
-- [ ] `tests/indexing/determinism/ordering-ledger-integration.test.js` (perf lane) (new)
+- [x] `tests/indexing/determinism/ordering-ledger-integration.test.js` (perf lane) (new)
 
 ### Subphase 16.4.4 -- Validation
 Parallel: Run after 16.4.3.

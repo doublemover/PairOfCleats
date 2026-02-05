@@ -23,6 +23,8 @@ export async function enqueueGraphRelationsArtifacts({
   if (!graphRelations || typeof graphRelations !== 'object') return;
   const graphMeasurement = measureGraphRelations(graphRelations, { maxJsonBytes });
   if (!graphMeasurement) return;
+  const orderingHash = graphMeasurement.orderingHash || null;
+  const orderingCount = graphMeasurement.orderingCount || 0;
   const graphPath = path.join(outDir, 'graph_relations.json');
   const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
   const graphMetaPath = path.join(outDir, 'graph_relations.meta.json');
@@ -131,4 +133,5 @@ export async function enqueueGraphRelationsArtifacts({
       }
     );
   }
+  return { orderingHash, orderingCount };
 }

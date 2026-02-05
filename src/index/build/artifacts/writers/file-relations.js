@@ -6,11 +6,13 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
+import { createOrderingHasher, stableOrderMapEntries } from '../../../../shared/order.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 export const createFileRelationsIterator = (relations) => function* fileRelationsIterator() {
   if (!relations || typeof relations.entries !== 'function') return;
-  for (const [file, data] of relations.entries()) {
+  const ordered = stableOrderMapEntries(relations, ['key']);
+  for (const { key: file, value: data } of ordered) {
     if (!file || !data) continue;
     yield {
       file,
@@ -36,9 +38,11 @@ export const enqueueFileRelationsArtifacts = ({
   let totalBytes = 2;
   let totalJsonlBytes = 0;
   let totalEntries = 0;
+  const orderingHasher = createOrderingHasher();
   for (const entry of fileRelationsIterator()) {
     const line = JSON.stringify(entry);
     const lineBytes = Buffer.byteLength(line, 'utf8');
+    orderingHasher.update(line);
     if (resolvedMaxBytes && (lineBytes + 1) > resolvedMaxBytes) {
       throw new Error(`file_relations entry exceeds max JSON size (${lineBytes} bytes).`);
     }
@@ -46,7 +50,10 @@ export const enqueueFileRelationsArtifacts = ({
     totalJsonlBytes += lineBytes + 1;
     totalEntries += 1;
   }
-  if (!totalEntries) return;
+  if (!totalEntries) return { orderingHash: null, orderingCount: 0 };
+  const orderingResult = orderingHasher.digest();
+  const orderingHash = orderingResult?.hash || null;
+  const orderingCount = orderingResult?.count || 0;
 
   const useJsonl = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
   const resolveJsonExtension = (value) => {
@@ -98,7 +105,7 @@ export const enqueueFileRelationsArtifacts = ({
       count: totalEntries,
       compression: compression || null
     }, relationsPath);
-    return;
+    return { orderingHash, orderingCount };
   }
 
   if (log) {
@@ -154,4 +161,5 @@ export const enqueueFileRelationsArtifacts = ({
       addPieceFile({ type: 'relations', name: 'file_relations_meta', format: 'json' }, relationsMetaPath);
     }
   );
+  return { orderingHash, orderingCount };
 };

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
 import { ensureDiskSpace } from '../../../../shared/disk-space.js';
+import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
 import {
   writeJsonLinesFile,
   writeJsonLinesFileAsync,
@@ -213,8 +214,7 @@ export const resolveChunkMetaOrder = (chunks) => {
     const current = chunks[i];
     if (compareChunkMetaChunks(prev, current) > 0) {
       const order = Array.from({ length: chunks.length }, (_, index) => index);
-      order.sort((a, b) => compareChunkMetaChunks(chunks[a], chunks[b]));
-      return order;
+      return stableOrderWithComparator(order, (a, b) => compareChunkMetaChunks(chunks[a], chunks[b]));
     }
     prev = current;
   }
@@ -236,7 +236,7 @@ export const resolveChunkMetaOrderById = (chunks) => {
   }
   if (ordered) return null;
   const order = Array.from({ length: chunks.length }, (_, index) => index);
-  order.sort((a, b) => {
+  return stableOrderWithComparator(order, (a, b) => {
     const idA = Number(chunks[a]?.id);
     const idB = Number(chunks[b]?.id);
     if (Number.isFinite(idA) && Number.isFinite(idB) && idA !== idB) return idA - idB;
@@ -244,7 +244,6 @@ export const resolveChunkMetaOrderById = (chunks) => {
     if (!Number.isFinite(idA) && Number.isFinite(idB)) return 1;
     return compareChunkMetaChunks(chunks[a], chunks[b]);
   });
-  return order;
 };
 
 export const createChunkMetaIterator = ({
@@ -493,10 +492,12 @@ export const enqueueChunkMetaArtifacts = async ({
     let firstOutOfOrder = null;
     let lastId = null;
     let firstIdMismatch = null;
+    const orderingHasher = createOrderingHasher();
     chunkMetaIterator.resetStats?.();
     for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
       const line = JSON.stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      orderingHasher.update(line);
       maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
         throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
@@ -518,17 +519,29 @@ export const enqueueChunkMetaArtifacts = async ({
       }
       if (id != null) lastId = id;
     }
-    return { totalJsonlBytes, total, maxRowBytes, ordered, firstOutOfOrder, firstIdMismatch };
+    const orderingResult = total ? orderingHasher.digest() : null;
+    return {
+      totalJsonlBytes,
+      total,
+      maxRowBytes,
+      ordered,
+      firstOutOfOrder,
+      firstIdMismatch,
+      orderingHash: orderingResult?.hash || null,
+      orderingCount: orderingResult?.count || 0
+    };
   };
   const measureChunkMeta = () => {
     let totalJsonBytes = 2;
     let totalJsonlBytes = 0;
     let total = 0;
     let maxRowBytes = 0;
+    const orderingHasher = createOrderingHasher();
     chunkMetaIterator.resetStats?.();
     for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
       const line = JSON.stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
+      orderingHasher.update(line);
       maxRowBytes = Math.max(maxRowBytes, lineBytes);
       if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
         throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
@@ -537,7 +550,15 @@ export const enqueueChunkMetaArtifacts = async ({
       totalJsonlBytes += lineBytes + 1;
       total += 1;
     }
-    return { totalJsonBytes, totalJsonlBytes, total, maxRowBytes };
+    const orderingResult = total ? orderingHasher.digest() : null;
+    return {
+      totalJsonBytes,
+      totalJsonlBytes,
+      total,
+      maxRowBytes,
+      orderingHash: orderingResult?.hash || null,
+      orderingCount: orderingResult?.count || 0
+    };
   };
 
   let resolvedUseJsonl = chunkMetaUseJsonl;
@@ -668,6 +689,8 @@ export const enqueueChunkMetaArtifacts = async ({
   const requiredBytes = resolvedUseJsonl
     ? (jsonlScan?.totalJsonlBytes || 0)
     : (measured?.totalJsonBytes || 0);
+  const orderingHash = jsonlScan?.orderingHash || measured?.orderingHash || null;
+  const orderingCount = jsonlScan?.orderingCount || measured?.orderingCount || 0;
   await ensureDiskSpace({
     targetPath: outDir,
     requiredBytes,
@@ -890,4 +913,5 @@ export const enqueueChunkMetaArtifacts = async ({
       piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
     });
   }
+  return { orderingHash, orderingCount };
 };

@@ -7,10 +7,12 @@
 - Backward compatibility with older ordering rules.
 
 ## Ordering Rules
-- chunk_meta: order by chunkUid, then fileId, then startByte.
+- chunk_meta: order by file, chunkUid, chunkId/id, start, then name.
 - relations: order by srcId, dstId, edgeType, then callSiteId.
+- file_relations: order by file path.
+- graph_relations: order by graph name, node id, then sorted neighbor ids.
 - graph edges: order by src, dst, kind, then weight.
-- repo map: order by filePath, then symbolKey.
+- repo map: order by file, name, kind, signature, then startLine.
 
 ## Tie-breakers
 - Use stable string comparisons on normalized paths.
@@ -25,8 +27,8 @@
 Helpers live in `src/shared/order.js` and must be used for new ordering logic.
 
 ## Hashing
-- Hash ordered outputs with xxhash64.
-- Record in build truth ledger.
+- Hash ordered outputs with a streaming `sha1` hasher (xxhash64 is a future upgrade when we have a streaming API).
+- Record hashes in build truth ledger with `algo:value` strings.
 - Ledger stage keys are `stage:mode` (e.g., `stage2:code`) when mode-specific.
 - Seed inputs (`discoveryHash`, `fileListHash`, `fileCount`) are recorded for diagnosis.
 

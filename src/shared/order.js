@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { compareStrings } from './sort.js';
 
 const normalizeSelector = (selector) => {
@@ -44,6 +45,19 @@ export const stableOrder = (items, selectors = []) => {
     .map((entry) => entry.item);
 };
 
+export const stableOrderWithComparator = (items, comparator) => {
+  const list = Array.isArray(items) ? items.slice() : [];
+  if (typeof comparator !== 'function') return list;
+  return list
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const cmp = comparator(left.item, right.item);
+      if (cmp !== 0) return cmp;
+      return left.index - right.index;
+    })
+    .map((entry) => entry.item);
+};
+
 export const stableBucketOrder = (items, bucketSelector, selectors = []) => {
   const list = Array.isArray(items) ? items.slice() : [];
   if (!bucketSelector) return stableOrder(list, selectors);
@@ -80,9 +94,35 @@ export const orderRepoMapEntries = (entries) => stableOrder(entries, [
   (entry) => Number.isFinite(entry?.endLine) ? entry.endLine : null
 ]);
 
+export const createOrderingHasher = () => {
+  const hash = crypto.createHash('sha1');
+  let count = 0;
+  return {
+    update(value) {
+      hash.update(String(value ?? ''));
+      hash.update('\n');
+      count += 1;
+    },
+    digest() {
+      const value = hash.digest('hex');
+      return {
+        algo: 'sha1',
+        value,
+        count,
+        hash: `sha1:${value}`
+      };
+    },
+    count() {
+      return count;
+    }
+  };
+};
+
 export const ORDERING_HELPERS = {
   stableOrder,
+  stableOrderWithComparator,
   stableBucketOrder,
   stableOrderMapEntries,
-  orderRepoMapEntries
+  orderRepoMapEntries,
+  createOrderingHasher
 };

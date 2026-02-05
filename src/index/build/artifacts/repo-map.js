@@ -2,14 +2,17 @@ import path from 'node:path';
 import { writeJsonArrayFile, writeJsonLinesSharded, writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/files.js';
+import { createOrderingHasher } from '../../../shared/order.js';
 
 export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
   let totalEntries = 0;
   let totalBytes = 2;
   let totalJsonlBytes = 0;
+  const orderingHasher = createOrderingHasher();
   for (const entry of repoMapIterator()) {
     const line = JSON.stringify(entry);
     const lineBytes = Buffer.byteLength(line, 'utf8');
+    orderingHasher.update(line);
     if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
       throw new Error(`repo_map entry exceeds max JSON size (${lineBytes} bytes).`);
     }
@@ -17,7 +20,14 @@ export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
     totalJsonlBytes += lineBytes + 1;
     totalEntries += 1;
   }
-  return { totalEntries, totalBytes, totalJsonlBytes };
+  const orderingResult = totalEntries ? orderingHasher.digest() : null;
+  return {
+    totalEntries,
+    totalBytes,
+    totalJsonlBytes,
+    orderingHash: orderingResult?.hash || null,
+    orderingCount: orderingResult?.count || 0
+  };
 }
 
 export async function enqueueRepoMapArtifacts({

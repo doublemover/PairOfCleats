@@ -1,6 +1,6 @@
 import Graph from 'graphology';
 import { normalizeCap } from '../../shared/limits.js';
-import { compareStrings } from '../../shared/sort.js';
+import { stableOrder } from '../../shared/order.js';
 import { resolveChunkId } from '../chunk-id.js';
 import { resolveRelativeImport } from '../type-inference-crossfile/resolve-relative-import.js';
 
@@ -93,11 +93,11 @@ const addDirectedEdge = (graph, source, target, guard, context) => {
 
 const serializeGraphNodes = (graph) => {
   const nodes = [];
-  const ids = graph.nodes().slice().sort(compareStrings);
+  const ids = stableOrder(graph.nodes().slice(), [(id) => id]);
   for (const id of ids) {
     const attrs = graph.getNodeAttributes(id) || {};
-    const out = graph.outNeighbors(id).slice().sort();
-    const incoming = graph.inNeighbors(id).slice().sort();
+    const out = stableOrder(graph.outNeighbors(id).slice(), [(value) => value]);
+    const incoming = stableOrder(graph.inNeighbors(id).slice(), [(value) => value]);
     nodes.push({
       id,
       ...attrs,

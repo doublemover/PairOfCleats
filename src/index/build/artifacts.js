@@ -44,6 +44,7 @@ import {
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
+import { recordOrderingHash } from './build-state.js';
 
 /**
  * Write index artifacts and metrics.
@@ -52,6 +53,7 @@ import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js
 export async function writeIndexArtifacts(input) {
   const {
     outDir,
+    buildRoot,
     mode,
     state,
     postings,
@@ -71,6 +73,18 @@ export async function writeIndexArtifacts(input) {
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
+  const orderingStage = indexState?.stage || 'stage2';
+  const recordOrdering = async (artifact, ordering, rule) => {
+    if (!buildRoot || !ordering?.orderingHash) return;
+    await recordOrderingHash(buildRoot, {
+      stage: orderingStage,
+      mode,
+      artifact,
+      hash: ordering.orderingHash,
+      rule,
+      count: ordering.orderingCount
+    });
+  };
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
   const {
@@ -679,7 +693,7 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const chunkMetaCompression = resolveShardCompression('chunk_meta');
-  await enqueueChunkMetaArtifacts({
+  const chunkMetaOrdering = await enqueueChunkMetaArtifacts({
     state,
     outDir,
     mode,
@@ -694,6 +708,7 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel,
     stageCheckpoints
   });
+  await recordOrdering('chunk_meta', chunkMetaOrdering, 'chunk_meta:compareChunkMetaRows');
   const chunkUidMapCompression = resolveShardCompression('chunk_uid_map');
   await enqueueChunkUidMapArtifacts({
     outDir,
@@ -743,6 +758,7 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel,
     removeArtifact
   });
+  await recordOrdering('repo_map', repoMapMeasurement, 'repo_map:file,name,kind,signature,startLine');
   if (filterIndex) {
     enqueueJsonObject('filter_index', { fields: filterIndex }, {
       compressible: false,
@@ -863,7 +879,7 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const fileRelationsCompression = resolveShardCompression('file_relations');
-  enqueueFileRelationsArtifacts({
+  const fileRelationsOrdering = enqueueFileRelationsArtifacts({
     state,
     outDir,
     maxJsonBytes,
@@ -874,6 +890,7 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  await recordOrdering('file_relations', fileRelationsOrdering, 'file_relations:file');
   const callSitesCompression = resolveShardCompression('call_sites');
   const riskStats = state?.riskInterproceduralStats || null;
   const riskConfig = riskStats?.effectiveConfig || null;
@@ -964,7 +981,7 @@ export async function writeIndexArtifacts(input) {
       stageCheckpoints
     });
   }
-  await enqueueGraphRelationsArtifacts({
+  const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
     graphRelations,
     outDir,
     maxJsonBytes,
@@ -974,6 +991,7 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel,
     removeArtifact
   });
+  await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }

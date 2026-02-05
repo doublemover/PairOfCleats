@@ -1,3 +1,5 @@
+import { orderRepoMapEntries, stableOrder } from '../../../../shared/order.js';
+
 export const createRepoMapIterator = ({ chunks, fileRelations }) => {
   const fileExportMap = new Map();
   if (fileRelations && fileRelations.size) {
@@ -57,14 +59,14 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
       group.seen.add(dedupeKey);
       group.entries.push(entry);
     }
-    const groups = Array.from(grouped.values());
-    groups.sort((a, b) => {
-      if (a.file !== b.file) return a.file.localeCompare(b.file);
-      if (a.name !== b.name) return a.name.localeCompare(b.name);
-      return a.kind.localeCompare(b.kind);
-    });
+    const groups = stableOrder(Array.from(grouped.values()), [
+      (group) => group.file,
+      (group) => group.name,
+      (group) => group.kind
+    ]);
     for (const group of groups) {
-      for (const entry of group.entries) {
+      const orderedEntries = orderRepoMapEntries(group.entries);
+      for (const entry of orderedEntries) {
         yield entry;
       }
     }
