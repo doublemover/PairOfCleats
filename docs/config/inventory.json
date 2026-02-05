@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T13:33:54.641Z",
+  "generatedAt": "2026-02-05T20:19:10.566Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1662,6 +1662,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
@@ -1721,6 +1722,7 @@
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
         "tests/tooling/script-coverage/script-coverage.test.js",
+        "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
@@ -1807,6 +1809,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
@@ -2298,6 +2301,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/risk/interprocedural/artifacts-written.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
