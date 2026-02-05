@@ -167,6 +167,28 @@ interface RuntimeEnvelopeV1 {
   - `cpu`: `max(16, cpuConcurrency * 4)`
   - `embedding`: `max(16, embeddingConcurrency * 4)`
 
+## 4.5 Scheduler config (build runtime)
+The build scheduler configuration is resolved alongside the runtime envelope (in `createBuildRuntime`) and stored on the build runtime object. It is **not** part of the RuntimeEnvelope schema.
+
+Config path:
+- `indexing.scheduler.*` (config file)
+
+Env overrides:
+- `PAIROFCLEATS_SCHEDULER`
+- `PAIROFCLEATS_SCHEDULER_CPU`
+- `PAIROFCLEATS_SCHEDULER_IO`
+- `PAIROFCLEATS_SCHEDULER_MEM`
+- `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
+- `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
+
+CLI overrides:
+- `--scheduler` / `--no-scheduler`
+- `--scheduler-cpu`
+- `--scheduler-io`
+- `--scheduler-mem`
+- `--scheduler-low-resource` / `--no-scheduler-low-resource`
+- `--scheduler-starvation`
+
 ## 5) Env patch
 
 `envPatch` is safe to apply to subprocesses using `applyEnvPatch` or `resolveRuntimeEnv`.

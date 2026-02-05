@@ -194,3 +194,258 @@ export async function runWithConcurrency(items, limit, worker, options = {}) {
   const queue = new PQueue({ concurrency: Math.max(1, Math.floor(limit || 1)) });
   return runWithQueue(queue, items, worker, options);
 }
+
+/**
+ * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
+ * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
+ * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,queues?:Record<string,{priority?:number,maxPending?:number}>}} input
+ * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void}}
+ */
+export function createBuildScheduler(input = {}) {
+  const enabled = input.enabled !== false;
+  const lowResourceMode = input.lowResourceMode === true;
+  const starvationMs = Number.isFinite(Number(input.starvationMs))
+    ? Math.max(0, Math.floor(Number(input.starvationMs)))
+    : 30000;
+  let cpuTokens = Math.max(0, Math.floor(Number(input.cpuTokens ?? 1)));
+  let ioTokens = Math.max(0, Math.floor(Number(input.ioTokens ?? 1)));
+  let memoryTokens = Math.max(0, Math.floor(Number(input.memoryTokens ?? 1)));
+
+  const queueConfig = input.queues || {};
+  const queues = new Map();
+  const queueOrder = [];
+  const nowMs = () => Date.now();
+  const counters = {
+    scheduled: 0,
+    started: 0,
+    completed: 0,
+    failed: 0,
+    rejected: 0,
+    starvation: 0
+  };
+
+  const ensureQueue = (name) => {
+    if (queues.has(name)) return queues.get(name);
+    const cfg = queueConfig[name] || {};
+    const state = {
+      name,
+      priority: Number.isFinite(Number(cfg.priority)) ? Number(cfg.priority) : 50,
+      maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
+      pending: [],
+      running: 0,
+      stats: {
+        scheduled: 0,
+        started: 0,
+        completed: 0,
+        failed: 0,
+        rejected: 0,
+        starvation: 0
+      }
+    };
+    queues.set(name, state);
+    queueOrder.push(state);
+    queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+    return state;
+  };
+
+  const applyQueueConfig = (queue, config) => {
+    if (!queue || !config || typeof config !== 'object') return;
+    if (Number.isFinite(Number(config.priority))) {
+      queue.priority = Number(config.priority);
+    }
+    if (Number.isFinite(Number(config.maxPending))) {
+      queue.maxPending = Math.max(1, Math.floor(Number(config.maxPending)));
+    }
+    queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  };
+
+  const registerQueue = (queueName, config = {}) => {
+    const queue = ensureQueue(queueName);
+    applyQueueConfig(queue, config);
+    return queue;
+  };
+
+  const registerQueues = (configMap = {}) => {
+    if (!configMap || typeof configMap !== 'object') return;
+    for (const [queueName, config] of Object.entries(configMap)) {
+      registerQueue(queueName, config);
+    }
+  };
+
+  const tokenState = () => ({
+    cpu: { total: cpuTokens, used: 0 },
+    io: { total: ioTokens, used: 0 },
+    mem: { total: memoryTokens, used: 0 }
+  });
+  let tokens = tokenState();
+  let shuttingDown = false;
+
+  const canStart = (req) => {
+    const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
+    const io = Math.max(0, Math.floor(Number(req?.io || 0)));
+    const mem = Math.max(0, Math.floor(Number(req?.mem || 0)));
+    return (
+      tokens.cpu.used + cpu <= tokens.cpu.total &&
+      tokens.io.used + io <= tokens.io.total &&
+      tokens.mem.used + mem <= tokens.mem.total
+    );
+  };
+
+  const reserve = (req) => {
+    const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
+    const io = Math.max(0, Math.floor(Number(req?.io || 0)));
+    const mem = Math.max(0, Math.floor(Number(req?.mem || 0)));
+    tokens.cpu.used += cpu;
+    tokens.io.used += io;
+    tokens.mem.used += mem;
+    return { cpu, io, mem };
+  };
+
+  const release = (used) => {
+    tokens.cpu.used = Math.max(0, tokens.cpu.used - (used?.cpu || 0));
+    tokens.io.used = Math.max(0, tokens.io.used - (used?.io || 0));
+    tokens.mem.used = Math.max(0, tokens.mem.used - (used?.mem || 0));
+  };
+
+  const pickNextQueue = () => {
+    if (!queueOrder.length) return null;
+    let starving = null;
+    for (const q of queueOrder) {
+      if (!q.pending.length) continue;
+      const waited = nowMs() - q.pending[0].enqueuedAt;
+      if (waited >= starvationMs && (!starving || waited > starving.waited)) {
+        starving = { queue: q, waited };
+      }
+    }
+    if (starving) return { queue: starving.queue, starved: true };
+    const next = queueOrder.find((q) => q.pending.length) || null;
+    return next ? { queue: next, starved: false } : null;
+  };
+
+  const pump = () => {
+    if (shuttingDown) return;
+    while (true) {
+      const pick = pickNextQueue();
+      if (!pick) return;
+      const { queue, starved } = pick;
+      const next = queue.pending[0];
+      if (!canStart(next.tokens)) return;
+      queue.pending.shift();
+      queue.running += 1;
+      queue.stats.started += 1;
+      counters.started += 1;
+      if (starved) {
+        queue.stats.starvation += 1;
+        counters.starvation += 1;
+      }
+      const used = reserve(next.tokens);
+      const done = Promise.resolve()
+        .then(next.fn)
+        .then(
+          (value) => {
+            queue.stats.completed += 1;
+            counters.completed += 1;
+            next.resolve(value);
+          },
+          (err) => {
+            queue.stats.failed += 1;
+            counters.failed += 1;
+            next.reject(err);
+          }
+        )
+        .finally(() => {
+          queue.running -= 1;
+          release(used);
+          pump();
+        });
+      void done;
+    }
+  };
+
+  const schedule = (queueName, tokensReq = { cpu: 1 }, fn) => {
+    if (typeof tokensReq === 'function') {
+      fn = tokensReq;
+      tokensReq = { cpu: 1 };
+    }
+    if (typeof fn !== 'function') {
+      return Promise.reject(new Error('schedule requires a function'));
+    }
+    if (!enabled || lowResourceMode) {
+      return Promise.resolve().then(fn);
+    }
+    if (shuttingDown) {
+      counters.rejected += 1;
+      return Promise.reject(new Error('scheduler is shut down'));
+    }
+    const queue = ensureQueue(queueName);
+    if (queue.maxPending && queue.pending.length >= queue.maxPending) {
+      queue.stats.rejected += 1;
+      queue.stats.scheduled += 1;
+      counters.scheduled += 1;
+      counters.rejected += 1;
+      return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
+    }
+    return new Promise((resolve, reject) => {
+      queue.pending.push({
+        tokens: tokensReq,
+        fn,
+        resolve,
+        reject,
+        enqueuedAt: nowMs()
+      });
+      queue.stats.scheduled += 1;
+      counters.scheduled += 1;
+      pump();
+    });
+  };
+
+  const stats = () => {
+    const queueStats = {};
+    for (const q of queueOrder) {
+      const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
+      queueStats[q.name] = {
+        pending: q.pending.length,
+        running: q.running,
+        maxPending: q.maxPending,
+        oldestWaitMs: oldest,
+        scheduled: q.stats.scheduled,
+        started: q.stats.started,
+        completed: q.stats.completed,
+        failed: q.stats.failed,
+        rejected: q.stats.rejected,
+        starvation: q.stats.starvation
+      };
+    }
+    return {
+      queues: queueStats,
+      counters: { ...counters },
+      tokens: {
+        cpu: { ...tokens.cpu },
+        io: { ...tokens.io },
+        mem: { ...tokens.mem }
+      }
+    };
+  };
+
+  const shutdown = () => {
+    shuttingDown = true;
+  };
+
+  const setLimits = (limits = {}) => {
+    if (Number.isFinite(Number(limits.cpuTokens))) {
+      cpuTokens = Math.max(0, Math.floor(Number(limits.cpuTokens)));
+    }
+    if (Number.isFinite(Number(limits.ioTokens))) {
+      ioTokens = Math.max(0, Math.floor(Number(limits.ioTokens)));
+    }
+    if (Number.isFinite(Number(limits.memoryTokens))) {
+      memoryTokens = Math.max(0, Math.floor(Number(limits.memoryTokens)));
+    }
+    tokens.cpu.total = cpuTokens;
+    tokens.io.total = ioTokens;
+    tokens.mem.total = memoryTokens;
+    pump();
+  };
+
+  return { schedule, stats, shutdown, setLimits, registerQueue, registerQueues };
+}

@@ -48,6 +48,7 @@ import {
 import { buildAnalysisPolicy } from './policy.js';
 import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
+import { resolveSchedulerConfig } from './scheduler.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
@@ -186,6 +187,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       log(`[warn] ${warning.message}`);
     }
   }
+  const schedulerConfig = resolveSchedulerConfig({
+    argv,
+    rawArgv,
+    envConfig,
+    indexingConfig,
+    runtimeConfig: userConfig.runtime || null,
+    envelope
+  });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
@@ -856,6 +865,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ioConcurrency,
     cpuConcurrency,
     queues,
+    scheduler: schedulerConfig,
     incrementalEnabled,
     incrementalBundleFormat,
     debugCrash,

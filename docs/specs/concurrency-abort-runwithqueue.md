@@ -147,6 +147,35 @@ This lane prevents subprocess orchestration from being blocked by FS-heavy IO la
 
 **If proc lane is not implemented in Phase 4**, ensure `spawnSubprocess` does not reuse the IO lane by default.
 
+### 5.4 Build scheduler config (Phase 16.1)
+Scheduler configuration is read from config/env/CLI and surfaces in the build runtime. All values live under `indexing.scheduler` in config.
+
+Config keys:
+* `indexing.scheduler.enabled`
+* `indexing.scheduler.cpuTokens`
+* `indexing.scheduler.ioTokens`
+* `indexing.scheduler.memoryTokens`
+* `indexing.scheduler.lowResourceMode`
+* `indexing.scheduler.starvationMs`
+* `indexing.scheduler.queues.{queue}.priority`
+* `indexing.scheduler.queues.{queue}.maxPending`
+
+Env overrides:
+* `PAIROFCLEATS_SCHEDULER`
+* `PAIROFCLEATS_SCHEDULER_CPU`
+* `PAIROFCLEATS_SCHEDULER_IO`
+* `PAIROFCLEATS_SCHEDULER_MEM`
+* `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
+* `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
+
+CLI overrides:
+* `--scheduler` / `--no-scheduler`
+* `--scheduler-cpu`
+* `--scheduler-io`
+* `--scheduler-mem`
+* `--scheduler-low-resource` / `--no-scheduler-low-resource`
+* `--scheduler-starvation`
+
 ---
 
 ## 6. `runWithQueue` contract v2 (Phase 4.3)

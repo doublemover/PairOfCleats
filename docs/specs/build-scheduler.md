@@ -56,12 +56,31 @@ Applies to indexing pipeline stages and embeddings runner. The scheduler owns ad
 Queues are prioritized in the order above, with fairness within each priority tier.
 
 ## Config Schema
+- Config location: `indexing.scheduler` in config.
 - scheduler.enabled: boolean (default true for large repos).
 - scheduler.cpuTokens: integer.
 - scheduler.ioTokens: integer.
 - scheduler.memoryTokens: integer.
 - scheduler.lowResourceMode: boolean (force bypass below thresholds).
 - scheduler.starvationMs: integer.
+- scheduler.queues.{queue}.priority: integer.
+- scheduler.queues.{queue}.maxPending: integer.
+
+### Env overrides
+- `PAIROFCLEATS_SCHEDULER`
+- `PAIROFCLEATS_SCHEDULER_CPU`
+- `PAIROFCLEATS_SCHEDULER_IO`
+- `PAIROFCLEATS_SCHEDULER_MEM`
+- `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
+- `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
+
+### CLI overrides
+- `--scheduler` / `--no-scheduler`
+- `--scheduler-cpu`
+- `--scheduler-io`
+- `--scheduler-mem`
+- `--scheduler-low-resource` / `--no-scheduler-low-resource`
+- `--scheduler-starvation`
 
 ### Config precedence
 1) CLI flags

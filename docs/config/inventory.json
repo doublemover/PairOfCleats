@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-04T23:16:07.426Z",
+  "generatedAt": "2026-02-05T03:07:19.241Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -59,6 +59,12 @@
       "PAIROFCLEATS_NODE_OPTIONS",
       "PAIROFCLEATS_PROFILE",
       "PAIROFCLEATS_REGEX_ENGINE",
+      "PAIROFCLEATS_SCHEDULER",
+      "PAIROFCLEATS_SCHEDULER_CPU",
+      "PAIROFCLEATS_SCHEDULER_IO",
+      "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
+      "PAIROFCLEATS_SCHEDULER_MEM",
+      "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -153,6 +159,14 @@
       "indexing.riskInterprocedural.sanitizerPolicy",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
+      "indexing.scheduler.cpuTokens",
+      "indexing.scheduler.enabled",
+      "indexing.scheduler.ioTokens",
+      "indexing.scheduler.lowResourceMode",
+      "indexing.scheduler.memoryTokens",
+      "indexing.scheduler.queues.*.maxPending",
+      "indexing.scheduler.queues.*.priority",
+      "indexing.scheduler.starvationMs",
       "indexing.scm.annotate.enabled",
       "indexing.scm.annotate.maxFileSizeBytes",
       "indexing.scm.annotate.timeoutMs",
@@ -274,8 +288,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 223,
-    "leafKeys": 179,
+    "totalKeys": 234,
+    "leafKeys": 187,
     "topLevel": [
       {
         "key": "cache",
@@ -283,7 +297,7 @@
       },
       {
         "key": "indexing",
-        "count": 93
+        "count": 104
       },
       {
         "key": "mcp",
@@ -758,6 +772,61 @@
     {
       "path": "indexing.riskInterprocedural.summaryOnly",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.cpuTokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.ioTokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.lowResourceMode",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.memoryTokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.maxPending",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.priority",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.starvationMs",
+      "type": "number",
       "enum": null
     },
     {
@@ -1915,6 +1984,48 @@
     },
     {
       "name": "PAIROFCLEATS_REGEX_ENGINE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_CPU",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_IO",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_MEM",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
       "files": [
         "src/shared/env.js",
         "tools/config/inventory.js"

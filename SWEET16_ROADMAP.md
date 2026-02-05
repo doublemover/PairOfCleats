@@ -15,7 +15,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | Phase | Status | Notes |
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
-| 16.1 | [@] | Core scheduler implemented; tests + wiring pending |
+| 16.1 | [@] | Core scheduler implemented; config + hooks done; tests + wiring pending |
 | 16.2 | [ ] |  |
 | 16.3 | [ ] |  |
 | 16.4 | [ ] |  |
@@ -295,21 +295,21 @@ Parallel: Must land before 16.1.2 and 16.1.3.
 Docs/specs to update: `docs/specs/concurrency-abort-runwithqueue.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`, `docs/perf/shared-component-audit.md`
 Touchpoints: `src/shared/concurrency.js (anchor: runWithQueue)`, `src/shared/runtime/thread-limits.js (anchor: resolveThreadLimits)`, `src/index/build/indexer/pipeline.js (anchor: runPipeline)`, `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `tools/build/embeddings/runner.js (anchor: runEmbeddings)`
 Tasks:
-- [ ] Task 16.1.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [.] Task 16.1.1.a: Implement scheduler core and resource tokens in `src/shared/concurrency.js`.
-- [.] Task 16.1.1.b: Add queue classes with priorities and fairness.
-- [ ] Task 16.1.1.c: Add config loader for scheduler limits (env/CLI/config).
-- [ ] Task 16.1.1.d: Expose hooks for stage registration and lifecycle.
-- [.] Task 16.1.1.e: Add telemetry counters and diagnostics export.
-- [.] Task 16.1.1.f: Add admission-control caps per queue (max backlog) to prevent unbounded memory growth.
-- [.] Task 16.1.1.g: Add starvation detection metrics (max wait time, token debt) with a fairness override.
-- [.] Task 16.1.1.h: Add a CPU-only “low-resource mode” fallback for small repos to avoid scheduler overhead.
+- [x] Task 16.1.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.1.1.a: Implement scheduler core and resource tokens in `src/shared/concurrency.js`.
+- [x] Task 16.1.1.b: Add queue classes with priorities and fairness.
+- [x] Task 16.1.1.c: Add config loader for scheduler limits (env/CLI/config).
+- [x] Task 16.1.1.d: Expose hooks for stage registration and lifecycle.
+- [x] Task 16.1.1.e: Add telemetry counters and diagnostics export.
+- [x] Task 16.1.1.f: Add admission-control caps per queue (max backlog) to prevent unbounded memory growth.
+- [x] Task 16.1.1.g: Add starvation detection metrics (max wait time, token debt) with a fairness override.
+- [x] Task 16.1.1.h: Add a CPU-only “low-resource mode” fallback for small repos to avoid scheduler overhead.
 Notes: Ensure scheduler can be disabled for baseline comparisons.
 
 Tests:
-- [ ] `tests/shared/concurrency/scheduler-core.test.js` (perf lane) (new)
-- [ ] `tests/shared/concurrency/scheduler-fairness.test.js` (perf lane) (new)
-- [ ] `tests/shared/concurrency/scheduler-starvation-detection.test.js` (perf lane) (new)
+- [x] `tests/perf/scheduler-core.test.js` (perf lane) (new)
+- [x] `tests/perf/scheduler-fairness.test.js` (perf lane) (new)
+- [x] `tests/perf/scheduler-starvation-detection.test.js` (perf lane) (new)
 
 ### Subphase 16.1.2 -- Stage Wiring
 Parallel: Can run alongside 16.1.3 after 16.1.1; coordinate file ownership.

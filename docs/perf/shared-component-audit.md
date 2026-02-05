@@ -10,6 +10,7 @@ Completed consolidations:
 - Seed reference parsing (`src/shared/seed-ref.js`) used in CLI tooling.
 - Duration formatting (`src/shared/time-format.js`) used in bench and service tools.
 - SQLite manifest path normalization now delegates to shared path normalization helpers.
+- Build scheduler core lives in `src/shared/concurrency.js` with stage wiring tracked in SWEET16 roadmap.
 
 Open audit items:
 - Stage management, ANN, embeddings, benchmarking, and test runner utilities reviewed for duplicate helpers.

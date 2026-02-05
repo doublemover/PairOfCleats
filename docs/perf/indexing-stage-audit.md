@@ -62,3 +62,6 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - SQLite inserts are chunked into bounded transactions based on input size to reduce WAL and statement retention.
 - Bundle ingestion splits large files into smaller insert batches to avoid oversized transactions.
 - Incremental updates only load chunk rows for changed/deleted files instead of scanning the full chunks table.
+
+## Scheduler Notes
+- When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats (currently emitted in logs/diagnostics, not embedded in stage-audit output).
