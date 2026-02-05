@@ -1195,52 +1195,64 @@ Tests:
 
 ## Phase 16.8 -- Embeddings Pipeline Throughput
 
+Implementation note: Stage3 embeddings pipeline currently lives under `tools/build/embeddings/*`; avoid introducing a parallel pipeline under `src/index/build/embeddings/*`.
+
 ### Subphase 16.8.1 -- Cache + Keys
 Parallel: Can run alongside 16.8.2 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
+Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/shared/embedding-identity.js (anchor: buildEmbeddingIdentity)`, `src/shared/cache-key.js (anchor: buildCacheKey)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`
 Tasks:
 - [ ] Task 16.8.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.1.a: Apply widened cache keys (model/tokenizer/quant flags).
-- [ ] Task 16.8.1.b: Add cache validation fast-path (bitset + checksum).
-- [ ] Task 16.8.1.c: Add cross-mode reuse linkage for prose/extracted-prose.
-- [ ] Task 16.8.1.d: Add cache invalidation on config changes.
-- [ ] Task 16.8.1.e: Add cache hit/miss telemetry.
-- [ ] Task 16.8.1.f: Add strict cache validity guard for vector dims/normalization.
+- [ ] Task 16.8.1.a: Cache identity must be derived from `src/shared/embedding-identity.js` only; audit coverage for provider/modelId/dims/normalize/quantization/pooling/truncation/stub.
+- [ ] Task 16.8.1.b: Keep cache fast-reject O(1) via `cache.index.json` metadata (identityKey/hash/chunkSignature) without reading shard payloads; add telemetry + regression test.
+- [ ] Task 16.8.1.c: Enforce per-mode cache isolation (mode always in key); add regression test for cross-mode collision prevention.
+- [ ] Task 16.8.1.d: Fail-closed cache validity: reject on dims/normalize mismatch, incomplete vectors, or signature/hash mismatch; never partially apply an invalid entry.
+- [ ] Task 16.8.1.e: Telemetry: standardize cacheStats fields and ensure they land in `index_state.embeddings.cacheStats` + metrics output.
+- [ ] Task 16.8.1.f: Pruning safety: verify prune plan is safe under concurrent builds (append-only shards, atomic index updates); update docs and tests.
 
 Tests:
-- [ ] `tests/indexing/embeddings/cache-fastpath.test.js` (perf lane) (new)
+- [ ] `tests/indexing/embeddings/embeddings-cache-identity.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/cache-index-append-only.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embeddings-cache-fast-reject.test.js` (perf lane) (new)
 
 ### Subphase 16.8.2 -- IO + Batching
 Parallel: Can run alongside 16.8.1 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
+Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/pipeline.js (anchor: createFileEmbeddingsProcessor)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`, `src/shared/embedding-batch.js (anchor: resolveAutoEmbeddingBatchSize)`
 Tasks:
 - [ ] Task 16.8.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.2.a: Implement async writer pipeline with bounded queue.
-- [ ] Task 16.8.2.b: Add IO backpressure to compute path.
-- [ ] Task 16.8.2.c: Add batch-size auto-tuning.
-- [ ] Task 16.8.2.d: Add vector pre-allocation + pooling.
-- [ ] Task 16.8.2.e: Enforce chunk-stable batching.
-- [ ] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads.
+- [ ] Task 16.8.2.a: Implement writer pipeline as a bounded queue (all writes go through the IO scheduler; no bypass paths).
+- [ ] Task 16.8.2.b: Add IO backpressure to compute path (when writer queue is saturated, compute awaits).
+- [ ] Task 16.8.2.c: Batch-size auto-tuning: centralize in `src/shared/embedding-batch.js`, plumb to Stage3, and document provider limits.
+- [ ] Task 16.8.2.d: Vector pre-allocation + pooling for hot paths (typed arrays); add guardrails against cross-file mutation.
+- [ ] Task 16.8.2.e: Enforce chunk-stable batching (deterministic chunk ordering independent of concurrency and batch size).
+- [ ] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads (stub/onnx paths).
 
 Tests:
-- [ ] `tests/indexing/embeddings/batcher-autotune.test.js` (perf lane) (new)
+- [ ] `tests/indexing/embeddings/embedding-queue.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embedding-batch-autotune.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embedding-batcher-flush-reentrancy.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embeddings-writer-backpressure.test.js` (perf lane) (new)
 
 ### Subphase 16.8.3 -- Tests + Bench
 Parallel: Run after 16.8.1/16.8.2.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `tools/build/embeddings/runner.js (anchor: runEmbeddings)`, `src/index/build/embeddings/batcher.js (anchor: flushBatch)`, `src/index/build/embeddings/merge.js (anchor: mergeVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
+Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/bench/cache-hit-rate.js`, `src/shared/embedding-utils.js (anchor: mergeEmbeddingVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
 - [ ] Task 16.8.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.3.a: Extend `cache-hit-rate` bench to include IO pipeline.
-- [ ] Task 16.8.3.b: Add throughput benchmark for batch-size tuning.
-- [ ] Task 16.8.3.c: Add regression test for embedding output determinism.
-- [ ] Task 16.8.3.d: Add docs update for embeddings pipeline.
-- [ ] Task 16.8.3.e: Add memory regression test for embeddings.
+- [ ] Task 16.8.3.a: Extend `cache-hit-rate` bench to include writer queue + backpressure.
+- [ ] Task 16.8.3.b: Add throughput benchmark for batch-size tuning across providers (stub/onnx/openai).
+- [ ] Task 16.8.3.c: Add regression test for embedding output determinism (same inputs produce identical vectors + manifests).
+- [ ] Task 16.8.3.d: Add docs update for embeddings pipeline (include queue/backpressure knobs + telemetry fields).
+- [ ] Task 16.8.3.e: Add memory regression test for embeddings (heap plateau under backlog).
 
 Tests:
-- [ ] `tests/indexing/embeddings/embedding-throughput-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embedding-batch-throughput.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embedding-normalization-consistency.test.js` (perf lane)
+- [ ] `tests/indexing/embeddings/embeddings-determinism.test.js` (perf lane) (new)
+- [ ] `tests/indexing/embeddings/embeddings-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
