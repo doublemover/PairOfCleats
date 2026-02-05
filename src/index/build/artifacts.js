@@ -325,18 +325,27 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
-  const filterIndex = buildSerializedFilterIndex({
-    chunks: state.chunks,
-    resolvedConfig,
-    userConfig,
-    root
-  });
-  const filterIndexStats = summarizeFilterIndex(filterIndex);
-  if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
-    log(
-      `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
-      'large filter indexes increase memory usage (consider sqlite for large repos).'
-    );
+  let filterIndex = null;
+  let filterIndexStats = null;
+  try {
+    filterIndex = buildSerializedFilterIndex({
+      chunks: state.chunks,
+      resolvedConfig,
+      userConfig,
+      root
+    });
+    filterIndexStats = summarizeFilterIndex(filterIndex);
+    if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
+      log(
+        `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
+        'large filter indexes increase memory usage (consider sqlite for large repos).'
+      );
+    }
+  } catch (err) {
+    const message = err?.message || String(err);
+    log(`[warn] [filter_index] build failed; skipping. (${message})`);
+    filterIndex = null;
+    filterIndexStats = null;
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)

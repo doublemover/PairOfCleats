@@ -55,15 +55,26 @@ export async function enqueueRepoMapArtifacts({
   const repoMapPath = path.join(outDir, `repo_map.${resolveJsonExtension(repoMapCompression)}`);
   const repoMapMetaPath = path.join(outDir, 'repo_map.meta.json');
   const repoMapPartsDir = path.join(outDir, 'repo_map.parts');
+  const repoMapJsonlPaths = [
+    path.join(outDir, 'repo_map.jsonl'),
+    path.join(outDir, 'repo_map.jsonl.gz'),
+    path.join(outDir, 'repo_map.jsonl.zst')
+  ];
+  const repoMapJsonPaths = [
+    path.join(outDir, 'repo_map.json'),
+    path.join(outDir, 'repo_map.json.gz'),
+    path.join(outDir, 'repo_map.json.zst')
+  ];
   const removeRepoMapJsonl = async () => {
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl'));
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl.zst'));
+    for (const filePath of repoMapJsonlPaths) {
+      await removeArtifact(filePath);
+    }
   };
-  const removeRepoMapJson = async () => {
-    await removeArtifact(path.join(outDir, 'repo_map.json'));
-    await removeArtifact(path.join(outDir, 'repo_map.json.gz'));
-    await removeArtifact(path.join(outDir, 'repo_map.json.zst'));
+  const removeRepoMapJson = async (keepPath = null) => {
+    for (const filePath of repoMapJsonPaths) {
+      if (keepPath && filePath === keepPath) continue;
+      await removeArtifact(filePath);
+    }
   };
   const budgetBytes = useRepoMapJsonl
     ? repoMapMeasurement.totalJsonlBytes
@@ -80,14 +91,14 @@ export async function enqueueRepoMapArtifacts({
     enqueueWrite(
       formatArtifactLabel(repoMapPath),
       async () => {
-        await removeRepoMapJsonl();
-        await removeRepoMapJson();
-        await removeArtifact(repoMapMetaPath);
-        await removeArtifact(repoMapPartsDir);
         await writeJsonArrayFile(repoMapPath, repoMapIterator(), {
           atomic: true,
           compression: repoMapCompression
         });
+        await removeRepoMapJsonl();
+        await removeRepoMapJson(repoMapPath);
+        await removeArtifact(repoMapMetaPath);
+        await removeArtifact(repoMapPartsDir);
       }
     );
     addPieceFile({
@@ -101,8 +112,6 @@ export async function enqueueRepoMapArtifacts({
     enqueueWrite(
       formatArtifactLabel(repoMapMetaPath),
       async () => {
-        await removeRepoMapJson();
-        await removeRepoMapJsonl();
         const result = await writeJsonLinesSharded({
           dir: outDir,
           partsDirName: 'repo_map.parts',
@@ -134,6 +143,8 @@ export async function enqueueRepoMapArtifacts({
           },
           atomic: true
         });
+        await removeRepoMapJson();
+        await removeRepoMapJsonl();
         for (let i = 0; i < result.parts.length; i += 1) {
           const relPath = result.parts[i];
           const absPath = path.join(outDir, fromPosix(relPath));

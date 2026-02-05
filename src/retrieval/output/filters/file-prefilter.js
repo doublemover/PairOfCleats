@@ -6,7 +6,8 @@ export const collectFilePrefilterMatches = ({
   fileChargramN,
   filterIndex,
   normalizeFilePrefilter,
-  intersectTwoSets
+  intersectTwoSets,
+  buildCandidate
 }) => {
   if (!fileMatchers.length || !filterIndex || !filterIndex.fileChargrams || !filterIndex.fileChunksById) {
     return null;
@@ -39,11 +40,29 @@ export const collectFilePrefilterMatches = ({
     }
   }
   if (!fileIds.size) return null;
-  const chunkIds = new Set();
+  const chunkSets = [];
+  const chunkBitmaps = [];
+  const fileChunkBitmaps = filterIndex?.bitmap?.fileChunksById || null;
   for (const fileId of fileIds) {
     const chunks = filterIndex.fileChunksById[fileId];
     if (!chunks) continue;
-    for (const id of chunks) chunkIds.add(id);
+    const bitmap = Array.isArray(fileChunkBitmaps) ? fileChunkBitmaps[fileId] : null;
+    if (bitmap) {
+      chunkBitmaps.push(bitmap);
+    } else {
+      chunkSets.push(chunks);
+    }
+  }
+  if (!chunkSets.length && !chunkBitmaps.length) return null;
+  if (typeof buildCandidate === 'function') {
+    return buildCandidate(chunkSets, chunkBitmaps);
+  }
+  const chunkIds = new Set();
+  for (const set of chunkSets) {
+    for (const id of set) chunkIds.add(id);
+  }
+  for (const bitmap of chunkBitmaps) {
+    for (const id of bitmap) chunkIds.add(id);
   }
   return chunkIds;
 };

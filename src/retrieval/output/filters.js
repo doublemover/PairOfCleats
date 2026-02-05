@@ -209,17 +209,15 @@ const resolveFilterState = ({
       if (candidate) indexedCandidates.push(candidate);
     }
     if (fileMatchers.length && filePrefilterEnabled) {
-      const filePrefilterIds = collectFilePrefilterMatches({
+      const filePrefilterCandidate = collectFilePrefilterMatches({
         fileMatchers,
         fileChargramN,
         filterIndex,
         normalizeFilePrefilter,
-        intersectTwoSets
+        intersectTwoSets,
+        buildCandidate
       });
-      if (filePrefilterIds) {
-        const candidate = buildCandidate([filePrefilterIds], []);
-        if (candidate) indexedCandidates.push(candidate);
-      }
+      if (filePrefilterCandidate) indexedCandidates.push(filePrefilterCandidate);
     }
   }
   const candidateIds = indexedCandidates.length
