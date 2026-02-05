@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -62,12 +64,12 @@ if (!second?.stats?.cache || second.stats.cache.hit !== true) {
   process.exit(1);
 }
 
-const repoCacheDirs = await fsPromises.readdir(path.join(cacheRoot, 'repos'));
+const repoCacheDirs = await fsPromises.readdir(path.join(cacheRootResolved, 'repos'));
 if (!repoCacheDirs.length) {
   console.error('Query cache test failed: repo cache not created.');
   process.exit(1);
 }
-const repoCacheRoot = path.join(cacheRoot, 'repos', repoCacheDirs[0]);
+const repoCacheRoot = path.join(cacheRootResolved, 'repos', repoCacheDirs[0]);
 const queryCachePath = path.join(repoCacheRoot, 'query-cache', 'queryCache.json');
 if (!fs.existsSync(queryCachePath)) {
   console.error(`Query cache test failed: missing cache file at ${queryCachePath}`);

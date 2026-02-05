@@ -74,10 +74,12 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
   }
   if (hasShards) {
     let parts = [];
+    let metaFormat = null;
     if (existsOrBak(metaPath)) {
       try {
         const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+        metaFormat = typeof meta?.format === 'string' ? meta.format : null;
         if (Array.isArray(meta?.parts) && meta.parts.length) {
           parts = meta.parts
             .map((part) => (typeof part === 'string' ? part : part?.path))
@@ -89,7 +91,13 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
     if (!parts.length) {
       parts = readShardFiles(partsDir, `${baseName}.part-`);
     }
-    return parts.length ? { format: 'jsonl', paths: parts } : null;
+    if (parts.length) {
+      if (metaFormat === 'json' || metaFormat === 'columnar') {
+        return { format: metaFormat, paths: [parts[0]] };
+      }
+      return { format: 'jsonl', paths: parts };
+    }
+    return null;
   }
   if (hasJsonl) {
     return { format: 'jsonl', paths: [jsonlPath] };

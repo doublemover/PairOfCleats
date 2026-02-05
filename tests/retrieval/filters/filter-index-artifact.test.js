@@ -15,7 +15,20 @@ const tempRoot = path.join(root, '.testCache', 'filter-index-artifact');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+const rmWithRetries = async (target, { retries = 6, delayMs = 150 } = {}) => {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await fsPromises.rm(target, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (!err || attempt >= retries) throw err;
+      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(err.code)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+};
+
+await rmWithRetries(tempRoot);
 await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'const a = 1;\n', 'utf8');
 

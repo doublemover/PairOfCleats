@@ -29,7 +29,10 @@ const loadFromIndex = async (indexDir) => {
 
   const currentStart = performance.now();
   let streamedCount = 0;
-  for await (const _entry of loadJsonArrayArtifactRows(indexDir, 'file_meta', { strict: false })) {
+  for await (const _entry of loadJsonArrayArtifactRows(indexDir, 'file_meta', {
+    strict: false,
+    materialize: true
+  })) {
     streamedCount += 1;
   }
   const currentMs = performance.now() - currentStart;
@@ -55,7 +58,10 @@ const loadFromGenerated = async (rows) => {
 
   const currentStart = performance.now();
   let streamedCount = 0;
-  for await (const _entry of loadJsonArrayArtifactRows(benchRoot, 'file_meta', { strict: false })) {
+  for await (const _entry of loadJsonArrayArtifactRows(benchRoot, 'file_meta', {
+    strict: false,
+    materialize: true
+  })) {
     streamedCount += 1;
   }
   const currentMs = performance.now() - currentStart;

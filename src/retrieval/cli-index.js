@@ -71,12 +71,13 @@ export async function loadIndex(dir, options) {
       return null;
     }
   };
-  const loadOptionalRows = (baseName) => (async function* () {
+  const loadOptionalRows = (baseName, options = {}) => (async function* () {
     try {
       for await (const row of loadJsonArrayArtifactRows(dir, baseName, {
         maxBytes: MAX_JSON_BYTES,
         manifest,
-        strict
+        strict,
+        ...options
       })) {
         yield row;
       }
@@ -97,7 +98,7 @@ export async function loadIndex(dir, options) {
   let fileMetaById = null;
   fileMetaById = new Map();
   let fileMetaLoaded = false;
-  for await (const entry of loadOptionalRows('file_meta')) {
+  for await (const entry of loadOptionalRows('file_meta', { materialize: true })) {
     fileMetaLoaded = true;
     if (!entry || entry.id == null) continue;
     fileMetaById.set(entry.id, entry);
@@ -124,8 +125,12 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const fileRelationsRows = includeFileRelations ? loadOptionalRows('file_relations') : null;
-  const repoMapRows = includeRepoMap ? loadOptionalRows('repo_map') : null;
+  const fileRelationsRows = includeFileRelations
+    ? loadOptionalRows('file_relations', { materialize: true })
+    : null;
+  const repoMapRows = includeRepoMap
+    ? loadOptionalRows('repo_map', { materialize: true })
+    : null;
   let fileRelations = null;
   if (fileRelationsRows) {
     const map = new Map();

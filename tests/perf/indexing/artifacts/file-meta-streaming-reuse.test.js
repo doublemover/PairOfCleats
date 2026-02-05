@@ -16,20 +16,6 @@ const rows = Array.from({ length: 16 }, (_value, index) => ({
 const jsonPath = path.join(outDir, 'file_meta.json');
 await fs.writeFile(jsonPath, JSON.stringify(rows));
 
-let threw = false;
-try {
-  for await (const _entry of loadJsonArrayArtifactRows(outDir, 'file_meta', { strict: false })) {
-    // consume
-  }
-} catch (err) {
-  threw = /Materialized read required/.test(err?.message || '');
-}
-
-if (!threw) {
-  console.error('file-meta streaming reuse failed: expected materialize error.');
-  process.exit(1);
-}
-
 const streamed = [];
 for await (const entry of loadJsonArrayArtifactRows(outDir, 'file_meta', {
   strict: false,
@@ -40,6 +26,23 @@ for await (const entry of loadJsonArrayArtifactRows(outDir, 'file_meta', {
 
 if (streamed.length !== rows.length) {
   console.error('file-meta streaming reuse failed: materialized length mismatch.');
+  process.exit(1);
+}
+
+let threw = false;
+try {
+  for await (const _entry of loadJsonArrayArtifactRows(outDir, 'file_meta', {
+    strict: false,
+    materialize: false
+  })) {
+    // consume
+  }
+} catch (err) {
+  threw = /Materialized read required/.test(err?.message || '');
+}
+
+if (!threw) {
+  console.error('file-meta streaming reuse failed: expected materialize error.');
   process.exit(1);
 }
 
