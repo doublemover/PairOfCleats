@@ -1318,50 +1318,55 @@ Tests:
 ### Subphase 16.10.1 -- Segment IO
 Parallel: Can run alongside 16.10.2 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
-Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
+Touchpoints: `src/index/tooling/vfs.js (anchors: buildToolingVirtualDocuments, loadVfsManifestRowByPath, loadVfsManifestBloomFilter, loadVfsManifestIndex, readVfsManifestRowAtOffset)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/index/tooling/vfs-hash-routing.js (anchor: buildVfsRoutingToken)`, `src/integrations/tooling/providers/lsp.js (anchor: ensureVirtualFilesBatch)`, `src/index/segments/jsx.js (anchor: segmentJsx)`, `src/index/segments.js (anchor: chunkSegments)`
 Tasks:
 - [ ] Task 16.10.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.1.a: Implement segment-level bloom filters.
-- [ ] Task 16.10.1.b: Add batch IO for row loads.
-- [ ] Task 16.10.1.c: Add mmap reads (opt-in) for large segments.
-- [ ] Task 16.10.1.d: Add hash-routing cache.
-- [ ] Task 16.10.1.e: Add per-segment checksum quick-reject.
-- [ ] Task 16.10.1.f: Add negative lookup cache for routing misses.
-- [ ] Task 16.10.1.g: Add segment header metadata cache to avoid full parse.
+- [ ] Task 16.10.1.a: Harden the VFS manifest lookup fast-path (bloom -> vfsidx -> offset read); add telemetry for scan fallbacks and negative-cache hit rates.
+- [ ] Task 16.10.1.b: Add batched row loads that reuse a single file handle and pooled buffers for offset reads (critical for per-language tooling batching without N open/close churn).
+- [ ] Task 16.10.1.c: Fix `[tooling] Invalid virtualRange ...; skipping target.` by making chunk-to-virtual range mapping segment-safe (no full-container AST reuse for sliced segments), and add a degraded fallback target (whole-container) so we never silently drop work.
+- [ ] Task 16.10.1.d: Ensure VFS routing supports per-language batching deterministically (stable `languageId`/`effectiveExt` on rows, stable `virtualPath` and routing token composition across runs).
+- [ ] Task 16.10.1.e: Decide and document whether extracted-prose participates in VFS routing/manifests; if yes, add coverage and ensure per-language bucketing remains deterministic.
 
 Tests:
-- [ ] `tests/indexing/vfs/segment-bloom-negative.test.js` (perf lane) (new)
+- [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-index-lookup.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` (perf lane) (new)
 
 ### Subphase 16.10.2 -- Merge/Compaction
 Parallel: Can run alongside 16.10.1 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
-Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
+Touchpoints: `src/index/build/vfs-manifest-collector.js (anchor: createVfsManifestCollector)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/tooling/vfs-index.js (anchor: buildVfsManifestSortKey)`
 Tasks:
 - [ ] Task 16.10.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.2.a: Implement compaction thresholds by bytes.
-- [ ] Task 16.10.2.b: Add incremental manifest rebuild path.
-- [ ] Task 16.10.2.c: Add parallel k-way merge integration.
-- [ ] Task 16.10.2.d: Ensure single-point row trimming at write time.
-- [ ] Task 16.10.2.e: Add typed array encoding for hot fields.
-- [ ] Task 16.10.2.f: Add byte-budget guard for VFS merge to cap segment size.
+- [ ] Task 16.10.2.a: Audit spill and compaction thresholds (bytes and record-count) and ensure they remain bounded-memory under worst-case VFS density.
+- [ ] Task 16.10.2.b: Ensure merge/compaction is deterministic under concurrency (stable compare keys, stable trim/drop policy); add telemetry for merge fan-in and spill frequency.
+- [ ] Task 16.10.2.c: Ensure manifest + vfsidx + bloom are swapped atomically as a unit; on failure keep the previous artifact set and clean partial outputs.
+- [ ] Task 16.10.2.d: Define and implement an incremental rebuild story (when allowed) keyed by CDC/segmentUid/docHash so rebuilds avoid full rewrites and reduce IO churn.
 
 Tests:
-- [ ] `tests/indexing/vfs/compaction-byte-threshold.test.js` (perf lane) (new)
+- [ ] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (perf lane)
+- [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane)
+- [ ] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js` (perf lane)
+- [ ] `tests/indexing/vfs/vfs-compaction-atomic-swap.test.js` (perf lane) (new)
 
 ### Subphase 16.10.3 -- Tests + Bench
 Parallel: Run after 16.10.1/16.10.2.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
-Touchpoints: `src/index/build/artifacts/writers/vfs-manifest.js (anchor: writeVfsManifest)`, `src/index/vfs/index.js (anchor: loadVfsIndex)`, `src/shared/artifact-io/loaders.js (anchor: loadVfsManifest)`
+Touchpoints: `tools/bench/vfs/*`, `src/index/tooling/vfs.js (anchors: loadVfsManifestRowByPath, loadVfsManifestIndex)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`
 Tasks:
 - [ ] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.3.a: Implement `manifest-streaming` benchmark baseline/current.
-- [ ] Task 16.10.3.b: Add VFS lookup throughput benchmark.
-- [ ] Task 16.10.3.c: Add regression tests for manifest roundtrip.
-- [ ] Task 16.10.3.d: Add docs update for VFS manifest.
-- [ ] Task 16.10.3.e: Add memory regression test for VFS load.
+- [ ] Task 16.10.3.a: Add bench baselines/thresholds for `tools/bench/vfs/parallel-manifest-build.js` and `tools/bench/vfs/merge-runs-heap.js`.
+- [ ] Task 16.10.3.b: Add bench baselines/thresholds for VFS lookup paths (`tools/bench/vfs/vfsidx-lookup.js`, `tools/bench/vfs/hash-routing-lookup.js`, `tools/bench/vfs/bloom-negative-lookup.js`).
+- [ ] Task 16.10.3.c: Add memory regression contract for VFS lookup cold-start and index load (heap plateau, bounded growth under repeated queries).
+- [ ] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations.
 
 Tests:
-- [ ] `tests/indexing/vfs/vfs-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane)
+- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane)
 
 ---
 
