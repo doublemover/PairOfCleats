@@ -373,7 +373,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1 },
+      { cpu: 1, mem: 1 },
       () => runCrossFileInference({
         runtime: runtimeRef,
         mode,

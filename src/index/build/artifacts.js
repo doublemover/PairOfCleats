@@ -21,6 +21,7 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
   resolveTokenPostingsPlan
@@ -55,6 +56,7 @@ import { createOrderingHasher } from '../../shared/order.js';
  */
 export async function writeIndexArtifacts(input) {
   const {
+    scheduler = null,
     outDir,
     buildRoot,
     mode,
@@ -1097,7 +1099,14 @@ export async function writeIndexArtifacts(input) {
       stageCheckpoints
     });
   }
-  const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
+  const scheduleRelations = scheduler?.schedule
+    ? (fn) => scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1, io: 1, mem: 1 },
+      fn
+    )
+    : (fn) => fn();
+  const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
     chunks: state?.chunks || [],
     fileRelations: state?.fileRelations || null,
@@ -1110,7 +1119,7 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel,
     removeArtifact
-  });
+  }));
   await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {

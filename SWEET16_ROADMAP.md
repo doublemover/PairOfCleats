@@ -1132,9 +1132,9 @@ Tasks:
 - [x] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
 - [x] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
 - [x] Task 16.7.1.e: Add spill thresholds by bytes.
-- [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
+- [x] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
 - [x] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
-- [ ] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
+- [x] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
 
 Tests:
 - [x] `tests/perf/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
