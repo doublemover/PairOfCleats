@@ -167,6 +167,10 @@ interface RuntimeEnvelopeV1 {
   - `cpu`: `max(16, cpuConcurrency * 4)`
   - `embedding`: `max(16, embeddingConcurrency * 4)`
 
+Embedding batch size auto-tuning is centralized in `src/shared/embedding-batch.js`.
+Stage3 `build-embeddings` uses provider-aware defaults when batch size is not explicitly configured
+(for CPU-only providers like `stub`/`onnx`, batch size is additionally capped by available threads).
+
 ## 4.5 Scheduler config (build runtime)
 The build scheduler configuration is resolved alongside the runtime envelope (in `createBuildRuntime`) and stored on the build runtime object. It is **not** part of the RuntimeEnvelope schema.
 

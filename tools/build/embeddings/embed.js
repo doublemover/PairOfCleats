@@ -1,4 +1,4 @@
-import { quantizeVec } from '../../../src/index/embedding.js';
+import { quantizeVecUint8 } from '../../../src/index/embedding.js';
 import { mergeEmbeddingVectors, normalizeEmbeddingVector } from '../../../src/shared/embedding-utils.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
 
@@ -110,22 +110,21 @@ export const buildQuantizedVectors = ({
   if (docHook && docVec.length) docHook(chunkIndex, docVec);
   if (codeHook && codeVec.length) codeHook(chunkIndex, codeVec);
   const quantizedCode = codeVec.length
-    ? quantizeVec(codeVec, resolved.minVal, resolved.maxVal, resolved.levels)
-    : [];
+    ? quantizeVecUint8(codeVec, resolved.minVal, resolved.maxVal, resolved.levels)
+    : new Uint8Array(0);
   const quantizedDoc = docVec.length
-    ? quantizeVec(docVec, resolved.minVal, resolved.maxVal, resolved.levels)
-    : [];
+    ? quantizeVecUint8(docVec, resolved.minVal, resolved.maxVal, resolved.levels)
+    : new Uint8Array(0);
   const quantizedMerged = mergedVec.length
-    ? quantizeVec(mergedVec, resolved.minVal, resolved.maxVal, resolved.levels)
-    : [];
+    ? quantizeVecUint8(mergedVec, resolved.minVal, resolved.maxVal, resolved.levels)
+    : new Uint8Array(0);
   return { quantizedCode, quantizedDoc, quantizedMerged };
 };
 
 export const fillMissingVectors = (vectorList, dims) => {
-  const fallback = new Array(dims).fill(0);
   for (let i = 0; i < vectorList.length; i += 1) {
     if (!isVectorLike(vectorList[i]) || vectorList[i].length !== dims) {
-      vectorList[i] = fallback;
+      vectorList[i] = new Uint8Array(dims);
     }
   }
 };

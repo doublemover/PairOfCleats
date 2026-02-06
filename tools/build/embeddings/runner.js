@@ -5,6 +5,7 @@ import { createEmbedder } from '../../../src/index/embedding.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
+import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
@@ -61,6 +62,7 @@ import { createHnswBuilder } from './hnsw.js';
 import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
+import { createBoundedWriterQueue } from './writer-queue.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
@@ -241,6 +243,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
+  const writerStatsByMode = {};
 
   try {
     for (const mode of modes) {
@@ -357,6 +360,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             continue;
           }
           log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
+        }
+
+        // Deterministic chunk ordering per file, independent of Map insertion order.
+        for (const list of chunksByFile.values()) {
+          if (!Array.isArray(list) || list.length < 2) continue;
+          list.sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
         }
 
         stageCheckpoints = createStageCheckpointRecorder({
@@ -487,6 +496,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const fileEntries = Array.from(chunksByFile.entries())
           .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
+        // Cache shard writes are serialized via cache.lock but can still be queued.
+        // Keep a bounded in-process queue so compute does not outrun IO and retain
+        // unbounded payloads in memory.
+        const schedulerStatsForWriter = scheduler?.stats?.() || null;
+        const schedulerIoQueue = schedulerStatsForWriter?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || null;
+        const schedulerIoMaxPending = Number.isFinite(Number(schedulerIoQueue?.maxPending))
+          ? Math.max(1, Math.floor(Number(schedulerIoQueue.maxPending)))
+          : null;
+        const ioTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.io?.total))
+          ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.io.total)))
+          : 1;
+        const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
+        const writerMaxPending = schedulerIoMaxPending
+          ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
+          : defaultWriterMaxPending;
+        const writerQueue = createBoundedWriterQueue({ scheduleIo, maxPending: writerMaxPending });
+
+        let sharedZeroVec = new Float32Array(0);
         const processFileEmbeddings = async (entry) => {
           const codeEmbeds = entry.codeEmbeds || [];
           const docVectorsRaw = entry.docVectorsRaw || [];
@@ -510,7 +537,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
 
           const dims = dimsValidator.getDims();
-          const zeroVec = dims ? new Float32Array(dims) : new Float32Array(0);
+          if (dims && sharedZeroVec.length !== dims) {
+            sharedZeroVec = new Float32Array(dims);
+          }
+          const zeroVec = sharedZeroVec;
 
           const cachedCodeVectors = [];
           const cachedDocVectors = [];
@@ -562,33 +592,41 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
           if (entry.cacheKey && entry.cacheDir) {
             try {
-              const shardEntry = await scheduleIo(() => writeCacheEntry(entry.cacheDir, entry.cacheKey, {
-                key: entry.cacheKey,
-                file: entry.normalizedRel,
-                hash: entry.fileHash,
-                chunkSignature: entry.chunkSignature,
-                chunkHashes: entry.chunkHashes,
-                cacheMeta: {
-                  schemaVersion: 1,
-                  identityKey: cacheIdentityKey,
-                  identity: cacheIdentity,
-                  createdAt: new Date().toISOString()
-                },
-                codeVectors: cachedCodeVectors,
-                docVectors: cachedDocVectors,
-                mergedVectors: cachedMergedVectors
-              }, { index: cacheIndex }));
-              if (shardEntry?.shard) {
-                upsertCacheIndexEntry(cacheIndex, entry.cacheKey, {
-                  key: entry.cacheKey,
-                  file: entry.normalizedRel,
-                  hash: entry.fileHash,
-                  chunkSignature: entry.chunkSignature,
-                  chunkHashes: entry.chunkHashes,
-                  codeVectors: cachedCodeVectors
-                }, shardEntry);
-                cacheIndexDirty = true;
-              }
+              const cacheDirLocal = entry.cacheDir;
+              const cacheKeyLocal = entry.cacheKey;
+              const normalizedRelLocal = entry.normalizedRel;
+              const fileHashLocal = entry.fileHash;
+              const chunkSignatureLocal = entry.chunkSignature;
+              const chunkHashesLocal = entry.chunkHashes;
+              await writerQueue.enqueue(async () => {
+                const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, {
+                  key: cacheKeyLocal,
+                  file: normalizedRelLocal,
+                  hash: fileHashLocal,
+                  chunkSignature: chunkSignatureLocal,
+                  chunkHashes: chunkHashesLocal,
+                  cacheMeta: {
+                    schemaVersion: 1,
+                    identityKey: cacheIdentityKey,
+                    identity: cacheIdentity,
+                    createdAt: new Date().toISOString()
+                  },
+                  codeVectors: cachedCodeVectors,
+                  docVectors: cachedDocVectors,
+                  mergedVectors: cachedMergedVectors
+                }, { index: cacheIndex });
+                if (shardEntry?.shard) {
+                  upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
+                    key: cacheKeyLocal,
+                    file: normalizedRelLocal,
+                    hash: fileHashLocal,
+                    chunkSignature: chunkSignatureLocal,
+                    chunkHashes: chunkHashesLocal,
+                    codeVectors: cachedCodeVectors
+                  }, shardEntry);
+                  cacheIndexDirty = true;
+                }
+              });
             } catch {
             // Ignore cache write failures.
             }
@@ -901,6 +939,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             reuse
           });
         }
+
+        await writerQueue.onIdle();
 
         if (cacheIndex && cacheEligible && (cacheIndexDirty || cacheMaxBytes || cacheMaxAgeMs)) {
           try {
@@ -1218,6 +1258,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
 
         log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+        writerStatsByMode[mode] = writerQueue.stats();
         const schedulerStats = scheduler?.stats?.();
         const starvationCount = schedulerStats?.counters?.starvation ?? 0;
         if (starvationCount > 0) {
@@ -1269,7 +1310,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (hasBuildState) {
       await markBuildPhase(indexRoot, 'stage3', 'done');
     }
-    return { modes, scheduler: scheduler?.stats?.() };
+    return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } finally {
     scheduler?.shutdown?.();
     finalize();

@@ -71,6 +71,10 @@ Versioned index tracking shard entries and LRU metadata:
 Cache shard writes and cache index updates are coordinated via `files/cache.lock`.
 This keeps shard appends consistent and prevents concurrent builds from corrupting shard offsets.
 
+Stage3 also uses a bounded in-process writer queue for cache writes. Shard appends are serialized by `cache.lock`,
+so allowing unbounded pending writes only increases memory retention (queued payloads) without increasing throughput.
+When the writer queue is saturated, embedding compute awaits (backpressure) before scheduling more writes.
+
 When persisting the cache index, we merge the in-memory index into the latest on-disk index under the lock,
 then atomically replace `cache.index.json`. Concurrent writers may still race on cache hits, but correctness is preserved:
 cache reads treat missing/corrupt entries as cache misses and recompute.

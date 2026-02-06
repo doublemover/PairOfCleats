@@ -1221,19 +1221,19 @@ Parallel: Can run alongside 16.8.1 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/pipeline.js (anchor: createFileEmbeddingsProcessor)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`, `src/shared/embedding-batch.js (anchor: resolveAutoEmbeddingBatchSize)`
 Tasks:
-- [ ] Task 16.8.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.2.a: Implement writer pipeline as a bounded queue (all writes go through the IO scheduler; no bypass paths).
-- [ ] Task 16.8.2.b: Add IO backpressure to compute path (when writer queue is saturated, compute awaits).
-- [ ] Task 16.8.2.c: Batch-size auto-tuning: centralize in `src/shared/embedding-batch.js`, plumb to Stage3, and document provider limits.
-- [ ] Task 16.8.2.d: Vector pre-allocation + pooling for hot paths (typed arrays); add guardrails against cross-file mutation.
-- [ ] Task 16.8.2.e: Enforce chunk-stable batching (deterministic chunk ordering independent of concurrency and batch size).
-- [ ] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads (stub/onnx paths).
+- [x] Task 16.8.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.2.a: Implement writer pipeline as a bounded queue (all writes go through the IO scheduler; no bypass paths).
+- [x] Task 16.8.2.b: Add IO backpressure to compute path (when writer queue is saturated, compute awaits).
+- [x] Task 16.8.2.c: Batch-size auto-tuning: centralize in `src/shared/embedding-batch.js`, plumb to Stage3, and document provider limits.
+- [x] Task 16.8.2.d: Vector pre-allocation + pooling for hot paths (typed arrays); add guardrails against cross-file mutation.
+- [x] Task 16.8.2.e: Enforce chunk-stable batching (deterministic chunk ordering independent of concurrency and batch size).
+- [x] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads (stub/onnx paths).
 
 Tests:
-- [ ] `tests/indexing/embeddings/embedding-queue.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batch-autotune.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batcher-flush-reentrancy.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-writer-backpressure.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embedding-queue.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batch-autotune.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batcher-flush-reentrancy.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-writer-backpressure.test.js` (perf lane) (new)
 
 ### Subphase 16.8.3 -- Tests + Bench
 Parallel: Run after 16.8.1/16.8.2.
