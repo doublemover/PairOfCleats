@@ -1258,37 +1258,42 @@ Tests:
 
 ## Phase 16.9 -- SQLite Build Throughput
 
+Implementation note: SQLite build code lives under `src/storage/sqlite/build/*` and is invoked by Stage4 via `src/storage/sqlite/build/runner.js`. Keep build behavior atomic and deterministic (build to temp, validate, then swap), and avoid introducing a second competing build path.
+
 ### Subphase 16.9.1 -- Bulk Load Core
 Parallel: Must land before 16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
-Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
+Touchpoints: `src/storage/sqlite/build/runner.js (anchor: runBuildSqliteIndexWithConfig)`, `src/storage/sqlite/build/output-paths.js (anchor: resolveOutputPaths)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/from-bundles.js (anchor: buildDatabaseFromBundles)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchor: applyBuildPragmas)`, `src/storage/sqlite/utils.js (anchor: resolveSqliteBatchSize)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`
 Tasks:
 - [ ] Task 16.9.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.1.a: Implement load-then-index pipeline.
-- [ ] Task 16.9.1.b: Wrap all inserts in a single transaction.
-- [ ] Task 16.9.1.c: Reuse prepared statements per table.
-- [ ] Task 16.9.1.d: Set PRAGMAs before table creation.
-- [ ] Task 16.9.1.e: Avoid INSERT OR REPLACE where possible.
-- [ ] Task 16.9.1.f: Add multi-row insert batching to reduce statement overhead.
+- [ ] Task 16.9.1.a: Ensure BOTH artifact builds and bundle builds use a consistent load-first flow (schema base, ingest, then indexes/optimize) and share common ingestion helpers where possible.
+- [ ] Task 16.9.1.b: Add a top-level transaction boundary for full builds (one `BEGIN`/`COMMIT` spanning all table loads + index creation); ensure no accidental autocommit islands (including `db.exec()` multi-statement inserts).
+- [ ] Task 16.9.1.c: Split statements for full rebuild vs incremental update: full rebuild must prefer `INSERT` (fail-fast on duplicates) while incremental update may use `INSERT OR REPLACE` where needed.
+- [ ] Task 16.9.1.d: Reduce prepare/parse overhead: prepare insert statements once per DB handle and reuse across all artifact shards (no per-shard `db.prepare` churn).
+- [ ] Task 16.9.1.e: Batch sizing: make batch size decisions observable in telemetry (input bytes, chosen batch size, rows/sec per table) and ensure overrides are consistently plumbed through Stage4 runner.
+- [ ] Task 16.9.1.f: Evaluate multi-row INSERT vs statement loops for heavy tables (token/phrase/chargram postings); pick the faster path per benchmark and document the decision in `docs/perf/sqlite-build.md`.
 
 Tests:
-- [ ] `tests/storage/sqlite/bulk-load-transaction.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (perf lane)
+- [ ] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (perf lane)
+- [ ] `tests/storage/sqlite/sqlite-build-full-transaction.test.js` (perf lane) (new)
 
 ### Subphase 16.9.2 -- FTS/Index Build
 Parallel: Run after 16.9.1.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
-Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
+Touchpoints: `src/storage/sqlite/schema.js (anchor: CREATE_INDEXES_SQL)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`, `src/storage/sqlite/build/pragmas.js (anchor: optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/retrieval/sqlite-helpers.js (anchor: rankSqliteFts)`
 Tasks:
 - [ ] Task 16.9.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.2.a: Defer FTS build until data load complete.
-- [ ] Task 16.9.2.b: Use contentless FTS where supported.
-- [ ] Task 16.9.2.c: Minimize PRAGMA flips during build.
-- [ ] Task 16.9.2.d: Add row-shape optimizations (WITHOUT ROWID).
-- [ ] Task 16.9.2.e: Add IO pipeline decoupling for artifact reads.
-- [ ] Task 16.9.2.f: Add explicit ANALYZE + PRAGMA optimize sequencing.
+- [ ] Task 16.9.2.a: FTS strategy: make `chunks_fts` contentless (`content=''`) to avoid duplicating chunk text; confirm runtime does not depend on reading FTS-stored content (ranking-only is OK).
+- [ ] Task 16.9.2.b: Add explicit FTS post-load optimization (`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`) and include it in Stage4 telemetry.
+- [ ] Task 16.9.2.c: Index plan: audit `CREATE_INDEXES_SQL` for redundant indexes (especially those subsumed by PRIMARY KEY ordering); remove/adjust indexes based on query plans + benchmarks and update tests accordingly.
+- [ ] Task 16.9.2.d: Row-shape optimizations: evaluate `WITHOUT ROWID` for postings/vocab tables with composite PRIMARY KEYs; document which tables change and why (size vs build time vs query plan effects).
+- [ ] Task 16.9.2.e: Artifact read pipeline: keep reads streaming and bounded (no full materialization of large JSONL shards); add guardrails for maxBytes enforcement on all artifact readers used by Stage4.
+- [ ] Task 16.9.2.f: Post-build sequencing: run index creation, then `PRAGMA optimize`, then `ANALYZE` (gated by size), and finish with an explicit WAL checkpoint/cleanup step when building a new DB.
 
 Tests:
-- [ ] `tests/storage/sqlite/fts-deferred-build.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-indexes.test.js` (perf lane)
+- [ ] `tests/storage/sqlite/sqlite-fts-contentless-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.9.3 -- Tests + Bench
 Parallel: Run after 16.9.1/16.9.2.
@@ -1534,12 +1539,13 @@ Tests:
 ---
 
 ## Post-Phase Tasks (For the next Roadmap)
-- Unify shard threshold normalization across writer/loader paths (ensure a single shared helper is used everywhere).
 - Fix --help on `node tests/run.js --help`, it currently starts running tests after printing its help output
 - what generates artifacts directory? Just junit xml output? That should probably be emitted to a better location like in .testlogs
-- do we deliberately have an empty tools/perf/ folder?
-- We need to evaluate the performance of indexing and searching on the repo itself to determine correct limits/safeguards/values
+- do we deliberately have an empty tools/perf/ folder? Let's get rid of that 
 - Confirm that when I see `[budget] symbol_edges exceeded budget 128.0MB by 58.2MB (trim).` It doesn't mean we're just chopping off all of the extra data. We can totally include all of this. 
+
+- Unify shard threshold normalization across writer/loader paths (ensure a single shared helper is used everywhere).
+- We need to evaluate the performance of indexing and searching on the repo itself to determine correct limits/safeguards/values
 - Have been seeing errors like `[tooling] Invalid virtualRange for tests/fixtures/languages/src/javascript_component.jsx (117-157); skipping target.`, let's ensure that is fixed by now
 - ensure we're wasming correctly
 - evaluate context window sizing
