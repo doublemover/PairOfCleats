@@ -21,6 +21,7 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import { hydrateFilterIndex } from '../../retrieval/filter-index.js';
 import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
@@ -327,8 +328,84 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const resolveExistingOrBakPath = (targetPath) => {
+    if (!targetPath) return null;
+    if (fsSync.existsSync(targetPath)) return targetPath;
+    const bakPath = `${targetPath}.bak`;
+    if (fsSync.existsSync(bakPath)) return bakPath;
+    return null;
+  };
+  const previousPiecesManifestPath = path.join(outDir, 'pieces', 'manifest.json');
+  let previousPiecesManifest = null;
+  try {
+    const source = resolveExistingOrBakPath(previousPiecesManifestPath);
+    if (source) {
+      previousPiecesManifest = readJsonFile(source, { maxBytes: maxJsonBytes });
+    }
+  } catch {}
+  const previousPieces = Array.isArray(previousPiecesManifest?.pieces) ? previousPiecesManifest.pieces : [];
+  const previousFilterIndexPiece = previousPieces.find((piece) => piece?.name === 'filter_index' && piece?.path);
+  const previousFilterIndexPath = previousFilterIndexPiece?.path
+    ? path.join(outDir, ...String(previousFilterIndexPiece.path).split('/'))
+    : null;
+  const previousFilterIndexSource = resolveExistingOrBakPath(previousFilterIndexPath);
   let filterIndex = null;
   let filterIndexStats = null;
+  let filterIndexReused = false;
+  const reusePreviousFilterIndex = (reason) => {
+    if (!previousFilterIndexSource) return false;
+    const note = reason ? ` (${reason})` : '';
+    log(`[warn] [filter_index] build skipped; reusing previous artifact.${note}`);
+    let previousRaw = null;
+    try {
+      previousRaw = readJsonFile(previousFilterIndexSource, { maxBytes: maxJsonBytes });
+      validateSerializedFilterIndex(previousRaw);
+    } catch (err) {
+      const message = err?.message || String(err);
+      log(`[warn] [filter_index] failed to reuse previous artifact; validation failed. (${message})`);
+      return false;
+    }
+    filterIndexReused = true;
+    addPieceFile({
+      type: previousFilterIndexPiece?.type || 'chunks',
+      name: 'filter_index',
+      format: previousFilterIndexPiece?.format || 'json'
+    }, previousFilterIndexSource);
+    try {
+      filterIndexStats = summarizeFilterIndex(previousRaw);
+    } catch {
+      filterIndexStats = { reused: true };
+    }
+    if (filterIndexStats && typeof filterIndexStats === 'object') {
+      filterIndexStats.reused = true;
+    }
+    return true;
+  };
+  const validateSerializedFilterIndex = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error('expected object');
+    }
+    if (!Number.isFinite(Number(candidate.schemaVersion))) {
+      throw new Error('missing schemaVersion');
+    }
+    if (!Number.isFinite(Number(candidate.fileChargramN))) {
+      throw new Error('missing fileChargramN');
+    }
+    if (!Array.isArray(candidate.fileById)) {
+      throw new Error('missing fileById');
+    }
+    if (!Array.isArray(candidate.fileChunksById)) {
+      throw new Error('missing fileChunksById');
+    }
+    if (candidate.byLang == null || typeof candidate.byLang !== 'object') {
+      throw new Error('missing byLang');
+    }
+    const hydrated = hydrateFilterIndex(candidate);
+    if (!hydrated) {
+      throw new Error('hydrate failed');
+    }
+    return true;
+  };
   try {
     filterIndex = buildSerializedFilterIndex({
       chunks: state.chunks,
@@ -336,6 +413,7 @@ export async function writeIndexArtifacts(input) {
       userConfig,
       root
     });
+    validateSerializedFilterIndex(filterIndex);
     filterIndexStats = summarizeFilterIndex(filterIndex);
     if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
       log(
@@ -348,6 +426,7 @@ export async function writeIndexArtifacts(input) {
     log(`[warn] [filter_index] build failed; skipping. (${message})`);
     filterIndex = null;
     filterIndexStats = null;
+    reusePreviousFilterIndex(message);
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)
@@ -1102,9 +1181,12 @@ export async function writeIndexArtifacts(input) {
   const scheduleRelations = scheduler?.schedule
     ? (fn) => scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1, io: 1, mem: 1 },
+      { cpu: 1, mem: 1 },
       fn
     )
+    : (fn) => fn();
+  const scheduleRelationsIo = scheduler?.schedule
+    ? (fn) => scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2RelationsIo, { io: 1 }, fn)
     : (fn) => fn();
   const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
@@ -1115,6 +1197,7 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes: graphRelationsMaxBytes,
     byteBudget: graphRelationsBudget,
     log,
+    scheduleIo: scheduleRelationsIo,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,

@@ -178,12 +178,14 @@ export async function enqueueGraphRelationsArtifacts({
   maxJsonBytes,
   byteBudget = null,
   log,
+  scheduleIo = null,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
   removeArtifact,
   stageCheckpoints
 }) {
+  const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
   const hasPayload = graphRelations && typeof graphRelations === 'object';
   const hasInputs = Array.isArray(chunks) && chunks.length;
   if (!hasPayload && !hasInputs) return;
@@ -198,8 +200,8 @@ export async function enqueueGraphRelationsArtifacts({
     const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
 
     const stagingDir = path.join(outDir, 'graph_relations.staging');
-    await fs.rm(stagingDir, { recursive: true, force: true });
-    await fs.mkdir(stagingDir, { recursive: true });
+    await schedule(() => fs.rm(stagingDir, { recursive: true, force: true }));
+    await schedule(() => fs.mkdir(stagingDir, { recursive: true }));
 
     const chunkByUid = new Map();
     const chunkUids = [];
@@ -248,13 +250,15 @@ export async function enqueueGraphRelationsArtifacts({
       outDir: stagingDir,
       runPrefix: 'graph-relations-out',
       compare: compareEdgesOut,
-      maxBufferBytes: spillBufferBytes
+      maxBufferBytes: spillBufferBytes,
+      scheduleIo
     });
     const inCollector = createRowSpillCollector({
       outDir: stagingDir,
       runPrefix: 'graph-relations-in',
       compare: compareEdgesIn,
-      maxBufferBytes: spillBufferBytes
+      maxBufferBytes: spillBufferBytes,
+      scheduleIo
     });
 
     const edgeCountsRaw = Object.create(null);
@@ -489,7 +493,7 @@ export async function enqueueGraphRelationsArtifacts({
     await removeArtifact(graphPartsDir);
     await removeArtifact(csrPath);
 
-    const result = await writeJsonLinesShardedAsync({
+    const result = await schedule(() => writeJsonLinesShardedAsync({
       dir: outDir,
       partsDirName: 'graph_relations.parts',
       partPrefix: 'graph_relations.part-',
@@ -497,7 +501,7 @@ export async function enqueueGraphRelationsArtifacts({
       maxBytes: maxJsonBytes,
       atomic: true,
       offsets: offsetsConfig
-    });
+    }));
 
     const parts = result.parts.map((part, index) => ({
       path: part,
@@ -510,7 +514,7 @@ export async function enqueueGraphRelationsArtifacts({
       compression: 'none'
     });
 
-    await writeJsonObjectFile(graphMetaPath, {
+    await schedule(() => writeJsonObjectFile(graphMetaPath, {
       fields: {
         schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
         artifact: 'graph_relations',
@@ -555,7 +559,7 @@ export async function enqueueGraphRelationsArtifacts({
         }
       },
       atomic: true
-    });
+    }));
 
     for (let i = 0; i < result.parts.length; i += 1) {
       const relPath = result.parts[i];
@@ -596,7 +600,7 @@ export async function enqueueGraphRelationsArtifacts({
 
     await outSpill.cleanup();
     await inSpill.cleanup();
-    await fs.rm(stagingDir, { recursive: true, force: true });
+    await schedule(() => fs.rm(stagingDir, { recursive: true, force: true }));
 
     return { orderingHash, orderingCount };
   }

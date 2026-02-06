@@ -289,7 +289,8 @@ export const createRowSpillCollector = ({
   maxJsonBytes = null,
   stats = createTrimStats(),
   mapRow = null,
-  serialize = null
+  serialize = null,
+  scheduleIo = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
@@ -300,13 +301,14 @@ export const createRowSpillCollector = ({
   const compareRows = typeof compare === 'function' ? compare : compareStrings;
   const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
   const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
+  const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
   const runDirName = `${runPrefix || 'rows'}.runs`;
 
   const ensureRunsDir = async () => {
     if (runsDir) return runsDir;
     if (!outDir) throw new Error('row spill collector requires outDir');
     runsDir = path.join(outDir, runDirName);
-    await fs.promises.mkdir(runsDir, { recursive: true });
+    await schedule(() => fs.promises.mkdir(runsDir, { recursive: true }));
     return runsDir;
   };
 
@@ -318,7 +320,7 @@ export const createRowSpillCollector = ({
     const runPath = path.join(dir, runName);
     runIndex += 1;
     const spillBytes = bufferBytes;
-    await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
+    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow }));
     runs.push(runPath);
     if (stats) {
       stats.runsSpilled = (stats.runsSpilled || 0) + 1;
@@ -390,7 +392,7 @@ export const createRowSpillCollector = ({
         stats,
         cleanup: async () => {
           if (runsDir) {
-            await fs.promises.rm(runsDir, { recursive: true, force: true });
+            await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
           }
         }
       };
@@ -401,7 +403,7 @@ export const createRowSpillCollector = ({
       stats,
       cleanup: async () => {
         if (runsDir) {
-          await fs.promises.rm(runsDir, { recursive: true, force: true });
+          await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
         }
       }
     };
