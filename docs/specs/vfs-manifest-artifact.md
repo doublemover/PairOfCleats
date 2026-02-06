@@ -204,5 +204,9 @@ Producers:
 
 Consumers:
 - Tooling VFS (Phase 8) and any segment-aware analyzers that need stable virtual paths.
+- Consumers MAY bucket work by `languageId`/`effectiveExt` to batch provider execution per language (WASM reuse),
+  but MUST preserve determinism (stable `virtualPath` ordering independent of concurrency).
+- Tooling consumers that build `ToolingTarget.virtualRange` mappings MUST surface invalid mappings explicitly
+  (see `docs/specs/tooling-vfs-and-segment-routing.md` for mapping + guardrails).
 
 

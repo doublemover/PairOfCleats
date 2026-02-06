@@ -1360,18 +1360,18 @@ Parallel: Run after 16.10.1/16.10.2.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `tools/bench/vfs/parallel-manifest-build.js`, `tools/bench/vfs/merge-runs-heap.js`, `tools/bench/vfs/vfsidx-lookup.js`, `tools/bench/vfs/hash-routing-lookup.js`, `tools/bench/vfs/bloom-negative-lookup.js`, `tools/bench/micro/utils.js (anchors: summarizeDurations, formatStats)`, `src/index/tooling/vfs.js (anchors: buildVfsManifestRowsForFile, createVfsColdStartCache, loadVfsManifestRowByPath, loadVfsManifestIndex)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`
 Tasks:
-- [ ] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.3.a: Add VFS bench contract coverage for manifest build + merge paths using relative invariants (e.g., concurrency scaling in `parallel-manifest-build`, heap merge dominating linear merge at high run-count) rather than hard machine-specific thresholds.
-- [ ] Task 16.10.3.b: Add VFS lookup bench contract coverage validating fast-path behavior (bloom/vfsidx negative lookups must avoid full scans; hash-routing lookups must match vfs manifest routing; surface fallbacks explicitly in JSON output).
-- [ ] Task 16.10.3.c: Add memory regression test for cold-start cache + index load (repeat load/lookup loops must plateau; caches must honor maxBytes/maxAge and not grow unbounded under repeated queries).
-- [ ] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations (include "invalid virtualRange" behavior and how it is surfaced/guarded).
+- [x] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.3.a: Add VFS bench contract coverage for manifest build + merge paths using relative invariants (e.g., concurrency scaling in `parallel-manifest-build`, heap merge dominating linear merge at high run-count) rather than hard machine-specific thresholds.
+- [x] Task 16.10.3.b: Add VFS lookup bench contract coverage validating fast-path behavior (bloom/vfsidx negative lookups must avoid full scans; hash-routing lookups must match vfs manifest routing; surface fallbacks explicitly in JSON output).
+- [x] Task 16.10.3.c: Add memory regression test for cold-start cache + index load (repeat load/lookup loops must plateau; caches must honor maxBytes/maxAge and not grow unbounded under repeated queries).
+- [x] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations (include "invalid virtualRange" behavior and how it is surfaced/guarded).
 
 Tests:
-- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane) (existing)
-- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane) (existing)
-- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane) (existing)
-- [ ] `tests/perf/vfs-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/perf/vfs-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane) (existing)
+- [x] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane) (existing)
+- [x] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane) (existing)
+- [x] `tests/perf/vfs-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/vfs-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
