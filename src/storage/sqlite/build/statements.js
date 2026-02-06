@@ -24,8 +24,8 @@ export const createInsertStatements = (db, options = {}) => {
   `);
 
   const insertFts = db.prepare(`
-    ${insertClause} INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
-    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
+    ${insertClause} INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = db.prepare(

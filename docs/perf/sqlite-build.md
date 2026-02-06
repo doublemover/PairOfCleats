@@ -76,6 +76,13 @@ To keep incremental deletes working, we enable `contentless_delete=1` and rely o
 
 Runtime note: contentless FTS is ranking-only; column reads from `chunks_fts` return `NULL` and query code must join against `chunks`/`chunk_meta` artifacts when it needs display text.
 
+## Validation Modes
+Stage4 supports a few validation modes:
+- `off`: no validation.
+- `smoke`: `PRAGMA quick_check` plus row-count guards (chunks, FTS, dense/minhash when expected).
+- `full`: `PRAGMA integrity_check` plus row-count guards.
+- `auto`: chooses `full` for small DBs and falls back to `smoke` when the output DB exceeds the configured size threshold (`fullIntegrityCheckMaxBytes`, default 512MB).
+
 ## Telemetry
 Stage4 telemetry is captured in:
 - `metrics/stage-audit-<mode>.json`
@@ -106,6 +113,10 @@ Each script accepts `--mode` with one of:
 - `compare` (default) runs baseline + current and prints a delta
 - `baseline` runs the legacy path only (no build pragmas / no optimize)
 - `current` runs the optimized path only
+
+`tools/bench/sqlite/build-from-artifacts.js` also accepts:
+- `--index-dir <path>`: run against a real Stage2/Stage3 index output directory (otherwise it generates synthetic artifacts under `.benchCache`).
+- `--statement-strategy <prepared|multi-row|prepare-per-shard>`: force a specific insert strategy and print prepare/multi-row telemetry.
 
 Each benchmark should report:
 - Input bytes, wall-clock time, and rows/sec per table

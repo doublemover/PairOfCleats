@@ -106,4 +106,4 @@ SQLite vector extension).
 - When `chunk_meta.json` stores `fileId` instead of `file`, the stage 4 SQLite build uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
 - When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
 - `chunks_fts` is contentless (`content=''`) so FTS does not store a second copy of chunk text; deletes are supported via `contentless_delete=1`.
-- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 11); mismatches require a full rebuild.
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 12); mismatches require a full rebuild.

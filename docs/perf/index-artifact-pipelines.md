@@ -98,6 +98,7 @@ Stage4 SQLite build throughput benchmarks live under `tools/bench/sqlite/`:
 - `node tools/bench/sqlite/jsonl-streaming.js`
 
 Use these when changing statement strategies (multi-row vs per-row prepared) and transaction boundaries so throughput decisions remain measurable.
+`build-from-artifacts` supports `--index-dir <path>` for benchmarking real Stage2 output and `--statement-strategy` for forcing prepared vs multi-row behavior.
 
 Stage4 notes:
 - `chunks_fts` is contentless (`content=''`, `contentless_delete=1`) and is used for MATCH + bm25 ranking only.

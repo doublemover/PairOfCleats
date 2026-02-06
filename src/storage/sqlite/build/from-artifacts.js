@@ -1333,10 +1333,9 @@ export async function buildDatabaseFromArtifacts({
         FROM chunks_stage c
         LEFT JOIN file_meta_stage f ON c.file_id = f.id;
 
-        INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
+        INSERT OR REPLACE INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
         SELECT
           c.id,
-          c.mode,
           COALESCE(c.file, f.file),
           c.name,
           c.signature,

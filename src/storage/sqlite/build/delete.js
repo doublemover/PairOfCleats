@@ -21,7 +21,7 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
   if (!docIds.length) return;
   const deleteTargets = [
     { table: 'chunks', column: 'id' },
-    { table: 'chunks_fts', column: 'rowid' },
+    { table: 'chunks_fts', column: 'rowid', withMode: false },
     { table: 'token_postings', column: 'doc_id' },
     { table: 'phrase_postings', column: 'doc_id' },
     { table: 'chargram_postings', column: 'doc_id' },

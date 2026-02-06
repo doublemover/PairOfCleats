@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const REQUIRED_TABLES = [
   'chunks',
@@ -67,7 +67,6 @@ export const CREATE_TABLES_BASE_SQL = `
     chunk_authors TEXT
   );
   CREATE VIRTUAL TABLE chunks_fts USING fts5(
-    mode UNINDEXED,
     file,
     name,
     signature,

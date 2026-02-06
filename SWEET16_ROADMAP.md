@@ -1300,19 +1300,19 @@ Parallel: Run after 16.9.1/16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `tools/bench/sqlite/build-from-artifacts.js (anchors: parseArgs, runBuild)`, `src/storage/sqlite/build/from-artifacts.js (anchors: loadIndexPieces, buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchors: applyBuildPragmas, optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/storage/sqlite/schema.js (anchors: CREATE_TABLES_BASE_SQL, CREATE_INDEXES_SQL)`
 Tasks:
-- [ ] Task 16.9.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.3.a: Extend `tools/bench/sqlite/build-from-artifacts.js` with `--index-dir <dir>` so the bench can run against a real Stage2/Stage3 index output (when absent, keep the synthetic artifact generator path).
-- [ ] Task 16.9.3.b: Add a bench switch for statement strategy (prepared reuse vs prepare-per-shard vs multi-row exec) and report per-table ingestion stats (rows, rows/sec, prepare counts) so 16.9.1 decisions stay measurable.
-- [ ] Task 16.9.3.c: Add a row-count contract test that derives expected counts from artifacts (chunk_meta totals, postings meta, dense/minhash presence) and asserts per-mode table counts match (including FTS).
-- [ ] Task 16.9.3.d: Add regression test enforcing prepared statement reuse (no `db.prepare()` churn per shard) using ingestion stats or explicit instrumentation.
-- [ ] Task 16.9.3.e: Add post-build validation "fast path" test for `validateMode=auto` (quick_check for large DBs; integrity_check for small DBs) while still enforcing expected row-count guards.
-- [ ] Task 16.9.3.f: Add docs update for the Stage4 build/validate flow (transaction boundary, validate modes, per-table stats, and bench commands).
+- [x] Task 16.9.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.3.a: Extend `tools/bench/sqlite/build-from-artifacts.js` with `--index-dir <dir>` so the bench can run against a real Stage2/Stage3 index output (when absent, keep the synthetic artifact generator path).
+- [x] Task 16.9.3.b: Add a bench switch for statement strategy (prepared reuse vs prepare-per-shard vs multi-row exec) and report per-table ingestion stats (rows, rows/sec, prepare counts) so 16.9.1 decisions stay measurable.
+- [x] Task 16.9.3.c: Add a row-count contract test that derives expected counts from artifacts (chunk_meta totals, postings meta, dense/minhash presence) and asserts per-mode table counts match (including FTS).
+- [x] Task 16.9.3.d: Add regression test enforcing prepared statement reuse (no `db.prepare()` churn per shard) using ingestion stats or explicit instrumentation.
+- [x] Task 16.9.3.e: Add post-build validation "fast path" test for `validateMode=auto` (quick_check for large DBs; integrity_check for small DBs) while still enforcing expected row-count guards.
+- [x] Task 16.9.3.f: Add docs update for the Stage4 build/validate flow (transaction boundary, validate modes, per-table stats, and bench commands).
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-prepared-statement-reuse.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-prepared-statement-reuse.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` (perf lane) (new)
 
 ---
 
