@@ -1323,19 +1323,19 @@ Parallel: Can run alongside 16.10.2 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/tooling/vfs.js (anchors: buildToolingVirtualDocuments, loadVfsManifestRowByPath, loadVfsManifestBloomFilter, loadVfsManifestIndex, readVfsManifestRowAtOffset)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/index/tooling/vfs-hash-routing.js (anchor: buildVfsRoutingToken)`, `src/integrations/tooling/providers/lsp.js (anchor: ensureVirtualFilesBatch)`, `src/index/segments/jsx.js (anchor: segmentJsx)`, `src/index/segments.js (anchor: chunkSegments)`
 Tasks:
-- [ ] Task 16.10.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.1.a: Harden the VFS manifest lookup fast-path (bloom -> vfsidx -> offset read); add telemetry for scan fallbacks and negative-cache hit rates.
-- [ ] Task 16.10.1.b: Add batched row loads that reuse a single file handle and pooled buffers for offset reads (critical for per-language tooling batching without N open/close churn).
-- [ ] Task 16.10.1.c: Fix `[tooling] Invalid virtualRange ...; skipping target.` by making chunk-to-virtual range mapping segment-safe (no full-container AST reuse for sliced segments), and add a degraded fallback target (whole-container) so we never silently drop work.
-- [ ] Task 16.10.1.d: Ensure VFS routing supports per-language batching deterministically (stable `languageId`/`effectiveExt` on rows, stable `virtualPath` and routing token composition across runs).
-- [ ] Task 16.10.1.e: Decide and document whether extracted-prose participates in VFS routing/manifests; if yes, add coverage and ensure per-language bucketing remains deterministic.
+- [x] Task 16.10.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.1.a: Harden the VFS manifest lookup fast-path (bloom -> vfsidx -> offset read); add telemetry for scan fallbacks and negative-cache hit rates.
+- [x] Task 16.10.1.b: Add batched row loads that reuse a single file handle and pooled buffers for offset reads (critical for per-language tooling batching without N open/close churn).
+- [x] Task 16.10.1.c: Fix `[tooling] Invalid virtualRange ...; skipping target.` by making chunk-to-virtual range mapping segment-safe (no full-container AST reuse for sliced segments), and add a degraded fallback target (whole-container) so we never silently drop work.
+- [x] Task 16.10.1.d: Ensure VFS routing supports per-language batching deterministically (stable `languageId`/`effectiveExt` on rows, stable `virtualPath` and routing token composition across runs).
+- [x] Task 16.10.1.e: Decide and document whether extracted-prose participates in VFS routing/manifests; if yes, add coverage and ensure per-language bucketing remains deterministic.
 
 Tests:
-- [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-index-lookup.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` (perf lane) (new)
+- [x] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-index-lookup.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` (perf lane) (new)
 
 ### Subphase 16.10.2 -- Merge/Compaction
 Parallel: Can run alongside 16.10.1 with clear file ownership.

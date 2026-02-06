@@ -200,6 +200,7 @@ Producers:
   - segment boundaries (`segmentStart/segmentEnd`)
   - effective language identity (`languageId/effectiveExt`)
   - stable `segmentUid`
+- VFS manifests are not emitted for `extracted-prose` mode. Extracted prose is already materialized as plain text artifacts and bypasses VFS routing/batching.
 
 Consumers:
 - Tooling VFS (Phase 8) and any segment-aware analyzers that need stable virtual paths.
