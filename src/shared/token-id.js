@@ -43,6 +43,27 @@ export const hashTokenId64 = (token, seed = DEFAULT_TOKEN_ID_SEED) => {
   return hash & MASK_64;
 };
 
+// Hash multiple string-like parts without concatenating them into a single buffer.
+// Uses a 0-byte delimiter between parts to avoid ambiguity.
+export const hashTokenId64Parts = (parts, seed = DEFAULT_TOKEN_ID_SEED) => {
+  if (!Array.isArray(parts) || parts.length === 0) return 0n;
+  let hash = FNV_OFFSET_BASIS ^ normalizeSeed(seed);
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i];
+    const value = typeof part === 'string'
+      ? part
+      : (part == null ? '' : String(part));
+    for (let j = 0; j < value.length; j += 1) {
+      hash ^= BigInt(value.charCodeAt(j));
+      hash = (hash * FNV_PRIME) & MASK_64;
+    }
+    // Delimiter between parts.
+    hash ^= 0n;
+    hash = (hash * FNV_PRIME) & MASK_64;
+  }
+  return hash & MASK_64;
+};
+
 export const hashTokenId = (token, { seed = DEFAULT_TOKEN_ID_SEED } = {}) => (
   formatHash64(hashTokenId64(token, seed))
 );

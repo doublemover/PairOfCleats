@@ -226,17 +226,27 @@ export const createTrimStats = () => ({
   totalRows: 0,
   trimmedRows: 0,
   droppedRows: 0,
+  dedupedRows: 0,
+  dedupeCollisions: 0,
   totalBytes: 0,
   maxRowBytes: 0,
   runsSpilled: 0,
   spillBytes: 0
 });
 
-export const recordTrimStats = (stats, { rowBytes = 0, trimmed = false, dropped = false } = {}) => {
+export const recordTrimStats = (stats, {
+  rowBytes = 0,
+  trimmed = false,
+  dropped = false,
+  deduped = false,
+  dedupeCollision = false
+} = {}) => {
   if (!stats) return;
-  stats.totalRows += dropped ? 0 : 1;
+  stats.totalRows += (dropped || deduped) ? 0 : 1;
   if (trimmed) stats.trimmedRows += 1;
   if (dropped) stats.droppedRows += 1;
+  if (deduped) stats.dedupedRows += 1;
+  if (dedupeCollision) stats.dedupeCollisions += 1;
   if (rowBytes) {
     stats.totalBytes += rowBytes;
     stats.maxRowBytes = Math.max(stats.maxRowBytes, rowBytes);
@@ -286,6 +296,7 @@ export const createRowSpillCollector = ({
   let runsDir = null;
   let runIndex = 0;
   const runs = [];
+  let dedupeBuckets = null;
   const compareRows = typeof compare === 'function' ? compare : compareStrings;
   const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
   const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
@@ -315,12 +326,42 @@ export const createRowSpillCollector = ({
     }
     buffer.length = 0;
     bufferBytes = 0;
+    if (dedupeBuckets) {
+      for (const bucket of dedupeBuckets.values()) bucket.clear();
+      dedupeBuckets.clear();
+    }
   };
 
-  const append = async (row, { trimmed = false, dropped = false, line = null, lineBytes = null } = {}) => {
+  const append = async (
+    row,
+    {
+      trimmed = false,
+      dropped = false,
+      dedupeHash = null,
+      dedupeFingerprint = null,
+      line = null,
+      lineBytes = null
+    } = {}
+  ) => {
     if (!row || dropped) {
       recordTrimStats(stats, { dropped: true });
       return;
+    }
+    if (dedupeHash != null) {
+      if (!dedupeBuckets) dedupeBuckets = new Map();
+      let bucket = dedupeBuckets.get(dedupeHash);
+      if (!bucket) {
+        bucket = new Set();
+        dedupeBuckets.set(dedupeHash, bucket);
+      }
+      if (bucket.size && !bucket.has(dedupeFingerprint)) {
+        recordTrimStats(stats, { dedupeCollision: true });
+      }
+      if (bucket.has(dedupeFingerprint)) {
+        recordTrimStats(stats, { deduped: true });
+        return;
+      }
+      bucket.add(dedupeFingerprint);
     }
     const resolvedLine = line ?? serializeRow(row);
     const resolvedBytes = lineBytes == null

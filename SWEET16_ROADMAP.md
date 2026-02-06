@@ -1118,7 +1118,7 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [x] Task 16.7.1.doc: Update docs/specs and touchpoints listed for this subphase.
 - [x] Task 16.7.1.a: Implement typed edge storage during build.
-- [ ] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
+- [x] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
 - [x] Task 16.7.1.b: Implement two-phase streaming relations build.
 - [x] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
 - [x] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
@@ -1127,13 +1127,13 @@ Tasks:
 - [x] Task 16.7.1.c: Add deterministic ordering without global sort.
 - [x] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
 - [x] Task 16.7.1.c.2: Preserve stable JSON key ordering for `graph_relations` rows and node fields to prevent ordering hash drift.
-- [ ] Task 16.7.1.d: Add edge dedupe via compact hashes.
-- [ ] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
+- [x] Task 16.7.1.d: Add edge dedupe via compact hashes.
+- [x] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
 - [x] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
 - [x] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
 - [x] Task 16.7.1.e: Add spill thresholds by bytes.
 - [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
-- [ ] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
+- [x] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
 - [ ] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
 
 Tests:
