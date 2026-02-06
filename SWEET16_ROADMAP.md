@@ -21,8 +21,8 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
 | 16.13 | [ ] |  |
-| 16.14 | [ ] |  |
-| 16.6 | [ ] |  |
+| 16.14 | [x] |  |
+| 16.6 | [x] |  |
 | 16.7 | [ ] |  |
 | 16.8 | [ ] |  |
 | 16.9 | [ ] |  |
@@ -920,7 +920,7 @@ Tasks:
 - [x] Task 16.14.1.f.1: Add rolling snapshot cadence (configurable N).
 
 Tests:
-- [ ] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
+- [x] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
 
 ### Subphase 16.14.2 -- File Meta
 Parallel: Can run alongside 16.14.1/16.14.3 with clear ownership.
@@ -949,8 +949,8 @@ Tasks:
 - [x] Task 16.14.2.f.1: Ensure loader uses JSONL when columnar exceeds cap.
 
 Tests:
-- [ ] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
-- [ ] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
+- [x] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.14.3 -- Minhash
 Parallel: Can run alongside 16.14.1/16.14.2 with clear ownership.
