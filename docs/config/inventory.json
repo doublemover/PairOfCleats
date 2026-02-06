@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-06T13:41:52.967Z",
+  "generatedAt": "2026-02-06T19:01:07.678Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -5451,6 +5451,7 @@
       "src/index/build/file-processor/cpu.js",
       "src/index/build/file-processor/cpu/analyze.js",
       "src/index/build/file-processor/process-chunks/enrichment.js",
+      "src/index/build/tree-sitter-scheduler/executor.js",
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",

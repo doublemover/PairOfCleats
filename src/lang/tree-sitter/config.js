@@ -55,6 +55,41 @@ const LANG_CONFIG = {
   typescript: JS_TS_CONFIG,
   tsx: JS_TS_CONFIG,
   jsx: JS_TS_CONFIG,
+  css: {
+    typeNodes: new Set([
+      'rule_set',
+      'at_rule'
+    ]),
+    memberNodes: new Set([]),
+    kindMap: {
+      rule_set: 'RuleSet',
+      at_rule: 'AtRule'
+    },
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      if (node.type !== 'rule_set' && node.type !== 'at_rule') return null;
+
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+
+      const braceIndex = raw.indexOf('{');
+      const semiIndex = raw.indexOf(';');
+      const cutIndex = braceIndex >= 0
+        ? braceIndex
+        : (semiIndex >= 0 ? semiIndex : -1);
+
+      let head = cutIndex >= 0 ? raw.slice(0, cutIndex) : raw;
+      head = head.split('\n', 1)[0] || head;
+      head = head.replace(/\s+/g, ' ').trim();
+      if (!head) return null;
+
+      const maxLen = 160;
+      if (head.length > maxLen) {
+        head = `${head.slice(0, maxLen).trimEnd()}...`;
+      }
+      return head;
+    }
+  },
   python: {
     typeNodes: new Set(['class_definition']),
     memberNodes: new Set(['function_definition']),
