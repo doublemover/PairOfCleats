@@ -1,0 +1,103 @@
+[init] load config (30ms)
+[init] auto policy (provided)
+[init] cache root (default): C:\Users\sneak\AppData\Local\PairOfCleats\ck1
+[init] repo cache root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca
+[init] runtime envelope (1ms)
+[init] repo provenance (57ms)
+[init] build root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T111056Z_d1e6473_a343c955
+[init] current index root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955
+[init] tree-sitter config (0ms)
+JS file caps default to tree-sitter maxBytes (524288).
+[init] embedding runtime (1ms)
+[init] dictionaries (406ms)
+[init] ignore rules (3ms)
+Wordlists enabled: 1 file(s), 370,105 words for identifier splitting.
+Code dictionaries enabled: no code dictionary files found for gated languages.
+[ignore] read-failed .pairofcleatsignore (ENOENT)
+Two-stage indexing: stage2 (enrichment) running.
+Embeddings: deferred to stage3 (stage2).
+Queue concurrency: io=32, cpu=16.
+Type inference metadata enabled via indexing.typeInference.
+Worker pool enabled (auto, maxThreads=16).
+Worker pool auto threshold: maxFileBytes=524288.
+[init] worker pools (10ms)
+Build environment snapshot.
+[init] runtime ready (563ms)
+Overall 0/27
+→ Preprocess: 3,991 files across 4 mode(s).
+[init] code index dir: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T111056Z_d1e6473_a343c955\index-code
+📄  Scanning code ...
+code Stage 1/6 discovery
+[           Code | Stage 1]
+→ Reusing shared discovery results.
+→ Found 1632 files.
+Scanning for imports...
+code Imports 1,632/1,632 (done)
+code Imports 1,632/1,632 (done)
+code Imports 1,632/1,632 (done)
+→ Imports: modules=1193, edges=5278, files=1388
+Auto-selected context window: 7 lines
+Processing and indexing files...
+Indexing Concurrency: Files: 16, Imports: 16, IO: 32, CPU: 16
+code Files 10/1,632
+code Files 26/1,632
+code Files 35/1,632
+code Files 53/1,632
+code Files 74/1,632
+code Files 96/1,632
+code Files 127/1,632
+code Files 148/1,632
+code Files 168/1,632
+code Files 198/1,632
+code Files 216/1,632
+code Files 242/1,632
+code Files 261/1,632
+code Files 282/1,632
+code Files 305/1,632
+code Files 332/1,632
+code Files 352/1,632
+code Files 380/1,632
+code Files 400/1,632
+code Files 418/1,632
+code Files 441/1,632
+code Files 468/1,632
+code Files 490/1,632
+code Files 518/1,632
+code Files 543/1,632
+code Files 565/1,632
+[encoding] fallback decode used for tests/fixtures/encoding/latin1.js (iso-8859-2, conf=70.00).
+code Files 570/1,632
+code Files 582/1,632
+code Files 591/1,632
+code Files 602/1,632
+code Files 608/1,632
+code Files 615/1,632
+code Files 621/1,632
+
+
+#
+# Fatal process out of memory: Zone
+#
+----- Native stack trace -----
+
+ 1: 00007FF6F271EF1D node::MultiIsolatePlatform::DisposeIsolate+5341
+ 2: 00007FF6F3B72536 v8::base::FatalOOM+54
+ 3: 00007FF6F3413705 v8::Function::NewInstance+245
+ 4: 00007FF6F2D8E556 v8::SnapshotCreator::GetIsolate+56566
+ 5: 00007FF6F403E4DA v8::base::DiyFp::Multiply+2833274
+ 6: 00007FF6F403DD08 v8::base::DiyFp::Multiply+2831272
+ 7: 00007FF6F403D1DD v8::base::DiyFp::Multiply+2828413
+ 8: 00007FF6F403CCB4 v8::base::DiyFp::Multiply+2827092
+ 9: 00007FF6F403C3C1 v8::base::DiyFp::Multiply+2824801
+10: 00007FF6F3DF00B6 v8::base::DiyFp::Multiply+415574
+11: 00007FF6F3DEEB75 v8::base::DiyFp::Multiply+410133
+12: 00007FF6F3BD281B v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+192907
+13: 00007FF6F2A87E16 DH_get0_engine+659126
+14: 00007FF6F2A83553 DH_get0_engine+640499
+15: 00007FF6F2A82E39 DH_get0_engine+638681
+16: 00007FF6F3BE610F v8::base::SysInfo::AddressSpaceEnd+3167
+17: 00007FF6F271ADDE node::GetNodeReport+89326
+18: 00007FF6F3468B26 uv_thread_detach+150
+19: 00007FF6F46AA3B3 v8::base::UnsignedDivisionByConstant<unsigned __int64>+2903891
+20: 00007FF92E98E8D7 BaseThreadInitThunk+23
+21: 00007FF92FB6C53C RtlUserThreadStart+44

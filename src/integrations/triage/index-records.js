@@ -231,6 +231,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   throwIfAborted(abortSignal);
   await writeIndexArtifacts({
     outDir,
+    buildRoot: runtime.buildRoot,
     mode: 'records',
     state,
     postings,

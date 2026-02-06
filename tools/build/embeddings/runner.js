@@ -744,19 +744,46 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
-          const absPath = mode === 'records'
-            ? path.resolve(
-              recordsDir,
-              fromPosix(
-                normalizedRel.startsWith('triage/records/')
-                  ? normalizedRel.slice('triage/records/'.length)
-                  : normalizedRel
-              )
-            )
-            : path.resolve(root, fromPosix(normalizedRel));
-          let textInfo;
+          const candidates = (() => {
+            if (mode !== 'records') {
+              return [path.resolve(root, fromPosix(normalizedRel))];
+            }
+            const resolvedRecordsDir = typeof recordsDir === 'string' && recordsDir
+              ? recordsDir
+              : root;
+            if (normalizedRel.startsWith('triage/records/')) {
+              const stripped = normalizedRel.slice('triage/records/'.length);
+              return [
+                path.resolve(resolvedRecordsDir, fromPosix(stripped)),
+                path.resolve(root, fromPosix(normalizedRel))
+              ];
+            }
+            return [
+              path.resolve(root, fromPosix(normalizedRel)),
+              path.resolve(resolvedRecordsDir, fromPosix(normalizedRel))
+            ];
+          })();
+          let absPath = candidates[0];
+          let textInfo = null;
+          let lastErr = null;
           try {
-            textInfo = await scheduleIo(() => readTextFileWithHash(absPath));
+            for (const candidate of candidates) {
+              absPath = candidate;
+              try {
+                textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
+                lastErr = null;
+                break;
+              } catch (err) {
+                lastErr = err;
+                if (mode === 'records' && err?.code === 'ENOENT') {
+                  continue;
+                }
+                break;
+              }
+            }
+            if (!textInfo) {
+              throw lastErr || new Error('Unknown read error');
+            }
           } catch (err) {
             const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
             warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);

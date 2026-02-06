@@ -1,0 +1,657 @@
+[init] load config (29ms)
+[init] auto policy (provided)
+[init] cache root (default): C:\Users\sneak\AppData\Local\PairOfCleats\ck1
+[init] repo cache root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca
+[init] runtime envelope (1ms)
+[init] repo provenance (57ms)
+[init] build root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955
+[init] current index root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T095512Z_d1e6473_a343c955
+[init] tree-sitter config (0ms)
+JS file caps default to tree-sitter maxBytes (524288).
+[init] embedding runtime (3ms)
+[init] dictionaries (354ms)
+[init] ignore rules (8ms)
+Wordlists enabled: 1 file(s), 370,105 words for identifier splitting.
+Code dictionaries enabled: no code dictionary files found for gated languages.
+[ignore] read-failed .pairofcleatsignore (ENOENT)
+Two-stage indexing: stage2 (enrichment) running.
+Embeddings: deferred to stage3 (stage2).
+Queue concurrency: io=32, cpu=16.
+Type inference metadata enabled via indexing.typeInference.
+Worker pool enabled (auto, maxThreads=16).
+Worker pool auto threshold: maxFileBytes=524288.
+[init] worker pools (11ms)
+Build environment snapshot.
+[init] runtime ready (520ms)
+Overall 0/27
+Removed stale index lock at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\locks\index.lock (pid 38996 not running).
+→ Preprocess: 3,991 files across 4 mode(s).
+[init] code index dir: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-code
+📄  Scanning code ...
+code Stage 1/6 discovery
+[           Code | Stage 1]
+→ Reusing shared discovery results.
+→ Found 1632 files.
+Scanning for imports...
+code Imports 1,632/1,632 (done)
+code Imports 1,632/1,632 (done)
+code Imports 1,632/1,632 (done)
+→ Imports: modules=1193, edges=5278, files=1388
+Auto-selected context window: 7 lines
+Processing and indexing files...
+Indexing Concurrency: Files: 16, Imports: 16, IO: 32, CPU: 16
+code Files 10/1,632
+code Files 27/1,632
+code Files 35/1,632
+code Files 53/1,632
+code Files 74/1,632
+code Files 96/1,632
+code Files 127/1,632
+code Files 152/1,632
+code Files 170/1,632
+code Files 200/1,632
+code Files 224/1,632
+code Files 243/1,632
+code Files 267/1,632
+code Files 292/1,632
+code Files 318/1,632
+code Files 337/1,632
+code Files 367/1,632
+code Files 391/1,632
+code Files 414/1,632
+code Files 431/1,632
+code Files 455/1,632
+code Files 478/1,632
+code Files 506/1,632
+code Files 531/1,632
+code Files 565/1,632
+[tree-sitter] Missing WASM grammar for html (WASM grammar not loaded).
+Tree-sitter unavailable for typescript; falling back to heuristic chunking.
+[encoding] fallback decode used for tests/fixtures/encoding/latin1.js (iso-8859-2, conf=70.00).
+Tree-sitter unavailable for javascript; falling back to heuristic chunking.
+code Files 570/1,632
+code Files 582/1,632
+[tree-sitter] Missing WASM grammar for css (WASM grammar not loaded).
+code Files 591/1,632
+Tree-sitter unavailable for cpp; falling back to heuristic chunking.
+[tree-sitter] Missing WASM grammar for csharp (WASM grammar not loaded).
+Tree-sitter unavailable for csharp; falling back to heuristic chunking.
+code Files 603/1,632
+[tree-sitter] Missing WASM grammar for go (WASM grammar not loaded).
+[tree-sitter] Missing WASM grammar for java (WASM grammar not loaded).
+code Files 609/1,632
+[tree-sitter] Missing WASM grammar for kotlin (WASM grammar not loaded).
+[identity] chunkUid collisions in tests/fixtures/languages/src/kotlin_advanced.kt: groups=1, ordinals=1
+Tree-sitter unavailable for objc; falling back to heuristic chunking.
+code Files 618/1,632
+[tree-sitter] Missing WASM grammar for rust (WASM grammar not loaded).
+[tree-sitter] Missing WASM grammar for swift (WASM grammar not loaded).
+code Files 628/1,632
+code Files 633/1,632
+code Files 644/1,632
+code Files 650/1,632
+code Files 658/1,632
+Tree-sitter unavailable for clike; falling back to heuristic chunking.
+code Files 663/1,632
+code Files 668/1,632
+code Files 676/1,632
+code Files 681/1,632
+[identity] chunkUid collisions in tests/fixtures/tree-sitter/kotlin.kt: groups=1, ordinals=1
+code Files 686/1,632
+code Files 705/1,632
+code Files 735/1,632
+code Files 766/1,632
+code Files 788/1,632
+code Files 820/1,632
+code Files 845/1,632
+code Files 871/1,632
+code Files 898/1,632
+code Files 924/1,632
+code Files 951/1,632
+code Files 980/1,632
+code Files 1,003/1,632
+code Files 1,033/1,632
+code Files 1,058/1,632
+code Files 1,084/1,632
+code Files 1,115/1,632
+code Files 1,140/1,632
+code Files 1,166/1,632
+code Files 1,190/1,632
+code Files 1,222/1,632
+code Files 1,253/1,632
+code Files 1,279/1,632
+code Files 1,305/1,632
+code Files 1,334/1,632
+code Files 1,358/1,632
+code Files 1,389/1,632
+code Files 1,421/1,632
+code Files 1,439/1,632
+code Files 1,470/1,632
+code Files 1,495/1,632
+code Files 1,522/1,632
+code Files 1,551/1,632
+code Files 1,580/1,632
+code Files 1,604/1,632
+code Files 1,632/1,632 (done)
+code Files 1,632/1,632 (done)
+code Files 1,632/1,632 (done)
+[imports] suppressed 233 import resolution warnings.
+→ Imports: resolved=2327, external=2518, unresolved=433
+[tooling] doctor: 1 warning(s).
+[lsp] I[05:48:14.640] clangd version 21.1.8
+I[05:48:14.640] Features: windows
+I[05:48:14.640] PID: 29004
+[lsp] I[05:48:14.640] Working directory: C:\Users\sneak\Development\DOUBLECLEAT
+I[05:48:14.640] argv[0]: C:\Program Files\LLVM\bin\clangd.exe
+[lsp] I[05:48:14.644] Starting LSP over stdin/stdout
+[lsp] I[05:48:14.645] <-- initialize(1)
+[lsp] I[05:48:14.647] --> reply:initialize(1) 2 ms
+[lsp] I[05:48:14.648] <-- initialized
+[lsp] I[05:48:14.655] <-- textDocument/didOpen
+[lsp] I[05:48:14.655] <-- textDocument/documentSymbol(2)
+[lsp] I[05:48:14.660] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\cpp_advanced.cpp
+[lsp] I[05:48:14.660] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\cpp_advanced.cpp version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\languages\\src\\cpp_advanced.cpp"
+[lsp] I[05:48:14.802] Built preamble of size 4216100 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\cpp_advanced.cpp version 1 in 0.13 seconds
+[lsp] I[05:48:14.802] Indexing c++14 standard library in the context of C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\cpp_advanced.cpp
+[lsp] I[05:48:14.825] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.825] --> reply:textDocument/documentSymbol(2) 170 ms
+[lsp] I[05:48:14.827] <-- textDocument/hover(3)
+[lsp] I[05:48:14.828] --> reply:textDocument/hover(3) 1 ms
+[lsp] I[05:48:14.829] <-- textDocument/hover(4)
+[lsp] I[05:48:14.831] --> reply:textDocument/hover(4) 1 ms
+[lsp] I[05:48:14.831] <-- textDocument/hover(5)
+[lsp] I[05:48:14.833] --> reply:textDocument/hover(5) 1 ms
+[lsp] I[05:48:14.833] <-- textDocument/hover(6)
+[lsp] I[05:48:14.835] --> reply:textDocument/hover(6) 1 ms
+[lsp] I[05:48:14.835] <-- textDocument/hover(7)
+[lsp] I[05:48:14.837] --> reply:textDocument/hover(7) 1 ms
+[lsp] I[05:48:14.837] <-- textDocument/hover(8)
+[lsp] I[05:48:14.839] --> reply:textDocument/hover(8) 1 ms
+[lsp] I[05:48:14.839] <-- textDocument/didClose
+I[05:48:14.839] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.839] <-- textDocument/didOpen
+[lsp] I[05:48:14.840] <-- textDocument/documentSymbol(9)
+[lsp] I[05:48:14.840] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\objc_advanced.m
+I[05:48:14.840] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\objc_advanced.m version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\languages\\src\\objc_advanced.m"
+[lsp] I[05:48:14.855] Built preamble of size 268640 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\objc_advanced.m version 1 in 0.01 seconds
+[lsp] I[05:48:14.855] Indexing c17 standard library in the context of C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\languages\src\objc_advanced.m
+[lsp] I[05:48:14.873] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.873] --> reply:textDocument/documentSymbol(9) 33 ms
+[lsp] I[05:48:14.874] <-- textDocument/hover(10)
+[lsp] E[05:48:14.875] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.876] --> reply:textDocument/hover(10) 1 ms
+[lsp] I[05:48:14.876] <-- textDocument/hover(11)
+[lsp] E[05:48:14.877] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.878] --> reply:textDocument/hover(11) 1 ms
+[lsp] I[05:48:14.878] <-- textDocument/hover(12)
+[lsp] E[05:48:14.879] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.880] --> reply:textDocument/hover(12) 1 ms
+[lsp] I[05:48:14.880] <-- textDocument/hover(13)
+[lsp] E[05:48:14.881] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.882] --> reply:textDocument/hover(13) 1 ms
+[lsp] I[05:48:14.882] <-- textDocument/hover(14)
+[lsp] E[05:48:14.883] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.884] --> reply:textDocument/hover(14) 1 ms
+[lsp] I[05:48:14.884] <-- textDocument/hover(15)
+[lsp] E[05:48:14.885] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.886] --> reply:textDocument/hover(15) 1 ms
+[lsp] I[05:48:14.886] <-- textDocument/hover(16)
+[lsp] E[05:48:14.887] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:14.888] --> reply:textDocument/hover(16) 1 ms
+[lsp] I[05:48:14.888] <-- textDocument/didClose
+I[05:48:14.888] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.888] <-- textDocument/didOpen
+[lsp] I[05:48:14.888] <-- textDocument/documentSymbol(17)
+[lsp] I[05:48:14.889] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.c
+[lsp] I[05:48:14.889] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.c version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\sample\\src\\sample.c"
+[lsp] I[05:48:14.912] Indexed c17 standard library: 2741 symbols, 1070 filtered
+[lsp] I[05:48:14.917] Built preamble of size 959224 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.c version 1 in 0.02 seconds
+[lsp] I[05:48:14.935] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.936] --> reply:textDocument/documentSymbol(17) 47 ms
+[lsp] I[05:48:14.936] <-- textDocument/hover(18)
+[lsp] I[05:48:14.938] --> reply:textDocument/hover(18) 1 ms
+[lsp] I[05:48:14.938] <-- textDocument/didClose
+I[05:48:14.938] --> textDocument/publishDiagnostics
+[lsp] I[05:48:14.938] <-- textDocument/didOpen
+[lsp] I[05:48:14.938] <-- textDocument/documentSymbol(19)
+I[05:48:14.938] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.cpp
+[lsp] I[05:48:14.938] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.cpp version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\sample\\src\\sample.cpp"
+[lsp] I[05:48:15.072] Built preamble of size 4216076 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.cpp version 1 in 0.13 seconds
+[lsp] I[05:48:15.093] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.093] --> reply:textDocument/documentSymbol(19) 155 ms
+[lsp] I[05:48:15.094] <-- textDocument/hover(20)
+[lsp] I[05:48:15.096] --> reply:textDocument/hover(20) 1 ms
+[lsp] I[05:48:15.096] <-- textDocument/didClose
+I[05:48:15.096] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.096] <-- textDocument/didOpen
+[lsp] I[05:48:15.096] <-- textDocument/documentSymbol(21)
+[lsp] I[05:48:15.096] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.m
+I[05:48:15.096] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.m version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\sample\\src\\sample.m"
+[lsp] I[05:48:15.111] Built preamble of size 268612 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\sample\src\sample.m version 1 in 0.01 seconds
+[lsp] I[05:48:15.129] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.130] --> reply:textDocument/documentSymbol(21) 33 ms
+[lsp] I[05:48:15.130] <-- textDocument/hover(22)
+[lsp] E[05:48:15.131] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.132] --> reply:textDocument/hover(22) 1 ms
+[lsp] I[05:48:15.132] <-- textDocument/hover(23)
+[lsp] E[05:48:15.133] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.133] --> reply:textDocument/hover(23) 1 ms
+[lsp] I[05:48:15.134] <-- textDocument/hover(24)
+[lsp] E[05:48:15.135] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.135] --> reply:textDocument/hover(24) 1 ms
+[lsp] I[05:48:15.135] <-- textDocument/hover(25)
+[lsp] E[05:48:15.137] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.137] --> reply:textDocument/hover(25) 1 ms
+[lsp] I[05:48:15.137] <-- textDocument/hover(26)
+[lsp] E[05:48:15.139] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.139] --> reply:textDocument/hover(26) 1 ms
+[lsp] I[05:48:15.139] <-- textDocument/hover(27)
+[lsp] E[05:48:15.141] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.141] --> reply:textDocument/hover(27) 1 ms
+[lsp] I[05:48:15.141] <-- textDocument/hover(28)
+[lsp] E[05:48:15.143] IncludeCleaner: Failed to get an entry for resolved path '' from include <Foundation/Foundation.h> : no such file or directory
+[lsp] I[05:48:15.143] --> reply:textDocument/hover(28) 1 ms
+[lsp] I[05:48:15.143] <-- textDocument/didClose
+I[05:48:15.143] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.143] <-- textDocument/didOpen
+[lsp] I[05:48:15.143] <-- textDocument/documentSymbol(29)
+[lsp] I[05:48:15.144] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\clike.c
+I[05:48:15.144] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\clike.c version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\tree-sitter\\clike.c"
+[lsp] I[05:48:15.158] Built preamble of size 264608 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\clike.c version 1 in 0.01 seconds
+[lsp] I[05:48:15.175] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.175] --> reply:textDocument/documentSymbol(29) 31 ms
+[lsp] I[05:48:15.176] <-- textDocument/hover(30)
+[lsp] I[05:48:15.177] --> reply:textDocument/hover(30) 1 ms
+[lsp] I[05:48:15.178] <-- textDocument/hover(31)
+[lsp] I[05:48:15.179] --> reply:textDocument/hover(31) 1 ms
+[lsp] I[05:48:15.179] <-- textDocument/hover(32)
+[lsp] I[05:48:15.181] --> reply:textDocument/hover(32) 1 ms
+[lsp] I[05:48:15.181] <-- textDocument/didClose
+I[05:48:15.181] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.181] <-- textDocument/didOpen
+[lsp] I[05:48:15.181] <-- textDocument/documentSymbol(33)
+[lsp] I[05:48:15.182] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\cpp.cpp
+I[05:48:15.182] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\cpp.cpp version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\tree-sitter\\cpp.cpp"
+[lsp] I[05:48:15.195] Built preamble of size 270300 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\cpp.cpp version 1 in 0.01 seconds
+[lsp] I[05:48:15.213] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.213] --> reply:textDocument/documentSymbol(33) 31 ms
+[lsp] I[05:48:15.213] <-- textDocument/hover(34)
+[lsp] I[05:48:15.215] --> reply:textDocument/hover(34) 1 ms
+[lsp] I[05:48:15.215] <-- textDocument/hover(35)
+[lsp] I[05:48:15.217] --> reply:textDocument/hover(35) 1 ms
+[lsp] I[05:48:15.217] <-- textDocument/didClose
+I[05:48:15.217] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.217] <-- textDocument/didOpen
+[lsp] I[05:48:15.217] Failed to find compilation database for C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\objc.m
+I[05:48:15.217] ASTWorker building file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\objc.m version 1 with command clangd fallback
+[C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter]
+"C:\\Program Files\\LLVM\\bin\\clang" "-resource-dir=C:\\Program Files\\LLVM\\lib\\clang\\21" -- "C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\ck1\\repos\\doublecleat-8857948ebbca\\builds\\20260206T104639Z_d1e6473_a343c955\\.poc-vfs\\tests\\fixtures\\tree-sitter\\objc.m"
+[lsp] I[05:48:15.218] <-- textDocument/documentSymbol(36)
+[lsp] I[05:48:15.231] Built preamble of size 268564 for file C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\.poc-vfs\tests\fixtures\tree-sitter\objc.m version 1 in 0.01 seconds
+[lsp] I[05:48:15.248] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.248] --> reply:textDocument/documentSymbol(36) 30 ms
+[lsp] I[05:48:15.248] <-- textDocument/hover(37)
+[lsp] I[05:48:15.250] --> reply:textDocument/hover(37) 1 ms
+[lsp] I[05:48:15.250] <-- textDocument/hover(38)
+[lsp] I[05:48:15.252] --> reply:textDocument/hover(38) 1 ms
+[lsp] I[05:48:15.252] <-- textDocument/hover(39)
+[lsp] I[05:48:15.254] --> reply:textDocument/hover(39) 1 ms
+[lsp] I[05:48:15.254] <-- textDocument/hover(40)
+[lsp] I[05:48:15.256] --> reply:textDocument/hover(40) 1 ms
+[lsp] I[05:48:15.256] <-- textDocument/hover(41)
+[lsp] I[05:48:15.257] --> reply:textDocument/hover(41) 1 ms
+[lsp] I[05:48:15.258] <-- textDocument/didClose
+I[05:48:15.258] --> textDocument/publishDiagnostics
+[lsp] I[05:48:15.258] <-- shutdown(42)
+I[05:48:15.258] --> reply:shutdown(42) 0 ms
+[lsp] [org.swift.sourcekit-lsp:default] default 2026-02-06 05:48:22.6720 -0500
+sourcekit-lsp launched from <private>
+---
+[tooling] C:\Users\sneak\AppData\Local\Programs\Swift\Toolchains\6.2.3+Asserts\usr\bin\sourcekit-lsp.exe hover failed (1/1): LSP request timeout (textDocument/hover).
+[tooling] C:\Users\sneak\AppData\Local\Programs\Swift\Toolchains\6.2.3+Asserts\usr\bin\sourcekit-lsp.exe circuit breaker tripped.
+[index] C:\Users\sneak\AppData\Local\Programs\Swift\Toolchains\6.2.3+Asserts\usr\bin\sourcekit-lsp.exe documentSymbol failed (.poc-vfs/tests/fixtures/tree-sitter/swift.swift): C:\Users\sneak\AppData\Local\Programs\Swift\Toolchains\6.2.3+Asserts\usr\bin\sourcekit-lsp.exe tooling disabled (circuit breaker).
+[tooling] typescript diagnostics captured.
+[index] tooling enriched 1133 symbol(s).
+Cross-File Inference: 12,216 Call Links, 334,521 Usage Links, 1,241 Returns, 16 Risk Flows
+Risk summaries: 452 rows
+→ Indexed 4244 chunks, total tokens: 1,111,130
+Overall 4/27 code relations
+Embeddings disabled (stage2); skipping dense vector build.
+code Stage 6/6 (done) write
+→ Wrote .filelists.json (samples only).
+Chunk metadata estimate ~274.6MB; using jsonl-sharded to stay under 128.0MB.
+[budget] chunk_meta exceeded budget 128.0MB by 340.1MB (shard).
+[chunk_meta] writing sharded JSONL -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-code\chunk_meta.parts
+[budget] symbol_occurrences exceeded budget 128.0MB by 53.8MB (shard).
+symbol_occurrences ~186147KB; writing JSONL shards.
+[budget] symbol_edges exceeded budget 128.0MB by 70.8MB (shard).
+symbol_edges ~203594KB; writing JSONL shards.
+Writing index files (23 artifacts)...
+code Artifacts 1/23 file_meta.meta.json
+Writing index files 1/23 (4.3%) | file_meta.meta.json
+code Artifacts 4/23 file_meta.json
+Writing index files 4/23 (17.4%) | file_meta.json
+code Artifacts 6/23 filter_index.json
+Writing index files 6/23 (26.1%) | filter_index.json
+code Artifacts 9/23 chunk_meta.meta.json
+Writing index files 9/23 (39.1%) | chunk_meta.meta.json
+code Artifacts 10/23 minhash_signatures.json
+Writing index files 10/23 (43.5%) | minhash_signatures.json
+code Artifacts 12/23 call_sites.jsonl
+Writing index files 12/23 (52.2%) | call_sites.jsonl
+code Artifacts 17/23 field_tokens.json
+Writing index files 17/23 (73.9%) | field_tokens.json
+code Artifacts 18/23 phrase_ngrams.json
+Writing index files 18/23 (78.3%) | phrase_ngrams.json
+code Artifacts 19/23 chargram_postings.json
+Writing index files 19/23 (82.6%) | chargram_postings.json
+code Artifacts 22/23 symbol_occurrences.meta.json
+Writing index files 22/23 (95.7%) | symbol_occurrences.meta.json
+code Artifacts 23/23 (done) symbol_edges.meta.json
+Writing index files 23/23 (100.0%) | symbol_edges.meta.json
+
+📦  code : 4,244 chunks, 4,894 tokens, dims=0
+→ Wrote pieces manifest (51 entries) at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-code\pieces\manifest.json.
+Overall 6/27 code write
+[init] prose index dir: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-prose
+📄  Scanning prose ...
+[          Prose | Stage 1]
+→ Reusing shared discovery results.
+→ Found 363 files.
+Overall 7/27 prose discovery
+Auto-selected context window: 4 lines
+Processing and indexing files...
+Indexing Concurrency: Files: 16, Imports: 16, IO: 32, CPU: 16
+prose Files 5/363
+prose Files 7/363
+prose Files 8/363
+prose Files 46/363
+prose Files 68/363
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/handlebars-parser.md (windows-1252, conf=52.00).
+prose Files 86/363
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/micromark.md (windows-1252, conf=51.00).
+prose Files 120/363
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/typescript-eslint-typescript-estree.md (windows-1252, conf=48.00).
+prose Files 152/363
+prose Files 186/363
+prose Files 217/363
+prose Files 244/363
+prose Files 264/363
+prose Files 281/363
+prose Files 310/363
+prose Files 332/363
+prose Files 338/363
+prose Files 352/363
+prose Files 361/363
+prose Files 363/363 (done)
+prose Files 363/363 (done)
+prose Files 363/363 (done)
+→ Indexed 3102 chunks, total tokens: 288,604
+Embeddings disabled (stage2); skipping dense vector build.
+prose Stage 6/6 (done) write
+→ Wrote .filelists.json (samples only).
+[chunk_meta] writing JSON -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-prose\chunk_meta.json
+Writing index files (15 artifacts)...
+prose Artifacts 1/15 file_meta.meta.json
+Writing index files 1/15 (6.7%) | file_meta.meta.json
+prose Artifacts 8/15 token_postings.json
+Writing index files 8/15 (53.3%) | token_postings.json
+prose Artifacts 10/15 field_tokens.json
+Writing index files 10/15 (66.7%) | field_tokens.json
+prose Artifacts 11/15 field_postings.json
+Writing index files 11/15 (73.3%) | field_postings.json
+prose Artifacts 13/15 chunk_meta.json
+Writing index files 13/15 (86.7%) | chunk_meta.json
+prose Artifacts 14/15 phrase_ngrams.json
+Writing index files 14/15 (93.3%) | phrase_ngrams.json
+prose Artifacts 15/15 (done) chargram_postings.json
+Writing index files 15/15 (100.0%) | chargram_postings.json
+
+📦  prose: 3,102 chunks, 6,361 tokens, dims=0
+→ Wrote pieces manifest (19 entries) at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-prose\pieces\manifest.json.
+[init] extracted-prose index dir: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-extracted-prose
+📄  Scanning extracted-prose ...
+[Extracted Prose | Stage 1]
+→ Reusing shared discovery results.
+→ Found 1995 files.
+Overall 13/27 extracted-prose discovery
+Auto-selected context window: 8 lines
+Processing and indexing files...
+Indexing Concurrency: Files: 16, Imports: 16, IO: 32, CPU: 16
+extracted-prose Files 10/1,995
+extracted-prose Files 41/1,995
+extracted-prose Files 49/1,995
+extracted-prose Files 60/1,995
+extracted-prose Files 71/1,995
+extracted-prose Files 77/1,995
+extracted-prose Files 95/1,995
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/handlebars-parser.md (windows-1252, conf=52.00).
+extracted-prose Files 118/1,995
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/micromark.md (windows-1252, conf=51.00).
+[encoding] fallback decode used for docs/dependency_references/dependency-bundle/deps/typescript-eslint-typescript-estree.md (windows-1252, conf=48.00).
+extracted-prose Files 153/1,995
+extracted-prose Files 174/1,995
+extracted-prose Files 210/1,995
+extracted-prose Files 247/1,995
+extracted-prose Files 265/1,995
+extracted-prose Files 294/1,995
+extracted-prose Files 311/1,995
+extracted-prose Files 343/1,995
+extracted-prose Files 354/1,995
+extracted-prose Files 362/1,995
+extracted-prose Files 368/1,995
+extracted-prose Files 400/1,995
+extracted-prose Files 426/1,995
+extracted-prose Files 448/1,995
+extracted-prose Files 475/1,995
+extracted-prose Files 509/1,995
+extracted-prose Files 544/1,995
+extracted-prose Files 576/1,995
+extracted-prose Files 609/1,995
+extracted-prose Files 638/1,995
+extracted-prose Files 668/1,995
+extracted-prose Files 700/1,995
+extracted-prose Files 731/1,995
+extracted-prose Files 763/1,995
+extracted-prose Files 786/1,995
+extracted-prose Files 817/1,995
+extracted-prose Files 838/1,995
+extracted-prose Files 862/1,995
+extracted-prose Files 867/1,995
+extracted-prose Files 888/1,995
+[tree-sitter] Missing WASM grammar for html (WASM grammar not loaded).
+extracted-prose Files 904/1,995
+extracted-prose Files 913/1,995
+[encoding] fallback decode used for tests/fixtures/encoding/latin1.js (iso-8859-2, conf=70.00).
+extracted-prose Files 919/1,995
+extracted-prose Files 930/1,995
+extracted-prose Files 935/1,995
+extracted-prose Files 946/1,995
+[tree-sitter] Missing WASM grammar for csharp (WASM grammar not loaded).
+[tree-sitter] Missing WASM grammar for go (WASM grammar not loaded).
+[tree-sitter] Missing WASM grammar for java (WASM grammar not loaded).
+extracted-prose Files 958/1,995
+[tree-sitter] Missing WASM grammar for kotlin (WASM grammar not loaded).
+extracted-prose Files 966/1,995
+[tree-sitter] Missing WASM grammar for rust (WASM grammar not loaded).
+extracted-prose Files 972/1,995
+[tree-sitter] Missing WASM grammar for swift (WASM grammar not loaded).
+extracted-prose Files 984/1,995
+extracted-prose Files 996/1,995
+extracted-prose Files 1,003/1,995
+extracted-prose Files 1,010/1,995
+extracted-prose Files 1,018/1,995
+extracted-prose Files 1,023/1,995
+extracted-prose Files 1,028/1,995
+extracted-prose Files 1,038/1,995
+extracted-prose Files 1,043/1,995
+extracted-prose Files 1,048/1,995
+extracted-prose Files 1,067/1,995
+extracted-prose Files 1,097/1,995
+extracted-prose Files 1,129/1,995
+extracted-prose Files 1,150/1,995
+extracted-prose Files 1,182/1,995
+extracted-prose Files 1,214/1,995
+extracted-prose Files 1,246/1,995
+extracted-prose Files 1,278/1,995
+extracted-prose Files 1,310/1,995
+extracted-prose Files 1,333/1,995
+extracted-prose Files 1,362/1,995
+extracted-prose Files 1,393/1,995
+extracted-prose Files 1,425/1,995
+extracted-prose Files 1,453/1,995
+extracted-prose Files 1,482/1,995
+extracted-prose Files 1,511/1,995
+extracted-prose Files 1,536/1,995
+extracted-prose Files 1,569/1,995
+extracted-prose Files 1,605/1,995
+extracted-prose Files 1,622/1,995
+extracted-prose Files 1,653/1,995
+extracted-prose Files 1,679/1,995
+extracted-prose Files 1,704/1,995
+extracted-prose Files 1,735/1,995
+extracted-prose Files 1,764/1,995
+extracted-prose Files 1,785/1,995
+extracted-prose Files 1,817/1,995
+extracted-prose Files 1,847/1,995
+extracted-prose Files 1,866/1,995
+extracted-prose Files 1,898/1,995
+extracted-prose Files 1,929/1,995
+extracted-prose Files 1,961/1,995
+extracted-prose Files 1,978/1,995
+extracted-prose Files 1,995/1,995 (done)
+extracted-prose Files 1,995/1,995 (done)
+extracted-prose Files 1,995/1,995 (done)
+→ Indexed 450 chunks, total tokens: 19,777
+Embeddings disabled (stage2); skipping dense vector build.
+extracted-prose Stage 6/6 (done) write
+→ Wrote .filelists.json (samples only).
+[chunk_meta] writing JSON -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-extracted-prose\chunk_meta.json
+Writing index files (15 artifacts)...
+extracted-prose Artifacts 1/15 file_meta.meta.json
+Writing index files 1/15 (6.7%) | file_meta.meta.json
+extracted-prose Artifacts 13/15 chunk_meta.json
+Writing index files 13/15 (86.7%) | chunk_meta.json
+extracted-prose Artifacts 15/15 (done) chargram_postings.json
+Writing index files 15/15 (100.0%) | chargram_postings.json
+
+📦  extracted-prose: 450 chunks, 1,304 tokens, dims=0
+→ Wrote pieces manifest (19 entries) at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-extracted-prose\pieces\manifest.json.
+📄  Scanning records ...
+→ Found 1 record(s).
+records Records 1/1 (done)
+records Records 1/1 (done)
+records Records 1/1 (done)
+→ Indexed 1 chunks, total tokens: 68
+Embeddings disabled; skipping dense vector build.
+→ Wrote .filelists.json (samples only).
+[chunk_meta] writing JSON -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-records\chunk_meta.json
+Writing index files (15 artifacts)...
+records Artifacts 1/15 file_meta.json
+Writing index files 1/15 (6.7%) | file_meta.json
+records Artifacts 15/15 (done) vocab_order.json
+Writing index files 15/15 (100.0%) | vocab_order.json
+
+📦  records: 1 chunks, 16 tokens, dims=0
+→ Wrote pieces manifest (19 entries) at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-records\pieces\manifest.json.
+[build] updated current.json -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\current.json
+Embeddings 0/4
+[embeddings] code/merged: wrote HNSW index (4244 vectors).
+[embeddings] code/doc: wrote HNSW index (4244 vectors).
+[embeddings] code/code: wrote HNSW index (4244 vectors).
+[embeddings] code/merged: wrote LanceDB table (4244 vectors).
+[embeddings] code/doc: wrote LanceDB table (4244 vectors).
+[embeddings] code/code: wrote LanceDB table (4244 vectors).
+[embeddings] code: wrote 4244 vectors (dims=384).
+Overall 20/27 code embeddings
+[embeddings] prose/merged: wrote HNSW index (3102 vectors).
+[embeddings] prose/doc: wrote HNSW index (3102 vectors).
+[embeddings] prose/code: wrote HNSW index (3102 vectors).
+[embeddings] prose/merged: wrote LanceDB table (3102 vectors).
+[embeddings] prose/doc: wrote LanceDB table (3102 vectors).
+[embeddings] prose/code: wrote LanceDB table (3102 vectors).
+[embeddings] prose: wrote 3102 vectors (dims=384).
+Overall 21/27 prose embeddings
+[embeddings] extracted-prose/merged: wrote HNSW index (450 vectors).
+[embeddings] extracted-prose/doc: wrote HNSW index (450 vectors).
+[embeddings] extracted-prose/code: wrote HNSW index (450 vectors).
+[embeddings] extracted-prose/merged: wrote LanceDB table (450 vectors).
+[embeddings] extracted-prose/doc: wrote LanceDB table (450 vectors).
+[embeddings] extracted-prose/code: wrote LanceDB table (450 vectors).
+[embeddings] extracted-prose: wrote 450 vectors (dims=384).
+Overall 22/27 extracted-prose embeddings
+records Files 1/1
+records Files 1/1 (done)
+[embeddings] records: processed 1/1 files
+[embeddings] records/merged: wrote HNSW index (1 vectors).
+[embeddings] records/doc: wrote HNSW index (1 vectors).
+[embeddings] records/code: wrote HNSW index (1 vectors).
+[embeddings] records/merged: wrote LanceDB table (1 vectors).
+[embeddings] records/doc: wrote LanceDB table (1 vectors).
+[embeddings] records/code: wrote LanceDB table (1 vectors).
+[embeddings] records: wrote 1 vectors (dims=384).
+Overall 23/27 records embeddings
+Embeddings 4/4 (done) records
+[init] load config (35ms)
+[init] auto policy (provided)
+[init] cache root (default): C:\Users\sneak\AppData\Local\PairOfCleats\ck1
+[init] repo cache root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca
+[init] runtime envelope (2ms)
+[init] repo provenance (51ms)
+[init] build root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955 (override)
+[init] current index root: C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955
+[init] tree-sitter config (0ms)
+JS file caps default to tree-sitter maxBytes (524288).
+[init] embedding runtime (1ms)
+[init] dictionaries (347ms)
+[init] ignore rules (2ms)
+Wordlists enabled: 1 file(s), 370,105 words for identifier splitting.
+Code dictionaries enabled: no code dictionary files found for gated languages.
+[ignore] read-failed .pairofcleatsignore (ENOENT)
+Indexing stage4 (sqlite/ann pass) running.
+Embeddings: disabled.
+Queue concurrency: io=32, cpu=16.
+Tree-sitter chunking disabled via indexing.treeSitter.enabled.
+Lint metadata disabled via indexing.lint.
+Complexity metadata disabled via indexing.complexity.
+Risk analysis disabled via indexing.riskAnalysis.
+Worker pool enabled (auto, maxThreads=16).
+Worker pool auto threshold: maxFileBytes=524288.
+[init] worker pools (5ms)
+Build environment snapshot.
+[init] runtime ready (479ms)
+[sqlite] code building code index -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-code.db
+[manifest] Streaming fallback: file_meta uses json; materialized read may be required for full validation.
+[sqlite] code code index built at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-code.db (4244 code, 0 prose, 0 extracted-prose).
+[sqlite] prose building prose index -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-prose.db
+[manifest] Streaming fallback: file_meta uses json; materialized read may be required for full validation.
+[sqlite] prose prose index built at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-prose.db (0 code, 3102 prose, 0 extracted-prose).
+[sqlite] extracted-prose building extracted-prose index -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-extracted-prose.db
+[manifest] Streaming fallback: file_meta uses json; materialized read may be required for full validation.
+[sqlite] extracted-prose extracted-prose index built at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-extracted-prose.db (0 code, 0 prose, 450 extracted-prose).
+[sqlite] records building records index -> C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-records.db
+[manifest] Streaming fallback: file_meta uses json; materialized read may be required for full validation.
+[sqlite] records records index built at C:\Users\sneak\AppData\Local\PairOfCleats\ck1\repos\doublecleat-8857948ebbca\builds\20260206T104639Z_d1e6473_a343c955\index-sqlite\index-records.db (0 code, 0 prose, 0 extracted-prose).
+Overall 24/27 code sqlite
+Overall 27/27 (done) records sqlite
+Overall 27/27 (done) records sqlite
+Overall 27/27 (done) records sqlite
+[DONE] Index built for 1,996 files in 408 seconds (221,577 lines).
+                                Code: 1,632 files (170,970 lines).
+                               Prose: 363 files   (50,603 lines).
+                     Extracted Prose: 1,995 files (221,573 lines).
+                             Records: 1 records   (4 lines).

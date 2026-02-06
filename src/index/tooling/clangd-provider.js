@@ -177,6 +177,9 @@ export const createClangdProvider = () => ({
       };
     }
     const clangdArgs = [];
+    // clangd is very chatty at info-level (e.g. missing compilation DB).
+    // Keep stdout/stderr noise down during indexing runs.
+    clangdArgs.push('--log=error');
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,

@@ -3,6 +3,27 @@ import { spawn, spawnSync } from 'node:child_process';
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
 
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/\s|"/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const quotePosixShellArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return "''";
+  if (!/[\s'"\\]/u.test(text)) return text;
+  return `'${text.replaceAll("'", "'\\''")}'`;
+};
+
+const buildShellCommand = (command, args) => {
+  const resolvedArgs = Array.isArray(args) ? args : [];
+  if (!resolvedArgs.length) return String(command ?? '');
+  const quoteArg = process.platform === 'win32' ? quoteWindowsCmdArg : quotePosixShellArg;
+  return [command, ...resolvedArgs].map(quoteArg).join(' ');
+};
+
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
     super(message);
@@ -196,13 +217,10 @@ export function spawnSubprocess(command, args, options = {}) {
     }
     const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio,
-      shell: options.shell === true,
-      detached
-    });
+    const useShell = options.shell === true;
+    const child = useShell
+      ? spawn(buildShellCommand(command, args), { cwd: options.cwd, env: options.env, stdio, shell: true, detached })
+      : spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
     if (options.input != null && child.stdin) {
       try {
         child.stdin.write(options.input);
@@ -332,14 +350,24 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    stdio,
-    shell: options.shell === true,
-    input: options.input,
-    encoding: captureStdout || captureStderr ? 'buffer' : undefined
-  });
+  const useShell = options.shell === true;
+  const result = useShell
+    ? spawnSync(buildShellCommand(command, args), {
+      cwd: options.cwd,
+      env: options.env,
+      stdio,
+      shell: true,
+      input: options.input,
+      encoding: captureStdout || captureStderr ? 'buffer' : undefined
+    })
+    : spawnSync(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio,
+      shell: false,
+      input: options.input,
+      encoding: captureStdout || captureStderr ? 'buffer' : undefined
+    });
   const stdout = captureStdout
     ? trimOutput(result.stdout, maxOutputBytes, encoding, outputMode)
     : undefined;

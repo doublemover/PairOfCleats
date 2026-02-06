@@ -31,15 +31,15 @@ const normalizeMaxBytes = (value, maxJsonBytes) => {
 };
 
 export const DEFAULT_BYTE_BUDGETS = {
-  chunk_meta: { maxBytes: 'maxJsonBytes', overflow: 'trim' },
+  chunk_meta: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   file_meta: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   token_postings: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   repo_map: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   file_relations: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   vfs_manifest: { maxBytes: 'maxJsonBytes', overflow: 'fail' },
-  symbol_occurrences: { maxBytes: 'maxJsonBytes', overflow: 'trim' },
-  symbol_edges: { maxBytes: 'maxJsonBytes', overflow: 'trim' },
-  call_sites: { maxBytes: 'maxJsonBytes', overflow: 'trim' },
+  symbol_occurrences: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
+  symbol_edges: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
+  call_sites: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   chunk_uid_map: { maxBytes: 'maxJsonBytes', overflow: 'shard' },
   graph_relations: { maxBytes: 'maxJsonBytes', overflow: 'drop' }
 };

@@ -1,0 +1,148 @@
+{
+  "generatedAt": "2026-02-06T10:30:59.239Z",
+  "repoRoot": "C:/Users/sneak/Development/DOUBLECLEAT",
+  "buildRoot": "C:/Users/sneak/Development/DOUBLECLEAT",
+  "config": {
+    "enabledTools": [],
+    "disabledTools": []
+  },
+  "xxhash": {
+    "backend": "native",
+    "module": "xxhash-native",
+    "ok": true
+  },
+  "identity": {
+    "chunkUid": {
+      "required": true,
+      "available": true,
+      "backend": "native",
+      "notes": []
+    }
+  },
+  "scm": {
+    "provider": "git",
+    "repoRoot": "C:\\Users\\sneak\\Development\\DOUBLECLEAT",
+    "detectedBy": "git-root",
+    "head": {
+      "commitId": "d1e64734cfe1ea847987c2697776119ba709c0da",
+      "branch": "BULKY_LOADS"
+    },
+    "dirty": true,
+    "annotateEnabled": true,
+    "error": null
+  },
+  "providers": [
+    {
+      "id": "clangd",
+      "version": "2.0.0",
+      "enabled": true,
+      "available": true,
+      "reasonsDisabled": [],
+      "requires": {
+        "cmd": "clangd"
+      },
+      "languages": [
+        "clike",
+        "c",
+        "cpp",
+        "objective-c",
+        "objective-cpp"
+      ],
+      "capabilities": {
+        "supportsVirtualDocuments": true,
+        "supportsSegmentRouting": true,
+        "supportsJavaScript": false,
+        "supportsTypeScript": false,
+        "supportsSymbolRef": false
+      },
+      "status": "ok",
+      "checks": []
+    },
+    {
+      "id": "pyright",
+      "version": "2.0.0",
+      "enabled": true,
+      "available": false,
+      "reasonsDisabled": [],
+      "requires": {
+        "cmd": "pyright-langserver"
+      },
+      "languages": [
+        "python"
+      ],
+      "capabilities": {
+        "supportsVirtualDocuments": true,
+        "supportsSegmentRouting": true,
+        "supportsJavaScript": false,
+        "supportsTypeScript": false,
+        "supportsSymbolRef": false
+      },
+      "status": "warn",
+      "checks": [
+        {
+          "name": "pyright-langserver",
+          "status": "warn",
+          "message": "pyright-langserver binary not available."
+        }
+      ]
+    },
+    {
+      "id": "sourcekit",
+      "version": "2.0.0",
+      "enabled": true,
+      "available": true,
+      "reasonsDisabled": [],
+      "requires": {
+        "cmd": "sourcekit-lsp"
+      },
+      "languages": [
+        "swift"
+      ],
+      "capabilities": {
+        "supportsVirtualDocuments": true,
+        "supportsSegmentRouting": true,
+        "supportsJavaScript": false,
+        "supportsTypeScript": false,
+        "supportsSymbolRef": false
+      },
+      "status": "ok",
+      "checks": []
+    },
+    {
+      "id": "typescript",
+      "version": "2.0.0",
+      "enabled": true,
+      "available": true,
+      "reasonsDisabled": [],
+      "requires": {
+        "module": "typescript"
+      },
+      "languages": [
+        "typescript",
+        "tsx",
+        "javascript",
+        "jsx"
+      ],
+      "capabilities": {
+        "supportsVirtualDocuments": true,
+        "supportsSegmentRouting": true,
+        "supportsJavaScript": true,
+        "supportsTypeScript": true,
+        "supportsSymbolRef": true
+      },
+      "status": "ok",
+      "checks": [
+        {
+          "name": "typescript-version",
+          "status": "ok",
+          "message": "TypeScript 5.9.3 detected."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "status": "warn",
+    "warnings": 1,
+    "errors": 0
+  }
+}

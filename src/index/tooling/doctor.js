@@ -14,8 +14,6 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-
 const candidateNames = (name) => {
   if (process.platform === 'win32') {
     return [`${name}.cmd`, `${name}.exe`, name];
@@ -40,7 +38,6 @@ const canRunBinary = (cmd, argsList) => {
     try {
       const result = execaSync(cmd, args, {
         stdio: 'ignore',
-        shell: shouldUseShell(cmd),
         reject: false
       });
       if (typeof result.exitCode === 'number' && result.exitCode === 0) return true;
@@ -200,6 +197,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   const disabledTools = Array.isArray(toolingConfig.disabledTools) ? toolingConfig.disabledTools : [];
   report.config.enabledTools = enabledTools.slice();
   report.config.disabledTools = disabledTools.slice();
+  const isProviderExplicitlyEnabled = (id) => (
+    enabledTools.length > 0 && enabledTools.includes(normalizeProviderId(id))
+  );
   let scmSelection = null;
   let scmProvenance = null;
   let scmError = null;
@@ -278,9 +278,11 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     };
     let providerErrors = 0;
     let providerWarnings = 0;
+    let providerAvailable = true;
     const addCheck = (check) => {
       providerReport.checks.push(check);
       if (check.status === 'error') {
+        providerAvailable = false;
         providerErrors += 1;
         report.summary.errors += 1;
       } else if (check.status === 'warn') {
@@ -288,6 +290,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         report.summary.warnings += 1;
       }
     };
+    const missingBinaryStatus = isProviderExplicitlyEnabled(providerId) ? 'error' : 'warn';
 
     if (!providerReport.enabled) {
       addCheck({
@@ -369,33 +372,37 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
       const resolvedCmd = resolveCommand('clangd');
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: 'clangd',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'clangd binary not available.'
         });
       }
     } else if (providerId === 'pyright') {
       const resolvedCmd = resolvePyrightCommand(repoRoot, toolingConfig);
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: 'pyright-langserver',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'pyright-langserver binary not available.'
         });
       }
     } else if (providerId === 'sourcekit') {
       const resolvedCmd = resolveCommand('sourcekit-lsp');
       if (!canRunBinary(resolvedCmd, [['--help'], ['--version']])) {
+        providerAvailable = false;
         addCheck({
           name: 'sourcekit-lsp',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'sourcekit-lsp binary not available.'
         });
       }
     } else if (provider?.requires?.cmd) {
       const resolvedCmd = resolveCommand(provider.requires.cmd);
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: provider.requires.cmd,
           status: 'warn',
@@ -405,7 +412,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     }
 
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
-    providerReport.available = providerErrors === 0;
+    providerReport.available = providerAvailable;
     report.providers.push(providerReport);
   }
 

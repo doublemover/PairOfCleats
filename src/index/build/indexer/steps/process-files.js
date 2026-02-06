@@ -6,7 +6,6 @@ import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
-import { pruneTreeSitterLanguages, resetTreeSitterParser } from '../../../../lang/tree-sitter.js';
 import { treeSitterState } from '../../../../lang/tree-sitter/state.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
@@ -484,16 +483,10 @@ export const processFiles = async ({
             bumpTreeSitterMetric('batchFiles', batch.entries.length);
             setTreeSitterMetricMax('batchMaxFiles', batch.entries.length);
           }
-          if (treeSitterOptions?.languagePasses === false
-            && treeSitterOptions?.enabled !== false
+          if (treeSitterOptions?.enabled !== false
+            && treeSitterOptions?.batchByLanguage !== false
             && Array.isArray(batch.languages)
             && batch.languages.length) {
-            resetTreeSitterParser({ hard: true });
-            pruneTreeSitterLanguages(batch.languages, {
-              log,
-              maxLoadedLanguages: treeSitterOptions?.maxLoadedLanguages,
-              onlyIfExceeds: true
-            });
             await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });
           }
           await runEntryBatch(batch.entries, deferred);

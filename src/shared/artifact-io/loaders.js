@@ -1150,12 +1150,17 @@ const inflatePackedTokenIds = (chunkMeta) => {
   return chunkMeta;
 };
 
+const maybeInflatePackedTokenIds = (chunkMeta, materializeTokenIds) => (
+  materializeTokenIds ? inflatePackedTokenIds(chunkMeta) : chunkMeta
+);
+
 export const loadChunkMeta = async (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
-    strict = true
+    strict = true,
+    materializeTokenIds = false
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
@@ -1174,7 +1179,10 @@ export const loadChunkMeta = async (
         if (sources.paths.length > 1) {
           throw new Error('Ambiguous JSON sources for chunk_meta');
         }
-        return inflatePackedTokenIds(readJsonFile(sources.paths[0], { maxBytes }));
+        return maybeInflatePackedTokenIds(
+          readJsonFile(sources.paths[0], { maxBytes }),
+          materializeTokenIds
+        );
       }
       if (sources.format === 'columnar') {
         if (sources.paths.length > 1) {
@@ -1183,13 +1191,14 @@ export const loadChunkMeta = async (
         const payload = readJsonFile(sources.paths[0], { maxBytes });
         const inflated = inflateColumnarRows(payload);
         if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-        return inflatePackedTokenIds(inflated);
+        return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
       }
-      return await readJsonLinesArray(sources.paths, {
+      const rows = await readJsonLinesArray(sources.paths, {
         maxBytes,
         requiredKeys,
         validationMode
       });
+      return maybeInflatePackedTokenIds(rows, materializeTokenIds);
     }
     throw new Error('Missing manifest entry for chunk_meta');
   }
@@ -1206,7 +1215,10 @@ export const loadChunkMeta = async (
       if (sources.paths.length > 1) {
         throw new Error('Ambiguous JSON sources for chunk_meta');
       }
-      return readJsonFile(sources.paths[0], { maxBytes });
+      return maybeInflatePackedTokenIds(
+        readJsonFile(sources.paths[0], { maxBytes }),
+        materializeTokenIds
+      );
     }
     if (sources.format === 'columnar') {
       if (sources.paths.length > 1) {
@@ -1215,14 +1227,14 @@ export const loadChunkMeta = async (
       const payload = readJsonFile(sources.paths[0], { maxBytes });
       const inflated = inflateColumnarRows(payload);
       if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-      return inflated;
+      return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
     }
     const rows = await readJsonLinesArray(sources.paths, {
       maxBytes,
       requiredKeys,
       validationMode
     });
-    return inflatePackedTokenIds(rows);
+    return maybeInflatePackedTokenIds(rows, materializeTokenIds);
   }
 
   const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
@@ -1231,11 +1243,14 @@ export const loadChunkMeta = async (
     const payload = readJsonFile(columnarPath, { maxBytes });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-    return inflatePackedTokenIds(inflated);
+    return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
-    return inflatePackedTokenIds(readJsonFile(jsonPath, { maxBytes }));
+    return maybeInflatePackedTokenIds(
+      readJsonFile(jsonPath, { maxBytes }),
+      materializeTokenIds
+    );
   }
   throw new Error('Missing index artifact: chunk_meta.json');
 };
