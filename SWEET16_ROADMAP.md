@@ -1446,18 +1446,18 @@ Parallel: Can run alongside 16.12.2 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/store.js (anchors: createGraphStore, buildGraphIndex, buildGraphIndexCacheKey)`, `src/graph/indexes.js (anchors: buildAdjacencyIndex, buildAdjacencyCsr, buildIdTable)`, `src/shared/artifact-io/loaders.js (anchor: loadGraphRelations)`
 Tasks:
-- [ ] Task 16.12.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.1.a: Teach `GraphStore` to load the `graph_relations_csr` artifact from the pieces manifest (add `loadGraphRelationsCsr` to artifact-io).
-- [ ] Task 16.12.1.b: Plumb CSR into `GraphIndex` (`graphRelationsCsr`) and ensure `buildGraphIndexCacheKey` segments caches on CSR presence and graph selection.
-- [ ] Task 16.12.1.c: Add strict validation + fallback behavior for CSR payloads (offset monotonicity, edge bounds, stable node ordering); fall back to `graph_relations` on invalid CSR.
-- [ ] Task 16.12.1.d: Reduce redundant in-memory structures when CSR is available (avoid building per-node `both` adjacency lists; keep legacy path as fallback).
-- [ ] Task 16.12.1.e: Add graph store cache telemetry (hit/miss, build time, eviction) and basic memory accounting for loaded graph artifacts/indexes.
+- [x] Task 16.12.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.1.a: Teach `GraphStore` to load the `graph_relations_csr` artifact from the pieces manifest (add `loadGraphRelationsCsr` to artifact-io).
+- [x] Task 16.12.1.b: Plumb CSR into `GraphIndex` (`graphRelationsCsr`) and ensure `buildGraphIndexCacheKey` segments caches on CSR presence and graph selection.
+- [x] Task 16.12.1.c: Add strict validation + fallback behavior for CSR payloads (offset monotonicity, edge bounds, stable node ordering); fall back to `graph_relations` on invalid CSR.
+- [x] Task 16.12.1.d: Reduce redundant in-memory structures when CSR is available (avoid building per-node `both` adjacency lists; keep legacy path as fallback).
+- [x] Task 16.12.1.e: Add graph store cache telemetry (hit/miss, build time, eviction) and basic memory accounting for loaded graph artifacts/indexes.
 
 Tests:
-- [ ] `tests/graph/graph-store-cache-eviction.test.js` (existing)
-- [ ] `tests/graph/graph-index-cache-reuse.test.js` (existing)
-- [ ] `tests/graph/graph-id-remap-roundtrip.test.js` (existing)
-- [ ] `tests/graph/graph-store-csr-artifact-load.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-store-cache-eviction.test.js` (existing)
+- [x] `tests/graph/graph-index-cache-reuse.test.js` (existing)
+- [x] `tests/graph/graph-id-remap-roundtrip.test.js` (existing)
+- [x] `tests/graph/graph-store-csr-artifact-load.test.js` (perf lane) (new)
 
 ### Subphase 16.12.2 -- Traversal + Filtering
 Parallel: Can run alongside 16.12.1 with clear module ownership.

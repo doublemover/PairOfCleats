@@ -32,3 +32,12 @@ Pools are capped and drop oversized buffers to avoid unbounded growth.
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
+
+## Graph/Context Pack Caches
+
+When graph-backed expansion (impact/context-pack) is enabled, `GraphStore` maintains small bounded LRU caches
+for graph artifacts and indexes to avoid per-request rebuilds.
+
+Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CSR inclusion flag. When present,
+`graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
+`graph_relations` representation (and may derive CSR from it).

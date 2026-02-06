@@ -143,6 +143,8 @@ type ImpactRequest = {
 ## 4. Graph model requirements
 
 Impact analysis requires a normalized graph layer:
+- Graph artifacts should be loaded via `GraphStore` when available, and may use `graph_relations_csr` for traversal acceleration.
+  CSR must be validated (ordering/offsets/bounds) and fall back to `graph_relations` on invalid payloads to preserve correctness.
 
 ### 4.1 Node identity
 - Prefer `symbolId`

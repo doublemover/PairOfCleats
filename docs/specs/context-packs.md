@@ -310,6 +310,7 @@ Stats fields:
 - dropped candidate counts by reason (`budget`, `noEvidence`, `duplicate`, `unsupported`)
 - max hop encountered
 - graph traversal timings
+- graph store/cache stats (GraphStore cache hits/misses, build time, CSR source/bytes) when graph-backed expansion is enabled
 
 ---
 

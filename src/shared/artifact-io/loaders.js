@@ -26,7 +26,8 @@ import {
   createGraphRelationsShell,
   appendGraphRelationsEntry,
   appendGraphRelationsEntries,
-  finalizeGraphRelations
+  finalizeGraphRelations,
+  normalizeGraphRelationsCsr
 } from './graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
@@ -952,6 +953,44 @@ export const loadGraphRelations = async (
   throw new Error('Missing index artifact: graph_relations.json');
 };
 
+export const loadGraphRelationsCsr = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations_csr',
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for graph_relations_csr');
+    }
+    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  if (strict) {
+    throw new Error('Missing manifest entry for graph_relations_csr');
+  }
+  const legacyPath = path.join(dir, 'graph_relations.csr.json');
+  if (existsOrBak(legacyPath)) {
+    warnNonStrictJsonFallback(dir, 'graph_relations_csr');
+    const payload = readJsonFile(legacyPath, { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  return null;
+};
+
 export const loadGraphRelationsSync = (
   dir,
   {
@@ -1057,6 +1096,44 @@ export const loadGraphRelationsSync = (
     return readJsonFile(jsonPath, { maxBytes });
   }
   throw new Error('Missing index artifact: graph_relations.json');
+};
+
+export const loadGraphRelationsCsrSync = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations_csr',
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for graph_relations_csr');
+    }
+    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  if (strict) {
+    throw new Error('Missing manifest entry for graph_relations_csr');
+  }
+  const legacyPath = path.join(dir, 'graph_relations.csr.json');
+  if (existsOrBak(legacyPath)) {
+    warnNonStrictJsonFallback(dir, 'graph_relations_csr');
+    const payload = readJsonFile(legacyPath, { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  return null;
 };
 
 const inflatePackedTokenIds = (chunkMeta) => {

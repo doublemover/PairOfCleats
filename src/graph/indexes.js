@@ -81,7 +81,7 @@ export const resolvePrefixEntry = (table, index) => {
 /**
  * Build sorted, unique adjacency lists for graph traversal.
  */
-export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null } = {}) => {
+export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null, includeBoth = true } = {}) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   for (const node of nodes) {
@@ -106,9 +106,13 @@ export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normali
     const incoming = Array.from(inSet);
     out.sort(compareStrings);
     incoming.sort(compareStrings);
-    const both = Array.from(new Set([...out, ...incoming]));
-    both.sort(compareStrings);
-    map.set(nodeId, { out, in: incoming, both });
+    if (includeBoth) {
+      const both = Array.from(new Set([...out, ...incoming]));
+      both.sort(compareStrings);
+      map.set(nodeId, { out, in: incoming, both });
+    } else {
+      map.set(nodeId, { out, in: incoming });
+    }
   }
   return map;
 };

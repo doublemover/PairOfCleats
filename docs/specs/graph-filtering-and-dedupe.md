@@ -38,6 +38,12 @@ Related docs:
 2. If `graphIndex.repoRoot` differs from request `repoRoot`:
    - Emit warning `GRAPH_INDEX_REPOROOT_MISMATCH`.
    - Use `graphIndex.repoRoot` for normalization to keep deterministic behavior.
+3. Optional CSR acceleration:
+   - If `includeCsr=true` and `graph_relations_csr` is present, `GraphStore` may attach `graphIndex.graphRelationsCsr`.
+   - CSR payloads are validated (sorted/unique node ids, monotonic offsets, edge bounds, per-node edge ordering) and must match
+     the `graph_relations` node ordering for each graph.
+   - On CSR validation failure, the system must fall back to the legacy `graph_relations` representation (and may derive CSR from it).
+   - When CSR is enabled, some adjacency lists may omit the precomputed `both` list and compute it on demand to reduce memory.
 
 ## 4. Import graph expansion with chunk seeds
 When expanding import edges from a chunk seed:

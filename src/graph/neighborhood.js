@@ -558,7 +558,16 @@ export const buildGraphNeighborhood = ({
       if (!entry) return [];
       if (dir === 'out') return entry.out || [];
       if (dir === 'in') return entry.in || [];
-      return entry.both || [];
+      if (entry.both) return entry.both;
+      const out = Array.isArray(entry.out) ? entry.out : [];
+      const incoming = Array.isArray(entry.in) ? entry.in : [];
+      if (!out.length && !incoming.length) return [];
+      const set = new Set();
+      for (const neighbor of out) set.add(neighbor);
+      for (const neighbor of incoming) set.add(neighbor);
+      const list = Array.from(set);
+      list.sort(compareStrings);
+      return list;
     }
     const node = graphNodes.get(nodeId);
     if (!node) return [];

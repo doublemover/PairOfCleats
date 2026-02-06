@@ -13,6 +13,8 @@ Spec references:
   per-request rebuilds.
 - Optional CSR-backed graph relations (`graph_relations_csr`) for low
   allocation adjacency traversal.
+- When CSR is enabled, `GraphStore` loads the CSR artifact from the pieces manifest, validates invariants (ordering/offsets/bounds),
+  and falls back to deriving CSR from `graph_relations` when the artifact is missing or invalid.
 - Lazy edge loading based on requested graph types and edge filters.
 - Deterministic ordering for graph/context-pack outputs (stable sorting
   across nodes, edges, and witness paths).
