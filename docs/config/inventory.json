@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-06T08:01:31.856Z",
+  "generatedAt": "2026-02-06T13:41:52.967Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2183,12 +2183,6 @@
       ]
     },
     {
-      "name": "PAIROFCLEATS_TEST_GRAPH_PLATEAU_CHILD",
-      "files": [
-        "tests/graph/graph-memory-plateau.test.js"
-      ]
-    },
-    {
       "name": "PAIROFCLEATS_TEST_LOG_DIR",
       "files": [
         "tests/helpers/triage.js",
@@ -2471,9 +2465,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_TEST_GRAPH_PLATEAU_CHILD"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 295,
     "publicFlags": [
@@ -3035,6 +3027,12 @@
       },
       {
         "file": "tests/map/map-edge-aggregate-stability.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
+        "file": "tests/perf/indexing/validate/phase-usage-checklist.test.js",
         "flags": [
           "mode"
         ]
@@ -4268,12 +4266,13 @@
       },
       {
         "flag": "mode",
-        "count": 28,
+        "count": 29,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
           "tests/map/map-edge-aggregate-stability.test.js",
+          "tests/perf/indexing/validate/phase-usage-checklist.test.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
           "tools/bench/graph/neighborhood-index-dir.js",

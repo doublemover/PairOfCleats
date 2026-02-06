@@ -9,15 +9,14 @@ import { applyTestEnv } from '../helpers/test-env.js';
 
 applyTestEnv({ testing: '1' });
 
-const CHILD_ENV = 'PAIROFCLEATS_TEST_GRAPH_PLATEAU_CHILD';
+const CHILD_FLAG = '--graph-plateau-child';
 
-if (process.env[CHILD_ENV] !== '1' && typeof global.gc !== 'function') {
+if (!process.argv.includes(CHILD_FLAG) && typeof global.gc !== 'function') {
   const filePath = path.resolve(process.argv[1]);
   const child = spawnSync(
     process.execPath,
-    ['--expose-gc', filePath],
+    ['--expose-gc', filePath, CHILD_FLAG],
     {
-      env: { ...process.env, [CHILD_ENV]: '1' },
       encoding: 'utf8'
     }
   );
