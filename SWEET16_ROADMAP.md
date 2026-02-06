@@ -1374,40 +1374,49 @@ Tests:
 
 ### Subphase 16.11.1 -- Grammar/Parser Caching
 Parallel: Can run alongside 16.11.2 with clear file ownership.
-Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
+Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/tree-sitter-runtime.md` (new)
+Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: initTreeSitterWasm, preloadTreeSitterLanguages, pruneTreeSitterLanguages, getTreeSitterParser)`, `src/lang/tree-sitter/state.js (anchor: treeSitterState)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/lang/tree-sitter/worker.js (anchors: getTreeSitterWorkerPool, sanitizeTreeSitterOptions)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchor: resolveTreeSitterPreloadPlan)`
 Tasks:
 - [ ] Task 16.11.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.1.a: Add warm grammar cache + preload policy.
-- [ ] Task 16.11.1.b: Implement parser pooling per language.
-- [ ] Task 16.11.1.c: Avoid repeated WASM instantiation.
-- [ ] Task 16.11.1.d: Add binary buffer parsing path.
-- [ ] Task 16.11.1.e: Disable logging in hot path by default.
-- [ ] Task 16.11.1.f: Add grammar version pinning per language for cache validity.
+- [ ] Task 16.11.1.a: Audit and harden WASM grammar caching (alias dedupe, in-flight load dedupe, LRU eviction) and ensure `maxLoadedLanguages` caps behave predictably on main thread vs worker threads.
+- [ ] Task 16.11.1.b: Document and lock in the single shared `Parser` strategy (avoid per-language parser pools by default due to memory/Windows OOM risk); if we ever add pooling it must be explicitly opt-in with guardrails.
+- [ ] Task 16.11.1.c: Ensure preload planning stays deterministic and bounded (stable order, stable caps) and avoid redundant preloads across shards/batches.
+- [ ] Task 16.11.1.d: Harden grammar load fallback (path load vs bytes load) and add telemetry for load mode + failures.
+- [ ] Task 16.11.1.e: Expose tree-sitter cache metrics in the stage audit (wasm loads/evictions, parser activations, query cache hits, chunk cache hits, worker fallbacks).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/grammar-cache.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-runtime.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js` (perf lane)
 
 ### Subphase 16.11.2 -- Parse Scheduling
 Parallel: Can run alongside 16.11.1 with clear file ownership.
-Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
+Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/concurrency-abort-runwithqueue.md`
+Touchpoints: `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, buildTreeSitterEntryBatches, preloadTreeSitterBatch, sortEntriesByTreeSitterBatchKey)`, `src/index/build/file-processor/cpu/chunking.js (anchor: chunkSegmentsWithTreeSitterPasses)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunksAsync, ensureChunkCache)`, `src/lang/tree-sitter/worker.js (anchor: getTreeSitterWorkerPool)`
 Tasks:
 - [ ] Task 16.11.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.2.a: Separate load vs parse queues.
-- [ ] Task 16.11.2.b: Batch parsing by language.
-- [ ] Task 16.11.2.c: Add incremental parsing for unchanged files.
-- [ ] Task 16.11.2.d: Cap parse tree retention.
-- [ ] Task 16.11.2.e: Add skip logic for low-value file types.
-- [ ] Task 16.11.2.f: Add per-language parse caps (max nodes) with early exit.
+- [ ] Task 16.11.2.a: Make batch-by-language scheduling explicitly deadlock-safe with ordered output/backpressure (no uncontrolled reordering that can pin queue reservations); document the invariants.
+- [ ] Task 16.11.2.b: Strengthen batch execution: reset/prune/preload strategy per batch, metrics for batch sizes, deferrals, and parser activation churn.
+- [ ] Task 16.11.2.c: Tighten incremental reuse via chunk cache (cache key, option invalidation, max entries) so unchanged files do not re-parse, while bounding memory.
+- [ ] Task 16.11.2.d: Ensure parse tree memory stays bounded (explicit `Tree.delete()`, `Parser.reset()`, worker timeouts/disable logic, per-language budgets) and add telemetry for budget abort reasons.
+- [ ] Task 16.11.2.e: Validate deterministic chunk outputs across scheduling strategies (language passes within file + batch-by-language across files) and ensure final chunk ordering is stable.
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/parse-scheduling.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js` (perf lane)
+- [ ] `tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js` (perf lane)
 
 ### Subphase 16.11.3 -- Tests + Bench
 Parallel: Run after 16.11.1/16.11.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `src/index/tree-sitter/registry.js (anchor: getLanguage)`, `src/index/tree-sitter/parser-pool.js (anchor: acquireParser)`, `src/index/tree-sitter/loader.js (anchor: loadGrammar)`, `src/index/tree-sitter/parse.js (anchor: parseFile)`
+Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: preloadTreeSitterLanguages, getTreeSitterStats)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, resolveTreeSitterPreloadPlan)`, `tools/bench/language/*` (new)
 Tasks:
 - [ ] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.11.3.a: Implement `tree-sitter-load` benchmark baseline/current.
