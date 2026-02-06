@@ -21,7 +21,6 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
-import { hydrateFilterIndex } from '../../retrieval/filter-index.js';
 import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
@@ -352,6 +351,7 @@ export async function writeIndexArtifacts(input) {
   let filterIndex = null;
   let filterIndexStats = null;
   let filterIndexReused = false;
+  let filterIndexFallback = null;
   const reusePreviousFilterIndex = (reason) => {
     if (!previousFilterIndexSource) return false;
     const note = reason ? ` (${reason})` : '';
@@ -366,11 +366,14 @@ export async function writeIndexArtifacts(input) {
       return false;
     }
     filterIndexReused = true;
-    addPieceFile({
-      type: previousFilterIndexPiece?.type || 'chunks',
-      name: 'filter_index',
-      format: previousFilterIndexPiece?.format || 'json'
-    }, previousFilterIndexSource);
+    filterIndexFallback = {
+      piece: {
+        type: previousFilterIndexPiece?.type || 'chunks',
+        name: 'filter_index',
+        format: previousFilterIndexPiece?.format || 'json'
+      },
+      path: previousFilterIndexSource
+    };
     try {
       filterIndexStats = summarizeFilterIndex(previousRaw);
     } catch {
@@ -397,12 +400,11 @@ export async function writeIndexArtifacts(input) {
     if (!Array.isArray(candidate.fileChunksById)) {
       throw new Error('missing fileChunksById');
     }
+    if (candidate.fileById.length !== candidate.fileChunksById.length) {
+      throw new Error('fileById/fileChunksById length mismatch');
+    }
     if (candidate.byLang == null || typeof candidate.byLang !== 'object') {
       throw new Error('missing byLang');
-    }
-    const hydrated = hydrateFilterIndex(candidate);
-    if (!hydrated) {
-      throw new Error('hydrate failed');
     }
     return true;
   };
@@ -415,6 +417,12 @@ export async function writeIndexArtifacts(input) {
     });
     validateSerializedFilterIndex(filterIndex);
     filterIndexStats = summarizeFilterIndex(filterIndex);
+    if (filterIndexStats && typeof filterIndexStats === 'object' && Number.isFinite(filterIndexStats.jsonBytes)) {
+      // filter_index is currently written uncompressed (compressible=false); keep a stable estimate
+      // in case later phases make it compressible.
+      filterIndexStats.diskBytesEstimate = filterIndexStats.jsonBytes;
+      filterIndexStats.compressionRatioEstimate = 1;
+    }
     if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
       log(
         `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
@@ -427,6 +435,16 @@ export async function writeIndexArtifacts(input) {
     filterIndex = null;
     filterIndexStats = null;
     reusePreviousFilterIndex(message);
+  }
+  if (indexState && typeof indexState === 'object') {
+    const filterIndexState = indexState.filterIndex && typeof indexState.filterIndex === 'object'
+      && !Array.isArray(indexState.filterIndex)
+      ? indexState.filterIndex
+      : {};
+    filterIndexState.ready = Boolean(filterIndex) || filterIndexReused;
+    filterIndexState.reused = Boolean(filterIndexStats?.reused);
+    filterIndexState.stats = filterIndexStats || null;
+    indexState.filterIndex = filterIndexState;
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)
@@ -946,6 +964,8 @@ export async function writeIndexArtifacts(input) {
       compressible: false,
       piece: { type: 'chunks', name: 'filter_index' }
     });
+  } else if (filterIndexFallback?.path) {
+    addPieceFile(filterIndexFallback.piece, filterIndexFallback.path);
   }
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs
@@ -1273,6 +1293,31 @@ export async function writeIndexArtifacts(input) {
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+  if (filterIndexStats && typeof filterIndexStats === 'object') {
+    const filterIndexPiece = pieceEntries.find((entry) => entry?.name === 'filter_index' && entry?.path);
+    const filterIndexPath = filterIndexPiece?.path ? path.join(outDir, filterIndexPiece.path) : null;
+    let filterIndexDiskBytes = null;
+    if (filterIndexPiece?.path) {
+      const metric = artifactMetrics.get(filterIndexPiece.path);
+      if (Number.isFinite(metric?.bytes)) filterIndexDiskBytes = metric.bytes;
+    }
+    if (!Number.isFinite(filterIndexDiskBytes) && filterIndexPath) {
+      try {
+        const stat = await fs.stat(filterIndexPath);
+        filterIndexDiskBytes = stat.size;
+      } catch {}
+    }
+    if (Number.isFinite(filterIndexDiskBytes)) {
+      filterIndexStats.diskBytes = filterIndexDiskBytes;
+    }
+    if (
+      Number.isFinite(filterIndexDiskBytes)
+      && Number.isFinite(filterIndexStats.jsonBytes)
+      && filterIndexStats.jsonBytes > 0
+    ) {
+      filterIndexStats.compressionRatio = filterIndexDiskBytes / filterIndexStats.jsonBytes;
+    }
+  }
 
   for (const entry of pieceEntries) {
     if (!entry?.path) continue;

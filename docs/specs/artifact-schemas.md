@@ -47,6 +47,10 @@ Machine-readable index:
 - `vfs_manifest_index` (array): entries require `schemaVersion`, `virtualPath`, `offset`, `bytes`.
 - `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
+  - Optional (future): `repo_map.meta.json` MAY include `fields.extensions.delta` to describe a delta/dictionary encoding.
+    - `schemaVersion` (int), `format` (string, e.g. `repo_map.delta.v1`)
+    - `tables` (e.g. `kind[]`, `signature[]`) and an optional `ratio` for telemetry.
+    - Writers MUST NOT emit delta-encoded row variants unless consumers can decode them, and MUST fall back to legacy row emission when delta support is unavailable.
 - `file_relations` (array): entries require `file`, `relations` (object). Optional: `importBindings` (object).
 - `symbols` (array/JSONL): entries require `v`, `symbolId`, `scopedId`, `symbolKey`, `qualifiedName`, `kindGroup`, `file`, `virtualPath`, `chunkUid`. Optional: `scheme`, `signatureKey`, `segmentUid`, `lang`, `kind`, `name`, `signature`, `extensions`.
 - `symbol_occurrences` (array/JSONL/columnar): entries require `v`, `host` (`file`, `chunkUid`), `role`, `ref`. Optional: `range`.
@@ -75,6 +79,8 @@ Machine-readable index:
 - `chargram_postings` (object): requires `vocab`, `postings`.
   - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.
+  - Serialized sets are sparse arrays of chunk ids; query-time hydration may build dense bitmap sidecars (RoaringBitmap when available) for large sets without changing the serialized artifact format.
+  - Any bitmap acceleration is runtime-only and MUST NOT affect ordering hashes or schema compatibility. Serialized versioning is tracked via `filter_index.schemaVersion`.
 - `filelists` (object): requires `generatedAt`, `scanned`, `skipped` (each has `count`, `sample`).
 - `pieces_manifest` (object): requires `version`, `artifactSurfaceVersion`, `pieces`. Optional: `compatibilityKey`, `generatedAt`, `updatedAt`, `mode`, `stage`, `repoId`, `buildId`, `extensions`.
 - `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `compatibilityKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.

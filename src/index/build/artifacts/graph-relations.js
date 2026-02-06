@@ -486,12 +486,8 @@ export async function enqueueGraphRelationsArtifacts({
       }
     })();
 
-    // Remove legacy variants up front so staged writes don't leave ambiguous sources.
-    await removeArtifact(graphPath);
-    await removeArtifact(graphJsonlPath);
-    await removeArtifact(graphMetaPath);
-    await removeArtifact(graphPartsDir);
-    await removeArtifact(csrPath);
+    // Preserve existing artifacts until new outputs are fully written.
+    // Strict consumers must be manifest-first; non-strict filesystem discovery may see legacy variants.
 
     const result = await schedule(() => writeJsonLinesShardedAsync({
       dir: outDir,
@@ -628,10 +624,6 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphPath),
       async () => {
-        await removeArtifact(graphJsonlPath);
-        await removeArtifact(graphMetaPath);
-        await removeArtifact(graphPartsDir);
-        await removeArtifact(csrPath);
         const payload = materializeGraphRelationsPayload(graphRelations);
         await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
       }
@@ -645,8 +637,6 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphMetaPath),
       async () => {
-        await removeArtifact(graphPath);
-        await removeArtifact(graphJsonlPath);
         const byteBudget = Number.isFinite(graphRelations?.caps?.maxBytes)
           ? Math.max(0, Math.floor(Number(graphRelations.caps.maxBytes)))
           : null;

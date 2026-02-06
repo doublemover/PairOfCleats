@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { buildContentConfigHash } from '../../../src/index/build/runtime/hash.js';
-import { readJsonFile } from '../../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES, readJsonFile, loadJsonObjectArtifact } from '../../../src/shared/artifact-io.js';
 import { loadIndex } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -55,8 +55,15 @@ if (buildResult.status !== 0) {
 
 const userConfig = loadUserConfig(repoRoot);
 const indexDir = getIndexDir(repoRoot, 'code', userConfig);
-const filterIndexPath = path.join(indexDir, 'filter_index.json');
-const raw = readJsonFile(filterIndexPath);
+const piecesManifestRaw = readJsonFile(path.join(indexDir, 'pieces', 'manifest.json'));
+const piecesManifest = piecesManifestRaw?.fields && typeof piecesManifestRaw.fields === 'object'
+  ? piecesManifestRaw.fields
+  : piecesManifestRaw;
+const raw = await loadJsonObjectArtifact(indexDir, 'filter_index', {
+  manifest: piecesManifest,
+  strict: true,
+  maxBytes: MAX_JSON_BYTES
+});
 assert.ok(Number.isFinite(raw.fileChargramN) && raw.fileChargramN > 0, 'expected fileChargramN to be set');
 assert.equal(raw.schemaVersion, 2, 'expected filter_index schemaVersion=2');
 assert.equal(

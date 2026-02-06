@@ -63,7 +63,8 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.
 - Spill buffers are bounded by bytes/rows and use a staging directory under the index output that is cleaned up after finalization.
 - Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention; legacy variants are removed only after successful writes to preserve rollback safety.
-- Filter index maps/sets are released after serialization to reduce retention during artifact writes; filter_index build is best-effort and may be skipped on build errors.
+- Filter index maps/sets are released after serialization to reduce retention during artifact writes; filter_index build is best-effort and may be skipped on build/validation errors.
+  - When rebuilding artifacts into an existing index directory, filter_index is reused from the prior pieces manifest when available to avoid losing this optional artifact on transient failures.
 - Filter index hydration builds bitmap sidecars (including per-file chunk bitmaps for large files) to accelerate file path prefiltering without changing serialized output.
 
 ## Stage3 Notes
@@ -82,7 +83,7 @@ Use these reports to prioritize optimization work before implementing algorithmi
 ## Scheduler Notes
 - When the build scheduler is enabled, queue depth, token usage, and starvation counters are exposed via scheduler stats.
 - Stage progress reporting includes scheduler stats in its metadata payload for each stage transition.
-- Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.proc`, `stage1.postings`, `stage2.relations`, `stage4.sqlite`) to ensure global backpressure.
+- Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.proc`, `stage1.postings`, `stage2.relations`, `stage2.relations.io`, `stage4.sqlite`) to ensure global backpressure.
 - Stage3 embeddings uses scheduler queues (`embeddings.compute`, `embeddings.io`) for batch compute and artifact/cache IO.
 
 ## Stage1 Bench + Regression Coverage
@@ -99,3 +100,15 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js`
+
+## Stage2 Bench + Regression Coverage
+- `tools/bench/index/filter-index-build.js`: Stage2 filter_index build microbench; compares baseline/current and prints size/throughput deltas.
+- `tools/bench/index/relations-build.js`: Stage2 graph_relations build benchmark; compares baseline graph build vs streaming spill/merge build.
+- `tools/bench/index/repo-map-compress.js`: Stage2 repo_map iterator/dedupe benchmark; compares baseline iterator vs current ordering/dedupe.
+- Regression tests:
+- `tests/perf/indexing/relations/relations-streaming-build.test.js`
+- `tests/indexing/relations/relations-determinism-bench-contract.test.js`
+- `tests/indexing/relations/relations-collision-guard.test.js`
+- `tests/indexing/relations/relations-atomicity-rollback.test.js`
+- `tests/indexing/filter-index/filter-index-atomic-swap.test.js`
+- `tests/indexing/filter-index/filter-index-metrics.test.js`

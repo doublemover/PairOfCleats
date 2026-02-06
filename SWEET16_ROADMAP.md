@@ -23,7 +23,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.13 | [ ] |  |
 | 16.14 | [x] |  |
 | 16.6 | [x] |  |
-| 16.7 | [ ] |  |
+| 16.7 | [x] | Stage2 relations/filter-index hardening + tests/bench complete |
 | 16.8 | [ ] |  |
 | 16.9 | [ ] |  |
 | 16.10 | [ ] |  |
@@ -1146,15 +1146,15 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [x] Task 16.7.2.doc: Update docs/specs and touchpoints listed for this subphase.
 - [x] Task 16.7.2.a: Add per-file bitmaps in filter index.
-- [ ] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
+- [x] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
 - [x] Task 16.7.2.b: Add repo map batching + safer writes (defer delta compression).
-- [ ] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
-- [ ] Task 16.7.2.c: Add concurrency split for relations IO.
-- [ ] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
+- [x] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
+- [x] Task 16.7.2.c: Add concurrency split for relations IO.
+- [x] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
 - [x] Task 16.7.2.d: Add filter index size telemetry.
-- [ ] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
+- [x] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
 - [x] Task 16.7.2.e: Add fallback to previous filter index on failure.
-- [ ] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
+- [x] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
 - [x] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
 - [x] Task 16.7.2.f.1: Update piece manifest only after successful swap; retain previous pieces on failure.
 
@@ -1173,23 +1173,24 @@ Tasks:
 - [x] Task 16.7.3.b: Add relations memory regression test.
 - [x] Task 16.7.3.b.1: Assert memory budget throttling + metrics for relations build.
 - [x] Task 16.7.3.c: Add determinism test for relations output.
-- [ ] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
-- [ ] Task 16.7.3.d: Add repo map delta compression test.
-- [ ] Task 16.7.3.d.1: Roundtrip delta compression with versioned header.
+- [x] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
+- [x] Task 16.7.3.d: Add repo map sharded roundtrip test (meta + loader).
+- [x] Task 16.7.3.d.1: Roundtrip sharded repo_map with versioned meta header.
 - [x] Task 16.7.3.e: Add docs update for Stage2 changes.
 - [x] Task 16.7.3.e.1: Document staging/atomic swap + fallback behavior.
-- [ ] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
-- [ ] Task 16.7.3.g: Add collision regression test for hash dedupe.
-- [ ] Task 16.7.3.h: Update script inventory + commands docs for new bench scripts.
-- [ ] Task 16.7.3.i: Update any tests that directly read `graph_relations.json`/filter index files to load via artifact loaders (shards/legacy compatible).
+- [x] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
+- [x] Task 16.7.3.g: Add collision regression test for hash dedupe.
+- [x] Task 16.7.3.h: Update commands docs for new bench scripts (bench scripts run directly; npm script inventory remains package.json-only).
+- [x] Task 16.7.3.i: Update any tests that directly read `graph_relations.json`/filter index files to load via artifact loaders (shards/legacy compatible).
 
 Tests:
-- [ ] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
 - [x] `tests/indexing/relations/relations-memory-budget.test.js` (perf lane) (new)
-- [ ] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-atomicity-rollback.test.js` (perf lane) (new)
+- [x] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
 - [x] `tests/indexing/filter-index/filter-index-metrics.test.js` (perf lane) (new)
-- [x] `tests/indexing/repo-map/repo-map-delta-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/repo-map/repo-map-roundtrip.test.js` (perf lane) (new)
 
 ---
 

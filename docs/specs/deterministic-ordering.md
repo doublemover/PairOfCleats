@@ -17,7 +17,9 @@
   - Neighbor lists (`out`/`in`) MUST be sorted and deduped deterministically.
 - graph edges: order by src, dst, kind, then weight.
 - repo map: order by file, name, kind, signature, then startLine.
-- filter_index: treated as an optional lookup artifact; when present its serialized maps are unordered JSON objects. Any bitmap acceleration is derived at hydration time and MUST NOT affect ordering hashes.
+  - If a future delta/dictionary encoding is introduced, ordering rules apply to the decoded row representation and MUST remain stable across encodings.
+- filter_index: treated as an optional lookup artifact; when present its serialized maps are unordered JSON objects.
+  - Serialized sets are sparse arrays of ids; any bitmap acceleration (RoaringBitmap when available, thresholded by set size) is derived at hydration time and MUST NOT affect ordering hashes.
 
 ## Tie-breakers
 - Use stable string comparisons on normalized paths.
