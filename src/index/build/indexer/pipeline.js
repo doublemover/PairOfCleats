@@ -303,6 +303,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     mode,
     runtime: runtimeRef,
     discovery,
+    outDir,
     entries: allEntries,
     contextWin,
     timing,

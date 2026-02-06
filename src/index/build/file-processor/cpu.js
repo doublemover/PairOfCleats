@@ -4,10 +4,11 @@ import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
 import {
-  resolveTreeSitterLanguagesForSegments
+  resolveTreeSitterLanguageForSegment
 } from './tree-sitter.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter/config.js';
+import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
 import {
-  chunkSegmentsWithTreeSitterPasses,
   sanitizeChunkBounds,
   validateChunkBounds
 } from './cpu/chunking.js';
@@ -17,9 +18,39 @@ import { resolveFileCaps } from './read.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
+import { buildVfsVirtualPath } from '../../tooling/vfs.js';
 import {
-  preloadTreeSitterLanguages
-} from '../../../lang/tree-sitter.js';
+  resolveSegmentExt,
+  resolveSegmentTokenMode,
+  shouldIndexSegment
+} from '../../segments/config.js';
+
+const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+
+const countLines = (text) => {
+  if (!text) return 0;
+  let count = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) count += 1;
+  }
+  return count;
+};
+
+const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => {
+  const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
+  const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
+  const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
+  const maxLines = perLanguage.maxLines ?? config.maxLines;
+  if (typeof maxBytes === 'number' && maxBytes > 0) {
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (bytes > maxBytes) return true;
+  }
+  if (typeof maxLines === 'number' && maxLines > 0) {
+    const lines = countLines(text);
+    if (lines > maxLines) return true;
+  }
+  return false;
+};
 
 export const processFileCpu = async (context) => {
   const {
@@ -76,6 +107,7 @@ export const processFileCpu = async (context) => {
     logLine,
     showLineProgress,
     toolInfo,
+    treeSitterScheduler,
     timing,
     languageHint,
     crashLogger,
@@ -142,52 +174,6 @@ export const processFileCpu = async (context) => {
     : normalizedSegmentsConfig;
   const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
   const treeSitterLanguagePasses = treeSitterEnabled && treeSitterConfig?.languagePasses !== false;
-  const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
-  const shouldSerializeTreeSitter = treeSitterEnabled && mode === 'code';
-  const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
-    ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
-    : 0;
-  if (!treeSitterLanguagePasses
-    && treeSitterEnabled
-    && treeSitterDeferMissing
-    && treeSitterDeferMissingMax > 0
-    && !fileEntry?.treeSitterDisabled) {
-    const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
-    if (deferrals < treeSitterDeferMissingMax) {
-      const hint = getLanguageForFile(ext, relKey);
-      const languageIdHint = hint?.id || null;
-      let segmentHint;
-      try {
-        segmentHint = discoverSegments({
-          text,
-          ext,
-          relPath: relKey,
-          mode,
-          languageId: languageIdHint,
-          context: null,
-          segmentsConfig: resolvedSegmentsConfig,
-          extraSegments: []
-        });
-      } catch (err) {
-        return failFile('parse-error', 'segments', err);
-      }
-      const requiredLanguages = resolveTreeSitterLanguagesForSegments({
-        segments: segmentHint,
-        primaryLanguageId: languageIdHint,
-        ext,
-        treeSitterConfig
-      });
-      if (requiredLanguages.length) {
-        const batchLanguages = new Set(
-          Array.isArray(fileEntry?.treeSitterBatchLanguages) ? fileEntry.treeSitterBatchLanguages : []
-        );
-        const missingLanguages = requiredLanguages.filter((languageId) => !batchLanguages.has(languageId));
-        if (missingLanguages.length) {
-          return { defer: true, missingLanguages };
-        }
-      }
-    }
-  }
   const treeSitterCacheKey = treeSitterConfig?.cacheKey ?? fileHash ?? null;
   const treeSitterConfigForMode = treeSitterEnabled
     ? { ...(treeSitterConfig || {}), cacheKey: treeSitterCacheKey }
@@ -204,7 +190,7 @@ export const processFileCpu = async (context) => {
       treeSitter: contextTreeSitterConfig
     }
     : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
-  const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
+  const runTreeSitter = treeSitterEnabled ? runTreeSitterSerial : (fn) => fn();
   const primaryLanguageId = languageHint?.id || null;
   let lang = null;
   let languageContext = {};
@@ -404,56 +390,87 @@ export const processFileCpu = async (context) => {
     chunking: languageOptions?.chunking,
     javascript: languageOptions?.javascript,
     typescript: languageOptions?.typescript,
-    treeSitter: treeSitterConfigForMode,
+    // Tree-sitter chunking is handled by the global VFS scheduler. Prevent any
+    // per-file fallbacks from re-introducing per-thread WASM loads.
+    treeSitter: { ...(treeSitterConfigForMode || {}), enabled: false },
     log: languageOptions?.log
   };
-  const treeSitterMissingLanguages = new Set();
-  segmentContext.treeSitterMissingLanguages = treeSitterMissingLanguages;
-  let sc;
+  const mustUseTreeSitterScheduler = treeSitterEnabled
+    && treeSitterScheduler
+    && typeof treeSitterScheduler.loadChunks === 'function';
+  if (treeSitterEnabled && !mustUseTreeSitterScheduler) {
+    throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
+  }
+  let sc = [];
   updateCrashStage('chunking');
   try {
-    if (treeSitterEnabled) {
-      const requiredLanguages = resolveTreeSitterLanguagesForSegments({
-        segments,
-        primaryLanguageId: lang?.id || null,
-        ext,
-        treeSitterConfig: treeSitterConfigForMode
-      });
-      const shouldPreload = treeSitterLanguagePasses === false || requiredLanguages.length <= 1;
-      if (shouldPreload && requiredLanguages.length) {
-        try {
-          await runTreeSitter(() => preloadTreeSitterLanguages(requiredLanguages, {
-            log: languageOptions?.log,
-            parallel: false,
-            maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
-          }));
-        } catch {
-          // ignore preload failures; chunking will fall back if needed.
-        }
+    const fallbackSegments = [];
+    const scheduled = [];
+    const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
+    for (const segment of segments || []) {
+      if (!segment) continue;
+      const segmentTokenMode = resolveSegmentTokenMode(segment);
+      if (!shouldIndexSegment(segment, segmentTokenMode, tokenMode)) continue;
+
+      if (!mustUseTreeSitterScheduler || segmentTokenMode !== 'code') {
+        fallbackSegments.push(segment);
+        continue;
       }
+
+      const segmentExt = resolveSegmentExt(ext, segment);
+      const rawLanguageId = segment.languageId || lang?.id || null;
+      const resolvedLang = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
+      const canUseTreeSitter = resolvedLang
+        && TREE_SITTER_LANG_IDS.has(resolvedLang)
+        && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
+      if (!canUseTreeSitter) {
+        fallbackSegments.push(segment);
+        continue;
+      }
+
+      const segmentText = text.slice(segment.start, segment.end);
+      if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
+        fallbackSegments.push(segment);
+        continue;
+      }
+
+      const segmentUid = segment.segmentUid || null;
+      const isFullFile = segment.start === 0 && segment.end === text.length;
+      if (!isFullFile && !segmentUid) {
+        throw new Error(`[tree-sitter:schedule] Missing segmentUid for ${relKey} (${segment.start}-${segment.end}).`);
+      }
+      const virtualPath = buildVfsVirtualPath({
+        containerPath: relKey,
+        segmentUid,
+        effectiveExt: segmentExt
+      });
+      scheduled.push({ virtualPath, label: `${resolvedLang}:${segment.start}-${segment.end}` });
     }
-    sc = treeSitterLanguagePasses === false
-      ? await runTreeSitter(() => chunkSegments({
+
+    for (const item of scheduled) {
+      const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
+      if (!Array.isArray(chunks) || !chunks.length) {
+        throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
+      }
+      sc.push(...chunks);
+    }
+
+    if (fallbackSegments.length) {
+      const fallbackChunks = chunkSegments({
         text,
         ext,
         relPath: relKey,
         mode,
-        segments,
+        segments: fallbackSegments,
         lineIndex,
         context: segmentContext
-      }))
-      : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
-        text,
-        ext,
-        relPath: relKey,
-        mode,
-        segments,
-        lineIndex,
-        context: segmentContext,
-        treeSitterConfig: treeSitterConfigForMode,
-        languageOptions,
-        log
-      }));
+      });
+      if (Array.isArray(fallbackChunks) && fallbackChunks.length) sc.push(...fallbackChunks);
+    }
+
+    if (sc.length > 1) {
+      sc.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+    }
   } catch (err) {
     if (languageOptions?.skipOnParseError) {
       return {
@@ -467,17 +484,6 @@ export const processFileCpu = async (context) => {
       };
     }
     throw err;
-  }
-  if (
-    treeSitterEnabled
-    && treeSitterDeferMissing
-    && treeSitterMissingLanguages.size > 0
-    && !fileEntry?.treeSitterDisabled
-  ) {
-    return {
-      defer: true,
-      missingLanguages: Array.from(treeSitterMissingLanguages)
-    };
   }
   sanitizeChunkBounds(sc, text.length);
   const chunkIssue = validateChunkBounds(sc, text.length);

@@ -641,7 +641,7 @@ export const buildVfsManifestRowsForFile = async ({
   const seen = new Set();
   const groups = [];
   for (const chunk of chunks) {
-    if (!chunk?.file) continue;
+    if (!chunk) continue;
     const segment = chunk.segment || null;
     const segmentUid = segment?.segmentUid || null;
     const key = `${segmentUid || ''}`;

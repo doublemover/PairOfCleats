@@ -6,9 +6,9 @@ import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
-import { treeSitterState } from '../../../../lang/tree-sitter/state.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
+import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
@@ -16,21 +16,6 @@ import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { createTokenRetentionState } from './postings.js';
 import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
-import {
-  applyTreeSitterBatching,
-  buildTreeSitterEntryBatches,
-  assignFileIndexes,
-  normalizeTreeSitterLanguages,
-  preloadTreeSitterBatch,
-  resolveTreeSitterPreloadPlan,
-  resolveNextOrderIndex,
-  sortEntriesByTreeSitterBatchKey,
-  updateEntryTreeSitterBatch
-} from './process-files/tree-sitter.js';
-import {
-  preloadTreeSitterLanguages,
-  preflightTreeSitterWasmLanguages
-} from '../../../../lang/tree-sitter.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 
@@ -44,22 +29,13 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
-const bumpTreeSitterMetric = (key, amount = 1) => {
-  if (!key) return;
-  const metrics = treeSitterState.metrics;
-  if (!metrics || typeof metrics !== 'object') return;
-  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
-  metrics[key] = current + amount;
-};
-
-const setTreeSitterMetricMax = (key, value) => {
-  if (!key) return;
-  const metrics = treeSitterState.metrics;
-  if (!metrics || typeof metrics !== 'object') return;
-  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
-  const next = Number.isFinite(value) ? value : null;
-  if (next == null) return;
-  metrics[key] = Math.max(current, next);
+const assignFileIndexes = (entries) => {
+  if (!Array.isArray(entries)) return;
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (!entry || typeof entry !== 'object') continue;
+    entry.fileIndex = i + 1;
+  }
 };
 
 const resolvePostingsQueueConfig = (runtime) => {
@@ -90,6 +66,7 @@ export const processFiles = async ({
   mode,
   runtime,
   discovery,
+  outDir,
   entries,
   contextWin,
   timing,
@@ -122,6 +99,30 @@ export const processFiles = async ({
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
 
+  let treeSitterScheduler = null;
+  const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
+  if (treeSitterEnabled) {
+    log('[tree-sitter:schedule] Building global tree-sitter plan (VFS batched by grammar)...');
+    treeSitterScheduler = await runTreeSitterScheduler({
+      mode,
+      runtime,
+      entries,
+      outDir,
+      fileTextCache,
+      abortSignal,
+      log
+    });
+    const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
+    if (schedStats) {
+      log(
+        `[tree-sitter:schedule] Ready: wasmKeys=${schedStats.wasmKeys} indexEntries=${schedStats.indexEntries} ` +
+        `cache=${schedStats.cacheEntries}`
+      );
+    }
+  }
+
+  assignFileIndexes(entries);
+
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
     repoCacheRoot: runtime.repoCacheRoot,
@@ -153,17 +154,6 @@ export const processFiles = async ({
     : (fn) => fn();
   let checkpoint = null;
   let progress = null;
-  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
-    // Avoid reordering: ordered appender waits on canonical order, and
-    // out-of-order processing can deadlock queue completion.
-    allowReorder: false
-  });
-  for (const entry of entries) {
-    if (!entry || typeof entry !== 'object') continue;
-    if (Number.isFinite(entry.processingOrderIndex)) {
-      entry.orderIndex = entry.processingOrderIndex;
-    }
-  }
   const startOrderIndex = (() => {
     let minIndex = null;
     for (const entry of entries || []) {
@@ -249,21 +239,6 @@ export const processFiles = async ({
       debugOrdered
     }
   );
-  const treeSitterOptions = runtime.languageOptions?.treeSitter || null;
-  if (treeSitterOptions?.enabled !== false && treeSitterOptions?.preload !== 'none') {
-    const preloadPlan = resolveTreeSitterPreloadPlan(entries, treeSitterOptions);
-    if (preloadPlan.languages.length) {
-      await preflightTreeSitterWasmLanguages(preloadPlan.languages, { log });
-      await preloadTreeSitterLanguages(preloadPlan.languages, {
-        log,
-        parallel: treeSitterOptions.preload === 'parallel',
-        concurrency: treeSitterOptions.preloadConcurrency,
-        maxLoadedLanguages: treeSitterOptions.maxLoadedLanguages
-      });
-    }
-  }
-  assignFileIndexes(entries);
-  const orderIndexState = { next: resolveNextOrderIndex(entries) };
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
     const shardLabel = shardMeta?.label || shardMeta?.id || null;
     const shardProgress = shardMeta
@@ -286,6 +261,7 @@ export const processFiles = async ({
       root: runtimeRef.root,
       mode,
       fileTextCache,
+      treeSitterScheduler,
       dictConfig: runtimeRef.dictConfig,
       dictWords: runtimeRef.dictWords,
       dictShared: runtimeRef.dictShared,
@@ -332,7 +308,7 @@ export const processFiles = async ({
       featureMetrics: runtimeRef.featureMetrics,
       buildStage: runtimeRef.stage
     });
-    const runEntryBatch = async (batchEntries, deferredEntries) => {
+    const runEntryBatch = async (batchEntries) => {
       await runWithQueue(
         runtimeRef.queues.cpu,
         batchEntries,
@@ -419,16 +395,6 @@ export const processFiles = async ({
             const orderIndex = Number.isFinite(entry?.orderIndex)
               ? entry.orderIndex
               : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
-            if (result?.defer) {
-              if (treeSitterOptions?.enabled !== false && treeSitterOptions?.batchByLanguage !== false) {
-                bumpTreeSitterMetric('batchDeferrals', 1);
-              }
-              deferredEntries.push({
-                entry,
-                missingLanguages: Array.isArray(result.missingLanguages) ? result.missingLanguages : []
-              });
-              return orderedAppender.skip(orderIndex);
-            }
             progress.tick();
             if (shardProgress) {
               shardProgress.count += 1;
@@ -468,62 +434,8 @@ export const processFiles = async ({
         }
       );
     };
-    const treeSitterOptions = runtimeRef.languageOptions?.treeSitter;
-    const deferMissingMax = Number.isFinite(treeSitterOptions?.deferMissingMax)
-      ? Math.max(0, Math.floor(treeSitterOptions.deferMissingMax))
-      : 0;
-    let pendingEntries = shardEntries;
     try {
-      while (pendingEntries.length) {
-        const entryBatches = buildTreeSitterEntryBatches(pendingEntries);
-        const deferred = [];
-        for (const batch of entryBatches) {
-          if (treeSitterOptions?.enabled !== false && treeSitterOptions?.batchByLanguage !== false) {
-            bumpTreeSitterMetric('batchCount', 1);
-            bumpTreeSitterMetric('batchFiles', batch.entries.length);
-            setTreeSitterMetricMax('batchMaxFiles', batch.entries.length);
-          }
-          if (treeSitterOptions?.enabled !== false
-            && treeSitterOptions?.batchByLanguage !== false
-            && Array.isArray(batch.languages)
-            && batch.languages.length) {
-            await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });
-          }
-          await runEntryBatch(batch.entries, deferred);
-        }
-        if (!deferred.length) break;
-        const nextEntries = [];
-        for (const deferredItem of deferred) {
-          const entry = deferredItem.entry;
-          const missingLanguages = Array.isArray(deferredItem.missingLanguages)
-            ? deferredItem.missingLanguages
-            : [];
-          entry.treeSitterDeferrals = (Number(entry.treeSitterDeferrals) || 0) + 1;
-          if (deferMissingMax === 0 || entry.treeSitterDeferrals > deferMissingMax) {
-            entry.treeSitterDisabled = true;
-            updateEntryTreeSitterBatch(entry, []);
-            nextEntries.push(entry);
-            continue;
-          }
-          if (missingLanguages.length) {
-            entry.treeSitterDeferredToEnd = true;
-            const merged = normalizeTreeSitterLanguages([
-              ...(Array.isArray(entry.treeSitterBatchLanguages) ? entry.treeSitterBatchLanguages : []),
-              ...missingLanguages
-            ]);
-            updateEntryTreeSitterBatch(entry, merged);
-          }
-          nextEntries.push(entry);
-        }
-        if (treeSitterOptions?.batchByLanguage !== false) {
-          sortEntriesByTreeSitterBatchKey(nextEntries);
-        }
-        for (const entry of nextEntries) {
-          entry.processingOrderIndex = orderIndexState.next++;
-          entry.orderIndex = entry.processingOrderIndex;
-        }
-        pendingEntries = nextEntries;
-      }
+      await runEntryBatch(shardEntries);
     } catch (err) {
       // If the shard processing fails before a contiguous `orderIndex` is
       // enqueued, later tasks may be blocked waiting for an ordered flush.

@@ -649,9 +649,29 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  const strict = options?.treeSitter?.strict === true;
+  const failStrict = (reason, message, extra = {}) => {
+    if (!strict) return null;
+    const err = new Error(message);
+    err.code = 'ERR_TREE_SITTER_STRICT';
+    err.reason = reason;
+    err.languageId = resolvedId;
+    Object.assign(err, extra);
+    throw err;
+  };
+  const buildWholeFileChunk = () => ([{
+    start: 0,
+    end: text.length,
+    name: 'file',
+    kind: 'File',
+    meta: { treeSitter: true, wholeFile: true }
+  }]);
   if (treeSitterState.disabledLanguages?.has(resolvedId)) {
     bumpMetric('fallbacks', 1);
-    return null;
+    return failStrict(
+      'disabled',
+      `Tree-sitter disabled for ${resolvedId}; strict mode does not allow fallback.`
+    );
   }
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const metricsCollector = options?.metricsCollector;
@@ -685,15 +705,30 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     if (options?.treeSitterMissingLanguages) {
       options.treeSitterMissingLanguages.add(resolvedId);
     }
+    bumpMetric('fallbacks', 1);
+    if (strict) {
+      return failStrict(
+        'missing-parser',
+        `Tree-sitter unavailable for ${resolvedId}; strict mode does not allow fallback.`
+      );
+    }
     if (options?.log && !loggedUnavailable.has(resolvedId)) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
       loggedUnavailable.add(resolvedId);
     }
-    bumpMetric('fallbacks', 1);
     return null;
   }
   const config = LANG_CONFIG[resolvedId];
-  if (!config) return null;
+  if (!config) {
+    bumpMetric('fallbacks', 1);
+    if (strict) {
+      return failStrict(
+        'missing-config',
+        `Tree-sitter config missing for ${resolvedId}; strict mode does not allow fallback.`
+      );
+    }
+    return null;
+  }
   const traversalBudget = resolveTraversalBudget(options, resolvedId);
   let tree = null;
   try {
@@ -707,6 +742,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       recordMetrics();
       const message = err?.message || String(err);
       if (/timeout/i.test(message)) {
+        bumpMetric('parseTimeouts', 1);
+        bumpMetric('fallbacks', 1);
+        if (strict) {
+          return failStrict(
+            'timeout',
+            `Tree-sitter parse timed out for ${resolvedId}; strict mode does not allow fallback.`,
+            { parseError: message }
+          );
+        }
         if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
           options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
           loggedParseTimeouts.add(resolvedId);
@@ -726,12 +770,17 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
             }
           }
         }
-        bumpMetric('parseTimeouts', 1);
-        bumpMetric('fallbacks', 1);
         return null;
       }
       bumpMetric('parseFailures', 1);
       bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`,
+          { parseError: message }
+        );
+      }
       return null;
     }
 
@@ -740,12 +789,18 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       rootNode = tree.rootNode;
     } catch {
       recordMetrics();
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`
+        );
+      }
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
-      bumpMetric('parseFailures', 1);
-      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -767,15 +822,23 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       if (!queryResult.shouldFallback) {
         recordMetrics();
         bumpMetric('fallbacks', 1);
+        if (strict) {
+          // A query can legitimately match no "chunkable" nodes (e.g. tiny files).
+          // In strict mode, avoid falling back to heuristics by emitting one whole-file chunk.
+          return buildWholeFileChunk();
+        }
         return null;
       }
       if (queryResult.reason && options?.log) {
         const key = `query:${resolvedId}:${queryResult.reason}`;
         if (!loggedTraversalBudget.has(key)) {
+          const fallbackLabel = strict
+            ? 'Falling back to traversal chunking.'
+            : 'Falling back to heuristic chunking.';
           options.log(
             `Tree-sitter query aborted for ${resolvedId} (${queryResult.reason}); ` +
             `visited=${queryResult.visited ?? 'n/a'} matched=${queryResult.matched ?? 'n/a'}. ` +
-            'Falling back to heuristic chunking.'
+            fallbackLabel
           );
           loggedTraversalBudget.add(key);
         }
@@ -790,6 +853,12 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       }
       if (!traversalResult?.chunks) {
         recordMetrics();
+        bumpMetric('fallbacks', 1);
+        if (strict) {
+          // Traversal budgets can abort on dense ASTs. In strict mode, emit a
+          // whole-file chunk rather than falling back to heuristics.
+          return buildWholeFileChunk();
+        }
         const key = `${resolvedId}:${traversalResult?.reason || 'budget'}`;
         if (options?.log && !loggedTraversalBudget.has(key)) {
           options.log(
@@ -799,23 +868,31 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
           );
           loggedTraversalBudget.add(key);
         }
-        bumpMetric('fallbacks', 1);
         return null;
       }
     } catch {
       recordMetrics();
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`
+        );
+      }
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
-      bumpMetric('parseFailures', 1);
-      bumpMetric('fallbacks', 1);
       return null;
     }
 
     if (!traversalResult.chunks.length) {
       recordMetrics();
       bumpMetric('fallbacks', 1);
+      if (strict) {
+        return buildWholeFileChunk();
+      }
       return null;
     }
 
