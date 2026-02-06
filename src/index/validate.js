@@ -383,6 +383,20 @@ export async function validateIndexArtifacts(input = {}) {
         validatePostingsDocIds(report, mode, 'token_postings', tokenNormalized.postings, chunkMeta.length);
       }
 
+      const phraseRaw = readJsonArtifact('phrase_ngrams');
+      if (phraseRaw) {
+        phraseNormalized = normalizePhrasePostings(phraseRaw);
+        validateSchema(report, mode, 'phrase_ngrams', phraseNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'phrase_ngrams', phraseNormalized.postings, chunkMeta.length);
+      }
+
+      const chargramRaw = readJsonArtifact('chargram_postings');
+      if (chargramRaw) {
+        chargramNormalized = normalizePhrasePostings(chargramRaw);
+        validateSchema(report, mode, 'chargram_postings', chargramNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'chargram_postings', chargramNormalized.postings, chunkMeta.length);
+      }
+
       if (fileMeta) {
         validateSchema(report, mode, 'file_meta', fileMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
         const fileIds = new Set();
@@ -676,28 +690,15 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
-      const phraseRaw = readJsonArtifact('phrase_ngrams');
-      if (phraseRaw) {
-        phraseNormalized = normalizePhrasePostings(phraseRaw);
-        validateSchema(report, mode, 'phrase_ngrams', phraseNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'phrase_ngrams', phraseNormalized.postings, chunkMeta.length);
-      }
-
-      const chargramRaw = readJsonArtifact('chargram_postings');
-      if (chargramRaw) {
-        chargramNormalized = normalizePhrasePostings(chargramRaw);
-        validateSchema(report, mode, 'chargram_postings', chargramNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'chargram_postings', chargramNormalized.postings, chunkMeta.length);
-      }
-
       const vocabOrder = readJsonArtifact('vocab_order');
       if (vocabOrder && typeof vocabOrder === 'object') {
         const tokenHash = tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null;
         const phraseHash = phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null;
         const chargramHash = chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null;
-        const expectToken = vocabOrder?.vocab?.token?.hash || null;
-        const expectPhrase = vocabOrder?.vocab?.phrase?.hash || null;
-        const expectChargram = vocabOrder?.vocab?.chargram?.hash || null;
+        const vocab = vocabOrder?.fields?.vocab || vocabOrder?.vocab || null;
+        const expectToken = vocab?.token?.hash || null;
+        const expectPhrase = vocab?.phrase?.hash || null;
+        const expectChargram = vocab?.chargram?.hash || null;
         if (expectToken && tokenHash?.hash && expectToken !== tokenHash.hash) {
           addIssue(report, mode, 'vocab_order token hash mismatch', 'Rebuild index artifacts for this mode.');
           modeReport.ok = false;
