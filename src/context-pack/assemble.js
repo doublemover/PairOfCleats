@@ -11,6 +11,11 @@ import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
 import { readFileRangeSync } from '../shared/files.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
+import {
+  MAX_JSON_BYTES,
+  loadJsonArrayArtifactRows,
+  loadPiecesManifest
+} from '../shared/artifact-io.js';
 
 const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -569,4 +574,147 @@ export const assembleCompositeContextPack = ({
       excerptBytes
     }
   };
+};
+
+const resolveChunkUidMapSeedRefs = (seedRef) => {
+  if (!seedRef || typeof seedRef !== 'object') return [];
+  if (seedRef.type && typeof seedRef.type === 'string') return [seedRef];
+  if (!('status' in seedRef)) return [];
+  const candidates = resolveSeedCandidates(seedRef);
+  const refs = [];
+  const seen = new Set();
+  const pushUnique = (ref) => {
+    if (!ref?.type) return;
+    const key = ref.type === 'chunk'
+      ? `chunk:${ref.chunkUid || ''}`
+      : ref.type === 'file'
+        ? `file:${ref.path || ''}`
+        : ref.type === 'symbol'
+          ? `symbol:${ref.symbolId || ''}`
+          : null;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    refs.push(ref);
+  };
+  for (const candidate of candidates) {
+    if (candidate?.chunkUid) {
+      pushUnique({ type: 'chunk', chunkUid: candidate.chunkUid });
+    } else if (candidate?.path) {
+      pushUnique({ type: 'file', path: candidate.path });
+    } else if (candidate?.symbolId) {
+      pushUnique({ type: 'symbol', symbolId: candidate.symbolId });
+    }
+  }
+  return refs;
+};
+
+const resolveChunkUidMapRow = async ({
+  indexDir,
+  manifest,
+  strict,
+  repoRoot,
+  seedRef
+} = {}) => {
+  if (!indexDir || !seedRef) return null;
+  if (seedRef.type !== 'chunk' && seedRef.type !== 'file') return null;
+  const normalizedSeedFile = seedRef.type === 'file'
+    ? normalizePathForRepo(seedRef.path, repoRoot)
+    : null;
+  try {
+    for await (const row of loadJsonArrayArtifactRows(indexDir, 'chunk_uid_map', {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict
+    })) {
+      if (!row || typeof row !== 'object') continue;
+      if (seedRef.type === 'chunk' && row.chunkUid && row.chunkUid === seedRef.chunkUid) {
+        return row;
+      }
+      if (seedRef.type === 'file') {
+        const rowFile = normalizePathForRepo(row.file, repoRoot);
+        if (rowFile && normalizedSeedFile && rowFile === normalizedSeedFile) {
+          return row;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const normalizeChunkUidMapRowAsChunk = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  if (!Number.isFinite(row.docId) || !row.chunkUid || !row.file) return null;
+  return {
+    id: row.docId,
+    chunkUid: row.chunkUid,
+    chunkId: row.chunkId || null,
+    file: row.file,
+    start: Number.isFinite(row.start) ? row.start : null,
+    end: Number.isFinite(row.end) ? row.end : null,
+    startLine: null,
+    endLine: null
+  };
+};
+
+/**
+ * Provider-based context-pack assembly that avoids materializing full `chunk_meta`.
+ *
+ * Current implementation uses the `chunk_uid_map` tooling artifact to resolve the seed's
+ * primary chunk (file + byte range) and then delegates to `assembleCompositeContextPack`.
+ */
+export const assembleCompositeContextPackStreaming = async ({
+  seed = null,
+  chunkMeta = null,
+  chunkIndex = null,
+  repoRoot = process.cwd(),
+  indexDir = null,
+  manifest = null,
+  strict = true,
+  ...rest
+} = {}) => {
+  if (chunkMeta || chunkIndex) {
+    return assembleCompositeContextPack({ seed, chunkMeta, chunkIndex, repoRoot, indexDir, ...rest });
+  }
+  if (!indexDir) {
+    return assembleCompositeContextPack({ seed, chunkMeta: null, chunkIndex: null, repoRoot, indexDir, ...rest });
+  }
+  const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict });
+  const seedRef = resolveSeedRef(seed);
+  const candidates = resolveChunkUidMapSeedRefs(seedRef);
+  let resolvedRow = null;
+  for (const candidate of candidates) {
+    resolvedRow = await resolveChunkUidMapRow({
+      indexDir,
+      manifest: resolvedManifest,
+      strict,
+      repoRoot,
+      seedRef: candidate
+    });
+    if (resolvedRow) break;
+  }
+  const chunk = normalizeChunkUidMapRowAsChunk(resolvedRow);
+  const chunkMetaResolved = chunk ? [chunk] : null;
+  const chunkIndexResolved = chunkMetaResolved ? buildChunkIndex(chunkMetaResolved, { repoRoot }) : null;
+  const payload = assembleCompositeContextPack({
+    seed,
+    chunkMeta: chunkMetaResolved,
+    chunkIndex: chunkIndexResolved,
+    repoRoot,
+    indexDir,
+    ...rest
+  });
+  if (!chunk && payload && payload.warnings) {
+    payload.warnings.push({
+      code: 'CHUNK_UID_MAP_MISS',
+      message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
+    });
+  } else if (!chunk && payload) {
+    payload.warnings = [{
+      code: 'CHUNK_UID_MAP_MISS',
+      message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
+    }];
+  }
+  return payload;
 };

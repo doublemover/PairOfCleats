@@ -118,6 +118,7 @@ export const buildGraphIndex = ({
   symbolEdges,
   callSites,
   repoRoot = null,
+  indexSignature = null,
   includeCsr = false
 } = {}) => {
   const importPathCache = new Map();
@@ -129,15 +130,43 @@ export const buildGraphIndex = ({
     importPathCache.set(key, normalized);
     return normalized;
   };
-  const callGraphIndex = buildGraphNodeIndex(graphRelations?.callGraph);
-  const usageGraphIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
-  const importGraphIndex = buildImportGraphIndex(graphRelations?.importGraph, repoRoot);
-  const callGraphAdjacency = buildAdjacencyIndex(graphRelations?.callGraph, { includeBoth: !includeCsr });
-  const usageGraphAdjacency = buildAdjacencyIndex(graphRelations?.usageGraph, { includeBoth: !includeCsr });
+  const toMetaGraph = (graph) => {
+    if (!graph || typeof graph !== 'object') return graph;
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    return {
+      ...graph,
+      nodes: nodes.map((node) => {
+        if (!node || typeof node !== 'object') return node;
+        return {
+          id: node.id,
+          file: node.file ?? null,
+          kind: node.kind ?? null,
+          name: node.name ?? null,
+          signature: node.signature ?? null
+        };
+      })
+    };
+  };
+
+  const graphRelationsMeta = includeCsr && graphRelations && typeof graphRelations === 'object'
+    ? {
+      ...graphRelations,
+      callGraph: toMetaGraph(graphRelations.callGraph),
+      usageGraph: toMetaGraph(graphRelations.usageGraph),
+      importGraph: toMetaGraph(graphRelations.importGraph)
+    }
+    : graphRelations;
+
+  const callGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.callGraph);
+  const usageGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.usageGraph);
+  const importGraphIndex = buildImportGraphIndex(graphRelationsMeta?.importGraph, repoRoot);
+  const callGraphAdjacency = buildAdjacencyIndex(graphRelations?.callGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
+  const usageGraphAdjacency = buildAdjacencyIndex(graphRelations?.usageGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
   const importGraphAdjacency = buildAdjacencyIndex(graphRelations?.importGraph, {
     normalizeNeighborId: normalizeImportPathCached,
     normalizeNodeId: normalizeImportPathCached,
-    includeBoth: !includeCsr
+    includeBoth: !includeCsr,
+    includeIn: !includeCsr
   });
   const callGraphIds = buildIdTable(callGraphIndex);
   const usageGraphIds = buildIdTable(usageGraphIndex);
@@ -157,29 +186,14 @@ export const buildGraphIndex = ({
   if (!includeCsr) {
     importGraphIds.ids = null;
   }
-  if (includeCsr && graphRelations && typeof graphRelations === 'object') {
-    for (const graphName of ['callGraph', 'usageGraph', 'importGraph']) {
-      const graph = graphRelations[graphName];
-      if (!graph || !Array.isArray(graph.nodes)) continue;
-      graph.nodes = graph.nodes.map((node) => {
-        if (!node || typeof node !== 'object') return node;
-        return {
-          id: node.id,
-          file: node.file ?? null,
-          kind: node.kind ?? null,
-          name: node.name ?? null,
-          signature: node.signature ?? null
-        };
-      });
-    }
-  }
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
   const callSiteIndex = buildCallSiteIndex(callSites);
   return {
     repoRoot,
+    indexSignature: indexSignature || null,
     normalizeImportPath: normalizeImportPathCached,
-    graphRelations,
+    graphRelations: graphRelationsMeta,
     graphRelationsCsr: resolvedCsr,
     callGraphIndex,
     usageGraphIndex,
@@ -340,6 +354,7 @@ export const createGraphStore = ({
   const loadGraphIndex = async ({
     repoRoot = null,
     cacheKey = null,
+    indexSignature = null,
     graphs = null,
     includeCsr = false
   } = {}) => {
@@ -409,6 +424,7 @@ export const createGraphStore = ({
       symbolEdges: cachedArtifacts.symbolEdges,
       callSites: cachedArtifacts.callSites,
       repoRoot,
+      indexSignature,
       includeCsr
     });
     const buildMs = Math.max(0, Date.now() - buildStartedAt);

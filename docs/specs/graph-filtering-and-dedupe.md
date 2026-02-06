@@ -43,7 +43,16 @@ Related docs:
    - CSR payloads are validated (sorted/unique node ids, monotonic offsets, edge bounds, per-node edge ordering) and must match
      the `graph_relations` node ordering for each graph.
    - On CSR validation failure, the system must fall back to the legacy `graph_relations` representation (and may derive CSR from it).
-   - When CSR is enabled, some adjacency lists may omit the precomputed `both` list and compute it on demand to reduce memory.
+   - When CSR is enabled:
+     - Neighbor resolution for `direction=out` must use CSR directly.
+     - Neighbor resolution for `direction=in|both` must use a reverse-edge index derived from CSR (built once per graphIndex and cached),
+       rather than materializing full `in`/`both` adjacency lists.
+     - Adjacency maps may omit `in` and `both` lists entirely (keep legacy adjacency only as fallback when CSR is unavailable).
+4. Traversal-result caching:
+   - Graph neighborhood results may be cached on the `graphIndex`, keyed by a query signature:
+     - seeds, graphs/edgeTypes filters, depth, direction, caps, includePaths, and `indexSignature`.
+   - Cache hits must return the same nodes/edges/paths ordering as an uncached traversal.
+   - Cache invalidation must be strict: a changed `indexSignature` must not reuse cached results.
 
 ## 4. Import graph expansion with chunk seeds
 When expanding import edges from a chunk seed:

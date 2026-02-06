@@ -81,7 +81,15 @@ export const resolvePrefixEntry = (table, index) => {
 /**
  * Build sorted, unique adjacency lists for graph traversal.
  */
-export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normalizeNodeId = null, includeBoth = true } = {}) => {
+export const buildAdjacencyIndex = (
+  graph,
+  {
+    normalizeNeighborId = null,
+    normalizeNodeId = null,
+    includeBoth = true,
+    includeIn = true
+  } = {}
+) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   for (const node of nodes) {
@@ -89,29 +97,37 @@ export const buildAdjacencyIndex = (graph, { normalizeNeighborId = null, normali
     const nodeId = normalizeNodeId ? normalizeNodeId(node.id) : node.id;
     if (!nodeId) continue;
     const outRaw = Array.isArray(node.out) ? node.out : [];
-    const inRaw = Array.isArray(node.in) ? node.in : [];
+    const inRaw = includeIn && Array.isArray(node.in) ? node.in : [];
     const outSet = new Set();
-    const inSet = new Set();
+    const inSet = includeIn ? new Set() : null;
     for (const neighbor of outRaw) {
       if (!neighbor) continue;
       const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
       if (normalized) outSet.add(normalized);
     }
-    for (const neighbor of inRaw) {
-      if (!neighbor) continue;
-      const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
-      if (normalized) inSet.add(normalized);
+    if (includeIn) {
+      for (const neighbor of inRaw) {
+        if (!neighbor) continue;
+        const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
+        if (normalized) inSet.add(normalized);
+      }
     }
     const out = Array.from(outSet);
-    const incoming = Array.from(inSet);
+    const incoming = includeIn ? Array.from(inSet) : [];
     out.sort(compareStrings);
-    incoming.sort(compareStrings);
+    if (includeIn) incoming.sort(compareStrings);
     if (includeBoth) {
-      const both = Array.from(new Set([...out, ...incoming]));
-      both.sort(compareStrings);
-      map.set(nodeId, { out, in: incoming, both });
+      const both = includeIn
+        ? Array.from(new Set([...out, ...incoming]))
+        : out.slice();
+      if (includeIn) {
+        both.sort(compareStrings);
+        map.set(nodeId, { out, in: incoming, both });
+      } else {
+        map.set(nodeId, { out, both });
+      }
     } else {
-      map.set(nodeId, { out, in: incoming });
+      map.set(nodeId, includeIn ? { out, in: incoming } : { out });
     }
   }
   return map;
@@ -143,6 +159,46 @@ export const buildAdjacencyCsr = (adjacencyMap, idTable) => {
   };
 };
 
+/**
+ * Build a reverse-edge CSR (incoming adjacency) from a forward CSR payload.
+ * Keeps determinism by iterating sources in ascending node index order.
+ */
+export const buildReverseAdjacencyCsr = (forward) => {
+  if (!forward || !(forward.offsets instanceof Uint32Array) || !(forward.edges instanceof Uint32Array)) {
+    return null;
+  }
+  const { offsets, edges } = forward;
+  const nodeCount = Math.max(0, offsets.length - 1);
+  if (nodeCount === 0) {
+    return { offsets: new Uint32Array([0]), edges: new Uint32Array() };
+  }
+  const edgeCount = edges.length;
+  const indegree = new Uint32Array(nodeCount);
+  for (let i = 0; i < edgeCount; i += 1) {
+    const target = edges[i];
+    if (target < nodeCount) indegree[target] += 1;
+  }
+  const reverseOffsets = new Uint32Array(nodeCount + 1);
+  reverseOffsets[0] = 0;
+  for (let i = 0; i < nodeCount; i += 1) {
+    reverseOffsets[i + 1] = reverseOffsets[i] + indegree[i];
+  }
+  const reverseEdges = new Uint32Array(edgeCount);
+  const cursor = reverseOffsets.slice();
+  for (let source = 0; source < nodeCount; source += 1) {
+    const start = offsets[source];
+    const end = offsets[source + 1];
+    for (let idx = start; idx < end; idx += 1) {
+      const target = edges[idx];
+      if (target >= nodeCount) continue;
+      const pos = cursor[target];
+      reverseEdges[pos] = source;
+      cursor[target] = pos + 1;
+    }
+  }
+  return { offsets: reverseOffsets, edges: reverseEdges };
+};
+
 export const buildImportGraphIndex = (graph, repoRoot) => buildGraphNodeIndex(graph, {
   normalizeId: (value) => normalizeImportPath(value, repoRoot)
 });
@@ -152,7 +208,14 @@ export const buildChunkInfo = (callGraphIndex, usageGraphIndex) => {
   const ingest = (node) => {
     if (!node || typeof node.id !== 'string') return;
     if (!node.file && !node.name && !node.kind && !node.signature) return;
-    if (!map.has(node.id)) map.set(node.id, node);
+    if (!map.has(node.id)) {
+      map.set(node.id, {
+        file: node.file ?? null,
+        kind: node.kind ?? null,
+        name: node.name ?? null,
+        signature: node.signature ?? null
+      });
+    }
   };
   for (const node of callGraphIndex.values()) ingest(node);
   for (const node of usageGraphIndex.values()) ingest(node);

@@ -15,6 +15,9 @@ Spec references:
   allocation adjacency traversal.
 - When CSR is enabled, `GraphStore` loads the CSR artifact from the pieces manifest, validates invariants (ordering/offsets/bounds),
   and falls back to deriving CSR from `graph_relations` when the artifact is missing or invalid.
+- For `direction=in|both`, incoming neighbors are resolved via a reverse-edge CSR derived from the forward CSR (built once per graphIndex and cached),
+  avoiding full materialization of `in`/`both` adjacency lists.
+- Graph neighborhood traversals may be cached per graphIndex, keyed by `(seeds, filters, depth, direction, caps, includePaths, indexSignature)`.
 - Lazy edge loading based on requested graph types and edge filters.
 - Deterministic ordering for graph/context-pack outputs (stable sorting
   across nodes, edges, and witness paths).
@@ -22,6 +25,8 @@ Spec references:
   memory growth.
 - Context-pack excerpt IO moved to range reads with small LRU caches and
   prefetch batching to reduce repeated file reads.
+- Provider-based composite context-pack assembly can use `chunk_uid_map` to resolve the seed's primary chunk excerpt range
+  without materializing the full `chunk_meta` array.
 
 ## Cache Keys
 Graph index cache keys include:

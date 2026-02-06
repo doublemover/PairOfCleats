@@ -29,6 +29,7 @@
 
 - **IndexRoot**: A build output directory containing:
   - `chunk_meta` (JSON/JSONL/sharded) and manifests
+  - `chunk_uid_map` (tooling JSONL): lightweight mapping `{chunkUid,file,start,end}` used for streaming excerpt resolution
   - Graph artifacts (calls/usages/imports/dataflow/exports)
   - Optional: callsite evidence artifacts, risk flows, contracts, etc.
 
@@ -290,7 +291,7 @@ Modes:
 - `--read --pack-id`: load existing record
 
 ### 6.2 MCP
-
+ 
 Tool:
 - `context_pack.create`
 - `context_pack.get`
@@ -300,6 +301,18 @@ Must return stable error codes:
 - `POC_E_CONTRACT_VERSION`
 - `POC_E_BUDGET_EXCEEDED`
 - `POC_E_NOT_SUPPORTED`
+
+### 6.3 Streaming Assembly (Implementation Note)
+
+Definition (current code intent):
+- A context pack is assembled by resolving only the seed's primary chunk metadata (file + byte range) via `chunk_uid_map`,
+  then performing range reads for excerpts, without materializing the full `chunk_meta` array or a full `chunkIndex`.
+- This keeps interactive tooling memory-bounded even for large repos.
+
+Limitations:
+- If a pack requests features that require full chunk metadata (e.g., inferred types from `chunk_meta.docmeta`), the builder may:
+  - warn and omit those slices, or
+  - fall back to a materialized `chunk_meta` load when explicitly requested by the caller.
 
 ---
 
@@ -311,6 +324,9 @@ Stats fields:
 - max hop encountered
 - graph traversal timings
 - graph store/cache stats (GraphStore cache hits/misses, build time, CSR source/bytes) when graph-backed expansion is enabled
+- graph traversal cache info (hit/miss) and traversal cap trigger counts (fanout/nodes/edges/paths/work-budget)
+- import graph lookup miss counts (unique + total) when seeds require import expansion
+- streaming assembly mode markers when the pack was built without materializing full `chunk_meta` (e.g., via `chunk_uid_map`)
 
 ---
 

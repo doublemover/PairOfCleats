@@ -246,6 +246,8 @@ Record in `stats`:
 - dropped edges by reason (`ambiguous`, `unresolved`, `budget`)
 - path counts
 - time per stage
+- traversal cap trigger counts (fanout/nodes/edges/paths/work-budget) and import graph lookup miss counts
+- traversal cache markers when results are reused for identical `(seed/filter/caps/indexSignature)` requests
 
 ---
 

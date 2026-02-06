@@ -41,3 +41,11 @@ for graph artifacts and indexes to avoid per-request rebuilds.
 Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CSR inclusion flag. When present,
 `graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
 `graph_relations` representation (and may derive CSR from it).
+
+When CSR is available, incoming traversal (`direction=in|both`) should use a reverse-edge CSR derived once per graphIndex,
+instead of materializing full `in`/`both` adjacency lists.
+
+Some traversal results may be cached per graphIndex, keyed by the traversal query signature (seeds, filters, depth/direction, caps, includePaths)
+and `indexSignature`. Cache hits must preserve deterministic ordering.
+
+Composite context-pack assembly may avoid loading full `chunk_meta` by resolving only the primary chunk's excerpt range via `chunk_uid_map`.

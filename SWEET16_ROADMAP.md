@@ -1464,20 +1464,20 @@ Parallel: Can run alongside 16.12.1 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/graph/context-pack.js (anchor: buildGraphContextPack)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
-- [ ] Task 16.12.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.2.a: Use CSR-backed neighbor resolution in `buildGraphNeighborhood` when `graphIndex.graphRelationsCsr` is available (preserve determinism + cap enforcement).
-- [ ] Task 16.12.2.b: Add a reverse-edge index strategy for `direction=in|both` without materializing full `in`/`both` adjacency lists (build once per graphIndex and cache).
-- [ ] Task 16.12.2.c: Add traversal-result caching keyed by query signature (seed(s), graphs/edgeTypes, depth, direction, caps, includePaths, indexSignature) with telemetry and strict invalidation.
-- [ ] Task 16.12.2.d: Define "streaming context-pack assembly" precisely and add an assembly path that does not require a full in-memory `chunkMeta` array or `chunkIndex` (provider-based lookup for required chunks/excerpts).
-- [ ] Task 16.12.2.e: Lock determinism across legacy vs CSR paths and across caching (explicit invariants + regression tests).
-- [ ] Task 16.12.2.f: Expand traversal stats to include cap trigger counts + import graph lookup misses, and ensure they are surfaced consistently in outputs.
+- [x] Task 16.12.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.2.a: Use CSR-backed neighbor resolution in `buildGraphNeighborhood` when `graphIndex.graphRelationsCsr` is available (preserve determinism + cap enforcement).
+- [x] Task 16.12.2.b: Add a reverse-edge index strategy for `direction=in|both` without materializing full `in`/`both` adjacency lists (build once per graphIndex and cache).
+- [x] Task 16.12.2.c: Add traversal-result caching keyed by query signature (seed(s), graphs/edgeTypes, depth, direction, caps, includePaths, indexSignature) with telemetry and strict invalidation.
+- [x] Task 16.12.2.d: Define "streaming context-pack assembly" precisely and add an assembly path that does not require a full in-memory `chunkMeta` array or `chunkIndex` (provider-based lookup for required chunks/excerpts).
+- [x] Task 16.12.2.e: Lock determinism across legacy vs CSR paths and across caching (explicit invariants + regression tests).
+- [x] Task 16.12.2.f: Expand traversal stats to include cap trigger counts + import graph lookup misses, and ensure they are surfaced consistently in outputs.
 
 Tests:
-- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
-- [ ] `tests/graph/graph-filter-predicate-deterministic.test.js` (existing)
-- [ ] `tests/graph/graph-truncation-deterministic.test.js` (existing)
-- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
-- [ ] `tests/graph/graph-csr-neighbors-deterministic.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [x] `tests/graph/graph-filter-predicate-deterministic.test.js` (existing)
+- [x] `tests/graph/graph-truncation-deterministic.test.js` (existing)
+- [x] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [x] `tests/graph/graph-csr-neighbors-deterministic.test.js` (perf lane) (new)
 
 ### Subphase 16.12.3 -- Tests + Bench
 Parallel: Run after 16.12.1/16.12.2.
