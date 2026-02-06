@@ -36,6 +36,10 @@ export const treeSitterState = {
   disabledLanguages: new Set(),
   metrics: {
     wasmLoads: 0,
+    wasmLoadPath: 0,
+    wasmLoadBytes: 0,
+    wasmLoadPathFallbackBytes: 0,
+    wasmLoadPathFailures: 0,
     wasmLoadFailures: 0,
     wasmMissing: 0,
     wasmEvictions: 0,

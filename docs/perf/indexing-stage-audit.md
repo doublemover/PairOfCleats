@@ -57,6 +57,7 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Chargram postings use rolling 64-bit hashes (`h64:`) with a max token length guard to cap per-chunk growth.
 - Stable vocab ordering hashes are recorded in `vocab_order` and the ordering ledger for determinism audits.
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
+- Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (WASM loads/evictions + load modes, parser activations, query cache hits/misses, chunk cache hits/misses, worker fallbacks, parse timeouts/disable counts, and cache sizes).
 
 ## Stage2 Memory Notes
 - `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.

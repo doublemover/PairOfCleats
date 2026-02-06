@@ -1382,21 +1382,21 @@ Parallel: Can run alongside 16.11.2 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/tree-sitter-runtime.md` (new)
 Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: initTreeSitterWasm, preloadTreeSitterLanguages, pruneTreeSitterLanguages, getTreeSitterParser)`, `src/lang/tree-sitter/state.js (anchor: treeSitterState)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/lang/tree-sitter/worker.js (anchors: getTreeSitterWorkerPool, sanitizeTreeSitterOptions)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchor: resolveTreeSitterPreloadPlan)`
 Tasks:
-- [ ] Task 16.11.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.1.a: Audit and harden WASM grammar caching (alias dedupe, in-flight load dedupe, LRU eviction) and ensure `maxLoadedLanguages` caps behave predictably on main thread vs worker threads.
-- [ ] Task 16.11.1.b: Document and lock in the single shared `Parser` strategy (avoid per-language parser pools by default due to memory/Windows OOM risk); if we ever add pooling it must be explicitly opt-in with guardrails.
-- [ ] Task 16.11.1.c: Ensure preload planning stays deterministic and bounded (stable order, stable caps) and avoid redundant preloads across shards/batches.
-- [ ] Task 16.11.1.d: Harden grammar load fallback (path load vs bytes load) and add telemetry for load mode + failures.
-- [ ] Task 16.11.1.e: Expose tree-sitter cache metrics in the stage audit (wasm loads/evictions, parser activations, query cache hits, chunk cache hits, worker fallbacks).
+- [x] Task 16.11.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.1.a: Audit and harden WASM grammar caching (alias dedupe, in-flight load dedupe, LRU eviction) and ensure `maxLoadedLanguages` caps behave predictably on main thread vs worker threads.
+- [x] Task 16.11.1.b: Document and lock in the single shared `Parser` strategy (avoid per-language parser pools by default due to memory/Windows OOM risk); if we ever add pooling it must be explicitly opt-in with guardrails.
+- [x] Task 16.11.1.c: Ensure preload planning stays deterministic and bounded (stable order, stable caps) and avoid redundant preloads across shards/batches.
+- [x] Task 16.11.1.d: Harden grammar load fallback (path load vs bytes load) and add telemetry for load mode + failures.
+- [x] Task 16.11.1.e: Expose tree-sitter cache metrics in the stage audit (wasm loads/evictions, parser activations, query cache hits, chunk cache hits, worker fallbacks).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-runtime.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-runtime.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js` (perf lane)
 
 ### Subphase 16.11.2 -- Parse Scheduling
 Parallel: Can run alongside 16.11.1 with clear file ownership.

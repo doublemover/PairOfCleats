@@ -59,6 +59,11 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 - Stage1 now enforces a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
 - Tokenization concurrency/backpressure can be tuned separately from postings apply via `indexing.stage1.tokenize.*`.
 
+## Phase 16.11 Tree-sitter Notes
+- Tree-sitter uses WASM grammar caching keyed by the wasm file to dedupe aliases (e.g., `javascript`/`jsx`) and bound memory with an LRU cap (`maxLoadedLanguages`).
+- Parser strategy is a single shared `Parser` instance with explicit `Tree.delete()` and `Parser.reset()` to keep WASM-backed memory bounded on long indexing runs.
+- When `batchByLanguage` is enabled, Stage1 may reorder file processing for throughput, but must preserve deterministic output ordering via ordered append/flush invariants.
+
 ## Benchmarks
 - `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)
 - `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)

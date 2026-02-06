@@ -95,6 +95,8 @@ export const getTreeSitterStats = () => {
     cache: {
       wasmLanguages: treeSitterState.wasmLanguageCache?.size || 0,
       languageEntries: treeSitterState.languageCache?.size || 0,
+      queryEntries: treeSitterState.queryCache?.size || 0,
+      chunkCacheEntries: treeSitterState.chunkCache?.size || 0,
       activeLanguageId: treeSitterState.sharedParserLanguageId || null
     },
     paths: {
@@ -341,9 +343,14 @@ async function loadWasmLanguage(languageId, options = {}) {
       let language;
       try {
         language = await treeSitterState.TreeSitterLanguage.load(wasmPath);
-      } catch {
+        bumpMetric('wasmLoadPath', 1);
+      } catch (err) {
+        // Some web-tree-sitter builds do not support path-based loading.
+        bumpMetric('wasmLoadPathFailures', 1);
         const wasmBytes = await fs.readFile(wasmPath);
         language = await treeSitterState.TreeSitterLanguage.load(wasmBytes);
+        bumpMetric('wasmLoadBytes', 1);
+        bumpMetric('wasmLoadPathFallbackBytes', 1);
       }
       const entry = { language, error: null };
       treeSitterState.languageCache.set(resolvedId, entry);
