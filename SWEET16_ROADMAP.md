@@ -1298,18 +1298,21 @@ Tests:
 ### Subphase 16.9.3 -- Tests + Bench
 Parallel: Run after 16.9.1/16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
-Touchpoints: `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/schema.js (anchor: createSchema)`, `src/storage/sqlite/pragmas.js (anchor: applyPragmas)`
+Touchpoints: `tools/bench/sqlite/build-from-artifacts.js (anchors: parseArgs, runBuild)`, `src/storage/sqlite/build/from-artifacts.js (anchors: loadIndexPieces, buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchors: applyBuildPragmas, optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/storage/sqlite/schema.js (anchors: CREATE_TABLES_BASE_SQL, CREATE_INDEXES_SQL)`
 Tasks:
 - [ ] Task 16.9.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.3.a: Extend `build-from-artifacts` benchmark with `--index-dir`.
-- [ ] Task 16.9.3.b: Add benchmark comparing prepared vs unprepared statements.
-- [ ] Task 16.9.3.c: Add regression tests for table row counts.
-- [ ] Task 16.9.3.d: Add docs update for SQLite build path.
-- [ ] Task 16.9.3.e: Add post-build validation fast-path test.
-- [ ] Task 16.9.3.f: Add row-count sanity checks per table in tests.
+- [ ] Task 16.9.3.a: Extend `tools/bench/sqlite/build-from-artifacts.js` with `--index-dir <dir>` so the bench can run against a real Stage2/Stage3 index output (when absent, keep the synthetic artifact generator path).
+- [ ] Task 16.9.3.b: Add a bench switch for statement strategy (prepared reuse vs prepare-per-shard vs multi-row exec) and report per-table ingestion stats (rows, rows/sec, prepare counts) so 16.9.1 decisions stay measurable.
+- [ ] Task 16.9.3.c: Add a row-count contract test that derives expected counts from artifacts (chunk_meta totals, postings meta, dense/minhash presence) and asserts per-mode table counts match (including FTS).
+- [ ] Task 16.9.3.d: Add regression test enforcing prepared statement reuse (no `db.prepare()` churn per shard) using ingestion stats or explicit instrumentation.
+- [ ] Task 16.9.3.e: Add post-build validation "fast path" test for `validateMode=auto` (quick_check for large DBs; integrity_check for small DBs) while still enforcing expected row-count guards.
+- [ ] Task 16.9.3.f: Add docs update for the Stage4 build/validate flow (transaction boundary, validate modes, per-table stats, and bench commands).
 
 Tests:
-- [ ] `tests/storage/sqlite/build-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-prepared-statement-reuse.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` (perf lane) (new)
 
 ---
 
@@ -1355,18 +1358,20 @@ Tests:
 ### Subphase 16.10.3 -- Tests + Bench
 Parallel: Run after 16.10.1/16.10.2.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
-Touchpoints: `tools/bench/vfs/*`, `src/index/tooling/vfs.js (anchors: loadVfsManifestRowByPath, loadVfsManifestIndex)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`
+Touchpoints: `tools/bench/vfs/parallel-manifest-build.js`, `tools/bench/vfs/merge-runs-heap.js`, `tools/bench/vfs/vfsidx-lookup.js`, `tools/bench/vfs/hash-routing-lookup.js`, `tools/bench/vfs/bloom-negative-lookup.js`, `tools/bench/micro/utils.js (anchors: summarizeDurations, formatStats)`, `src/index/tooling/vfs.js (anchors: buildVfsManifestRowsForFile, createVfsColdStartCache, loadVfsManifestRowByPath, loadVfsManifestIndex)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`
 Tasks:
 - [ ] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.3.a: Add bench baselines/thresholds for `tools/bench/vfs/parallel-manifest-build.js` and `tools/bench/vfs/merge-runs-heap.js`.
-- [ ] Task 16.10.3.b: Add bench baselines/thresholds for VFS lookup paths (`tools/bench/vfs/vfsidx-lookup.js`, `tools/bench/vfs/hash-routing-lookup.js`, `tools/bench/vfs/bloom-negative-lookup.js`).
-- [ ] Task 16.10.3.c: Add memory regression contract for VFS lookup cold-start and index load (heap plateau, bounded growth under repeated queries).
-- [ ] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations.
+- [ ] Task 16.10.3.a: Add VFS bench contract coverage for manifest build + merge paths using relative invariants (e.g., concurrency scaling in `parallel-manifest-build`, heap merge dominating linear merge at high run-count) rather than hard machine-specific thresholds.
+- [ ] Task 16.10.3.b: Add VFS lookup bench contract coverage validating fast-path behavior (bloom/vfsidx negative lookups must avoid full scans; hash-routing lookups must match vfs manifest routing; surface fallbacks explicitly in JSON output).
+- [ ] Task 16.10.3.c: Add memory regression test for cold-start cache + index load (repeat load/lookup loops must plateau; caches must honor maxBytes/maxAge and not grow unbounded under repeated queries).
+- [ ] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations (include "invalid virtualRange" behavior and how it is surfaced/guarded).
 
 Tests:
-- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane)
+- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane) (existing)
+- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane) (existing)
+- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane) (existing)
+- [ ] `tests/perf/vfs-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/perf/vfs-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
@@ -1416,18 +1421,21 @@ Tests:
 ### Subphase 16.11.3 -- Tests + Bench
 Parallel: Run after 16.11.1/16.11.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
-Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: preloadTreeSitterLanguages, getTreeSitterStats)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, resolveTreeSitterPreloadPlan)`, `tools/bench/language/*` (new)
+Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: preloadTreeSitterLanguages, getTreeSitterStats)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, resolveTreeSitterPreloadPlan)`, `tools/bench/index/tree-sitter-load.js` (new), `tests/indexing/tree-sitter/*`
 Tasks:
 - [ ] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.3.a: Implement `tree-sitter-load` benchmark baseline/current.
-- [ ] Task 16.11.3.b: Add cold vs warm cache benchmark modes.
-- [ ] Task 16.11.3.c: Add regression test for parse determinism.
-- [ ] Task 16.11.3.d: Add docs update for tree-sitter load strategy.
-- [ ] Task 16.11.3.e: Add memory regression test for parse trees.
-- [ ] Task 16.11.3.f: Add tests confirming parse reuse on unchanged files.
+- [ ] Task 16.11.3.a: Implement `tree-sitter-load` benchmark (place under `tools/bench/index/tree-sitter-load.js`) to measure parse/chunk throughput per language and per batching policy (file-order vs batch-by-language), emitting JSON with `getTreeSitterStats()` counters.
+- [ ] Task 16.11.3.b: Add cold vs warm cache modes in the benchmark (clear caches vs reuse) and add contract coverage asserting warm is faster than cold and that batch-by-language reduces redundant WASM loads under mixed-language inputs.
+- [ ] Task 16.11.3.c: Add regression test for parse determinism (same inputs must yield identical chunk boundaries/names/kinds across runs and across worker vs main thread where applicable).
+- [ ] Task 16.11.3.d: Add regression test for parse reuse on unchanged files (chunk cache hits and query cache reuse must be observable via stats; no re-parse when content hash unchanged).
+- [ ] Task 16.11.3.e: Add memory regression test for parse trees/caches (repeat parse loops must plateau; `maxLoadedLanguages` must cap growth on both main and worker pools).
+- [ ] Task 16.11.3.f: Add docs update for tree-sitter load strategy (batching, cache knobs, determinism invariants, telemetry fields surfaced in stage audit).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
@@ -1474,18 +1482,24 @@ Tests:
 ### Subphase 16.12.3 -- Tests + Bench
 Parallel: Run after 16.12.1/16.12.2.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
-Touchpoints: `tools/bench/graph/* (anchors: context-pack-latency, neighborhood-cache, store-lazy-load)`, `src/graph/store.js (anchor: createGraphStore)`, `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleCompositeContextPack)`
+Touchpoints: `tools/bench/graph/context-pack-latency.js (anchors: runContextPackLatencyBench, runContextPackLatencyBenchCli)`, `tools/bench/graph/neighborhood-cache.js (anchors: runNeighborhoodBench, runNeighborhoodBenchCli)`, `tools/bench/graph/neighborhood-index-dir.js` (new), `tools/bench/graph/store-lazy-load.js`, `src/graph/store.js (anchors: createGraphStore, buildGraphIndexCacheKey)`, `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`
 Tasks:
 - [ ] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.3.a: Extend `context-pack-latency` benchmark baseline/current.
-- [ ] Task 16.12.3.b: Add graph traversal throughput bench on real index.
-- [ ] Task 16.12.3.c: Add determinism regression tests.
-- [ ] Task 16.12.3.d: Add docs update for graph/context-pack changes.
-- [ ] Task 16.12.3.e: Add memory regression test for graph output.
-- [ ] Task 16.12.3.f: Add streaming context-pack integration test (no full in-memory assembly).
+- [ ] Task 16.12.3.a: Extend `context-pack-latency` bench to report cache effectiveness and artifact load costs (GraphStore cache hits/misses, CSR vs legacy path when both are available) and keep output schema stable for contract tests.
+- [ ] Task 16.12.3.b: Add a real-index traversal bench (new: `tools/bench/graph/neighborhood-index-dir.js`) that loads graph artifacts via `GraphStore` and measures traversal/impact throughput (baseline vs current, warm vs cold caches, includePaths on/off).
+- [ ] Task 16.12.3.c: Add perf contract coverage for graph/context-pack benches using relative invariants (current must outperform baseline in the same run; CSR must not regress determinism/caps; warm must outperform cold).
+- [ ] Task 16.12.3.d: Add determinism regression coverage specific to cache boundaries (GraphStore cache reuse must not change output ordering; CSR vs legacy output equality where applicable).
+- [ ] Task 16.12.3.e: Add memory regression test for graph traversal/output (repeat expansions must plateau; spill/merge windows must cap edge buffering; caps must bound work).
+- [ ] Task 16.12.3.f: Add streaming context-pack integration test once 16.12.2.d exists (provider-based assembly must not require full `chunkMeta` materialization).
+- [ ] Task 16.12.3.g: Add docs update for graph/context-pack changes (bench commands, determinism invariants, caching boundaries, and how to interpret stats/memory fields).
 
 Tests:
-- [ ] `tests/retrieval/graph/graph-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/perf/graph-context-pack-latency-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/perf/graph-neighborhood-bench-contract.test.js` (perf lane) (new)
+- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [ ] `tests/graph/graph-memory-plateau.test.js` (perf lane) (new)
+- [ ] `tests/retrieval/graph/context-pack-streaming-assembly.test.js` (perf lane) (new)
 
 ---
 
