@@ -72,6 +72,5 @@ jobs:
           name: nightly-artifacts-${{ matrix.os }}
           path: |
             .testLogs/**
-            artifacts/junit.xml
             .diagnostics/**
           if-no-files-found: ignore

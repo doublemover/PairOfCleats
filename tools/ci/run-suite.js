@@ -8,9 +8,9 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DEFAULT_JUNIT = path.join(ROOT, 'artifacts', 'junit.xml');
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
+const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';

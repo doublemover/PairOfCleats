@@ -67,7 +67,6 @@ jobs:
         with:
           name: ci-long-artifacts-ubuntu
           path: |
-            tests/.logs/**
-            artifacts/junit.xml
+            .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
