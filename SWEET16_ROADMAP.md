@@ -1484,22 +1484,22 @@ Parallel: Run after 16.12.1/16.12.2.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `tools/bench/graph/context-pack-latency.js (anchors: runContextPackLatencyBench, runContextPackLatencyBenchCli)`, `tools/bench/graph/neighborhood-cache.js (anchors: runNeighborhoodBench, runNeighborhoodBenchCli)`, `tools/bench/graph/neighborhood-index-dir.js` (new), `tools/bench/graph/store-lazy-load.js`, `src/graph/store.js (anchors: createGraphStore, buildGraphIndexCacheKey)`, `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`
 Tasks:
-- [ ] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.3.a: Extend `context-pack-latency` bench to report cache effectiveness and artifact load costs (GraphStore cache hits/misses, CSR vs legacy path when both are available) and keep output schema stable for contract tests.
-- [ ] Task 16.12.3.b: Add a real-index traversal bench (new: `tools/bench/graph/neighborhood-index-dir.js`) that loads graph artifacts via `GraphStore` and measures traversal/impact throughput (baseline vs current, warm vs cold caches, includePaths on/off).
-- [ ] Task 16.12.3.c: Add perf contract coverage for graph/context-pack benches using relative invariants (current must outperform baseline in the same run; CSR must not regress determinism/caps; warm must outperform cold).
-- [ ] Task 16.12.3.d: Add determinism regression coverage specific to cache boundaries (GraphStore cache reuse must not change output ordering; CSR vs legacy output equality where applicable).
-- [ ] Task 16.12.3.e: Add memory regression test for graph traversal/output (repeat expansions must plateau; spill/merge windows must cap edge buffering; caps must bound work).
-- [ ] Task 16.12.3.f: Add streaming context-pack integration test once 16.12.2.d exists (provider-based assembly must not require full `chunkMeta` materialization).
-- [ ] Task 16.12.3.g: Add docs update for graph/context-pack changes (bench commands, determinism invariants, caching boundaries, and how to interpret stats/memory fields).
+- [x] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.3.a: Extend `context-pack-latency` bench to report cache effectiveness and artifact load costs (GraphStore cache hits/misses, CSR vs legacy path when both are available) and keep output schema stable for contract tests.
+- [x] Task 16.12.3.b: Add a real-index traversal bench (new: `tools/bench/graph/neighborhood-index-dir.js`) that loads graph artifacts via `GraphStore` and measures traversal/impact throughput (baseline vs current, warm vs cold caches, includePaths on/off).
+- [x] Task 16.12.3.c: Add perf contract coverage for graph/context-pack benches using relative invariants (current must outperform baseline in the same run; CSR must not regress determinism/caps; warm must outperform cold).
+- [x] Task 16.12.3.d: Add determinism regression coverage specific to cache boundaries (GraphStore cache reuse must not change output ordering; CSR vs legacy output equality where applicable).
+- [x] Task 16.12.3.e: Add memory regression test for graph traversal/output (repeat expansions must plateau; spill/merge windows must cap edge buffering; caps must bound work).
+- [x] Task 16.12.3.f: Add streaming context-pack integration test once 16.12.2.d exists (provider-based assembly must not require full `chunkMeta` materialization).
+- [x] Task 16.12.3.g: Add docs update for graph/context-pack changes (bench commands, determinism invariants, caching boundaries, and how to interpret stats/memory fields).
 
 Tests:
-- [ ] `tests/perf/graph-context-pack-latency-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/perf/graph-neighborhood-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
-- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
-- [ ] `tests/graph/graph-memory-plateau.test.js` (perf lane) (new)
-- [ ] `tests/retrieval/graph/context-pack-streaming-assembly.test.js` (perf lane) (new)
+- [x] `tests/perf/graph-context-pack-latency-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/graph-neighborhood-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [x] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [x] `tests/graph/graph-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/retrieval/graph/context-pack-streaming-assembly.test.js` (perf lane) (new)
 
 ---
 

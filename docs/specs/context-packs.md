@@ -308,6 +308,8 @@ Definition (current code intent):
 - A context pack is assembled by resolving only the seed's primary chunk metadata (file + byte range) via `chunk_uid_map`,
   then performing range reads for excerpts, without materializing the full `chunk_meta` array or a full `chunkIndex`.
 - This keeps interactive tooling memory-bounded even for large repos.
+- `chunk_uid_map` must be a streaming-friendly artifact format (JSONL/sharded). JSON array payloads require materialization and
+  are rejected by streaming loaders in strict mode.
 
 Limitations:
 - If a pack requests features that require full chunk metadata (e.g., inferred types from `chunk_meta.docmeta`), the builder may:

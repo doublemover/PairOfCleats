@@ -33,8 +33,14 @@ Related docs:
 
 ## 3. Graph index reuse + consistency
 1. If `graphIndex` is provided and `graphRelations` is also provided:
-   - If they match (same identity or same signature), reuse graphIndex.
-   - If they mismatch, emit warning `GRAPH_INDEX_MISMATCH` and prefer `graphRelations` data.
+   - Current behavior is identity-based: if `graphIndex.graphRelations !== graphRelations`, emit warning
+     `GRAPH_INDEX_MISMATCH` and ignore `graphIndex` (rebuild indexes from `graphRelations`).
+   - Callers should pass either:
+     - `graphIndex` (preferred for performance), or
+     - `graphRelations` (baseline path),
+     but not both.
+   - Note: when CSR is enabled, `graphIndex.graphRelations` may be a trimmed metadata representation (no adjacency lists),
+     so passing the raw `graphRelations` artifact alongside `graphIndex` will always trip the mismatch guard.
 2. If `graphIndex.repoRoot` differs from request `repoRoot`:
    - Emit warning `GRAPH_INDEX_REPOROOT_MISMATCH`.
    - Use `graphIndex.repoRoot` for normalization to keep deterministic behavior.

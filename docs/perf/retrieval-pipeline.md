@@ -42,6 +42,10 @@ Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CS
 `graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
 `graph_relations` representation (and may derive CSR from it).
 
+Callers should pass either a prebuilt `graphIndex` (preferred) or raw `graphRelations` (baseline). When CSR is enabled,
+some graphIndex variants store a trimmed graph_relations representation (no adjacency lists); passing both `graphIndex` and
+raw `graphRelations` will trigger `GRAPH_INDEX_MISMATCH` and disable cache reuse.
+
 When CSR is available, incoming traversal (`direction=in|both`) should use a reverse-edge CSR derived once per graphIndex,
 instead of materializing full `in`/`both` adjacency lists.
 
@@ -49,3 +53,7 @@ Some traversal results may be cached per graphIndex, keyed by the traversal quer
 and `indexSignature`. Cache hits must preserve deterministic ordering.
 
 Composite context-pack assembly may avoid loading full `chunk_meta` by resolving only the primary chunk's excerpt range via `chunk_uid_map`.
+
+Benchmarks:
+- `node tools/bench/graph/context-pack-latency.js --index <indexDir> --mode compare`
+- `node tools/bench/graph/neighborhood-index-dir.js --index <indexDir> --mode compare`

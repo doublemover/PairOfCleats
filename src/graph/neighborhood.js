@@ -500,11 +500,22 @@ export const buildGraphNeighborhood = ({
     const cached = getCachedValue(traversalCache, cacheKeyInfo.key);
     if (cached) {
       traversalTelemetry.hits += 1;
+      const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+      const cachedStats = cached?.stats && typeof cached.stats === 'object' ? cached.stats : {};
+      const cachedCounts = cachedStats.counts && typeof cachedStats.counts === 'object'
+        ? cachedStats.counts
+        : {};
       return {
         ...cached,
-        stats: cached?.stats
-          ? { ...cached.stats, cache: { ...cached.stats.cache, ...cacheState, hit: true } }
-          : { cache: { ...cacheState, hit: true } }
+        stats: {
+          ...cachedStats,
+          cache: { ...cachedStats.cache, ...cacheState, hit: true },
+          timing: { elapsedMs },
+          counts: {
+            ...cachedCounts,
+            workUnitsUsed: 0
+          }
+        }
       };
     }
     traversalTelemetry.misses += 1;

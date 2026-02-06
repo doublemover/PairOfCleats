@@ -55,6 +55,18 @@ node tools/bench/graph/context-pack-latency.js --index <indexDir> --seed chunk:<
 The harness reports min/avg/p95 timing and RSS deltas over multiple iterations. It
 defaults to auto-discovered code index when `--index` is omitted.
 
+For real-index traversal/impact throughput (baseline vs graphIndex, warm vs cold caches, includePaths on/off):
+
+```
+node tools/bench/graph/neighborhood-index-dir.js --index <indexDir> --mode compare
+```
+
+Bench JSON output includes:
+- `meta.graphStore.cache` (index/artifact cache hits/misses/evictions)
+- `meta.graphStore.lastBuild` (artifact load ms, CSR source/bytes, graph sizes)
+- `meta.traversalCache` (hit/miss telemetry + cache size)
+- `meta.timings` (artifact/index load timings)
+
 Additional graph Phase 10 benches:
 
 ```
