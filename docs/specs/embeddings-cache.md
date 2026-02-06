@@ -20,6 +20,7 @@ Directory layout (segments are sanitized by replacing non [a-zA-Z0-9._-] with "_
 <cacheRoot>/embeddings/<provider>/<modelId>/<dims>d/<mode>/
   cache.meta.json
   files/
+    cache.lock
     cache.index.json
     shards/
       shard-00000.bin
@@ -64,6 +65,15 @@ Versioned index tracking shard entries and LRU metadata:
 - `shards`: `{ [shardName]: { createdAt, sizeBytes } }`
 
 `file` is a repo-relative POSIX path.
+
+## Concurrency + Safety
+
+Cache shard writes and cache index updates are coordinated via `files/cache.lock`.
+This keeps shard appends consistent and prevents concurrent builds from corrupting shard offsets.
+
+When persisting the cache index, we merge the in-memory index into the latest on-disk index under the lock,
+then atomically replace `cache.index.json`. Concurrent writers may still race on cache hits, but correctness is preserved:
+cache reads treat missing/corrupt entries as cache misses and recompute.
 
 ## Shard format
 
@@ -123,6 +133,10 @@ An entry is valid only when:
 - `cached.hash === fileHash` (when a file hash is present)
 
 If `cache.meta.json` or `cache.index.json` has a mismatched `identityKey`, the cache is treated as empty.
+
+### Fast Reject
+When a `cache.index.json` entry exists for a key, we can reject obvious mismatches (identityKey/hash/chunkSignature) in O(1)
+without reading shard payloads or standalone cache entry files.
 
 ## Partial reuse
 

@@ -65,6 +65,11 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Filter index maps/sets are released after serialization to reduce retention during artifact writes; filter_index build is best-effort and may be skipped on build errors.
 - Filter index hydration builds bitmap sidecars (including per-file chunk bitmaps for large files) to accelerate file path prefiltering without changing serialized output.
 
+## Stage3 Notes
+- Embeddings cache uses append-only shards plus a per-cache lock (`cache.lock`) to prevent concurrent shard corruption when cache scope is global.
+- Cache index updates are merged under the lock before atomic replace; pruning is best-effort and evictions are treated as cache misses by readers.
+- Cache usage telemetry is recorded under `index_state.embeddings.cacheStats` (attempts/hits/misses/rejected/fastRejects).
+
 ## Stage4 Memory Notes
 - SQLite inserts are chunked into bounded transactions based on input size to reduce WAL and statement retention.
 - Bundle ingestion splits large files into smaller insert batches to avoid oversized transactions.

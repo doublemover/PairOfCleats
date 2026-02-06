@@ -33,16 +33,16 @@ import {
   buildCacheIdentity,
   buildCacheKey,
   isCacheValid,
-  pruneCacheIndex,
+  flushCacheIndex,
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
   resolveCacheDir,
   resolveCacheRoot,
+  shouldFastRejectCacheLookup,
   updateCacheIndexAccess,
   upsertCacheIndexEntry,
   writeCacheEntry,
-  writeCacheIndex,
   writeCacheMeta
 } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -629,17 +629,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
           let cachedResult = null;
           if (cacheEligible && cacheKey) {
             cacheAttempts += 1;
-            const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
-            const identityMatches = !cacheIdentityKey
-              || !cacheIndex?.identityKey
-              || cacheIndex.identityKey === cacheIdentityKey;
-            const hashMatches = !fileHash
-              || !indexEntry?.hash
-              || indexEntry.hash === fileHash;
-            const signatureMatches = !chunkSignature
-              || !indexEntry?.chunkSignature
-              || indexEntry.chunkSignature === chunkSignature;
-            if (!identityMatches || !hashMatches || !signatureMatches) {
+            if (shouldFastRejectCacheLookup({
+              cacheIndex,
+              cacheKey,
+              identityKey: cacheIdentityKey,
+              fileHash,
+              chunkSignature
+            })) {
               cacheFastRejects += 1;
             } else {
               cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
@@ -744,17 +740,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
             let cachedAfterHash = null;
             if (cacheEligible && cacheKey) {
               cacheAttempts += 1;
-              const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
-              const identityMatches = !cacheIdentityKey
-                || !cacheIndex?.identityKey
-                || cacheIndex.identityKey === cacheIdentityKey;
-              const hashMatches = !fileHash
-                || !indexEntry?.hash
-                || indexEntry.hash === fileHash;
-              const signatureMatches = !chunkSignature
-                || !indexEntry?.chunkSignature
-                || indexEntry.chunkSignature === chunkSignature;
-              if (!identityMatches || !hashMatches || !signatureMatches) {
+              if (shouldFastRejectCacheLookup({
+                cacheIndex,
+                cacheKey,
+                identityKey: cacheIdentityKey,
+                fileHash,
+                chunkSignature
+              })) {
                 cacheFastRejects += 1;
               } else {
                 cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
@@ -910,20 +902,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
           });
         }
 
-        if (cacheIndex) {
-          if (cacheEligible) {
-            const pruneResult = await scheduleIo(() => pruneCacheIndex(cacheDir, cacheIndex, {
+        if (cacheIndex && cacheEligible && (cacheIndexDirty || cacheMaxBytes || cacheMaxAgeMs)) {
+          try {
+            await scheduleIo(() => flushCacheIndex(cacheDir, cacheIndex, {
+              identityKey: cacheIdentityKey,
               maxBytes: cacheMaxBytes,
               maxAgeMs: cacheMaxAgeMs
             }));
-            if (pruneResult.changed) cacheIndexDirty = true;
-          }
-          if (cacheIndexDirty) {
-            try {
-              await scheduleIo(() => writeCacheIndex(cacheDir, cacheIndex));
-            } catch {
-              // Ignore cache index write failures.
-            }
+            cacheIndexDirty = false;
+          } catch {
+            // Ignore cache index flush failures.
           }
         }
 

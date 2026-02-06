@@ -1202,19 +1202,19 @@ Parallel: Can run alongside 16.8.2 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/shared/embedding-identity.js (anchor: buildEmbeddingIdentity)`, `src/shared/cache-key.js (anchor: buildCacheKey)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`
 Tasks:
-- [ ] Task 16.8.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.1.a: Cache identity must be derived from `src/shared/embedding-identity.js` only; audit coverage for provider/modelId/dims/normalize/quantization/pooling/truncation/stub.
-- [ ] Task 16.8.1.b: Keep cache fast-reject O(1) via `cache.index.json` metadata (identityKey/hash/chunkSignature) without reading shard payloads; add telemetry + regression test.
-- [ ] Task 16.8.1.c: Enforce per-mode cache isolation (mode always in key); add regression test for cross-mode collision prevention.
-- [ ] Task 16.8.1.d: Fail-closed cache validity: reject on dims/normalize mismatch, incomplete vectors, or signature/hash mismatch; never partially apply an invalid entry.
-- [ ] Task 16.8.1.e: Telemetry: standardize cacheStats fields and ensure they land in `index_state.embeddings.cacheStats` + metrics output.
-- [ ] Task 16.8.1.f: Pruning safety: verify prune plan is safe under concurrent builds (append-only shards, atomic index updates); update docs and tests.
+- [x] Task 16.8.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.1.a: Cache identity must be derived from `src/shared/embedding-identity.js` only; audit coverage for provider/modelId/dims/normalize/quantization/pooling/truncation/stub.
+- [x] Task 16.8.1.b: Keep cache fast-reject O(1) via `cache.index.json` metadata (identityKey/hash/chunkSignature) without reading shard payloads; add telemetry + regression test.
+- [x] Task 16.8.1.c: Enforce per-mode cache isolation (mode always in key); add regression test for cross-mode collision prevention.
+- [x] Task 16.8.1.d: Fail-closed cache validity: reject on dims/normalize mismatch, incomplete vectors, or signature/hash mismatch; never partially apply an invalid entry.
+- [x] Task 16.8.1.e: Telemetry: standardize cacheStats fields and ensure they land in `index_state.embeddings.cacheStats` + metrics output.
+- [x] Task 16.8.1.f: Pruning safety: verify prune plan is safe under concurrent builds (append-only shards, atomic index updates); update docs and tests.
 
 Tests:
-- [ ] `tests/indexing/embeddings/embeddings-cache-identity.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/cache-index-append-only.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-cache-fast-reject.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embeddings-cache-identity.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/cache-index-append-only.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-cache-fast-reject.test.js` (perf lane) (new)
 
 ### Subphase 16.8.2 -- IO + Batching
 Parallel: Can run alongside 16.8.1 with clear file ownership.
