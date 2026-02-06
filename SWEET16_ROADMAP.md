@@ -1342,18 +1342,18 @@ Parallel: Can run alongside 16.10.1 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/build/vfs-manifest-collector.js (anchor: createVfsManifestCollector)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/tooling/vfs-index.js (anchor: buildVfsManifestSortKey)`
 Tasks:
-- [ ] Task 16.10.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.2.a: Audit spill and compaction thresholds (bytes and record-count) and ensure they remain bounded-memory under worst-case VFS density.
-- [ ] Task 16.10.2.b: Ensure merge/compaction is deterministic under concurrency (stable compare keys, stable trim/drop policy); add telemetry for merge fan-in and spill frequency.
-- [ ] Task 16.10.2.c: Ensure manifest + vfsidx + bloom are swapped atomically as a unit; on failure keep the previous artifact set and clean partial outputs.
-- [ ] Task 16.10.2.d: Define and implement an incremental rebuild story (when allowed) keyed by CDC/segmentUid/docHash so rebuilds avoid full rewrites and reduce IO churn.
+- [x] Task 16.10.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.2.a: Audit spill and compaction thresholds (bytes and record-count) and ensure they remain bounded-memory under worst-case VFS density.
+- [x] Task 16.10.2.b: Ensure merge/compaction is deterministic under concurrency (stable compare keys, stable trim/drop policy); add telemetry for merge fan-in and spill frequency.
+- [x] Task 16.10.2.c: Ensure manifest + vfsidx + bloom are swapped atomically as a unit; on failure keep the previous artifact set and clean partial outputs.
+- [x] Task 16.10.2.d: Define and implement an incremental rebuild story (when allowed) keyed by CDC/segmentUid/docHash so rebuilds avoid full rewrites and reduce IO churn.
 
 Tests:
-- [ ] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/vfs-compaction-atomic-swap.test.js` (perf lane) (new)
+- [x] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (perf lane)
+- [x] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane)
+- [x] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js` (perf lane)
+- [x] `tests/indexing/vfs/vfs-compaction-atomic-swap.test.js` (perf lane) (new)
 
 ### Subphase 16.10.3 -- Tests + Bench
 Parallel: Run after 16.10.1/16.10.2.

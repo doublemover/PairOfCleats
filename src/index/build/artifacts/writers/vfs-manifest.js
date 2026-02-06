@@ -431,34 +431,43 @@ export const enqueueVfsManifestArtifacts = async ({
   const jsonlName = `vfs_manifest.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
   const writeIndex = compression == null;
+  const cleanupTargets = new Set();
+  const planCleanup = (targetPath) => {
+    if (targetPath) cleanupTargets.add(targetPath);
+  };
   const removeArtifact = async (targetPath) => {
     try { await fsPromises.rm(targetPath, { recursive: true, force: true }); } catch {}
   };
+  const cleanupObsoleteArtifacts = async () => {
+    for (const targetPath of cleanupTargets) {
+      await removeArtifact(targetPath);
+    }
+  };
   if (!writePathMap) {
-    await removeArtifact(path.join(outDir, 'vfs_path_map.jsonl'));
-    await removeArtifact(path.join(outDir, 'vfs_path_map.meta.json'));
-    await removeArtifact(path.join(outDir, 'vfs_path_map.parts'));
+    planCleanup(path.join(outDir, 'vfs_path_map.jsonl'));
+    planCleanup(path.join(outDir, 'vfs_path_map.meta.json'));
+    planCleanup(path.join(outDir, 'vfs_path_map.parts'));
   }
   if (useShards) {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.zst'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl.gz'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl.zst'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsidx'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
     if (writePathMap) {
-      await removeArtifact(path.join(outDir, 'vfs_path_map.jsonl'));
+      planCleanup(path.join(outDir, 'vfs_path_map.jsonl'));
     }
   } else {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.meta.json'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.parts'));
+    planCleanup(path.join(outDir, 'vfs_manifest.meta.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.parts'));
     if (writePathMap) {
-      await removeArtifact(path.join(outDir, 'vfs_path_map.meta.json'));
-      await removeArtifact(path.join(outDir, 'vfs_path_map.parts'));
+      planCleanup(path.join(outDir, 'vfs_path_map.meta.json'));
+      planCleanup(path.join(outDir, 'vfs_path_map.parts'));
     }
   }
   if (!writeIndex) {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsidx'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
   }
   await ensureDiskSpace({
     targetPath: outDir,
@@ -612,6 +621,7 @@ export const enqueueVfsManifestArtifacts = async ({
               }, bloomPath);
             }
           }
+          await cleanupObsoleteArtifacts();
         } finally {
           await resolved.cleanup();
         }
@@ -679,6 +689,7 @@ export const enqueueVfsManifestArtifacts = async ({
             count: totalRecords
           }, bloomPath);
         }
+        await cleanupObsoleteArtifacts();
       } finally {
         await resolved.cleanup();
       }
