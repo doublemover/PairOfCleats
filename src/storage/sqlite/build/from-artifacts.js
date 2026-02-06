@@ -27,7 +27,7 @@ import {
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
-import { applyBuildPragmas, optimizeBuildDatabase, restoreBuildPragmas } from './pragmas.js';
+import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
@@ -1535,6 +1535,7 @@ export async function buildDatabaseFromArtifacts({
       throw err;
     }
     if (useOptimize) {
+      optimizeFtsTable(db, 'chunks_fts', { stats: batchStats });
       optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
     }
     const validationStart = performance.now();

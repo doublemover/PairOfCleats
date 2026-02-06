@@ -1283,17 +1283,17 @@ Parallel: Run after 16.9.1.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/schema.js (anchor: CREATE_INDEXES_SQL)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`, `src/storage/sqlite/build/pragmas.js (anchor: optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/retrieval/sqlite-helpers.js (anchor: rankSqliteFts)`
 Tasks:
-- [ ] Task 16.9.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.2.a: FTS strategy: make `chunks_fts` contentless (`content=''`) to avoid duplicating chunk text; confirm runtime does not depend on reading FTS-stored content (ranking-only is OK).
-- [ ] Task 16.9.2.b: Add explicit FTS post-load optimization (`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`) and include it in Stage4 telemetry.
-- [ ] Task 16.9.2.c: Index plan: audit `CREATE_INDEXES_SQL` for redundant indexes (especially those subsumed by PRIMARY KEY ordering); remove/adjust indexes based on query plans + benchmarks and update tests accordingly.
-- [ ] Task 16.9.2.d: Row-shape optimizations: evaluate `WITHOUT ROWID` for postings/vocab tables with composite PRIMARY KEYs; document which tables change and why (size vs build time vs query plan effects).
-- [ ] Task 16.9.2.e: Artifact read pipeline: keep reads streaming and bounded (no full materialization of large JSONL shards); add guardrails for maxBytes enforcement on all artifact readers used by Stage4.
-- [ ] Task 16.9.2.f: Post-build sequencing: run index creation, then `PRAGMA optimize`, then `ANALYZE` (gated by size), and finish with an explicit WAL checkpoint/cleanup step when building a new DB.
+- [x] Task 16.9.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.2.a: FTS strategy: make `chunks_fts` contentless (`content=''`) to avoid duplicating chunk text; confirm runtime does not depend on reading FTS-stored content (ranking-only is OK).
+- [x] Task 16.9.2.b: Add explicit FTS post-load optimization (`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`) and include it in Stage4 telemetry.
+- [x] Task 16.9.2.c: Index plan: audit `CREATE_INDEXES_SQL` for redundant indexes (especially those subsumed by PRIMARY KEY ordering); remove/adjust indexes based on query plans + benchmarks and update tests accordingly.
+- [x] Task 16.9.2.d: Row-shape optimizations: evaluate `WITHOUT ROWID` for postings/vocab tables with composite PRIMARY KEYs; document which tables change and why (size vs build time vs query plan effects).
+- [x] Task 16.9.2.e: Artifact read pipeline: keep reads streaming and bounded (no full materialization of large JSONL shards); add guardrails for maxBytes enforcement on all artifact readers used by Stage4.
+- [x] Task 16.9.2.f: Post-build sequencing: run index creation, then `PRAGMA optimize`, then `ANALYZE` (gated by size), and finish with an explicit WAL checkpoint/cleanup step when building a new DB.
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-indexes.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-fts-contentless-schema.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-indexes.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-fts-contentless-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.9.3 -- Tests + Bench
 Parallel: Run after 16.9.1/16.9.2.

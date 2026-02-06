@@ -118,3 +118,4 @@ Canonical contract for the report surface:
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
+- SQLite FTS (`chunks_fts`) is contentless (ranking-only) and does not store chunk text; UIs should render from `chunk_meta`/artifact sources rather than reading FTS columns.

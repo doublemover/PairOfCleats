@@ -18,27 +18,31 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-full-transaction');
+const tempRoot = path.join(root, '.testCache', 'sqlite-fts-contentless-schema');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(indexDir, { recursive: true });
 
-const chunkCount = 2000;
-const tokens = ['alpha', 'beta'];
+const chunkCount = 50;
+const tokens = ['hello', 'world'];
 const chunkIterator = function* chunkIterator() {
   for (let i = 0; i < chunkCount; i += 1) {
     yield {
       id: i,
-      file: `src/file-${i % 5}.js`,
+      file: `src/file-${i % 3}.js`,
       start: 0,
       end: 10,
       startLine: 1,
       endLine: 1,
       kind: 'code',
       name: `fn${i}`,
-      tokens
+      tokens,
+      docmeta: {
+        signature: `sig:${i}`,
+        doc: `hello world ${i}`
+      }
     };
   }
 };
@@ -48,7 +52,7 @@ const shardResult = await writeJsonLinesSharded({
   partsDirName: 'chunk_meta.parts',
   partPrefix: 'chunk_meta.part-',
   items: chunkIterator(),
-  maxBytes: 8192,
+  maxBytes: 4096,
   atomic: true
 });
 await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
@@ -78,7 +82,7 @@ const postingsPart = path.join(postingsDir, 'token_postings.part-00000.json');
 const postingsEntries = Array.from({ length: chunkCount }, (_, i) => [i, 1]);
 await writeJsonObjectFile(postingsPart, {
   arrays: {
-    vocab: ['alpha'],
+    vocab: ['hello'],
     postings: [postingsEntries]
   },
   atomic: true
@@ -100,17 +104,8 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta parts');
 
-const execCalls = [];
-class InstrumentedDatabase extends Database {
-  exec(sql) {
-    execCalls.push(String(sql || '').trim());
-    return super.exec(sql);
-  }
-}
-
-const stats = {};
-const count = await buildDatabaseFromArtifacts({
-  Database: InstrumentedDatabase,
+await buildDatabaseFromArtifacts({
+  Database,
   outPath,
   index: indexPieces,
   indexDir,
@@ -120,34 +115,31 @@ const count = await buildDatabaseFromArtifacts({
   validateMode: 'off',
   vectorConfig: { enabled: false },
   modelConfig: { id: null },
-  stats,
-  statementStrategy: 'prepared'
+  statementStrategy: 'prepared',
+  optimize: false,
+  buildPragmas: false
 });
-assert.equal(count, chunkCount, 'expected sqlite build to ingest all chunks');
+
 assert.ok(fsSync.existsSync(outPath), 'expected sqlite DB to be created');
 
-const beginCount = execCalls.filter((call) => call === 'BEGIN').length;
-const commitCount = execCalls.filter((call) => call === 'COMMIT').length;
-const rollbackCount = execCalls.filter((call) => call === 'ROLLBACK').length;
-assert.equal(beginCount, 1, 'expected exactly one explicit BEGIN in full build');
-assert.equal(commitCount, 1, 'expected exactly one explicit COMMIT in full build');
-assert.equal(rollbackCount, 0, 'expected no ROLLBACK in successful full build');
-
-assert.equal(stats?.transaction?.begin, 1, 'expected stats.transaction.begin=1');
-assert.equal(stats?.transaction?.commit, 1, 'expected stats.transaction.commit=1');
-assert.equal(stats?.transaction?.rollback, 0, 'expected stats.transaction.rollback=0');
-
-const beginIndex = execCalls.indexOf('BEGIN');
-const commitIndex = execCalls.indexOf('COMMIT');
-assert.ok(beginIndex >= 0 && commitIndex > beginIndex, 'expected BEGIN before COMMIT');
-
-const indexExecIndex = execCalls.findIndex((call) => call.includes('CREATE INDEX idx_chunks_file_id'));
-assert.ok(indexExecIndex > beginIndex, 'expected CREATE_INDEXES_SQL to execute after BEGIN');
-assert.ok(indexExecIndex < commitIndex, 'expected CREATE_INDEXES_SQL to execute before COMMIT');
-
 const db = new Database(outPath);
-const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get('code');
-assert.equal(row?.total, chunkCount, 'expected sqlite chunks table to match chunk_meta count');
+const createRow = db
+  .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='chunks_fts'")
+  .get();
+assert.equal(typeof createRow?.sql, 'string', 'expected sqlite_master SQL for chunks_fts');
+assert.match(createRow.sql, /content\s*=\s*''/i, 'expected chunks_fts to be contentless');
+assert.match(createRow.sql, /contentless_delete\s*=\s*1/i, 'expected contentless_delete=1');
+
+const matches = db.prepare('SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?').all('hello');
+assert.ok(matches.length > 0, 'expected FTS MATCH to find inserted rows');
+
+const probe = db.prepare('SELECT doc FROM chunks_fts WHERE rowid = ?').get(matches[0].rowid);
+assert.equal(probe?.doc, null, 'expected contentless FTS doc column to return null');
+
+// Verify incremental delete semantics are supported for contentless FTS.
+db.prepare('DELETE FROM chunks_fts WHERE rowid = ?').run(matches[0].rowid);
+
 db.close();
 
-console.log('sqlite build full transaction test passed');
+console.log('sqlite fts contentless schema test passed');
+
