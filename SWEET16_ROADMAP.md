@@ -29,7 +29,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.10 | [x] |  |
 | 16.11 | [x] |  |
 | 16.12 | [x] |  |
-| 16.15 | [@] | Bench harness + bench output contracts complete; usage checklist pending |
+| 16.15 | [x] | Bench harness + bench output contracts + usage checklist complete |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -1511,26 +1511,26 @@ Parallel: Can run alongside 16.15.2/16.15.3.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.1.a: Verify Phase 0 usage (shared components in graph/context-pack).
-- [ ] Task 16.15.1.b: Verify Phase 1 usage (stage checkpoints in build_state).
-- [ ] Task 16.15.1.c: Verify Phase 2 usage (shared IO paths in build/search).
-- [ ] Task 16.15.1.d: Verify Phase 3 usage (postings guards in Stage1).
-- [ ] Task 16.15.1.e: Verify Phase 4 usage (relations/filter index in Stage2).
-- [ ] Task 16.15.1.f: Verify Phase 5 usage (embeddings cache in Stage3).
-- [ ] Task 16.15.1.g: Verify Phase 6 usage (sqlite optimizations in Stage4).
-- [ ] Task 16.15.1.h: Verify Phase 7 usage (VFS pipeline in build/tooling).
-- [ ] Task 16.15.1.i: Verify Phase 8 usage (tree-sitter load strategy).
-- [ ] Task 16.15.1.j: Verify Phase 9 usage (retrieval pipeline in search).
-- [ ] Task 16.15.1.k: Verify Phase 10 usage (graph/context-pack in search).
-- [ ] Task 16.15.1.l: Verify Phase 11 usage (CLI startup fast paths).
-- [ ] Task 16.15.1.m: Verify Phase 12 usage (map build/viewer).
-- [ ] Task 16.15.1.n: Verify Phase 13 usage (doc/JSDoc guardrails).
-- [ ] Task 16.15.1.o: Verify Phase 14 usage (artifact pipeline optimizations).
-- [ ] Task 16.15.1.p: Verify Phase 15 usage (index_state/file_meta/minhash paths).
+- [x] Task 16.15.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.1.a: Verify Phase 0 usage (shared components in graph/context-pack).
+- [x] Task 16.15.1.b: Verify Phase 1 usage (stage checkpoints in build_state).
+- [x] Task 16.15.1.c: Verify Phase 2 usage (shared IO paths in build/search).
+- [x] Task 16.15.1.d: Verify Phase 3 usage (postings guards in Stage1).
+- [x] Task 16.15.1.e: Verify Phase 4 usage (relations/filter index in Stage2).
+- [x] Task 16.15.1.f: Verify Phase 5 usage (embeddings cache in Stage3).
+- [x] Task 16.15.1.g: Verify Phase 6 usage (sqlite optimizations in Stage4).
+- [x] Task 16.15.1.h: Verify Phase 7 usage (VFS pipeline in build/tooling).
+- [x] Task 16.15.1.i: Verify Phase 8 usage (tree-sitter load strategy).
+- [x] Task 16.15.1.j: Verify Phase 9 usage (retrieval pipeline in search).
+- [x] Task 16.15.1.k: Verify Phase 10 usage (graph/context-pack in search).
+- [x] Task 16.15.1.l: Verify Phase 11 usage (CLI startup fast paths).
+- [x] Task 16.15.1.m: Verify Phase 12 usage (map build/viewer).
+- [x] Task 16.15.1.n: Verify Phase 13 usage (doc/JSDoc guardrails).
+- [x] Task 16.15.1.o: Verify Phase 14 usage (artifact pipeline optimizations).
+- [x] Task 16.15.1.p: Verify Phase 15 usage (index_state/file_meta/minhash paths).
 
 Tests:
-- [ ] `tests/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
 
 ### Subphase 16.15.2 -- Bench Harness
 Parallel: Can run alongside 16.15.1; ensure bench harness exists before validating outputs.
