@@ -1265,18 +1265,18 @@ Parallel: Must land before 16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/build/runner.js (anchor: runBuildSqliteIndexWithConfig)`, `src/storage/sqlite/build/output-paths.js (anchor: resolveOutputPaths)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/from-bundles.js (anchor: buildDatabaseFromBundles)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchor: applyBuildPragmas)`, `src/storage/sqlite/utils.js (anchor: resolveSqliteBatchSize)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`
 Tasks:
-- [ ] Task 16.9.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.1.a: Ensure BOTH artifact builds and bundle builds use a consistent load-first flow (schema base, ingest, then indexes/optimize) and share common ingestion helpers where possible.
-- [ ] Task 16.9.1.b: Add a top-level transaction boundary for full builds (one `BEGIN`/`COMMIT` spanning all table loads + index creation); ensure no accidental autocommit islands (including `db.exec()` multi-statement inserts).
-- [ ] Task 16.9.1.c: Split statements for full rebuild vs incremental update: full rebuild must prefer `INSERT` (fail-fast on duplicates) while incremental update may use `INSERT OR REPLACE` where needed.
-- [ ] Task 16.9.1.d: Reduce prepare/parse overhead: prepare insert statements once per DB handle and reuse across all artifact shards (no per-shard `db.prepare` churn).
-- [ ] Task 16.9.1.e: Batch sizing: make batch size decisions observable in telemetry (input bytes, chosen batch size, rows/sec per table) and ensure overrides are consistently plumbed through Stage4 runner.
-- [ ] Task 16.9.1.f: Evaluate multi-row INSERT vs statement loops for heavy tables (token/phrase/chargram postings); pick the faster path per benchmark and document the decision in `docs/perf/sqlite-build.md`.
+- [x] Task 16.9.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.1.a: Ensure BOTH artifact builds and bundle builds use a consistent load-first flow (schema base, ingest, then indexes/optimize) and share common ingestion helpers where possible.
+- [x] Task 16.9.1.b: Add a top-level transaction boundary for full builds (one `BEGIN`/`COMMIT` spanning all table loads + index creation); ensure no accidental autocommit islands (including `db.exec()` multi-statement inserts).
+- [x] Task 16.9.1.c: Split statements for full rebuild vs incremental update: full rebuild must prefer `INSERT` (fail-fast on duplicates) while incremental update may use `INSERT OR REPLACE` where needed.
+- [x] Task 16.9.1.d: Reduce prepare/parse overhead: prepare insert statements once per DB handle and reuse across all artifact shards (no per-shard `db.prepare` churn).
+- [x] Task 16.9.1.e: Batch sizing: make batch size decisions observable in telemetry (input bytes, chosen batch size, rows/sec per table) and ensure overrides are consistently plumbed through Stage4 runner.
+- [x] Task 16.9.1.f: Evaluate multi-row INSERT vs statement loops for heavy tables (token/phrase/chargram postings); pick the faster path per benchmark and document the decision in `docs/perf/sqlite-build.md`.
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-build-full-transaction.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-build-full-transaction.test.js` (perf lane) (new)
 
 ### Subphase 16.9.2 -- FTS/Index Build
 Parallel: Run after 16.9.1.

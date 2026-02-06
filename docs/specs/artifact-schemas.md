@@ -61,6 +61,7 @@ Machine-readable index:
 - `risk_flows` (array/JSONL): entries require `schemaVersion`, `flowId`, `source`, `sink`, `path`, `confidence`, `notes`.
 - `risk_interprocedural_stats` (object): requires `schemaVersion`, `generatedAt`, `mode`, `status`, `effectiveConfig`, `counts`, `callSiteSampling`, `capsHit`, `timingMs`. Optional: `reason`, `artifacts`, `droppedRecords`.
 - `token_postings` (object): requires `vocab`, `postings`, `docLengths`. Optional: `avgDocLen`, `totalDocs`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `token_postings_meta` (object): requires `format`, `shardSize`, `vocabCount`, `parts`. Optional: `avgDocLen`, `totalDocs`, `compression`, `docLengths`, `extensions`.
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.
 - `field_tokens` (array): entries may include `name`, `signature`, `doc`, `comment`, `body` token arrays.
@@ -70,7 +71,9 @@ Machine-readable index:
 - `dense_vectors_lancedb_meta`, `dense_vectors_doc_lancedb_meta`, `dense_vectors_code_lancedb_meta` (object): requires `dims`, `count`, `metric`, `table`, `embeddingColumn`, `idColumn`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_sqlite_vec_meta` (object): requires `dims`, `count`, `table`. Optional: `embeddingColumn`, `idColumn`, `scale`, `minVal`, `maxVal`, `levels`.
 - `phrase_ngrams` (object): requires `vocab`, `postings`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `chargram_postings` (object): requires `vocab`, `postings`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.
 - `filelists` (object): requires `generatedAt`, `scanned`, `skipped` (each has `count`, `sample`).
 - `pieces_manifest` (object): requires `version`, `artifactSurfaceVersion`, `pieces`. Optional: `compatibilityKey`, `generatedAt`, `updatedAt`, `mode`, `stage`, `repoId`, `buildId`, `extensions`.

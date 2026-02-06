@@ -80,6 +80,7 @@ const resolveTaskFactory = (taskFactory) => (
  * @param {string} [options.extractedProseDir]
  * @param {string} [options.recordsDir]
  * @param {string|boolean} [options.validateMode]
+ * @param {number} [options.batchSize]
  * @param {string} [options.progress]
  * @param {boolean} [options.verbose]
  * @param {boolean} [options.quiet]
@@ -106,6 +107,7 @@ export async function buildSqliteIndex(options = {}) {
     'prose-dir': options.proseDir || null,
     'extracted-prose-dir': options.extractedProseDir || null,
     'records-dir': options.recordsDir || null,
+    'batch-size': options.batchSize ?? null,
     progress: options.progress || 'auto',
     verbose: options.verbose === true,
     quiet: options.quiet === true
@@ -397,6 +399,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const indexDir = modeArg === 'all' ? null : resolveIndexDir(modeArg);
     const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
     const incrementalRequested = argv.incremental === true;
+    const requestedBatchSize = Number(argv['batch-size'] ?? options.batchSize);
+    const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
+      ? Math.floor(requestedBatchSize)
+      : null;
     const modeList = modeArg === 'all'
       ? ['code', 'prose', 'extracted-prose', 'records']
       : [modeArg];
@@ -537,6 +543,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             expectedDense: pieces?.denseVec || null,
             logger: externalLogger || { log, warn, error },
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
           if (updateResult?.used) {
@@ -626,6 +633,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             modelConfig,
             logger: externalLogger || { log, warn, error },
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
           const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
@@ -650,6 +658,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               logger: externalLogger || { log, warn, error },
               task: workTask,
               inputBytes,
+              batchSize: batchSizeOverride,
               stats: sqliteStats
             });
           } else {
@@ -673,6 +682,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             logger: externalLogger || { log, warn, error },
             task: workTask,
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
         }

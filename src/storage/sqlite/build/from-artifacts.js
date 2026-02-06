@@ -31,6 +31,7 @@ import { applyBuildPragmas, optimizeBuildDatabase, restoreBuildPragmas } from '.
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
+import { createMultiRowInserter } from './multi-row.js';
 import {
   MAX_JSON_BYTES,
   readJsonLinesEach,
@@ -200,6 +201,7 @@ export const loadIndexPieces = async (dirOrOptions, modelId) => {
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {'prepared'|'multi-row'|'prepare-per-shard'} [params.statementStrategy]
  * @param {boolean} [params.buildPragmas]
  * @param {boolean} [params.optimize]
  * @param {object} [params.stats]
@@ -221,6 +223,7 @@ export async function buildDatabaseFromArtifacts({
   logger,
   inputBytes,
   batchSize,
+  statementStrategy,
   buildPragmas,
   optimize,
   stats
@@ -258,6 +261,17 @@ export async function buildDatabaseFromArtifacts({
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
   }
+  const normalizedStatementStrategy = typeof statementStrategy === 'string'
+    ? statementStrategy.trim().toLowerCase()
+    : '';
+  const resolvedStatementStrategy = ['prepared', 'multi-row', 'prepare-per-shard'].includes(
+    normalizedStatementStrategy
+  )
+    ? normalizedStatementStrategy
+    : 'multi-row';
+  if (batchStats) {
+    batchStats.statementStrategy = resolvedStatementStrategy;
+  }
   const tableStats = batchStats
     ? (batchStats.tables || (batchStats.tables = {}))
     : null;
@@ -284,8 +298,24 @@ export async function buildDatabaseFromArtifacts({
   let vectorAnnInsertWarned = false;
 
   const db = new Database(resolvedOutPath);
+  if (batchStats) {
+    const prepareStats = batchStats.prepare || (batchStats.prepare = {});
+    if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
+    const originalPrepare = db.prepare.bind(db);
+    db.prepare = (sql) => {
+      prepareStats.total += 1;
+      return originalPrepare(sql);
+    };
+    const txStats = batchStats.transaction || (batchStats.transaction = {});
+    if (!Number.isFinite(txStats.begin)) txStats.begin = 0;
+    if (!Number.isFinite(txStats.commit)) txStats.commit = 0;
+    if (!Number.isFinite(txStats.rollback)) txStats.rollback = 0;
+  }
   const resolvedInputBytes = Number(inputBytes);
   const hasInputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0;
+  if (batchStats) {
+    batchStats.inputBytes = hasInputBytes ? resolvedInputBytes : 0;
+  }
   const defaultOptimize = hasInputBytes
     ? resolvedInputBytes >= ARTIFACT_BUILD_PRAGMA_MIN_BYTES
     : true;
@@ -300,7 +330,7 @@ export async function buildDatabaseFromArtifacts({
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
     const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
 
-    const statements = createInsertStatements(db);
+    const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
     const {
       insertTokenVocab,
       insertTokenPosting,
@@ -315,6 +345,72 @@ export async function buildDatabaseFromArtifacts({
       insertDenseMeta,
       insertFileManifest
     } = statements;
+
+    const insertClause = batchStats?.insertStatements?.insertClause || 'INSERT OR REPLACE';
+    const useMultiRow = resolvedStatementStrategy === 'multi-row';
+    const insertTokenVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'token_vocab',
+        columns: ['mode', 'token_id', 'token'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertTokenPostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'token_postings',
+        columns: ['mode', 'token_id', 'doc_id', 'tf'],
+        insertClause,
+        maxRows: 200,
+        stats: batchStats
+      })
+      : null;
+    const insertDocLengthMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'doc_lengths',
+        columns: ['mode', 'doc_id', 'len'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertPhraseVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'phrase_vocab',
+        columns: ['mode', 'phrase_id', 'ngram'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertPhrasePostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'phrase_postings',
+        columns: ['mode', 'phrase_id', 'doc_id'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertChargramVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'chargram_vocab',
+        columns: ['mode', 'gram_id', 'gram'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertChargramPostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'chargram_postings',
+        columns: ['mode', 'gram_id', 'doc_id'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
     db.exec(`
       DROP TABLE IF EXISTS file_meta_stage;
       DROP TABLE IF EXISTS chunks_stage;
@@ -497,46 +593,91 @@ export async function buildDatabaseFromArtifacts({
       const totalDocs = typeof tokenIndex.totalDocs === 'number' ? tokenIndex.totalDocs : docLengths.length;
 
       const vocabStart = performance.now();
-      const insertVocabTx = db.transaction((start, end) => {
-        for (let i = start; i < end; i += 1) {
-          insertTokenVocab.run(targetMode, i, vocab[i]);
+      if (insertTokenVocabMany) {
+        const rows = [];
+        for (let tokenId = 0; tokenId < vocab.length; tokenId += 1) {
+          rows.push([targetMode, tokenId, vocab[tokenId]]);
+          if (rows.length >= insertTokenVocabMany.maxRows) {
+            insertTokenVocabMany(rows);
+            rows.length = 0;
+            recordBatch('tokenVocabBatches');
+          }
         }
-      });
-      for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
-        insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
-        recordBatch('tokenVocabBatches');
+        if (rows.length) {
+          insertTokenVocabMany(rows);
+          recordBatch('tokenVocabBatches');
+        }
+      } else {
+        for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, vocab.length);
+          for (let tokenId = start; tokenId < end; tokenId += 1) {
+            insertTokenVocab.run(targetMode, tokenId, vocab[tokenId]);
+          }
+          recordBatch('tokenVocabBatches');
+        }
       }
       recordTable('token_vocab', vocab.length, performance.now() - vocabStart);
 
       const postingStart = performance.now();
       let postingRows = 0;
-      const insertPostingsTx = db.transaction((start, end) => {
-        for (let tokenId = start; tokenId < end; tokenId += 1) {
+      if (insertTokenPostingMany) {
+        const rows = [];
+        for (let tokenId = 0; tokenId < postings.length; tokenId += 1) {
           const posting = postings[tokenId] || [];
           for (const entry of posting) {
             if (!entry) continue;
-            const docId = entry[0];
-            const tf = entry[1];
-            insertTokenPosting.run(targetMode, tokenId, docId, tf);
+            rows.push([targetMode, tokenId, entry[0], entry[1]]);
             postingRows += 1;
+            if (rows.length >= insertTokenPostingMany.maxRows) {
+              insertTokenPostingMany(rows);
+              rows.length = 0;
+              recordBatch('tokenPostingBatches');
+            }
           }
         }
-      });
-      for (let start = 0; start < postings.length; start += resolvedBatchSize) {
-        insertPostingsTx(start, Math.min(start + resolvedBatchSize, postings.length));
-        recordBatch('tokenPostingBatches');
+        if (rows.length) {
+          insertTokenPostingMany(rows);
+          recordBatch('tokenPostingBatches');
+        }
+      } else {
+        for (let start = 0; start < postings.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, postings.length);
+          for (let tokenId = start; tokenId < end; tokenId += 1) {
+            const posting = postings[tokenId] || [];
+            for (const entry of posting) {
+              if (!entry) continue;
+              insertTokenPosting.run(targetMode, tokenId, entry[0], entry[1]);
+              postingRows += 1;
+            }
+          }
+          recordBatch('tokenPostingBatches');
+        }
       }
       recordTable('token_postings', postingRows, performance.now() - postingStart);
 
       const lengthsStart = performance.now();
-      const insertLengthsTx = db.transaction((start, end) => {
-        for (let docId = start; docId < end; docId += 1) {
-          insertDocLength.run(targetMode, docId, docLengths[docId]);
+      if (insertDocLengthMany) {
+        const rows = [];
+        for (let docId = 0; docId < docLengths.length; docId += 1) {
+          rows.push([targetMode, docId, docLengths[docId]]);
+          if (rows.length >= insertDocLengthMany.maxRows) {
+            insertDocLengthMany(rows);
+            rows.length = 0;
+            recordBatch('docLengthBatches');
+          }
         }
-      });
-      for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
-        insertLengthsTx(start, Math.min(start + resolvedBatchSize, docLengths.length));
-        recordBatch('docLengthBatches');
+        if (rows.length) {
+          insertDocLengthMany(rows);
+          recordBatch('docLengthBatches');
+        }
+      } else {
+        for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, docLengths.length);
+          for (let docId = start; docId < end; docId += 1) {
+            insertDocLength.run(targetMode, docId, docLengths[docId]);
+          }
+          recordBatch('docLengthBatches');
+        }
       }
       recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
 
@@ -571,14 +712,28 @@ export async function buildDatabaseFromArtifacts({
             : 0
         ));
       const lengthsStart = performance.now();
-      const insertLengthsTx = db.transaction((start, end) => {
-        for (let docId = start; docId < end; docId += 1) {
-          insertDocLength.run(targetMode, docId, docLengths[docId]);
+      if (insertDocLengthMany) {
+        const rows = [];
+        for (let docId = 0; docId < docLengths.length; docId += 1) {
+          rows.push([targetMode, docId, docLengths[docId]]);
+          if (rows.length >= insertDocLengthMany.maxRows) {
+            insertDocLengthMany(rows);
+            rows.length = 0;
+            recordBatch('docLengthBatches');
+          }
         }
-      });
-      for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
-        insertLengthsTx(start, Math.min(start + resolvedBatchSize, docLengths.length));
-        recordBatch('docLengthBatches');
+        if (rows.length) {
+          insertDocLengthMany(rows);
+          recordBatch('docLengthBatches');
+        }
+      } else {
+        for (let start = 0; start < docLengths.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, docLengths.length);
+          for (let docId = start; docId < end; docId += 1) {
+            insertDocLength.run(targetMode, docId, docLengths[docId]);
+          }
+          recordBatch('docLengthBatches');
+        }
       }
       recordTable('doc_lengths', docLengths.length, performance.now() - lengthsStart);
       insertTokenStats.run(targetMode, avgDocLen, totalDocs);
@@ -596,30 +751,70 @@ export async function buildDatabaseFromArtifacts({
         const postings = Array.isArray(shard?.postings)
           ? shard.postings
           : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
-        const insertVocabTx = db.transaction((start, end) => {
-          for (let i = start; i < end; i += 1) {
-            insertTokenVocab.run(targetMode, tokenId + i, vocab[i]);
+        const insertTokenVocabStmt = resolvedStatementStrategy === 'prepare-per-shard'
+          ? db.prepare(`${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`)
+          : insertTokenVocab;
+        const insertTokenPostingStmt = resolvedStatementStrategy === 'prepare-per-shard'
+          ? db.prepare(`${insertClause} INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)`)
+          : insertTokenPosting;
+        if (insertTokenVocabMany) {
+          const rows = [];
+          for (let i = 0; i < vocab.length; i += 1) {
+            rows.push([targetMode, tokenId + i, vocab[i]]);
+            if (rows.length >= insertTokenVocabMany.maxRows) {
+              insertTokenVocabMany(rows);
+              rows.length = 0;
+              recordBatch('tokenVocabBatches');
+            }
           }
-        });
-        for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
-          insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
-          recordBatch('tokenVocabBatches');
+          if (rows.length) {
+            insertTokenVocabMany(rows);
+            recordBatch('tokenVocabBatches');
+          }
+        } else {
+          for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
+            const end = Math.min(start + resolvedBatchSize, vocab.length);
+            for (let i = start; i < end; i += 1) {
+              insertTokenVocabStmt.run(targetMode, tokenId + i, vocab[i]);
+            }
+            recordBatch('tokenVocabBatches');
+          }
         }
         vocabRows += vocab.length;
-        const insertPostingsTx = db.transaction((start, end) => {
-          for (let i = start; i < end; i += 1) {
+        if (insertTokenPostingMany) {
+          const rows = [];
+          for (let i = 0; i < postings.length; i += 1) {
             const posting = postings[i] || [];
             const postingTokenId = tokenId + i;
             for (const entry of posting) {
               if (!entry) continue;
-              insertTokenPosting.run(targetMode, postingTokenId, entry[0], entry[1]);
+              rows.push([targetMode, postingTokenId, entry[0], entry[1]]);
               postingRows += 1;
+              if (rows.length >= insertTokenPostingMany.maxRows) {
+                insertTokenPostingMany(rows);
+                rows.length = 0;
+                recordBatch('tokenPostingBatches');
+              }
             }
           }
-        });
-        for (let start = 0; start < postings.length; start += resolvedBatchSize) {
-          insertPostingsTx(start, Math.min(start + resolvedBatchSize, postings.length));
-          recordBatch('tokenPostingBatches');
+          if (rows.length) {
+            insertTokenPostingMany(rows);
+            recordBatch('tokenPostingBatches');
+          }
+        } else {
+          for (let start = 0; start < postings.length; start += resolvedBatchSize) {
+            const end = Math.min(start + resolvedBatchSize, postings.length);
+            for (let i = start; i < end; i += 1) {
+              const posting = postings[i] || [];
+              const postingTokenId = tokenId + i;
+              for (const entry of posting) {
+                if (!entry) continue;
+                insertTokenPostingStmt.run(targetMode, postingTokenId, entry[0], entry[1]);
+                postingRows += 1;
+              }
+            }
+            recordBatch('tokenPostingBatches');
+          }
         }
         tokenId += vocab.length;
       }
@@ -699,38 +894,75 @@ export async function buildDatabaseFromArtifacts({
       targetMode,
       insertVocabStmt,
       insertPostingStmt,
-      { vocabTable, postingTable } = {}
+      {
+        vocabTable,
+        postingTable,
+        insertVocabMany = null,
+        insertPostingMany = null
+      } = {}
     ) {
       if (!indexData?.vocab || !indexData?.postings) return;
       const vocab = indexData.vocab;
       const postings = indexData.postings;
 
       const vocabStart = performance.now();
-      const insertVocabTx = db.transaction((start, end) => {
-        for (let i = start; i < end; i += 1) {
-          insertVocabStmt.run(targetMode, i, vocab[i]);
+      if (insertVocabMany) {
+        const rows = [];
+        for (let tokenId = 0; tokenId < vocab.length; tokenId += 1) {
+          rows.push([targetMode, tokenId, vocab[tokenId]]);
+          if (rows.length >= insertVocabMany.maxRows) {
+            insertVocabMany(rows);
+            rows.length = 0;
+            recordBatch('postingVocabBatches');
+          }
         }
-      });
-      for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
-        insertVocabTx(start, Math.min(start + resolvedBatchSize, vocab.length));
-        recordBatch('postingVocabBatches');
+        if (rows.length) {
+          insertVocabMany(rows);
+          recordBatch('postingVocabBatches');
+        }
+      } else {
+        for (let start = 0; start < vocab.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, vocab.length);
+          for (let tokenId = start; tokenId < end; tokenId += 1) {
+            insertVocabStmt.run(targetMode, tokenId, vocab[tokenId]);
+          }
+          recordBatch('postingVocabBatches');
+        }
       }
       recordTable(vocabTable || 'posting_vocab', vocab.length, performance.now() - vocabStart);
 
       const postingStart = performance.now();
       let postingRows = 0;
-      const insertPostingsTx = db.transaction((start, end) => {
-        for (let tokenId = start; tokenId < end; tokenId += 1) {
+      if (insertPostingMany) {
+        const rows = [];
+        for (let tokenId = 0; tokenId < postings.length; tokenId += 1) {
           const posting = postings[tokenId] || [];
           for (const docId of posting) {
-            insertPostingStmt.run(targetMode, tokenId, docId);
+            rows.push([targetMode, tokenId, docId]);
             postingRows += 1;
+            if (rows.length >= insertPostingMany.maxRows) {
+              insertPostingMany(rows);
+              rows.length = 0;
+              recordBatch('postingBatches');
+            }
           }
         }
-      });
-      for (let start = 0; start < postings.length; start += resolvedBatchSize) {
-        insertPostingsTx(start, Math.min(start + resolvedBatchSize, postings.length));
-        recordBatch('postingBatches');
+        if (rows.length) {
+          insertPostingMany(rows);
+          recordBatch('postingBatches');
+        }
+      } else {
+        for (let start = 0; start < postings.length; start += resolvedBatchSize) {
+          const end = Math.min(start + resolvedBatchSize, postings.length);
+          for (let tokenId = start; tokenId < end; tokenId += 1) {
+            const posting = postings[tokenId] || [];
+            for (const docId of posting) {
+              insertPostingStmt.run(targetMode, tokenId, docId);
+              postingRows += 1;
+            }
+          }
+          recordBatch('postingBatches');
+        }
       }
       recordTable(postingTable || 'posting_rows', postingRows, performance.now() - postingStart);
     }
@@ -1248,14 +1480,24 @@ export async function buildDatabaseFromArtifacts({
         targetMode,
         insertPhraseVocab,
         insertPhrasePosting,
-        { vocabTable: 'phrase_vocab', postingTable: 'phrase_postings' }
+        {
+          vocabTable: 'phrase_vocab',
+          postingTable: 'phrase_postings',
+          insertVocabMany: insertPhraseVocabMany,
+          insertPostingMany: insertPhrasePostingMany
+        }
       );
       ingestPostingIndex(
         indexData?.chargrams,
         targetMode,
         insertChargramVocab,
         insertChargramPosting,
-        { vocabTable: 'chargram_vocab', postingTable: 'chargram_postings' }
+        {
+          vocabTable: 'chargram_vocab',
+          postingTable: 'chargram_postings',
+          insertVocabMany: insertChargramVocabMany,
+          insertPostingMany: insertChargramPostingMany
+        }
       );
       await ingestMinhash(indexData?.minhash, targetMode);
       ingestDense(indexData?.denseVec, targetMode);
@@ -1275,9 +1517,23 @@ export async function buildDatabaseFromArtifacts({
       return chunkCount;
     }
 
-    count = await ingestIndex(index, mode, indexDir);
-    validationStats.chunks = count;
-    db.exec(CREATE_INDEXES_SQL);
+    db.exec('BEGIN');
+    if (batchStats?.transaction) batchStats.transaction.begin += 1;
+    try {
+      count = await ingestIndex(index, mode, indexDir);
+      validationStats.chunks = count;
+      db.exec(CREATE_INDEXES_SQL);
+      db.exec('COMMIT');
+      if (batchStats?.transaction) batchStats.transaction.commit += 1;
+    } catch (err) {
+      if (db.inTransaction) {
+        try {
+          db.exec('ROLLBACK');
+          if (batchStats?.transaction) batchStats.transaction.rollback += 1;
+        } catch {}
+      }
+      throw err;
+    }
     if (useOptimize) {
       optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
     }

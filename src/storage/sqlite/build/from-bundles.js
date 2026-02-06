@@ -23,6 +23,7 @@ import { applyBuildPragmas, optimizeBuildDatabase, restoreBuildPragmas } from '.
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
+import { createMultiRowInserter } from './multi-row.js';
 import { createBundleLoader } from './bundle-loader.js';
 
 /**
@@ -42,6 +43,7 @@ import { createBundleLoader } from './bundle-loader.js';
  * @param {object} [params.logger]
  * @param {number} [params.inputBytes]
  * @param {number} [params.batchSize]
+ * @param {'prepared'|'multi-row'|'prepare-per-shard'} [params.statementStrategy]
  * @param {boolean} [params.buildPragmas]
  * @param {boolean} [params.optimize]
  * @param {object} [params.stats]
@@ -62,6 +64,7 @@ export async function buildDatabaseFromBundles({
   logger,
   inputBytes,
   batchSize,
+  statementStrategy,
   buildPragmas,
   optimize,
   stats
@@ -94,6 +97,17 @@ export async function buildDatabaseFromBundles({
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
+  }
+  const normalizedStatementStrategy = typeof statementStrategy === 'string'
+    ? statementStrategy.trim().toLowerCase()
+    : '';
+  const resolvedStatementStrategy = ['prepared', 'multi-row', 'prepare-per-shard'].includes(
+    normalizedStatementStrategy
+  )
+    ? normalizedStatementStrategy
+    : 'multi-row';
+  if (batchStats) {
+    batchStats.statementStrategy = resolvedStatementStrategy;
   }
   const tableStats = batchStats
     ? (batchStats.tables || (batchStats.tables = {}))
@@ -144,6 +158,21 @@ export async function buildDatabaseFromBundles({
   }
 
   const db = new Database(outPath);
+  if (batchStats) {
+    const prepareStats = batchStats.prepare || (batchStats.prepare = {});
+    if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
+    const originalPrepare = db.prepare.bind(db);
+    db.prepare = (sql) => {
+      prepareStats.total += 1;
+      return originalPrepare(sql);
+    };
+    const txStats = batchStats.transaction || (batchStats.transaction = {});
+    if (!Number.isFinite(txStats.begin)) txStats.begin = 0;
+    if (!Number.isFinite(txStats.commit)) txStats.commit = 0;
+    if (!Number.isFinite(txStats.rollback)) txStats.rollback = 0;
+    const resolvedInputBytes = Number(inputBytes);
+    batchStats.inputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0 ? resolvedInputBytes : 0;
+  }
   const useBuildPragmas = buildPragmas !== false;
   const useOptimize = optimize !== false;
   const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
@@ -151,7 +180,7 @@ export async function buildDatabaseFromBundles({
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
   let succeeded = false;
   try {
-    const statements = createInsertStatements(db);
+    const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
     const {
       insertChunk,
       insertFts,
@@ -168,6 +197,75 @@ export async function buildDatabaseFromBundles({
       insertDenseMeta,
       insertFileManifest
     } = statements;
+
+    const insertClause = batchStats?.insertStatements?.insertClause || 'INSERT OR REPLACE';
+    const useMultiRow = resolvedStatementStrategy === 'multi-row';
+    const insertTokenVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'token_vocab',
+        columns: ['mode', 'token_id', 'token'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertTokenPostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'token_postings',
+        columns: ['mode', 'token_id', 'doc_id', 'tf'],
+        insertClause,
+        maxRows: 200,
+        stats: batchStats
+      })
+      : null;
+    const insertDocLengthMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'doc_lengths',
+        columns: ['mode', 'doc_id', 'len'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertPhraseVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'phrase_vocab',
+        columns: ['mode', 'phrase_id', 'ngram'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertPhrasePostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'phrase_postings',
+        columns: ['mode', 'phrase_id', 'doc_id'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertChargramVocabMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'chargram_vocab',
+        columns: ['mode', 'gram_id', 'gram'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+    const insertChargramPostingMany = useMultiRow
+      ? createMultiRowInserter(db, {
+        table: 'chargram_postings',
+        columns: ['mode', 'gram_id', 'doc_id'],
+        insertClause,
+        maxRows: 300,
+        stats: batchStats
+      })
+      : null;
+
+    db.exec('BEGIN');
+    if (batchStats?.transaction) batchStats.transaction.begin += 1;
 
     const tokenIdMap = new Map();
     const phraseIdMap = new Map();
@@ -237,6 +335,36 @@ export async function buildDatabaseFromBundles({
     let minhashRows = 0;
     let denseRows = 0;
     let denseMetaRows = 0;
+
+    const tokenVocabBuffer = [];
+    const tokenPostingBuffer = [];
+    const docLengthBuffer = [];
+    const phraseVocabBuffer = [];
+    const phrasePostingBuffer = [];
+    const chargramVocabBuffer = [];
+    const chargramPostingBuffer = [];
+
+    const flushBuffer = (buffer, inserter, fallbackStmt) => {
+      if (!buffer.length) return;
+      if (inserter) {
+        inserter(buffer);
+      } else if (fallbackStmt) {
+        for (const row of buffer) {
+          fallbackStmt.run(...row);
+        }
+      }
+      buffer.length = 0;
+    };
+
+    const flushAllBuffers = () => {
+      flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+      flushBuffer(tokenPostingBuffer, insertTokenPostingMany, insertTokenPosting);
+      flushBuffer(docLengthBuffer, insertDocLengthMany, insertDocLength);
+      flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+      flushBuffer(phrasePostingBuffer, insertPhrasePostingMany, insertPhrasePosting);
+      flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+      flushBuffer(chargramPostingBuffer, insertChargramPostingMany, insertChargramPosting);
+    };
     const insertBundleBatch = db.transaction((chunks, start, end, fileKey, normalizedFile) => {
       const batchStart = performance.now();
       for (let idx = start; idx < end; idx += 1) {
@@ -252,7 +380,14 @@ export async function buildDatabaseFromBundles({
         ftsRows += 1;
 
         const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-        insertDocLength.run(mode, docId, tokensArray.length);
+        if (insertDocLengthMany) {
+          docLengthBuffer.push([mode, docId, tokensArray.length]);
+          if (docLengthBuffer.length >= insertDocLengthMany.maxRows) {
+            flushBuffer(docLengthBuffer, insertDocLengthMany, insertDocLength);
+          }
+        } else {
+          insertDocLength.run(mode, docId, tokensArray.length);
+        }
         docLengthRows += 1;
         totalDocs += 1;
         totalLen += tokensArray.length;
@@ -265,10 +400,24 @@ export async function buildDatabaseFromBundles({
               tokenId = nextTokenId;
               nextTokenId += 1;
               tokenIdMap.set(token, tokenId);
-              insertTokenVocab.run(mode, tokenId, token);
+              if (insertTokenVocabMany) {
+                tokenVocabBuffer.push([mode, tokenId, token]);
+                if (tokenVocabBuffer.length >= insertTokenVocabMany.maxRows) {
+                  flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+                }
+              } else {
+                insertTokenVocab.run(mode, tokenId, token);
+              }
               tokenVocabRows += 1;
             }
-            insertTokenPosting.run(mode, tokenId, docId, tf);
+            if (insertTokenPostingMany) {
+              tokenPostingBuffer.push([mode, tokenId, docId, tf]);
+              if (tokenPostingBuffer.length >= insertTokenPostingMany.maxRows) {
+                flushBuffer(tokenPostingBuffer, insertTokenPostingMany, insertTokenPosting);
+              }
+            } else {
+              insertTokenPosting.run(mode, tokenId, docId, tf);
+            }
             tokenPostingRows += 1;
           }
         }
@@ -281,10 +430,24 @@ export async function buildDatabaseFromBundles({
               phraseId = nextPhraseId;
               nextPhraseId += 1;
               phraseIdMap.set(ng, phraseId);
-              insertPhraseVocab.run(mode, phraseId, ng);
+              if (insertPhraseVocabMany) {
+                phraseVocabBuffer.push([mode, phraseId, ng]);
+                if (phraseVocabBuffer.length >= insertPhraseVocabMany.maxRows) {
+                  flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+                }
+              } else {
+                insertPhraseVocab.run(mode, phraseId, ng);
+              }
               phraseVocabRows += 1;
             }
-            insertPhrasePosting.run(mode, phraseId, docId);
+            if (insertPhrasePostingMany) {
+              phrasePostingBuffer.push([mode, phraseId, docId]);
+              if (phrasePostingBuffer.length >= insertPhrasePostingMany.maxRows) {
+                flushBuffer(phrasePostingBuffer, insertPhrasePostingMany, insertPhrasePosting);
+              }
+            } else {
+              insertPhrasePosting.run(mode, phraseId, docId);
+            }
             phrasePostingRows += 1;
           }
         }
@@ -297,10 +460,24 @@ export async function buildDatabaseFromBundles({
               gramId = nextChargramId;
               nextChargramId += 1;
               chargramIdMap.set(gram, gramId);
-              insertChargramVocab.run(mode, gramId, gram);
+              if (insertChargramVocabMany) {
+                chargramVocabBuffer.push([mode, gramId, gram]);
+                if (chargramVocabBuffer.length >= insertChargramVocabMany.maxRows) {
+                  flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+                }
+              } else {
+                insertChargramVocab.run(mode, gramId, gram);
+              }
               chargramVocabRows += 1;
             }
-            insertChargramPosting.run(mode, gramId, docId);
+            if (insertChargramPostingMany) {
+              chargramPostingBuffer.push([mode, gramId, docId]);
+              if (chargramPostingBuffer.length >= insertChargramPostingMany.maxRows) {
+                flushBuffer(chargramPostingBuffer, insertChargramPostingMany, insertChargramPosting);
+              }
+            } else {
+              insertChargramPosting.run(mode, gramId, docId);
+            }
             chargramPostingRows += 1;
           }
         }
@@ -388,6 +565,7 @@ export async function buildDatabaseFromBundles({
           }
         }
       }
+      flushAllBuffers();
       insertBatchMs += performance.now() - batchStart;
     });
 
@@ -474,6 +652,12 @@ export async function buildDatabaseFromBundles({
       if (emitOutput) {
         warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
       }
+      if (db.inTransaction) {
+        try {
+          db.exec('ROLLBACK');
+          if (batchStats?.transaction) batchStats.transaction.rollback += 1;
+        } catch {}
+      }
       return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
@@ -511,6 +695,8 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
+    db.exec('COMMIT');
+    if (batchStats?.transaction) batchStats.transaction.commit += 1;
     if (useOptimize) {
       optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
     }
@@ -531,6 +717,12 @@ export async function buildDatabaseFromBundles({
     succeeded = true;
     return { count, denseCount: validationStats.dense, embedStats, vectorAnn: vectorAnnState };
   } finally {
+    if (!succeeded && db.inTransaction) {
+      try {
+        db.exec('ROLLBACK');
+        if (batchStats?.transaction) batchStats.transaction.rollback += 1;
+      } catch {}
+    }
     if (succeeded) {
       try {
         db.pragma('wal_checkpoint(TRUNCATE)');

@@ -290,6 +290,7 @@ export const runSqliteStage = async ({
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,
           incremental: argv.incremental === true,
+          batchSize: argv['sqlite-batch-size'],
           indexRoot,
           out: sqliteOut,
           runtime,
@@ -477,6 +478,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
           sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
             mode,
             incremental: stageArgv.incremental === true,
+            batchSize: stageArgv['sqlite-batch-size'],
             out: sqliteOut,
             indexRoot: runtime.buildRoot,
             runtime,
