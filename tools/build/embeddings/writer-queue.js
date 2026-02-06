@@ -48,7 +48,7 @@ export const createBoundedWriterQueue = ({ scheduleIo, maxPending } = {}) => {
     await Promise.all(Array.from(pending));
   };
 
-  const snapshot = () => ({ ...stats });
+  const snapshot = () => ({ ...stats, pending: pending.size });
 
   return {
     enqueue,
@@ -56,4 +56,3 @@ export const createBoundedWriterQueue = ({ scheduleIo, maxPending } = {}) => {
     stats: snapshot
   };
 };
-

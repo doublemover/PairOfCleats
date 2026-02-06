@@ -171,6 +171,9 @@ Pruning uses LRU metadata in the cache index:
 `index_state.embeddings.cacheStats` records per-run cache usage:
 - `attempts`, `hits`, `misses`, `rejected`, `fastRejects`
 
+`tools/build/embeddings/*` also reports bounded writer queue stats (per mode) from the Stage3 runner result:
+- `maxPending`, `pending`, `peakPending`, `waits`, `scheduled`, `failed`
+
 ## Examples
 
 ### Cache hit

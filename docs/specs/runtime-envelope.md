@@ -187,6 +187,10 @@ envelope inputs (argv, config, env) and schedules embedding compute + artifact I
 via `embeddings.compute` and `embeddings.io` queues. This keeps Stage3 backpressure
 consistent with the rest of the build pipeline.
 
+Stage3 cache writes also use a bounded in-process writer queue to avoid unbounded pending payload retention.
+Writer `maxPending` defaults to a small value derived from IO tokens (capped) and is additionally bounded by
+`indexing.scheduler.queues[embeddings.io].maxPending` when configured.
+
 Config path:
 - `indexing.scheduler.*` (config file)
 

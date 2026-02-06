@@ -1240,19 +1240,19 @@ Parallel: Run after 16.8.1/16.8.2.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/bench/cache-hit-rate.js`, `src/shared/embedding-utils.js (anchor: mergeEmbeddingVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
-- [ ] Task 16.8.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.3.a: Extend `cache-hit-rate` bench to include writer queue + backpressure.
-- [ ] Task 16.8.3.b: Add throughput benchmark for batch-size tuning across providers (stub/onnx/openai).
-- [ ] Task 16.8.3.c: Add regression test for embedding output determinism (same inputs produce identical vectors + manifests).
-- [ ] Task 16.8.3.d: Add docs update for embeddings pipeline (include queue/backpressure knobs + telemetry fields).
-- [ ] Task 16.8.3.e: Add memory regression test for embeddings (heap plateau under backlog).
+- [x] Task 16.8.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.3.a: Extend `cache-hit-rate` bench to include writer queue + backpressure.
+- [x] Task 16.8.3.b: Add throughput benchmark for batch-size tuning across providers (stub/onnx/openai).
+- [x] Task 16.8.3.c: Add regression test for embedding output determinism (same inputs produce identical vectors + manifests).
+- [x] Task 16.8.3.d: Add docs update for embeddings pipeline (include queue/backpressure knobs + telemetry fields).
+- [x] Task 16.8.3.e: Add memory regression test for embeddings (heap plateau under backlog).
 
 Tests:
-- [ ] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batch-throughput.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-normalization-consistency.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-determinism.test.js` (perf lane) (new)
-- [ ] `tests/indexing/embeddings/embeddings-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batch-throughput.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-normalization-consistency.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-determinism.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embeddings-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
