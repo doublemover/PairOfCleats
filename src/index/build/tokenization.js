@@ -308,7 +308,7 @@ const classifyTokensWithTreeSitter = ({
   };
 };
 
-const classifyTokenBuckets = ({
+export const classifyTokenBuckets = ({
   text,
   tokens,
   languageId,
