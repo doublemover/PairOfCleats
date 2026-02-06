@@ -54,11 +54,16 @@ export const buildActions = async (context) => {
   await fsPromises.writeFile(mergeTarget, 'beta\ngamma\n');
 
   if (scriptNames) {
-    return actions.map((action) => ({
+    const filtered = actions.map((action) => ({
       ...action,
       covers: filterCovers(action.covers),
       coversTierB: filterCovers(action.coversTierB)
     }));
+    return filtered.filter((action) => (
+      action.alwaysRun === true
+      || (Array.isArray(action.covers) && action.covers.length > 0)
+      || (Array.isArray(action.coversTierB) && action.coversTierB.length > 0)
+    ));
   }
   return actions;
 };

@@ -9,6 +9,11 @@ import {
 } from '../../../src/lang/tree-sitter.js';
 import { repoRoot } from '../../helpers/root.js';
 
+const isCi = process.env.CI === '1' || process.env.CI === 'true';
+const runReducedOnCiLinux = isCi && process.platform === 'linux';
+const runReducedOnCiMac = isCi && process.platform === 'darwin';
+const runReduced = runReducedOnCiLinux || runReducedOnCiMac;
+
 const root = path.join(repoRoot(), 'tests', 'fixtures', 'tree-sitter');
 const fixtures = [
   { id: 'swift', file: 'swift.swift', languageId: 'swift', expect: ['Widget', 'Widget.greet'] },
@@ -66,7 +71,7 @@ const run = async () => {
   if (runReduced) {
     const reason = runReducedOnCiLinux ? 'CI/Linux' : 'CI/macOS';
     console.log(
-      `[tree-sitter] ${reason} detected; running reduced fixture set: ${fixturesToRun.map((f) => f.id).join(', ')}`
+      `[tree-sitter] ${reason} detected; skipping cleanup for CI stability. Fixtures: ${fixturesToRun.map((f) => f.id).join(', ')}`
     );
   }
 
@@ -185,7 +190,7 @@ const run = async () => {
 try {
   await run();
 } finally {
-  // On CI/Linux, we intentionally avoid the extra teardown work because we've
+  // On CI/Linux/macOS, we intentionally avoid the extra teardown work because we've
   // observed sporadic native aborts during WASM object cleanup on some runners.
   // The test runs in an isolated process; skipping cleanup here is safe.
   if (!runReduced) {

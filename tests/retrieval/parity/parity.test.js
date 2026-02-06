@@ -91,14 +91,19 @@ async function ensureParityIndexes() {
   }
   process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 
-  const buildResult = spawnSync(
+  const runBuildStage = (stage) => spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', root],
+    [path.join(root, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
     { env, cwd: root, stdio: 'inherit' }
   );
-  if (buildResult.status !== 0) {
-    console.error('Parity test failed: build index');
-    process.exit(buildResult.status ?? 1);
+  const annWanted = argv.ann !== false;
+  const stages = annWanted ? ['1', '3'] : ['1'];
+  for (const stage of stages) {
+    const buildResult = runBuildStage(stage);
+    if (buildResult.status !== 0) {
+      console.error(`Parity test failed: build index stage ${stage}`);
+      process.exit(buildResult.status ?? 1);
+    }
   }
 
   await runSqliteBuild(root);

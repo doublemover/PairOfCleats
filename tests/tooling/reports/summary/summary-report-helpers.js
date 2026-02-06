@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
+import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 
 const ROOT = process.cwd();
 const TEMP_ROOT = path.join(ROOT, '.testCache', 'summary-report');
@@ -14,6 +15,16 @@ const MARKER_PATH = path.join(TEMP_ROOT, 'build-complete.json');
 const LOCK_PATH = path.join(ROOT, '.testCache', 'summary-report.lock');
 
 const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
+
+const isMarkerValid = () => {
+  if (!fs.existsSync(MARKER_PATH)) return false;
+  try {
+    const marker = JSON.parse(fs.readFileSync(MARKER_PATH, 'utf8'));
+    return marker && typeof marker === 'object' && marker.schemaVersion === SCHEMA_VERSION;
+  } catch {
+    return false;
+  }
+};
 
 const modelSlug = (value) => {
   const safe = value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
@@ -53,7 +64,7 @@ const waitForBuild = async () => {
 
 export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } = {}) => {
   await fsPromises.mkdir(path.dirname(TEMP_ROOT), { recursive: true });
-  if (fs.existsSync(MARKER_PATH)) {
+  if (isMarkerValid()) {
     return {
       tempRoot: TEMP_ROOT,
       cacheRoot: CACHE_ROOT,
@@ -89,6 +100,8 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
     };
     runBuild('build index (repo cache)', repoEnv, [
       path.join(ROOT, 'build_index.js'),
+      '--stage',
+      '1',
       '--stub-embeddings',
       '--repo',
       REPO_ROOT
@@ -103,6 +116,8 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
     };
     runBuild('build index (model cache)', modelEnv, [
       path.join(ROOT, 'build_index.js'),
+      '--stage',
+      '1',
       '--stub-embeddings',
       '--repo',
       REPO_ROOT
@@ -112,7 +127,7 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
 
     await fsPromises.writeFile(
       MARKER_PATH,
-      JSON.stringify({ completedAt: new Date().toISOString() }, null, 2)
+      JSON.stringify({ completedAt: new Date().toISOString(), schemaVersion: SCHEMA_VERSION }, null, 2)
     );
 
     return {

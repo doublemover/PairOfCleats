@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T20:19:10.566Z",
+  "generatedAt": "2026-02-06T08:01:31.856Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2183,6 +2183,12 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_GRAPH_PLATEAU_CHILD",
+      "files": [
+        "tests/graph/graph-memory-plateau.test.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_LOG_DIR",
       "files": [
         "tests/helpers/triage.js",
@@ -2465,9 +2471,11 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_TEST_GRAPH_PLATEAU_CHILD"
+  ],
   "cliFlags": {
-    "totalFlags": 289,
+    "totalFlags": 295,
     "publicFlags": [
       "backend",
       "host",
@@ -2555,6 +2563,7 @@
       "fanout",
       "fields",
       "files",
+      "filesPerLanguage",
       "finding",
       "fixture",
       "fixtures",
@@ -2645,6 +2654,7 @@
       "min-rank-corr",
       "minBytes",
       "minConfidence",
+      "missingDocHashRate",
       "model",
       "model-out",
       "models",
@@ -2683,6 +2693,7 @@
       "record",
       "refresh",
       "registry",
+      "repeats",
       "require-dicts",
       "require-index",
       "require-sqlite",
@@ -2733,6 +2744,7 @@
       "table",
       "targets",
       "testPattern",
+      "thrashMaxLoadedLanguages",
       "three-url",
       "timeout-ms",
       "token-postings-size",
@@ -2748,9 +2760,11 @@
       "unique",
       "update",
       "url",
+      "useQueries",
       "validate",
       "validate-config",
       "verbose",
+      "warmMaxLoadedLanguages",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
@@ -3246,6 +3260,17 @@
         ]
       },
       {
+        "file": "tools/bench/graph/neighborhood-index-dir.js",
+        "flags": [
+          "depth",
+          "index",
+          "iterations",
+          "mode",
+          "repo",
+          "seed"
+        ]
+      },
+      {
         "file": "tools/bench/graph/render-sort.js",
         "flags": [
           "iterations",
@@ -3260,6 +3285,21 @@
           "iterations",
           "mode",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/bench/index/tree-sitter-load.js",
+        "flags": [
+          "filesPerLanguage",
+          "json",
+          "languages",
+          "log",
+          "out",
+          "repeats",
+          "thrashMaxLoadedLanguages",
+          "treeSitter",
+          "useQueries",
+          "warmMaxLoadedLanguages"
         ]
       },
       {
@@ -3429,6 +3469,7 @@
           "input",
           "json",
           "lookups",
+          "missingDocHashRate",
           "out",
           "samples",
           "seed"
@@ -4067,7 +4108,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 57,
+        "count": 58,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4079,6 +4120,7 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -4130,7 +4172,7 @@
       },
       {
         "flag": "json",
-        "count": 45,
+        "count": 46,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4143,6 +4185,7 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/query-generator.js",
@@ -4181,7 +4224,7 @@
       },
       {
         "flag": "out",
-        "count": 37,
+        "count": 38,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -4189,6 +4232,7 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
@@ -4224,7 +4268,7 @@
       },
       {
         "flag": "mode",
-        "count": 27,
+        "count": 28,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
@@ -4232,6 +4276,7 @@
           "tests/map/map-edge-aggregate-stability.test.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/graph/render-sort.js",
           "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
@@ -4257,13 +4302,14 @@
       },
       {
         "flag": "seed",
-        "count": 14,
+        "count": 15,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "tests/fixtures/medium/generate.js",
           "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -4390,6 +4436,19 @@
         ]
       },
       {
+        "flag": "log",
+        "count": 7,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "progress",
         "count": 7,
         "files": [
@@ -4429,6 +4488,19 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 7,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "verbose",
         "count": 7,
         "files": [
@@ -4439,6 +4511,18 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "depth",
+        "count": 6,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js"
         ]
       },
       {
@@ -4466,30 +4550,6 @@
         ]
       },
       {
-        "flag": "log",
-        "count": 6,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 6,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
-        ]
-      },
-      {
         "flag": "ann",
         "count": 5,
         "files": [
@@ -4512,17 +4572,6 @@
         ]
       },
       {
-        "flag": "depth",
-        "count": 5,
-        "files": [
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-cache.js"
-        ]
-      },
-      {
         "flag": "includeCalls",
         "count": 5,
         "files": [
@@ -4531,6 +4580,28 @@
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "index",
+        "count": 5,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
+        "flag": "iterations",
+        "count": 5,
+        "files": [
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js"
         ]
       },
       {
@@ -4662,23 +4733,13 @@
         ]
       },
       {
-        "flag": "index",
+        "flag": "languages",
         "count": 4,
         "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/store-lazy-load.js"
-        ]
-      },
-      {
-        "flag": "iterations",
-        "count": 4,
-        "files": [
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-cache.js",
-          "tools/bench/graph/render-sort.js",
-          "tools/bench/graph/store-lazy-load.js"
+          "tools/bench/index/tree-sitter-load.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
         ]
       },
       {
@@ -4846,15 +4907,6 @@
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
-        ]
-      },
-      {
-        "flag": "languages",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -5414,6 +5466,8 @@
       "src/retrieval/cli/run-search-session.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
+      "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
+      "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
