@@ -1423,19 +1423,19 @@ Parallel: Run after 16.11.1/16.11.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: preloadTreeSitterLanguages, getTreeSitterStats)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, resolveTreeSitterPreloadPlan)`, `tools/bench/index/tree-sitter-load.js` (new), `tests/indexing/tree-sitter/*`
 Tasks:
-- [ ] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.3.a: Implement `tree-sitter-load` benchmark (place under `tools/bench/index/tree-sitter-load.js`) to measure parse/chunk throughput per language and per batching policy (file-order vs batch-by-language), emitting JSON with `getTreeSitterStats()` counters.
-- [ ] Task 16.11.3.b: Add cold vs warm cache modes in the benchmark (clear caches vs reuse) and add contract coverage asserting warm is faster than cold and that batch-by-language reduces redundant WASM loads under mixed-language inputs.
-- [ ] Task 16.11.3.c: Add regression test for parse determinism (same inputs must yield identical chunk boundaries/names/kinds across runs and across worker vs main thread where applicable).
-- [ ] Task 16.11.3.d: Add regression test for parse reuse on unchanged files (chunk cache hits and query cache reuse must be observable via stats; no re-parse when content hash unchanged).
-- [ ] Task 16.11.3.e: Add memory regression test for parse trees/caches (repeat parse loops must plateau; `maxLoadedLanguages` must cap growth on both main and worker pools).
-- [ ] Task 16.11.3.f: Add docs update for tree-sitter load strategy (batching, cache knobs, determinism invariants, telemetry fields surfaced in stage audit).
+- [x] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.3.a: Implement `tree-sitter-load` benchmark (place under `tools/bench/index/tree-sitter-load.js`) to measure parse/chunk throughput per language and per batching policy (file-order vs batch-by-language), emitting JSON with `getTreeSitterStats()` counters.
+- [x] Task 16.11.3.b: Add cold vs warm cache modes in the benchmark (clear caches vs reuse) and add contract coverage asserting warm is faster than cold and that batch-by-language reduces redundant WASM loads under mixed-language inputs.
+- [x] Task 16.11.3.c: Add regression test for parse determinism (same inputs must yield identical chunk boundaries/names/kinds across runs and across worker vs main thread where applicable).
+- [x] Task 16.11.3.d: Add regression test for parse reuse on unchanged files (chunk cache hits and query cache reuse must be observable via stats; no re-parse when content hash unchanged).
+- [x] Task 16.11.3.e: Add memory regression test for parse trees/caches (repeat parse loops must plateau; `maxLoadedLanguages` must cap growth on both main and worker pools).
+- [x] Task 16.11.3.f: Add docs update for tree-sitter load strategy (batching, cache knobs, determinism invariants, telemetry fields surfaced in stage audit).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js` (perf lane) (new)
 
 ---
 

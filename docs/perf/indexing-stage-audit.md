@@ -88,9 +88,14 @@ Use these reports to prioritize optimization work before implementing algorithmi
 ## Stage1 Bench + Regression Coverage
 - `tools/bench/index/postings-real.js`: end-to-end Stage1 `code` benchmark that generates a fixed corpus via `tests/fixtures/medium/generate.js` (default `--seed postings-real --count 500`) and compares baseline/current runs.
 - `tools/bench/index/chargram-postings.js --rolling-hash`: microbench for chargram postings build throughput and key representation (`h64:`) with baseline/current compare.
+- `tools/bench/index/tree-sitter-load.js --json`: tree-sitter benchmark comparing cold vs warm parse/chunk throughput and file-order vs batch-by-language policies under `maxLoadedLanguages` eviction pressure.
 - Regression tests:
 - `tests/indexing/postings/postings-real-bench-contract.test.js`
 - `tests/indexing/postings/chargram-bench-contract.test.js`
 - `tests/indexing/postings/chunk-meta-determinism.test.js`
 - `tests/perf/indexing/postings/postings-heap-plateau.test.js`
 - `tests/perf/indexing/postings/stage1-memory-budget.test.js`
+- `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js`
+- `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js`
+- `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js`
+- `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js`

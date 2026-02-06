@@ -1,5 +1,6 @@
 import {
   buildTreeSitterChunks,
+  getTreeSitterStats,
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages
 } from '../tree-sitter.js';
@@ -113,4 +114,8 @@ export async function parseTreeSitter(payload = {}) {
   } catch {
     return null;
   }
+}
+
+export function treeSitterWorkerStats() {
+  return getTreeSitterStats();
 }
