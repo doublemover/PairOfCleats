@@ -1436,38 +1436,45 @@ Tests:
 ### Subphase 16.12.1 -- Graph Store
 Parallel: Can run alongside 16.12.2 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
-Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
+Touchpoints: `src/graph/store.js (anchors: createGraphStore, buildGraphIndex, buildGraphIndexCacheKey)`, `src/graph/indexes.js (anchors: buildAdjacencyIndex, buildAdjacencyCsr, buildIdTable)`, `src/shared/artifact-io/loaders.js (anchor: loadGraphRelations)`
 Tasks:
 - [ ] Task 16.12.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.1.a: Implement columnar edge storage for graph store.
-- [ ] Task 16.12.1.b: Add segmented graph cache (graphId + shard).
-- [ ] Task 16.12.1.c: Add compact hash-based dedupe.
-- [ ] Task 16.12.1.d: Add chunk-based impact computation option.
-- [ ] Task 16.12.1.e: Add graph store stats and telemetry.
+- [ ] Task 16.12.1.a: Teach `GraphStore` to load the `graph_relations_csr` artifact from the pieces manifest (add `loadGraphRelationsCsr` to artifact-io).
+- [ ] Task 16.12.1.b: Plumb CSR into `GraphIndex` (`graphRelationsCsr`) and ensure `buildGraphIndexCacheKey` segments caches on CSR presence and graph selection.
+- [ ] Task 16.12.1.c: Add strict validation + fallback behavior for CSR payloads (offset monotonicity, edge bounds, stable node ordering); fall back to `graph_relations` on invalid CSR.
+- [ ] Task 16.12.1.d: Reduce redundant in-memory structures when CSR is available (avoid building per-node `both` adjacency lists; keep legacy path as fallback).
+- [ ] Task 16.12.1.e: Add graph store cache telemetry (hit/miss, build time, eviction) and basic memory accounting for loaded graph artifacts/indexes.
 
 Tests:
-- [ ] `tests/retrieval/graph/graph-store-columnar.test.js` (perf lane) (new)
+- [ ] `tests/graph/graph-store-cache-eviction.test.js` (existing)
+- [ ] `tests/graph/graph-index-cache-reuse.test.js` (existing)
+- [ ] `tests/graph/graph-id-remap-roundtrip.test.js` (existing)
+- [ ] `tests/graph/graph-store-csr-artifact-load.test.js` (perf lane) (new)
 
 ### Subphase 16.12.2 -- Traversal + Filtering
 Parallel: Can run alongside 16.12.1 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
-Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
+Touchpoints: `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/graph/context-pack.js (anchor: buildGraphContextPack)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
 - [ ] Task 16.12.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.2.a: Implement filter-first traversal ordering.
-- [ ] Task 16.12.2.b: Add cached artifact slices by query signature.
-- [ ] Task 16.12.2.c: Add streaming context-pack assembly path.
-- [ ] Task 16.12.2.d: Add deterministic ordering for graph outputs.
-- [ ] Task 16.12.2.e: Add traversal stats for cap enforcement.
-- [ ] Task 16.12.2.f: Add per-query cost budgeting for edge expansion caps.
+- [ ] Task 16.12.2.a: Use CSR-backed neighbor resolution in `buildGraphNeighborhood` when `graphIndex.graphRelationsCsr` is available (preserve determinism + cap enforcement).
+- [ ] Task 16.12.2.b: Add a reverse-edge index strategy for `direction=in|both` without materializing full `in`/`both` adjacency lists (build once per graphIndex and cache).
+- [ ] Task 16.12.2.c: Add traversal-result caching keyed by query signature (seed(s), graphs/edgeTypes, depth, direction, caps, includePaths, indexSignature) with telemetry and strict invalidation.
+- [ ] Task 16.12.2.d: Define "streaming context-pack assembly" precisely and add an assembly path that does not require a full in-memory `chunkMeta` array or `chunkIndex` (provider-based lookup for required chunks/excerpts).
+- [ ] Task 16.12.2.e: Lock determinism across legacy vs CSR paths and across caching (explicit invariants + regression tests).
+- [ ] Task 16.12.2.f: Expand traversal stats to include cap trigger counts + import graph lookup misses, and ensure they are surfaced consistently in outputs.
 
 Tests:
-- [ ] `tests/retrieval/graph/filter-first-traversal.test.js` (perf lane) (new)
+- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [ ] `tests/graph/graph-filter-predicate-deterministic.test.js` (existing)
+- [ ] `tests/graph/graph-truncation-deterministic.test.js` (existing)
+- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [ ] `tests/graph/graph-csr-neighbors-deterministic.test.js` (perf lane) (new)
 
 ### Subphase 16.12.3 -- Tests + Bench
 Parallel: Run after 16.12.1/16.12.2.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
-Touchpoints: `src/graph/store.js (anchor: buildAdjacencyCsr)`, `src/graph/neighborhood.js (anchor: expandNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
+Touchpoints: `tools/bench/graph/* (anchors: context-pack-latency, neighborhood-cache, store-lazy-load)`, `src/graph/store.js (anchor: createGraphStore)`, `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/context-pack/assemble.js (anchor: assembleCompositeContextPack)`
 Tasks:
 - [ ] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
 - [ ] Task 16.12.3.a: Extend `context-pack-latency` benchmark baseline/current.
