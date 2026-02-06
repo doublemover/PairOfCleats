@@ -86,6 +86,11 @@ Use these reports to prioritize optimization work before implementing algorithmi
 - Stage wiring uses the scheduler queues (`stage1.cpu`, `stage1.io`, `stage1.proc`, `stage1.postings`, `stage2.relations`, `stage2.relations.io`, `stage4.sqlite`) to ensure global backpressure.
 - Stage3 embeddings uses scheduler queues (`embeddings.compute`, `embeddings.io`) for batch compute and artifact/cache IO.
 
+## Bench Harness
+- `tools/bench/bench-runner.js` batches core phase benches and emits a single JSON report (schema: `docs/schemas/bench-runner-report.schema.json`).
+- Example (CI-safe subset):
+- `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`
+
 ## Stage1 Bench + Regression Coverage
 - `tools/bench/index/postings-real.js`: end-to-end Stage1 `code` benchmark that generates a fixed corpus via `tests/fixtures/medium/generate.js` (default `--seed postings-real --count 500`) and compares baseline/current runs.
 - `tools/bench/index/chargram-postings.js --rolling-hash`: microbench for chargram postings build throughput and key representation (`h64:`) with baseline/current compare.

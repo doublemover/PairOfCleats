@@ -20,16 +20,16 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.3 | [@] | Cache key schema/helpers in progress |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
-| 16.13 | [ ] |  |
+| 16.13 | [x] |  |
 | 16.14 | [x] |  |
 | 16.6 | [x] |  |
 | 16.7 | [x] | Stage2 relations/filter-index hardening + tests/bench complete |
-| 16.8 | [ ] |  |
-| 16.9 | [ ] |  |
-| 16.10 | [ ] |  |
-| 16.11 | [ ] |  |
-| 16.12 | [ ] |  |
-| 16.15 | [ ] |  |
+| 16.8 | [x] |  |
+| 16.9 | [x] |  |
+| 16.10 | [x] |  |
+| 16.11 | [x] |  |
+| 16.12 | [x] |  |
+| 16.15 | [@] | Bench harness + bench output contracts complete; usage checklist pending |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -1537,30 +1537,30 @@ Parallel: Can run alongside 16.15.1; ensure bench harness exists before validati
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.2.a: Ensure each phase has a baseline/current benchmark.
-- [ ] Task 16.15.2.b: Enforce delta reporting (amount, throughput, percentage, duration).
-- [ ] Task 16.15.2.c: Add real-index inputs for all benchmarks where applicable.
-- [ ] Task 16.15.2.d: Add bench runner that batches all phase benches.
-- [ ] Task 16.15.2.e: Add bench output summary report in CI artifacts.
+- [x] Task 16.15.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.2.a: Ensure each phase has a baseline/current benchmark.
+- [x] Task 16.15.2.b: Enforce delta reporting (amount, throughput, percentage, duration).
+- [x] Task 16.15.2.c: Add real-index inputs for all benchmarks where applicable.
+- [x] Task 16.15.2.d: Add bench runner that batches all phase benches.
+- [x] Task 16.15.2.e: Add bench output summary report in CI artifacts.
 
 Tests:
-- [ ] `tests/tooling/bench/bench-runner-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/tooling/bench/bench-runner-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.15.3 -- Bench Output Contracts
 Parallel: Run after 16.15.2; can overlap with 16.15.1.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.3.a: Add schema for bench output JSON.
-- [ ] Task 16.15.3.b: Enforce schema in bench scripts.
-- [ ] Task 16.15.3.c: Add regression test for bench output format.
-- [ ] Task 16.15.3.d: Add docs for bench output semantics.
-- [ ] Task 16.15.3.e: Add tool to diff bench results between commits.
+- [x] Task 16.15.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.3.a: Add schema for bench output JSON.
+- [x] Task 16.15.3.b: Enforce schema in bench scripts.
+- [x] Task 16.15.3.c: Add regression test for bench output format.
+- [x] Task 16.15.3.d: Add docs for bench output semantics.
+- [x] Task 16.15.3.e: Add tool to diff bench results between commits.
 
 Tests:
-- [ ] `tests/tooling/bench/bench-output-schema.test.js` (perf lane) (new)
+- [x] `tests/perf/tooling/bench/bench-output-schema.test.js` (perf lane) (new)
 
 ---
 

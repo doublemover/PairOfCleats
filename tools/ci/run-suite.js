@@ -149,6 +149,22 @@ const main = async () => {
     },
     ...(mode === 'nightly'
       ? [{
+        label: 'Bench harness (sweet16-ci)',
+        command: process.execPath,
+        args: [
+          'tools/bench/bench-runner.js',
+          '--suite',
+          'sweet16-ci',
+          '--timeout-ms',
+          '600000',
+          '--json',
+          path.join(logDir, 'bench-sweet16.json'),
+          '--quiet'
+        ]
+      }]
+      : []),
+    ...(mode === 'nightly'
+      ? [{
         label: 'Script coverage',
         command: process.execPath,
         args: ['tests/tooling/script-coverage/script-coverage.test.js', '--log-dir', logDir]

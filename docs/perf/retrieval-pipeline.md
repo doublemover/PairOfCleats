@@ -57,3 +57,6 @@ Composite context-pack assembly may avoid loading full `chunk_meta` by resolving
 Benchmarks:
 - `node tools/bench/graph/context-pack-latency.js --index <indexDir> --mode compare`
 - `node tools/bench/graph/neighborhood-index-dir.js --index <indexDir> --mode compare`
+
+Bench harness:
+- `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`

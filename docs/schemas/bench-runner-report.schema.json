@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pairofcleats://schemas/bench-runner-report.schema.json",
+  "title": "PairOfCleats Bench Runner Report",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "runner", "summary", "results"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "generatedAt": { "type": "string" },
+    "runner": {
+      "type": "object",
+      "required": ["cwd", "platform", "release", "arch", "node", "args"],
+      "properties": {
+        "cwd": { "type": "string" },
+        "platform": { "type": "string" },
+        "release": { "type": "string" },
+        "arch": { "type": "string" },
+        "node": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": ["ok", "error", "timeout"],
+      "properties": {
+        "ok": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 },
+        "timeout": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "script",
+          "absScript",
+          "ok",
+          "timedOut",
+          "exitCode",
+          "durationMs",
+          "parsed",
+          "json",
+          "stdout",
+          "stderr"
+        ],
+        "properties": {
+          "script": { "type": "string" },
+          "absScript": { "type": "string" },
+          "ok": { "type": "boolean" },
+          "timedOut": { "type": "boolean" },
+          "exitCode": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+          "durationMs": { "type": "number", "minimum": 0 },
+          "parsed": {
+            "type": "object",
+            "required": ["baseline", "current", "delta"],
+            "properties": {
+              "baseline": { "$ref": "#/$defs/benchLine" },
+              "current": { "$ref": "#/$defs/benchLine" },
+              "delta": { "$ref": "#/$defs/benchLine" }
+            },
+            "additionalProperties": false
+          },
+          "json": {},
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "$defs": {
+    "benchLine": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["line", "metrics"],
+          "properties": {
+            "line": { "type": "string" },
+            "metrics": { "type": "object" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

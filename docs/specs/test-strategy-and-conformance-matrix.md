@@ -8,6 +8,9 @@ This document is **normative** for Phase 12 testing. It defines:
 
 It is intended to remove ambiguity and give Codex everything it needs to implement Phase 12 correctly without further research.
 
+Bench harness note:
+- Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.
+
 ---
 
 ## 1. Goals and non-negotiable constraints
