@@ -7,6 +7,7 @@ import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { pruneTreeSitterLanguages, resetTreeSitterParser } from '../../../../lang/tree-sitter.js';
+import { treeSitterState } from '../../../../lang/tree-sitter/state.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
 import { loadStructuralMatches } from '../../../structural.js';
@@ -42,6 +43,24 @@ const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.floor(parsed);
+};
+
+const bumpTreeSitterMetric = (key, amount = 1) => {
+  if (!key) return;
+  const metrics = treeSitterState.metrics;
+  if (!metrics || typeof metrics !== 'object') return;
+  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
+  metrics[key] = current + amount;
+};
+
+const setTreeSitterMetricMax = (key, value) => {
+  if (!key) return;
+  const metrics = treeSitterState.metrics;
+  if (!metrics || typeof metrics !== 'object') return;
+  const current = Number.isFinite(metrics[key]) ? metrics[key] : 0;
+  const next = Number.isFinite(value) ? value : null;
+  if (next == null) return;
+  metrics[key] = Math.max(current, next);
 };
 
 const resolvePostingsQueueConfig = (runtime) => {
@@ -402,6 +421,9 @@ export const processFiles = async ({
               ? entry.orderIndex
               : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
             if (result?.defer) {
+              if (treeSitterOptions?.enabled !== false && treeSitterOptions?.batchByLanguage !== false) {
+                bumpTreeSitterMetric('batchDeferrals', 1);
+              }
               deferredEntries.push({
                 entry,
                 missingLanguages: Array.isArray(result.missingLanguages) ? result.missingLanguages : []
@@ -457,6 +479,11 @@ export const processFiles = async ({
         const entryBatches = buildTreeSitterEntryBatches(pendingEntries);
         const deferred = [];
         for (const batch of entryBatches) {
+          if (treeSitterOptions?.enabled !== false && treeSitterOptions?.batchByLanguage !== false) {
+            bumpTreeSitterMetric('batchCount', 1);
+            bumpTreeSitterMetric('batchFiles', batch.entries.length);
+            setTreeSitterMetricMax('batchMaxFiles', batch.entries.length);
+          }
           if (treeSitterOptions?.languagePasses === false
             && treeSitterOptions?.enabled !== false
             && Array.isArray(batch.languages)

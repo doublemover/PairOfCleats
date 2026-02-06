@@ -1403,20 +1403,20 @@ Parallel: Can run alongside 16.11.1 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/concurrency-abort-runwithqueue.md`
 Touchpoints: `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, buildTreeSitterEntryBatches, preloadTreeSitterBatch, sortEntriesByTreeSitterBatchKey)`, `src/index/build/file-processor/cpu/chunking.js (anchor: chunkSegmentsWithTreeSitterPasses)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunksAsync, ensureChunkCache)`, `src/lang/tree-sitter/worker.js (anchor: getTreeSitterWorkerPool)`
 Tasks:
-- [ ] Task 16.11.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.2.a: Make batch-by-language scheduling explicitly deadlock-safe with ordered output/backpressure (no uncontrolled reordering that can pin queue reservations); document the invariants.
-- [ ] Task 16.11.2.b: Strengthen batch execution: reset/prune/preload strategy per batch, metrics for batch sizes, deferrals, and parser activation churn.
-- [ ] Task 16.11.2.c: Tighten incremental reuse via chunk cache (cache key, option invalidation, max entries) so unchanged files do not re-parse, while bounding memory.
-- [ ] Task 16.11.2.d: Ensure parse tree memory stays bounded (explicit `Tree.delete()`, `Parser.reset()`, worker timeouts/disable logic, per-language budgets) and add telemetry for budget abort reasons.
-- [ ] Task 16.11.2.e: Validate deterministic chunk outputs across scheduling strategies (language passes within file + batch-by-language across files) and ensure final chunk ordering is stable.
+- [x] Task 16.11.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.2.a: Make batch-by-language scheduling explicitly deadlock-safe with ordered output/backpressure (no uncontrolled reordering that can pin queue reservations); document the invariants.
+- [x] Task 16.11.2.b: Strengthen batch execution: reset/prune/preload strategy per batch, metrics for batch sizes, deferrals, and parser activation churn.
+- [x] Task 16.11.2.c: Tighten incremental reuse via chunk cache (cache key, option invalidation, max entries) so unchanged files do not re-parse, while bounding memory.
+- [x] Task 16.11.2.d: Ensure parse tree memory stays bounded (explicit `Tree.delete()`, `Parser.reset()`, worker timeouts/disable logic, per-language budgets) and add telemetry for budget abort reasons.
+- [x] Task 16.11.2.e: Validate deterministic chunk outputs across scheduling strategies (language passes within file + batch-by-language across files) and ensure final chunk ordering is stable.
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js` (perf lane)
 
 ### Subphase 16.11.3 -- Tests + Bench
 Parallel: Run after 16.11.1/16.11.2.

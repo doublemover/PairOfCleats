@@ -198,6 +198,36 @@ function resolveTraversalBudget(options, resolvedId) {
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 
+const buildChunkCacheSignature = (options, resolvedId) => {
+  const config = options?.treeSitter || {};
+  const perLanguage = config.byLanguage?.[resolvedId] || {};
+  const adaptiveRaw = config.adaptive;
+  const adaptive = adaptiveRaw === false || adaptiveRaw?.enabled === false
+    ? false
+    : adaptiveRaw && typeof adaptiveRaw === 'object'
+      ? {
+        denseThreshold: adaptiveRaw.denseThreshold ?? null,
+        denserThreshold: adaptiveRaw.denserThreshold ?? null,
+        denseScale: adaptiveRaw.denseScale ?? null,
+        denserScale: adaptiveRaw.denserScale ?? null
+      }
+      : null;
+
+  // Keep this signature small but output-sensitive: if any of these knobs change,
+  // chunk boundaries/names can change (or tree-sitter may fall back).
+  return {
+    useQueries: config.useQueries ?? null,
+    maxBytes: perLanguage.maxBytes ?? config.maxBytes ?? null,
+    maxLines: perLanguage.maxLines ?? config.maxLines ?? null,
+    maxParseMs: perLanguage.maxParseMs ?? config.maxParseMs ?? null,
+    maxAstNodes: perLanguage.maxAstNodes ?? config.maxAstNodes ?? null,
+    maxAstStack: perLanguage.maxAstStack ?? config.maxAstStack ?? null,
+    maxChunkNodes: perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? null,
+    adaptive,
+    configChunking: config.configChunking === true
+  };
+};
+
 const resolveChunkCacheKey = (options, resolvedId) => {
   if (options?.treeSitter?.chunkCache === false) return null;
   const rawKey = options?.treeSitterCacheKey ?? options?.treeSitter?.cacheKey ?? null;
@@ -208,7 +238,8 @@ const resolveChunkCacheKey = (options, resolvedId) => {
     namespace: 'tree-sitter-chunk',
     payload: {
       languageId: resolvedId,
-      key: base
+      key: base,
+      signature: buildChunkCacheSignature(options, resolvedId)
     }
   }).key;
 };
