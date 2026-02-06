@@ -11,6 +11,10 @@
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
+    "bootstrap": "npm install --ignore-scripts && npm run patch && npm run rebuild:native",
+    "bootstrap:ci": "npm ci --ignore-scripts && npm run patch && npm run rebuild:native",
+    "patch": "patch-package --exclude \"a^\"",
+    "rebuild:native": "npm rebuild tree-sitter tree-sitter-swift",
     "build-index": "node build_index.js",
     "watch-index": "node build_index.js --watch",
     "search": "node search.js",
@@ -48,8 +52,6 @@
     "api-server": "node tools/api/server.js",
     "mcp-server": "node tools/mcp/server.js",
     "indexer-service": "node tools/service/indexer-service.js",
-    "setup": "node tools/setup/setup.js",
-    "bootstrap": "node tools/setup/bootstrap.js",
     "parity:matrix": "node tools/reports/parity-matrix.js",
     "ci-build": "node tools/ci/build-artifacts.js",
     "ci-restore": "node tools/ci/restore-artifacts.js",
@@ -64,7 +66,8 @@
     "get-last-failure": "node tools/ci/get-last-failure.js",
     "shard-census": "node tools/index/shard-census.js",
     "lint": "eslint .",
-    "format": "eslint . --fix"
+    "format": "eslint . --fix",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.40.4",
@@ -139,6 +142,8 @@
     "terminal-kit": "^3.1.2",
     "three": "^0.182.0",
     "tinybench": "^6.0.0",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-swift": "^0.7.1",
     "tree-sitter-wasms": "0.1.13",
     "typescript": "^5.9.3",
     "vscode-jsonrpc": "8.2.1",
@@ -162,6 +167,7 @@
     "@isaacs/brace-expansion": "5.0.1"
   },
   "devDependencies": {
-    "c8": "^9.1.0"
+    "c8": "^9.1.0",
+    "patch-package": "^8.0.1"
   }
 }
