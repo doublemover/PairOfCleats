@@ -6,14 +6,27 @@ const DEFAULT_KILL_GRACE_MS = 5000;
 const quoteWindowsCmdArg = (value) => {
   const text = String(value ?? '');
   if (!text) return '""';
-  if (!/\s|"/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
+  // When using `shell: true` on Windows, cmd.exe metacharacters can change the
+  // meaning of the command line. Quote any arg that contains whitespace, quotes,
+  // or cmd metacharacters.
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  let escaped = text.replaceAll('"', '""');
+  // Avoid swallowing the closing quote when the argument ends with backslashes.
+  // This is a common footgun with Windows command line quoting.
+  let trailing = 0;
+  for (let i = escaped.length - 1; i >= 0 && escaped[i] === '\\'; i -= 1) {
+    trailing += 1;
+  }
+  if (trailing > 0) escaped += '\\'.repeat(trailing);
+  return `"${escaped}"`;
 };
 
 const quotePosixShellArg = (value) => {
   const text = String(value ?? '');
   if (!text) return "''";
-  if (!/[\s'"\\]/u.test(text)) return text;
+  // When using `shell: true`, quote any shell metacharacters so args are passed
+  // literally (e.g. `R&D.txt`, `foo|bar`, redirects, etc).
+  if (!/[\s'"\\&|<>;()$`]/u.test(text)) return text;
   return `'${text.replaceAll("'", "'\\''")}'`;
 };
 
