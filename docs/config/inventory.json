@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-09T23:45:49.190Z",
+  "generatedAt": "2026-02-09T23:50:22.287Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -68,6 +68,10 @@
       "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
       "PAIROFCLEATS_SCHEDULER_MEM",
       "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -2065,26 +2069,30 @@
       "name": "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
       "files": [
         "tests/tooling/script-coverage/group-runner.js",
-        "tests/tooling/script-coverage/script-coverage.runner.js"
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
       "files": [
         "tests/tooling/script-coverage/group-runner.js",
-        "tests/tooling/script-coverage/script-coverage.runner.js"
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
       "files": [
-        "tests/tooling/script-coverage/script-coverage.runner.js"
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
       "files": [
-        "tests/tooling/script-coverage/script-coverage.runner.js"
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2470,12 +2478,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
-    "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
-    "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
-    "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 297,
     "publicFlags": [
