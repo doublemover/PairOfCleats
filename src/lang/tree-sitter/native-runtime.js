@@ -14,8 +14,16 @@ const nativeTreeSitterState = {
 };
 
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
-  javascript: { moduleName: 'tree-sitter-javascript' },
-  jsx: { moduleName: 'tree-sitter-javascript' },
+  javascript: {
+    moduleName: 'tree-sitter-javascript',
+    exportKey: 'javascript',
+    fallbackExportKeys: ['language']
+  },
+  jsx: {
+    moduleName: 'tree-sitter-javascript',
+    exportKey: 'jsx',
+    fallbackExportKeys: ['language']
+  },
   typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
   tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
   python: { moduleName: 'tree-sitter-python' },
@@ -38,6 +46,39 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
 });
 
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
+
+const resolveGrammarLanguageExport = (grammarModule, grammarSpec) => {
+  const preferredKey = typeof grammarSpec?.exportKey === 'string' && grammarSpec.exportKey
+    ? grammarSpec.exportKey
+    : null;
+  if (preferredKey && grammarModule?.[preferredKey]) {
+    return { language: grammarModule[preferredKey], source: preferredKey };
+  }
+
+  const fallbackKeys = Array.isArray(grammarSpec?.fallbackExportKeys)
+    ? grammarSpec.fallbackExportKeys
+    : [];
+  for (const key of fallbackKeys) {
+    if (typeof key !== 'string' || !key) continue;
+    if (grammarModule?.[key]) {
+      return { language: grammarModule[key], source: key };
+    }
+  }
+
+  if (!preferredKey) {
+    return { language: grammarModule, source: null };
+  }
+  return { language: null, source: preferredKey };
+};
+
+const normalizeLanguageBinding = (languageValue, grammarModule) => {
+  if (!languageValue || typeof languageValue !== 'object') return null;
+  if (languageValue.language && languageValue.nodeTypeInfo) return languageValue;
+  if (grammarModule && grammarModule.nodeTypeInfo && languageValue === grammarModule.language) {
+    return grammarModule;
+  }
+  return null;
+};
 
 const loadGrammarModule = (grammarSpec) => {
   if (grammarSpec?.prebuildBinary) {
@@ -99,10 +140,9 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
   const moduleName = grammarSpec.moduleName;
   try {
     const grammarModule = loadGrammarModule(grammarSpec);
-    const language = grammarSpec.exportKey
-      ? grammarModule?.[grammarSpec.exportKey] || null
-      : grammarModule;
-    if (!language) throw new Error(`Missing export "${grammarSpec.exportKey}" in ${moduleName}`);
+    const resolved = resolveGrammarLanguageExport(grammarModule, grammarSpec);
+    const language = normalizeLanguageBinding(resolved.language, grammarModule);
+    if (!language) throw new Error(`Missing export "${resolved.source || 'module'}" in ${moduleName}`);
     const entry = { language, error: null };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
     return entry;
