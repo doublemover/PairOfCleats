@@ -8,6 +8,7 @@ import {
 } from './ast.js';
 import { LANG_CONFIG } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
+import { getNativeTreeSitterParser, hasNativeTreeSitterGrammar } from './native-runtime.js';
 import { getTreeSitterParser, preloadTreeSitterLanguages } from './runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
@@ -695,7 +696,10 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
-  const parser = getTreeSitterParser(resolvedId, options);
+  const useNativeParser = process.platform === 'win32' && hasNativeTreeSitterGrammar(resolvedId);
+  const parser = useNativeParser
+    ? getNativeTreeSitterParser(resolvedId, options)
+    : getTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (shouldDeferMissing) {
       options.treeSitterMissingLanguages.add(resolvedId);
@@ -805,10 +809,12 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
 
     let queryResult = null;
-    try {
-      queryResult = gatherChunksWithQuery(rootNode, text, config, traversalBudget, resolvedId, options);
-    } catch {
-      queryResult = null;
+    if (!useNativeParser) {
+      try {
+        queryResult = gatherChunksWithQuery(rootNode, text, config, traversalBudget, resolvedId, options);
+      } catch {
+        queryResult = null;
+      }
     }
 
     if (queryResult?.usedQuery) {
