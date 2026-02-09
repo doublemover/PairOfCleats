@@ -51,7 +51,7 @@ Adopt a native-only scheduling model:
 | N3 Executor Native-Only Batching | completed | Scheduler executor now runs native-only parse activation/chunking |
 | N4 Stage1 Contract Tightening | completed | Stage1 enforces scheduler contract and logs artifact violations |
 | N5 Native Coverage + Regression Tests | completed | Native scheduler tests added and passing as of 2026-02-09T18:53:21.1939237Z |
-| N6 WASM Removal + Docs Archive | planned | Delete WASM indexing paths and specs |
+| N6 WASM Removal + Docs Archive | completed | Native-only runtime/docs cutover completed as of 2026-02-09T19:00:36.4243426Z |
 
 ## Phase N0 - Baseline + Decisions
 Objective: lock architecture so implementation proceeds without mixed-runtime ambiguity.
@@ -158,10 +158,19 @@ Touchpoints:
 - `docs/archived/*`
 
 Tasks:
-- [ ] Remove WASM runtime usage from indexing path (init/load/preload/prune/reset integration points).
-- [ ] Remove scheduler references to WASM keys/files.
-- [ ] Update specs/docs to native-only architecture.
-- [ ] Archive superseded WASM scheduler guidance with deprecation headers (replacement + reason + date/commit).
+- [x] Remove WASM runtime usage from indexing path (init/load/preload/prune/reset integration points).
+- [x] Remove scheduler references to WASM keys/files.
+- [x] Update specs/docs to native-only architecture.
+- [x] Archive superseded WASM scheduler guidance with deprecation headers (replacement + reason + date/commit).
+
+Validation (2026-02-09T19:00:36.4243426Z):
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-smoke.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-plan-contract.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-determinism.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-stage1-contract.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-chunks.test.js` (pass)
+- `node tests/run.js --lane all --match tree-sitter-scheduler` (pass)
 
 ## Validation Commands (to run as phases land)
 - `node tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`

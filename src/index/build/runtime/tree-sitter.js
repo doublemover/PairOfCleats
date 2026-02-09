@@ -1,4 +1,3 @@
-import { preloadTreeSitterLanguages } from '../../../lang/tree-sitter.js';
 import {
   normalizeLimit,
   normalizeOptionalLimit,
@@ -64,15 +63,14 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
       : normalizedDeferMissingMax)
     : DEFAULT_DEFER_MISSING_MAX;
 
-  // IMPORTANT: Tree-sitter WASM grammar loading can consume non-trivial memory.
-  // Default to *on-demand* loading rather than preloading every enabled grammar.
+  // Native tree-sitter grammar activation happens on demand in the scheduler.
+  // Keep preload config parsing for compatibility, but no eager preload is used.
   const treeSitterPreload = normalizePreloadMode(treeSitterConfig.preload);
   const treeSitterPreloadConcurrency = normalizeOptionalLimit(
     treeSitterConfig.preloadConcurrency
   );
 
-  // Optional cap for the number of loaded WASM grammars retained in memory.
-  // When null, the tree-sitter runtime will use its conservative internal defaults.
+  // Optional compatibility knob; native scheduling does not evict grammars.
   const hasMaxLoadedLanguages = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'maxLoadedLanguages');
   const defaultMaxLoadedLanguages = treeSitterLanguagePasses
     ? DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES
@@ -105,23 +103,14 @@ export const preloadTreeSitterRuntimeLanguages = async ({
   treeSitterEnabled,
   treeSitterLanguages: _treeSitterLanguages,
   treeSitterPreload,
-  treeSitterPreloadConcurrency,
-  treeSitterMaxLoadedLanguages,
-  observedLanguages = null,
+  treeSitterPreloadConcurrency: _treeSitterPreloadConcurrency,
+  treeSitterMaxLoadedLanguages: _treeSitterMaxLoadedLanguages,
+  observedLanguages: _observedLanguages = null,
   log
 }) => {
   if (!treeSitterEnabled) return 0;
-  if (treeSitterPreload === 'none') return 0;
-
-  const observed = Array.isArray(observedLanguages) ? observedLanguages.filter(Boolean) : null;
-  if (!observed || !observed.length) return 0;
-  const enabledTreeSitterLanguages = observed;
-
-  await preloadTreeSitterLanguages(enabledTreeSitterLanguages, {
-    log,
-    parallel: treeSitterPreload === 'parallel',
-    concurrency: treeSitterPreloadConcurrency,
-    maxLoadedLanguages: treeSitterMaxLoadedLanguages
-  });
-  return enabledTreeSitterLanguages.length;
+  if (treeSitterPreload !== 'none' && log) {
+    log('[tree-sitter] Native scheduler mode ignores eager preload settings.');
+  }
+  return 0;
 };

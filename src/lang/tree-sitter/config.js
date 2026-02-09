@@ -1,30 +1,34 @@
 import { findDescendantByType } from './ast.js';
 
-const LANGUAGE_WASM_FILES = {
-  javascript: 'tree-sitter-javascript.wasm',
-  typescript: 'tree-sitter-typescript.wasm',
-  tsx: 'tree-sitter-tsx.wasm',
-  jsx: 'tree-sitter-javascript.wasm',
-  python: 'tree-sitter-python.wasm',
-  json: 'tree-sitter-json.wasm',
-  yaml: 'tree-sitter-yaml.wasm',
-  toml: 'tree-sitter-toml.wasm',
-  markdown: 'tree-sitter-markdown.wasm',
-  swift: 'tree-sitter-swift.wasm',
-  kotlin: 'tree-sitter-kotlin.wasm',
-  csharp: 'tree-sitter-c_sharp.wasm',
-  clike: 'tree-sitter-c.wasm',
-  cpp: 'tree-sitter-cpp.wasm',
-  objc: 'tree-sitter-objc.wasm',
-  go: 'tree-sitter-go.wasm',
-  rust: 'tree-sitter-rust.wasm',
-  java: 'tree-sitter-java.wasm',
-  css: 'tree-sitter-css.wasm',
-  html: 'tree-sitter-html.wasm'
+const LANGUAGE_GRAMMAR_KEYS = {
+  javascript: 'native:javascript',
+  typescript: 'native:typescript',
+  tsx: 'native:tsx',
+  jsx: 'native:javascript',
+  python: 'native:python',
+  json: 'native:json',
+  yaml: 'native:yaml',
+  toml: 'native:toml',
+  markdown: 'native:markdown',
+  swift: 'native:swift',
+  kotlin: 'native:kotlin',
+  csharp: 'native:csharp',
+  clike: 'native:clike',
+  cpp: 'native:cpp',
+  objc: 'native:objc',
+  go: 'native:go',
+  rust: 'native:rust',
+  java: 'native:java',
+  css: 'native:css',
+  html: 'native:html'
 };
 
+// Deprecated compatibility alias retained for callers that still import this
+// symbol name directly.
+const LANGUAGE_WASM_FILES = LANGUAGE_GRAMMAR_KEYS;
+
 export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
-  Object.keys(LANGUAGE_WASM_FILES)
+  Object.keys(LANGUAGE_GRAMMAR_KEYS)
 );
 
 const JS_TS_CONFIG = {
@@ -418,4 +422,4 @@ const LANG_CONFIG = {
   }
 };
 
-export { LANGUAGE_WASM_FILES, LANG_CONFIG };
+export { LANGUAGE_GRAMMAR_KEYS, LANGUAGE_WASM_FILES, LANG_CONFIG };

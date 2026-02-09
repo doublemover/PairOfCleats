@@ -8,8 +8,7 @@ import {
 } from './ast.js';
 import { LANG_CONFIG } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getNativeTreeSitterParser, hasNativeTreeSitterGrammar } from './native-runtime.js';
-import { getTreeSitterParser, preloadTreeSitterLanguages } from './runtime.js';
+import { getNativeTreeSitterParser } from './native-runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
@@ -696,11 +695,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
-  const nativeOnly = options?.treeSitter?.nativeOnly === true;
-  const useNativeParser = nativeOnly || hasNativeTreeSitterGrammar(resolvedId);
-  const parser = useNativeParser
-    ? getNativeTreeSitterParser(resolvedId, options)
-    : getTreeSitterParser(resolvedId, options);
+  const parser = getNativeTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (shouldDeferMissing) {
       options.treeSitterMissingLanguages.add(resolvedId);
@@ -810,12 +805,10 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
 
     let queryResult = null;
-    if (!useNativeParser) {
-      try {
-        queryResult = gatherChunksWithQuery(rootNode, text, config, traversalBudget, resolvedId, options);
-      } catch {
-        queryResult = null;
-      }
+    try {
+      queryResult = gatherChunksWithQuery(rootNode, text, config, traversalBudget, resolvedId, options);
+    } catch {
+      queryResult = null;
     }
 
     if (queryResult?.usedQuery) {
@@ -909,7 +902,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     recordMetrics();
     return traversalResult.chunks;
   } finally {
-    // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
+    // Tree objects can retain sizable parser-side allocations and should be
+    // explicitly released after chunk extraction.
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();
     } catch {
@@ -950,14 +944,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // If the runtime or grammar load fails, fall back to heuristic chunking.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
 
@@ -989,14 +975,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
     bumpMetric('workerFallbacks', 1);
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
@@ -1004,14 +982,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       treeSitterState.loggedWorkerFailures.add('run');
     }
     bumpMetric('workerFallbacks', 1);
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } finally {
     if (shouldRecordMetrics) {

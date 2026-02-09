@@ -1,3 +1,9 @@
+# DEPRECATED
+- Canonical replacement: `docs/specs/tree-sitter-native-scheduler.md`
+- Reason: superseded by native-only tree-sitter scheduler/runtime; WASM lifecycle behavior was removed from indexing paths.
+- Archived on: `2026-02-09T18:53:21.1939237Z`
+- PR/commit: `WOOD_SITTER N6 native-only tree-sitter cutover (local commit)`
+
 # Spec: Tree-sitter Runtime and Caching (Phase 16.11)
 
 Status: Draft (Milestone A). Performance + determinism contract for the tree-sitter runtime.
@@ -125,4 +131,3 @@ Key coverage:
 - Query cache reuse.
 - Worker prune bounds.
 - Batch-by-language determinism and fallback behavior.
-

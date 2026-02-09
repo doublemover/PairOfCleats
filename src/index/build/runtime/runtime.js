@@ -735,7 +735,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     if (preloadCount > 0) {
       logInit('tree-sitter preload', preloadStart);
     } else if (treeSitterPreload !== 'none') {
-      log('Tree-sitter preload deferred until discovery.');
+      log('Tree-sitter preload settings are ignored in native scheduler mode.');
     }
   }
   if (typeInferenceEnabled) {

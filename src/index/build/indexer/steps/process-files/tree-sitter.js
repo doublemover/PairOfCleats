@@ -2,10 +2,7 @@ import { compareStrings } from '../../../../../shared/sort.js';
 import { fileExt } from '../../../../../shared/files.js';
 import { log } from '../../../../../shared/progress.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
-import {
-  preloadTreeSitterLanguages,
-  TREE_SITTER_LANGUAGE_IDS
-} from '../../../../../lang/tree-sitter.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../../../../lang/tree-sitter.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const TREE_SITTER_EXT_MAP = new Map([
@@ -229,13 +226,7 @@ export const resolveTreeSitterPreloadPlan = (entries, treeSitterOptions = null) 
 export const preloadTreeSitterBatch = async ({ languages, treeSitter, log: logFn }) => {
   if (!treeSitter || treeSitter.enabled === false) return;
   if (!Array.isArray(languages) || !languages.length) return;
-  try {
-    await preloadTreeSitterLanguages(languages, {
-      log: logFn,
-      parallel: false,
-      maxLoadedLanguages: treeSitter.maxLoadedLanguages
-    });
-  } catch {
-    // Best-effort preload; parsing will fall back if a grammar fails to load.
+  if (logFn) {
+    logFn('[tree-sitter] Native scheduler mode ignores batch preload requests.');
   }
 };
