@@ -36,10 +36,26 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   go: { moduleName: 'tree-sitter-go' },
   rust: { moduleName: 'tree-sitter-rust' },
   java: { moduleName: 'tree-sitter-java' },
+  css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
+
+const loadGrammarModule = (grammarSpec) => {
+  if (grammarSpec?.prebuildBinary) {
+    const prebuildId = `${process.platform}-${process.arch}`;
+    const bindingPath = `${grammarSpec.moduleName}/prebuilds/${prebuildId}/${grammarSpec.prebuildBinary}`;
+    const binding = require(bindingPath);
+    try {
+      binding.nodeTypeInfo = require(`${grammarSpec.moduleName}/src/node-types.json`);
+    } catch {
+      // ignore missing node-types metadata
+    }
+    return binding;
+  }
+  return require(grammarSpec.moduleName);
+};
 
 export function hasNativeTreeSitterGrammar(languageId) {
   return Boolean(resolveGrammarModule(languageId));
@@ -73,7 +89,7 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
   }
   const moduleName = grammarSpec.moduleName;
   try {
-    const grammarModule = require(moduleName);
+    const grammarModule = loadGrammarModule(grammarSpec);
     const language = grammarSpec.exportKey
       ? grammarModule?.[grammarSpec.exportKey] || null
       : grammarModule;
