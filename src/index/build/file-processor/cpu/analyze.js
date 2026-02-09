@@ -19,7 +19,7 @@ export const buildLanguageAnalysisContext = async ({
     && treeSitterEnabled
     && primaryLanguageId
     && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
-    // Native scheduler mode keeps parser activation within chunking/execution paths.
+    // Parser activation is handled within chunking/execution paths.
   }
   return buildLanguageContext({
     ext,

@@ -231,10 +231,10 @@ export const buildTreeSitterSchedulerPlan = async ({
       const target = resolveNativeTreeSitterTarget(languageId, segmentExt);
       if (!target) {
         if (strict) {
-          throw new Error(`[tree-sitter:schedule] missing native grammar target for ${languageId} (${relKey}).`);
+          throw new Error(`[tree-sitter:schedule] missing grammar target for ${languageId} (${relKey}).`);
         }
         if (log) {
-          log(`[tree-sitter:schedule] skip ${languageId} segment: native grammar target unavailable (${relKey})`);
+          log(`[tree-sitter:schedule] skip ${languageId} segment: grammar target unavailable (${relKey})`);
         }
         continue;
       }
@@ -279,7 +279,7 @@ export const buildTreeSitterSchedulerPlan = async ({
         preflight.missing?.length ? `missing=${preflight.missing.join(',')}` : null,
         preflight.unavailable?.length ? `unavailable=${preflight.unavailable.join(',')}` : null
       ].filter(Boolean).join(' ');
-      throw new Error(`[tree-sitter:schedule] native grammar preflight failed ${details}`.trim());
+      throw new Error(`[tree-sitter:schedule] grammar preflight failed ${details}`.trim());
     }
     if (blocked.length) {
       const blockedSet = new Set(blocked);
@@ -289,7 +289,7 @@ export const buildTreeSitterSchedulerPlan = async ({
         if (!group.jobs.length) groups.delete(grammarKey);
       }
       if (log) {
-        log(`[tree-sitter:schedule] native preflight unavailable; skipping languages: ${blocked.join(', ')}`);
+        log(`[tree-sitter:schedule] grammar preflight unavailable; skipping languages: ${blocked.join(', ')}`);
       }
     }
   }

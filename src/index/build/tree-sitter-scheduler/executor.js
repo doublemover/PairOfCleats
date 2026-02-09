@@ -99,7 +99,7 @@ export const executeTreeSitterSchedulerPlan = async ({
       const parser = getNativeTreeSitterParser(activationLanguageId, treeSitterOptions);
       if (!parser) {
         throw new Error(
-          `[tree-sitter:schedule] native parser activation failed for ${activationLanguageId} (${grammarKey}).`
+          `[tree-sitter:schedule] parser activation failed for ${activationLanguageId} (${grammarKey}).`
         );
       }
     }

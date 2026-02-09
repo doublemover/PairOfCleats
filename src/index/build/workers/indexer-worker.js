@@ -34,7 +34,7 @@ const codeDictLanguages = workerData?.codeDictLanguages == null
 const tokenContext = createTokenizationContext({
   dictWords,
   dictConfig,
-  // Tree-sitter classification runs on the main thread so WASM caches are not
+  // Tree-sitter classification runs on the main thread so parser caches are not
   // multiplied by worker threads. Workers still tokenize for throughput.
   postingsConfig: {
     ...postingsConfig,

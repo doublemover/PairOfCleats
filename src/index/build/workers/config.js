@@ -79,7 +79,7 @@ export const resolveWorkerResourceLimits = (maxWorkers) => {
   if (!Number.isFinite(budgetMb) || budgetMb <= 0) return null;
 
   // Avoid fully consuming physical memory; leave headroom for the main process
-  // and native allocations (SQLite, WASM, model runtimes, etc.).
+  // and native allocations (SQLite, parser runtimes, model runtimes, etc.).
   if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
     const hardCap = Math.max(1024, Math.floor(totalMemMb * 0.9));
     budgetMb = Math.min(budgetMb, hardCap);
