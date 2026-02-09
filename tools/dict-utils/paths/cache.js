@@ -192,8 +192,7 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;
   if (sqliteVector.dir) return sqliteVector.dir;
-  // Extensions are shared assets and should not live under the versioned cache root
-  // (ex: `<cache>/ck1`) so that cache schema bumps don't strand or delete them.
+  // Extensions are shared assets and should not live under repo-scoped cache data.
   const cacheRoot = isTestingEnv()
     ? getDefaultCacheRoot()
     : (envConfig.cacheRoot || envConfig.homeRoot || getDefaultCacheRoot());

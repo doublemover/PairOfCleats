@@ -29,6 +29,10 @@ const findBinaryInDirs = (name, dirs) => {
 };
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const asFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const canRunPyright = (cmd) => {
   if (!cmd) return false;
@@ -111,6 +115,16 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
+    const pyrightConfig = ctx?.toolingConfig?.pyright || {};
+    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
+    const providerTimeoutMs = asFiniteNumber(pyrightConfig.timeoutMs);
+    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
+    const retries = Number.isFinite(Number(pyrightConfig.maxRetries))
+      ? Math.max(0, Math.floor(Number(pyrightConfig.maxRetries)))
+      : (ctx?.toolingConfig?.maxRetries ?? 2);
+    const breakerThreshold = Number.isFinite(Number(pyrightConfig.circuitBreakerThreshold))
+      ? Math.max(1, Math.floor(Number(pyrightConfig.circuitBreakerThreshold)))
+      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 5);
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
       documents: docs,
@@ -118,9 +132,9 @@ export const createPyrightProvider = () => ({
       log,
       cmd: resolvedCmd,
       args: ['--stdio'],
-      timeoutMs: ctx?.toolingConfig?.timeoutMs || 15000,
-      retries: ctx?.toolingConfig?.maxRetries ?? 2,
-      breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
+      timeoutMs,
+      retries,
+      breakerThreshold,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

@@ -5,7 +5,11 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
-export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
+const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
+const CLANGD_OBJC_EXTS = ['.m', '.mm'];
+export const CLIKE_EXTS = process.platform === 'darwin'
+  ? [...CLANGD_BASE_EXTS, ...CLANGD_OBJC_EXTS]
+  : CLANGD_BASE_EXTS;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 

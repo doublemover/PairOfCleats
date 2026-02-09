@@ -86,5 +86,21 @@ export const runEmbeddingsTool = async (args, options = {}) => {
   if (result.signal || result.exitCode === EMBEDDINGS_CANCEL_CODE) {
     return { cancelled: true, code: result.exitCode ?? null, signal: result.signal || null };
   }
-  throw new Error(`build-embeddings exited with code ${result.exitCode ?? 'unknown'}`);
+  const pickText = (value) => {
+    if (Array.isArray(value)) return value.join('\n');
+    if (typeof value === 'string') return value;
+    return '';
+  };
+  const stderrText = pickText(result.stderr).trim();
+  const stdoutText = pickText(result.stdout).trim();
+  const details = stderrText || stdoutText;
+  const detailTail = details
+    ? details.slice(-4000)
+    : '';
+  const errorMessage = detailTail
+    ? `build-embeddings exited with code ${result.exitCode ?? 'unknown'}\n${detailTail}`
+    : `build-embeddings exited with code ${result.exitCode ?? 'unknown'}`;
+  const error = new Error(errorMessage);
+  error.result = result;
+  throw error;
 };

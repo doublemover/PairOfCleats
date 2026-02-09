@@ -31,6 +31,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   let currentFile = null;
   try {
     await fs.mkdir(logsDir, { recursive: true });
+    await fs.appendFile(logPath, '');
   } catch {}
 
   const writeState = async (state) => {
@@ -62,8 +63,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   };
 
   if (log) {
-    const relativePath = path.relative(repoCacheRoot, logPath) || logPath;
-    log(`Crash logging enabled: ${relativePath}`);
+    log(`Crash logging enabled: ${logPath}`);
   }
 
   return {

@@ -184,21 +184,37 @@ export async function runBuildEmbeddingsWithConfig(config) {
     useStubEmbeddings ? 'stub' : null
   ].filter(Boolean);
 
-  const embedder = createEmbedder({
-    rootDir: root,
-    useStubEmbeddings,
-    modelId,
-    dims: argv.dims,
-    modelsDir,
-    provider: embeddingProvider,
-    onnx: embeddingOnnx,
-    normalize: embeddingNormalize
-  });
-  const getChunkEmbeddings = embedder.getChunkEmbeddings;
-
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: true,
+    log
+  });
+  crashLogger.updatePhase('stage3:init');
+  let embedder;
+  try {
+    embedder = createEmbedder({
+      rootDir: root,
+      useStubEmbeddings,
+      modelId,
+      dims: argv.dims,
+      modelsDir,
+      provider: embeddingProvider,
+      onnx: embeddingOnnx,
+      normalize: embeddingNormalize
+    });
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3:init',
+      stage: 'embedder',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
+  }
+  const getChunkEmbeddings = embedder.getChunkEmbeddings;
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const { scheduler, scheduleCompute, scheduleIo } = createEmbeddingsScheduler({
     argv,
@@ -206,13 +222,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
     userConfig,
     envConfig,
     indexingConfig
-  });
-  const crashLoggingEnabled = isTestingEnv()
-    || envConfig.debugCrash === true;
-  const crashLogger = await createCrashLogger({
-    repoCacheRoot,
-    enabled: crashLoggingEnabled,
-    log: null
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
@@ -1338,6 +1347,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
       await markBuildPhase(indexRoot, 'stage3', 'done');
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3',
+      stage: 'embeddings',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
   } finally {
     scheduler?.shutdown?.();
     finalize();
