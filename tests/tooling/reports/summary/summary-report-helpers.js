@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
+import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
+import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 
 const ROOT = process.cwd();
 const TEMP_ROOT = path.join(ROOT, '.testCache', 'summary-report');
@@ -13,6 +15,7 @@ const REPO_ROOT = path.join(TEMP_ROOT, 'repo');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
 const MARKER_PATH = path.join(TEMP_ROOT, 'build-complete.json');
 const LOCK_PATH = path.join(ROOT, '.testCache', 'summary-report.lock');
+const REPO_ID = getRepoId(REPO_ROOT);
 
 const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 
@@ -30,6 +33,52 @@ const modelSlug = (value) => {
   const safe = value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
   const hash = crypto.createHash('sha1').update(value).digest('hex').slice(0, 8);
   return `${safe || 'model'}-${hash}`;
+};
+
+const hasIndexModeArtifacts = (buildRoot, mode) => {
+  const modeRoot = path.join(buildRoot, `index-${mode}`);
+  if (!fs.existsSync(modeRoot)) return false;
+  const chunkMetaCandidates = [
+    path.join(modeRoot, 'chunk_meta.json'),
+    path.join(modeRoot, 'chunk_meta.jsonl'),
+    path.join(modeRoot, 'chunk_meta.meta.json'),
+    path.join(modeRoot, 'pieces', 'manifest.json')
+  ];
+  return chunkMetaCandidates.some((candidate) => fs.existsSync(candidate));
+};
+
+const resolveBuildRoot = (cacheRoot) => {
+  const repoCacheRoot = path.join(resolveVersionedCacheRoot(cacheRoot), 'repos', REPO_ID);
+  const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
+  if (!fs.existsSync(currentPath)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+    const candidate = typeof data.buildRoot === 'string'
+      ? path.resolve(repoCacheRoot, data.buildRoot)
+      : (typeof data.buildId === 'string' ? path.join(repoCacheRoot, 'builds', data.buildId) : null);
+    if (!candidate || !fs.existsSync(candidate)) return null;
+    return candidate;
+  } catch {
+    return null;
+  }
+};
+
+const hasBuildArtifacts = (cacheRoot) => {
+  const buildRoot = resolveBuildRoot(cacheRoot);
+  if (!buildRoot) return false;
+  if (!hasIndexModeArtifacts(buildRoot, 'code')) return false;
+  if (!hasIndexModeArtifacts(buildRoot, 'prose')) return false;
+  const sqliteRoot = path.join(buildRoot, 'index-sqlite');
+  const sqliteCandidates = [
+    path.join(sqliteRoot, 'index.sqlite'),
+    path.join(sqliteRoot, 'index.vec.sqlite')
+  ];
+  return sqliteCandidates.some((candidate) => fs.existsSync(candidate));
+};
+
+const hasFixtureArtifacts = (modelId) => {
+  const modelCacheRoot = path.join(CACHE_ROOT, 'model-compare', modelSlug(modelId));
+  return hasBuildArtifacts(CACHE_ROOT) && hasBuildArtifacts(modelCacheRoot);
 };
 
 const baseEnv = {
@@ -51,11 +100,11 @@ const runBuild = (label, envOverrides, args) => {
   }
 };
 
-const waitForBuild = async () => {
+const waitForBuild = async ({ modelId }) => {
   const timeoutMs = 180000;
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (fs.existsSync(MARKER_PATH)) return;
+    if (isMarkerValid() && hasFixtureArtifacts(modelId)) return;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   console.error('summary report fixture failed: build did not finish in time.');
@@ -64,7 +113,7 @@ const waitForBuild = async () => {
 
 export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } = {}) => {
   await fsPromises.mkdir(path.dirname(TEMP_ROOT), { recursive: true });
-  if (isMarkerValid()) {
+  if (isMarkerValid() && hasFixtureArtifacts(modelId)) {
     return {
       tempRoot: TEMP_ROOT,
       cacheRoot: CACHE_ROOT,
@@ -81,7 +130,7 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
   }
 
   if (!lockHandle) {
-    await waitForBuild();
+    await waitForBuild({ modelId });
     return {
       tempRoot: TEMP_ROOT,
       cacheRoot: CACHE_ROOT,

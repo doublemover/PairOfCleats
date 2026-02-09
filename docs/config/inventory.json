@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-09T19:27:25.562Z",
+  "generatedAt": "2026-02-09T23:14:58.131Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1721,7 +1721,7 @@
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
@@ -1856,7 +1856,7 @@
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js",
@@ -2080,6 +2080,32 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
+      "files": [
+        "tests/tooling/script-coverage/group-runner.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
+      "files": [
+        "tests/tooling/script-coverage/group-runner.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
+      "files": [
+        "tests/tooling/script-coverage/script-coverage.runner.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "files": [
+        "tests/tooling/script-coverage/script-coverage.runner.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
         "tests/runner/all.js",
@@ -2187,8 +2213,10 @@
       "files": [
         "tests/helpers/triage.js",
         "tests/run.js",
+        "tests/runner/all.js",
         "tests/tooling/script-coverage/runner.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2242,7 +2270,8 @@
       "name": "PAIROFCLEATS_TEST_RETRIES",
       "files": [
         "tests/run.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/runner/all.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2374,7 +2403,6 @@
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
         "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js"
@@ -2465,9 +2493,14 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
+    "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
+    "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
+    "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX"
+  ],
   "cliFlags": {
-    "totalFlags": 293,
+    "totalFlags": 297,
     "publicFlags": [
       "backend",
       "host",
@@ -2568,6 +2601,7 @@
       "global",
       "graphFixture",
       "graphs",
+      "groups",
       "hashes",
       "hops",
       "in",
@@ -2596,6 +2630,7 @@
       "lang",
       "languages",
       "limit",
+      "list-groups",
       "list-packs",
       "load",
       "lod-edge-high",
@@ -2711,6 +2746,8 @@
       "segmentBytes",
       "segments",
       "sha256",
+      "shard-count",
+      "shard-index",
       "sink-rule",
       "size",
       "skip-artifacts",
@@ -3152,10 +3189,15 @@
         ]
       },
       {
-        "file": "tests/tooling/script-coverage/script-coverage.test.js",
+        "file": "tests/tooling/script-coverage/script-coverage.runner.js",
         "flags": [
+          "cache-root",
+          "groups",
+          "list-groups",
           "log-dir",
-          "retries"
+          "retries",
+          "shard-count",
+          "shard-index"
         ]
       },
       {
@@ -4887,6 +4929,15 @@
         ]
       },
       {
+        "flag": "cache-root",
+        "count": 3,
+        "files": [
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/cache/clear-cache.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
         "flag": "config",
         "count": 3,
         "files": [
@@ -5004,14 +5055,6 @@
         "files": [
           "tools/download/models.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "cache-root",
-        "count": 2,
-        "files": [
-          "tools/cache/clear-cache.js",
-          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -5195,7 +5238,7 @@
         "count": 2,
         "files": [
           "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.test.js"
+          "tests/tooling/script-coverage/script-coverage.runner.js"
         ]
       },
       {
@@ -5307,7 +5350,7 @@
         "count": 2,
         "files": [
           "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.test.js"
+          "tests/tooling/script-coverage/script-coverage.runner.js"
         ]
       },
       {

@@ -58,7 +58,16 @@ indexing/incremental/incremental-tokenization-cache
 tooling/triage/context-pack
 indexing/imports/prose-skip-imports
 retrieval/parity/parity
-tooling/script-coverage/script-coverage
+tooling/script-coverage/script-coverage-core
+tooling/script-coverage/script-coverage-storage
+tooling/script-coverage/script-coverage-indexing
+tooling/script-coverage/script-coverage-language
+tooling/script-coverage/script-coverage-benchmarks
+tooling/script-coverage/script-coverage-search
+tooling/script-coverage/script-coverage-embeddings
+tooling/script-coverage/script-coverage-services
+tooling/script-coverage/script-coverage-fixtures
+tooling/script-coverage/script-coverage-tools
 indexing/map/code-map-determinism
 indexing/chunk-id/chunk-id-backend-parity
 retrieval/filters/file-and-token/punctuation-tokenization

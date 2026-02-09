@@ -4,6 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
@@ -30,6 +31,7 @@ const argv = createCli({
 }).parse();
 
 const root = process.cwd();
+const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
@@ -93,7 +95,7 @@ async function ensureParityIndexes() {
 
   const runBuildStage = (stage) => spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
+    [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
     { env, cwd: root, stdio: 'inherit' }
   );
   const annWanted = argv.ann !== false;

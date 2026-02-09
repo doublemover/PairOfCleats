@@ -6,9 +6,11 @@ const TIER_B_DEFAULT = [
 
 const createCoverageEntry = () => ({ status: 'pending', via: null, reason: null });
 
-export const createCoverageState = ({ scriptNames }) => {
+export const createCoverageState = ({ scriptNames, enforceTierB = true }) => {
   const coverage = new Map(scriptNames.map((name) => [name, createCoverageEntry()]));
-  const tierBRequired = new Set(TIER_B_DEFAULT.filter((name) => coverage.has(name)));
+  const tierBRequired = enforceTierB
+    ? new Set(TIER_B_DEFAULT.filter((name) => coverage.has(name)))
+    : new Set();
   const tierBCoverage = new Map(
     Array.from(tierBRequired, (name) => [name, createCoverageEntry()])
   );
@@ -31,6 +33,7 @@ export const createCoverageState = ({ scriptNames }) => {
   };
 
   const markTierBCovered = (name, via) => {
+    if (!enforceTierB) return;
     if (!tierBCoverage.has(name)) {
       unknownCovers.add(name);
       return;
