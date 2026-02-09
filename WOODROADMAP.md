@@ -48,7 +48,7 @@ Adopt a native-only scheduling model:
 | N0 Baseline + Decisions | completed | Decisions locked at 2026-02-09T18:31:41.0670000Z |
 | N1 Schema + Naming Migration | completed | `grammarKey` migration landed in scheduler plan/runner/executor/lookup |
 | N2 Planner Native-Only Routing | completed | Planner now resolves native targets + native preflight gating |
-| N3 Executor Native-Only Batching | planned | Remove WASM lifecycle calls |
+| N3 Executor Native-Only Batching | completed | Scheduler executor now runs native-only parse activation/chunking |
 | N4 Stage1 Contract Tightening | planned | Scheduler-only tree-sitter in indexing |
 | N5 Native Coverage + Regression Tests | planned | All 17 languages through scheduler |
 | N6 WASM Removal + Docs Archive | planned | Delete WASM indexing paths and specs |
@@ -105,10 +105,10 @@ Touchpoints:
 - `src/index/build/tree-sitter-scheduler/runner.js`
 
 Tasks:
-- [ ] Remove `preloadTreeSitterLanguages` and `pruneTreeSitterLanguages` usage from scheduler executor.
-- [ ] Activate parser via native runtime only.
-- [ ] Preserve subprocess isolation and memory diagnostics.
-- [ ] Keep strict failure behavior for missing/empty scheduler output.
+- [x] Remove `preloadTreeSitterLanguages` and `pruneTreeSitterLanguages` usage from scheduler executor.
+- [x] Activate parser via native runtime only.
+- [x] Preserve subprocess isolation and memory diagnostics.
+- [x] Keep strict failure behavior for missing/empty scheduler output.
 
 ## Phase N4 - Stage1 Contract Tightening
 Objective: ensure indexing tree-sitter path is scheduler-only and native-only.

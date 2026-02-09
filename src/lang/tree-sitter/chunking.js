@@ -696,7 +696,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
-  const useNativeParser = process.platform === 'win32' && hasNativeTreeSitterGrammar(resolvedId);
+  const nativeOnly = options?.treeSitter?.nativeOnly === true;
+  const useNativeParser = nativeOnly || hasNativeTreeSitterGrammar(resolvedId);
   const parser = useNativeParser
     ? getNativeTreeSitterParser(resolvedId, options)
     : getTreeSitterParser(resolvedId, options);

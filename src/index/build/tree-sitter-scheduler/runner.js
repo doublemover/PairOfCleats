@@ -46,8 +46,8 @@ export const runTreeSitterScheduler = async ({
   });
   if (!planResult) return null;
 
-  // Execute the plan in a separate Node process. Tree-sitter WASM compilation
-  // can trigger V8 "Zone" OOMs when it runs in the main indexer process.
+  // Execute the plan in a separate Node process to isolate native parser memory
+  // churn from the main indexer process.
   const runtimeEnv = runtime?.envelope
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
