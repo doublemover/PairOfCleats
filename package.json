@@ -155,6 +155,7 @@
     "tree-sitter-kotlin": "0.3.8",
     "tree-sitter-objc": "3.0.2",
     "tree-sitter-python": "0.25.0",
+    "tree-sitter-rust": "0.24.0",
     "tree-sitter-swift": "^0.7.1",
     "tree-sitter-typescript": "0.23.2",
     "tree-sitter-wasms": "0.1.13",
