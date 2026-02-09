@@ -29,6 +29,8 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   markdown: { moduleName: '@tree-sitter-grammars/tree-sitter-markdown' },
   kotlin: { moduleName: 'tree-sitter-kotlin' },
   csharp: { moduleName: 'tree-sitter-c-sharp' },
+  clike: { moduleName: 'tree-sitter-c' },
+  c: { moduleName: 'tree-sitter-c' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
