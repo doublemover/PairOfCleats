@@ -31,6 +31,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   csharp: { moduleName: 'tree-sitter-c-sharp' },
   clike: { moduleName: 'tree-sitter-c' },
   c: { moduleName: 'tree-sitter-c' },
+  cpp: { moduleName: 'tree-sitter-cpp' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
