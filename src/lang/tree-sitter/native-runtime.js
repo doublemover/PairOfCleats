@@ -19,8 +19,10 @@ const formatMemoryUsage = () => {
 };
 
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
-  javascript: 'tree-sitter-javascript',
-  swift: 'tree-sitter-swift'
+  javascript: { moduleName: 'tree-sitter-javascript' },
+  typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
+  tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
+  swift: { moduleName: 'tree-sitter-swift' }
 });
 
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
@@ -49,14 +51,19 @@ export function initNativeTreeSitter({ log } = {}) {
 export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
   const cached = nativeTreeSitterState.grammarCache.get(languageId);
   if (cached) return cached;
-  const moduleName = resolveGrammarModule(languageId);
-  if (!moduleName) {
+  const grammarSpec = resolveGrammarModule(languageId);
+  if (!grammarSpec) {
     const entry = { language: null, error: new Error(`Unsupported native grammar: ${languageId}`) };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
     return entry;
   }
+  const moduleName = grammarSpec.moduleName;
   try {
-    const language = require(moduleName);
+    const grammarModule = require(moduleName);
+    const language = grammarSpec.exportKey
+      ? grammarModule?.[grammarSpec.exportKey] || null
+      : grammarModule;
+    if (!language) throw new Error(`Missing export "${grammarSpec.exportKey}" in ${moduleName}`);
     const entry = { language, error: null };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
     if (log) log(`[tree-sitter:native] Loaded ${moduleName} for ${languageId} mem=${formatMemoryUsage()}`);
