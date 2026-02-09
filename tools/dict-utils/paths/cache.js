@@ -68,13 +68,15 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string},pyright:object,sourcekit:object}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const tooling = cfg.tooling || {};
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
+  const pyright = tooling.pyright && typeof tooling.pyright === 'object' ? tooling.pyright : {};
+  const sourcekit = tooling.sourcekit && typeof tooling.sourcekit === 'object' ? tooling.sourcekit : {};
   const toolingCache = tooling.cache || {};
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
@@ -173,7 +175,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     clangd: {
       requireCompilationDatabase: clangd.requireCompilationDatabase === true,
       compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
-    }
+    },
+    pyright,
+    sourcekit
   };
 }
 

@@ -8,6 +8,10 @@ import { parseSwiftSignature } from './signature-parse/swift.js';
 export const SWIFT_EXTS = ['.swift'];
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const asFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const canRunSourcekit = (cmd) => {
   try {
@@ -56,6 +60,7 @@ export const createSourcekitProvider = () => ({
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+    const sourcekitConfig = ctx?.toolingConfig?.sourcekit || {};
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => SWIFT_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
@@ -79,6 +84,20 @@ export const createSourcekitProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
+    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
+    const providerTimeoutMs = asFiniteNumber(sourcekitConfig.timeoutMs);
+    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
+    const retries = Number.isFinite(Number(sourcekitConfig.maxRetries))
+      ? Math.max(0, Math.floor(Number(sourcekitConfig.maxRetries)))
+      : (ctx?.toolingConfig?.maxRetries ?? 2);
+    const breakerThreshold = Number.isFinite(Number(sourcekitConfig.circuitBreakerThreshold))
+      ? Math.max(1, Math.floor(Number(sourcekitConfig.circuitBreakerThreshold)))
+      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 3);
+    const hoverTimeoutMs = Math.max(
+      15000,
+      Math.floor(asFiniteNumber(sourcekitConfig.hoverTimeoutMs) ?? timeoutMs)
+    );
+
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
       documents: docs,
@@ -86,9 +105,11 @@ export const createSourcekitProvider = () => ({
       log,
       cmd: resolvedCmd,
       args: [],
-      timeoutMs: ctx?.toolingConfig?.timeoutMs || 15000,
-      retries: ctx?.toolingConfig?.maxRetries ?? 2,
-      breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
+      timeoutMs,
+      retries,
+      breakerThreshold,
+      hoverTimeoutMs,
+      hoverEnabled: sourcekitConfig.hover !== false,
       parseSignature: (detail) => parseSwiftSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

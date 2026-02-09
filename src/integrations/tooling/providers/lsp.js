@@ -192,8 +192,16 @@ export async function collectLspTypes({
   lineIndexFactory = buildLineIndex,
   indexDir = null,
   vfsColdStartCache = null,
-  cacheRoot = null
+  cacheRoot = null,
+  hoverTimeoutMs = null,
+  hoverEnabled = true
 }) {
+  const resolvePositiveTimeout = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.max(1000, Math.floor(parsed));
+  };
+  const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
@@ -377,14 +385,17 @@ export async function collectLspTypes({
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
       const treatVoidAsMissing = info?.returnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      if (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing) {
+      if (hoverEnabled && (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing)) {
+        const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
+          ? resolvedHoverTimeout
+          : null;
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
               textDocument: { uri },
               position: symbol.selectionRange?.start || symbol.range?.start
             }, { timeoutMs: guardTimeout }),
-            { label: 'hover', timeoutOverride: 8000 }
+            { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
           );
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = parseSignature ? parseSignature(hoverText, doc.languageId, symbol.name) : null;
