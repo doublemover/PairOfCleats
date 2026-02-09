@@ -47,7 +47,7 @@ Adopt a native-only scheduling model:
 | --- | --- | --- |
 | N0 Baseline + Decisions | completed | Decisions locked at 2026-02-09T18:31:41.0670000Z |
 | N1 Schema + Naming Migration | completed | `grammarKey` migration landed in scheduler plan/runner/executor/lookup |
-| N2 Planner Native-Only Routing | planned | Native target per language segment |
+| N2 Planner Native-Only Routing | completed | Planner now resolves native targets + native preflight gating |
 | N3 Executor Native-Only Batching | planned | Remove WASM lifecycle calls |
 | N4 Stage1 Contract Tightening | planned | Scheduler-only tree-sitter in indexing |
 | N5 Native Coverage + Regression Tests | planned | All 17 languages through scheduler |
@@ -91,10 +91,10 @@ Touchpoints:
 - `src/lang/tree-sitter/native-runtime.js`
 
 Tasks:
-- [ ] Add scheduler resolver: `resolveNativeTreeSitterTarget(languageId, ext)`.
-- [ ] Route all eligible tree-sitter segments through native target resolution.
-- [ ] Add native preflight for module resolution/parser activation.
-- [ ] Fail hard when a scheduled language lacks native grammar support in strict mode.
+- [x] Add scheduler resolver: `resolveNativeTreeSitterTarget(languageId, ext)`.
+- [x] Route all eligible tree-sitter segments through native target resolution.
+- [x] Add native preflight for module resolution/parser activation.
+- [x] Fail hard when a scheduled language lacks native grammar support in strict mode.
 
 ## Phase N3 - Executor Native-Only Batching
 Objective: execute by native grammar key only; remove WASM lifecycle assumptions.

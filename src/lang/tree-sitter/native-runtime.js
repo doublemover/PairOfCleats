@@ -62,6 +62,18 @@ export function hasNativeTreeSitterGrammar(languageId) {
   return Boolean(resolveGrammarModule(languageId));
 }
 
+export function resolveNativeTreeSitterTarget(languageId, ext = null) {
+  const resolvedId = typeof languageId === 'string' ? languageId : null;
+  if (!resolvedId) return null;
+  if (!hasNativeTreeSitterGrammar(resolvedId)) return null;
+  return {
+    languageId: resolvedId,
+    grammarKey: `native:${resolvedId}`,
+    runtimeKind: 'native',
+    ext: typeof ext === 'string' && ext ? ext : null
+  };
+}
+
 export function initNativeTreeSitter({ log } = {}) {
   if (nativeTreeSitterState.initTried) return nativeTreeSitterState.ParserCtor != null;
   nativeTreeSitterState.initTried = true;
@@ -109,6 +121,34 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
     }
     return entry;
   }
+}
+
+export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}) {
+  const unique = Array.from(new Set((languageIds || []).filter((id) => typeof id === 'string' && id)));
+  const missing = [];
+  const unavailable = [];
+  if (!unique.length) return { ok: true, missing, unavailable };
+  const ready = initNativeTreeSitter({ log });
+  if (!ready) {
+    unavailable.push(...unique);
+    return { ok: false, missing, unavailable };
+  }
+  for (const languageId of unique) {
+    const target = resolveNativeTreeSitterTarget(languageId);
+    if (!target) {
+      missing.push(languageId);
+      continue;
+    }
+    const loaded = loadNativeTreeSitterGrammar(languageId, { log });
+    if (!loaded?.language) {
+      unavailable.push(languageId);
+    }
+  }
+  return {
+    ok: missing.length === 0 && unavailable.length === 0,
+    missing,
+    unavailable
+  };
 }
 
 export function getNativeTreeSitterParser(languageId, options = {}) {

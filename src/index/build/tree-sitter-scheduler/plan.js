@@ -14,8 +14,11 @@ import {
 } from '../../segments/config.js';
 import { isMinifiedName } from '../file-scan.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
-import { TREE_SITTER_LANGUAGE_IDS, preflightTreeSitterWasmLanguages } from '../../../lang/tree-sitter.js';
-import { LANGUAGE_WASM_FILES } from '../../../lang/tree-sitter/config.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter.js';
+import {
+  preflightNativeTreeSitterGrammars,
+  resolveNativeTreeSitterTarget
+} from '../../../lang/tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
 import { resolveTreeSitterLanguageForSegment } from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
@@ -89,13 +92,14 @@ export const buildTreeSitterSchedulerPlan = async ({
   if (mode !== 'code') return null;
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
+  const strict = treeSitterConfig?.strict === true;
 
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   await fs.mkdir(paths.baseDir, { recursive: true });
   await fs.mkdir(paths.jobsDir, { recursive: true });
 
   const groups = new Map(); // grammarKey -> { grammarKey, languages:Set<string>, jobs:Array<object> }
-  const requiredLanguages = new Set();
+  const requiredNativeLanguages = new Set();
   const treeSitterOptions = { treeSitter: treeSitterConfig };
   const effectiveMode = mode;
 
@@ -224,11 +228,17 @@ export const buildTreeSitterSchedulerPlan = async ({
         continue;
       }
 
-      const usesNative = process.platform === 'win32' && languageId === 'swift';
-      const grammarKey = LANGUAGE_WASM_FILES[languageId] || null;
-      if (!grammarKey) {
-        throw new Error(`[tree-sitter:schedule] missing grammarKey for ${languageId} (${relKey}).`);
+      const target = resolveNativeTreeSitterTarget(languageId, segmentExt);
+      if (!target) {
+        if (strict) {
+          throw new Error(`[tree-sitter:schedule] missing native grammar target for ${languageId} (${relKey}).`);
+        }
+        if (log) {
+          log(`[tree-sitter:schedule] skip ${languageId} segment: native grammar target unavailable (${relKey})`);
+        }
+        continue;
       }
+      const grammarKey = target.grammarKey;
 
       const segmentUid = segment.segmentUid || null;
       const virtualPath = buildVfsVirtualPath({
@@ -237,13 +247,12 @@ export const buildTreeSitterSchedulerPlan = async ({
         effectiveExt: segmentExt
       });
 
-      if (!usesNative) {
-        requiredLanguages.add(languageId);
-      }
+      requiredNativeLanguages.add(languageId);
       const job = {
         schemaVersion: '1.0.0',
         virtualPath,
         grammarKey,
+        runtimeKind: target.runtimeKind,
         languageId,
         containerPath: relKey,
         containerExt: ext,
@@ -261,12 +270,27 @@ export const buildTreeSitterSchedulerPlan = async ({
     }
   }
 
-  const required = Array.from(requiredLanguages);
-  required.sort(compareStrings);
-  if (required.length) {
-    const preflight = await preflightTreeSitterWasmLanguages(required, { log });
-    if (Array.isArray(preflight?.missing) && preflight.missing.length) {
-      throw new Error(`[tree-sitter:schedule] Missing WASM grammars: ${preflight.missing.join(', ')}`);
+  const requiredNative = Array.from(requiredNativeLanguages).sort(compareStrings);
+  const preflight = preflightNativeTreeSitterGrammars(requiredNative, { log });
+  if (!preflight.ok) {
+    const blocked = Array.from(new Set([...(preflight.missing || []), ...(preflight.unavailable || [])]));
+    if (strict) {
+      const details = [
+        preflight.missing?.length ? `missing=${preflight.missing.join(',')}` : null,
+        preflight.unavailable?.length ? `unavailable=${preflight.unavailable.join(',')}` : null
+      ].filter(Boolean).join(' ');
+      throw new Error(`[tree-sitter:schedule] native grammar preflight failed ${details}`.trim());
+    }
+    if (blocked.length) {
+      const blockedSet = new Set(blocked);
+      for (const [grammarKey, group] of groups.entries()) {
+        group.jobs = group.jobs.filter((job) => !blockedSet.has(job.languageId));
+        group.languages = new Set(Array.from(group.languages).filter((id) => !blockedSet.has(id)));
+        if (!group.jobs.length) groups.delete(grammarKey);
+      }
+      if (log) {
+        log(`[tree-sitter:schedule] native preflight unavailable; skipping languages: ${blocked.join(', ')}`);
+      }
     }
   }
 
@@ -289,7 +313,7 @@ export const buildTreeSitterSchedulerPlan = async ({
     outDir,
     jobs: groupList.reduce((sum, group) => sum + group.jobs.length, 0),
     grammarKeys,
-    requiredLanguages: required,
+    requiredNativeLanguages: requiredNative,
     treeSitterConfig
   };
 
