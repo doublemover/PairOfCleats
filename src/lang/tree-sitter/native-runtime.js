@@ -22,6 +22,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: { moduleName: 'tree-sitter-javascript' },
   typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
   tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
+  python: { moduleName: 'tree-sitter-python' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
