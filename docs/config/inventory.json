@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-06T19:01:07.678Z",
+  "generatedAt": "2026-02-09T19:27:25.562Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2467,7 +2467,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 295,
+    "totalFlags": 293,
     "publicFlags": [
       "backend",
       "host",
@@ -2736,7 +2736,6 @@
       "table",
       "targets",
       "testPattern",
-      "thrashMaxLoadedLanguages",
       "three-url",
       "timeout-ms",
       "token-postings-size",
@@ -2756,7 +2755,6 @@
       "validate",
       "validate-config",
       "verbose",
-      "warmMaxLoadedLanguages",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
@@ -3294,10 +3292,8 @@
           "log",
           "out",
           "repeats",
-          "thrashMaxLoadedLanguages",
           "treeSitter",
-          "useQueries",
-          "warmMaxLoadedLanguages"
+          "useQueries"
         ]
       },
       {
