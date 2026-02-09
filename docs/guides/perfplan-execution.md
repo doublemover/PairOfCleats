@@ -1,9 +1,9 @@
 # PERFPLAN Execution Guide
 
-This guide explains how to execute phases in `PERFPLAN.MD` with consistent documentation and test coverage.
+This guide explains how to execute roadmap phases with consistent documentation and test coverage.
 
 ## Phase execution order
-Follow the order in `PERFPLAN.MD`. Do not skip ahead unless a phase explicitly allows it.
+Follow the order in the active roadmap file (for example `WOODROADMAP.md`). Do not skip ahead unless a phase explicitly allows it.
 
 ## Required steps for each phase
 1. **Scope** the files listed in the phase and confirm they exist.
@@ -23,6 +23,8 @@ If a phase introduces:
 - new artifacts → update `docs/contracts/artifact-contract.md`
 - new config keys → update `docs/config/schema.json`, `docs/config/contract.md`, `docs/config/inventory.*`
 - new CLI flags → update `docs/guides/commands.md`
+- checklist/process changes → update `docs/guides/roadmap-checklists.md`
+- JSDoc guidance changes → update `docs/guides/jsdoc-standards.md`
 
 ## Testing expectations
 Use:

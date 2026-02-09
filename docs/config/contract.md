@@ -24,11 +24,11 @@ cache (object)
 cache.root (string)
 indexing (object)
 indexing.artifacts (object)
-indexing.artifacts.chunkMetaFormat (string)
+indexing.artifacts.chunkMetaFormat (string) enum=auto|json|jsonl|columnar
 indexing.artifacts.chunkMetaJsonlThreshold (number)
 indexing.artifacts.chunkMetaShardSize (number)
 indexing.artifacts.mode (string)
-indexing.artifacts.symbolArtifactsFormat (string)
+indexing.artifacts.symbolArtifactsFormat (string) enum=auto|jsonl|jsonl-sharded|columnar
 indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
@@ -104,6 +104,17 @@ indexing.riskInterprocedural.enabled (boolean)
 indexing.riskInterprocedural.sanitizerPolicy (string) enum=terminate|weaken
 indexing.riskInterprocedural.strictness (string) enum=conservative|argAware
 indexing.riskInterprocedural.summaryOnly (boolean)
+indexing.scheduler (object)
+indexing.scheduler.cpuTokens (number)
+indexing.scheduler.enabled (boolean)
+indexing.scheduler.ioTokens (number)
+indexing.scheduler.lowResourceMode (boolean)
+indexing.scheduler.memoryTokens (number)
+indexing.scheduler.queues (object)
+indexing.scheduler.queues.* (object)
+indexing.scheduler.queues.*.maxPending (number)
+indexing.scheduler.queues.*.priority (number)
+indexing.scheduler.starvationMs (number)
 indexing.scm (object)
 indexing.scm.annotate (object)
 indexing.scm.annotate.enabled (boolean)
@@ -185,6 +196,8 @@ tooling.autoInstallOnDetect (boolean)
 tooling.cache (object)
 tooling.cache.dir (string)
 tooling.cache.enabled (boolean)
+tooling.cache.maxBytes (number)
+tooling.cache.maxEntries (number)
 tooling.circuitBreakerThreshold (number)
 tooling.clangd (object)
 tooling.clangd.compileCommandsDir (string)
@@ -254,9 +267,13 @@ tooling.vfs.tokenMode (string)
 - MCP_MODE -> mcpMode
 - PAIROFCLEATS_API_TOKEN -> apiToken
 - PAIROFCLEATS_BUNDLE_THREADS -> bundleThreads
+- PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE -> cacheMetricsSampleRate
+- PAIROFCLEATS_CACHE_NAMESPACE -> cacheNamespace
+- PAIROFCLEATS_CACHE_REBUILD -> cacheRebuild
 - PAIROFCLEATS_CACHE_ROOT -> cacheRoot
 - PAIROFCLEATS_COMPRESSION -> compression
 - PAIROFCLEATS_DEBUG_CRASH -> debugCrash
+- PAIROFCLEATS_DEBUG_ORDERED -> debugOrdered
 - PAIROFCLEATS_DICT_DIR -> dictDir
 - PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY -> discoveryStatConcurrency
 - PAIROFCLEATS_DOC_EXTRACT -> docExtract
@@ -277,6 +294,12 @@ tooling.vfs.tokenMode (string)
 - PAIROFCLEATS_MCP_TRANSPORT -> mcpTransport
 - PAIROFCLEATS_MODELS_DIR -> modelsDir
 - PAIROFCLEATS_REGEX_ENGINE -> regexEngine
+- PAIROFCLEATS_SCHEDULER -> schedulerEnabled
+- PAIROFCLEATS_SCHEDULER_CPU -> schedulerCpuTokens
+- PAIROFCLEATS_SCHEDULER_IO -> schedulerIoTokens
+- PAIROFCLEATS_SCHEDULER_LOW_RESOURCE -> schedulerLowResource
+- PAIROFCLEATS_SCHEDULER_MEM -> schedulerMemoryTokens
+- PAIROFCLEATS_SCHEDULER_STARVATION_MS -> schedulerStarvationMs
 - PAIROFCLEATS_STAGE -> stage
 - PAIROFCLEATS_SUMMARY_CACHE_MAX -> summaryCacheMax
 - PAIROFCLEATS_THREADS -> threads
@@ -296,6 +319,7 @@ tooling.vfs.tokenMode (string)
 
 ### build_index / pairofcleats index build
 
+- --cache-rebuild
 - --config-dump
 - --debug-crash
 - --dims
@@ -310,12 +334,20 @@ tooling.vfs.tokenMode (string)
 - --quality
 - --quiet
 - --repo
+- --scheduler
+- --scheduler-cpu
+- --scheduler-io
+- --scheduler-low-resource
+- --scheduler-mem
+- --scheduler-starvation
 - --scm-annotate
 - --scm-provider
 - --sqlite
+- --sqlite-batch-size
 - --stage
 - --stub-embeddings
 - --threads
+- --validate-ordering
 - --verbose
 - --watch
 - --watch-debounce

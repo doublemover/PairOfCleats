@@ -35,6 +35,9 @@ const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
+if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
+  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(root, '.testCache', 'retrieval-parity');
+}
 const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
 const searchPath = argv.search

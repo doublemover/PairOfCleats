@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { tryRequire } from '../../../src/shared/optional-deps.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
+import { skip } from '../../helpers/skip.js';
 
 let Database = null;
 try {
@@ -12,6 +14,9 @@ try {
 } catch (err) {
   console.error(`better-sqlite3 missing: ${err?.message || err}`);
   process.exit(1);
+}
+if (!tryRequire('@mongodb-js/zstd').ok) {
+  skip('zstd not available; skipping sqlite jsonl streaming zstd test.');
 }
 
 const root = process.cwd();

@@ -3,7 +3,13 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { readCacheEntry, writeCacheEntry } from '../../../tools/build/embeddings/cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import {
+  readCacheEntry,
+  upsertCacheIndexEntry,
+  writeCacheEntry,
+  writeCacheIndex
+} from '../../../tools/build/embeddings/cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -15,13 +21,10 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const buildIndex = spawnSync(
   process.execPath,
@@ -132,8 +135,9 @@ const cacheDir = targetEntry.cacheDir;
 const cacheKey = targetEntry.cacheKey;
 const index = targetEntry.index;
 delete index.entries[cacheKey];
-await fsPromises.writeFile(targetEntry.indexPath, JSON.stringify(index, null, 2), 'utf8');
-await writeCacheEntry(cacheDir, cacheKey, cached);
+const shardEntry = await writeCacheEntry(cacheDir, cacheKey, cached, { index });
+upsertCacheIndexEntry(index, cacheKey, cached, shardEntry);
+await writeCacheIndex(cacheDir, index);
 
 const secondRun = runEmbeddings();
 if (secondRun.status === 0) {

@@ -71,7 +71,9 @@ const hasBuildArtifacts = (cacheRoot) => {
   const sqliteRoot = path.join(buildRoot, 'index-sqlite');
   const sqliteCandidates = [
     path.join(sqliteRoot, 'index.sqlite'),
-    path.join(sqliteRoot, 'index.vec.sqlite')
+    path.join(sqliteRoot, 'index.vec.sqlite'),
+    path.join(sqliteRoot, 'index-code.db'),
+    path.join(sqliteRoot, 'index-prose.db')
   ];
   return sqliteCandidates.some((candidate) => fs.existsSync(candidate));
 };
