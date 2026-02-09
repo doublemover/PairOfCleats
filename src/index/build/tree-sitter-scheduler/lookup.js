@@ -47,12 +47,12 @@ export const createTreeSitterSchedulerLookup = ({
       missCache.add(virtualPath);
       return null;
     }
-    const wasmKey = entry.wasmKey || null;
-    if (!wasmKey) {
+    const grammarKey = entry.grammarKey || null;
+    if (!grammarKey) {
       missCache.add(virtualPath);
       return null;
     }
-    const manifestPath = paths.resultsPathForWasmKey(wasmKey);
+    const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
     const row = await readVfsManifestRowAtOffset({
       manifestPath,
       offset: entry.offset,
@@ -73,10 +73,10 @@ export const createTreeSitterSchedulerLookup = ({
     return chunks || null;
   };
 
-  const wasmKeys = () => {
+  const grammarKeys = () => {
     const keys = new Set();
     for (const entry of index.values()) {
-      if (entry?.wasmKey) keys.add(entry.wasmKey);
+      if (entry?.grammarKey) keys.add(entry.grammarKey);
     }
     return Array.from(keys).sort(compareStrings);
   };
@@ -85,16 +85,15 @@ export const createTreeSitterSchedulerLookup = ({
     outDir,
     paths,
     index,
-    wasmKeys,
+    grammarKeys,
     loadRow,
     loadChunks,
     stats: () => ({
       indexEntries: index.size,
       cacheEntries: rowCache.size,
       missEntries: missCache.size,
-      wasmKeys: wasmKeys().length
+      grammarKeys: grammarKeys().length
     }),
     log
   };
 };
-

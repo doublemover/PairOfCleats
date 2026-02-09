@@ -46,7 +46,7 @@ Adopt a native-only scheduling model:
 | Phase | Status | Notes |
 | --- | --- | --- |
 | N0 Baseline + Decisions | completed | Decisions locked at 2026-02-09T18:31:41.0670000Z |
-| N1 Schema + Naming Migration | planned | Remove `wasmKey` model |
+| N1 Schema + Naming Migration | completed | `grammarKey` migration landed in scheduler plan/runner/executor/lookup |
 | N2 Planner Native-Only Routing | planned | Native target per language segment |
 | N3 Executor Native-Only Batching | planned | Remove WASM lifecycle calls |
 | N4 Stage1 Contract Tightening | planned | Scheduler-only tree-sitter in indexing |
@@ -78,10 +78,10 @@ Touchpoints:
 - `src/index/build/tree-sitter-scheduler/lookup.js`
 
 Tasks:
-- [ ] Replace `wasmKey` fields and filenames with `grammarKey`.
-- [ ] Update plan/jobs/results/index schemas to native-only metadata.
-- [ ] Keep deterministic ordering and hashing rules unchanged after migration.
-- [ ] Update lookup loading and stats reporting for `grammarKey`.
+- [x] Replace `wasmKey` fields and filenames with `grammarKey`.
+- [x] Update plan/jobs/results/index schemas to native-only metadata.
+- [x] Keep deterministic ordering and hashing rules unchanged after migration.
+- [x] Update lookup loading and stats reporting for `grammarKey`.
 
 ## Phase N2 - Planner Native-Only Routing
 Objective: planner resolves only native execution targets.

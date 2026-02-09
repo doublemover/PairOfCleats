@@ -7,14 +7,20 @@ import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/streams.js';
 import { readTextFile } from '../../../shared/encoding.js';
 import {
+  buildTreeSitterChunks,
+  getTreeSitterParser,
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
-  resetTreeSitterParser,
-  buildTreeSitterChunks
 } from '../../../lang/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
 const coercePosix = (value) => toPosix(String(value || ''));
+
+const formatMemoryUsage = () => {
+  const usage = process.memoryUsage();
+  const toMb = (value) => (Number(value) / (1024 * 1024)).toFixed(1);
+  return `rss=${toMb(usage.rss)}MB heapUsed=${toMb(usage.heapUsed)}MB ext=${toMb(usage.external)}MB ab=${toMb(usage.arrayBuffers)}MB`;
+};
 
 const attachSegmentMeta = ({
   chunk,
@@ -68,7 +74,7 @@ export const executeTreeSitterSchedulerPlan = async ({
   if (!Array.isArray(groups) || !groups.length) {
     return {
       index: new Map(),
-      stats: { wasmKeys: 0, jobs: 0 }
+      stats: { grammarKeys: 0, jobs: 0 }
     };
   }
 
@@ -81,38 +87,54 @@ export const executeTreeSitterSchedulerPlan = async ({
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   await fs.mkdir(paths.resultsDir, { recursive: true });
 
-  const index = new Map(); // virtualPath -> { virtualPath, wasmKey, offset, bytes }
+  const index = new Map(); // virtualPath -> { virtualPath, grammarKey, offset, bytes }
   let totalJobs = 0;
 
   for (const group of groups) {
     throwIfAborted(abortSignal);
-    const wasmKey = group?.wasmKey || null;
+    const grammarKey = group?.grammarKey || null;
     const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
-    if (!wasmKey || !jobs.length) continue;
+    if (!grammarKey || !jobs.length) continue;
 
-    const languages = Array.isArray(group?.languages) ? group.languages : [];
-    const keepLanguages = languages.length ? languages : jobs.map((job) => job.languageId).filter(Boolean);
+      const languages = Array.isArray(group?.languages) ? group.languages : [];
+      const keepLanguagesRaw = languages.length ? languages : jobs.map((job) => job.languageId).filter(Boolean);
+      // Some languages are parsed via native tree-sitter on Windows (e.g. swift)
+      // and do not require a WASM grammar preload.
+      const keepLanguages = keepLanguagesRaw.filter((languageId) => !(
+        process.platform === 'win32' && languageId === 'swift'
+      ));
 
-    // Hard reset + prune so each batch keeps memory bounded and stable.
-    resetTreeSitterParser({ hard: true });
-    pruneTreeSitterLanguages([], { log, onlyIfExceeds: false });
+      if (keepLanguages.length) {
+        await preloadTreeSitterLanguages(keepLanguages, {
+          log,
+          parallel: false,
+          // The scheduler manages pruning explicitly; keep this high to avoid
+          // evicting the newly loaded grammar based on a stale active language.
+          maxLoadedLanguages: 64
+        });
+      }
 
-    await preloadTreeSitterLanguages(keepLanguages, {
-      log,
-      parallel: false,
-      maxLoadedLanguages: Math.max(1, keepLanguages.length)
-    });
+      // Activate one language for this group, then prune everything else. This
+      // keeps the shared parser alive (avoids repeated Parser create/delete
+      // churn, which can trigger V8 Zone OOMs on Windows).
+      const activationLanguageId = keepLanguages[0] || null;
+      if (activationLanguageId) {
+        getTreeSitterParser(activationLanguageId, treeSitterOptions);
+      }
+      pruneTreeSitterLanguages(keepLanguages, { log, onlyIfExceeds: false });
 
-    const resultsPath = paths.resultsPathForWasmKey(wasmKey);
-    const indexPath = paths.resultsIndexPathForWasmKey(wasmKey);
-    const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
-    const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: true });
+      if (log) log(`[tree-sitter:schedule] ${grammarKey}: start mem=${formatMemoryUsage()}`);
 
-    let offset = 0;
-    let wrote = 0;
-    let currentFile = null;
-    let currentText = null;
-    let currentLineIndex = null;
+      const resultsPath = paths.resultsPathForGrammarKey(grammarKey);
+      const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
+      const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
+      const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: true });
+
+      let offset = 0;
+      let wrote = 0;
+      let currentFile = null;
+      let currentText = null;
+      let currentLineIndex = null;
 
     try {
       for (const job of jobs) {
@@ -128,84 +150,84 @@ export const executeTreeSitterSchedulerPlan = async ({
         const segmentExt = job?.effectiveExt || segment?.ext || containerExt || '';
         const embeddingContext = segment?.embeddingContext || segment?.meta?.embeddingContext || null;
 
-        if (!virtualPath || !containerPath || !languageId) {
-          throw new Error(`[tree-sitter:schedule] invalid job in ${wasmKey}: missing fields`);
-        }
-        if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd < segmentStart) {
-          throw new Error(`[tree-sitter:schedule] invalid segment range for ${containerPath}`);
-        }
+          if (!virtualPath || !containerPath || !languageId) {
+            throw new Error(`[tree-sitter:schedule] invalid job in ${grammarKey}: missing fields`);
+          }
+          if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd < segmentStart) {
+            throw new Error(`[tree-sitter:schedule] invalid segment range for ${containerPath}`);
+          }
 
-        if (currentFile !== containerPath) {
-          currentFile = containerPath;
-          currentText = null;
-          currentLineIndex = null;
-          const abs = path.join(runtime.root, containerPath);
-          const decoded = await readTextFile(abs);
-          currentText = decoded?.text || '';
-          currentLineIndex = buildLineIndex(currentText);
-        }
+          if (currentFile !== containerPath) {
+            currentFile = containerPath;
+            currentText = null;
+            currentLineIndex = null;
+            const abs = path.join(runtime.root, containerPath);
+            const decoded = await readTextFile(abs);
+            currentText = decoded?.text || '';
+            currentLineIndex = buildLineIndex(currentText);
+          }
 
-        const segmentText = currentText.slice(segmentStart, segmentEnd);
-        const segmentStartLine = offsetToLine(currentLineIndex, segmentStart);
-        const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
-        const segmentEndLine = offsetToLine(currentLineIndex, endOffset);
+          const segmentText = currentText.slice(segmentStart, segmentEnd);
+          const segmentStartLine = offsetToLine(currentLineIndex, segmentStart);
+          const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
+          const segmentEndLine = offsetToLine(currentLineIndex, endOffset);
 
-        const chunks = buildTreeSitterChunks({
-          text: segmentText,
-          languageId,
-          ext: segmentExt,
-          options: treeSitterOptions
-        });
-        if (!Array.isArray(chunks) || !chunks.length) {
-          // In strict mode buildTreeSitterChunks should throw on failures. If it
-          // returned empty/null, treat it as a hard error to avoid silent fallback.
-          throw new Error(`[tree-sitter:schedule] No tree-sitter chunks produced for ${containerPath} (${languageId}).`);
-        }
+          const chunks = buildTreeSitterChunks({
+            text: segmentText,
+            languageId,
+            ext: segmentExt,
+            options: treeSitterOptions
+          });
+          if (!Array.isArray(chunks) || !chunks.length) {
+            // In strict mode buildTreeSitterChunks should throw on failures. If it
+            // returned empty/null, treat it as a hard error to avoid silent fallback.
+            throw new Error(`[tree-sitter:schedule] No tree-sitter chunks produced for ${containerPath} (${languageId}).`);
+          }
 
-        const adjusted = chunks.map((chunk) => attachSegmentMeta({
-          chunk,
-          segment,
-          segmentUid,
-          segmentExt,
-          segmentStart,
-          segmentEnd,
-          segmentStartLine,
-          segmentEndLine,
-          embeddingContext
-        }));
+          const adjusted = chunks.map((chunk) => attachSegmentMeta({
+            chunk,
+            segment,
+            segmentUid,
+            segmentExt,
+            segmentStart,
+            segmentEnd,
+            segmentStartLine,
+            segmentEndLine,
+            embeddingContext
+          }));
 
-        const row = {
-          schemaVersion: '1.0.0',
-          virtualPath,
-          wasmKey,
-          containerPath: coercePosix(containerPath),
-          languageId,
-          effectiveExt: segmentExt || null,
-          segmentUid,
-          segmentId: segment?.segmentId || null,
-          segmentStart,
-          segmentEnd,
-          chunks: adjusted
-        };
+          const row = {
+            schemaVersion: '1.0.0',
+            virtualPath,
+            grammarKey,
+            containerPath: coercePosix(containerPath),
+            languageId,
+            effectiveExt: segmentExt || null,
+            segmentUid,
+            segmentId: segment?.segmentId || null,
+            segmentStart,
+            segmentEnd,
+            chunks: adjusted
+          };
 
-        const line = stringifyJsonValue(row);
-        const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-        await writeChunk(resultsStream, line);
-        await writeChunk(resultsStream, '\n');
+          const line = stringifyJsonValue(row);
+          const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+          await writeChunk(resultsStream, line);
+          await writeChunk(resultsStream, '\n');
 
-        const idxEntry = {
-          schemaVersion: '1.0.0',
-          virtualPath,
-          wasmKey,
-          offset,
-          bytes: lineBytes
-        };
-        await writeChunk(indexStream, stringifyJsonValue(idxEntry));
-        await writeChunk(indexStream, '\n');
+          const idxEntry = {
+            schemaVersion: '1.0.0',
+            virtualPath,
+            grammarKey,
+            offset,
+            bytes: lineBytes
+          };
+          await writeChunk(indexStream, stringifyJsonValue(idxEntry));
+          await writeChunk(indexStream, '\n');
 
-        index.set(virtualPath, idxEntry);
-        offset += lineBytes;
-        wrote += 1;
+          index.set(virtualPath, idxEntry);
+          offset += lineBytes;
+          wrote += 1;
         totalJobs += 1;
       }
       resultsStream.end();
@@ -219,14 +241,15 @@ export const executeTreeSitterSchedulerPlan = async ({
       throw err;
     }
 
-    if (log) log(`[tree-sitter:schedule] ${wasmKey}: wrote ${wrote} result rows.`);
+    if (log) log(`[tree-sitter:schedule] ${grammarKey}: wrote ${wrote} result rows.`);
+    if (log) log(`[tree-sitter:schedule] ${grammarKey}: done mem=${formatMemoryUsage()}`);
   }
 
   return {
     index,
     paths,
     stats: {
-      wasmKeys: Array.isArray(groups) ? groups.length : 0,
+      grammarKeys: Array.isArray(groups) ? groups.length : 0,
       jobs: totalJobs
     }
   };

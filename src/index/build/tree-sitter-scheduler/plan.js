@@ -12,6 +12,7 @@ import {
   resolveSegmentTokenMode,
   shouldIndexSegment
 } from '../../segments/config.js';
+import { isMinifiedName } from '../file-scan.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
 import { TREE_SITTER_LANGUAGE_IDS, preflightTreeSitterWasmLanguages } from '../../../lang/tree-sitter.js';
 import { LANGUAGE_WASM_FILES } from '../../../lang/tree-sitter/config.js';
@@ -93,7 +94,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   await fs.mkdir(paths.baseDir, { recursive: true });
   await fs.mkdir(paths.jobsDir, { recursive: true });
 
-  const groups = new Map(); // wasmKey -> { wasmKey, languages:Set<string>, jobs:Array<object> }
+  const groups = new Map(); // grammarKey -> { grammarKey, languages:Set<string>, jobs:Array<object> }
   const requiredLanguages = new Set();
   const treeSitterOptions = { treeSitter: treeSitterConfig };
   const effectiveMode = mode;
@@ -111,33 +112,80 @@ export const buildTreeSitterSchedulerPlan = async ({
     if (entry?.treeSitterDisabled === true) continue;
     const { abs, relKey } = resolveEntryPaths(entry, runtime.root);
     if (!abs || !relKey) continue;
+
+    let stat = null;
+    try {
+      // Mirror file processor behavior: use lstat so we can reliably detect
+      // symlinks (stat() follows them).
+      stat = await fs.lstat(abs);
+    } catch (err) {
+      if (log) {
+        log(`[tree-sitter:schedule] skip ${relKey}: lstat failed (${err?.code || 'ERR'})`);
+      }
+      continue;
+    }
+    if (stat?.isSymbolicLink?.()) {
+      if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+      continue;
+    }
+    if (stat && typeof stat.isFile === 'function' && !stat.isFile()) {
+      if (log) log(`[tree-sitter:schedule] skip ${relKey}: not a file`);
+      continue;
+    }
+    if (entry?.skip) {
+      const reason = entry.skip?.reason || 'skip';
+      if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+      continue;
+    }
+    if (entry?.scan?.skip) {
+      const reason = entry.scan.skip?.reason || 'skip';
+      if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+      continue;
+    }
+    if (isMinifiedName(path.basename(abs))) {
+      if (log) log(`[tree-sitter:schedule] skip ${relKey}: minified`);
+      continue;
+    }
+
     const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
     const langHint = getLanguageForFile(ext, relKey);
     const primaryLanguageId = langHint?.id || null;
 
     let text = null;
     let buffer = null;
-    let stat = entry?.stat || null;
     const cached = fileTextCache?.get && relKey ? fileTextCache.get(relKey) : null;
     if (cached && typeof cached === 'object') {
       if (typeof cached.text === 'string') text = cached.text;
       if (Buffer.isBuffer(cached.buffer)) buffer = cached.buffer;
     }
     if (!text) {
-      buffer = buffer || await fs.readFile(abs);
-      const decoded = await readTextFileWithHash(abs, { buffer, stat });
-      text = decoded.text;
-      if (fileTextCache?.set && relKey) {
-        fileTextCache.set(relKey, {
-          text,
-          buffer,
-          hash: decoded.hash,
-          size: stat?.size ?? buffer.length,
-          mtimeMs: stat?.mtimeMs ?? null,
-          encoding: decoded.encoding || null,
-          encodingFallback: decoded.usedFallback,
-          encodingConfidence: decoded.confidence
-        });
+      try {
+        const decoded = await readTextFileWithHash(abs, { buffer, stat });
+        text = decoded.text;
+        buffer = decoded.buffer;
+        if (fileTextCache?.set && relKey) {
+          fileTextCache.set(relKey, {
+            text,
+            buffer,
+            hash: decoded.hash,
+            size: stat?.size ?? buffer.length,
+            mtimeMs: stat?.mtimeMs ?? null,
+            encoding: decoded.encoding || null,
+            encodingFallback: decoded.usedFallback,
+            encodingConfidence: decoded.confidence
+          });
+        }
+      } catch (err) {
+        const code = err?.code || null;
+        if (code === 'ERR_SYMLINK') {
+          if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+          continue;
+        }
+        const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
+          ? 'unreadable'
+          : 'read-failure';
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason} (${code || 'ERR'})`);
+        continue;
       }
     }
 
@@ -176,9 +224,10 @@ export const buildTreeSitterSchedulerPlan = async ({
         continue;
       }
 
-      const wasmKey = LANGUAGE_WASM_FILES[languageId] || null;
-      if (!wasmKey) {
-        throw new Error(`[tree-sitter:schedule] missing wasmKey for ${languageId} (${relKey}).`);
+      const usesNative = process.platform === 'win32' && languageId === 'swift';
+      const grammarKey = LANGUAGE_WASM_FILES[languageId] || null;
+      if (!grammarKey) {
+        throw new Error(`[tree-sitter:schedule] missing grammarKey for ${languageId} (${relKey}).`);
       }
 
       const segmentUid = segment.segmentUid || null;
@@ -188,11 +237,13 @@ export const buildTreeSitterSchedulerPlan = async ({
         effectiveExt: segmentExt
       });
 
-      requiredLanguages.add(languageId);
+      if (!usesNative) {
+        requiredLanguages.add(languageId);
+      }
       const job = {
         schemaVersion: '1.0.0',
         virtualPath,
-        wasmKey,
+        grammarKey,
         languageId,
         containerPath: relKey,
         containerExt: ext,
@@ -201,10 +252,10 @@ export const buildTreeSitterSchedulerPlan = async ({
         segmentEnd: segment.end,
         segment: segment
       };
-      if (!groups.has(wasmKey)) {
-        groups.set(wasmKey, { wasmKey, languages: new Set(), jobs: [] });
+      if (!groups.has(grammarKey)) {
+        groups.set(grammarKey, { grammarKey, languages: new Set(), jobs: [] });
       }
-      const group = groups.get(wasmKey);
+      const group = groups.get(grammarKey);
       group.languages.add(languageId);
       group.jobs.push(job);
     }
@@ -219,12 +270,12 @@ export const buildTreeSitterSchedulerPlan = async ({
     }
   }
 
-  const wasmKeys = Array.from(groups.keys()).sort(compareStrings);
-  const groupList = wasmKeys.map((wasmKey) => {
-    const group = groups.get(wasmKey);
+  const grammarKeys = Array.from(groups.keys()).sort(compareStrings);
+  const groupList = grammarKeys.map((grammarKey) => {
+    const group = groups.get(grammarKey);
     group.jobs.sort(sortJobs);
     return {
-      wasmKey,
+      grammarKey,
       languages: Array.from(group.languages).sort(compareStrings),
       jobs: group.jobs
     };
@@ -234,15 +285,17 @@ export const buildTreeSitterSchedulerPlan = async ({
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
     mode,
+    repoRoot: runtime.root,
     outDir,
     jobs: groupList.reduce((sum, group) => sum + group.jobs.length, 0),
-    wasmKeys,
-    requiredLanguages: required
+    grammarKeys,
+    requiredLanguages: required,
+    treeSitterConfig
   };
 
   await writeJsonObjectFile(paths.planPath, { fields: plan, atomic: true });
   for (const group of groupList) {
-    const jobPath = paths.jobPathForWasmKey(group.wasmKey);
+    const jobPath = paths.jobPathForGrammarKey(group.grammarKey);
     await writeJsonLinesFile(jobPath, group.jobs, { atomic: true, compression: null });
   }
 

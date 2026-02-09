@@ -115,7 +115,7 @@ export const processFiles = async ({
     const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
     if (schedStats) {
       log(
-        `[tree-sitter:schedule] Ready: wasmKeys=${schedStats.wasmKeys} indexEntries=${schedStats.indexEntries} ` +
+        `[tree-sitter:schedule] Ready: grammarKeys=${schedStats.grammarKeys} indexEntries=${schedStats.indexEntries} ` +
         `cache=${schedStats.cacheEntries}`
       );
     }

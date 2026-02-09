@@ -1,7 +1,29 @@
+import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
+import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
-import { executeTreeSitterSchedulerPlan } from './executor.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
+
+const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
+
+const loadIndexEntries = async ({ grammarKeys, paths }) => {
+  const index = new Map();
+  for (const grammarKey of grammarKeys || []) {
+    const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
+    const text = await fs.readFile(indexPath, 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const row = JSON.parse(trimmed);
+      const virtualPath = row?.virtualPath || null;
+      if (!virtualPath) continue;
+      index.set(virtualPath, row);
+    }
+  }
+  return index;
+};
 
 export const runTreeSitterScheduler = async ({
   mode,
@@ -24,25 +46,41 @@ export const runTreeSitterScheduler = async ({
   });
   if (!planResult) return null;
 
-  const execResult = await executeTreeSitterSchedulerPlan({
-    mode,
-    runtime,
-    groups: planResult.groups,
-    outDir,
-    abortSignal,
-    log
-  });
+  // Execute the plan in a separate Node process. Tree-sitter WASM compilation
+  // can trigger V8 "Zone" OOMs when it runs in the main indexer process.
+  const runtimeEnv = runtime?.envelope
+    ? resolveRuntimeEnv(runtime.envelope, process.env)
+    : process.env;
+  const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
+  for (let i = 0; i < grammarKeys.length; i += 1) {
+    const grammarKey = grammarKeys[i];
+    if (log) log(`[tree-sitter:schedule] exec ${i + 1}/${grammarKeys.length}: ${grammarKey}`);
+    await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir, '--grammarKey', grammarKey], {
+      cwd: runtime?.root || undefined,
+      env: runtimeEnv,
+      stdio: 'inherit',
+      shell: false,
+      signal: abortSignal,
+      killTree: true,
+      rejectOnNonZeroExit: true
+    });
+  }
 
+  const index = await loadIndexEntries({
+    grammarKeys,
+    paths: planResult.paths
+  });
   const lookup = createTreeSitterSchedulerLookup({
     outDir,
-    index: execResult?.index || new Map(),
+    index,
     log
   });
 
   return {
     ...lookup,
     plan: planResult.plan,
-    schedulerStats: execResult?.stats || null
+    schedulerStats: planResult.plan
+      ? { grammarKeys: (planResult.plan.grammarKeys || []).length, jobs: planResult.plan.jobs || 0 }
+      : null
   };
 };
-
