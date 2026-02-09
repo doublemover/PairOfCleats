@@ -107,3 +107,4 @@ for (const virtualPath of scheduler.index.keys()) {
 }
 
 console.log('tree-sitter scheduler native smoke ok');
+

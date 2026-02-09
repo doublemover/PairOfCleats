@@ -70,3 +70,4 @@ assert.ok(
 );
 
 console.log('tree-sitter scheduler native plan contract ok');
+

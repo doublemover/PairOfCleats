@@ -1,8 +1,9 @@
-import { TREE_SITTER_LANGUAGE_IDS } from './config.js';
+import { LANGUAGE_GRAMMAR_KEYS, TREE_SITTER_LANGUAGE_IDS } from './config.js';
 import {
   getNativeTreeSitterParser,
   hasNativeTreeSitterGrammar,
   initNativeTreeSitter,
+  loadNativeTreeSitterGrammar,
   preflightNativeTreeSitterGrammars
 } from './native-runtime.js';
 import { treeSitterState } from './state.js';
@@ -12,6 +13,22 @@ const runtimeState = {
   activatedLanguages: new Set(),
   loggedMissing: new Set(),
   loggedInitFailure: false
+};
+
+const grammarKeyForLanguage = (languageId) => LANGUAGE_GRAMMAR_KEYS?.[languageId] || null;
+
+const syncRuntimeLanguageCache = (languageId) => {
+  if (!languageId) return null;
+  const loaded = loadNativeTreeSitterGrammar(languageId, {});
+  const language = loaded?.language || null;
+  const grammarKey = grammarKeyForLanguage(languageId);
+  if (grammarKey && language) {
+    treeSitterState.grammarCache.set(grammarKey, { language, error: null });
+  }
+  if (language) {
+    treeSitterState.languageCache.set(languageId, { language, error: null });
+  }
+  return language;
 };
 
 const bumpMetric = (key, amount = 1) => {
@@ -43,7 +60,19 @@ const logOnce = (bucket, key, log, message) => {
 
 const cloneMetrics = () => {
   const metrics = treeSitterState.metrics || {};
-  return Object.fromEntries(Object.entries(metrics).map(([key, value]) => [key, Number(value) || 0]));
+  const flat = Object.fromEntries(Object.entries(metrics).map(([key, value]) => [key, Number(value) || 0]));
+  return {
+    ...flat,
+    cache: {
+      runtimeLanguages: runtimeState.activatedLanguages.size,
+      queryEntries: treeSitterState.queryCache?.size || 0,
+      chunkCacheEntries: treeSitterState.chunkCache?.size || 0
+    },
+    paths: {
+      grammarRoot: treeSitterState.grammarRoot || null,
+      runtimePath: treeSitterState.runtimePath || null
+    }
+  };
 };
 
 export function getTreeSitterCacheSnapshot() {
@@ -57,7 +86,7 @@ export function getTreeSitterCacheSnapshot() {
   };
 }
 
-export async function preflightTreeSitterWasmLanguages(languageIds = [], options = {}) {
+export async function preflightTreeSitterLanguages(languageIds = [], options = {}) {
   const unique = normalizeLanguageIds(languageIds);
   const preflight = preflightNativeTreeSitterGrammars(unique, { log: options?.log });
   return {
@@ -67,17 +96,17 @@ export async function preflightTreeSitterWasmLanguages(languageIds = [], options
   };
 }
 
-export async function initTreeSitterWasm(options = {}) {
+export async function initTreeSitterRuntime(options = {}) {
   const ok = initNativeTreeSitter({ log: options?.log });
   if (!ok) {
     if (!treeSitterState.treeSitterInitError) {
-      treeSitterState.treeSitterInitError = new Error('Native tree-sitter runtime unavailable.');
+      treeSitterState.treeSitterInitError = new Error('Tree-sitter runtime unavailable.');
     }
     logOnce(
       treeSitterState.loggedInitFailure,
-      'native-init-failed',
+      'runtime-init-failed',
       options?.log,
-      '[tree-sitter] Native parser runtime unavailable.'
+      '[tree-sitter] Parser runtime unavailable.'
     );
   }
   return ok;
@@ -93,7 +122,7 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
     return { loaded, missing, failures };
   }
 
-  const ok = await initTreeSitterWasm(options);
+  const ok = await initTreeSitterRuntime(options);
   if (!ok) {
     failures.push(...unique);
     return { loaded, missing, failures };
@@ -102,14 +131,20 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
   for (const languageId of unique) {
     if (!hasNativeTreeSitterGrammar(languageId)) {
       missing.push(languageId);
+      bumpMetric('grammarMissing', 1);
       bumpMetric('fallbacks', 1);
       continue;
     }
     const parser = getNativeTreeSitterParser(languageId, options);
     if (!parser) {
       failures.push(languageId);
+      bumpMetric('grammarLoadFailures', 1);
       bumpMetric('fallbacks', 1);
       continue;
+    }
+    syncRuntimeLanguageCache(languageId);
+    if (!runtimeState.activatedLanguages.has(languageId)) {
+      bumpMetric('grammarLoads', 1);
     }
     runtimeState.activatedLanguages.add(languageId);
     loaded.push(languageId);
@@ -119,26 +154,19 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
 }
 
 export function pruneTreeSitterLanguages(keepLanguages = [], options = {}) {
-  const keep = new Set(normalizeLanguageIds(keepLanguages));
-  const current = Array.from(runtimeState.activatedLanguages);
-  runtimeState.activatedLanguages.clear();
-  for (const languageId of current) {
-    if (keep.size === 0 || keep.has(languageId)) {
-      runtimeState.activatedLanguages.add(languageId);
-    }
-  }
-  if (runtimeState.activeLanguageId && keep.size > 0 && !keep.has(runtimeState.activeLanguageId)) {
-    runtimeState.activeLanguageId = null;
-  }
+  void keepLanguages;
   if (options?.log) {
     logOnce(
       treeSitterState.loggedEvictionWarnings,
-      'native-prune-noop',
+      'prune-noop',
       options.log,
-      '[tree-sitter] Native runtime does not unload grammars; prune is treated as a no-op.'
+      '[tree-sitter] Grammar pruning is disabled for native runtime.'
     );
   }
-  return { removed: 0, kept: runtimeState.activatedLanguages.size };
+  return {
+    removed: 0,
+    kept: runtimeState.activatedLanguages.size
+  };
 }
 
 export function resetTreeSitterParser({ hard = false } = {}) {
@@ -152,13 +180,14 @@ export function getTreeSitterParser(languageId, options = {}) {
   if (!resolvedId) return null;
 
   if (!hasNativeTreeSitterGrammar(resolvedId)) {
+    bumpMetric('grammarMissing', 1);
     bumpMetric('fallbacks', 1);
     if (!options?.suppressMissingLog) {
       logOnce(
         runtimeState.loggedMissing,
         resolvedId,
         options?.log,
-        `[tree-sitter] Missing native grammar for ${resolvedId}.`
+        `[tree-sitter] Missing grammar for ${resolvedId}.`
       );
     }
     return null;
@@ -166,23 +195,28 @@ export function getTreeSitterParser(languageId, options = {}) {
 
   const parser = getNativeTreeSitterParser(resolvedId, options);
   if (!parser) {
+    bumpMetric('grammarLoadFailures', 1);
     bumpMetric('fallbacks', 1);
     if (!options?.suppressMissingLog) {
       logOnce(
         runtimeState.loggedMissing,
         `${resolvedId}:unavailable`,
         options?.log,
-        `[tree-sitter] Native parser unavailable for ${resolvedId}.`
+        `[tree-sitter] Parser unavailable for ${resolvedId}.`
       );
     }
     return null;
   }
 
+  if (!runtimeState.activatedLanguages.has(resolvedId)) {
+    bumpMetric('grammarLoads', 1);
+  }
   if (runtimeState.activeLanguageId !== resolvedId) {
     runtimeState.activeLanguageId = resolvedId;
     bumpMetric('parserActivations', 1);
   }
   runtimeState.activatedLanguages.add(resolvedId);
+  syncRuntimeLanguageCache(resolvedId);
 
   return parser;
 }

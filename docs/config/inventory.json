@@ -2982,7 +2982,7 @@
         ]
       },
       {
-        "file": "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+        "file": "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
         "flags": [
           "log",
           "treeSitter",
@@ -4442,7 +4442,7 @@
           "src/lang/typescript/chunks.js",
           "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
           "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
           "tools/bench/index/tree-sitter-load.js"
         ]
@@ -4494,7 +4494,7 @@
           "src/lang/typescript/chunks.js",
           "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
           "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
           "tools/bench/index/tree-sitter-load.js"
         ]

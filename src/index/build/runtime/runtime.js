@@ -433,7 +433,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     treeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
-    treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
     treeSitterLanguagePasses,
@@ -728,14 +727,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       treeSitterLanguages,
       treeSitterPreload,
       treeSitterPreloadConcurrency,
-      treeSitterMaxLoadedLanguages,
       observedLanguages: null,
       log
     });
     if (preloadCount > 0) {
       logInit('tree-sitter preload', preloadStart);
-    } else if (treeSitterPreload !== 'none') {
-      log('Tree-sitter preload settings are ignored in native scheduler mode.');
     }
   }
   if (typeInferenceEnabled) {
@@ -783,8 +779,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       maxLines: treeSitterMaxLines,
       maxParseMs: treeSitterMaxParseMs,
       byLanguage: treeSitterByLanguage,
-      deferMissing: treeSitterDeferMissing,
-      maxLoadedLanguages: treeSitterMaxLoadedLanguages
+      deferMissing: treeSitterDeferMissing
     },
     debugCrash,
     log
@@ -846,7 +841,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       byLanguage: treeSitterByLanguage,
       preload: treeSitterPreload,
       preloadConcurrency: treeSitterPreloadConcurrency,
-      maxLoadedLanguages: treeSitterMaxLoadedLanguages,
       batchByLanguage: treeSitterBatchByLanguage,
       batchEmbeddedLanguages: treeSitterBatchEmbeddedLanguages,
       languagePasses: treeSitterLanguagePasses,

@@ -12,12 +12,6 @@ const nativeTreeSitterState = {
   loggedMissing: new Set()
 };
 
-const formatMemoryUsage = () => {
-  const usage = process.memoryUsage();
-  const toMb = (value) => (Number(value) / (1024 * 1024)).toFixed(1);
-  return `rss=${toMb(usage.rss)}MB heapUsed=${toMb(usage.heapUsed)}MB ext=${toMb(usage.external)}MB ab=${toMb(usage.arrayBuffers)}MB`;
-};
-
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: { moduleName: 'tree-sitter-javascript' },
   typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
@@ -79,13 +73,12 @@ export function initNativeTreeSitter({ log } = {}) {
   nativeTreeSitterState.initTried = true;
   try {
     nativeTreeSitterState.ParserCtor = require('tree-sitter');
-    if (log) log(`[tree-sitter:native] Parser ready mem=${formatMemoryUsage()}`);
     return true;
   } catch (err) {
     nativeTreeSitterState.initError = err;
     if (log) {
       const message = err?.message || String(err);
-      log(`[tree-sitter:native] Parser unavailable (${message}).`);
+      log(`[tree-sitter] Parser unavailable (${message}).`);
     }
     return false;
   }
@@ -109,14 +102,13 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
     if (!language) throw new Error(`Missing export "${grammarSpec.exportKey}" in ${moduleName}`);
     const entry = { language, error: null };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
-    if (log) log(`[tree-sitter:native] Loaded ${moduleName} for ${languageId} mem=${formatMemoryUsage()}`);
     return entry;
   } catch (err) {
     const entry = { language: null, error: err };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
     if (log && !nativeTreeSitterState.loggedMissing.has(languageId)) {
       const message = err?.message || String(err);
-      log(`[tree-sitter:native] Missing grammar for ${languageId} (${moduleName}): ${message}`);
+      log(`[tree-sitter] Missing grammar for ${languageId} (${moduleName}): ${message}`);
       nativeTreeSitterState.loggedMissing.add(languageId);
     }
     return entry;
@@ -166,11 +158,10 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
     }
 
     if (nativeTreeSitterState.sharedParserLanguageId !== resolvedId) {
-      // Native tree-sitter doesn't expose a documented `reset()`; treat language
+      // tree-sitter doesn't expose a documented `reset()`; treat language
       // switches as the synchronization point.
       nativeTreeSitterState.sharedParser.setLanguage(language);
       nativeTreeSitterState.sharedParserLanguageId = resolvedId;
-      if (log) log(`[tree-sitter:native] Activated ${resolvedId} mem=${formatMemoryUsage()}`);
     }
 
     return nativeTreeSitterState.sharedParser;
@@ -182,7 +173,7 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
     nativeTreeSitterState.sharedParserLanguageId = null;
     if (log) {
       const message = err?.message || String(err);
-      log(`[tree-sitter:native] Failed to activate ${resolvedId}: ${message}`);
+      log(`[tree-sitter] Failed to activate ${resolvedId}: ${message}`);
     }
     return null;
   }

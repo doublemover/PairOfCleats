@@ -4,8 +4,6 @@ import {
   normalizeTreeSitterByLanguage
 } from './caps.js';
 
-const DEFAULT_MAX_LOADED_LANGUAGES = 3;
-const DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES = 3;
 const DEFAULT_DEFER_MISSING_MAX = 2;
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
@@ -70,15 +68,6 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterConfig.preloadConcurrency
   );
 
-  // Optional compatibility knob; native scheduling does not evict grammars.
-  const hasMaxLoadedLanguages = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'maxLoadedLanguages');
-  const defaultMaxLoadedLanguages = treeSitterLanguagePasses
-    ? DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES
-    : DEFAULT_MAX_LOADED_LANGUAGES;
-  const treeSitterMaxLoadedLanguages = hasMaxLoadedLanguages
-    ? normalizeOptionalLimit(treeSitterConfig.maxLoadedLanguages)
-    : defaultMaxLoadedLanguages;
-
   return {
     treeSitterEnabled,
     treeSitterLanguages,
@@ -89,7 +78,6 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterByLanguage: mergedTreeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
-    treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
     treeSitterLanguagePasses,
@@ -104,13 +92,11 @@ export const preloadTreeSitterRuntimeLanguages = async ({
   treeSitterLanguages: _treeSitterLanguages,
   treeSitterPreload,
   treeSitterPreloadConcurrency: _treeSitterPreloadConcurrency,
-  treeSitterMaxLoadedLanguages: _treeSitterMaxLoadedLanguages,
   observedLanguages: _observedLanguages = null,
   log
 }) => {
   if (!treeSitterEnabled) return 0;
-  if (treeSitterPreload !== 'none' && log) {
-    log('[tree-sitter] Native scheduler mode ignores eager preload settings.');
-  }
+  void treeSitterPreload;
+  void log;
   return 0;
 };

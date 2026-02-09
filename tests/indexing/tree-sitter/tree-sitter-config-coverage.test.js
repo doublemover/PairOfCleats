@@ -23,3 +23,4 @@ for (const languageId of TREE_SITTER_LANGUAGE_IDS) {
 
 console.log('tree-sitter config coverage ok');
 
+

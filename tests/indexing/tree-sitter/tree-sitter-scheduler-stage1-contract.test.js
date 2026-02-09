@@ -123,3 +123,4 @@ await assert.rejects(
 assert.ok(schedulerCalls > 0, 'expected scheduler to be consulted for tree-sitter chunks');
 
 console.log('tree-sitter scheduler stage1 contract ok');
+

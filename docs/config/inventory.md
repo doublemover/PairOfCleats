@@ -314,7 +314,7 @@ log, treeSitter
 
 log, treeSitter
 
-### tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js
+### tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js
 
 log, treeSitter, treeSitterMissingLanguages
 

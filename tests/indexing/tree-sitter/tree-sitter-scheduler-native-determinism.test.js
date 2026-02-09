@@ -94,3 +94,4 @@ assert.deepEqual(runB.sortedIndexRows, runA.sortedIndexRows, 'expected determini
 assert.deepEqual(runB.artifacts, runA.artifacts, 'expected deterministic scheduler artifacts');
 
 console.log('tree-sitter scheduler native determinism ok');
+

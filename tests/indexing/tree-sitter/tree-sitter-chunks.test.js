@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   buildTreeSitterChunks,
   preloadTreeSitterLanguages,
-  pruneTreeSitterLanguages,
   resetTreeSitterParser,
   shutdownTreeSitterWorkerPool
 } from '../../../src/lang/tree-sitter.js';
@@ -59,7 +58,7 @@ const resolvePreloadId = (fixture) => (
 );
 
 const cleanup = async () => {
-  // Cleanup of WASM tree-sitter language objects has proven flaky on some CI runners
+  // Cleanup of grammar runtime tree-sitter language objects has proven flaky on some CI runners
   // (native abort / SIGTRAP in node 24 builds). These tests run in an isolated process
   // and primarily validate chunk extraction output, so avoid the most aggressive
   // teardown paths to keep CI stable.
@@ -85,23 +84,14 @@ const run = async () => {
   const options = {
     treeSitter: {
       enabled: true,
-      languages: enabledLanguages,
-      // Avoid eviction during this test run; eviction + delete paths are covered elsewhere
-      // and have shown to be sensitive to runner/node build combinations.
-      maxLoadedLanguages: 1
+      languages: enabledLanguages
     },
     log: () => {}
   };
   const preloadLanguage = async (fixture) => {
     const resolvedId = resolvePreloadId(fixture) || fixture.languageId;
     if (!resolvedId) return;
-    await preloadTreeSitterLanguages([resolvedId], {
-      maxLoadedLanguages: options.treeSitter.maxLoadedLanguages
-    });
-    pruneTreeSitterLanguages([resolvedId], {
-      maxLoadedLanguages: options.treeSitter.maxLoadedLanguages,
-      onlyIfExceeds: true
-    });
+    await preloadTreeSitterLanguages([resolvedId]);
   };
 
   const first = fixturesToRun[0];
@@ -191,9 +181,10 @@ try {
   await run();
 } finally {
   // On CI/Linux/macOS, we intentionally avoid the extra teardown work because we've
-  // observed sporadic native aborts during WASM object cleanup on some runners.
+  // observed sporadic native aborts during grammar runtime object cleanup on some runners.
   // The test runs in an isolated process; skipping cleanup here is safe.
   if (!runReduced) {
     await cleanup();
   }
 }
+

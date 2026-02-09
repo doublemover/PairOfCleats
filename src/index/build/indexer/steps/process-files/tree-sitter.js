@@ -67,16 +67,9 @@ const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
     }
   }
   if (treeSitterOptions?.batchEmbeddedLanguages !== false && primary === 'html') {
-    const maxLoaded = Number.isFinite(treeSitterOptions?.maxLoadedLanguages)
-      ? Math.max(1, Math.floor(treeSitterOptions.maxLoadedLanguages))
-      : null;
-    const embeddedBudget = maxLoaded ? Math.max(0, maxLoaded - 1) : null;
-    let embeddedCount = 0;
     for (const lang of HTML_EMBEDDED_LANGUAGES) {
-      if (embeddedBudget != null && embeddedCount >= embeddedBudget) break;
       if (!TREE_SITTER_LANG_IDS.has(lang)) continue;
       languages.add(lang);
-      embeddedCount += 1;
     }
   }
   const normalized = Array.from(languages).filter((lang) => TREE_SITTER_LANG_IDS.has(lang)).sort();
@@ -195,7 +188,7 @@ export const collectTreeSitterBatchLanguages = (entries) => {
   return Array.from(languages).sort();
 };
 
-export const resolveTreeSitterPreloadPlan = (entries, treeSitterOptions = null) => {
+export const resolveTreeSitterPreloadPlan = (entries) => {
   const counts = new Map();
   for (const entry of entries || []) {
     const batchLanguages = Array.isArray(entry?.treeSitterBatchLanguages)
@@ -216,17 +209,11 @@ export const resolveTreeSitterPreloadPlan = (entries, treeSitterOptions = null) 
       return compareStrings(a[0], b[0]);
     })
     .map(([language]) => language);
-  const maxLoaded = Number.isFinite(treeSitterOptions?.maxLoadedLanguages)
-    ? Math.max(1, Math.floor(treeSitterOptions.maxLoadedLanguages))
-    : null;
-  const languages = maxLoaded ? ordered.slice(0, maxLoaded) : ordered;
-  return { languages, counts };
+  return { languages: ordered, counts };
 };
 
 export const preloadTreeSitterBatch = async ({ languages, treeSitter, log: logFn }) => {
   if (!treeSitter || treeSitter.enabled === false) return;
   if (!Array.isArray(languages) || !languages.length) return;
-  if (logFn) {
-    logFn('[tree-sitter] Native scheduler mode ignores batch preload requests.');
-  }
+  void logFn;
 };

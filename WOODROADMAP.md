@@ -1,7 +1,7 @@
 # WOODROADMAP - Native-Only Tree-sitter Scheduler
 
 ## Snapshot
-- Last rewritten: 2026-02-09T18:31:41.0670000Z
+- Last rewritten: 2026-02-09T14:19:26.9703540-05:00
 - Branch intent: remove WASM tree-sitter entirely and standardize indexing on native tree-sitter grammars only.
 - Current branch state: native grammar support is implemented for all target scheduler languages.
 
@@ -52,6 +52,7 @@ Adopt a native-only scheduling model:
 | N4 Stage1 Contract Tightening | completed | Stage1 enforces scheduler contract and logs artifact violations |
 | N5 Native Coverage + Regression Tests | completed | Native scheduler tests added and passing as of 2026-02-09T18:53:21.1939237Z |
 | N6 WASM Removal + Docs Archive | completed | Native-only runtime/docs cutover completed as of 2026-02-09T19:00:36.4243426Z |
+| N7 Native Runtime Simplification | completed | Removed `maxLoadedLanguages`/prune semantics and re-baselined tests as of 2026-02-09T14:19:26.9703540-05:00 |
 
 ## Phase N0 - Baseline + Decisions
 Objective: lock architecture so implementation proceeds without mixed-runtime ambiguity.
@@ -171,6 +172,30 @@ Validation (2026-02-09T19:00:36.4243426Z):
 - `node tests/indexing/tree-sitter/tree-sitter-scheduler-stage1-contract.test.js` (pass)
 - `node tests/indexing/tree-sitter/tree-sitter-chunks.test.js` (pass)
 - `node tests/run.js --lane all --match tree-sitter-scheduler` (pass)
+
+## Phase N7 - Native Runtime Simplification
+Objective: remove native-runtime cap/eviction semantics that were only needed for WASM-era lifecycle management.
+
+Touchpoints:
+- `src/lang/tree-sitter/runtime.js`
+- `src/lang/tree-sitter/chunking.js`
+- `src/index/build/runtime/tree-sitter.js`
+- `src/index/build/runtime/runtime.js`
+- `src/index/build/indexer/steps/process-files/tree-sitter.js`
+- `src/index/build/workers/pool.js`
+- `src/lang/tree-sitter/worker.js`
+- `tools/bench/index/tree-sitter-load.js`
+- `tests/indexing/tree-sitter/*`
+
+Tasks:
+- [x] Remove `maxLoadedLanguages` plumbing from runtime/worker/indexing tree-sitter options.
+- [x] Make `pruneTreeSitterLanguages` non-evicting for native runtime.
+- [x] Keep parser memory safety guardrails (parse timeout, traversal budgets, parser/tree cleanup).
+- [x] Rebaseline cache/query/bench tests to native semantics and remove WASM-named tests.
+- [x] Validate full tree-sitter suite (`node tests/run.js --lane all --match tree-sitter`).
+
+Validation (2026-02-09T14:19:26.9703540-05:00):
+- `node tests/run.js --lane all --match tree-sitter` (pass: 26/26)
 
 ## Validation Commands (to run as phases land)
 - `node tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`

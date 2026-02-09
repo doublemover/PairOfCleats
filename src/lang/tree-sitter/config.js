@@ -23,10 +23,6 @@ const LANGUAGE_GRAMMAR_KEYS = {
   html: 'native:html'
 };
 
-// Deprecated compatibility alias retained for callers that still import this
-// symbol name directly.
-const LANGUAGE_WASM_FILES = LANGUAGE_GRAMMAR_KEYS;
-
 export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
   Object.keys(LANGUAGE_GRAMMAR_KEYS)
 );
@@ -422,4 +418,4 @@ const LANG_CONFIG = {
   }
 };
 
-export { LANGUAGE_GRAMMAR_KEYS, LANGUAGE_WASM_FILES, LANG_CONFIG };
+export { LANGUAGE_GRAMMAR_KEYS, LANG_CONFIG };

@@ -36,7 +36,6 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
     maxBytes: config.maxBytes ?? null,
     maxLines: config.maxLines ?? null,
     maxParseMs: config.maxParseMs ?? null,
-    maxLoadedLanguages: config.maxLoadedLanguages ?? null,
     maxAstNodes: config.maxAstNodes ?? null,
     maxAstStack: config.maxAstStack ?? null,
     maxChunkNodes: config.maxChunkNodes ?? null,
@@ -89,7 +88,7 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
     : [];
   const maxOldMb = parseMaxOldSpaceSizeMb([...execArgv, ...nodeOptionsArgv]);
 
-  // Tree-sitter workers can load multiple WASM grammars. When indexing a repo
+  // Tree-sitter workers can load multiple grammars. When indexing a repo
   // that spans many languages, overly small heaps can crash workers with V8
   // "Zone" OOMs even when overall RSS remains low.
   let budgetMb = null;

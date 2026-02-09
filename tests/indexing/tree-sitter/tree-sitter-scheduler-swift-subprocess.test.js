@@ -53,3 +53,4 @@ const chunks = await scheduler.loadChunks(virtualPath);
 assert.ok(Array.isArray(chunks) && chunks.length > 0, 'expected tree-sitter chunks for swift virtual doc');
 
 console.log('tree-sitter scheduler swift subprocess ok');
+

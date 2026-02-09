@@ -1,27 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { buildTreeSitterChunks } from '../../../src/lang/tree-sitter.js';
+import {
+  buildTreeSitterChunks,
+  getTreeSitterStats,
+  resetTreeSitterStats
+} from '../../../src/lang/tree-sitter.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
-const setupStubParser = () => {
-  treeSitterState.TreeSitter = treeSitterState.TreeSitter || {};
-  treeSitterState.sharedParser = {
-    setLanguage() {},
-    reset() {},
-    setTimeoutMicros() {},
-    parse() {
-      throw new Error('timeout');
-    }
-  };
-  treeSitterState.sharedParserLanguageId = null;
-  treeSitterState.languageCache.set('javascript', { language: {} });
-  treeSitterState.timeoutCounts = new Map();
-  treeSitterState.disabledLanguages = new Set();
-  treeSitterState.loggedTimeoutDisable = new Set();
-};
+applyTestEnv({ testing: '1' });
 
-setupStubParser();
+resetTreeSitterStats();
+treeSitterState.disabledLanguages = new Set(['javascript']);
 
 const options = {
   treeSitter: { enabled: true, useQueries: false },
@@ -29,12 +20,15 @@ const options = {
 };
 const text = 'function demo() { return 1; }';
 
-for (let i = 0; i < 3; i += 1) {
-  const result = buildTreeSitterChunks({ text, languageId: 'javascript', options });
-  assert.equal(result, null, 'expected timeout to force fallback');
-}
+const before = getTreeSitterStats();
+const result = buildTreeSitterChunks({ text, languageId: 'javascript', options });
+const after = getTreeSitterStats();
+assert.equal(result, null, 'expected disabled language to fall back');
+assert.equal(
+  Number(after.fallbacks) - Number(before.fallbacks),
+  1,
+  'expected disabled-language path to increment fallback metric'
+);
 
-assert.equal(treeSitterState.timeoutCounts.get('javascript'), 3, 'expected timeout count to reach 3');
-assert.ok(treeSitterState.disabledLanguages.has('javascript'), 'expected language to be disabled after 3 timeouts');
+console.log('tree-sitter disabled-language fallback ok');
 
-console.log('tree-sitter timeout disable ok');

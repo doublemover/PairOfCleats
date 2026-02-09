@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 
 import { pruneTreeSitterLanguages } from '../../../src/lang/tree-sitter.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
-import { LANGUAGE_WASM_FILES } from '../../../src/lang/tree-sitter/config.js';
+import { LANGUAGE_GRAMMAR_KEYS } from '../../../src/lang/tree-sitter/config.js';
 
 const seedCaches = () => {
   treeSitterState.TreeSitter = treeSitterState.TreeSitter || {};
-  treeSitterState.wasmLanguageCache.clear();
+  treeSitterState.grammarCache.clear();
   treeSitterState.languageCache.clear();
 
   const add = (lang) => {
-    const wasmKey = LANGUAGE_WASM_FILES[lang];
-    treeSitterState.wasmLanguageCache.set(wasmKey, { language: null, error: null });
+    const runtimeKey = LANGUAGE_GRAMMAR_KEYS[lang];
+    treeSitterState.grammarCache.set(runtimeKey, { language: null, error: null });
     treeSitterState.languageCache.set(lang, { language: null, error: null });
   };
 
@@ -24,13 +24,12 @@ const seedCaches = () => {
 seedCaches();
 
 const result = pruneTreeSitterLanguages(['python'], { skipDispose: true });
-assert.equal(result.kept, 1, 'prune should keep only the requested language');
+assert.equal(result.removed, 0, 'prune should not evict native runtime entries');
 
-const remaining = Array.from(treeSitterState.wasmLanguageCache.keys());
-assert.deepStrictEqual(
-  remaining,
-  [LANGUAGE_WASM_FILES.python],
-  'prune should remove non-requested wasm entries'
-);
+const remaining = Array.from(treeSitterState.grammarCache.keys());
+assert.ok(remaining.includes(LANGUAGE_GRAMMAR_KEYS.javascript), 'expected javascript grammar entry to remain');
+assert.ok(remaining.includes(LANGUAGE_GRAMMAR_KEYS.python), 'expected python grammar entry to remain');
+assert.ok(remaining.includes(LANGUAGE_GRAMMAR_KEYS.go), 'expected go grammar entry to remain');
 
 console.log('tree-sitter worker prune bounds ok');
+

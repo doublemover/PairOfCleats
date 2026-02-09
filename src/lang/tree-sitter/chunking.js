@@ -6,9 +6,9 @@ import {
   getNamedChild,
   getNamedChildCount
 } from './ast.js';
-import { LANG_CONFIG } from './config.js';
+import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getNativeTreeSitterParser } from './native-runtime.js';
+import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
@@ -717,6 +717,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       loggedUnavailable.add(resolvedId);
     }
     return null;
+  }
+  const loadedGrammar = loadNativeTreeSitterGrammar(resolvedId);
+  const grammarLanguage = loadedGrammar?.language || null;
+  if (grammarLanguage) {
+    treeSitterState.languageCache?.set?.(resolvedId, { language: grammarLanguage, error: null });
+    const grammarKey = LANGUAGE_GRAMMAR_KEYS?.[resolvedId];
+    if (grammarKey) {
+      treeSitterState.grammarCache?.set?.(grammarKey, { language: grammarLanguage, error: null });
+    }
   }
   const config = LANG_CONFIG[resolvedId];
   if (!config) {
