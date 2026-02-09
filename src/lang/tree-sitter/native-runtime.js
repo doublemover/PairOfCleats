@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { LANGUAGE_GRAMMAR_KEYS } from './config.js';
 
 const require = createRequire(import.meta.url);
 
@@ -14,6 +15,7 @@ const nativeTreeSitterState = {
 
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: { moduleName: 'tree-sitter-javascript' },
+  jsx: { moduleName: 'tree-sitter-javascript' },
   typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
   tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
   python: { moduleName: 'tree-sitter-python' },
@@ -60,9 +62,10 @@ export function resolveNativeTreeSitterTarget(languageId, ext = null) {
   const resolvedId = typeof languageId === 'string' ? languageId : null;
   if (!resolvedId) return null;
   if (!hasNativeTreeSitterGrammar(resolvedId)) return null;
+  const grammarKey = LANGUAGE_GRAMMAR_KEYS?.[resolvedId] || `native:${resolvedId}`;
   return {
     languageId: resolvedId,
-    grammarKey: `native:${resolvedId}`,
+    grammarKey,
     runtimeKind: 'native',
     ext: typeof ext === 'string' && ext ? ext : null
   };
