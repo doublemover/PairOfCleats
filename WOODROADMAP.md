@@ -1,162 +1,168 @@
-# VFS-Driven Global Tree-sitter Scheduler (One True Way)
+# WOODROADMAP - Native-Only Tree-sitter Scheduler
 
-## Summary
-Replace all per-file and per-thread tree-sitter usage during indexing with a VFS-driven global scheduler that:
-- Enumerates all tree-sitter work (including multi-language segments) up front.
-- Batches execution by grammar WASM key (load grammar once, do all jobs, unload, then next).
-- Produces deterministic, index-consumable outputs (chunking + token buckets now; seam for more consumers later).
-- Removes legacy code paths entirely (no fallback, no "old way").
+## Snapshot
+- Last rewritten: 2026-02-09T18:31:41.0670000Z
+- Branch intent: remove WASM tree-sitter entirely and standardize indexing on native tree-sitter grammars only.
+- Current branch state: native grammar support is implemented for all target scheduler languages.
 
-Constraints and decisions:
-- No fallback to legacy behavior is allowed. Missing scheduler outputs is a hard error.
-- Execution now: single in-process executor, with a seam to add per-language worker pool later.
-- Extracted prose participates only if it produces embedded code segments that resolve to a tree-sitter language.
+## State Assessment
 
-## Goals / Success Criteria
-- During `build-index`, grammars are processed in batches by wasmKey:
-  - `load -> process all jobs -> unload -> next`.
-- No tree-sitter parsing happens inside per-file Stage1 workers.
-- Determinism: chunk ids, ordering ledgers, and artifact hashes are identical across runs given the same repo/config.
-- Strictness: invalid/missing scheduler artifacts fail the build (no warning-only behavior).
-- Caps are global, not per-thread (single executor enforces the cap; later parallelism must share budget tokens).
+### What is already done (committed)
+- Native runtime exists and is integrated into chunking on Windows for mapped grammars.
+- Native grammar loading/parsing has been validated for these 17 languages:
+  `javascript`, `typescript`/`tsx`, `python`, `json`, `yaml`, `toml`, `markdown`, `kotlin`, `csharp`, `c`, `cpp`, `objc`, `go`, `rust`, `java`, `css`, `html`.
+- Native grammar dependency set is present in `package.json`.
 
-## Non-Goals
-- Implementing the per-language worker pool now (we only design the seam).
-- Rewriting non-tree-sitter chunkers/tokenizers (they can remain per-file).
+### What is already done (currently uncommitted)
+- Scheduler execution isolation via subprocess is implemented (`src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/subprocess-exec.js`).
+- Scheduler planner hardening is in place for symlink/minified/unreadable/skip handling (`src/index/build/tree-sitter-scheduler/plan.js`).
+- Executor memory/load logging and scheduler strictness work is in place (`src/index/build/tree-sitter-scheduler/executor.js`).
+- Strict worker behavior improvements for tree-sitter parsing are in place (`src/lang/workers/tree-sitter-worker.js`).
+- Added scheduler subprocess regression test for Swift (`tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`).
 
-## Architecture
+### Key gaps vs native-only target
+- Scheduler data model still uses `wasmKey` naming and grouping.
+- Planner/executor still contain WASM preload/prune assumptions.
+- Runtime exports and options still carry WASM lifecycle paths that should be removed from indexing path.
+- Tests/docs still describe or permit WASM behavior.
 
-### A. Tree-sitter Jobs (Input)
-A job is one VFS virtual document segment that must be parsed with a specific grammar wasmKey.
+## Strategic Direction
+Adopt a native-only scheduling model:
+- Batch key becomes `grammarKey` in format `native:<languageId>`.
+- Every scheduled tree-sitter job uses native runtime only.
+- No WASM runtime init, preload, prune, unload, or fallback paths in indexing.
+- Stage1 remains strict: tree-sitter work must come from scheduler artifacts; missing scheduler outputs are fatal.
 
-Job JSONL row fields:
-- `containerPath`: real path
-- `containerRel`: repo-relative path (stable sorting + ids)
-- `segmentUid`: stable segment identifier
-- `virtualPath`: `.poc-vfs/...#seg:<segmentUid>.<ext>`
-- `virtualRange`: `{ start, end }` (byte offsets in container, validated)
-- `effectiveLanguageId`: resolved tree-sitter language id
-- `wasmKey`: canonical key derived from resolved wasm path
-- `contentHash`: stable hash of segment text (optional but recommended)
+## Scope
+- In:
+  - Tree-sitter scheduler planning/execution/lookup.
+  - Native runtime routing and strictness.
+  - Removal of WASM indexing paths, tests, and docs.
+- Out:
+  - New language onboarding beyond the current native set.
+  - Rework of non-tree-sitter chunkers/tokenizers.
 
-Deterministic execution ordering within a wasmKey batch:
-1. `containerRel` (bytewise)
-2. `virtualRange.start` (numeric)
-3. `virtualRange.end` (numeric)
-4. `segmentUid` (bytewise)
+## Phase Status Summary
+| Phase | Status | Notes |
+| --- | --- | --- |
+| N0 Baseline + Decisions | completed | Decisions locked at 2026-02-09T18:31:41.0670000Z |
+| N1 Schema + Naming Migration | planned | Remove `wasmKey` model |
+| N2 Planner Native-Only Routing | planned | Native target per language segment |
+| N3 Executor Native-Only Batching | planned | Remove WASM lifecycle calls |
+| N4 Stage1 Contract Tightening | planned | Scheduler-only tree-sitter in indexing |
+| N5 Native Coverage + Regression Tests | planned | All 17 languages through scheduler |
+| N6 WASM Removal + Docs Archive | planned | Delete WASM indexing paths and specs |
 
-This is only execution order. Output determinism must not depend on it.
+## Phase N0 - Baseline + Decisions
+Objective: lock architecture so implementation proceeds without mixed-runtime ambiguity.
 
-### B. Tree-sitter Results (Outputs)
-Results are keyed by `virtualPath`, so Stage1 can deterministically look them up regardless of execution order.
+Tasks:
+- [x] Confirm canonical batch key: `grammarKey = native:<languageId>`.
+- [x] Confirm hard cutover strategy for artifact fields (`wasmKey` removed, not dual-written).
+- [x] Confirm native runtime requirement policy in indexing mode (missing native grammar = hard error).
+- [x] Confirm scheduler subprocess policy (always-on in indexing mode).
 
-Artifacts under each mode index directory (`index-*/`):
-- `tree-sitter/plan.json`
-  - wasmKeys in execution order
-  - counts and config snapshot
-- `tree-sitter/jobs/<wasmKey>.jsonl`
-- `tree-sitter/results/<wasmKey>.jsonl`
-  - one row per job:
-    - `virtualPath`, `segmentUid`, `containerRel`, `virtualRange`
-    - `chunks`: chunk descriptors (container-relative offsets; stable uid inputs)
-    - `tokenBuckets`: per-chunk token class buckets (compact ranges)
-    - `stats`: per-job optional metrics
-- `tree-sitter/results/<wasmKey>.vfsidx` (or equivalent sparse offset index)
-  - `virtualPath -> fileOffset`
+Decisions (locked):
+- `grammarKey` is the only batch identity in scheduler artifacts and filenames.
+- `wasmKey` is removed from scheduler plan/jobs/results/index schema (no dual-write transition).
+- In indexing mode with tree-sitter enabled, unresolved native grammar support is a hard error.
+- Scheduler execution runs in subprocess mode by default for all native grammar batches.
 
-Token bucket representation:
-- For each chunk: a compact list of `{ start, end, kind }` in chunk-local byte offsets.
-- Deterministic ordering: sort ranges by `(start, end, kind)`.
+## Phase N1 - Schema + Naming Migration
+Objective: remove WASM-centric naming and artifacts.
 
-### C. Executor
-Single executor:
-- Loads exactly one wasmKey at a time.
-- For each job:
-  - Reads segment text (containerPath + virtualRange).
-  - Parses it.
-  - Runs configured consumers:
-    - Chunking (tree-sitter chunking logic)
-    - Token bucket classification (tree-sitter-based bucketing)
-  - Writes one results row.
-  - Discards parse trees and segment text before the next job.
+Touchpoints:
+- `src/index/build/tree-sitter-scheduler/paths.js`
+- `src/index/build/tree-sitter-scheduler/plan.js`
+- `src/index/build/tree-sitter-scheduler/executor.js`
+- `src/index/build/tree-sitter-scheduler/lookup.js`
 
-Seam for later parallelism:
-- Interface: `executeWasmBatch({ wasmKey, jobs, consumers, budget }) -> results`.
+Tasks:
+- [ ] Replace `wasmKey` fields and filenames with `grammarKey`.
+- [ ] Update plan/jobs/results/index schemas to native-only metadata.
+- [ ] Keep deterministic ordering and hashing rules unchanged after migration.
+- [ ] Update lookup loading and stats reporting for `grammarKey`.
 
-## Stage1 Integration
+## Phase N2 - Planner Native-Only Routing
+Objective: planner resolves only native execution targets.
 
-### 1) Planning Prepass
-After discovery and segmentation:
-- Enumerate VFS segments for all files.
-- Resolve effective tree-sitter language and wasmKey for each segment.
-- Create jobs only for segments routed to enabled tree-sitter languages.
-- Validate `virtualRange` and fail on invalid data (no skip).
-- Write plan + per-wasmKey job lists.
+Touchpoints:
+- `src/index/build/tree-sitter-scheduler/plan.js`
+- `src/lang/tree-sitter/native-runtime.js`
 
-### 2) Execute Batches
-Before per-file processing begins:
-- For each wasmKey:
-  - preload grammar (wasmKey-first)
-  - process all jobs
-  - prune/reset other grammars to avoid memory accumulation
-- Write results + indices.
+Tasks:
+- [ ] Add scheduler resolver: `resolveNativeTreeSitterTarget(languageId, ext)`.
+- [ ] Route all eligible tree-sitter segments through native target resolution.
+- [ ] Add native preflight for module resolution/parser activation.
+- [ ] Fail hard when a scheduled language lacks native grammar support in strict mode.
 
-### 3) Consume Results
-Per-file processing:
-- Chunking uses precomputed chunks for tree-sitter segments.
-- Tokenization uses precomputed tokenBuckets for those chunks.
-- Any attempt to parse with tree-sitter outside the executor is an error in indexing mode.
+## Phase N3 - Executor Native-Only Batching
+Objective: execute by native grammar key only; remove WASM lifecycle assumptions.
 
-### 4) Remove Legacy Code Paths
-Delete or make unreachable:
-- Per-file `preloadTreeSitterLanguages` calls in Stage1 paths.
-- Direct `getTreeSitterParser` during indexing outside the executor.
-- Any fallback to legacy chunking/token bucket generation if scheduler artifacts are missing.
+Touchpoints:
+- `src/index/build/tree-sitter-scheduler/executor.js`
+- `src/index/build/tree-sitter-scheduler/subprocess-exec.js`
+- `src/index/build/tree-sitter-scheduler/runner.js`
 
-## Runtime Changes (WASM Key First)
-Add runtime helpers:
-- `resolveTreeSitterWasmKey(languageId) -> wasmKey`
-- `preloadTreeSitterWasmKey(wasmKey, options)`
-- `pruneTreeSitterExcept({ keepWasmKeys:[wasmKey] })` or equivalent
+Tasks:
+- [ ] Remove `preloadTreeSitterLanguages` and `pruneTreeSitterLanguages` usage from scheduler executor.
+- [ ] Activate parser via native runtime only.
+- [ ] Preserve subprocess isolation and memory diagnostics.
+- [ ] Keep strict failure behavior for missing/empty scheduler output.
 
-## Budgeting / Caps (Global)
-Single executor enforces:
-- max segment bytes read
-- max parse bytes
+## Phase N4 - Stage1 Contract Tightening
+Objective: ensure indexing tree-sitter path is scheduler-only and native-only.
 
-Later worker pool must use a shared `BudgetPool` so caps remain overall.
+Touchpoints:
+- `src/index/build/indexer/steps/process-files.js`
+- `src/index/build/file-processor/cpu.js`
+- `src/index/build/context-window.js`
 
-## Determinism
-- `plan.json` includes `planHash` computed from sorted jobs.
-- Each results row includes a stable hash of `(virtualPath, virtualRange, chunks, tokenBuckets)`.
-- Enforce stable ordering inside chunks/buckets.
+Tasks:
+- [ ] Enforce scheduler as authoritative tree-sitter source for eligible code segments.
+- [ ] Remove any remaining WASM fallback assumptions in Stage1 integration.
+- [ ] Keep context-window estimation tree-sitter disabled.
+- [ ] Add explicit telemetry/errors for scheduler artifact contract violations.
 
-## Invalid virtualRange Policy
-Indexing-time behavior:
-- Invalid virtual ranges are hard errors with actionable details.
-- No "skip target" behavior during indexing.
+## Phase N5 - Native Coverage + Regression Tests
+Objective: prove native-only scheduler correctness and determinism.
 
-## Tests (New)
-Tests are runnable directly via `node ...`.
-- `tests/indexing/tree-sitter/vfs-scheduler-batches-by-wasmkey.test.js`
-- `tests/indexing/tree-sitter/vfs-scheduler-multilang-segments.test.js`
-- `tests/indexing/tree-sitter/vfs-scheduler-determinism.test.js`
-- `tests/indexing/tree-sitter/vfs-scheduler-no-legacy-paths.test.js`
-- Update: `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` to expect hard error in indexing mode.
+Touchpoints:
+- `tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`
+- `tests/indexing/tree-sitter/*` (new native-only scheduler tests)
 
-## Docs
-- Add: `docs/specs/vfs-tree-sitter-scheduler.md`
-- Update:
-  - `docs/specs/tooling-vfs-and-segment-routing.md`
-  - `docs/perf/indexing-stage-audit.md`
+Tasks:
+- [ ] Add scheduler-native smoke test covering all 17 languages.
+- [ ] Add planner contract test for native target resolution and preflight failures.
+- [ ] Add determinism test for native scheduler outputs across repeated runs.
+- [ ] Add regression test proving Stage1 does not perform non-scheduler tree-sitter parsing when enabled.
+- [ ] Run targeted scheduler suite with `PAIROFCLEATS_TESTING=1` and record outcomes.
 
-## Implementation Order
-1. Runtime: wasmKey-first preload/prune APIs.
-2. Planner: VFS segments -> jobs (strict validation).
-3. Artifact IO: jsonl writers + vfsidx lookup.
-4. Executor: single-thread wasmKey batch loop; chunking + token buckets consumers.
-5. Stage1 wiring: scheduler runs before per-file; per-file uses lookups.
-6. Remove legacy per-file parsing entrypoints for indexing.
-7. Tests + determinism harness.
-8. Docs updates.
+## Phase N6 - WASM Removal + Docs Archive
+Objective: remove WASM indexing code paths and align docs/specs.
 
+Touchpoints:
+- `src/lang/tree-sitter/runtime.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/chunking.js`
+- `docs/specs/vfs-tree-sitter-scheduler.md`
+- `docs/language/parser-backbone.md`
+- `docs/archived/*`
+
+Tasks:
+- [ ] Remove WASM runtime usage from indexing path (init/load/preload/prune/reset integration points).
+- [ ] Remove scheduler references to WASM keys/files.
+- [ ] Update specs/docs to native-only architecture.
+- [ ] Archive superseded WASM scheduler guidance with deprecation headers (replacement + reason + date/commit).
+
+## Validation Commands (to run as phases land)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`
+- `node tests/indexing/tree-sitter/tree-sitter-chunks.test.js`
+- `node tests/run.js --match tree-sitter-scheduler`
+
+## Exit Criteria
+- Scheduler artifacts and execution are native-only (`grammarKey=native:*`).
+- No WASM preload/prune/load paths are used by indexing tree-sitter flow.
+- Stage1 tree-sitter path is scheduler-driven and strict.
+- Native scheduler smoke coverage exists and passes for all 17 languages.
+- Docs/specs no longer describe WASM scheduler behavior for indexing.
