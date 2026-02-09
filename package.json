@@ -79,6 +79,7 @@
     "@lancedb/lancedb": "^0.22.3",
     "@mdx-js/mdx": "^3.1.1",
     "@swc/core": "^1.15.8",
+    "@tree-sitter-grammars/tree-sitter-toml": "0.7.0",
     "@tree-sitter-grammars/tree-sitter-yaml": "0.7.1",
     "@typescript-eslint/typescript-estree": "^8.52.0",
     "@vscode/ripgrep": "^1.17.0",

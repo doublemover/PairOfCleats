@@ -25,6 +25,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   python: { moduleName: 'tree-sitter-python' },
   json: { moduleName: 'tree-sitter-json' },
   yaml: { moduleName: '@tree-sitter-grammars/tree-sitter-yaml' },
+  toml: { moduleName: '@tree-sitter-grammars/tree-sitter-toml' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
