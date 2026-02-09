@@ -42,7 +42,14 @@ import { buildCssChunks, buildCssRelations, collectCssImports, computeCssFlow, e
 import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../../lang/lua.js';
 import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../../lang/sql.js';
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../../lang/perl.js';
-import { getPythonAst, collectPythonImports, buildPythonRelations, extractPythonDocMeta } from '../../lang/python.js';
+import {
+  getPythonAst,
+  collectPythonImports,
+  buildPythonRelations,
+  extractPythonDocMeta,
+  buildPythonChunksFromAst,
+  buildPythonHeuristicChunks
+} from '../../lang/python.js';
 import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../../lang/rust.js';
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
@@ -156,6 +163,7 @@ export const LANGUAGE_REGISTRY = [
       if (mode !== 'code') return {};
       let pythonAst = null;
       let pythonAstMetrics = null;
+      let pythonChunks = null;
       const pythonAstEnabled = options?.pythonAst?.enabled !== false;
       if (pythonAstEnabled) {
         const python = await getPythonAst(text, options?.log, {
@@ -167,11 +175,18 @@ export const LANGUAGE_REGISTRY = [
         if (python?.ast) pythonAst = python.ast;
         if (python?.metrics) pythonAstMetrics = python.metrics;
       }
-      return { pythonAst, pythonAstMetrics };
+      if (pythonAst) {
+        pythonChunks = buildPythonChunksFromAst(text, pythonAst);
+      }
+      if (!pythonChunks || !pythonChunks.length) {
+        pythonChunks = buildPythonHeuristicChunks(text);
+      }
+      return { pythonAst, pythonAstMetrics, pythonChunks };
     },
     buildRelations: ({ text, relPath, context, options }) =>
       buildPythonRelations(text, relPath, context.pythonAst, options),
-    extractDocMeta: ({ chunk, fileRelations }) => extractPythonDocMeta(chunk, fileRelations),
+    extractDocMeta: ({ chunk, fileRelations, context }) =>
+      extractPythonDocMeta(chunk, fileRelations, context),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),
     attachName: false
   },
@@ -393,7 +408,7 @@ export const LANGUAGE_REGISTRY = [
     },
     buildRelations: ({ text, context, relPath, options }) =>
       buildSwiftRelations(text, context.swiftChunks, { relPath, parser: options?.swift?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractSwiftDocMeta(chunk),
+    extractDocMeta: ({ chunk, context }) => extractSwiftDocMeta(chunk, context),
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
     attachName: true
   },

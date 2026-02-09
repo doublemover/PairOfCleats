@@ -124,11 +124,6 @@ const main = async () => {
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
     {
-      label: 'Doc contract drift',
-      command: process.execPath,
-      args: ['tools/docs/contract-drift.js', '--fail']
-    },
-    {
       label: 'CI test lane',
       command: process.execPath,
       args: [

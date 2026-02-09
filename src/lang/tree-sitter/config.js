@@ -120,7 +120,16 @@ const LANG_CONFIG = {
     typeNodes: new Set(['pair']),
     memberNodes: new Set([]),
     kindMap: { pair: 'ConfigEntry' },
-    nameFields: ['key']
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      if (node.type !== 'pair') return null;
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+      const eq = raw.indexOf('=');
+      const head = eq >= 0 ? raw.slice(0, eq) : raw;
+      const name = head.trim();
+      return name || null;
+    }
   },
   markdown: {
     typeNodes: new Set(['atx_heading', 'setext_heading']),

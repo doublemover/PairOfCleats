@@ -501,11 +501,42 @@ export function buildSwiftRelations(text) {
 
 /**
  * Normalize Swift-specific doc metadata for search output.
- * @param {{meta?:Object}} chunk
+ * @param {{meta?:Object,start?:number,end?:number,name?:string}} chunk
+ * @param {{swiftChunks?:Array<object>}|null} context
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],conforms:string[],generics:string[],whereClause:(string|null),extendedType:(string|null)}}
  */
-export function extractSwiftDocMeta(chunk) {
-  const meta = chunk.meta || {};
+const findMatchingSwiftChunk = (chunk, context) => {
+  if (!chunk || !context || !Array.isArray(context.swiftChunks)) return null;
+  let best = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const candidate of context.swiftChunks) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const sameName = chunk.name && candidate.name && chunk.name === candidate.name;
+    const overlaps = Number.isFinite(chunk.start)
+      && Number.isFinite(chunk.end)
+      && Number.isFinite(candidate.start)
+      && Number.isFinite(candidate.end)
+      && candidate.start < chunk.end
+      && chunk.start < candidate.end;
+    if (!sameName && !overlaps) continue;
+    const startDiff = Number.isFinite(chunk.start) && Number.isFinite(candidate.start)
+      ? Math.abs(chunk.start - candidate.start)
+      : 0;
+    const endDiff = Number.isFinite(chunk.end) && Number.isFinite(candidate.end)
+      ? Math.abs(chunk.end - candidate.end)
+      : 0;
+    const score = (sameName ? 0 : 10_000) + startDiff + endDiff;
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+};
+
+export function extractSwiftDocMeta(chunk, context = null) {
+  const matched = findMatchingSwiftChunk(chunk, context);
+  const meta = { ...(chunk?.meta || {}), ...(matched?.meta || {}) };
   const params = Array.isArray(meta.params) ? meta.params : [];
   const attributes = Array.isArray(meta.attributes) ? meta.attributes : [];
   const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];

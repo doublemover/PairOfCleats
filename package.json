@@ -14,7 +14,7 @@
     "bootstrap": "npm install --ignore-scripts && npm run patch && npm run rebuild:native",
     "bootstrap:ci": "npm ci --ignore-scripts && npm run patch && npm run rebuild:native",
     "patch": "patch-package --exclude \"a^\"",
-    "rebuild:native": "npm rebuild tree-sitter tree-sitter-swift",
+    "rebuild:native": "npm rebuild tree-sitter tree-sitter-swift better-sqlite3 hnswlib-node",
     "build-index": "node build_index.js",
     "watch-index": "node build_index.js --watch",
     "search": "node search.js",
