@@ -37,6 +37,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   rust: { moduleName: 'tree-sitter-rust' },
   java: { moduleName: 'tree-sitter-java' },
   css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
+  html: { moduleName: 'tree-sitter-html' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
