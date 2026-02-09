@@ -390,8 +390,8 @@ export const processFileCpu = async (context) => {
     chunking: languageOptions?.chunking,
     javascript: languageOptions?.javascript,
     typescript: languageOptions?.typescript,
-    // Tree-sitter chunking is handled by the global VFS scheduler. Prevent any
-    // per-file fallbacks from re-introducing per-thread WASM loads.
+    // Tree-sitter chunking is handled by the global scheduler. Prevent per-file
+    // parsing from bypassing scheduler artifacts.
     treeSitter: { ...(treeSitterConfigForMode || {}), enabled: false },
     log: languageOptions?.log
   };
@@ -399,6 +399,10 @@ export const processFileCpu = async (context) => {
     && treeSitterScheduler
     && typeof treeSitterScheduler.loadChunks === 'function';
   if (treeSitterEnabled && !mustUseTreeSitterScheduler) {
+    logLine?.(
+      `[tree-sitter:schedule] scheduler missing for ${relKey} with tree-sitter enabled`,
+      { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+    );
     throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
   }
   let sc = [];
@@ -437,6 +441,10 @@ export const processFileCpu = async (context) => {
       const segmentUid = segment.segmentUid || null;
       const isFullFile = segment.start === 0 && segment.end === text.length;
       if (!isFullFile && !segmentUid) {
+        logLine?.(
+          `[tree-sitter:schedule] missing segmentUid for ${relKey} (${segment.start}-${segment.end})`,
+          { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+        );
         throw new Error(`[tree-sitter:schedule] Missing segmentUid for ${relKey} (${segment.start}-${segment.end}).`);
       }
       const virtualPath = buildVfsVirtualPath({
@@ -450,6 +458,10 @@ export const processFileCpu = async (context) => {
     for (const item of scheduled) {
       const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
       if (!Array.isArray(chunks) || !chunks.length) {
+        logLine?.(
+          `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
+          { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+        );
         throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
       }
       sc.push(...chunks);

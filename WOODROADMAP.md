@@ -49,7 +49,7 @@ Adopt a native-only scheduling model:
 | N1 Schema + Naming Migration | completed | `grammarKey` migration landed in scheduler plan/runner/executor/lookup |
 | N2 Planner Native-Only Routing | completed | Planner now resolves native targets + native preflight gating |
 | N3 Executor Native-Only Batching | completed | Scheduler executor now runs native-only parse activation/chunking |
-| N4 Stage1 Contract Tightening | planned | Scheduler-only tree-sitter in indexing |
+| N4 Stage1 Contract Tightening | completed | Stage1 enforces scheduler contract and logs artifact violations |
 | N5 Native Coverage + Regression Tests | planned | All 17 languages through scheduler |
 | N6 WASM Removal + Docs Archive | planned | Delete WASM indexing paths and specs |
 
@@ -119,10 +119,10 @@ Touchpoints:
 - `src/index/build/context-window.js`
 
 Tasks:
-- [ ] Enforce scheduler as authoritative tree-sitter source for eligible code segments.
-- [ ] Remove any remaining WASM fallback assumptions in Stage1 integration.
-- [ ] Keep context-window estimation tree-sitter disabled.
-- [ ] Add explicit telemetry/errors for scheduler artifact contract violations.
+- [x] Enforce scheduler as authoritative tree-sitter source for eligible code segments.
+- [x] Remove any remaining WASM fallback assumptions in Stage1 integration.
+- [x] Keep context-window estimation tree-sitter disabled.
+- [x] Add explicit telemetry/errors for scheduler artifact contract violations.
 
 ## Phase N5 - Native Coverage + Regression Tests
 Objective: prove native-only scheduler correctness and determinism.
