@@ -33,6 +33,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   c: { moduleName: 'tree-sitter-c' },
   cpp: { moduleName: 'tree-sitter-cpp' },
   objc: { moduleName: 'tree-sitter-objc' },
+  go: { moduleName: 'tree-sitter-go' },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
