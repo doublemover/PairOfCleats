@@ -66,12 +66,21 @@ export const resolveEmbeddingRuntime = async ({
   }
   const baseStubEmbeddings = argv['stub-embeddings'] === true
     || envConfig.embeddings === 'stub';
+  const envEmbeddingMode = typeof envConfig.embeddings === 'string'
+    ? envConfig.embeddings.trim().toLowerCase()
+    : '';
+  const envForcesOff = ['off', 'false', '0', 'disabled', 'none'].includes(envEmbeddingMode);
+  const envForcesStub = envEmbeddingMode === 'stub';
   const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
     ? embeddingModeRaw
     : 'auto';
-  const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
-    ? (baseStubEmbeddings ? 'stub' : 'inline')
-    : normalizedEmbeddingMode;
+  const resolvedEmbeddingMode = envForcesOff
+    ? 'off'
+    : (envForcesStub
+      ? 'stub'
+      : (normalizedEmbeddingMode === 'auto'
+        ? (baseStubEmbeddings ? 'stub' : 'inline')
+        : normalizedEmbeddingMode));
   const embeddingService = embeddingsConfig.enabled !== false
     && resolvedEmbeddingMode === 'service';
   const embeddingEnabled = embeddingsConfig.enabled !== false
@@ -90,18 +99,24 @@ export const resolveEmbeddingRuntime = async ({
   let getChunkEmbedding = async () => [];
   let getChunkEmbeddings = async () => [];
   if (embeddingEnabled) {
-    const embedder = createEmbedder({
-      rootDir,
-      useStubEmbeddings,
-      modelId,
-      dims: argv.dims,
-      modelsDir,
-      provider: embeddingProvider,
-      onnx: embeddingOnnx,
-      normalize: embeddingNormalize
-    });
-    getChunkEmbedding = embedder.getChunkEmbedding;
-    getChunkEmbeddings = embedder.getChunkEmbeddings;
+    let embedder = null;
+    const ensureEmbedder = () => {
+      if (!embedder) {
+        embedder = createEmbedder({
+          rootDir,
+          useStubEmbeddings,
+          modelId,
+          dims: argv.dims,
+          modelsDir,
+          provider: embeddingProvider,
+          onnx: embeddingOnnx,
+          normalize: embeddingNormalize
+        });
+      }
+      return embedder;
+    };
+    getChunkEmbedding = async (text) => ensureEmbedder().getChunkEmbedding(text);
+    getChunkEmbeddings = async (texts) => ensureEmbedder().getChunkEmbeddings(texts);
   }
 
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'

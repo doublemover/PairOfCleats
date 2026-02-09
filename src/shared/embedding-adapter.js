@@ -37,7 +37,13 @@ async function loadPipeline(modelId, modelsDir) {
 }
 
 const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
-  const embedderPromise = loadPipeline(modelId, modelsDir);
+  let embedderPromise = null;
+  const ensureEmbedder = () => {
+    if (!embedderPromise) {
+      embedderPromise = loadPipeline(modelId, modelsDir);
+    }
+    return embedderPromise;
+  };
   const pipelineOptions = {
     pooling: DEFAULT_EMBEDDING_POOLING,
     normalize: normalize !== false
@@ -45,7 +51,7 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
   const embed = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
-    const embedder = await embedderPromise;
+    const embedder = await ensureEmbedder();
     const output = await embedder(list, pipelineOptions);
     return normalizeEmbeddingBatchOutput(output, list.length);
   };
@@ -53,7 +59,14 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
     const list = await embed([text]);
     return list[0] || new Float32Array(0);
   };
-  return { embed, embedOne, embedderPromise, provider: 'xenova' };
+  return {
+    embed,
+    embedOne,
+    get embedderPromise() {
+      return ensureEmbedder();
+    },
+    provider: 'xenova'
+  };
 };
 
 const createAdapter = ({
