@@ -540,8 +540,9 @@ export function resolveImportLinks({
   let truncatedEdges = 0;
   const capStats = enableGraph ? { truncatedNodes: 0 } : null;
   const truncatedByKind = { import: 0 };
+  const unresolvedSamples = [];
 
-  const warningList = enableGraph ? graph.warnings : null;
+  const warningList = unresolvedSamples;
   const edges = enableGraph ? graph.edges : null;
 
   const importsEntries = importsByFile instanceof Map
@@ -695,16 +696,14 @@ export function resolveImportLinks({
         if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external', capStats);
       } else {
         unresolvedCount += 1;
-        if (enableGraph) {
-          if (warningList.length < MAX_IMPORT_WARNINGS) {
-            warningList.push({
-              importer: relNormalized,
-              specifier: rawSpec,
-              reason: 'unresolved'
-            });
-          } else {
-            suppressedWarnings += 1;
-          }
+        if (warningList.length < MAX_IMPORT_WARNINGS) {
+          warningList.push({
+            importer: relNormalized,
+            specifier: rawSpec,
+            reason: 'unresolved'
+          });
+        } else {
+          suppressedWarnings += 1;
         }
       }
 
@@ -755,6 +754,7 @@ export function resolveImportLinks({
   }
 
   if (enableGraph) {
+    graph.warnings = warningList;
     graph.nodes = Array.from(graphNodes.values()).sort((a, b) => sortStrings(a.id, b.id));
     if (Array.isArray(edges)) {
       edges.sort((a, b) => {
@@ -820,6 +820,8 @@ export function resolveImportLinks({
       warningSuppressed: suppressedWarnings
     },
     graph,
+    unresolvedSamples: warningList,
+    unresolvedSuppressed: suppressedWarnings,
     cacheStats: cacheMetrics
   };
 }
