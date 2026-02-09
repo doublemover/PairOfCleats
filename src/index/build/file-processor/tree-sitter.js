@@ -3,6 +3,11 @@ import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
 import { resolveSegmentExt } from '../../segments/config.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+const TREE_SITTER_SCHEDULER_DISABLED_LANGS = new Set([
+  // These rely on language-specific chunk builders for metadata fidelity.
+  'python',
+  'swift'
+]);
 
 const resolveTreeSitterLanguageForExt = (languageId, ext) => {
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
@@ -56,4 +61,14 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ex
   return Array.from(languages);
 };
 
-export { resolveTreeSitterLanguageForSegment, resolveTreeSitterLanguagesForSegments };
+const isTreeSitterSchedulerLanguage = (languageId) => (
+  Boolean(languageId)
+  && TREE_SITTER_LANG_IDS.has(languageId)
+  && !TREE_SITTER_SCHEDULER_DISABLED_LANGS.has(languageId)
+);
+
+export {
+  resolveTreeSitterLanguageForSegment,
+  resolveTreeSitterLanguagesForSegments,
+  isTreeSitterSchedulerLanguage
+};

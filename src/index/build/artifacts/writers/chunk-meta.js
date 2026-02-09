@@ -356,6 +356,12 @@ export const createChunkMetaIterator = ({
           const packed = encodeVarint64List(packInput.map((value) => parseHash64(value)));
           entry.token_ids_packed = packed.toString('base64');
           entry.token_ids_count = packInput.length;
+        } else if (typeof c.token_ids_packed === 'string' && Number.isFinite(Number(c.token_ids_count))) {
+          const packedCount = Math.max(0, Math.floor(Number(c.token_ids_count)));
+          if (resolvedTokenMode !== 'sample' || packedCount <= tokenSampleSize) {
+            entry.token_ids_packed = c.token_ids_packed;
+            entry.token_ids_count = packedCount;
+          }
         }
       }
       const hadMetaV2 = !!entry.metaV2;

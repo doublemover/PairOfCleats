@@ -86,6 +86,10 @@ export const applyDefaultSkips = (state) => {
   state.markSkipped('watch-index', 'watch mode runs until interrupted');
   state.markSkipped('api-server', 'service runs until interrupted');
   state.markSkipped('indexer-service', 'service runs until interrupted');
+  state.markSkipped('bootstrap:ci', 'ci bootstrap wrapper command');
+  state.markSkipped('patch', 'patch-package wrapper command');
+  state.markSkipped('rebuild:native', 'native rebuild wrapper command');
+  state.markSkipped('postinstall', 'npm lifecycle hook');
   state.markSkipped('format', 'modifies working tree');
   state.markSkipped('lint', 'requires npm install and project lint config');
 

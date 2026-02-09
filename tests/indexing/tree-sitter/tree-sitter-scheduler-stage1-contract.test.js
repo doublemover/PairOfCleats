@@ -122,5 +122,91 @@ await assert.rejects(
 );
 assert.ok(schedulerCalls > 0, 'expected scheduler to be consulted for tree-sitter chunks');
 
+let fallbackSchedulerCalls = 0;
+const fallbackScheduler = {
+  index: new Map(),
+  loadChunks: async () => {
+    fallbackSchedulerCalls += 1;
+    return null;
+  }
+};
+const fallbackResult = await processFileCpu({
+  abs,
+  root,
+  mode: 'code',
+  fileEntry: { abs, rel: relKey },
+  fileIndex: 1,
+  ext: '.js',
+  rel,
+  relKey,
+  text,
+  fileStat,
+  fileHash: 'testhash',
+  fileHashAlgo: 'sha1',
+  fileCaps: null,
+  fileStructural: null,
+  scmProvider: null,
+  scmProviderImpl: null,
+  scmRepoRoot: null,
+  scmConfig: null,
+  languageOptions: {
+    treeSitter: {
+      enabled: true,
+      strict: false
+    }
+  },
+  astDataflowEnabled: false,
+  controlFlowEnabled: false,
+  normalizedSegmentsConfig: normalizeSegmentsConfig(null),
+  normalizedCommentsConfig: normalizeCommentConfig(null),
+  tokenDictWords: new Set(),
+  dictConfig: {},
+  tokenContext: {
+    dictWords: new Set(),
+    dictConfig: {},
+    codeDictCache: new Map(),
+    tokenClassification: { enabled: false },
+    phraseEnabled: false,
+    chargramEnabled: false
+  },
+  postingsConfig: {},
+  contextWin: {},
+  relationsEnabled: false,
+  lintEnabled: false,
+  complexityEnabled: false,
+  typeInferenceEnabled: false,
+  riskAnalysisEnabled: false,
+  riskConfig: {},
+  gitBlameEnabled: false,
+  analysisPolicy: null,
+  workerPool: null,
+  workerDictOverride: null,
+  workerState: {},
+  tokenizationStats: null,
+  embeddingEnabled: false,
+  embeddingNormalize: false,
+  embeddingBatchSize: 0,
+  getChunkEmbedding: null,
+  getChunkEmbeddings: null,
+  runEmbedding: (fn) => fn(),
+  runProc: (fn) => fn(),
+  runTreeSitterSerial: (fn) => fn(),
+  runIo: (fn) => fn(),
+  log: noop,
+  logLine: noop,
+  showLineProgress: false,
+  toolInfo: null,
+  treeSitterScheduler: fallbackScheduler,
+  timing,
+  languageHint,
+  crashLogger: { enabled: false, updateFile: noop },
+  vfsManifestConcurrency: 1,
+  complexityCache: null,
+  lintCache: null,
+  buildStage: 'stage1'
+});
+assert.ok(fallbackSchedulerCalls > 0, 'expected scheduler lookup attempts in non-strict mode');
+assert.ok(Array.isArray(fallbackResult?.chunks) && fallbackResult.chunks.length > 0, 'expected fallback chunking to produce chunks');
+
 console.log('tree-sitter scheduler stage1 contract ok');
 

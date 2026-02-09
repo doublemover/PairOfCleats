@@ -4,6 +4,7 @@ import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
 import {
+  isTreeSitterSchedulerLanguage,
   resolveTreeSitterLanguageForSegment
 } from './tree-sitter.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter/config.js';
@@ -398,6 +399,7 @@ export const processFileCpu = async (context) => {
   const mustUseTreeSitterScheduler = treeSitterEnabled
     && treeSitterScheduler
     && typeof treeSitterScheduler.loadChunks === 'function';
+  const treeSitterStrict = treeSitterConfigForMode?.strict === true;
   if (treeSitterEnabled && !mustUseTreeSitterScheduler) {
     logLine?.(
       `[tree-sitter:schedule] scheduler missing for ${relKey} with tree-sitter enabled`,
@@ -426,6 +428,7 @@ export const processFileCpu = async (context) => {
       const resolvedLang = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
       const canUseTreeSitter = resolvedLang
         && TREE_SITTER_LANG_IDS.has(resolvedLang)
+        && isTreeSitterSchedulerLanguage(resolvedLang)
         && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
       if (!canUseTreeSitter) {
         fallbackSegments.push(segment);
@@ -452,12 +455,27 @@ export const processFileCpu = async (context) => {
         segmentUid,
         effectiveExt: segmentExt
       });
-      scheduled.push({ virtualPath, label: `${resolvedLang}:${segment.start}-${segment.end}` });
+      scheduled.push({
+        virtualPath,
+        label: `${resolvedLang}:${segment.start}-${segment.end}`,
+        segment
+      });
     }
 
     for (const item of scheduled) {
       const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
       if (!Array.isArray(chunks) || !chunks.length) {
+        const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
+          ? treeSitterScheduler.index.has(item.virtualPath)
+          : null;
+        if (!treeSitterStrict && hasScheduledEntry === false) {
+          fallbackSegments.push(item.segment);
+          logLine?.(
+            `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
+            { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+          );
+          continue;
+        }
         logLine?.(
           `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
           { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }

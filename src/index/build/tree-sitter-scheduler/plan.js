@@ -20,7 +20,10 @@ import {
   resolveNativeTreeSitterTarget
 } from '../../../lang/tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
-import { resolveTreeSitterLanguageForSegment } from '../file-processor/tree-sitter.js';
+import {
+  isTreeSitterSchedulerLanguage,
+  resolveTreeSitterLanguageForSegment
+} from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
@@ -221,6 +224,7 @@ export const buildTreeSitterSchedulerPlan = async ({
       const rawLanguageId = segment.languageId || primaryLanguageId || null;
       const languageId = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
       if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) continue;
+      if (!isTreeSitterSchedulerLanguage(languageId)) continue;
       if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
 
       const segmentText = text.slice(segment.start, segment.end);

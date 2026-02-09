@@ -44,9 +44,11 @@ jobs:
         run: |
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
-            npm ci
+            npm run bootstrap:ci
           else
-            echo "node_modules cache hit; skipping npm ci."
+            echo "node_modules cache hit; refreshing patched/native modules."
+            npm run patch
+            npm run rebuild:native
           fi
           node -v
           npm -v
@@ -107,9 +109,11 @@ jobs:
         run: |
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
-            npm ci
+            npm run bootstrap:ci
           } else {
-            Write-Host 'node_modules cache hit; skipping npm ci.'
+            Write-Host 'node_modules cache hit; refreshing patched/native modules.'
+            npm run patch
+            npm run rebuild:native
           }
           node -v
           npm -v
@@ -162,9 +166,11 @@ jobs:
         run: |
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
-            npm ci
+            npm run bootstrap:ci
           else
-            echo "node_modules cache hit; skipping npm ci."
+            echo "node_modules cache hit; refreshing patched/native modules."
+            npm run patch
+            npm run rebuild:native
           fi
           node -v
           npm -v
