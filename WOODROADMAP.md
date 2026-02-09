@@ -50,7 +50,7 @@ Adopt a native-only scheduling model:
 | N2 Planner Native-Only Routing | completed | Planner now resolves native targets + native preflight gating |
 | N3 Executor Native-Only Batching | completed | Scheduler executor now runs native-only parse activation/chunking |
 | N4 Stage1 Contract Tightening | completed | Stage1 enforces scheduler contract and logs artifact violations |
-| N5 Native Coverage + Regression Tests | planned | All 17 languages through scheduler |
+| N5 Native Coverage + Regression Tests | completed | Native scheduler tests added and passing as of 2026-02-09T18:53:21.1939237Z |
 | N6 WASM Removal + Docs Archive | planned | Delete WASM indexing paths and specs |
 
 ## Phase N0 - Baseline + Decisions
@@ -132,11 +132,19 @@ Touchpoints:
 - `tests/indexing/tree-sitter/*` (new native-only scheduler tests)
 
 Tasks:
-- [ ] Add scheduler-native smoke test covering all 17 languages.
-- [ ] Add planner contract test for native target resolution and preflight failures.
-- [ ] Add determinism test for native scheduler outputs across repeated runs.
-- [ ] Add regression test proving Stage1 does not perform non-scheduler tree-sitter parsing when enabled.
-- [ ] Run targeted scheduler suite with `PAIROFCLEATS_TESTING=1` and record outcomes.
+- [x] Add scheduler-native smoke test covering all 17 languages.
+- [x] Add planner contract test for native target resolution and preflight failures.
+- [x] Add determinism test for native scheduler outputs across repeated runs.
+- [x] Add regression test proving Stage1 does not perform non-scheduler tree-sitter parsing when enabled.
+- [x] Run targeted scheduler suite with `PAIROFCLEATS_TESTING=1` and record outcomes.
+
+Validation (2026-02-09T18:53:21.1939237Z):
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-smoke.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-plan-contract.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-native-determinism.test.js` (pass)
+- `node tests/indexing/tree-sitter/tree-sitter-scheduler-stage1-contract.test.js` (pass)
+- `node tests/run.js --lane all --match tree-sitter-scheduler` (pass)
 
 ## Phase N6 - WASM Removal + Docs Archive
 Objective: remove WASM indexing code paths and align docs/specs.
