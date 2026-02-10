@@ -387,13 +387,13 @@ export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {})
     }
     await fs.writeFile(tempPath, buffer);
     await replaceFile(tempPath, targetPath);
+    return { path: targetPath, sizeBytes: buffer.length };
   } catch (err) {
     try {
       await fs.rm(tempPath, { force: true });
     } catch {}
     throw err;
   }
-  return { path: targetPath };
 };
 
 /**
@@ -408,15 +408,24 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
   if (!cacheIndex || !cacheKey || !payload) return null;
   const now = new Date().toISOString();
   const existing = cacheIndex.entries?.[cacheKey] || {};
+  const hasShard = Boolean(shardEntry?.shard);
+  const hasStandalonePath = Boolean(shardEntry?.path);
   const next = {
     key: cacheKey,
     file: payload.file || existing.file || null,
     hash: payload.hash || existing.hash || null,
     chunkSignature: payload.chunkSignature || existing.chunkSignature || null,
-    shard: shardEntry?.shard || existing.shard || null,
-    offset: Number.isFinite(Number(shardEntry?.offset)) ? Number(shardEntry.offset) : existing.offset || null,
-    length: Number.isFinite(Number(shardEntry?.length)) ? Number(shardEntry.length) : existing.length || null,
-    sizeBytes: Number.isFinite(Number(shardEntry?.sizeBytes)) ? Number(shardEntry.sizeBytes) : existing.sizeBytes || null,
+    shard: hasShard ? shardEntry.shard : (hasStandalonePath ? null : (existing.shard || null)),
+    path: hasStandalonePath ? shardEntry.path : (hasShard ? null : (existing.path || null)),
+    offset: hasShard
+      ? (Number.isFinite(Number(shardEntry?.offset)) ? Number(shardEntry.offset) : null)
+      : (hasStandalonePath ? null : (existing.offset || null)),
+    length: hasShard
+      ? (Number.isFinite(Number(shardEntry?.length)) ? Number(shardEntry.length) : null)
+      : (hasStandalonePath ? null : (existing.length || null)),
+    sizeBytes: Number.isFinite(Number(shardEntry?.sizeBytes))
+      ? Number(shardEntry.sizeBytes)
+      : existing.sizeBytes || null,
     chunkCount: Array.isArray(payload.codeVectors) ? payload.codeVectors.length : existing.chunkCount || null,
     createdAt: existing.createdAt || now,
     lastAccessAt: now,
@@ -452,6 +461,20 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   if (!plan.removeKeys.length) return { removedKeys: [], removedShards: [], changed: false };
   const removeSet = new Set(plan.removeKeys);
   for (const key of plan.removeKeys) {
+    if (deleteShards) {
+      const cachePath = resolveCacheEntryPath(cacheDir, key);
+      if (cachePath) {
+        try {
+          await fs.rm(cachePath, { force: true });
+        } catch {}
+      }
+      const legacyPath = resolveCacheEntryPath(cacheDir, key, { legacy: true });
+      if (legacyPath) {
+        try {
+          await fs.rm(legacyPath, { force: true });
+        } catch {}
+      }
+    }
     delete cacheIndex.entries?.[key];
   }
   if (cacheIndex.files) {
@@ -514,18 +537,29 @@ const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
     if (value == null) continue;
     merged[key] = value;
   }
+  const hasIncomingShard = Boolean(incoming.shard);
+  const hasIncomingPath = Boolean(incoming.path);
 
   merged.key = incoming.key || existing.key || merged.key || null;
   merged.file = incoming.file || existing.file || merged.file || null;
   merged.hash = incoming.hash || existing.hash || merged.hash || null;
   merged.chunkSignature = incoming.chunkSignature || existing.chunkSignature || merged.chunkSignature || null;
-  merged.shard = incoming.shard || existing.shard || merged.shard || null;
-  merged.offset = Number.isFinite(Number(incoming.offset))
-    ? Number(incoming.offset)
-    : (Number.isFinite(Number(existing.offset)) ? Number(existing.offset) : merged.offset || null);
-  merged.length = Number.isFinite(Number(incoming.length))
-    ? Number(incoming.length)
-    : (Number.isFinite(Number(existing.length)) ? Number(existing.length) : merged.length || null);
+  merged.shard = hasIncomingShard
+    ? incoming.shard
+    : (hasIncomingPath ? null : (existing.shard || merged.shard || null));
+  merged.path = hasIncomingPath
+    ? incoming.path
+    : (hasIncomingShard ? null : (existing.path || merged.path || null));
+  merged.offset = hasIncomingShard
+    ? (Number.isFinite(Number(incoming.offset)) ? Number(incoming.offset) : null)
+    : (hasIncomingPath
+      ? null
+      : (Number.isFinite(Number(existing.offset)) ? Number(existing.offset) : merged.offset || null));
+  merged.length = hasIncomingShard
+    ? (Number.isFinite(Number(incoming.length)) ? Number(incoming.length) : null)
+    : (hasIncomingPath
+      ? null
+      : (Number.isFinite(Number(existing.length)) ? Number(existing.length) : merged.length || null));
   merged.sizeBytes = Number.isFinite(Number(incoming.sizeBytes))
     ? Number(incoming.sizeBytes)
     : (Number.isFinite(Number(existing.sizeBytes)) ? Number(existing.sizeBytes) : merged.sizeBytes || null);

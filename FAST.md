@@ -121,13 +121,13 @@ Format:
 - Impact: Faster repeated artifact resolution.
 - Risk: Invalidation on file changes.
 
-19. Area: Embeddings cache index durability
+19. [x] Area: Embeddings cache index durability
 - Files: `tools/build/embeddings/runner.js`, `tools/build/embeddings/cache-flush.js`
 - Opportunity: Periodic index flush during long runs instead of only end-of-mode flush.
 - Impact: Better crash resilience and lower flush spikes.
 - Risk: More lock/I/O contention if too frequent.
 
-20. Area: Unindexed fallback cache entries
+20. [x] Area: Unindexed fallback cache entries
 - Files: `tools/build/embeddings/cache.js`, `tools/build/embeddings/runner.js`
 - Opportunity: Ensure lock-contention fallback entries are indexed/prunable.
 - Impact: Lower long-term cache bloat and faster lookup hygiene.

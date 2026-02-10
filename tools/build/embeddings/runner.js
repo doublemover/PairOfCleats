@@ -544,6 +544,38 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
         }
 
+        const CACHE_INDEX_FLUSH_INTERVAL_FILES = 64;
+        let filesSinceCacheIndexFlush = 0;
+        const markCacheIndexDirty = () => {
+          cacheIndexDirty = true;
+        };
+        const flushCacheIndexMaybe = async ({ force = false } = {}) => {
+          if (!cacheIndex || !cacheEligible) return;
+          if (!cacheIndexDirty) {
+            if (force) filesSinceCacheIndexFlush = 0;
+            return;
+          }
+          if (!force && filesSinceCacheIndexFlush < CACHE_INDEX_FLUSH_INTERVAL_FILES) {
+            return;
+          }
+          const flushState = await flushCacheIndexIfNeeded({
+            cacheDir,
+            cacheIndex,
+            cacheEligible,
+            cacheIndexDirty,
+            cacheIdentityKey,
+            cacheMaxBytes,
+            cacheMaxAgeMs,
+            scheduleIo
+          });
+          cacheIndexDirty = flushState.cacheIndexDirty;
+          if (!cacheIndexDirty || force) {
+            filesSinceCacheIndexFlush = 0;
+          } else {
+            filesSinceCacheIndexFlush = CACHE_INDEX_FLUSH_INTERVAL_FILES;
+          }
+        };
+
         let processedFiles = 0;
         const fileTask = display.task('Files', {
           taskId: `embeddings:${mode}:files`,
@@ -573,6 +605,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const writerQueue = createBoundedWriterQueue({ scheduleIo, maxPending: writerMaxPending });
 
         let sharedZeroVec = new Float32Array(0);
+        const markFileProcessed = async () => {
+          processedFiles += 1;
+          filesSinceCacheIndexFlush += 1;
+          await flushCacheIndexMaybe();
+          if (processedFiles % 8 === 0 || processedFiles === chunksByFile.size) {
+            fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
+            log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+          }
+        };
         const processFileEmbeddings = async (entry) => {
           const codeEmbeds = entry.codeEmbeds || [];
           const docVectorsRaw = entry.docVectorsRaw || [];
@@ -674,7 +715,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   docVectors: cachedDocVectors,
                   mergedVectors: cachedMergedVectors
                 }, { index: cacheIndex });
-                if (shardEntry?.shard) {
+                if (shardEntry) {
                   upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
                     key: cacheKeyLocal,
                     file: normalizedRelLocal,
@@ -683,7 +724,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     chunkHashes: chunkHashesLocal,
                     codeVectors: cachedCodeVectors
                   }, shardEntry);
-                  cacheIndexDirty = true;
+                  markCacheIndexDirty();
                 }
               });
             } catch {
@@ -691,11 +732,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
-          processedFiles += 1;
-          if (processedFiles % 8 === 0 || processedFiles === chunksByFile.size) {
-            fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
-            log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
-          }
+          await markFileProcessed();
         };
 
         const computeFileEmbeddings = createFileEmbeddingsProcessor({
@@ -790,10 +827,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   if (!cacheIndex.files?.[normalizedRel]) {
                     cacheIndex.files = { ...(cacheIndex.files || {}), [normalizedRel]: cacheKey };
                   }
-                  cacheIndexDirty = true;
+                  markCacheIndexDirty();
                 }
                 cacheHits += 1;
-                processedFiles += 1;
+                await markFileProcessed();
                 continue;
               }
             } catch (err) {
@@ -928,10 +965,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     if (!cacheIndex.files?.[normalizedRel]) {
                       cacheIndex.files = { ...(cacheIndex.files || {}), [normalizedRel]: cacheKey };
                     }
-                    cacheIndexDirty = true;
+                    markCacheIndexDirty();
                   }
                   cacheHits += 1;
-                  processedFiles += 1;
+                  await markFileProcessed();
                   continue;
                 }
               } catch (err) {
@@ -997,7 +1034,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }
                 }
                 updateCacheIndexAccess(cacheIndex, priorKey);
-                cacheIndexDirty = true;
+                markCacheIndexDirty();
               }
             }
           }
@@ -1027,17 +1064,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
 
         await writerQueue.onIdle();
-
-        ({ cacheIndexDirty } = await flushCacheIndexIfNeeded({
-          cacheDir,
-          cacheIndex,
-          cacheEligible,
-          cacheIndexDirty,
-          cacheIdentityKey,
-          cacheMaxBytes,
-          cacheMaxAgeMs,
-          scheduleIo
-        }));
+        await flushCacheIndexMaybe({ force: true });
 
         stageCheckpoints.record({
           stage: 'stage3',
