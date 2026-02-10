@@ -1,6 +1,4 @@
 const STRING_FLAG_FIELDS = Object.freeze([
-  ['mode', '--mode'],
-  ['backend', '--backend'],
   ['type', '--type'],
   ['author', '--author'],
   ['import', '--import'],

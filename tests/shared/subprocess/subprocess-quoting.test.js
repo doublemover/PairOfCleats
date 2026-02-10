@@ -100,9 +100,9 @@ try {
 
   const search = await requestJson(serverInfo.baseUrl, 'POST', '/search', {
     repoPath,
-    query: 'greet',
+    query: 'return',
     mode: 'code',
-    top: 3
+    top: 10
   });
   if (!search.body?.ok || !Array.isArray(search.body?.result?.code) || !search.body.result.code.length) {
     throw new Error('api-server /search returned no results');
