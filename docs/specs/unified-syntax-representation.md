@@ -668,6 +668,11 @@ Producers MUST reject edges with invalid endpoint entity combinations.
 
 Every registry language ID MUST have a `USRLanguageProfile`.
 
+Normative decomposition:
+
+- `docs/specs/usr-language-profile-catalog.md`
+- `docs/specs/usr/languages/README.md`
+
 ```ts
 type USRLanguageProfile = {
   id: string; // registry language id
@@ -722,6 +727,10 @@ type USRLanguageProfile = {
 ## 10. Framework Profile Contract
 
 Framework profiles are overlays on top of language profiles. Each profile defines additional required entities and edges.
+
+Normative decomposition:
+
+- `docs/specs/usr-framework-profile-catalog.md`
 
 ### 10.1 React profile
 
@@ -897,6 +906,10 @@ Additional constraints:
 
 ## 11. Pipeline Contract
 
+Normalization mapping decomposition:
+
+- `docs/specs/usr-normalization-mapping-contract.md`
+
 USR pipeline stages MUST execute in deterministic order.
 
 1. discovery
@@ -979,6 +992,10 @@ For framework containers (`.vue`, `.svelte`, `.astro`, Angular template surfaces
 Any failure after step 1 MUST preserve segment outputs and emit degradation diagnostics instead of dropping the container file from USR output.
 
 ## 12. Degradation and Error Semantics
+
+Resolution and linking decomposition:
+
+- `docs/specs/usr-resolution-and-linking-contract.md`
 
 ### 12.1 Required diagnostic codes
 
@@ -1112,6 +1129,10 @@ USR is additive and maps to current surfaces.
 - `USRDiagnosticV1` -> diagnostics and warning envelopes
 
 ## 16. Conformance Requirements
+
+Conformance/fixture decomposition:
+
+- `docs/specs/usr-conformance-and-fixture-contract.md`
 
 USR conformance has five levels.
 
@@ -1286,6 +1307,14 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
+- `docs/specs/usr/README.md`
+- `docs/specs/usr-language-profile-catalog.md`
+- `docs/specs/usr-framework-profile-catalog.md`
+- `docs/specs/usr-normalization-mapping-contract.md`
+- `docs/specs/usr-resolution-and-linking-contract.md`
+- `docs/specs/usr-language-risk-contract.md`
+- `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1355,6 +1384,10 @@ Framework profiles MUST only apply to allowed effective language IDs unless expl
 If a framework profile is inferred outside allowed applicability, producer MUST emit `USR-W-FRAMEWORK-PROFILE-INCOMPLETE` and keep profile off unless explicit override is configured.
 
 ## 26. Rollout and migration gates
+
+Rollout decomposition:
+
+- `docs/specs/usr-rollout-and-migration-contract.md`
 
 USR rollout is phased and MUST pass gates in order.
 
