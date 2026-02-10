@@ -114,7 +114,9 @@ const createFileLookup = ({ entries, root }) => {
     fileSet.add(relPosix);
     const lower = relPosix.toLowerCase();
     if (lower.endsWith('tsconfig.json')) hasTsconfig = true;
-    if (!fileLower.has(lower)) fileLower.set(lower, relPosix);
+    if (!fileLower.has(lower) || sortStrings(relPosix, fileLower.get(lower)) < 0) {
+      fileLower.set(lower, relPosix);
+    }
     const basePath = stripImportExtension(relPosix);
     if (basePath) addPathToTrie(pathTrie, basePath);
     addPathToTrie(pathTrie, relPosix);

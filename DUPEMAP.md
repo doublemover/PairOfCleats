@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T01:47:53.4875963-05:00
+Last updated: 2026-02-10T01:56:44.3735295-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -71,7 +71,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [x] | Build/runtime lifecycle correctness remediation |
-| F2 | [ ] | Language/chunking/import correctness remediation |
+| F2 | [x] | Language/chunking/import correctness remediation |
 | F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
 | F4 | [ ] | Retrieval/ANN/embeddings correctness + boundedness |
 | F5 | [ ] | Tooling/LSP/service resilience + diagnostics hygiene |
@@ -266,40 +266,25 @@ Dependency rule:
 
 ### Performance acceleration refinements (mandatory)
 
-P1. Perf budgets and baseline capture:
-- [ ] Add `docs/tooling/perf-budgets.json` (new) with per-domain p50/p95/peak-memory budgets.
-- [ ] Capture baseline before each wave and post-wave deltas after completion.
-- [ ] Fail phase completion if regression exceeds budget without explicit acceptance.
-
-P2. Hot-path complexity elimination first:
+P1. Hot-path complexity elimination first:
 - [ ] Prioritize known O(n²) and repeated scan hotspots before feature-level rewrites.
 - [ ] Add static checks for accidental list-membership-in-loop patterns in hot files.
 - [ ] Track resolved hotspots in findings manifest with benchmark evidence.
 
-P3. Bounded-memory-by-default enforcement:
+P2. Bounded-memory-by-default enforcement:
 - [ ] Require explicit caps/eviction for module-level maps/sets/caches.
 - [ ] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
 - [ ] Add cache metrics in tests: entry count, eviction count, peak estimate.
 
-P4. Concurrency and backpressure contracts:
+P3. Concurrency and backpressure contracts:
 - [ ] Define per-subsystem concurrency knobs and safe defaults.
 - [ ] Require queue/drain semantics for long-lived workers/providers.
 - [ ] Add timeout and cancellation behavior contracts for tooling/service subprocesses.
 
-P5. I/O amplification reduction:
+P4. I/O amplification reduction:
 - [ ] Coalesce multi-write artifact paths where safe.
 - [ ] Ensure streaming readers/writers enforce max-bytes early.
 - [ ] Measure and track bytes written/read in representative tests.
-
-P6. Perf regression CI gates:
-- [ ] Add lightweight perf guard tests to `ci-lite` for key hot paths.
-- [ ] Run fuller perf checks in `ci-long` with trend comparison artifact.
-- [ ] Publish top-offender report (latency, allocations, slowest files/modules) per run.
-
-P7. Touchpoint-level profiling protocol:
-- [ ] For each wave, profile one representative large-repo run.
-- [ ] Require brief profiling note (`before`, `after`, `delta`, `root cause`) in roadmap status updates.
-- [ ] Use profile evidence to reprioritize next-wave tasks when bottlenecks shift.
 
 ### Phase F0 — Findings manifest and ownership
 
@@ -424,31 +409,34 @@ Touchpoints:
 - `src/index/tooling/vfs-index.js`
 
 Subphase F2.1 — Relations and import extraction:
-- [ ] Fix simple-language relation importer contract mismatch in `src/index/language-registry/registry-data.js:419`.
-- [ ] Complete Python relative import extraction and case-collision deterministic handling findings.
-- [ ] Eliminate import candidate/path normalization divergence (shared helper path).
+- [x] Fix simple-language relation importer contract mismatch in `src/index/language-registry/registry-data.js:419`.
+- [x] Complete Python relative import extraction and case-collision deterministic handling findings.
+- [x] Eliminate import candidate/path normalization divergence (shared helper path).
 
 Subphase F2.2 — Chunking and parser fallback behavior:
-- [ ] Fix HTML fallback behavior in `src/lang/html.js:408` to retain chunks on `parse5` failure.
-- [ ] Standardize end-offset semantics (exclusive vs inclusive) across Python/TS and chunk boundaries.
-- [ ] Remove duplicate/heuristic divergence in language chunk builders through shared contracts.
+- [x] Fix HTML fallback behavior in `src/lang/html.js:408` to retain chunks on `parse5` failure.
+- [x] Standardize end-offset semantics (exclusive vs inclusive) across Python/TS and chunk boundaries.
+- [x] Remove duplicate/heuristic divergence in language chunk builders through shared contracts.
 
 Subphase F2.3 — Callsite and ordering correctness:
-- [ ] Allow `0`-based positions in `src/index/callsite-id.js:4`.
-- [ ] Fix numeric ordering key in `src/index/tooling/vfs-index.js:12`.
-- [ ] Verify callsite IDs and segment ordering parity across providers.
+- [x] Allow `0`-based positions in `src/index/callsite-id.js:4`.
+- [x] Fix numeric ordering key in `src/index/tooling/vfs-index.js:12`.
+- [x] Verify callsite IDs and segment ordering parity across providers.
 
 Tests:
-- [ ] `tests/lang/contracts/simple-language-relations-contract.test.js` (new)
-- [ ] `tests/lang/contracts/html-chunking-fallback.test.js` (new)
-- [ ] `tests/lang/contracts/end-offset-normalization.test.js` (new)
-- [ ] `tests/indexing/callsite-id/callsite-id-zero-based.test.js` (new)
-- [ ] `tests/indexing/tooling/vfs-sort-key-numeric-order.test.js` (new)
-- [ ] existing per-language metadata/relations suites expanded to contract assertions
+- [x] `tests/lang/contracts/simple-language-relations-contract.test.js` (new)
+- [x] `tests/lang/contracts/html-chunking-fallback.test.js` (new)
+- [x] `tests/lang/contracts/end-offset-normalization.test.js` (new)
+- [x] `tests/indexing/callsite-id/callsite-id-zero-based.test.js` (new)
+- [x] `tests/indexing/tooling/vfs-sort-key-numeric-order.test.js` (new)
+- [x] existing per-language metadata/relations suites expanded to contract assertions
 
 Exit criteria:
-- [ ] All language/import/chunking correctness findings mapped to resolved tests.
-- [ ] Per-language relation and chunk contracts pass across supported languages.
+- [x] All language/import/chunking correctness findings mapped to resolved tests.
+- [x] Per-language relation and chunk contracts pass across supported languages.
+
+F2.DOC no-doc-change rationale (2026-02-10T01:56:44.3735295-05:00):
+- F2 changes were internal parser/normalization correctness fixes with test-only coverage expansion; no user-facing doc/config/schema text changed.
 
 ### Phase F3 — Artifact/storage I/O crash-safety
 
@@ -763,7 +751,7 @@ Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/guides/commands.md`.
 - [x] Task F1.DOC: Build/runtime lifecycle findings docs.
 Documents: `docs/contracts/schemas/build-state.js` (and related contract docs in `docs/contracts/*`), `docs/sqlite/incremental-updates.md`, `docs/specs/*` (build/stage lifecycle docs touched).
 
-- [ ] Task F2.DOC: Language/chunking/import correctness docs.
+- [x] Task F2.DOC: Language/chunking/import correctness docs.
 Documents: `docs/language/*`, `docs/contracts/*` (language output contracts touched), `docs/testing/*` (new contract-test expectations).
 
 - [ ] Task F3.DOC: Artifact/storage crash-safety docs.

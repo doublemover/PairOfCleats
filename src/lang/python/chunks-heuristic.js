@@ -48,7 +48,7 @@ export function buildPythonHeuristicChunks(text) {
           break;
         }
       }
-      const endLine = offsetToLine(lineIndex, end);
+      const endLine = offsetToLine(lineIndex, Math.max(current.start, end - 1));
       chunks.push({
         start: current.start,
         end,

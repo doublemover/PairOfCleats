@@ -405,9 +405,21 @@ export function buildHtmlChunks(text, options = {}) {
     : null;
   let document = null;
   try {
+    if (options?.html?.forceParseError === true) {
+      throw new Error('forced parse5 error');
+    }
     document = parseHtml(text, { sourceCodeLocationInfo: true });
   } catch {
-    return null;
+    if (filteredTree && filteredTree.length) return filteredTree;
+    if (Array.isArray(treeChunks) && treeChunks.length) return treeChunks;
+    if (!text) return null;
+    return [{
+      start: 0,
+      end: text.length,
+      name: 'html',
+      kind: 'Document',
+      meta: { fallback: 'parse5-error' }
+    }];
   }
   const lineIndex = buildLineIndex(text);
   const chunks = [];
