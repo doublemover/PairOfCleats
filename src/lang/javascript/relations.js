@@ -7,6 +7,7 @@ import {
   visibilityFor
 } from './ast-utils.js';
 import { parseJavaScriptAst } from './parse.js';
+import { resolveCalleeParts, resolveCallLocation, truncateCallText } from '../js-ts/relations-shared.js';
 
 /**
  * Build import/export/call/usage relations for JS chunks.
@@ -366,57 +367,6 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const MAX_CALL_ARG_LEN = 80;
   const MAX_CALL_ARG_DEPTH = 2;
 
-  const normalizeCallText = (value) => {
-    if (value === null || value === undefined) return '';
-    return String(value).replace(/\s+/g, ' ').trim();
-  };
-
-  const truncateCallText = (value, maxLen = MAX_CALL_ARG_LEN) => {
-    const normalized = normalizeCallText(value);
-    if (!normalized) return '';
-    if (normalized.length <= maxLen) return normalized;
-    return `${normalized.slice(0, Math.max(0, maxLen - 3))}...`;
-  };
-
-  const resolveCalleeParts = (calleeName) => {
-    if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
-    const raw = String(calleeName);
-    const parts = raw.split('.').filter(Boolean);
-    if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
-    if (parts.length === 1) {
-      return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
-    }
-    return {
-      calleeRaw: raw,
-      calleeNormalized: parts[parts.length - 1],
-      receiver: parts.slice(0, -1).join('.')
-    };
-  };
-
-  const resolveCallLocation = (node) => {
-    if (!node || typeof node !== 'object') return null;
-    const start = Number.isFinite(node.start)
-      ? node.start
-      : (Array.isArray(node.range) ? node.range[0] : null);
-    const end = Number.isFinite(node.end)
-      ? node.end
-      : (Array.isArray(node.range) ? node.range[1] : null);
-    const loc = node.loc || null;
-    const startLine = Number.isFinite(loc?.start?.line) ? loc.start.line : null;
-    const startCol = Number.isFinite(loc?.start?.column) ? loc.start.column + 1 : null;
-    const endLine = Number.isFinite(loc?.end?.line) ? loc.end.line : null;
-    const endCol = Number.isFinite(loc?.end?.column) ? loc.end.column + 1 : null;
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    return {
-      start,
-      end,
-      startLine,
-      startCol,
-      endLine,
-      endCol
-    };
-  };
-
   const formatCallArg = (arg, depth = 0) => {
     if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
     if (arg.type === 'Identifier') return arg.name;
@@ -558,7 +508,10 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (calleeName) {
           calls.push([callerName, calleeName]);
           const args = Array.isArray(node.arguments)
-            ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
+            ? node.arguments
+              .map((arg) => truncateCallText(formatCallArg(arg), MAX_CALL_ARG_LEN))
+              .filter(Boolean)
+              .slice(0, MAX_CALL_ARGS)
             : [];
           const location = resolveCallLocation(node);
           const calleeParts = resolveCalleeParts(calleeName);

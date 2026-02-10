@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:09:10.7677920-05:00
+Last updated: 2026-02-09T23:15:49.7166137-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -64,7 +64,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D1 | [@] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
-| D5 | [@] | Tooling + language parser/extractor consolidation |
+| D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
@@ -1213,26 +1213,35 @@ D5.2 status update (2026-02-09T23:09:10.7677920-05:00):
 
 ### Subphase D5.3 — JS/TS relations shared core
 Tasks:
-- [ ] Task D5.3.a: Extract shared AST walk/callee/call-location logic.
+- [x] Task D5.3.a: Extract shared AST walk/callee/call-location logic.
 Details: Keep parser setup and syntax-specific exceptions in per-language files.
-- [ ] Task D5.3.b: Migrate JS and TS relation builders to shared core.
+- [x] Task D5.3.b: Migrate JS and TS relation builders to shared core.
 Details: Preserve existing relation output contract.
+
+D5.3 status update (2026-02-09T23:15:49.7166137-05:00):
+- resolved: added shared JS/TS relation helpers in `src/lang/js-ts/relations-shared.js` for call-location normalization and callee decomposition.
+- resolved: migrated both `src/lang/javascript/relations.js` and `src/lang/typescript/relations.js` to shared callee/call-location helpers while keeping parser/walk-specific behavior local.
+- resolved: added explicit JS and TS relation contract tests to lock `callDetails` output semantics (`calleeRaw`, `calleeNormalized`, `receiver`, location fields).
+- remaining: phase D5 complete.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `git grep -n -E "resolveCalleeParts|resolveCallLocation" -- src/lang/javascript src/lang/typescript src/lang/js-ts`.
 
 ### Exhaustive sweeps
 - [x] `rg "findBinaryInDirs|candidateNames|resolveTypeScript|loadTypeScript" src tools`
 - [x] `rg "split.*Params|readSignatureLines" src/lang src/index/tooling/signature-parse`
-- [ ] `rg "resolveCalleeParts|resolveCallLocation" src/lang/javascript src/lang/typescript`
+- [x] `rg "resolveCalleeParts|resolveCallLocation" src/lang/javascript src/lang/typescript`
 
 ### Tests
 - [x] `tests/tooling/binary-utils-parity.test.js` (new)
 - [x] `tests/tooling/typescript-loader-parity.test.js` (new)
 - [x] `tests/tooling/signature-parse/shared-splitter.test.js` (new)
 - [x] language signature/metadata tests updated
-- [ ] `tests/lang/contracts/javascript-relations-contract.test.js` (new)
-- [ ] `tests/lang/contracts/typescript-relations-contract.test.js` (new)
+- [x] `tests/lang/contracts/javascript-relations-contract.test.js` (new)
+- [x] `tests/lang/contracts/typescript-relations-contract.test.js` (new)
 
 ### Exit criteria
-- [ ] All tooling and language helper duplicates in scope are centralized.
+- [x] All tooling and language helper duplicates in scope are centralized.
 
 ---
 
