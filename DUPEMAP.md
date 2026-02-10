@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T22:03:59.5825755-05:00
+Last updated: 2026-02-09T22:50:52.2093313-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1107,12 +1107,21 @@ D4.1 status update (2026-02-09T22:35:42.9880685-05:00):
 
 ### Subphase D4.2 — Search request and filter normalization
 Tasks:
-- [ ] Task D4.2.a: Implement shared request normalizer + argv builder.
+- [x] Task D4.2.a: Implement shared request normalizer + argv builder.
 Details: API and MCP must call same core function.
-- [ ] Task D4.2.b: Consolidate `normalizeMetaFilters` into one shared helper.
+- [x] Task D4.2.b: Consolidate `normalizeMetaFilters` into one shared helper.
 Details: Remove local duplicates in API/MCP/validation.
-- [ ] Task D4.2.c: Fix API schema drift.
+- [x] Task D4.2.c: Fix API schema drift.
 Details: Resolve `path` vs `paths`, add `filter` support, keep validation strict.
+
+D4.2 status update (2026-02-09T22:50:52.2093313-05:00):
+- resolved: added canonical request normalization/argv building in `tools/shared/search-request.js` and migrated API/MCP builders to call this shared core.
+- resolved: removed duplicate `normalizeMetaFilters` from API validation and MCP helper stacks; canonical helper now lives in `tools/shared/search-request.js`.
+- resolved: fixed API schema/request drift by supporting `paths` alias + `filter` in strict validation and routing both `path`/`paths` through shared normalization.
+- remaining: D4.3 repo cache config parity.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `git grep -n -F "normalizeMetaFilters(" -- tools/api tools/mcp tools/shared`, `git grep -n -E "payload\.paths|payload\.path|payload\.filter" -- tools/api`.
 
 ### Subphase D4.3 — Repo cache config parity
 Tasks:
@@ -1123,21 +1132,21 @@ Details: Keep explicit override behavior consistent.
 
 ### Exhaustive sweeps
 - [x] `rg "normalizeAnnBackend|ann-backends|annBackend" src/retrieval`
-- [ ] `rg "normalizeMetaFilters\(" tools/api tools/mcp`
-- [ ] `rg "payload\.paths|payload\.path|payload\.filter" tools/api`
+- [x] `rg "normalizeMetaFilters\(" tools/api tools/mcp`
+- [x] `rg "payload\.paths|payload\.path|payload\.filter" tools/api`
 - [ ] `rg "DEFAULT_CACHE|cacheConfig|normalizeCacheConfig" tools/api tools/mcp`
 
 ### Tests
 - [x] `tests/retrieval/ann/ann-provider-gating-parity.test.js` (new)
 - [x] `tests/retrieval/ann/ann-backend-normalization-parity.test.js` (new)
 - [x] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (new)
-- [ ] `tests/tooling/api-mcp/search-request-parity.test.js` (new)
-- [ ] `tests/tooling/api-mcp/meta-filter-normalization.test.js` (new)
+- [x] `tests/tooling/api-mcp/search-request-parity.test.js` (new)
+- [x] `tests/tooling/api-mcp/meta-filter-normalization.test.js` (new)
 - [ ] `tests/tooling/api-mcp/repo-cache-config-parity.test.js` (new)
-- [ ] existing API/MCP/ANN suites updated for canonical path
+- [x] existing API/MCP/ANN suites updated for canonical path
 
 ### Exit criteria
-- [ ] API and MCP normalize requests identically.
+- [x] API and MCP normalize requests identically.
 - [x] ANN providers share one gating + backend interpretation path.
 
 ---

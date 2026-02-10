@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:35:42.9880685-05:00",
+  "updatedAt": "2026-02-09T22:50:52.2093313-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -94,7 +94,7 @@
       "clusterId": "C09",
       "title": "API/MCP request mapping drift",
       "phase": "D4",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "tools/api/router/search.js",
         "tools/mcp/tools/search-args.js"
@@ -313,7 +313,7 @@
       "clusterId": "A02",
       "title": "Duplicate normalizeMetaFilters in API/MCP",
       "phase": "D4",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "tools/api/validation.js",
         "tools/mcp/tools/helpers.js"
@@ -352,7 +352,7 @@
     { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows", "newPathOrSymbol": "src/storage/sqlite/vocab.js::fetchVocabRows", "status": "planned" },
     { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
     { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
-    { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "planned" },
+    { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "completed" },
     { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
     { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/git.js::findGitRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/index-cache.js::createIndexCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
@@ -372,7 +372,7 @@
     { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
     { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
-    { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "planned" },
+    { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
     { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
     { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" },
     { "migrationId": "M032", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::findJjRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
@@ -433,7 +433,10 @@
     { "migrationId": "M087", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::writeJsonLinesShardedAsync local resolveJsonlExtension body", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension", "status": "completed" },
     { "migrationId": "M088", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/ann/providers/*::local isEmbeddingReady/early-return gating", "newPathOrSymbol": "src/retrieval/ann/utils.js::{isEmbeddingReady,isAnnProviderAvailable,canRunAnnQuery}", "status": "completed" },
     { "migrationId": "M089", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/cli/normalize-options.js::normalizeAnnBackend (local helper)", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
-    { "migrationId": "M090", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline.js::local embedding readiness check + pipeline ann-backends normalization import", "newPathOrSymbol": "src/retrieval/ann/utils.js::isEmbeddingReady + src/retrieval/ann/normalize-backend.js::resolveAnnOrder", "status": "completed" }
+    { "migrationId": "M090", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline.js::local embedding readiness check + pipeline ann-backends normalization import", "newPathOrSymbol": "src/retrieval/ann/utils.js::isEmbeddingReady + src/retrieval/ann/normalize-backend.js::resolveAnnOrder", "status": "completed" },
+    { "migrationId": "M091", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/api/router/search.js::buildSearchParams local request normalization/argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
+    { "migrationId": "M092", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildMcpSearchArgs local argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
+    { "migrationId": "M093", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/api/validation.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -540,6 +543,13 @@
       "scope": "src/retrieval/ann/**,src/retrieval/cli/**,src/retrieval/pipeline/**",
       "pattern": "local ANN backend normalization or provider query gating helper bodies",
       "replacement": "src/retrieval/ann/{normalize-backend.js,utils.js}"
+    },
+    {
+      "banId": "B025",
+      "phase": "D4",
+      "scope": "tools/api/**,tools/mcp/**",
+      "pattern": "local search request argv builders or normalizeMetaFilters helper bodies",
+      "replacement": "tools/shared/search-request.js::{buildSearchRequestArgs,normalizeMetaFilters}"
     }
   ],
   "exceptions": [],
