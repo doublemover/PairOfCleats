@@ -436,6 +436,21 @@ const addGraphNode = (nodes, id, type, stats) => {
   nodes.set(id, { id, type });
 };
 
+const buildEdgeSortKey = (edge) => [
+  edge?.from || '',
+  edge?.to || '',
+  edge?.rawSpecifier || '',
+  edge?.resolvedType || '',
+  edge?.resolvedPath || '',
+  edge?.packageName || '',
+  edge?.tsconfigPath || '',
+  edge?.tsPathPattern || ''
+].join('|');
+
+const buildWarningSortKey = (warning) => (
+  `${warning?.importer || ''}|${warning?.specifier || ''}|${warning?.reason || ''}`
+);
+
 /**
  * Resolve import specifiers to file paths and optionally emit a graph artifact.
  * @param {{root:string,entries:object[],importsByFile:Map<string,string[]>|object,fileRelations:Map<string,object>,log?:(msg:string)=>void,enableGraph?:boolean,graphMeta?:object}} input
@@ -738,7 +753,7 @@ export function resolveImportLinks({
           const tsconfigRel = tsconfigPath
             ? resolveWithinRoot(lookup.rootAbs, tsconfigPath)
             : null;
-          edges.push({
+          const edge = {
             from: `file:${relNormalized}`,
             to: edgeTarget,
             rawSpecifier: rawSpec,
@@ -748,7 +763,9 @@ export function resolveImportLinks({
             packageName: packageName || null,
             tsconfigPath: tsconfigRel ? normalizeRelPath(tsconfigRel) : null,
             tsPathPattern: tsPathPattern || null
-          });
+          };
+          edge.__sortKey = buildEdgeSortKey(edge);
+          edges.push(edge);
           edgeCount += 1;
         } else {
           truncatedEdges += 1;
@@ -783,35 +800,27 @@ export function resolveImportLinks({
     graph.nodes = Array.from(graphNodes.values()).sort((a, b) => sortStrings(a.id, b.id));
     if (Array.isArray(edges)) {
       edges.sort((a, b) => {
-        const aKey = [
-          a.from || '',
-          a.to || '',
-          a.rawSpecifier || '',
-          a.resolvedType || '',
-          a.resolvedPath || '',
-          a.packageName || '',
-          a.tsconfigPath || '',
-          a.tsPathPattern || ''
-        ].join('|');
-        const bKey = [
-          b.from || '',
-          b.to || '',
-          b.rawSpecifier || '',
-          b.resolvedType || '',
-          b.resolvedPath || '',
-          b.packageName || '',
-          b.tsconfigPath || '',
-          b.tsPathPattern || ''
-        ].join('|');
-        return sortStrings(aKey, bKey);
+        if (!a.__sortKey) a.__sortKey = buildEdgeSortKey(a);
+        if (!b.__sortKey) b.__sortKey = buildEdgeSortKey(b);
+        return sortStrings(a.__sortKey, b.__sortKey);
       });
+      for (const edge of edges) {
+        if (edge && Object.prototype.hasOwnProperty.call(edge, '__sortKey')) {
+          delete edge.__sortKey;
+        }
+      }
     }
     if (Array.isArray(warningList)) {
       warningList.sort((a, b) => {
-        const aKey = `${a?.importer || ''}|${a?.specifier || ''}|${a?.reason || ''}`;
-        const bKey = `${b?.importer || ''}|${b?.specifier || ''}|${b?.reason || ''}`;
-        return sortStrings(aKey, bKey);
+        if (!a.__sortKey) a.__sortKey = buildWarningSortKey(a);
+        if (!b.__sortKey) b.__sortKey = buildWarningSortKey(b);
+        return sortStrings(a.__sortKey, b.__sortKey);
       });
+      for (const warning of warningList) {
+        if (warning && Object.prototype.hasOwnProperty.call(warning, '__sortKey')) {
+          delete warning.__sortKey;
+        }
+      }
     }
     graph.stats = {
       files: importsEntries.length,
