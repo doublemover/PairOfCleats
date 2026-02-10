@@ -404,7 +404,7 @@ Implementation policy for Sweep 3:
 - Rollout: `treeSitter.scheduler.format=binary-v1`; dual-read with JSONL/page-json fallback.
 - Target: Lower scheduler lookup parse CPU and reduce artifact bytes.
 
-10. Area: Parser pool / persistent grammar workers
+10. [x] Area: Parser pool / persistent grammar workers
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/lang/tree-sitter/native-runtime.js`
 - Decision: Keep single-process parser caching as default; defer daemonized persistent worker pool until measured need.
 - Rollout: optional tuning first (`MAX_PARSER_CACHE_SIZE`, warmup list) before long-lived pool.

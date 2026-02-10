@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';
 
@@ -83,6 +84,23 @@ const main = async () => {
     root: path.resolve(repoRoot),
     languageOptions: { treeSitter: treeSitterConfig }
   };
+
+  if (treeSitterConfig?.nativeWarmup === true) {
+    const warmupLanguages = Array.from(new Set(groups.flatMap((group) => (
+      Array.isArray(group?.languages) ? group.languages : []
+    ))));
+    if (warmupLanguages.length) {
+      const warmup = warmupNativeTreeSitterParsers(warmupLanguages, {
+        treeSitter: treeSitterConfig,
+        log: console.log
+      });
+      if (warmup.failed.length) {
+        console.warn(
+          `[tree-sitter:schedule] warmup failed for ${warmup.failed.length} language(s): ${warmup.failed.join(', ')}`
+        );
+      }
+    }
+  }
 
   await executeTreeSitterSchedulerPlan({
     mode,

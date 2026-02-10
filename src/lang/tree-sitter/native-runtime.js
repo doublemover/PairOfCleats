@@ -12,7 +12,8 @@ const nativeTreeSitterState = {
   parserLru: [],
   loggedMissing: new Set()
 };
-const MAX_PARSER_CACHE_SIZE = 4;
+const DEFAULT_PARSER_CACHE_SIZE = 4;
+const MAX_PARSER_CACHE_SIZE = 64;
 
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: {
@@ -47,6 +48,19 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
 });
 
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
+
+const resolveParserCacheSize = (options = {}) => {
+  const fromOptions = Number(options?.nativeParserCacheSize);
+  const fromTreeSitter = Number(options?.treeSitter?.nativeParserCacheSize);
+  const requested = Number.isFinite(fromOptions)
+    ? fromOptions
+    : (Number.isFinite(fromTreeSitter) ? fromTreeSitter : DEFAULT_PARSER_CACHE_SIZE);
+  const normalized = Math.floor(requested);
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return DEFAULT_PARSER_CACHE_SIZE;
+  }
+  return Math.min(MAX_PARSER_CACHE_SIZE, normalized);
+};
 
 const resolveGrammarLanguageExport = (grammarModule, grammarSpec) => {
   const preferredKey = typeof grammarSpec?.exportKey === 'string' && grammarSpec.exportKey
@@ -206,7 +220,8 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
     parser.setLanguage(language);
     nativeTreeSitterState.parserCache.set(resolvedId, parser);
     nativeTreeSitterState.parserLru.push(resolvedId);
-    while (nativeTreeSitterState.parserLru.length > MAX_PARSER_CACHE_SIZE) {
+    const parserCacheSize = resolveParserCacheSize(options);
+    while (nativeTreeSitterState.parserLru.length > parserCacheSize) {
       const evictedId = nativeTreeSitterState.parserLru.shift();
       if (!evictedId) continue;
       const evictedParser = nativeTreeSitterState.parserCache.get(evictedId);
@@ -227,4 +242,19 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
     }
     return null;
   }
+}
+
+export function warmupNativeTreeSitterParsers(languageIds = [], options = {}) {
+  const unique = Array.from(new Set((languageIds || []).filter((id) => typeof id === 'string' && id)));
+  if (!unique.length) {
+    return { warmed: [], failed: [] };
+  }
+  const warmed = [];
+  const failed = [];
+  for (const languageId of unique) {
+    const parser = getNativeTreeSitterParser(languageId, options);
+    if (parser) warmed.push(languageId);
+    else failed.push(languageId);
+  }
+  return { warmed, failed };
 }
