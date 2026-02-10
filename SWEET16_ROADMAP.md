@@ -1617,10 +1617,10 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Surface token-id collision failures in validation output.
 - [x] Handle missing `effectiveLang` in filter-index generation.
 - [x] Handle invalid `effectiveLang` in filter-index generation.
-- [ ] Add measured postings-queue byte metrics.
-- [ ] Add postings-queue gauge telemetry.
-- [ ] Replace heuristic postings-queue byte accounting with measured byte accounting.
-- [ ] Enforce backpressure bounds from measured postings-queue bytes.
+- [x] Add measured postings-queue byte metrics.
+- [x] Add postings-queue gauge telemetry.
+- [x] Replace heuristic postings-queue byte accounting with measured byte accounting.
+- [x] Enforce backpressure bounds from measured postings-queue bytes.
 - [ ] Stamp tree-sitter scheduler plans with per-file version signatures.
 - [ ] Reject stale tree-sitter scheduler plans when source signatures change.
 - [ ] Emit VFS fast-path telemetry for bloom/vfsidx/scan paths.
@@ -1659,7 +1659,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/shared/merge/merge-comparator-adopters.test.js` (perf lane) (new)
 - [x] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
 - [x] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
-- [ ] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
+- [x] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
 - [ ] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
 - [ ] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)

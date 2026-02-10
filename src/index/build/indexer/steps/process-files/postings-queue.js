@@ -1,5 +1,4 @@
 import v8 from 'node:v8';
-import { estimateJsonBytes } from '../../../../../shared/cache.js';
 
 const MB = 1024 * 1024;
 
@@ -41,10 +40,28 @@ const resolvePayloadRows = (result) => {
 
 const resolvePayloadBytes = (result) => {
   if (!result || typeof result !== 'object') return 0;
+  const measureJsonValueBytes = (value) => {
+    if (value == null) return 0;
+    try {
+      if (Array.isArray(value)) {
+        let total = 2;
+        for (let i = 0; i < value.length; i += 1) {
+          const encoded = JSON.stringify(value[i]);
+          total += Buffer.byteLength(encoded, 'utf8');
+          if (i > 0) total += 1;
+        }
+        return total;
+      }
+      const encoded = JSON.stringify(value);
+      return Buffer.byteLength(encoded, 'utf8');
+    } catch {
+      return 0;
+    }
+  };
   const chunks = Array.isArray(result.chunks) ? result.chunks : null;
-  let total = chunks ? estimateJsonBytes(chunks) : 0;
-  if (result.fileRelations) total += estimateJsonBytes(result.fileRelations);
-  if (result.vfsManifestRows) total += estimateJsonBytes(result.vfsManifestRows);
+  let total = chunks ? measureJsonValueBytes(chunks) : 0;
+  if (result.fileRelations) total += measureJsonValueBytes(result.fileRelations);
+  if (result.vfsManifestRows) total += measureJsonValueBytes(result.vfsManifestRows);
   return total;
 };
 
@@ -74,9 +91,15 @@ export const createPostingsQueue = ({
     backpressureWaitMs: 0,
     backpressureMaxWaitMs: 0,
     backpressureEvents: 0,
+    backpressureByCount: 0,
+    backpressureByRows: 0,
+    backpressureByBytes: 0,
     oversizeRows: 0,
     oversizeBytes: 0,
     pressureEvents: 0,
+    payloadSamples: 0,
+    measuredRows: 0,
+    measuredBytes: 0,
     highWater: {
       pending: 0,
       rows: 0,
@@ -143,11 +166,11 @@ export const createPostingsQueue = ({
     };
   };
 
-  const shouldWait = (rows, bytes, limits) => {
-    if (limits.maxCount != null && state.pending + 1 > limits.maxCount) return true;
-    if (limits.maxRows != null && state.pendingRows + rows > limits.maxRows) return true;
-    if (limits.maxBytes != null && state.pendingBytes + bytes > limits.maxBytes) return true;
-    return false;
+  const resolveWaitReason = (rows, bytes, limits) => {
+    if (limits.maxCount != null && state.pending + 1 > limits.maxCount) return 'count';
+    if (limits.maxRows != null && state.pendingRows + rows > limits.maxRows) return 'rows';
+    if (limits.maxBytes != null && state.pendingBytes + bytes > limits.maxBytes) return 'bytes';
+    return null;
   };
 
   const reserve = async ({ rows = 1, bytes = 0 } = {}) => {
@@ -165,10 +188,14 @@ export const createPostingsQueue = ({
     const waitStart = Date.now();
     while (true) {
       const limits = resolveLimits(payloadRows, payloadBytes, baseLimits);
-      if (!shouldWait(payloadRows, payloadBytes, limits)) break;
+      const reason = resolveWaitReason(payloadRows, payloadBytes, limits);
+      if (!reason) break;
       if (!waited) {
         waited = true;
         state.backpressureCount += 1;
+        if (reason === 'count') state.backpressureByCount += 1;
+        else if (reason === 'rows') state.backpressureByRows += 1;
+        else if (reason === 'bytes') state.backpressureByBytes += 1;
         if (typeof log === 'function') {
           const now = Date.now();
           if (now - lastLogAt >= 5000) {
@@ -193,6 +220,9 @@ export const createPostingsQueue = ({
     state.pending += 1;
     state.pendingRows += payloadRows;
     state.pendingBytes += payloadBytes;
+    state.payloadSamples += 1;
+    state.measuredRows += payloadRows;
+    state.measuredBytes += payloadBytes;
     noteHighWater();
     return {
       release() {
@@ -221,7 +251,25 @@ export const createPostingsQueue = ({
       count: state.backpressureCount,
       waitMs: state.backpressureWaitMs,
       maxWaitMs: state.backpressureMaxWaitMs,
-      events: state.backpressureEvents
+      events: state.backpressureEvents,
+      byCount: state.backpressureByCount,
+      byRows: state.backpressureByRows,
+      byBytes: state.backpressureByBytes
+    },
+    payload: {
+      samples: state.payloadSamples,
+      measuredRows: state.measuredRows,
+      measuredBytes: state.measuredBytes,
+      avgRows: state.payloadSamples ? (state.measuredRows / state.payloadSamples) : 0,
+      avgBytes: state.payloadSamples ? (state.measuredBytes / state.payloadSamples) : 0
+    },
+    gauge: {
+      pendingCount: state.pending,
+      pendingRows: state.pendingRows,
+      pendingBytes: state.pendingBytes,
+      highWaterPendingCount: state.highWater.pending,
+      highWaterPendingRows: state.highWater.rows,
+      highWaterPendingBytes: state.highWater.bytes
     },
     oversize: {
       rows: state.oversizeRows,
