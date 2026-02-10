@@ -434,7 +434,7 @@ Implementation policy for Sweep 3:
 - Rollout: `sqliteVec.ingestEncoding=auto`; strict capability gating.
 - Target: reduce stage3/4 CPU and memory overhead.
 
-15. Area: On-demand dense vector materialization at query time
+15. [x] Area: On-demand dense vector materialization at query time
 - Files: `src/retrieval/sqlite-helpers.js`, `src/retrieval/ann/providers/dense.js`, `src/retrieval/cli/load-indexes.js`
 - Decision: Load vectors lazily for candidate/topK windows with bounded LRU cache.
 - Rollout: `retrieval.dense.lazyLoad=true`; keep eager mode fallback.

@@ -260,6 +260,7 @@ export async function runSearchSession({
 
   const hasAnn = (mode, idx) => Boolean(
     idx?.denseVec?.vectors?.length
+    || typeof idx?.loadDenseVectors === 'function'
     || vectorAnnState?.[mode]?.available
     || hnswAnnState?.[mode]?.available
     || lanceAnnState?.[mode]?.available

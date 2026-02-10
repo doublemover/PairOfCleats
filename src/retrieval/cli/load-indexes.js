@@ -120,6 +120,7 @@ export async function loadSearchIndexes({
     || needsFilterIndex
     || needsFileRelations
   );
+  const lazyDenseVectorsEnabled = userConfig?.retrieval?.dense?.lazyLoad === true;
 
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
@@ -269,7 +270,7 @@ export async function loadSearchIndexes({
   }
 
   const loadOptions = {
-    includeDense: needsAnnArtifacts,
+    includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
     includeMinhash: needsAnnArtifacts,
     includeFilterIndex: needsFilterIndex,
     includeFileRelations: needsFileRelations,
@@ -277,14 +278,66 @@ export async function loadSearchIndexes({
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
+  const resolveDenseArtifactName = (mode) => {
+    if (resolvedDenseVectorMode === 'code') return 'dense_vectors_code';
+    if (resolvedDenseVectorMode === 'doc') return 'dense_vectors_doc';
+    if (resolvedDenseVectorMode === 'auto') {
+      if (mode === 'code') return 'dense_vectors_code';
+      if (mode === 'prose' || mode === 'extracted-prose') return 'dense_vectors_doc';
+    }
+    return 'dense_vectors';
+  };
+  const attachDenseVectorLoader = (idx, mode, dir) => {
+    if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
+    const artifactName = resolveDenseArtifactName(mode);
+    const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+    let pendingLoad = null;
+    idx.loadDenseVectors = async () => {
+      if (Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0) {
+        return idx.denseVec;
+      }
+      if (pendingLoad) return pendingLoad;
+      pendingLoad = (async () => {
+        let manifest = null;
+        try {
+          manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+        } catch (err) {
+          if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+            throw err;
+          }
+        }
+        try {
+          const loaded = await loadJsonObjectArtifact(dir, artifactName, {
+            maxBytes: MAX_JSON_BYTES,
+            manifest,
+            strict,
+            fallbackPath
+          });
+          if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
+            idx.loadDenseVectors = null;
+            return null;
+          }
+          if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
+          idx.denseVec = loaded;
+          return loaded;
+        } catch {
+          idx.loadDenseVectors = null;
+          return null;
+        }
+      })().finally(() => {
+        pendingLoad = null;
+      });
+      return pendingLoad;
+    };
+  };
   const idxProse = runProse
     ? (useSqlite ? loadIndexFromSqlite('prose', {
-      includeDense: needsAnnArtifacts,
+      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
       includeMinhash: needsAnnArtifacts,
       includeChunks: sqliteContextChunks,
       includeFilterIndex: needsFilterIndex
     }) : (useLmdb ? loadIndexFromLmdb('prose', {
-      includeDense: needsAnnArtifacts,
+      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
       includeMinhash: needsAnnArtifacts,
       includeChunks: true,
       includeFilterIndex: needsFilterIndex
@@ -298,12 +351,12 @@ export async function loadSearchIndexes({
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
-      includeDense: needsAnnArtifacts,
+      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
       includeMinhash: needsAnnArtifacts,
       includeChunks: sqliteContextChunks,
       includeFilterIndex: needsFilterIndex
     }) : (useLmdb ? loadIndexFromLmdb('code', {
-      includeDense: needsAnnArtifacts,
+      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
       includeMinhash: needsAnnArtifacts,
       includeChunks: true,
       includeFilterIndex: needsFilterIndex
@@ -326,6 +379,10 @@ export async function loadSearchIndexes({
 
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
+    if (!idxCode.denseVec && idxCode?.state?.embeddings?.embeddingIdentity) {
+      idxCode.denseVec = { ...idxCode.state.embeddings.embeddingIdentity, vectors: null };
+    }
+    attachDenseVectorLoader(idxCode, 'code', codeIndexDir);
     idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
       idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code');
@@ -336,6 +393,10 @@ export async function loadSearchIndexes({
   }
   if (runProse) {
     idxProse.denseVec = resolveDenseVector(idxProse, 'prose', resolvedDenseVectorMode);
+    if (!idxProse.denseVec && idxProse?.state?.embeddings?.embeddingIdentity) {
+      idxProse.denseVec = { ...idxProse.state.embeddings.embeddingIdentity, vectors: null };
+    }
+    attachDenseVectorLoader(idxProse, 'prose', proseIndexDir);
     idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
       idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose');
@@ -350,6 +411,10 @@ export async function loadSearchIndexes({
       'extracted-prose',
       resolvedDenseVectorMode
     );
+    if (!idxExtractedProse.denseVec && idxExtractedProse?.state?.embeddings?.embeddingIdentity) {
+      idxExtractedProse.denseVec = { ...idxExtractedProse.state.embeddings.embeddingIdentity, vectors: null };
+    }
+    attachDenseVectorLoader(idxExtractedProse, 'extracted-prose', extractedProseDir);
     idxExtractedProse.indexDir = extractedProseDir;
     if (needsFileRelations && !idxExtractedProse.fileRelations) {
       idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose');
@@ -360,6 +425,11 @@ export async function loadSearchIndexes({
   }
 
   if (runRecords) {
+    idxRecords.denseVec = resolveDenseVector(idxRecords, 'records', resolvedDenseVectorMode);
+    if (!idxRecords.denseVec && idxRecords?.state?.embeddings?.embeddingIdentity) {
+      idxRecords.denseVec = { ...idxRecords.state.embeddings.embeddingIdentity, vectors: null };
+    }
+    attachDenseVectorLoader(idxRecords, 'records', recordsDir);
     idxRecords.indexDir = recordsDir;
   }
 

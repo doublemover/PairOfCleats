@@ -618,6 +618,7 @@ export function createSearchPipeline(context) {
 
         const hasVectorArtifacts = Boolean(
           idx?.denseVec?.vectors?.length
+        || typeof idx?.loadDenseVectors === 'function'
         || vectorAnnState?.[mode]?.available
         || hnswAnnState?.[mode]?.available
         || lanceAnnState?.[mode]?.available
