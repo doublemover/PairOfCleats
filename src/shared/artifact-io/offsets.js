@@ -49,14 +49,20 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
     .sort((a, b) => a - b);
   if (!sorted.length) return new Map();
   const out = new Map();
-  const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
+  const minIndex = sorted[0];
+  const maxIndex = sorted[sorted.length - 1];
+  const spanCount = maxIndex - minIndex + 1;
+  const spanBytes = spanCount * OFFSET_BYTES;
+  const spanBuffer = Buffer.allocUnsafe(spanBytes);
+  const { bytesRead } = await handle.read(spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
   for (const index of sorted) {
-    const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
-    if (bytesRead !== OFFSET_BYTES) {
+    const relative = index - minIndex;
+    const offset = relative * OFFSET_BYTES;
+    if (offset + OFFSET_BYTES > bytesRead) {
       out.set(index, null);
       continue;
     }
-    out.set(index, readOffsetValue(buffer, 0));
+    out.set(index, readOffsetValue(spanBuffer.subarray(offset, offset + OFFSET_BYTES), 0));
   }
   return out;
 };
@@ -140,8 +146,9 @@ export const readJsonlRowsAt = async (
   ));
   const validIndexes = normalized.filter((value) => value >= 0);
   if (!validIndexes.length) return [];
+  const uniqueIndexes = Array.from(new Set(validIndexes)).sort((a, b) => a - b);
   const uniqueNeeded = new Set();
-  for (const index of validIndexes) {
+  for (const index of uniqueIndexes) {
     uniqueNeeded.add(index);
     uniqueNeeded.add(index + 1);
   }
@@ -154,7 +161,7 @@ export const readJsonlRowsAt = async (
   try {
     const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
     const rowByIndex = new Map();
-    for (const index of new Set(validIndexes)) {
+    for (const index of uniqueIndexes) {
       if (index >= offsetCount) {
         rowByIndex.set(index, null);
         continue;
@@ -192,7 +199,7 @@ export const readJsonlRowsAt = async (
     }
     if (metrics && typeof metrics === 'object') {
       const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
-      metrics.rowsRead = currentRows + validIndexes.length;
+      metrics.rowsRead = currentRows + uniqueIndexes.length;
     }
     return normalized.map((index) => (index >= 0 ? (rowByIndex.get(index) ?? null) : null));
   } finally {

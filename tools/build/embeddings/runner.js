@@ -1075,42 +1075,31 @@ export async function runBuildEmbeddingsWithConfig(config) {
           log(`[embeddings] ${mode}: writing vectors to ${docVectorsPath}`);
           log(`[embeddings] ${mode}: writing vectors to ${codeVectorsPath}`);
         }
-        await scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
-          fields: {
-            model: modelId,
-            dims: finalDims,
-            scale: denseScale,
-            minVal: quantization.minVal,
-            maxVal: quantization.maxVal,
-            levels: quantization.levels
-          },
-          arrays: { vectors: mergedVectors },
-          atomic: true
-        }));
-        await scheduleIo(() => writeJsonObjectFile(docVectorsPath, {
-          fields: {
-            model: modelId,
-            dims: finalDims,
-            scale: denseScale,
-            minVal: quantization.minVal,
-            maxVal: quantization.maxVal,
-            levels: quantization.levels
-          },
-          arrays: { vectors: docVectors },
-          atomic: true
-        }));
-        await scheduleIo(() => writeJsonObjectFile(codeVectorsPath, {
-          fields: {
-            model: modelId,
-            dims: finalDims,
-            scale: denseScale,
-            minVal: quantization.minVal,
-            maxVal: quantization.maxVal,
-            levels: quantization.levels
-          },
-          arrays: { vectors: codeVectors },
-          atomic: true
-        }));
+        const vectorFields = {
+          model: modelId,
+          dims: finalDims,
+          scale: denseScale,
+          minVal: quantization.minVal,
+          maxVal: quantization.maxVal,
+          levels: quantization.levels
+        };
+        await Promise.all([
+          scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
+            fields: vectorFields,
+            arrays: { vectors: mergedVectors },
+            atomic: true
+          })),
+          scheduleIo(() => writeJsonObjectFile(docVectorsPath, {
+            fields: vectorFields,
+            arrays: { vectors: docVectors },
+            atomic: true
+          })),
+          scheduleIo(() => writeJsonObjectFile(codeVectorsPath, {
+            fields: vectorFields,
+            arrays: { vectors: codeVectors },
+            atomic: true
+          }))
+        ]);
         logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);
         logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
         logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
