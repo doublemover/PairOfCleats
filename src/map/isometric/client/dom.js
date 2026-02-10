@@ -1,33 +1,6 @@
-export const storageKey = 'pairofcleats.isometric.config';
+import { mergeConfig } from '../../../shared/config.js';
 
-export const mergeConfig = (base, override) => {
-  if (!override || typeof override !== 'object') return base;
-  const merged = { ...base, ...override };
-  merged.layout = { ...(base.layout || {}), ...(override.layout || {}) };
-  merged.controls = { ...(base.controls || {}), ...(override.controls || {}) };
-  merged.colors = { ...(base.colors || {}), ...(override.colors || {}) };
-  merged.scoring = { ...(base.scoring || {}), ...(override.scoring || {}) };
-  merged.visuals = { ...(base.visuals || {}), ...(override.visuals || {}) };
-  merged.assets = { ...(base.assets || {}), ...(override.assets || {}) };
-  merged.performance = { ...(base.performance || {}), ...(override.performance || {}) };
-  merged.performance.displayLimits = {
-    ...(base.performance?.displayLimits || {}),
-    ...(override.performance?.displayLimits || {})
-  };
-  merged.performance.drawCaps = {
-    ...(base.performance?.drawCaps || {}),
-    ...(override.performance?.drawCaps || {})
-  };
-  merged.performance.lod = {
-    ...(base.performance?.lod || {}),
-    ...(override.performance?.lod || {})
-  };
-  merged.performance.hud = {
-    ...(base.performance?.hud || {}),
-    ...(override.performance?.hud || {})
-  };
-  return merged;
-};
+export const storageKey = 'pairofcleats.isometric.config';
 
 export const loadDomConfig = () => {
   const map = JSON.parse(document.getElementById('map-data').textContent || '{}');

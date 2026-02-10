@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:59:07.3289697-05:00",
+  "updatedAt": "2026-02-10T00:04:55.9378494-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -215,7 +215,7 @@
       "clusterId": "C20",
       "title": "Relative import resolution duplication",
       "phase": "D6",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/type-inference-crossfile/resolve-relative-import.js",
         "src/index/build/import-resolution.js"
@@ -270,7 +270,7 @@
       "clusterId": "C25",
       "title": "Map filter/escape/config merge duplication",
       "phase": "D6",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/map/build-map/filters.js",
         "src/map/html-writer.js"
@@ -363,12 +363,12 @@
     { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/lock.js::acquireIndexLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
     { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/dispatch.js + src/index/chunking/formats/{ini-toml,yaml,rst-asciidoc}.js::buildChunksFromLineHeadings local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "completed" },
     { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js + src/index/risk-interprocedural/engine.js::SEVERITY_RANK local constants", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "completed" },
-    { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
+    { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js + src/index/build/import-resolution.js local relative-import candidate loops", "newPathOrSymbol": "src/index/shared/import-candidates.js::{resolveRelativeImportCandidates,resolveRelativeImportCandidate}", "status": "completed" },
     { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "completed" },
     { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
     { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "completed" },
     { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "completed" },
-    { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
+    { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::{applyScopeFilter,applyCollapse}", "newPathOrSymbol": "src/map/build-map/filters.js::{createScopeFilters,createCollapseTransform}", "status": "completed" },
     { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
     { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
@@ -461,7 +461,9 @@
     { "migrationId": "M115", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli-lmdb.js::validateStore/schema+mode checks + src/index/validate/lmdb-report.js required-artifact key checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::{validateLmdbSchemaAndMode,validateLmdbArtifactKeys}", "status": "completed" },
     { "migrationId": "M116", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli/index-loader.js + src/integrations/core/status.js data.mdb direct checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbStore", "status": "completed" },
     { "migrationId": "M117", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/{markdown,rst-asciidoc}.js::buildChunksFromMatches local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromMatches", "status": "completed" },
-    { "migrationId": "M118", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js::isIdentCharCode/lineContainsVarRange pattern loop + src/index/risk-interprocedural/engine.js::containsIdentifier/matchesRulePatterns", "newPathOrSymbol": "src/index/risk/shared.js::{containsIdentifier,matchRulePatterns}", "status": "completed" }
+    { "migrationId": "M118", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js::isIdentCharCode/lineContainsVarRange pattern loop + src/index/risk-interprocedural/engine.js::containsIdentifier/matchesRulePatterns", "newPathOrSymbol": "src/index/risk/shared.js::{containsIdentifier,matchRulePatterns}", "status": "completed" },
+    { "migrationId": "M119", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/{html-writer,dot-writer}.js::local escapeHtml", "newPathOrSymbol": "src/map/shared/escape-html.js::escapeHtml", "status": "completed" },
+    { "migrationId": "M120", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/isometric/client/dom.js::local mergeConfig", "newPathOrSymbol": "src/shared/config.js::mergeConfig", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -666,6 +668,20 @@
       "scope": "src/index/risk.js,src/index/risk-interprocedural/engine.js",
       "pattern": "local severity rank / identifier boundary / rule pattern match helper bodies",
       "replacement": "src/index/risk/shared.js::{SEVERITY_RANK,containsIdentifier,matchRulePatterns}"
+    },
+    {
+      "banId": "B039",
+      "phase": "D6",
+      "scope": "src/index/type-inference-crossfile/**,src/index/build/import-resolution.js",
+      "pattern": "local relative import candidate enumeration loops",
+      "replacement": "src/index/shared/import-candidates.js::{resolveRelativeImportCandidates,resolveRelativeImportCandidate}"
+    },
+    {
+      "banId": "B040",
+      "phase": "D6",
+      "scope": "src/map/**",
+      "pattern": "legacy applyScopeFilter/applyCollapse APIs and map-local escapeHtml/mergeConfig helper bodies",
+      "replacement": "src/map/build-map/filters.js::{createScopeFilters,createCollapseTransform} + src/map/shared/escape-html.js::escapeHtml + src/shared/config.js::mergeConfig"
     }
   ],
   "exceptions": [],

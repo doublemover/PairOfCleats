@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:59:07.3289697-05:00
+Last updated: 2026-02-10T00:04:55.9378494-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -66,7 +66,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
-| D6 | [@] | Chunking + risk + import resolution + map consolidation |
+| D6 | [x] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
@@ -1405,31 +1405,41 @@ D6.2 status update (2026-02-09T23:59:07.3289697-05:00):
 
 ### Subphase D6.3 — Import candidate and map cleanup
 Tasks:
-- [ ] Task D6.3.a: Extract shared import candidate generation function for build/crossfile paths.
+- [x] Task D6.3.a: Extract shared import candidate generation function for build/crossfile paths.
 Details: Parameterize extensions and existence checks.
-- [ ] Task D6.3.b: Remove duplicate map filter APIs (`applyScopeFilter`, `applyCollapse`) after consumer migration.
+- [x] Task D6.3.b: Remove duplicate map filter APIs (`applyScopeFilter`, `applyCollapse`) after consumer migration.
 Details: retain only canonical create-transform APIs.
-- [ ] Task D6.3.c: Add shared HTML escape helper and migrate dot/html writers.
+- [x] Task D6.3.c: Add shared HTML escape helper and migrate dot/html writers.
 Details: one escape implementation.
-- [ ] Task D6.3.d: Standardize config merge usage in map client and shared config.
+- [x] Task D6.3.d: Standardize config merge usage in map client and shared config.
 Details: Decide array merge semantics and document explicitly.
+
+D6.3 status update (2026-02-10T00:04:55.9378494-05:00):
+- resolved: added canonical import candidate module `src/index/shared/import-candidates.js` and migrated `src/index/type-inference-crossfile/resolve-relative-import.js` plus `src/index/build/import-resolution.js` to shared candidate resolution.
+- resolved: removed duplicate map filter APIs `applyScopeFilter`/`applyCollapse` from `src/map/build-map/filters.js`, retaining canonical `createScopeFilters` and `createCollapseTransform` API usage.
+- resolved: added shared HTML escape helper `src/map/shared/escape-html.js` and migrated `src/map/html-writer.js` and `src/map/dot-writer.js` to canonical escaping.
+- resolved: standardized map client config merge on `src/shared/config.js::mergeConfig` by migrating `src/map/isometric/client/dom.js` and documenting array override semantics in shared config.
+- remaining: phase D6 complete.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "resolve-relative-import|import-resolution" src/index`; `rg --line-number "applyScopeFilter|applyCollapse|escapeHtml|mergeConfig" src/map src/shared`.
 
 ### Exhaustive sweeps
 - [x] `rg "buildChunksFromLineHeadings|buildChunksFromMatches" src/index/chunking`
 - [x] `rg "SEVERITY_RANK|identifier.*boundary|rule.*match" src/index/risk.js src/index/risk-interprocedural/engine.js src/index/risk/shared.js`
-- [ ] `rg "resolve-relative-import|import-resolution" src/index`
-- [ ] `rg "applyScopeFilter|applyCollapse|escapeHtml|mergeConfig" src/map src/shared`
+- [x] `rg "resolve-relative-import|import-resolution" src/index`
+- [x] `rg "applyScopeFilter|applyCollapse|escapeHtml|mergeConfig" src/map src/shared`
 
 ### Tests
 - [x] `tests/indexing/chunking/chunking-helper-parity.test.js` (new)
 - [x] `tests/indexing/risk/risk-shared-utils-parity.test.js` (new)
-- [ ] `tests/indexing/type-inference/import-candidates-parity.test.js` (new)
-- [ ] `tests/map/map-filter-api-contract.test.js` (new)
-- [ ] `tests/map/html-escape-contract.test.js` (new)
-- [ ] map config merge behavior test (new)
+- [x] `tests/indexing/type-inference/import-candidates-parity.test.js` (new)
+- [x] `tests/map/map-filter-api-contract.test.js` (new)
+- [x] `tests/map/html-escape-contract.test.js` (new)
+- [x] map config merge behavior test (new)
 
 ### Exit criteria
-- [ ] No duplicated chunking/risk/import/map helper stacks remain in scope.
+- [x] No duplicated chunking/risk/import/map helper stacks remain in scope.
 
 ---
 
