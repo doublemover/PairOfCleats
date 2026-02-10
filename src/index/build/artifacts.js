@@ -788,6 +788,7 @@ export async function writeIndexArtifacts(input) {
       );
       enqueueJsonArraySharded('file_meta', fileMeta, {
         maxBytes: fileMetaMaxBytes,
+        estimatedBytes: fileMetaEstimatedBytes,
         piece: { type: 'chunks', name: 'file_meta' },
         metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,

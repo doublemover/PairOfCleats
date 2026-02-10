@@ -97,7 +97,7 @@ Format:
 - Impact: Lower peak memory.
 - Risk: Must keep deterministic shard boundaries.
 
-15. Area: Redundant size estimation
+15. [x] Area: Redundant size estimation
 - Files: `src/index/build/artifacts/writer.js`, `src/index/build/artifacts.js`
 - Opportunity: Plumb precomputed JSON byte estimates to avoid duplicate traversals.
 - Impact: Lower CPU on large arrays.

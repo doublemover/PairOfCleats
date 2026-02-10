@@ -124,6 +124,7 @@ export const createArtifactWriter = ({
     items,
     {
       maxBytes = 0,
+      estimatedBytes = null,
       piece = null,
       compression = null,
       gzipOptions = null,
@@ -131,9 +132,11 @@ export const createArtifactWriter = ({
       offsets = null
     } = {}
   ) => {
-    const estimatedBytes = estimateJsonBytes(items);
+    const resolvedEstimatedBytes = Number.isFinite(Number(estimatedBytes))
+      ? Math.max(0, Math.floor(Number(estimatedBytes)))
+      : estimateJsonBytes(items);
     const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
-    if (!resolvedMaxBytes || estimatedBytes <= resolvedMaxBytes) {
+    if (!resolvedMaxBytes || resolvedEstimatedBytes <= resolvedMaxBytes) {
       enqueueJsonArray(base, items, { compressible: false, piece });
       return;
     }
