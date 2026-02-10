@@ -203,7 +203,6 @@ export async function writeJsonLinesSharded(input) {
   let partCount = 0;
   let partLogicalBytes = 0;
   let current = null;
-  let currentPath = null;
   let offsetsWriter = null;
 
   const closePart = async () => {
@@ -213,15 +212,10 @@ export async function writeJsonLinesSharded(input) {
       await offsetsWriter.close();
       offsetsWriter = null;
     }
-    if (currentPath) {
-      try {
-        const stat = await fsPromises.stat(currentPath);
-        bytes[bytes.length - 1] = stat.size;
-        totalBytes += stat.size;
-      } catch {}
-    }
+    const partBytes = Number(current.getBytesWritten?.() || 0);
+    bytes[bytes.length - 1] = partBytes;
+    totalBytes += partBytes;
     current = null;
-    currentPath = null;
   };
 
   const openPart = () => {
@@ -236,13 +230,14 @@ export async function writeJsonLinesSharded(input) {
     bytes.push(0);
     current = createJsonlBatchWriter(absPath, {
       compression: resolvedCompression,
-      atomic,
+      // Parts are written into a staging directory that is atomically swapped.
+      // Avoid per-part atomic temp+rename overhead inside that staging directory.
+      atomic: false,
       gzipOptions,
       highWaterMark,
       signal,
       pool: compressionPool
     });
-    currentPath = absPath;
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
       const offsetsName = `${partName}.${suffix}`;
@@ -250,7 +245,7 @@ export async function writeJsonLinesSharded(input) {
       const offsetsRel = path.posix.join(partsDirName, offsetsName);
       offsetsParts.push(offsetsRel);
       offsetsWriter = createOffsetsWriter(offsetsAbs, {
-        atomic: offsets.atomic ?? atomic,
+        atomic: false,
         highWaterMark
       });
     }
@@ -385,7 +380,6 @@ export async function writeJsonLinesShardedAsync(input) {
   let partCount = 0;
   let partLogicalBytes = 0;
   let current = null;
-  let currentPath = null;
   let offsetsWriter = null;
 
   const closePart = async () => {
@@ -395,15 +389,10 @@ export async function writeJsonLinesShardedAsync(input) {
       await offsetsWriter.close();
       offsetsWriter = null;
     }
-    if (currentPath) {
-      try {
-        const stat = await fsPromises.stat(currentPath);
-        bytes[bytes.length - 1] = stat.size;
-        totalBytes += stat.size;
-      } catch {}
-    }
+    const partBytes = Number(current.getBytesWritten?.() || 0);
+    bytes[bytes.length - 1] = partBytes;
+    totalBytes += partBytes;
     current = null;
-    currentPath = null;
   };
 
   const openPart = () => {
@@ -418,13 +407,14 @@ export async function writeJsonLinesShardedAsync(input) {
     bytes.push(0);
     current = createJsonlBatchWriter(absPath, {
       compression: resolvedCompression,
-      atomic,
+      // Parts are written into a staging directory that is atomically swapped.
+      // Avoid per-part atomic temp+rename overhead inside that staging directory.
+      atomic: false,
       gzipOptions,
       highWaterMark,
       signal,
       pool: compressionPool
     });
-    currentPath = absPath;
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
       const offsetsName = `${partName}.${suffix}`;
@@ -432,7 +422,7 @@ export async function writeJsonLinesShardedAsync(input) {
       const offsetsRel = path.posix.join(partsDirName, offsetsName);
       offsetsParts.push(offsetsRel);
       offsetsWriter = createOffsetsWriter(offsetsAbs, {
-        atomic: offsets.atomic ?? atomic,
+        atomic: false,
         highWaterMark
       });
     }

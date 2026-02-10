@@ -117,11 +117,21 @@ export const applyChunkingLimits = (chunks, text, context) => {
   const lineIndex = buildLineIndex(text);
   let output = chunks;
   if (maxLines) {
-    output = output.flatMap((chunk) => splitChunkByLines(chunk, text, lineIndex, maxLines));
+    const nextOutput = [];
+    for (const chunk of output) {
+      const split = splitChunkByLines(chunk, text, lineIndex, maxLines);
+      for (const item of split) nextOutput.push(item);
+    }
+    output = nextOutput;
   }
   const effectiveMaxBytes = maxBytes || guardrailMaxBytes;
   if (effectiveMaxBytes) {
-    output = output.flatMap((chunk) => splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes));
+    const nextOutput = [];
+    for (const chunk of output) {
+      const split = splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes);
+      for (const item of split) nextOutput.push(item);
+    }
+    output = nextOutput;
   }
   return output;
 };

@@ -8,7 +8,7 @@ import {
   OFFSETS_COMPRESSION,
   OFFSETS_FORMAT,
   OFFSETS_FORMAT_VERSION,
-  readJsonlRowAt,
+  readJsonlRowsAt,
   readOffsetAt,
   resolveOffsetsCount,
   validateOffsetsAgainstFile
@@ -1761,6 +1761,7 @@ const loadSymbolRowsForFile = async (
   const requiredKeys = resolveJsonlRequiredKeys(baseName);
   const rows = [];
   const validatedParts = new Set();
+  const rowsByPart = new Map();
   for (const rowIndex of rowIndexes) {
     const resolved = resolvePartIndex(sources.counts, rowIndex);
     if (!resolved) continue;
@@ -1774,13 +1775,25 @@ const loadSymbolRowsForFile = async (
         return loadFullRows();
       }
     }
-    const row = await readJsonlRowAt(
+    const key = String(resolved.partIndex);
+    const bucket = rowsByPart.get(key) || {
       partPath,
       partOffsets,
-      resolved.localIndex,
+      localIndexes: []
+    };
+    bucket.localIndexes.push(resolved.localIndex);
+    rowsByPart.set(key, bucket);
+  }
+  for (const bucket of rowsByPart.values()) {
+    const fetched = await readJsonlRowsAt(
+      bucket.partPath,
+      bucket.partOffsets,
+      bucket.localIndexes,
       { maxBytes, requiredKeys }
     );
-    if (row) rows.push(row);
+    for (const row of fetched) {
+      if (row) rows.push(row);
+    }
   }
   return rows;
 };

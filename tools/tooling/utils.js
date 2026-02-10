@@ -214,7 +214,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'pyright',
       label: 'Pyright',
       languages: ['python'],
-      detect: { cmd: 'pyright', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
         user: { cmd: 'npm', args: ['install', '-g', 'pyright'] }
@@ -403,14 +403,23 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
 }
 
 export function detectTool(tool) {
+  const detectCmd = String(tool?.detect?.cmd || '');
+  const isPyrightLangserver = detectCmd.toLowerCase() === 'pyright-langserver';
   const binDirs = tool.detect?.binDirs || [];
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
     const ok = canRun(binPath, tool.detect.args || ['--version']);
-    if (ok) return { found: true, path: binPath, source: 'cache' };
+    if (ok || (isPyrightLangserver && fs.existsSync(binPath))) {
+      return { found: true, path: binPath, source: 'cache' };
+    }
   }
   const ok = canRun(tool.detect.cmd, tool.detect.args || ['--version']);
   if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
+  if (isPyrightLangserver) {
+    const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    const pathFound = findBinaryInDirs(tool.detect.cmd, pathEntries);
+    if (pathFound && fs.existsSync(pathFound)) return { found: true, path: pathFound, source: 'path' };
+  }
   return { found: false, path: null, source: null };
 }
 

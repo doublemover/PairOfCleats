@@ -12,6 +12,6 @@ export function chunkMarkdown(text, ext, context) {
     });
     if (treeChunks && treeChunks.length) return treeChunks;
   }
-  const matches = [...text.matchAll(/^#{1,6} .+$/gm)];
+  const matches = text.matchAll(/^#{1,6} .+$/gm);
   return buildChunksFromMatches(text, matches, (raw) => raw.replace(/^#+ /, '').trim());
 }

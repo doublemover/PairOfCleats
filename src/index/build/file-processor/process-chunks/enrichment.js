@@ -7,6 +7,7 @@ import { mergeFlowMeta } from '../meta.js';
 export const buildChunkEnrichment = ({
   chunkMode,
   text,
+  chunkText,
   chunk,
   chunkIndex,
   activeLang,
@@ -32,6 +33,9 @@ export const buildChunkEnrichment = ({
   endLine,
   totalLines
 }) => {
+  const resolvedChunkText = typeof chunkText === 'string'
+    ? chunkText
+    : text.slice(chunk.start, chunk.end);
   let codeRelations = {};
   let docmeta = {};
   if (chunkMode === 'code') {
@@ -100,7 +104,7 @@ export const buildChunkEnrichment = ({
       updateCrashStage('type-inference', { chunkIndex });
       const inferredTypes = inferTypeMetadata({
         docmeta,
-        chunkText: text.slice(chunk.start, chunk.end),
+        chunkText: resolvedChunkText,
         languageId: chunkLanguageId || null
       });
       if (inferredTypes) {
@@ -114,7 +118,7 @@ export const buildChunkEnrichment = ({
       const enrichStart = Date.now();
       updateCrashStage('risk-analysis', { chunkIndex });
       const risk = detectRiskSignals({
-        text: text.slice(chunk.start, chunk.end),
+        text: resolvedChunkText,
         chunk,
         config: riskConfig,
         languageId: chunkLanguageId || null

@@ -11,12 +11,42 @@ export const attachCallDetailsByChunkIndex = (callIndex, chunks) => {
         : null
     }))
     .filter((entry) => Number.isFinite(entry.start) && Number.isFinite(entry.end));
+  const sortedChunkRanges = [...chunkRanges].sort((a, b) => (
+    a.start - b.start || a.end - b.end || a.index - b.index
+  ));
+  let nonOverlapping = true;
+  for (let i = 1; i < sortedChunkRanges.length; i += 1) {
+    if (sortedChunkRanges[i - 1].end > sortedChunkRanges[i].start) {
+      nonOverlapping = false;
+      break;
+    }
+  }
+  const findChunkFast = (detailStart, detailEnd) => {
+    let lo = 0;
+    let hi = sortedChunkRanges.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const chunk = sortedChunkRanges[mid];
+      if (detailStart < chunk.start) {
+        hi = mid - 1;
+        continue;
+      }
+      if (detailStart >= chunk.end) {
+        lo = mid + 1;
+        continue;
+      }
+      return detailEnd <= chunk.end ? chunk : null;
+    }
+    return null;
+  };
   for (const detail of callIndex.callDetailsWithRange) {
     if (!Number.isFinite(detail?.start) || !Number.isFinite(detail?.end)) continue;
-    let best = null;
-    for (const chunk of chunkRanges) {
-      if (detail.start < chunk.start || detail.end > chunk.end) continue;
-      if (!best || chunk.span < best.span) best = chunk;
+    let best = nonOverlapping ? findChunkFast(detail.start, detail.end) : null;
+    if (!best) {
+      for (const chunk of chunkRanges) {
+        if (detail.start < chunk.start || detail.end > chunk.end) continue;
+        if (!best || chunk.span < best.span) best = chunk;
+      }
     }
     if (!best) continue;
     const list = callDetailsByChunkIndex.get(best.index) || [];

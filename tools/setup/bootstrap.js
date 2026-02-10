@@ -114,6 +114,44 @@ if (!argv['skip-tooling']) {
   } else if (detectResult.status !== 0) {
     console.warn('[bootstrap] Tooling detection failed.');
   }
+
+  const pyrightEnsureArgs = [
+    path.join(toolRoot, 'tools', 'tooling', 'install.js'),
+    '--root',
+    root,
+    '--tools',
+    'pyright',
+    '--scope',
+    toolingConfig.installScope || 'cache',
+    '--json'
+  ];
+  if (!toolingConfig.allowGlobalFallback) pyrightEnsureArgs.push('--no-fallback');
+  const pyrightEnsure = runCommand(process.execPath, pyrightEnsureArgs, {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    env: baseEnv
+  });
+  if (pyrightEnsure.status === 0) {
+    try {
+      const payload = JSON.parse(pyrightEnsure.stdout || '{}');
+      const pyrightResult = Array.isArray(payload.results)
+        ? payload.results.find((entry) => entry && entry.id === 'pyright')
+        : null;
+      const status = pyrightResult?.status;
+      if (status === 'installed') {
+        console.error('[bootstrap] Installed pyright tooling (pyright-langserver).');
+      } else if (status === 'already-installed') {
+        console.error('[bootstrap] pyright-langserver already available.');
+      } else if (status && status !== 'manual') {
+        console.warn(`[bootstrap] pyright tooling ensure status: ${status}.`);
+      }
+    } catch {
+      console.warn('[bootstrap] Failed to parse pyright tooling ensure output.');
+    }
+  } else {
+    console.warn('[bootstrap] Failed to ensure pyright tooling; pyright-langserver may be unavailable.');
+  }
 }
 
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {

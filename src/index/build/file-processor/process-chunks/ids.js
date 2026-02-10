@@ -8,11 +8,7 @@ const assignSpanIndexes = (chunks) => {
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     if (!chunk) continue;
-    const key = [
-      chunk.segment?.segmentId || '',
-      chunk.start ?? '',
-      chunk.end ?? ''
-    ].join('|');
+    const key = `${chunk.segment?.segmentId || ''}|${chunk.start ?? ''}|${chunk.end ?? ''}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ chunk, index: i });
   }

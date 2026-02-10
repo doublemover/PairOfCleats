@@ -29,6 +29,13 @@ const canRunBinary = (cmd, argsList) => {
   return false;
 };
 
+const commandExists = (cmd) => {
+  if (!cmd) return false;
+  if (isAbsolutePathNative(cmd) || cmd.includes(path.sep)) return fsSync.existsSync(cmd);
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  return Boolean(findBinaryInDirs(cmd, pathEntries));
+};
+
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   const candidates = [];
   if (clangdConfig?.compileCommandsDir) {
@@ -332,7 +339,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
     } else if (providerId === 'pyright') {
       const resolvedCmd = resolvePyrightCommand(repoRoot, toolingConfig);
-      if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+      if (!commandExists(resolvedCmd)) {
         providerAvailable = false;
         addCheck({
           name: 'pyright-langserver',

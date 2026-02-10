@@ -8,6 +8,7 @@ import {
   OFFSETS_FORMAT,
   OFFSETS_FORMAT_VERSION,
   readJsonlRowAt,
+  readJsonlRowsAt,
   resolveOffsetsCount,
   validateOffsetsAgainstFile
 } from '../../../src/shared/artifact-io/offsets.js';
@@ -30,6 +31,8 @@ const count = await resolveOffsetsCount(offsetsPath);
 assert.equal(count, rows.length);
 const middle = await readJsonlRowAt(jsonlPath, offsetsPath, 1, { maxBytes: 1024 });
 assert.equal(middle.id, 2);
+const batch = await readJsonlRowsAt(jsonlPath, offsetsPath, [2, 0, 1], { maxBytes: 1024 });
+assert.deepEqual(batch.map((entry) => entry?.id ?? null), [3, 1, 2]);
 await validateOffsetsAgainstFile(jsonlPath, offsetsPath);
 
 assert.equal(OFFSETS_FORMAT, 'u64-le');

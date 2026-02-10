@@ -12,6 +12,11 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const isPyrightLangserverCmd = (cmd) => (
+  String(path.basename(String(cmd || '')))
+    .toLowerCase()
+    .replace(/\.(cmd|exe|bat)$/, '') === 'pyright-langserver'
+);
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -28,6 +33,7 @@ const canRunPyright = (cmd) => {
         reject: false
       });
       if (result.exitCode === 0) return true;
+      if (isPyrightLangserverCmd(cmd)) return true;
     } catch {}
   }
   return false;

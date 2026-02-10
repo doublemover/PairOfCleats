@@ -44,6 +44,23 @@ export const resolveOffsetsCount = async (offsetsPath) => {
   return Math.floor(size / OFFSET_BYTES);
 };
 
+const readOffsetsAtWithHandle = async (handle, indexes) => {
+  const sorted = Array.from(new Set(indexes.filter((index) => Number.isInteger(index) && index >= 0)))
+    .sort((a, b) => a - b);
+  if (!sorted.length) return new Map();
+  const out = new Map();
+  const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
+  for (const index of sorted) {
+    const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
+    if (bytesRead !== OFFSET_BYTES) {
+      out.set(index, null);
+      continue;
+    }
+    out.set(index, readOffsetValue(buffer, 0));
+  }
+  return out;
+};
+
 export const readJsonlRowAt = async (
   jsonlPath,
   offsetsPath,
@@ -98,6 +115,88 @@ export const readJsonlRowAt = async (
     return parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys);
   } finally {
     await handle.close();
+  }
+};
+
+export const readJsonlRowsAt = async (
+  jsonlPath,
+  offsetsPath,
+  indexes,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    metrics = null
+  } = {}
+) => {
+  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) {
+    const err = new Error('readJsonlRowsAt maxBytes must be a finite positive number.');
+    err.code = 'ERR_INVALID_MAX_BYTES';
+    throw err;
+  }
+  if (!Array.isArray(indexes) || indexes.length === 0) return [];
+  const resolvedMaxBytes = Math.floor(maxBytes);
+  const normalized = indexes.map((value) => (
+    Number.isFinite(value) && value >= 0 ? Math.floor(value) : -1
+  ));
+  const validIndexes = normalized.filter((value) => value >= 0);
+  if (!validIndexes.length) return [];
+  const uniqueNeeded = new Set();
+  for (const index of validIndexes) {
+    uniqueNeeded.add(index);
+    uniqueNeeded.add(index + 1);
+  }
+  const [jsonlHandle, offsetsHandle, offsetCount, jsonlStat] = await Promise.all([
+    fs.open(jsonlPath, 'r'),
+    fs.open(offsetsPath, 'r'),
+    resolveOffsetsCount(offsetsPath),
+    fs.stat(jsonlPath)
+  ]);
+  try {
+    const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
+    const rowByIndex = new Map();
+    for (const index of new Set(validIndexes)) {
+      if (index >= offsetCount) {
+        rowByIndex.set(index, null);
+        continue;
+      }
+      const start = offsetValues.get(index);
+      const next = index + 1 < offsetCount ? offsetValues.get(index + 1) : null;
+      if (!Number.isFinite(start)) {
+        rowByIndex.set(index, null);
+        continue;
+      }
+      const end = Number.isFinite(next) ? next : jsonlStat.size;
+      if (end < start) {
+        throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
+      }
+      const length = end - start;
+      if (length === 0) {
+        rowByIndex.set(index, null);
+        continue;
+      }
+      if (metrics && typeof metrics === 'object') {
+        const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
+        metrics.bytesRequested = currentRequested + length;
+      }
+      if (length > resolvedMaxBytes) {
+        throw toJsonTooLargeError(jsonlPath, length);
+      }
+      const buffer = Buffer.allocUnsafe(length);
+      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
+      const line = buffer.slice(0, bytesRead).toString('utf8');
+      if (metrics && typeof metrics === 'object') {
+        const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
+        metrics.bytesRead = currentRead + bytesRead;
+      }
+      rowByIndex.set(index, parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys));
+    }
+    if (metrics && typeof metrics === 'object') {
+      const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
+      metrics.rowsRead = currentRows + validIndexes.length;
+    }
+    return normalized.map((index) => (index >= 0 ? (rowByIndex.get(index) ?? null) : null));
+  } finally {
+    await Promise.allSettled([jsonlHandle.close(), offsetsHandle.close()]);
   }
 };
 

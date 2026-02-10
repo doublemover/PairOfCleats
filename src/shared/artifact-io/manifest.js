@@ -12,6 +12,7 @@ const warnedMissingCompat = new Set();
 const warnedMissingManifest = new Set();
 const warnedNonStrictFallback = new Set();
 const warnedUnsafePaths = new Set();
+const manifestPieceIndexCache = new WeakMap();
 
 const normalizeManifest = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
@@ -184,6 +185,10 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
 };
 
 const indexManifestPieces = (manifest) => {
+  if (!manifest || typeof manifest !== 'object') return new Map();
+  if (manifestPieceIndexCache.has(manifest)) {
+    return manifestPieceIndexCache.get(manifest);
+  }
   const map = new Map();
   const list = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
   for (const entry of list) {
@@ -192,6 +197,7 @@ const indexManifestPieces = (manifest) => {
     if (!map.has(name)) map.set(name, []);
     map.get(name).push(entry);
   }
+  manifestPieceIndexCache.set(manifest, map);
   return map;
 };
 
@@ -243,7 +249,9 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     const metaEntry = metaEntries[0];
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
     if (metaPath) {
-      const metaRaw = readJsonFile(metaPath, { maxBytes });
+      const cachedMeta = readCache(metaPath);
+      const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes });
+      if (!cachedMeta) writeCache(metaPath, metaRaw);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
       const offsets = Array.isArray(meta?.offsets) ? meta.offsets : [];

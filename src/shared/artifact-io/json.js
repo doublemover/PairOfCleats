@@ -615,9 +615,68 @@ const readJsonLinesIteratorSingle = async function* (
           if (stat.size > maxBytes) {
             throw toJsonTooLargeError(sourcePath, stat.size);
           }
-          const range = byteRange && Number.isFinite(byteRange.start) && Number.isFinite(byteRange.end)
+          const hasRange = byteRange && Number.isFinite(byteRange.start) && Number.isFinite(byteRange.end);
+          const range = hasRange
             ? { start: Math.max(0, byteRange.start), end: Math.max(0, byteRange.end - 1) }
             : null;
+          const plan = resolveJsonlReadPlan(stat.size);
+          if (!range && (plan.smallFile || (compression === 'gzip' && stat.size <= SMALL_JSONL_BYTES))) {
+            if (compression === 'gzip') {
+              const buffer = readBuffer(sourcePath, maxBytes);
+              const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, sourcePath);
+              const parsed = parseJsonlBufferEntries(decompressed, sourcePath, {
+                maxBytes,
+                requiredKeys,
+                validationMode
+              });
+              rows = parsed.entries.length;
+              bytes = parsed.bytes;
+              for (const entry of parsed.entries) {
+                await queue.push(entry);
+              }
+              if (cleanup) cleanupBak(sourcePath);
+              queue.finish();
+              if (shouldMeasure) {
+                recordArtifactRead({
+                  path: sourcePath,
+                  format: 'jsonl',
+                  compression,
+                  rawBytes: rawBytes ?? bytes,
+                  bytes,
+                  rows,
+                  durationMs: performance.now() - start
+                });
+              }
+              return;
+            }
+            if (!compression) {
+              const buffer = readBuffer(sourcePath, maxBytes);
+              const parsed = parseJsonlBufferEntries(buffer, sourcePath, {
+                maxBytes,
+                requiredKeys,
+                validationMode
+              });
+              rows = parsed.entries.length;
+              bytes = parsed.bytes;
+              for (const entry of parsed.entries) {
+                await queue.push(entry);
+              }
+              if (cleanup) cleanupBak(sourcePath);
+              queue.finish();
+              if (shouldMeasure) {
+                recordArtifactRead({
+                  path: sourcePath,
+                  format: 'jsonl',
+                  compression,
+                  rawBytes: rawBytes ?? bytes,
+                  bytes,
+                  rows,
+                  durationMs: performance.now() - start
+                });
+              }
+              return;
+            }
+          }
           stream = fs.createReadStream(sourcePath, range || undefined);
           if (compression === 'gzip') {
             const gunzip = createGunzip();

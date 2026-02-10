@@ -23,14 +23,27 @@ export const buildChunksFromLineHeadings = (text, headings) => {
 
 export const buildChunksFromMatches = (text, matches, titleTransform) => {
   const chunks = [];
-  for (let i = 0; i < matches.length; ++i) {
-    const start = matches[i].index;
-    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-    const rawTitle = matches[i][0];
+  let previous = null;
+  for (const match of matches || []) {
+    if (previous) {
+      const rawTitle = previous[0];
+      const title = titleTransform ? titleTransform(rawTitle) : rawTitle.trim();
+      chunks.push({
+        start: previous.index,
+        end: match.index,
+        name: title || 'section',
+        kind: 'Section',
+        meta: { title }
+      });
+    }
+    previous = match;
+  }
+  if (previous) {
+    const rawTitle = previous[0];
     const title = titleTransform ? titleTransform(rawTitle) : rawTitle.trim();
     chunks.push({
-      start,
-      end,
+      start: previous.index,
+      end: text.length,
       name: title || 'section',
       kind: 'Section',
       meta: { title }
