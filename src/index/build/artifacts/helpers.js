@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
-import { writeJsonLinesFile } from '../../../shared/json-stream.js';
-import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
+import { writeJsonlRunFile } from '../../../shared/merge.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 import {
   OFFSETS_COMPRESSION,
@@ -34,156 +33,6 @@ export const createOffsetsIndexMeta = ({ path: offsetsPath = null, count = null,
   path: offsetsPath,
   count
 });
-
-export class MinHeap {
-  constructor(compare) {
-    this.compare = compare;
-    this.items = [];
-  }
-
-  get size() {
-    return this.items.length;
-  }
-
-  push(value) {
-    this.items.push(value);
-    this.bubbleUp(this.items.length - 1);
-  }
-
-  pop() {
-    if (!this.items.length) return null;
-    const top = this.items[0];
-    const last = this.items.pop();
-    if (this.items.length && last) {
-      this.items[0] = last;
-      this.bubbleDown(0);
-    }
-    return top;
-  }
-
-  bubbleUp(index) {
-    const { items, compare } = this;
-    let i = index;
-    while (i > 0) {
-      const parent = Math.floor((i - 1) / 2);
-      if (compare(items[i], items[parent]) >= 0) break;
-      [items[i], items[parent]] = [items[parent], items[i]];
-      i = parent;
-    }
-  }
-
-  bubbleDown(index) {
-    const { items, compare } = this;
-    let i = index;
-    for (;;) {
-      const left = i * 2 + 1;
-      const right = left + 1;
-      let smallest = i;
-      if (left < items.length && compare(items[left], items[smallest]) < 0) {
-        smallest = left;
-      }
-      if (right < items.length && compare(items[right], items[smallest]) < 0) {
-        smallest = right;
-      }
-      if (smallest === i) break;
-      [items[i], items[smallest]] = [items[smallest], items[i]];
-      i = smallest;
-    }
-  }
-}
-
-export const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let buffer = '';
-  let lineNumber = 0;
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          yield JSON.parse(trimmed);
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        yield JSON.parse(trimmed);
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
-  }
-};
-
-export const mergeSortedRuns = async function* (runs, { compare, readRun = readJsonlRows } = {}) {
-  const compareFn = typeof compare === 'function' ? compare : compareStrings;
-  const advance = async (cursor) => {
-    const next = await cursor.iterator.next();
-    if (next.done) {
-      cursor.done = true;
-      cursor.row = null;
-      return false;
-    }
-    cursor.row = next.value;
-    return true;
-  };
-  const heap = new MinHeap((a, b) => {
-    const cmp = compareFn(a.row, b.row);
-    if (cmp !== 0) return cmp;
-    return a.order - b.order;
-  });
-  for (let i = 0; i < runs.length; i += 1) {
-    const run = runs[i];
-    if (!run) continue;
-    const iterator = readRun(run)[Symbol.asyncIterator]();
-    const cursor = { iterator, row: null, done: false, order: i };
-    const hasRow = await advance(cursor);
-    if (hasRow) heap.push(cursor);
-  }
-  while (heap.size) {
-    const best = heap.pop();
-    if (!best) break;
-    yield best.row;
-    const hasMore = await advance(best);
-    if (hasMore) heap.push(best);
-  }
-};
-
-export const writeJsonlRunFile = async (filePath, rows, { atomic = true, serialize = null } = {}) => {
-  if (typeof serialize !== 'function') {
-    return writeJsonLinesFile(filePath, rows, { atomic });
-  }
-  const writer = createJsonlBatchWriter(filePath, { atomic });
-  try {
-    for (const entry of rows) {
-      const line = serialize(entry);
-      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-      await writer.writeLine(line, lineBytes);
-    }
-    await writer.close();
-  } catch (err) {
-    try { await writer.destroy(err); } catch {}
-    throw err;
-  }
-};
 
 export const createByteTracker = ({ maxJsonBytes = null } = {}) => {
   const stats = {

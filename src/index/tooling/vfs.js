@@ -12,6 +12,7 @@ import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isTestingEnv } from '../../shared/env.js';
 import { readJsonFile } from '../../shared/artifact-io.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import { readJsonlRows } from '../../shared/merge.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
@@ -801,49 +802,6 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
   });
   const relative = safeParts.join(path.sep);
   return path.join(baseDir, relative);
-};
-
-const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let lineNumber = 0;
-  let buffer = '';
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          const row = JSON.parse(trimmed);
-          yield row;
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        const row = JSON.parse(trimmed);
-        yield row;
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
-  }
 };
 
 /**

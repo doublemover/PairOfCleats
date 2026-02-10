@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:03:59.5825755-05:00",
+  "updatedAt": "2026-02-09T22:12:23.3819463-05:00",
   "clusters": [
     {
       "clusterId": "C01",
       "title": "JSONL merge/spill helpers",
       "phase": "D2",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/build/artifacts/helpers.js",
         "src/map/build-map/io.js"
@@ -416,7 +416,13 @@
     { "migrationId": "M070", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/promotion.js::current.json write via json-stream writer", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
     { "migrationId": "M071", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/api/router/cache.js::normalizeCacheConfig and ad-hoc cache policy constants", "newPathOrSymbol": "src/shared/cache/policy.js::{defineCachePolicy,resolveCachePolicy}", "status": "completed" },
     { "migrationId": "M072", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/mcp/repo.js::ad-hoc cache policy constants", "newPathOrSymbol": "src/shared/cache/policy.js::defineCachePolicy", "status": "completed" },
-    { "migrationId": "M073", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/service/indexer-service.js::manual timer/promise lifecycle handling", "newPathOrSymbol": "src/shared/lifecycle/registry.js::createLifecycleRegistry", "status": "completed" }
+    { "migrationId": "M073", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/service/indexer-service.js::manual timer/promise lifecycle handling", "newPathOrSymbol": "src/shared/lifecycle/registry.js::createLifecycleRegistry", "status": "completed" },
+    { "migrationId": "M074", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::{MinHeap,readJsonlRows,mergeSortedRuns} (local implementations)", "newPathOrSymbol": "src/shared/merge.js::{MinHeap,readJsonlRows,mergeSortedRuns}", "status": "completed" },
+    { "migrationId": "M075", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/map/build-map/io.js::{MinHeap,readJsonlRows,mergeSortedRuns} (local implementations)", "newPathOrSymbol": "src/shared/merge.js::{mergeSortedRuns,readJsonlRows,MinHeap}", "status": "completed" },
+    { "migrationId": "M076", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/vfs-manifest.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M077", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/tooling/vfs.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M078", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/integrations/tooling/api-contracts.js::readJsonlRows import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M079", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::mergeSortedRuns import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -502,6 +508,13 @@
       "scope": "src/**,tools/service/**",
       "pattern": "manual timer/promise lifecycle cleanup for long-lived services/watchers",
       "replacement": "src/shared/lifecycle/registry.js::createLifecycleRegistry"
+    },
+    {
+      "banId": "B022",
+      "phase": "D2",
+      "scope": "src/**,tools/**",
+      "pattern": "local MinHeap/readJsonlRows/mergeSortedRuns helper bodies outside src/shared/merge.js",
+      "replacement": "src/shared/merge.js::{MinHeap,readJsonlRows,mergeSortedRuns}"
     }
   ],
   "exceptions": [],

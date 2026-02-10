@@ -15,7 +15,7 @@ import { createJsonWriteStream, writeChunk } from '../../../../shared/json-strea
 import { fromPosix } from '../../../../shared/files.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
-import { mergeSortedRuns } from '../../../../shared/merge.js';
+import { mergeSortedRuns, readJsonlRows } from '../../../../shared/merge.js';
 import {
   compareVfsManifestRows,
   trimVfsManifestRow,
@@ -75,49 +75,6 @@ const measureRows = (rows) => {
 const trimRows = (rows, { log: logFn, stats } = {}) => rows
   .map((row) => trimVfsManifestRow(row, { log: logFn, stats }))
   .filter(Boolean);
-
-const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let lineNumber = 0;
-  let buffer = '';
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          const row = JSON.parse(trimmed);
-          yield row;
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid vfs_manifest run JSON at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        const row = JSON.parse(trimmed);
-        yield row;
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid vfs_manifest run JSON at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
-  }
-};
 
 const createPathMapIterator = (items) => (async function* () {
   for await (const row of items) {

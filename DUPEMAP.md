@@ -62,7 +62,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | --- | --- | --- |
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [@] | Shared primitive consolidation |
-| D2 | [ ] | JSONL merge + artifact writer scaffolding |
+| D2 | [@] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
 | D5 | [ ] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
@@ -1014,14 +1014,24 @@ Clusters: 1, 2, plus duplicate `resolveJsonlExtension` inside `src/shared/json-s
 
 ### Subphase D2.1 — Merge helper unification
 Tasks:
-- [ ] Task D2.1.a: Expand shared merge API to cover local variant requirements.
+- [x] Task D2.1.a: Expand shared merge API to cover local variant requirements.
 Details: Include compare/readRun overrides and parse/error hooks.
-- [ ] Task D2.1.b: Migrate `src/index/build/artifacts/helpers.js` to shared merge APIs.
+- [x] Task D2.1.b: Migrate `src/index/build/artifacts/helpers.js` to shared merge APIs.
 Details: Delete local `MinHeap`, `readJsonlRows`, `mergeSortedRuns`.
-- [ ] Task D2.1.c: Migrate `src/map/build-map/io.js` merge helpers.
+- [x] Task D2.1.c: Migrate `src/map/build-map/io.js` merge helpers.
 Details: Preserve map-specific call semantics with adapter wrapper only.
-- [ ] Task D2.1.d: Evaluate and migrate local `readJsonlRows` variants in VFS-related modules.
+- [x] Task D2.1.d: Evaluate and migrate local `readJsonlRows` variants in VFS-related modules.
 Details: Keep only shared version unless strict functional difference is required.
+
+D2.1 status update (2026-02-09T22:12:23.3819463-05:00):
+- resolved: removed local merge helper bodies from `src/index/build/artifacts/helpers.js` and migrated remaining write path to `src/shared/merge.js::writeJsonlRunFile`.
+- resolved: removed `MinHeap`/`readJsonlRows`/`mergeSortedRuns` duplicates from `src/map/build-map/io.js` and switched spill merge to `mergeSortedRuns(runs, { compare })`.
+- resolved: migrated VFS-local JSONL row readers to shared `readJsonlRows` in `src/index/build/artifacts/writers/vfs-manifest.js` and `src/index/tooling/vfs.js`.
+- resolved: migrated downstream read callsites in `src/integrations/tooling/api-contracts.js` and `tools/bench/merge/merge-core-throughput.js` to canonical shared merge exports.
+- remaining: D2.2 writer scaffolding/extension resolver consolidation.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "class MinHeap|function\* readJsonlRows|mergeSortedRuns\(" src`, `rg "resolveJsonlExtension\(" src/index/build/artifacts/writers src/shared/json-stream.js`, `rg "\.parts|\.meta\.json|jsonl\.zst|jsonl\.gz" src/index/build/artifacts/writers`.
 
 ### Subphase D2.2 — Writer scaffolding commonization
 Tasks:
@@ -1044,8 +1054,8 @@ Details: Keep one implementation and one export path.
 - [ ] `tests/shared/merge/merge-determinism.test.js` (new)
 - [ ] `tests/indexing/artifacts/writers/writer-common-contract.test.js` (new)
 - [ ] `tests/indexing/artifacts/resolution-strictness-parity.test.js` (new)
-- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (update)
-- [ ] `tests/tooling/vfs/vfs-manifest-streaming.test.js` (update; merge plan in D7)
+- [x] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (update)
+- [x] `tests/tooling/vfs/vfs-manifest-streaming.test.js` (update; merge plan in D7)
 
 ### Exit criteria
 - [ ] Exactly one merge/read stack and one writer scaffolding stack remain.

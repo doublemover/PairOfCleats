@@ -2,8 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { writeJsonLinesFileAsync } from '../../../src/shared/json-stream.js';
-import { mergeSortedRuns as legacyMergeSortedRuns } from '../../../src/index/build/artifacts/helpers.js';
-import { mergeSortedRunsToFile, writeJsonlRunFile } from '../../../src/shared/merge.js';
+import {
+  mergeSortedRuns as legacyMergeSortedRuns,
+  mergeSortedRunsToFile,
+  writeJsonlRunFile
+} from '../../../src/shared/merge.js';
 import { formatBytes } from '../../../src/shared/disk-space.js';
 
 const parseArgs = (argv) => {
