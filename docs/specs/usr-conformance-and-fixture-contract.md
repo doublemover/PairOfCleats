@@ -1,7 +1,7 @@
 # Spec -- USR Conformance and Fixture Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -66,6 +66,19 @@ Framework profiles additionally require:
 - template binding family
 - style scope family
 - hydration boundary family (where applicable)
+
+Cross-language and generation requirements:
+
+- embedded-language bridge family (`usr-embedding-bridge-cases.json`)
+- generated/macro provenance family (`usr-generated-provenance-cases.json`)
+
+Minimum fixture counts per language/profile:
+
+- C0: at least 6 fixtures (`positive`, `negative`, `fallback`, `determinism` families represented)
+- C1: at least 8 fixtures (includes unresolved/ambiguous linking)
+- C2: at least 10 fixtures (includes control/data flow families)
+- C3: at least 12 fixtures (includes risk local and interprocedural gating families)
+- C4 framework overlays: at least 14 fixtures per framework profile (route/template/style/hydration edge families included)
 
 Fixture ID format:
 
@@ -137,7 +150,7 @@ Conformance fixtures MUST link to:
 
 ## 7. Required triage metadata fields
 
-Every conformance failure record SHOULD include:
+Every conformance failure record MUST include:
 
 - `fixtureId`
 - `languageId`
@@ -147,6 +160,8 @@ Every conformance failure record SHOULD include:
 - `reasonCodes`
 - `owner`
 - `blocking`
+- `firstSeenAt` (ISO 8601)
+- `lastSeenAt` (ISO 8601)
 
 ## 8. References
 
@@ -154,4 +169,5 @@ Every conformance failure record SHOULD include:
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+
 

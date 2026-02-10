@@ -1,7 +1,7 @@
 # Spec -- USR Language Profile Catalog
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -22,6 +22,17 @@ Goals:
 type USRLanguageProfileV1 = {
   id: string; // registry language id
   parserPreference: "native" | "tree-sitter" | "hybrid" | "heuristic";
+  languageVersionPolicy: {
+    minVersion: string; // semantic or language-version label
+    maxVersion: string | null; // null means open upper bound
+    dialects: string[]; // canonical dialect identifiers
+    featureFlags: string[]; // parser/compiler feature toggles expected by profile
+  };
+  embeddingPolicy: {
+    canHostEmbedded: boolean;
+    canBeEmbedded: boolean;
+    embeddedLanguageAllowlist: string[]; // allowed embedded language IDs
+  };
   requiredNodeKinds: string[]; // USRNormNodeKind values
   requiredEdgeKinds: string[]; // USREdgeKind values
   requiredCapabilities: Partial<{
@@ -46,6 +57,8 @@ type USRLanguageProfileV1 = {
 Rules:
 
 - `id` MUST be exact-match with language registry IDs.
+- `languageVersionPolicy` MUST be present and MUST include non-empty `dialects` (use `["default"]` when no distinct dialects exist).
+- `embeddingPolicy` MUST be present; `embeddedLanguageAllowlist` MUST be empty when `canHostEmbedded=false`.
 - `requiredNodeKinds` and `requiredEdgeKinds` MUST be non-empty.
 - `fallbackChain` MUST be deterministic and MUST NOT repeat identical adjacent stages.
 - `requiredConformance` MUST contain `C0` and `C1` for all languages.
@@ -57,9 +70,9 @@ Language profiles MUST classify capabilities consistently.
 
 | Capability class | Required state policy | Allowed downgrade target |
 | --- | --- | --- |
-| structural baseline (`docmeta`, `ast`, `symbolGraph`) | SHOULD be `supported` for parser-backed languages | `partial` only with diagnostics |
-| relation baseline (`imports`, `relations`, `graphRelations`) | SHOULD be `supported` where language has import/reference semantics | `partial` with reason code |
-| flow surfaces (`controlFlow`, `dataFlow`) | MAY be `partial` for DSL/template/markup languages | `unsupported` with explicit diagnostics |
+| structural baseline (`docmeta`, `ast`, `symbolGraph`) | MUST be `supported` for parser-backed languages unless explicitly exempted by profile | `partial` only with diagnostics |
+| relation baseline (`imports`, `relations`, `graphRelations`) | MUST be `supported` where language has import/reference semantics | `partial` with reason code |
+| flow surfaces (`controlFlow`, `dataFlow`) | MUST explicitly declare `supported|partial|unsupported`; DSL/template/markup languages commonly use `partial` | `unsupported` with explicit diagnostics |
 | risk surfaces (`riskLocal`, `riskInterprocedural`) | language-dependent; MUST be explicit | `partial` or `unsupported` per profile |
 
 ## 3. Registry language profile matrix (normative baseline)
@@ -138,6 +151,7 @@ Additional rules:
 Implementations MUST maintain:
 
 - `tests/lang/matrix/usr-language-profiles.json` (authoritative machine-readable catalog)
+- `tests/lang/matrix/usr-generated-provenance-cases.json` (language provenance coverage matrix)
 - `docs/specs/usr/languages/<language-id>.md` for each registry language
 
 Drift checks MUST ensure exact set equality between language registry IDs and catalog entries.
@@ -171,9 +185,11 @@ Child contracts MUST NOT conflict with this catalog. Conflicts are Tier 3 blocke
 - `frameworkProfiles` entries are unique and sorted
 - `requiredConformance` entries are unique and sorted in canonical order (`C0,C1,C2,C3,C4`)
 - `fallbackChain` starts with the preferred parser strategy or a justified equivalent
+- `languageVersionPolicy.minVersion` and `languageVersionPolicy.dialects` are non-empty
+- `embeddingPolicy.embeddedLanguageAllowlist` values are valid registry language IDs
 - every language ID in the registry has exactly one row
 
-Recommended report outputs:
+Required report outputs:
 
 - `usr-language-profile-coverage.json`
 - `usr-language-profile-drift.json`
@@ -185,4 +201,5 @@ Recommended report outputs:
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+
 

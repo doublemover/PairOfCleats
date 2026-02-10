@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.3
-Last updated: 2026-02-10T02:30:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T06:20:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -40,6 +40,22 @@ USR is layered on top of existing contracts.
 - Existing artifact schemas remain canonical for persisted artifacts.
 
 USR introduces a canonical in-memory and persisted representation model that can be mapped to existing artifacts without breaking those contracts.
+
+### 2.1 Decomposed contract precedence and alignment
+
+USR is decomposed into focused contracts under:
+
+- `docs/specs/usr/README.md`
+- `docs/specs/usr-*.md`
+- `docs/specs/usr/languages/*.md`
+
+Precedence:
+
+1. this umbrella USR spec
+2. decomposed contracts and per-language contracts
+3. implementation/roadmap task documents
+
+If decomposed contracts diverge from umbrella requirements, the umbrella spec is authoritative and divergence is a release-blocking contract drift issue.
 
 ## 3. Supported Coverage
 
@@ -1292,6 +1308,10 @@ Before declaring full support complete, all items below MUST be true.
 - All deterministic ordering checks pass under reruns.
 - All downgrade paths emit explicit capability states and diagnostics.
 - Existing artifact contracts remain compatible.
+- Decomposed USR contract suite remains synchronized with umbrella sections.
+- Every registry language has a maintained per-language contract under `docs/specs/usr/languages/`.
+- Embedded-language bridge rules are implemented for all multi-block/framework containers.
+- Generated/macro/transpiled provenance retention rules are enforced and conformance-tested.
 
 ## 21. Immediate Integration Tasks
 
@@ -1332,12 +1352,19 @@ Required files:
 - `tests/lang/matrix/usr-edge-kind-constraints.json`
 - `tests/lang/matrix/usr-capability-matrix.json`
 - `tests/lang/matrix/usr-conformance-levels.json`
+- `tests/lang/matrix/usr-framework-edge-cases.json`
+- `tests/lang/matrix/usr-language-risk-profiles.json`
+- `tests/lang/matrix/usr-backcompat-matrix.json`
+- `tests/lang/matrix/usr-embedding-bridge-cases.json`
+- `tests/lang/matrix/usr-generated-provenance-cases.json`
 
 Registry drift policy:
 
 - registry language IDs and `usr-language-profiles.json` entries MUST be exact-set equal
 - framework profile IDs referenced by language profiles MUST exist in `usr-framework-profiles.json`
 - unknown keys in registry JSON MUST fail strict schema validation
+- every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`
+- schema key changes in machine-readable registries MUST be accompanied by synchronized updates in decomposed contract docs
 
 ## 24. Required schema package and validators
 
@@ -2765,6 +2792,67 @@ Compatibility reports MUST include rollups by:
 - `entityType`
 
 Missing any reporting dimension is a contract failure for matrix reporting.
+
+## 37. Decomposed contract governance (normative)
+
+Decomposed USR contracts are required extensions of this umbrella spec, not optional commentary.
+
+Required governance behavior:
+
+- Tier 2 or Tier 3 USR changes MUST update impacted decomposed contracts in the same change set.
+- Per-language profile changes MUST update both machine-readable registries and corresponding `docs/specs/usr/languages/<language-id>.md` file.
+- CI MUST fail when decomposed contract drift checks detect missing required references or mismatched key sets.
+- Release promotion MUST include evidence that umbrella and decomposed contract checks are both green.
+
+## 38. Embedded-language bridge contract (normative)
+
+USR MUST preserve deterministic bridge semantics whenever one document contains multiple language surfaces (for example `.vue`, `.svelte`, `.astro`, Razor, Angular template/style pairs, HTML with inline script/style).
+
+Required behavior:
+
+- producers MUST emit stable virtual segment identities for each embedded surface
+- cross-segment edges MUST include bridge evidence attrs (`bridgeType`, `sourceSegmentUid`, `targetSegmentUid`)
+- template to script symbol bindings MUST retain both template range and script range provenance
+- style scope ownership MUST resolve to canonical owner symbols or emit deterministic unresolved diagnostics
+- failure in one embedded surface MUST NOT suppress valid entities from sibling surfaces
+
+Required machine-readable matrix:
+
+- `tests/lang/matrix/usr-embedding-bridge-cases.json`
+
+Each case entry MUST include:
+
+- `id`
+- `containerKind`
+- `sourceLanguageId`
+- `targetLanguageId`
+- `requiredEdgeKinds`
+- `requiredDiagnostics`
+- `blocking`
+
+## 39. Generated/macro provenance contract (normative)
+
+USR MUST preserve source provenance for generated, macro-expanded, transpiled, or compiler-synthesized artifacts.
+
+Required behavior:
+
+- normalized entities derived from generated/macro/transpiled surfaces MUST carry provenance attrs (`provenanceKind`, `originPath`, `originRange`, `generatorKind`)
+- mappings from generated entities to original source coordinates MUST be deterministic and repeatable
+- when exact origin mapping is unavailable, producers MUST emit deterministic fallback diagnostics and downgrade confidence
+- downstream readers MUST be able to distinguish source-authored vs generated entities without heuristic inference
+
+Required machine-readable matrix:
+
+- `tests/lang/matrix/usr-generated-provenance-cases.json`
+
+Each case entry MUST include:
+
+- `id`
+- `languageId`
+- `generationKind`
+- `mappingExpectation`
+- `requiredDiagnostics`
+- `blocking`
 
 
 

@@ -1,7 +1,7 @@
 # USR Decomposed Contract Set
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 This directory decomposes the monolithic USR spec into focused normative contract documents.
 
@@ -30,4 +30,7 @@ Update workflow:
 2. update umbrella USR spec references and impacted sections
 3. update machine-readable matrix/schema files when contract keys change
 4. update roadmap traceability links and required gates
+5. run decomposed-contract drift checks and attach evidence artifact links
+6. update per-language contracts impacted by changed keys or conformance rules
+
 
