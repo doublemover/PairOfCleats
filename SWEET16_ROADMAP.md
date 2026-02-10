@@ -1606,7 +1606,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Add corrupt shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
 - [x] Add `tests/shared/artifact-io/loader-fallbacks.test.js`.
 - [x] Update unified artifact-io docs for current loader behavior.
-- [ ] Implement runtime cache-root versioning in `src/shared/cache-roots.js`.
+- [x] Implement runtime cache-root versioning in `src/shared/cache-roots.js`.
 - [ ] Align build-truth-ledger schema between runtime and docs.
 - [ ] Align build-truth-ledger hash input definition between runtime and docs.
 - [ ] Hash emitted ordering lines directly in determinism validation.
@@ -1652,7 +1652,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
-- [ ] `tests/shared/cache/cache-root-versioning.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-root-versioning.test.js` (perf lane) (new)
 - [ ] `tests/indexing/build-state/build-truth-ledger-hash-alignment.test.js` (perf lane) (new)
 - [ ] `tests/indexing/validate/determinism-line-hash.test.js` (perf lane) (new)
 - [ ] `tests/indexing/runtime/byte-budget-default-policy.test.js` (perf lane) (new)

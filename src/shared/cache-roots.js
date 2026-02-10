@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { getEnvConfig } from './env.js';
 
+export const CACHE_ROOT_LAYOUT_VERSION = 'cache-v1';
+
 const rebuiltRoots = new Set();
 const resolveCacheRoot = (baseRoot) => {
   const resolvedBase = path.resolve(baseRoot || '');
@@ -43,7 +45,7 @@ export function getCacheRootBase() {
  */
 export function getCacheRoot() {
   const envConfig = getEnvConfig();
-  const cacheRoot = resolveCacheRoot(getCacheRootBase());
+  const cacheRoot = resolveVersionedCacheRoot(getCacheRootBase());
   if (envConfig.cacheRebuild && cacheRoot) {
     const resolvedRoot = path.resolve(cacheRoot);
     if (!rebuiltRoots.has(resolvedRoot)) {
@@ -56,12 +58,14 @@ export function getCacheRoot() {
 }
 
 export function resolveVersionedCacheRoot(baseRoot) {
-  return resolveCacheRoot(baseRoot);
+  const resolvedBase = resolveCacheRoot(baseRoot);
+  if (!resolvedBase) return '';
+  return path.join(resolvedBase, CACHE_ROOT_LAYOUT_VERSION);
 }
 
 export function clearCacheRoot({ baseRoot, includeLegacy = false } = {}) {
   const resolvedBase = baseRoot ? path.resolve(baseRoot) : getCacheRootBase();
-  const targetRoot = resolveCacheRoot(resolvedBase);
+  const targetRoot = resolveVersionedCacheRoot(resolvedBase);
   if (includeLegacy && resolvedBase && fs.existsSync(resolvedBase)) {
     purgeCacheRoot(resolvedBase);
     return;
