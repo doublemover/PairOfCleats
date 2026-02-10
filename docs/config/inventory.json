@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T14:26:13.584Z",
+  "generatedAt": "2026-02-10T16:40:51.444Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1691,6 +1691,7 @@
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/cache/cache-migration.test.js",
+        "tests/shared/cache/cache-root-versioning.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
