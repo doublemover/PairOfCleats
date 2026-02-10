@@ -9,7 +9,7 @@ import { writeJsonWithDir } from '../micro/utils.js';
 import {
   buildTreeSitterChunks,
   getTreeSitterStats,
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   resetTreeSitterParser,
   resetTreeSitterStats
@@ -32,8 +32,6 @@ const cli = createCli({
     filesPerLanguage: { type: 'number', default: 50, describe: 'Synthetic files per language' },
     repeats: { type: 'number', default: 1, describe: 'Repeat parses per synthetic file' },
     useQueries: { type: 'boolean', default: true, describe: 'Enable query-based chunking' },
-    warmMaxLoadedLanguages: { type: 'number', describe: 'maxLoadedLanguages for warm/cold scenario (default: languages.length)' },
-    thrashMaxLoadedLanguages: { type: 'number', describe: 'maxLoadedLanguages for policy comparison (default: languages.length - 1)' },
     json: { type: 'boolean', default: false },
     out: { type: 'string', describe: 'Write JSON results to a file' }
   }
@@ -55,9 +53,6 @@ const languages = parseLanguageList(argv.languages);
 const filesPerLanguage = clampInt(argv.filesPerLanguage, 1, 50);
 const repeats = clampInt(argv.repeats, 1, 1);
 const useQueries = argv.useQueries !== false;
-const warmMaxLoadedLanguages = clampInt(argv.warmMaxLoadedLanguages, 1, languages.length) || languages.length;
-const thrashDefault = Math.max(1, languages.length - 1);
-const thrashMaxLoadedLanguages = clampInt(argv.thrashMaxLoadedLanguages, 1, thrashDefault) || thrashDefault;
 
 const root = process.cwd();
 
@@ -82,7 +77,7 @@ const resetAllTreeSitterCaches = () => {
   resetTreeSitterStats();
   resetTreeSitterParser({ hard: true });
   treeSitterState.languageCache?.clear?.();
-  treeSitterState.wasmLanguageCache?.clear?.();
+  treeSitterState.grammarCache?.clear?.();
   treeSitterState.languageLoadPromises?.clear?.();
   treeSitterState.queryCache?.clear?.();
   treeSitterState.chunkCache?.clear?.();
@@ -134,21 +129,20 @@ const orderJobs = (jobs, policy) => {
   return out;
 };
 
-const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
+const runScenario = async ({ cacheMode, policy }) => {
   if (cacheMode === 'cold') {
     resetAllTreeSitterCaches();
   } else {
     resetTreeSitterStats();
   }
 
-  const ok = await initTreeSitterWasm({ log: () => {} });
+  const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
     return {
       cacheMode,
       policy,
-      maxLoadedLanguages,
       skipped: true,
-      reason: 'tree-sitter wasm unavailable'
+      reason: 'tree-sitter runtime unavailable'
     };
   }
 
@@ -158,7 +152,6 @@ const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
   const treeSitterOptions = {
     enabled: true,
     languages: enabledLanguages,
-    maxLoadedLanguages,
     useQueries,
     chunkCache: false
   };
@@ -171,9 +164,7 @@ const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
   const start = performance.now();
   await preloadTreeSitterLanguages(languages, {
     log: () => {},
-    parallel: false,
-    maxLoadedLanguages,
-    skipDispose: true
+    parallel: false
   });
 
   for (const job of ordered) {
@@ -186,13 +177,11 @@ const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
         options: { treeSitter: treeSitterOptions, log: () => {} }
       });
 
-      // If the grammar was evicted under a tight maxLoadedLanguages cap, reload on-demand and retry once.
+      // If parsing was not available, retry once after explicit preload.
       if (!Array.isArray(chunks)) {
         await preloadTreeSitterLanguages([job.languageId], {
           log: () => {},
-          parallel: false,
-          maxLoadedLanguages,
-          skipDispose: true
+          parallel: false
         });
         chunks = buildTreeSitterChunks({
           text: job.text,
@@ -223,7 +212,6 @@ const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
   return {
     cacheMode,
     policy,
-    maxLoadedLanguages,
     skipped: false,
     totalFiles,
     totalChunks,
@@ -248,13 +236,10 @@ const runScenario = async ({ cacheMode, policy, maxLoadedLanguages }) => {
 };
 
 const scenarios = [
-  // Cold vs warm (no eviction pressure).
-  await runScenario({ cacheMode: 'cold', policy: 'file-order', maxLoadedLanguages: warmMaxLoadedLanguages }),
-  await runScenario({ cacheMode: 'warm', policy: 'file-order', maxLoadedLanguages: warmMaxLoadedLanguages }),
-
-  // Policy comparison under eviction pressure.
-  await runScenario({ cacheMode: 'cold', policy: 'file-order', maxLoadedLanguages: thrashMaxLoadedLanguages }),
-  await runScenario({ cacheMode: 'cold', policy: 'batch-by-language', maxLoadedLanguages: thrashMaxLoadedLanguages })
+  await runScenario({ cacheMode: 'cold', policy: 'file-order' }),
+  await runScenario({ cacheMode: 'warm', policy: 'file-order' }),
+  await runScenario({ cacheMode: 'cold', policy: 'batch-by-language' }),
+  await runScenario({ cacheMode: 'warm', policy: 'batch-by-language' })
 ];
 
 const results = {
@@ -263,8 +248,6 @@ const results = {
   filesPerLanguage,
   repeats,
   useQueries,
-  warmMaxLoadedLanguages,
-  thrashMaxLoadedLanguages,
   scenarios
 };
 
@@ -282,10 +265,9 @@ if (argv.json) {
     }
     console.error(
       `[tree-sitter-load] ${scenario.cacheMode}/${scenario.policy} ` +
-      `maxLoaded=${scenario.maxLoadedLanguages} files=${scenario.totalFiles} ` +
+      `files=${scenario.totalFiles} ` +
       `ms=${scenario.totalMs.toFixed(1)} files/sec=${scenario.filesPerSec.toFixed(1)} ` +
-      `wasmLoads=${scenario.treeSitter?.wasmLoads ?? 'n/a'}`
+      `grammarLoads=${scenario.treeSitter?.grammarLoads ?? 'n/a'}`
     );
   }
 }
-

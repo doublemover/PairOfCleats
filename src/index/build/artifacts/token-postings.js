@@ -14,6 +14,21 @@ const normalizeTokenPostingsFormat = (value, artifactMode) => {
   return 'auto';
 };
 
+const normalizeShardSize = (value, fallback = 50000) => {
+  if (Number.isFinite(Number(value))) {
+    return Math.max(1, Math.floor(Number(value)));
+  }
+  return Math.max(1, Math.floor(Number(fallback) || 50000));
+};
+
+const resolveTargetShardSize = (shardTargetBytes, avgBytes, fallback) => {
+  if (!Number.isFinite(shardTargetBytes) || shardTargetBytes <= 0) return fallback;
+  if (!Number.isFinite(avgBytes) || avgBytes <= 0) return fallback;
+  const target = Math.floor(shardTargetBytes / avgBytes);
+  if (!Number.isFinite(target) || target <= 0) return fallback;
+  return Math.max(1, target);
+};
+
 export function resolveTokenPostingsPlan({
   artifactMode,
   tokenPostingsFormatConfig,
@@ -26,7 +41,7 @@ export function resolveTokenPostingsPlan({
   log
 }) {
   const tokenPostingsFormat = normalizeTokenPostingsFormat(tokenPostingsFormatConfig, artifactMode);
-  let resolvedShardSize = tokenPostingsShardSize;
+  let resolvedShardSize = normalizeShardSize(tokenPostingsShardSize);
   let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
     || (tokenPostingsFormat === 'auto'
       && postings.tokenVocab.length >= tokenPostingsShardThreshold);
@@ -40,15 +55,23 @@ export function resolveTokenPostingsPlan({
   if (tokenPostingsEstimate) {
     if (tokenPostingsEstimate.estimatedBytes > maxJsonBytesSoft) {
       tokenPostingsUseShards = tokenPostingsFormat !== 'packed';
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
+      const targetShardSize = resolveTargetShardSize(
+        shardTargetBytes,
+        tokenPostingsEstimate.avgBytes,
+        resolvedShardSize
+      );
+      resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
       log(
         `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
         `using sharded output to stay under ${formatBytes(maxJsonBytes)}.`
       );
     } else if (tokenPostingsUseShards) {
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
+      const targetShardSize = resolveTargetShardSize(
+        shardTargetBytes,
+        tokenPostingsEstimate.avgBytes,
+        resolvedShardSize
+      );
+      resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
     }
   }
   return {

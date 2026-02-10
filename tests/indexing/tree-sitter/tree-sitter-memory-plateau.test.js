@@ -6,7 +6,7 @@ import path from 'node:path';
 import {
   buildTreeSitterChunks,
   getTreeSitterStats,
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   resetTreeSitterParser,
   resetTreeSitterStats,
@@ -36,7 +36,7 @@ const resetAllCaches = () => {
   resetTreeSitterStats();
   resetTreeSitterParser({ hard: true });
   treeSitterState.languageCache.clear();
-  treeSitterState.wasmLanguageCache.clear();
+  treeSitterState.grammarCache.clear();
   treeSitterState.languageLoadPromises.clear();
   treeSitterState.queryCache.clear();
   treeSitterState.chunkCache.clear();
@@ -56,11 +56,11 @@ const loadFixtures = async () => {
   return out;
 };
 
-const assertCacheBounds = (stats, { maxLoadedLanguages, chunkCacheMaxEntries, maxLanguages }) => {
+const assertCacheBounds = (stats, { chunkCacheMaxEntries, maxLanguages }) => {
   assert.ok(stats, 'expected stats payload');
   assert.ok(
-    Number(stats.cache?.wasmLanguages) <= maxLoadedLanguages,
-    `expected wasmLanguages<=${maxLoadedLanguages} (got ${stats.cache?.wasmLanguages})`
+    Number(stats.cache?.runtimeLanguages) <= maxLanguages,
+    `expected runtimeLanguages<=${maxLanguages} (got ${stats.cache?.runtimeLanguages})`
   );
   assert.ok(
     Number(stats.cache?.queryEntries) <= maxLanguages,
@@ -73,14 +73,13 @@ const assertCacheBounds = (stats, { maxLoadedLanguages, chunkCacheMaxEntries, ma
 };
 
 try {
-  const ok = await initTreeSitterWasm({ log });
+  const ok = await initTreeSitterRuntime({ log });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping memory plateau test.');
+    console.log('tree-sitter runtime unavailable; skipping memory plateau test.');
     process.exit(0);
   }
 
   const fixtures = await loadFixtures();
-  const maxLoadedLanguages = 2;
   const chunkCacheMaxEntries = 8;
 
   // Main thread: repeated parses across languages should keep caches bounded.
@@ -93,18 +92,17 @@ try {
       useQueries: true,
       chunkCache: true,
       chunkCacheMaxEntries,
-      cacheKey,
-      maxLoadedLanguages
+      cacheKey
     }
   });
 
   const iterations = 24;
-  let maxWasmLanguages = 0;
+  let maxGrammarLanguages = 0;
   let maxChunkCacheEntries = 0;
 
   for (let i = 0; i < iterations; i += 1) {
     const fixture = fixtures[i % fixtures.length];
-    await preloadTreeSitterLanguages([fixture.languageId], { log, parallel: false, maxLoadedLanguages });
+    await preloadTreeSitterLanguages([fixture.languageId], { log, parallel: false });
     const chunks = buildTreeSitterChunks({
       text: fixture.text,
       languageId: fixture.languageId,
@@ -114,16 +112,15 @@ try {
     assert.ok(Array.isArray(chunks) && chunks.length > 0, `expected chunks for ${fixture.languageId}`);
 
     const stats = getTreeSitterStats();
-    maxWasmLanguages = Math.max(maxWasmLanguages, Number(stats.cache?.wasmLanguages) || 0);
+    maxGrammarLanguages = Math.max(maxGrammarLanguages, Number(stats.cache?.runtimeLanguages) || 0);
     maxChunkCacheEntries = Math.max(maxChunkCacheEntries, Number(stats.cache?.chunkCacheEntries) || 0);
     assertCacheBounds(stats, {
-      maxLoadedLanguages,
       chunkCacheMaxEntries,
       maxLanguages: fixtures.length
     });
   }
 
-  assert.ok(maxWasmLanguages <= maxLoadedLanguages, 'expected wasm language cache to plateau');
+  assert.ok(maxGrammarLanguages <= fixtures.length, 'expected runtime language cache to stay bounded by active languages');
   assert.ok(maxChunkCacheEntries <= chunkCacheMaxEntries, 'expected chunk cache to plateau');
 
   // Worker pool: run the same workload and sample stats inside the worker thread.
@@ -149,8 +146,7 @@ try {
             useQueries: true,
             chunkCache: true,
             chunkCacheMaxEntries,
-            cacheKey: `mem-worker-${i}`,
-            maxLoadedLanguages
+            cacheKey: `mem-worker-${i}`
           }
         },
         { name: 'parseTreeSitter' }
@@ -160,7 +156,6 @@ try {
       if ((i + 1) % 6 === 0) {
         const snapshot = await pool.run({}, { name: 'treeSitterWorkerStats' });
         assertCacheBounds(snapshot, {
-          maxLoadedLanguages,
           chunkCacheMaxEntries,
           maxLanguages: fixtures.length
         });
@@ -169,7 +164,6 @@ try {
 
     const finalWorkerStats = await pool.run({}, { name: 'treeSitterWorkerStats' });
     assertCacheBounds(finalWorkerStats, {
-      maxLoadedLanguages,
       chunkCacheMaxEntries,
       maxLanguages: fixtures.length
     });
@@ -180,3 +174,5 @@ try {
   clearTimeout(timeout);
   await shutdownTreeSitterWorkerPool();
 }
+
+

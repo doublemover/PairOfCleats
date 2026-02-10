@@ -18,11 +18,11 @@ export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
     const signature = `${stat.size}:${stat.mtimeMs}`;
     if (signature === lastSignature) {
       stableCount += 1;
-      if (stableCount >= requiredChecks) return true;
     } else {
       lastSignature = signature;
       stableCount = 1;
     }
+    if (stableCount >= requiredChecks) return true;
     if (attempt < maxAttempts - 1) {
       await sleep(resolvedInterval);
     }

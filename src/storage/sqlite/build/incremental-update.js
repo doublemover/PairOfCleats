@@ -18,10 +18,10 @@ import {
   isVectorEncodingCompatible,
   quantizeVec,
   resolveEncodedVectorBytes,
-  resolveQuantizationParams,
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
+import { resolveQuantizationParams } from '../quantization.js';
 import { deleteDocIds, updateTokenStats } from './delete.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import {
@@ -32,7 +32,7 @@ import {
 } from './manifest.js';
 import { createInsertStatements } from './statements.js';
 import { getSchemaVersion, validateSqliteDatabase } from './validate.js';
-import { ensureVocabIds } from './vocab.js';
+import { ensureVocabIds } from '../vocab.js';
 
 const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
 const VOCAB_GROWTH_LIMITS = {

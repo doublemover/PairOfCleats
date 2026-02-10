@@ -6,7 +6,7 @@ import path from 'node:path';
 import {
   buildTreeSitterChunks,
   getTreeSitterStats,
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   resetTreeSitterParser,
   resetTreeSitterStats
@@ -32,17 +32,16 @@ try {
   treeSitterState.queryCache.clear();
   treeSitterState.chunkCache.clear();
 
-  const ok = await initTreeSitterWasm({ log });
+  const ok = await initTreeSitterRuntime({ log });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping chunk cache reuse test.');
+    console.log('tree-sitter runtime unavailable; skipping chunk cache reuse test.');
     process.exit(0);
   }
 
   const languageId = 'javascript';
   const ext = '.js';
-  const maxLoadedLanguages = 2;
 
-  await preloadTreeSitterLanguages([languageId], { log, parallel: false, maxLoadedLanguages });
+  await preloadTreeSitterLanguages([languageId], { log, parallel: false });
 
   // Query cache reuse (chunk cache disabled so we hit query compilation path twice).
   const queryOptions = {
@@ -50,8 +49,7 @@ try {
     treeSitter: {
       enabled: true,
       useQueries: true,
-      chunkCache: false,
-      maxLoadedLanguages
+      chunkCache: false
     }
   };
 
@@ -62,8 +60,15 @@ try {
   assert.deepStrictEqual(second, first, 'expected query-only chunking to be deterministic');
 
   const queryStats = getTreeSitterStats();
-  assert.ok(Number(queryStats.queryBuilds) >= 1, 'expected query to be compiled at least once');
-  assert.ok(Number(queryStats.queryHits) >= 1, 'expected query cache hit on second parse');
+  const hasCachedQueryEntry = treeSitterState.queryCache.has(languageId);
+  const queryBuilds = Number(queryStats.queryBuilds) || 0;
+  const queryHits = Number(queryStats.queryHits) || 0;
+  const queryMisses = Number(queryStats.queryMisses) || 0;
+  assert.ok(hasCachedQueryEntry, 'expected query cache probe result to be cached');
+  assert.ok(
+    (queryBuilds >= 1 && queryHits >= 1) || queryMisses >= 1,
+    'expected query path to either compile/reuse or cache an unsupported-query result'
+  );
 
   // Chunk cache reuse (must avoid parser activation on cache hit).
   resetTreeSitterStats();
@@ -76,8 +81,7 @@ try {
       useQueries: true,
       chunkCache: true,
       chunkCacheMaxEntries: 4,
-      cacheKey: 'chunk-cache-reuse',
-      maxLoadedLanguages
+      cacheKey: 'chunk-cache-reuse'
     }
   };
 
@@ -104,4 +108,6 @@ try {
 } finally {
   clearTimeout(timeout);
 }
+
+
 

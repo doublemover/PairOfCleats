@@ -2,11 +2,14 @@
 import assert from 'node:assert/strict';
 
 import {
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   buildTreeSitterChunks
 } from '../../../src/lang/tree-sitter.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv({ testing: '1' });
 
 const resetCaches = () => {
   treeSitterState.queryCache?.clear?.();
@@ -14,23 +17,21 @@ const resetCaches = () => {
 };
 
 const run = async () => {
-  const ok = await initTreeSitterWasm({ log: () => {} });
+  const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping query cache test.');
+    console.log('tree-sitter runtime unavailable; skipping query cache test.');
     return;
   }
 
   resetCaches();
 
   await preloadTreeSitterLanguages(['javascript'], {
-    maxLoadedLanguages: 1,
     skipDispose: true
   });
 
   const options = {
     treeSitter: {
       enabled: true,
-      maxLoadedLanguages: 1,
       useQueries: true
     },
     log: () => {}
@@ -43,8 +44,8 @@ const run = async () => {
     return;
   }
 
+  assert.ok(treeSitterState.queryCache.has('javascript'), 'expected query probe result to be cached after first parse');
   const firstQuery = treeSitterState.queryCache.get('javascript');
-  assert.ok(firstQuery, 'expected a cached query after first parse');
 
   const second = buildTreeSitterChunks({ text, languageId: 'javascript', options });
   assert.ok(second && second.length, 'expected query-based chunking to continue working');
@@ -56,3 +57,5 @@ const run = async () => {
 };
 
 await run();
+
+

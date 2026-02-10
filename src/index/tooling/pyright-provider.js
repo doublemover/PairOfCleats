@@ -5,34 +5,21 @@ import { isTestingEnv } from '../../shared/env.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { findBinaryInDirs } from './binary-utils.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
-const candidateNames = (name) => {
-  if (process.platform === 'win32') {
-    return [`${name}.cmd`, `${name}.exe`, name];
-  }
-  return [name];
-};
-
-const findBinaryInDirs = (name, dirs) => {
-  const candidates = candidateNames(name);
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = path.join(dir, candidate);
-      if (fsSync.existsSync(full)) return full;
-    }
-  }
-  return null;
-};
-
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const asFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const canRunPyright = (cmd) => {
   if (!cmd) return false;
-  if (fsSync.existsSync(cmd)) return true;
+  if (isAbsolutePathNative(cmd) && !fsSync.existsSync(cmd)) return false;
   for (const args of [['--version'], ['--help']]) {
     try {
       const result = execaSync(cmd, args, {
@@ -40,11 +27,13 @@ const canRunPyright = (cmd) => {
         shell: shouldUseShell(cmd),
         reject: false
       });
-      if (typeof result.exitCode === 'number') return true;
+      if (result.exitCode === 0) return true;
     } catch {}
   }
   return false;
 };
+
+export const __canRunPyrightForTests = (cmd) => canRunPyright(cmd);
 
 const resolveCommand = (cmd, rootDir, toolingConfig) => {
   if (!cmd) return cmd;
@@ -111,6 +100,16 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
+    const pyrightConfig = ctx?.toolingConfig?.pyright || {};
+    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
+    const providerTimeoutMs = asFiniteNumber(pyrightConfig.timeoutMs);
+    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
+    const retries = Number.isFinite(Number(pyrightConfig.maxRetries))
+      ? Math.max(0, Math.floor(Number(pyrightConfig.maxRetries)))
+      : (ctx?.toolingConfig?.maxRetries ?? 2);
+    const breakerThreshold = Number.isFinite(Number(pyrightConfig.circuitBreakerThreshold))
+      ? Math.max(1, Math.floor(Number(pyrightConfig.circuitBreakerThreshold)))
+      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 5);
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
       documents: docs,
@@ -118,9 +117,9 @@ export const createPyrightProvider = () => ({
       log,
       cmd: resolvedCmd,
       args: ['--stdio'],
-      timeoutMs: ctx?.toolingConfig?.timeoutMs || 15000,
-      retries: ctx?.toolingConfig?.maxRetries ?? 2,
-      breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
+      timeoutMs,
+      retries,
+      breakerThreshold,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -137,7 +136,7 @@ export const createPyrightProvider = () => ({
         result.diagnosticsCount
           ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
           : null,
-        duplicateChecks
+        [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
       )
     };
   }

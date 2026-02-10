@@ -27,6 +27,7 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `bench-micro:tiny` | bench | no |  |
 | `bench-queries` | bench | no |  |
 | `bootstrap` | tooling | no |  |
+| `bootstrap:ci` | tooling | no |  |
 | `build-index` | indexing | no |  |
 | `build-lmdb-index` | indexing | no |  |
 | `build-tantivy-index` | indexing | no |  |
@@ -58,12 +59,14 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `mcp-server` | tooling | no |  |
 | `metrics-dashboard` | tooling | no |  |
 | `parity:matrix` | tooling | no |  |
+| `patch` | tooling | no |  |
+| `postinstall` | tooling | no |  |
+| `rebuild:native` | tooling | no |  |
 | `release-check` | release | no |  |
 | `release-check:breaking` | release | no |  |
 | `report-artifacts` | tooling | no |  |
 | `scip-ingest` | tooling | no |  |
 | `search` | indexing | no |  |
-| `setup` | tooling | no |  |
 | `shard-census` | tooling | no |  |
 | `show-throughput` | tooling | no |  |
 | `structural-search` | indexing | no |  |

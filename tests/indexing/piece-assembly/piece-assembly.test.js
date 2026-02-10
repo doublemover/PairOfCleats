@@ -403,6 +403,9 @@ const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   || entry?.name === 'dense_vectors_doc_hnsw'
   || entry?.name === 'dense_vectors_code_lancedb'
   || entry?.name === 'dense_vectors_doc_lancedb'
+  || entry?.name === 'vfs_manifest'
+  || entry?.name === 'vfs_manifest_bloom'
+  || entry?.name === 'vfs_manifest_index'
   || entry?.name === 'risk_interprocedural_stats'
 ));
 const normalizedAll = sortPieces(stripManifestEntries(piecesAll).map(normalizePiece));

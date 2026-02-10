@@ -1,5 +1,3 @@
-import { createRequire } from 'node:module';
-import path from 'node:path';
 import {
   TS_PARSERS,
   TSX_CLOSE_TAG,
@@ -7,39 +5,14 @@ import {
   TSX_FRAGMENT_OPEN,
   TSX_SELF_CLOSING
 } from './constants.js';
+import { loadTypeScriptModule } from '../../index/tooling/typescript/load.js';
 
-const nodeRequire = createRequire(import.meta.url);
-const typeScriptCache = new Map();
+export { loadTypeScriptModule };
 
 export function resolveTypeScriptParser(options = {}) {
   const raw = options.parser || options.typescript?.parser || options.typescriptParser;
   const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   return TS_PARSERS.has(normalized) ? normalized : 'auto';
-}
-
-export function loadTypeScriptModule(rootDir) {
-  const key = rootDir || '__default__';
-  if (typeScriptCache.has(key)) return typeScriptCache.get(key);
-  let resolved = null;
-  if (rootDir) {
-    try {
-      const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
-      const mod = requireFromRoot('typescript');
-      resolved = mod?.default || mod;
-    } catch {
-      resolved = null;
-    }
-  }
-  if (!resolved) {
-    try {
-      const mod = nodeRequire('typescript');
-      resolved = mod?.default || mod;
-    } catch {
-      resolved = null;
-    }
-  }
-  typeScriptCache.set(key, resolved);
-  return resolved;
 }
 
 export function isLikelyTsx(text, ext) {

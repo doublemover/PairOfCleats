@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import path from 'node:path';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
@@ -55,6 +56,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     throw createAbortError();
   }
   const targetPath = atomic ? createTempPath(filePath) : filePath;
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   const fileStream = fs.createWriteStream(
     targetPath,
     highWaterMark ? { highWaterMark } : undefined

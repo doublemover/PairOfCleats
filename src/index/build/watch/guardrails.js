@@ -9,11 +9,7 @@ import {
 } from '../../constants.js';
 import { fileExt, toPosix } from '../../../shared/files.js';
 import { pickMinLimit, resolveFileCaps } from '../file-processor/read.js';
-
-const normalizeRoot = (value) => {
-  const resolved = path.resolve(value || '');
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-};
+import { normalizeRoot } from './shared.js';
 
 export const resolveMaxFilesCap = (maxFiles) => {
   const cap = Number(maxFiles);

@@ -7,9 +7,6 @@ import {
   tokenizeChunkText
 } from '../tokenization.js';
 import { createSharedDictionaryView } from '../../../shared/dictionary.js';
-import { preloadTreeSitterLanguages } from '../../../lang/tree-sitter.js';
-import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
-import { resolveTreeSitterLanguageForSegment } from '../file-processor/tree-sitter.js';
 import {
   normalizeCodeDictLanguage,
   normalizeCodeDictLanguages
@@ -19,7 +16,6 @@ const dictShared = createSharedDictionaryView(workerData?.dictShared);
 const dictWords = dictShared || new Set(Array.isArray(workerData?.dictWords) ? workerData.dictWords : []);
 const dictConfig = workerData?.dictConfig || {};
 const postingsConfig = workerData?.postingsConfig || {};
-const treeSitterConfig = workerData?.treeSitter || null;
 const codeDictWords = new Set(Array.isArray(workerData?.codeDictWords) ? workerData.codeDictWords : []);
 const codeDictWordsByLanguage = new Map();
 if (workerData?.codeDictWordsByLanguage && typeof workerData.codeDictWordsByLanguage === 'object') {
@@ -38,33 +34,21 @@ const codeDictLanguages = workerData?.codeDictLanguages == null
 const tokenContext = createTokenizationContext({
   dictWords,
   dictConfig,
-  postingsConfig,
+  // Tree-sitter classification runs on the main thread so parser caches are not
+  // multiplied by worker threads. Workers still tokenize for throughput.
+  postingsConfig: {
+    ...postingsConfig,
+    tokenClassification: { enabled: false }
+  },
   codeDictWords,
   codeDictWordsByLanguage,
   codeDictLanguages,
-  treeSitter: treeSitterConfig
+  treeSitter: null
 });
 
 // Reuse tokenization scratch buffers to reduce per-task allocations and GC pressure.
 // Piscina runs one task at a time per worker thread, so this shared instance is safe.
 const tokenBuffers = createTokenizationBuffers();
-
-const treeSitterOptions = treeSitterConfig ? { treeSitter: treeSitterConfig } : null;
-const treeSitterLoadCache = new Map();
-
-const ensureTreeSitterLanguage = async (languageId, ext) => {
-  if (!treeSitterConfig || treeSitterConfig.enabled === false) return false;
-  const resolved = resolveTreeSitterLanguageForSegment(languageId, ext);
-  if (!resolved) return false;
-  if (treeSitterOptions && !isTreeSitterEnabled(treeSitterOptions, resolved)) return false;
-  if (treeSitterLoadCache.has(resolved)) return treeSitterLoadCache.get(resolved);
-  const promise = preloadTreeSitterLanguages([resolved], {
-    maxLoadedLanguages: treeSitterConfig.maxLoadedLanguages,
-    parallel: false
-  }).then(() => true).catch(() => false);
-  treeSitterLoadCache.set(resolved, promise);
-  return promise;
-};
 
 const normalizeEmptyMessage = (value) => {
   if (typeof value !== 'string') return value;
@@ -236,16 +220,12 @@ const normalizeNumberArray = (value) => {
 
 const sanitizeTokenizeResult = (result) => {
   const stats = result && typeof result.stats === 'object' ? result.stats : {};
-  return {
+  const output = {
     tokens: normalizeStringArray(result?.tokens),
     tokenIds: normalizeStringArray(result?.tokenIds),
     seq: normalizeStringArray(result?.seq),
     ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
     chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,
-    identifierTokens: normalizeStringArray(result?.identifierTokens),
-    keywordTokens: normalizeStringArray(result?.keywordTokens),
-    operatorTokens: normalizeStringArray(result?.operatorTokens),
-    literalTokens: normalizeStringArray(result?.literalTokens),
     minhashSig: normalizeNumberArray(result?.minhashSig),
     stats: {
       unique: Number(stats.unique) || 0,
@@ -253,6 +233,19 @@ const sanitizeTokenizeResult = (result) => {
       sum: Number(stats.sum) || 0
     }
   };
+  if (Array.isArray(result?.identifierTokens)) {
+    output.identifierTokens = normalizeStringArray(result.identifierTokens);
+  }
+  if (Array.isArray(result?.keywordTokens)) {
+    output.keywordTokens = normalizeStringArray(result.keywordTokens);
+  }
+  if (Array.isArray(result?.operatorTokens)) {
+    output.operatorTokens = normalizeStringArray(result.operatorTokens);
+  }
+  if (Array.isArray(result?.literalTokens)) {
+    output.literalTokens = normalizeStringArray(result.literalTokens);
+  }
+  return output;
 };
 
 const reportTiming = (label, startedAt, status) => {
@@ -365,18 +358,16 @@ export const tokenizeChunk = withWorkerError(
       ? createTokenizationContext({
         dictWords,
         dictConfig: input.dictConfig || dictConfig,
-        postingsConfig: input.postingsConfig || postingsConfig,
+        postingsConfig: {
+          ...(input.postingsConfig || postingsConfig),
+          tokenClassification: { enabled: false }
+        },
         codeDictWords,
         codeDictWordsByLanguage,
         codeDictLanguages,
-        treeSitter: treeSitterConfig
+        treeSitter: null
       })
       : tokenContext;
-    const classificationEnabled = context?.tokenClassification?.enabled === true
-      && input?.mode === 'code';
-    if (classificationEnabled) {
-      await ensureTreeSitterLanguage(input?.languageId, input?.ext);
-    }
     const result = tokenizeChunkText({ ...input, context, buffers: tokenBuffers });
     return sanitizeTokenizeResult(result);
   },

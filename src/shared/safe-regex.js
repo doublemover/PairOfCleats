@@ -72,6 +72,19 @@ class SafeRegex {
     this.isGlobal = flags.includes('g');
   }
 
+  toJSON() {
+    // Avoid serializing backend/compiled objects (they can include native
+    // pointers / circular refs when backed by RE2). Keep the representation
+    // stable for signatures/logs.
+    return {
+      __type: 'safeRegex',
+      source: this.source,
+      flags: this.flags,
+      engine: this.engine || null,
+      config: this.config || null
+    };
+  }
+
   exec(input) {
     const text = String(input ?? '');
     if (!text) {

@@ -1,30 +1,6 @@
-const splitClikeParams = (value) => {
-  if (!value) return [];
-  const params = [];
-  let current = '';
-  let depthAngle = 0;
-  let depthParen = 0;
-  let depthBracket = 0;
-  let depthBrace = 0;
-  for (const ch of value) {
-    if (ch === '<') depthAngle += 1;
-    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
-    if (ch === '(') depthParen += 1;
-    if (ch === ')' && depthParen > 0) depthParen -= 1;
-    if (ch === '[') depthBracket += 1;
-    if (ch === ']' && depthBracket > 0) depthBracket -= 1;
-    if (ch === '{') depthBrace += 1;
-    if (ch === '}' && depthBrace > 0) depthBrace -= 1;
-    if (ch === ',' && depthAngle === 0 && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
-      if (current.trim()) params.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) params.push(current.trim());
-  return params;
-};
+import { splitTopLevel } from './shared.js';
+
+const splitClikeParams = (value) => splitTopLevel(value, ',');
 
 const stripQualifiers = (value) => value
   .replace(/\b(static|inline|constexpr|virtual|extern|friend|typename)\b/g, '')

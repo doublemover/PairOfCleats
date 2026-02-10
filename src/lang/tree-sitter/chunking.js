@@ -6,9 +6,9 @@ import {
   getNamedChild,
   getNamedChildCount
 } from './ast.js';
-import { LANG_CONFIG } from './config.js';
+import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getTreeSitterParser, preloadTreeSitterLanguages } from './runtime.js';
+import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
@@ -649,20 +649,45 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  const strict = options?.treeSitter?.strict === true;
+  const failStrict = (reason, message, extra = {}) => {
+    if (!strict) return null;
+    const err = new Error(message);
+    err.code = 'ERR_TREE_SITTER_STRICT';
+    err.reason = reason;
+    err.languageId = resolvedId;
+    Object.assign(err, extra);
+    throw err;
+  };
+  const buildWholeFileChunk = () => ([{
+    start: 0,
+    end: text.length,
+    name: 'file',
+    kind: 'File',
+    meta: { treeSitter: true, wholeFile: true }
+  }]);
   if (treeSitterState.disabledLanguages?.has(resolvedId)) {
     bumpMetric('fallbacks', 1);
-    return null;
+    return failStrict(
+      'disabled',
+      `Tree-sitter disabled for ${resolvedId}; strict mode does not allow fallback.`
+    );
   }
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
   const shouldTrackDensity = options?.treeSitter?.adaptive !== false;
-  const lineCount = (shouldRecordMetrics || shouldTrackDensity) ? countLines(text) : 0;
+  let lineCount = null;
+  const getLineCount = () => {
+    if (!shouldRecordMetrics && !shouldTrackDensity) return 0;
+    if (lineCount === null) lineCount = countLines(text);
+    return lineCount;
+  };
   const metricsStart = shouldRecordMetrics ? Date.now() : 0;
   const recordMetrics = () => {
     if (!shouldRecordMetrics) return;
     const durationMs = Date.now() - metricsStart;
-    metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
+    metricsCollector.add('treeSitter', resolvedId, getLineCount(), durationMs);
   };
   const cacheKey = resolveChunkCacheKey(options, resolvedId);
   const cacheRef = cacheKey ? ensureChunkCache(options) : null;
@@ -675,7 +700,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const shouldDeferMissing = options?.treeSitterMissingLanguages
     && options?.treeSitter?.deferMissing !== false;
-  const parser = getTreeSitterParser(resolvedId, options);
+  const parser = getNativeTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (shouldDeferMissing) {
       options.treeSitterMissingLanguages.add(resolvedId);
@@ -685,15 +710,39 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     if (options?.treeSitterMissingLanguages) {
       options.treeSitterMissingLanguages.add(resolvedId);
     }
+    bumpMetric('fallbacks', 1);
+    if (strict) {
+      return failStrict(
+        'missing-parser',
+        `Tree-sitter unavailable for ${resolvedId}; strict mode does not allow fallback.`
+      );
+    }
     if (options?.log && !loggedUnavailable.has(resolvedId)) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
       loggedUnavailable.add(resolvedId);
     }
-    bumpMetric('fallbacks', 1);
     return null;
   }
+  const loadedGrammar = loadNativeTreeSitterGrammar(resolvedId);
+  const grammarLanguage = loadedGrammar?.language || null;
+  if (grammarLanguage) {
+    treeSitterState.languageCache?.set?.(resolvedId, { language: grammarLanguage, error: null });
+    const grammarKey = LANGUAGE_GRAMMAR_KEYS?.[resolvedId];
+    if (grammarKey) {
+      treeSitterState.grammarCache?.set?.(grammarKey, { language: grammarLanguage, error: null });
+    }
+  }
   const config = LANG_CONFIG[resolvedId];
-  if (!config) return null;
+  if (!config) {
+    bumpMetric('fallbacks', 1);
+    if (strict) {
+      return failStrict(
+        'missing-config',
+        `Tree-sitter config missing for ${resolvedId}; strict mode does not allow fallback.`
+      );
+    }
+    return null;
+  }
   const traversalBudget = resolveTraversalBudget(options, resolvedId);
   let tree = null;
   try {
@@ -707,6 +756,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       recordMetrics();
       const message = err?.message || String(err);
       if (/timeout/i.test(message)) {
+        bumpMetric('parseTimeouts', 1);
+        bumpMetric('fallbacks', 1);
+        if (strict) {
+          return failStrict(
+            'timeout',
+            `Tree-sitter parse timed out for ${resolvedId}; strict mode does not allow fallback.`,
+            { parseError: message }
+          );
+        }
         if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
           options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
           loggedParseTimeouts.add(resolvedId);
@@ -726,12 +784,17 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
             }
           }
         }
-        bumpMetric('parseTimeouts', 1);
-        bumpMetric('fallbacks', 1);
         return null;
       }
       bumpMetric('parseFailures', 1);
       bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`,
+          { parseError: message }
+        );
+      }
       return null;
     }
 
@@ -740,12 +803,18 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       rootNode = tree.rootNode;
     } catch {
       recordMetrics();
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`
+        );
+      }
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
-      bumpMetric('parseFailures', 1);
-      bumpMetric('fallbacks', 1);
       return null;
     }
 
@@ -767,15 +836,23 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       if (!queryResult.shouldFallback) {
         recordMetrics();
         bumpMetric('fallbacks', 1);
+        if (strict) {
+          // A query can legitimately match no "chunkable" nodes (e.g. tiny files).
+          // In strict mode, avoid falling back to heuristics by emitting one whole-file chunk.
+          return buildWholeFileChunk();
+        }
         return null;
       }
       if (queryResult.reason && options?.log) {
         const key = `query:${resolvedId}:${queryResult.reason}`;
         if (!loggedTraversalBudget.has(key)) {
+          const fallbackLabel = strict
+            ? 'Falling back to traversal chunking.'
+            : 'Falling back to heuristic chunking.';
           options.log(
             `Tree-sitter query aborted for ${resolvedId} (${queryResult.reason}); ` +
             `visited=${queryResult.visited ?? 'n/a'} matched=${queryResult.matched ?? 'n/a'}. ` +
-            'Falling back to heuristic chunking.'
+            fallbackLabel
           );
           loggedTraversalBudget.add(key);
         }
@@ -786,10 +863,16 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     try {
       traversalResult = gatherChunkNodes(rootNode, text, config, traversalBudget);
       if (shouldTrackDensity && traversalResult?.visited) {
-        recordNodeDensity(resolvedId, traversalResult.visited, lineCount);
+        recordNodeDensity(resolvedId, traversalResult.visited, getLineCount());
       }
       if (!traversalResult?.chunks) {
         recordMetrics();
+        bumpMetric('fallbacks', 1);
+        if (strict) {
+          // Traversal budgets can abort on dense ASTs. In strict mode, emit a
+          // whole-file chunk rather than falling back to heuristics.
+          return buildWholeFileChunk();
+        }
         const key = `${resolvedId}:${traversalResult?.reason || 'budget'}`;
         if (options?.log && !loggedTraversalBudget.has(key)) {
           options.log(
@@ -799,23 +882,31 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
           );
           loggedTraversalBudget.add(key);
         }
-        bumpMetric('fallbacks', 1);
         return null;
       }
     } catch {
       recordMetrics();
+      bumpMetric('parseFailures', 1);
+      bumpMetric('fallbacks', 1);
+      if (strict) {
+        return failStrict(
+          'parse-failed',
+          `Tree-sitter parse failed for ${resolvedId}; strict mode does not allow fallback.`
+        );
+      }
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
         options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
         loggedParseFailures.add(resolvedId);
       }
-      bumpMetric('parseFailures', 1);
-      bumpMetric('fallbacks', 1);
       return null;
     }
 
     if (!traversalResult.chunks.length) {
       recordMetrics();
       bumpMetric('fallbacks', 1);
+      if (strict) {
+        return buildWholeFileChunk();
+      }
       return null;
     }
 
@@ -825,7 +916,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     recordMetrics();
     return traversalResult.chunks;
   } finally {
-    // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
+    // Tree objects can retain sizable parser-side allocations and should be
+    // explicitly released after chunk extraction.
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();
     } catch {
@@ -866,14 +958,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // If the runtime or grammar load fails, fall back to heuristic chunking.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
 
@@ -905,14 +989,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
     bumpMetric('workerFallbacks', 1);
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
@@ -920,14 +996,6 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       treeSitterState.loggedWorkerFailures.add('run');
     }
     bumpMetric('workerFallbacks', 1);
-    try {
-      await preloadTreeSitterLanguages([resolvedId], {
-        log: options?.log,
-        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
-      });
-    } catch {
-      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
-    }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } finally {
     if (shouldRecordMetrics) {

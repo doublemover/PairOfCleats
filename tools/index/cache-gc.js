@@ -4,6 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { formatBytes, sizeOfPath } from '../../src/shared/disk-space.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { isRootPath } from '../shared/path-utils.js';
 
@@ -37,36 +38,6 @@ const maxAgeDays = parseNumber(argv['max-age-days']) ?? parseNumber(gcConfig.max
 const dryRun = argv['dry-run'] === true;
 
 const repoRoot = path.join(cacheRoot, 'repos');
-
-const sizeOfPath = async (targetPath) => {
-  try {
-    const stat = await fs.lstat(targetPath);
-    if (stat.isSymbolicLink()) return 0;
-    if (stat.isFile()) return stat.size;
-    if (!stat.isDirectory()) return 0;
-    const entries = await fs.readdir(targetPath);
-    let total = 0;
-    for (const entry of entries) {
-      total += await sizeOfPath(path.join(targetPath, entry));
-    }
-    return total;
-  } catch {
-    return 0;
-  }
-};
-
-const formatBytes = (bytes) => {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const rounded = value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2);
-  return `${rounded} ${units[unit]}`;
-};
 
 if (!maxBytes && !maxAgeDays) {
   const message = 'No cache GC limits provided. Use --max-bytes/--max-gb or --max-age-days.';

@@ -3,10 +3,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import http from 'node:http';
-import https from 'node:https';
 import { pipeline } from 'node:stream/promises';
-import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
@@ -20,6 +17,7 @@ import {
   verifyDownloadHash
 } from '../shared/download-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
+import { fetchDownloadUrl } from './shared-fetch.js';
 
 let logger = console;
 
@@ -481,71 +479,6 @@ function resolveSourceFromConfig(cfg) {
   return null;
 }
 
-/**
- * Fetch a URL with redirect handling.
- * @param {string} url
- * @param {object} headers
- * @param {number} redirects
- * @returns {Promise<{statusCode:number,headers:object,body:Buffer}>}
- */
-function requestUrl(url, headers = {}, redirects = 0, limits = null) {
-  return new Promise((resolve, reject) => {
-    if (redirects > 5) return reject(new Error('Too many redirects'));
-    const parsed = new URL(url);
-    const handler = parsed.protocol === 'https:' ? https : http;
-    const options = { method: 'GET', headers };
-    const maxBytes = limits && Number.isFinite(Number(limits.maxBytes))
-      ? Number(limits.maxBytes)
-      : null;
-    const req = handler.request(parsed, options, (res) => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
-        const location = res.headers.location;
-        if (!location) return reject(new Error('Redirect without location'));
-        res.resume();
-        return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1, limits));
-      }
-      if (maxBytes) {
-        const declared = Number(res.headers['content-length']);
-        if (Number.isFinite(declared) && declared > maxBytes) {
-          res.resume();
-          return reject(new Error(`Download exceeds maxBytes (${declared} > ${maxBytes})`));
-        }
-      }
-      const chunks = [];
-      let total = 0;
-      let done = false;
-      const finishError = (err) => {
-        if (done) return;
-        done = true;
-        reject(err);
-      };
-      res.on('data', (chunk) => {
-        if (done) return;
-        total += chunk.length;
-        if (maxBytes && total > maxBytes) {
-          done = true;
-          res.destroy();
-          reject(new Error(`Download exceeds maxBytes (${total} > ${maxBytes})`));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      res.on('end', () => {
-        if (done) return;
-        done = true;
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          body: Buffer.concat(chunks)
-        });
-      });
-      res.on('error', finishError);
-    });
-    req.on('error', reject);
-    req.end();
-  });
-}
-
 const suffix = getBinarySuffix(config.platform);
 const sources = parseUrls(argv.url, suffix, hashOverrides);
 if (!sources.length) {
@@ -609,7 +542,12 @@ async function downloadSource(source, index) {
     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
   }
 
-  const response = await requestUrl(source.url, headers, 0, { maxBytes: archiveLimits.maxBytes });
+  const response = await fetchDownloadUrl(source.url, {
+    headers,
+    maxBytes: archiveLimits.maxBytes,
+    timeoutMs: downloadPolicy.timeoutMs,
+    maxRedirects: downloadPolicy.maxRedirects
+  });
   if (response.statusCode === 304) {
     return { name: source.name, skipped: true, outputPath };
   }

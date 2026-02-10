@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T14:05:46.785Z",
+  "generatedAt": "2026-02-10T05:55:06.731Z",
   "scripts": [
     {
       "name": "api-server",
@@ -45,6 +45,12 @@
     },
     {
       "name": "bootstrap",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bootstrap:ci",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
@@ -236,6 +242,24 @@
       "replacement": null
     },
     {
+      "name": "patch",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "postinstall",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "rebuild:native",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "release-check",
       "category": "release",
       "ciAllowed": false,
@@ -262,12 +286,6 @@
     {
       "name": "search",
       "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "setup",
-      "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },

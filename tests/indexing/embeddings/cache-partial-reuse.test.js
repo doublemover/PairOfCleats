@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { readCacheEntry } from '../../../tools/build-embeddings/cache.js';
+import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'embeddings-cache-partial-reuse');
@@ -77,7 +77,7 @@ const loadCacheIndex = async (rootDir) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const first = await loadCacheIndex(cacheRoot);
 const firstKeys = Object.keys(first.index.entries || {});
@@ -96,7 +96,7 @@ if (!Array.isArray(priorCache?.entry?.chunkHashes)) {
 
 await fsPromises.appendFile(srcPath, 'export const gamma = () => 3;\n');
 runNode('build_index changed', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings changed', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings changed', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const second = await loadCacheIndex(cacheRoot);
 const secondKeys = Object.keys(second.index.entries || {});

@@ -1,5 +1,6 @@
 import { normalizeCapNullOnZero } from '../shared/limits.js';
 import { normalizeRiskRules } from './risk-rules.js';
+import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from './risk/shared.js';
 
 const DEFAULT_CAPS = {
   maxBytes: 200 * 1024,
@@ -9,8 +10,6 @@ const DEFAULT_CAPS = {
   maxMs: 75,
   maxFlows: 150
 };
-
-const SEVERITY_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 
 const normalizeCap = (value, fallback) => (
   normalizeCapNullOnZero(value, fallback)
@@ -45,37 +44,11 @@ const buildEvidence = (line, lineNo, column) => {
   };
 };
 
-const isIdentCharCode = (code) => (
-  (code >= 48 && code <= 57) // 0-9
-  || (code >= 65 && code <= 90) // A-Z
-  || (code >= 97 && code <= 122) // a-z
-  || code === 95 // _
-  || code === 36 // $
+const lineContainsVarRange = (line, name, start = 0, end = null) => (
+  containsIdentifier(line, name, { start, end })
 );
 
-const lineContainsVarRange = (line, name, start = 0, end = null) => {
-  if (!name) return false;
-  const hay = String(line || '');
-  const needle = String(name);
-  if (!needle) return false;
-  const limit = Number.isFinite(end) ? Math.min(hay.length, Math.max(0, end)) : hay.length;
-  if (limit <= 0) return false;
-  let idx = 0;
-  const nLen = needle.length;
-  idx = Math.max(0, start);
-  while ((idx = hay.indexOf(needle, idx)) !== -1) {
-    if (idx + nLen > limit) return false;
-    const beforePos = idx - 1;
-    const afterPos = idx + nLen;
-    const beforeOk = beforePos < start || !isIdentCharCode(hay.charCodeAt(beforePos));
-    const afterOk = afterPos >= limit || !isIdentCharCode(hay.charCodeAt(afterPos));
-    if (beforeOk && afterOk) return true;
-    idx = idx + 1;
-  }
-  return false;
-};
-
-const lineContainsVar = (line, name) => lineContainsVarRange(line, name);
+const lineContainsVar = (line, name) => containsIdentifier(line, name);
 
 const findCallArgRange = (line, startIndex) => {
   if (!line || !Number.isFinite(startIndex)) return null;
@@ -107,28 +80,7 @@ const matchRuleOnLine = (rule, line, languageId, lineLowerRef) => {
       return null;
     }
   }
-  for (const pattern of rule.patterns) {
-    if (!pattern) continue;
-    const prefilter = pattern.prefilter;
-    if (prefilter) {
-      if (pattern.prefilterLower) {
-        if (!lineLowerRef.value) {
-          lineLowerRef.value = line.toLowerCase();
-        }
-        if (!lineLowerRef.value.includes(pattern.prefilterLower)) continue;
-      } else if (!line.includes(prefilter)) {
-        continue;
-      }
-    }
-    try {
-      pattern.lastIndex = 0;
-      const match = pattern.exec(line);
-      if (match) return { index: match.index, match: match[0] };
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  return matchRulePatterns(line, rule, { returnMatch: true, lineLowerRef });
 };
 
 const collectLineMatches = (rules, line, lineNo, languageId, lineLowerRef) => {

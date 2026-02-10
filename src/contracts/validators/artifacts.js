@@ -1,21 +1,14 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { ARTIFACT_SCHEMA_DEFS } from '../schemas/artifacts.js';
 
-const ajv = new Ajv({
+const ajv = createAjv({
   allErrors: true,
   allowUnionTypes: true,
   strict: true
 });
 
-const cloneSchema = (schema) => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(schema);
-  }
-  return JSON.parse(JSON.stringify(schema));
-};
-
 export const ARTIFACT_VALIDATORS = Object.fromEntries(
-  Object.entries(ARTIFACT_SCHEMA_DEFS).map(([name, schema]) => [name, ajv.compile(cloneSchema(schema))])
+  Object.entries(ARTIFACT_SCHEMA_DEFS).map(([name, schema]) => [name, compileSchema(ajv, schema)])
 );
 
 const formatError = (error) => {

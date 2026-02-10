@@ -1,6 +1,8 @@
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
 import { chunkArray } from '../storage/sqlite/utils.js';
+import { resolveDenseMetaRecord } from '../storage/sqlite/quantization.js';
+import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.js';
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
@@ -215,23 +217,17 @@ export function createSqliteHelpers(options) {
         vectors[row.doc_id] = row.vector;
       }
       const fallbackVec = vectors.find((vec) => vec && vec.length);
-      const minVal = Number.isFinite(denseMeta.min_val) ? Number(denseMeta.min_val) : -1;
-      const maxVal = Number.isFinite(denseMeta.max_val) ? Number(denseMeta.max_val) : 1;
-      let levels = Number.isFinite(denseMeta.levels) ? Math.floor(Number(denseMeta.levels)) : 256;
-      if (!Number.isFinite(levels)) levels = 256;
-      if (levels < 2) levels = 2;
-      if (levels > 256) levels = 256;
-      const range = maxVal - minVal;
-      const scale = typeof denseMeta.scale === 'number'
-        ? denseMeta.scale
-        : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
+      const denseMetaRecord = resolveDenseMetaRecord(denseMeta, {
+        fallbackDims: fallbackVec ? fallbackVec.length : 0,
+        fallbackModel: modelIdDefault
+      });
       denseVec = vectors.length ? {
-        model: denseMeta.model || modelIdDefault,
-        dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
-        scale,
-        minVal,
-        maxVal,
-        levels,
+        model: denseMetaRecord.model,
+        dims: denseMetaRecord.dims,
+        scale: denseMetaRecord.scale,
+        minVal: denseMetaRecord.minVal,
+        maxVal: denseMetaRecord.maxVal,
+        levels: denseMetaRecord.levels,
         vectors
       } : null;
     }
@@ -270,33 +266,6 @@ export function createSqliteHelpers(options) {
       hydrateChunkMeta(rows, out);
     }
     return out;
-  }
-
-  /**
-   * Fetch vocabulary rows for a list of values.
-   * @param {'code'|'prose'} mode
-   * @param {string} table
-   * @param {string} idColumn
-   * @param {string} valueColumn
-   * @param {string[]} values
-   * @returns {Array<{id:number,value:string}>}
-   */
-  function fetchVocabRows(mode, table, idColumn, valueColumn, values) {
-    const db = getDb(mode);
-    if (!db || !values.length) return [];
-    const unique = Array.from(new Set(values));
-    const rows = [];
-    for (const chunk of chunkArray(unique, SQLITE_IN_LIMIT)) {
-      const placeholders = buildPlaceholders(chunk.length);
-      const stmt = getCachedStatement(
-        db,
-        `vocab:${table}:${idColumn}:${valueColumn}:${chunk.length}`,
-        `SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table} ` +
-          `WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
-      );
-      rows.push(...stmt.all(mode, ...chunk));
-    }
-    return rows;
   }
 
   /**
@@ -395,7 +364,7 @@ export function createSqliteHelpers(options) {
     const uniqueTokens = Array.from(new Set(tokens)).filter(Boolean);
     if (!uniqueTokens.length) return null;
 
-    const vocabRows = fetchVocabRows(mode, 'token_vocab', 'token_id', 'token', uniqueTokens);
+    const vocabRows = fetchSqliteVocabRows(db, mode, 'token_vocab', 'token_id', 'token', uniqueTokens);
     if (!vocabRows.length) return null;
 
     const vocab = [];
@@ -460,7 +429,7 @@ export function createSqliteHelpers(options) {
     if (postingsConfig.enablePhraseNgrams !== false) {
       const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
       if (ngrams.length) {
-        const phraseRows = fetchVocabRows(mode, 'phrase_vocab', 'phrase_id', 'ngram', ngrams);
+        const phraseRows = fetchSqliteVocabRows(db, mode, 'phrase_vocab', 'phrase_id', 'ngram', ngrams);
         const phraseIds = phraseRows.map((row) => row.id);
         const postingRows = fetchPostingRows(mode, 'phrase_postings', 'phrase_id', phraseIds, false);
         for (const row of postingRows) {
@@ -495,7 +464,7 @@ export function createSqliteHelpers(options) {
       }
       const grams = Array.from(gramSet);
       if (grams.length) {
-        const gramRows = fetchVocabRows(mode, 'chargram_vocab', 'gram_id', 'gram', grams);
+        const gramRows = fetchSqliteVocabRows(db, mode, 'chargram_vocab', 'gram_id', 'gram', grams);
         const gramIds = gramRows.map((row) => row.id);
         const postingRows = fetchPostingRows(mode, 'chargram_postings', 'gram_id', gramIds, false);
         for (const row of postingRows) {
