@@ -38,6 +38,7 @@ import {
 import {
   MAX_JSON_BYTES,
   readJsonLinesEach,
+  resolveArtifactPresence,
   resolveJsonlRequiredKeys
 } from '../../../shared/artifact-io.js';
 
@@ -66,11 +67,51 @@ const normalizeMetaParts = (parts) => (
     : []
 );
 
+const inflateColumnarRows = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
+  if (!arrays) return null;
+  const columns = Array.isArray(payload.columns) ? payload.columns : Object.keys(arrays);
+  if (!columns.length) return [];
+  const tables = payload.tables && typeof payload.tables === 'object' ? payload.tables : null;
+  const length = Number.isFinite(payload.length)
+    ? payload.length
+    : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
+  const rows = new Array(length);
+  for (let i = 0; i < length; i += 1) {
+    const row = {};
+    for (const column of columns) {
+      const values = arrays[column];
+      const value = Array.isArray(values) ? (values[i] ?? null) : null;
+      const table = tables && Array.isArray(tables[column]) ? tables[column] : null;
+      row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
+    }
+    rows[i] = row;
+  }
+  return rows;
+};
+
 const resolveChunkMetaSources = (dir) => {
   if (!dir || typeof dir !== 'string') {
     dir = typeof dir?.dir === 'string' ? dir.dir : null;
   }
   if (!dir) return null;
+  const presence = resolveArtifactPresence(dir, 'chunk_meta', {
+    maxBytes: MAX_JSON_BYTES,
+    strict: false
+  });
+  if (presence?.missingMeta && presence?.metaPath) {
+    throw new Error(`[sqlite] chunk_meta meta missing: ${presence.metaPath}`);
+  }
+  if (Array.isArray(presence?.missingPaths) && presence.missingPaths.length) {
+    throw new Error(`[sqlite] chunk_meta parts missing: ${presence.missingPaths.join(', ')}`);
+  }
+  if (Array.isArray(presence?.paths) && presence.paths.length) {
+    return {
+      format: presence.format === 'json' || presence.format === 'columnar' ? presence.format : 'jsonl',
+      paths: presence.paths
+    };
+  }
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
   if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
@@ -1154,6 +1195,11 @@ export async function buildDatabaseFromArtifacts({
       };
       if (sources.format === 'json') {
         const data = readJson(sources.paths[0]);
+        if (Array.isArray(data)) {
+          for (const chunk of data) handleChunk(chunk);
+        }
+      } else if (sources.format === 'columnar') {
+        const data = inflateColumnarRows(readJson(sources.paths[0]));
         if (Array.isArray(data)) {
           for (const chunk of data) handleChunk(chunk);
         }

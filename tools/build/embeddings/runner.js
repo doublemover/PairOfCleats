@@ -9,7 +9,12 @@ import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/schedule
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
-import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import {
+  loadChunkMeta,
+  loadFileMetaRows,
+  readJsonFile,
+  MAX_JSON_BYTES
+} from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
@@ -331,24 +336,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
 
       try {
-        const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-        const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
-        const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
-        const hasChunkMeta = fsSync.existsSync(chunkMetaPath)
-        || fsSync.existsSync(chunkMetaJsonlPath)
-        || fsSync.existsSync(chunkMetaMetaPath);
 
         let chunkMeta;
         try {
-          if (hasChunkMeta) {
-            chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES }));
-          }
+          chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, {
+            maxBytes: MAX_JSON_BYTES,
+            strict: false
+          }));
         } catch (err) {
+          const message = String(err?.message || '');
           if (err?.code === 'ERR_JSON_TOO_LARGE') {
             warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
-          } else {
+          } else if (!message.includes('Missing index artifact: chunk_meta.json')) {
             warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
           }
           chunkMeta = null;
@@ -364,6 +365,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
               fileMeta = await scheduleIo(() => readJsonFile(fileMetaPath, { maxBytes: MAX_JSON_BYTES }));
             } catch (err) {
               warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
+              fileMeta = [];
+            }
+          } else {
+            try {
+              for await (const row of loadFileMetaRows(indexDir, {
+                maxBytes: MAX_JSON_BYTES,
+                strict: false
+              })) {
+                fileMeta.push(row);
+              }
+            } catch (err) {
+              const message = String(err?.message || '');
+              if (!message.includes('Missing index artifact: file_meta.json')) {
+                warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+              }
               fileMeta = [];
             }
           }
