@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:00:47.8310798-05:00
+Last updated: 2026-02-09T21:01:05.9621588-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -322,9 +322,29 @@ F0.1 mapping confirmation:
 - Phase-level tests are anchored in each phase section (`F1`..`F9`) and in D/F coupling checkpoints.
 
 Subphase F0.2 — Ownership and closure criteria:
-- [ ] Assign owner responsibility by phase (not by separate tooling artifact).
-- [ ] Define what evidence closes a finding (code path + test coverage + commit ref).
-- [ ] Require severity-first burn-down ordering inside each phase.
+- [x] Assign owner responsibility by phase (not by separate tooling artifact).
+- [x] Define what evidence closes a finding (code path + test coverage + commit ref).
+- [x] Require severity-first burn-down ordering inside each phase.
+
+F0.2 owner matrix (phase-scoped):
+| Phase | Primary owner group |
+| --- | --- |
+| F1 | Build/runtime lifecycle |
+| F2 | Language/chunking/import |
+| F3 | Artifact/storage I/O and persistence |
+| F4 | Retrieval/ANN/embeddings |
+| F5 | Tooling/LSP/service surfaces |
+| F6 | Map/graph/context-pack |
+| F7 | Security/path/input hardening |
+| F8 | Contract tests and coverage lock |
+| F9 | CI gating and burn-down closure |
+
+F0.2 closure evidence standard:
+- A finding closes only with `code path` + `test evidence` + `commit reference` recorded in phase notes.
+- `Code path` must list concrete changed files/functions and the invariant they enforce.
+- `Test evidence` must name exact test files/commands and pass outcome.
+- `Commit reference` must include at least one commit hash that contains the fix and tests.
+- Burn-down order is severity-first inside each phase: `critical` then `high` then remaining severities, unless dependency constraints are explicitly documented.
 
 Subphase F0.3 — Execution discipline:
 - [ ] Require phase updates to include resolved/remaining findings summary.
