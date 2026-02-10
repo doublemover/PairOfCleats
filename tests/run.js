@@ -253,7 +253,7 @@ const main = async () => {
     process.exit(2);
   }
 
-  if (!isCiLiteOnly && !isCiOnly) {
+  if (!isCiLiteOnly && !isCiOnly && !isCiLongOnly) {
     selection = selection.slice().sort((a, b) => a.id.localeCompare(b.id));
   }
 
