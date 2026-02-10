@@ -1483,10 +1483,19 @@ D7.2 status update (2026-02-10T00:11:52.8315093-05:00):
 
 ### Subphase D7.3 — VFS and SQLite streaming tests
 Tasks:
-- [ ] Task D7.3.a: Create shared VFS streaming fixture/assert helper.
+- [x] Task D7.3.a: Create shared VFS streaming fixture/assert helper.
 Details: Keep indexing and tooling entrypoint assertions separate.
-- [ ] Task D7.3.b: Build compression matrix harness for chunk-meta/gzip/zstd streaming tests.
+- [x] Task D7.3.b: Build compression matrix harness for chunk-meta/gzip/zstd streaming tests.
 Details: Codec-specific assertions remain explicit.
+
+D7.3 status update (2026-02-10T00:26:11.5424736-05:00):
+- resolved: added shared VFS streaming fixture helper `tests/helpers/vfs-streaming-fixture.js` and migrated `tests/indexing/vfs/vfs-manifest-streaming.test.js` and `tests/tooling/vfs/vfs-manifest-streaming.test.js` to it with separate entrypoint assertions preserved.
+- resolved: added shared SQLite JSONL streaming compression matrix helper `tests/storage/sqlite/helpers/jsonl-streaming-matrix.js` and migrated `tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js` and `tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js` with codec-specific assertions preserved.
+- resolved: applied shared env setup via `applyTestEnv()` at helper entrypoints for both new helper modules.
+- remaining: D7.4-D7.6 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this test-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "createVfsStreamingFixture|runSqliteJsonlStreamingCompressionCase" tests/helpers tests/indexing/vfs tests/tooling/vfs tests/storage/sqlite`.
 
 ### Subphase D7.4 — Graph/symbol/sqlite build test harness cleanup
 Tasks:
