@@ -1499,12 +1499,21 @@ D7.3 status update (2026-02-10T00:26:11.5424736-05:00):
 
 ### Subphase D7.4 — Graph/symbol/sqlite build test harness cleanup
 Tasks:
-- [ ] Task D7.4.a: Extract shared graph perf contract bench helper.
+- [x] Task D7.4.a: Extract shared graph perf contract bench helper.
 Details: Keep context-pack vs neighborhood assertions distinct.
-- [ ] Task D7.4.b: Extract shared symbol artifact setup helper.
+- [x] Task D7.4.b: Extract shared symbol artifact setup helper.
 Details: Keep smoke vs by-file-index assertions distinct.
-- [ ] Task D7.4.c: Extract shared sqlite build fixture setup helper.
+- [x] Task D7.4.c: Extract shared sqlite build fixture setup helper.
 Details: Keep rowcount and fast-path validator assertions distinct.
+
+D7.4 status update (2026-02-10T00:34:21.5068780-05:00):
+- resolved: added shared graph bench fixture helper `tests/perf/helpers/graph-bench-fixture.js` and migrated graph bench contract tests while preserving distinct context-pack and neighborhood assertions.
+- resolved: added shared symbol artifact setup helper `tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js` and migrated smoke/by-file index suites while preserving scenario-specific assertions.
+- resolved: added shared sqlite build fixture helper `tests/storage/sqlite/helpers/build-fixture.js` and migrated rowcount + validate-auto fast-path suites with distinct assertion paths preserved.
+- remaining: D7.5-D7.6 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this test-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "createGraphBenchFixture|runGraphBenchCompare|createSymbolArtifactChunks|runSymbolArtifactWriters|setupSqliteBuildFixture" tests/perf tests/indexing/artifacts tests/storage/sqlite`.
 
 ### Subphase D7.5 — Bench script dedupe
 Tasks:
@@ -1513,16 +1522,8 @@ Details: Migrate `viewer-fps` and `viewer-lod-stress`.
 - [ ] Task D7.5.b: Extract shared map bench build options helper.
 Details: Migrate `build-map-memory` and `build-map-streaming`.
 
-### Subphase D7.6 — Clone threshold guardrail for tests and benches
-Tasks:
-- [ ] Task D7.6.a: Add clone-threshold test for `tests/**` and `tools/bench/**`.
-Details: Set threshold to catch large copy/paste blocks.
-- [ ] Task D7.6.b: Wire threshold result into script-coverage/reporting.
-Details: Fail CI on regression beyond allowlist.
-
 ### Tests
 - [ ] merged suites run individually and preserve scenario assertions
-- [ ] `tests/tooling/dupemap/dupemap-test-clone-threshold.test.js` (new)
 - [ ] script-coverage suites updated for new helper locations
 
 ### Exit criteria

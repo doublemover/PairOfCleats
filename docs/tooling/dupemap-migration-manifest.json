@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:26:11.5424736-05:00",
+  "updatedAt": "2026-02-10T00:34:21.5068780-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -377,6 +377,21 @@
         "tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js"
       ],
       "canonicalPath": "tests/helpers/vfs-streaming-fixture.js + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js"
+    },
+    {
+      "clusterId": "A08",
+      "title": "Graph/symbol/sqlite test harness setup duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/perf/graph-context-pack-latency-bench-contract.test.js",
+        "tests/perf/graph-neighborhood-bench-contract.test.js",
+        "tests/indexing/artifacts/symbol-artifacts-smoke.test.js",
+        "tests/indexing/artifacts/symbols/symbol-by-file-index.test.js",
+        "tests/storage/sqlite/sqlite-build-rowcount-contract.test.js",
+        "tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js"
+      ],
+      "canonicalPath": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
     }
   ],
   "migrations": [
@@ -502,7 +517,8 @@
     { "migrationId": "M120", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/isometric/client/dom.js::local mergeConfig", "newPathOrSymbol": "src/shared/config.js::mergeConfig", "status": "completed" },
     { "migrationId": "M121", "clusterId": "A05", "phase": "D7", "oldPathOrSymbol": "tests/retrieval/pipeline/{ann-optional-skip,ann-preflight}.test.js duplicated ANN pipeline fixture/context/index setup", "newPathOrSymbol": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario", "status": "completed" },
     { "migrationId": "M122", "clusterId": "A06", "phase": "D7", "oldPathOrSymbol": "tests/indexing/risk/interprocedural/{flows-conservative,flows-max-total-flows,flows-timeout}.test.js duplicated source/sink/runtime setup", "newPathOrSymbol": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js + flows-cap-matrix.test.js", "status": "completed" },
-    { "migrationId": "M123", "clusterId": "A07", "phase": "D7", "oldPathOrSymbol": "tests/{indexing/tooling}/vfs/*-manifest-streaming + tests/storage/sqlite/sqlite-jsonl-streaming-{gzip,zstd}.test.js duplicated fixture/build setup", "newPathOrSymbol": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase", "status": "completed" }
+    { "migrationId": "M123", "clusterId": "A07", "phase": "D7", "oldPathOrSymbol": "tests/{indexing/tooling}/vfs/*-manifest-streaming + tests/storage/sqlite/sqlite-jsonl-streaming-{gzip,zstd}.test.js duplicated fixture/build setup", "newPathOrSymbol": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase", "status": "completed" },
+    { "migrationId": "M124", "clusterId": "A08", "phase": "D7", "oldPathOrSymbol": "tests/perf/graph-*.test.js + tests/indexing/artifacts/symbol-* + tests/storage/sqlite/sqlite-build-{rowcount,validate-auto-fast-path}.test.js duplicated fixture setup blocks", "newPathOrSymbol": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -742,6 +758,13 @@
       "scope": "tests/indexing/vfs/**,tests/tooling/vfs/**,tests/storage/sqlite/**",
       "pattern": "duplicated VFS manifest streaming fixture setup or sqlite jsonl compression fixture setup across gzip/zstd variants",
       "replacement": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase"
+    },
+    {
+      "banId": "B044",
+      "phase": "D7",
+      "scope": "tests/perf/**,tests/indexing/artifacts/**,tests/storage/sqlite/**",
+      "pattern": "duplicated graph bench, symbol artifact, or sqlite build fixture setup blocks across paired contract tests",
+      "replacement": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
     }
   ],
   "exceptions": [],
