@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T22:58:09.6974883-05:00
+Last updated: 2026-02-09T23:09:10.7677920-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1195,12 +1195,21 @@ D5.1 status update (2026-02-09T22:58:09.6974883-05:00):
 
 ### Subphase D5.2 — Signature parsing primitives
 Tasks:
-- [ ] Task D5.2.a: Add shared signature splitting primitives for clike/python/swift.
+- [x] Task D5.2.a: Add shared signature splitting primitives for clike/python/swift.
 Details: Handle nesting/quotes consistently.
-- [ ] Task D5.2.b: Add shared `readSignatureLines` helper and migrate language modules.
+- [x] Task D5.2.b: Add shared `readSignatureLines` helper and migrate language modules.
 Details: Keep language-specific post-processing local.
-- [ ] Task D5.2.c: Remove duplicate helper bodies.
+- [x] Task D5.2.c: Remove duplicate helper bodies.
 Details: Ban legacy helper names.
+
+D5.2 status update (2026-02-09T23:09:10.7677920-05:00):
+- resolved: added shared signature split primitives in `src/index/tooling/signature-parse/shared.js` and migrated clike/python/swift signature parsers to consume them.
+- resolved: added shared signature line reader in `src/lang/shared/signature-lines.js` and migrated C-like/TS/perl/php/rust/shell language modules to shared `readSignatureLines`.
+- resolved: removed duplicated `split*Params`, `findTopLevelIndex`, and `readSignatureLines` helper bodies from migrated modules while preserving parser/language-specific post-processing behavior.
+- remaining: D5.3 JS/TS relations shared core.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `git grep -n -E "split.*Params|readSignatureLines" -- src/lang src/index/tooling/signature-parse`.
 
 ### Subphase D5.3 — JS/TS relations shared core
 Tasks:
@@ -1211,14 +1220,14 @@ Details: Preserve existing relation output contract.
 
 ### Exhaustive sweeps
 - [x] `rg "findBinaryInDirs|candidateNames|resolveTypeScript|loadTypeScript" src tools`
-- [ ] `rg "split.*Params|readSignatureLines" src/lang src/index/tooling/signature-parse`
+- [x] `rg "split.*Params|readSignatureLines" src/lang src/index/tooling/signature-parse`
 - [ ] `rg "resolveCalleeParts|resolveCallLocation" src/lang/javascript src/lang/typescript`
 
 ### Tests
 - [x] `tests/tooling/binary-utils-parity.test.js` (new)
 - [x] `tests/tooling/typescript-loader-parity.test.js` (new)
-- [ ] `tests/tooling/signature-parse/shared-splitter.test.js` (new)
-- [ ] language signature/metadata tests updated
+- [x] `tests/tooling/signature-parse/shared-splitter.test.js` (new)
+- [x] language signature/metadata tests updated
 - [ ] `tests/lang/contracts/javascript-relations-contract.test.js` (new)
 - [ ] `tests/lang/contracts/typescript-relations-contract.test.js` (new)
 

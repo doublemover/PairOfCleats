@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
@@ -91,24 +92,6 @@ const GO_DOC_OPTIONS = {
   blockEnd: '*/',
   skipLine: (line) => line.startsWith('//go:') || line.startsWith('// +build')
 };
-
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  return { signature, endLine, hasBody: hasBrace };
-}
 
 function normalizeGoReceiverType(raw) {
   if (!raw) return '';
@@ -286,7 +269,7 @@ export function buildGoChunks(text, options = {}) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
     if (!trimmed.startsWith('func')) continue;
-    const { signature, endLine, hasBody } = readSignatureLines(lines, i);
+    const { signature, endLine, hasBody } = readSignatureLines(lines, i, { stopOnSemicolon: false });
     const start = lineIndex[i] + line.indexOf(trimmed);
     const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;

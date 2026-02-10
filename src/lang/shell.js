@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
@@ -71,24 +72,6 @@ const SHELL_DOC_OPTIONS = {
   skipLine: (line) => line.startsWith('#!')
 };
 
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  return { signature, endLine, hasBody: hasBrace };
-}
-
 function stripShellComments(text) {
   return text.replace(/#.*$/gm, ' ');
 }
@@ -155,7 +138,7 @@ export function buildShellChunks(text) {
     let match = trimmed.match(funcKwRe);
     if (!match) match = trimmed.match(funcParenRe);
     if (!match) continue;
-    const sigData = readSignatureLines(lines, i);
+    const sigData = readSignatureLines(lines, i, { stopOnSemicolon: false });
     const signature = sigData.signature;
     const endLine = sigData.endLine;
     const hasBody = sigData.hasBody;

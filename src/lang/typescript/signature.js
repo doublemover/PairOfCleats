@@ -1,4 +1,5 @@
 import { TS_MODIFIERS } from './constants.js';
+export { readSignatureLines } from '../shared/signature-lines.js';
 
 export function extractTypeScriptModifiers(signature) {
   const mods = [];
@@ -215,33 +216,6 @@ export function parseTypeScriptSignature(signature) {
   const name = match[1];
   const returns = extractTypeScriptReturns(signature);
   return { name, returns };
-}
-
-export function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
 }
 
 export function extractTypeScriptInheritance(signature) {

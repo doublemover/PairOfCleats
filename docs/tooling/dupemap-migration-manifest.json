@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:58:09.6974883-05:00",
+  "updatedAt": "2026-02-09T23:09:10.7677920-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -248,7 +248,7 @@
       "clusterId": "C23",
       "title": "Signature parsing/readSignatureLines duplication",
       "phase": "D5",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/lang/clike.js",
         "src/lang/typescript/signature.js"
@@ -366,7 +366,7 @@
     { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
     { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "completed" },
     { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
-    { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "planned" },
+    { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "completed" },
     { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "planned" },
     { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
     { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
@@ -444,7 +444,12 @@
     { "migrationId": "M098", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "tools/tooling/utils.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
     { "migrationId": "M099", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::resolveTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
     { "migrationId": "M100", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/parser.js::loadTypeScriptModule", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScriptModule", "status": "completed" },
-    { "migrationId": "M101", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript local implementation", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" }
+    { "migrationId": "M101", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript local implementation", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
+    { "migrationId": "M102", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/clike.js::splitClikeParams", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::splitTopLevel", "status": "completed" },
+    { "migrationId": "M103", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/python.js::{splitPythonParams,findTopLevelIndex,stripDefaultValue}", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::{splitTopLevel,findTopLevelIndex,stripTopLevelAssignment}", "status": "completed" },
+    { "migrationId": "M104", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/swift.js::{splitSwiftParams,findTopLevelIndex,stripDefaultValue}", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::{splitTopLevel,findTopLevelIndex,stripTopLevelAssignment}", "status": "completed" },
+    { "migrationId": "M105", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/signature.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" },
+    { "migrationId": "M106", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/{clike,csharp,go,java,kotlin,perl,php,rust,shell}.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -579,6 +584,13 @@
       "scope": "src/index/tooling/**,src/lang/typescript/**",
       "pattern": "local async/sync TypeScript module loader helper bodies",
       "replacement": "src/index/tooling/typescript/load.js::{loadTypeScript,loadTypeScriptModule}"
+    },
+    {
+      "banId": "B029",
+      "phase": "D5",
+      "scope": "src/lang/**,src/index/tooling/signature-parse/**",
+      "pattern": "local split*Params/findTopLevelIndex/readSignatureLines helper bodies for signature parsing",
+      "replacement": "src/index/tooling/signature-parse/shared.js + src/lang/shared/signature-lines.js"
     }
   ],
   "exceptions": [],

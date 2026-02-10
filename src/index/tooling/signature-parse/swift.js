@@ -1,52 +1,6 @@
-const splitSwiftParams = (value) => {
-  if (!value) return [];
-  const params = [];
-  let current = '';
-  let depthAngle = 0;
-  let depthParen = 0;
-  let depthBracket = 0;
-  let depthBrace = 0;
-  for (const ch of value) {
-    if (ch === '<') depthAngle += 1;
-    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
-    if (ch === '(') depthParen += 1;
-    if (ch === ')' && depthParen > 0) depthParen -= 1;
-    if (ch === '[') depthBracket += 1;
-    if (ch === ']' && depthBracket > 0) depthBracket -= 1;
-    if (ch === '{') depthBrace += 1;
-    if (ch === '}' && depthBrace > 0) depthBrace -= 1;
-    if (ch === ',' && depthAngle === 0 && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
-      if (current.trim()) params.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) params.push(current.trim());
-  return params;
-};
+import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
 
-const findTopLevelIndex = (value, targetChar) => {
-  let depthAngle = 0;
-  let depthParen = 0;
-  let depthBracket = 0;
-  let depthBrace = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === '<') depthAngle += 1;
-    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
-    if (ch === '(') depthParen += 1;
-    if (ch === ')' && depthParen > 0) depthParen -= 1;
-    if (ch === '[') depthBracket += 1;
-    if (ch === ']' && depthBracket > 0) depthBracket -= 1;
-    if (ch === '{') depthBrace += 1;
-    if (ch === '}' && depthBrace > 0) depthBrace -= 1;
-    if (ch === targetChar && depthAngle === 0 && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
-      return i;
-    }
-  }
-  return -1;
-};
+const splitSwiftParams = (value) => splitTopLevel(value, ',');
 
 const findMatchingParen = (value, startIndex) => {
   if (!value || startIndex < 0) return -1;
@@ -62,10 +16,7 @@ const findMatchingParen = (value, startIndex) => {
   return -1;
 };
 
-const stripDefaultValue = (value) => {
-  const idx = findTopLevelIndex(value, '=');
-  return idx === -1 ? value : value.slice(0, idx);
-};
+const stripDefaultValue = (value) => stripTopLevelAssignment(value);
 
 const normalizeSwiftType = (value) => {
   if (!value || typeof value !== 'string') return null;

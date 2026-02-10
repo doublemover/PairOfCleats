@@ -1,5 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import {
   CLIKE_CALL_KEYWORDS,
   CLIKE_EXPORT_KINDS,
@@ -227,33 +228,6 @@ function parseCLikeSignature(signature) {
   const name = match[1];
   const returns = before.slice(0, match.index).trim() || null;
   return { name, returns };
-}
-
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
 }
 
 function findCLikeDocStartLine(lines, startLineIdx) {
