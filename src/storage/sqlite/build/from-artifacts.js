@@ -19,11 +19,11 @@ import {
   packUint8,
   dequantizeUint8ToFloat32,
   isVectorEncodingCompatible,
-  resolveQuantizationParams,
   resolveEncodedVectorBytes,
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
+import { resolveQuantizationParams } from '../quantization.js';
 import { normalizeManifestFiles } from './manifest.js';
 import {
   beginSqliteBuildTransaction,

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:35:24.4525105-05:00",
+  "updatedAt": "2026-02-09T23:42:32.5534052-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -50,7 +50,7 @@
       "clusterId": "C05",
       "title": "Embedding quantization normalization",
       "phase": "D3",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/storage/sqlite/vector.js",
         "tools/build/embeddings/embed.js"
@@ -61,7 +61,7 @@
       "clusterId": "C06",
       "title": "SQLite vocab lookup + statement cache",
       "phase": "D3",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/storage/sqlite/build/vocab.js",
         "src/retrieval/sqlite-helpers.js"
@@ -348,8 +348,8 @@
     { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
     { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext}", "status": "completed" },
     { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveOutputPaths", "status": "completed" },
-    { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "planned" },
-    { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows", "newPathOrSymbol": "src/storage/sqlite/vocab.js::fetchVocabRows", "status": "planned" },
+    { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams + retrieval dense_meta manual levels/scale branches", "newPathOrSymbol": "src/storage/sqlite/quantization.js::{resolveQuantizationParams,resolveDenseMetaRecord}", "status": "completed" },
+    { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows + src/storage/sqlite/build/vocab.js", "newPathOrSymbol": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds}", "status": "completed" },
     { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
     { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
     { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "completed" },
@@ -455,7 +455,9 @@
     { "migrationId": "M109", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/index-state.js::updateSqliteState", "newPathOrSymbol": "src/storage/sqlite/build/index-state.js::updateSqliteState", "status": "completed" },
     { "migrationId": "M110", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/runner.js::createNoopTask/resolveTaskFactory local implementations", "newPathOrSymbol": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}", "status": "completed" },
     { "migrationId": "M111", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-bundles.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
-    { "migrationId": "M112", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-{artifacts,bundles}.js::manual BEGIN/COMMIT/ROLLBACK + validate/optimize/checkpoint/cleanup blocks", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{beginSqliteBuildTransaction,commitSqliteBuildTransaction,rollbackSqliteBuildTransaction,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" }
+    { "migrationId": "M112", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-{artifacts,bundles}.js::manual BEGIN/COMMIT/ROLLBACK + validate/optimize/checkpoint/cleanup blocks", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{beginSqliteBuildTransaction,commitSqliteBuildTransaction,rollbackSqliteBuildTransaction,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
+    { "migrationId": "M113", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "tools/build/{compact-sqlite-index,embeddings/*} + src/index/build/runtime/embeddings.js quantization imports from vector.js", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "completed" },
+    { "migrationId": "M114", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/incremental-update.js::ensureVocabIds from build-local module", "newPathOrSymbol": "src/storage/sqlite/vocab.js::ensureVocabIds", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -625,6 +627,20 @@
       "scope": "src/storage/sqlite/build/from-{artifacts,bundles}.js",
       "pattern": "duplicated sqlite build setup stacks (batch/statement normalization, pragmas/schema setup, multi-row inserter wiring, transaction bookkeeping, post-commit validate/cleanup)",
       "replacement": "src/storage/sqlite/build/core.js shared helper API"
+    },
+    {
+      "banId": "B034",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/storage/sqlite/**,tools/build/embeddings/**",
+      "pattern": "manual quantization min/max/levels normalization or dense_meta scale fallback branches",
+      "replacement": "src/storage/sqlite/quantization.js::{resolveQuantizationParams,resolveDenseMetaRecord}"
+    },
+    {
+      "banId": "B035",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/storage/sqlite/build/**",
+      "pattern": "local sqlite vocab statement cache/fetch helper bodies",
+      "replacement": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds,getVocabCount}"
     }
   ],
   "exceptions": [],

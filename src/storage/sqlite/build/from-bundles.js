@@ -11,10 +11,10 @@ import {
   packUint8,
   quantizeVec,
   resolveEncodedVectorBytes,
-  resolveQuantizationParams,
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
+import { resolveQuantizationParams } from '../quantization.js';
 import { normalizeManifestFiles } from './manifest.js';
 import {
   beginSqliteBuildTransaction,

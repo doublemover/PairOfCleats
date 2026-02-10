@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { ensureVocabIds } from '../../../src/storage/sqlite/build/vocab.js';
+import { ensureVocabIds } from '../../../src/storage/sqlite/vocab.js';
 
 let Database;
 try {

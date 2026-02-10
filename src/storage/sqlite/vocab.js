@@ -1,4 +1,4 @@
-import { chunkArray } from '../utils.js';
+import { chunkArray } from './utils.js';
 
 const vocabStatementCache = new WeakMap();
 const MAX_MISSING_SAMPLE = 25;

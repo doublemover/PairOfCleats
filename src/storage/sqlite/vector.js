@@ -15,17 +15,6 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
   return quantizeEmbeddingVector(vec, minVal, maxVal, levels);
 }
 
-export function resolveQuantizationParams(quantization = {}) {
-  const minVal = Number.isFinite(quantization?.minVal) ? Number(quantization.minVal) : -1;
-  const maxVal = Number.isFinite(quantization?.maxVal) ? Number(quantization.maxVal) : 1;
-  const rawLevels = Number(quantization?.levels);
-  let levels = Number.isFinite(rawLevels) ? Math.floor(rawLevels) : 256;
-  if (!Number.isFinite(levels)) levels = 256;
-  if (levels < 2) levels = 2;
-  if (levels > 256) levels = 256;
-  return { minVal, maxVal, levels };
-}
-
 /**
  * Dequantize a uint8 vector to Float32Array.
  * @param {ArrayLike<number>} vec

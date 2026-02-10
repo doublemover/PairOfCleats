@@ -7,7 +7,8 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
+import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';

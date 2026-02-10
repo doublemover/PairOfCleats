@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:35:24.4525105-05:00
+Last updated: 2026-02-09T23:42:32.5534052-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1299,12 +1299,21 @@ D3.2 status update (2026-02-09T23:25:58.0431998-05:00):
 
 ### Subphase D3.3 — Quantization and vocab parity
 Tasks:
-- [ ] Task D3.3.a: Extract canonical quantization metadata resolver.
+- [x] Task D3.3.a: Extract canonical quantization metadata resolver.
 Details: Retrieval and ranking must consume this resolver directly.
-- [ ] Task D3.3.b: Replace retrieval-side levels/scale derivation duplicates.
+- [x] Task D3.3.b: Replace retrieval-side levels/scale derivation duplicates.
 Details: Remove manual derivation branches.
-- [ ] Task D3.3.c: Extract canonical vocab fetch + statement cache helper.
+- [x] Task D3.3.c: Extract canonical vocab fetch + statement cache helper.
 Details: Build/retrieval call the same API.
+
+D3.3 status update (2026-02-09T23:42:32.5534052-05:00):
+- resolved: added canonical quantization resolver module `src/storage/sqlite/quantization.js` and migrated storage/runtime/tooling callsites from vector-local imports to canonical quantization imports.
+- resolved: replaced retrieval dense-meta manual levels/scale derivation with `resolveDenseMetaRecord` in `src/retrieval/sqlite-helpers.js`.
+- resolved: added canonical vocab module `src/storage/sqlite/vocab.js`, migrated incremental build + retrieval callsites, and removed legacy duplicate `src/storage/sqlite/build/vocab.js`.
+- remaining: D3.4 LMDB utility consolidation.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number \"resolveQuantizationParams|levels\\s*\\?|scale\\s*=\\s*\\(\" src/retrieval src/storage`; `rg --line-number \"fetchVocabRows\\(\" src/storage src/retrieval`.
 
 ### Subphase D3.4 — LMDB utils consolidation
 Tasks:
@@ -1316,20 +1325,20 @@ Details: Centralize required-key checks.
 Details: No duplicate `new Unpackr` helpers remain outside shared module.
 
 ### Exhaustive sweeps
-- [ ] `rg "resolveQuantizationParams|levels\s*\?|scale\s*=\s*\(" src/retrieval src/storage`
-- [ ] `rg "fetchVocabRows\(" src/storage src/retrieval`
+- [x] `rg "resolveQuantizationParams|levels\s*\?|scale\s*=\s*\(" src/retrieval src/storage`
+- [x] `rg "fetchVocabRows\(" src/storage src/retrieval`
 - [ ] `rg "new Unpackr|data\.mdb|hasLmdb|isLmdb" src`
 - [x] `rg "output-paths\.js|index-state\.js|createNoopTask" src tools/build/sqlite tools/shared`
 
 ### Tests
 - [x] `tests/storage/sqlite/build/sqlite-build-core-contract.test.js` (new)
-- [ ] `tests/storage/sqlite/quantization/quantization-parity.test.js` (new)
-- [ ] `tests/storage/sqlite/vocab/vocab-fetch-parity.test.js` (new)
+- [x] `tests/storage/sqlite/quantization/quantization-parity.test.js` (new)
+- [x] `tests/storage/sqlite/vocab/vocab-fetch-parity.test.js` (new)
 - [ ] `tests/storage/lmdb/lmdb-utils-contract.test.js` (new)
-- [ ] existing SQLite/LMDB suites updated for canonical paths
+- [x] existing SQLite/LMDB suites updated for canonical paths
 
 ### Exit criteria
-- [ ] Build/retrieval storage paths share single quantization/vocab semantics.
+- [x] Build/retrieval storage paths share single quantization/vocab semantics.
 - [ ] LMDB presence/decode/validation logic is centralized.
 
 ---
