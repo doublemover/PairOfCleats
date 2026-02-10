@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import {
   METADATA_V2_SCHEMA,
   RISK_RULES_BUNDLE_SCHEMA,
@@ -11,28 +11,21 @@ import {
   SUGGEST_TESTS_SCHEMA
 } from '../schemas/analysis.js';
 
-const ajv = new Ajv({
+const ajv = createAjv({
   allErrors: true,
   allowUnionTypes: true,
   strict: true
 });
 
-const cloneSchema = (schema) => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(schema);
-  }
-  return JSON.parse(JSON.stringify(schema));
-};
-
-const META_V2_VALIDATOR = ajv.compile(cloneSchema(METADATA_V2_SCHEMA));
-const RISK_RULES_VALIDATOR = ajv.compile(cloneSchema(RISK_RULES_BUNDLE_SCHEMA));
-const ANALYSIS_POLICY_VALIDATOR = ajv.compile(cloneSchema(ANALYSIS_POLICY_SCHEMA));
-const GRAPH_CONTEXT_PACK_VALIDATOR = ajv.compile(cloneSchema(GRAPH_CONTEXT_PACK_SCHEMA));
-const GRAPH_IMPACT_VALIDATOR = ajv.compile(cloneSchema(GRAPH_IMPACT_SCHEMA));
-const COMPOSITE_CONTEXT_PACK_VALIDATOR = ajv.compile(cloneSchema(COMPOSITE_CONTEXT_PACK_SCHEMA));
-const API_CONTRACTS_VALIDATOR = ajv.compile(cloneSchema(API_CONTRACTS_SCHEMA));
-const ARCHITECTURE_REPORT_VALIDATOR = ajv.compile(cloneSchema(ARCHITECTURE_REPORT_SCHEMA));
-const SUGGEST_TESTS_VALIDATOR = ajv.compile(cloneSchema(SUGGEST_TESTS_SCHEMA));
+const META_V2_VALIDATOR = compileSchema(ajv, METADATA_V2_SCHEMA);
+const RISK_RULES_VALIDATOR = compileSchema(ajv, RISK_RULES_BUNDLE_SCHEMA);
+const ANALYSIS_POLICY_VALIDATOR = compileSchema(ajv, ANALYSIS_POLICY_SCHEMA);
+const GRAPH_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, GRAPH_CONTEXT_PACK_SCHEMA);
+const GRAPH_IMPACT_VALIDATOR = compileSchema(ajv, GRAPH_IMPACT_SCHEMA);
+const COMPOSITE_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, COMPOSITE_CONTEXT_PACK_SCHEMA);
+const API_CONTRACTS_VALIDATOR = compileSchema(ajv, API_CONTRACTS_SCHEMA);
+const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCHEMA);
+const SUGGEST_TESTS_VALIDATOR = compileSchema(ajv, SUGGEST_TESTS_SCHEMA);
 
 const formatError = (error) => {
   const path = error.instancePath || '/';

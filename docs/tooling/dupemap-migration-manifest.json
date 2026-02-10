@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:39:18.2797819-05:00",
+  "updatedAt": "2026-02-10T00:47:01.2399605-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -281,10 +281,14 @@
       "clusterId": "C26",
       "title": "AJV validation scaffolding duplication",
       "phase": "D8",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "tools/api/validation.js",
-        "src/contracts/validators/build-state.js"
+        "src/config/validate.js",
+        "src/contracts/validators/build-state.js",
+        "src/contracts/validators/artifacts.js",
+        "src/contracts/validators/analysis.js",
+        "src/index/build/failure-taxonomy.js"
       ],
       "canonicalPath": "src/shared/validation/ajv-factory.js"
     },
@@ -431,7 +435,7 @@
     { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "completed" },
     { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "completed" },
     { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::{applyScopeFilter,applyCollapse}", "newPathOrSymbol": "src/map/build-map/filters.js::{createScopeFilters,createCollapseTransform}", "status": "completed" },
-    { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
+    { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::local Ajv bootstrap + schema compile wiring", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
     { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
@@ -531,7 +535,12 @@
     { "migrationId": "M123", "clusterId": "A07", "phase": "D7", "oldPathOrSymbol": "tests/{indexing/tooling}/vfs/*-manifest-streaming + tests/storage/sqlite/sqlite-jsonl-streaming-{gzip,zstd}.test.js duplicated fixture/build setup", "newPathOrSymbol": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase", "status": "completed" },
     { "migrationId": "M124", "clusterId": "A08", "phase": "D7", "oldPathOrSymbol": "tests/perf/graph-*.test.js + tests/indexing/artifacts/symbol-* + tests/storage/sqlite/sqlite-build-{rowcount,validate-auto-fast-path}.test.js duplicated fixture setup blocks", "newPathOrSymbol": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js", "status": "completed" },
     { "migrationId": "M125", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js and viewer-lod-stress.js duplicated resolveRepo/getIndex/buildOptions setup", "newPathOrSymbol": "tools/bench/map/shared.js::resolveMapBenchInputs", "status": "completed" },
-    { "migrationId": "M126", "clusterId": "A09", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/build-map-{memory,streaming}.js duplicated resolveLimit/resolveRepo/getIndex/buildOptions and run-count parsing", "newPathOrSymbol": "tools/bench/map/shared.js::{resolveMapBenchInputs,resolveRuns}", "status": "completed" }
+    { "migrationId": "M126", "clusterId": "A09", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/build-map-{memory,streaming}.js duplicated resolveLimit/resolveRepo/getIndex/buildOptions and run-count parsing", "newPathOrSymbol": "tools/bench/map/shared.js::{resolveMapBenchInputs,resolveRuns}", "status": "completed" },
+    { "migrationId": "M127", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/config/validate.js::Ajv2020 bootstrap + direct schema clone/compile", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,cloneJsonSchema,compileSchema}", "status": "completed" },
+    { "migrationId": "M128", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/build-state.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M129", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/artifacts.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M130", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/analysis.js::local Ajv bootstrap + repeated cloneSchema compile chain", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M131", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/index/build/failure-taxonomy.js::local Ajv bootstrap", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -785,6 +794,13 @@
       "scope": "tools/bench/map/**",
       "pattern": "duplicated map bench static server wiring or map build option resolver blocks across viewer/build scripts",
       "replacement": "tools/bench/map/shared.js::{startMapViewerStaticServer,resolveMapBenchInputs,resolveRuns}"
+    },
+    {
+      "banId": "B046",
+      "phase": "D8",
+      "scope": "src/**,tools/**",
+      "pattern": "local Ajv bootstrap/compile stacks with ad-hoc cloneSchema helpers",
+      "replacement": "src/shared/validation/ajv-factory.js::{createAjv,cloneJsonSchema,compileSchema}"
     }
   ],
   "exceptions": [],

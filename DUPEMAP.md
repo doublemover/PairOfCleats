@@ -1555,11 +1555,20 @@ Cluster 26 and remaining cluster 27 items.
 
 ### Subphase D8.1 — Validation scaffolding consolidation
 Tasks:
-- [ ] Task D8.1.a: Implement shared Ajv factory for config/contracts/API validators.
+- [x] Task D8.1.a: Implement shared Ajv factory for config/contracts/API validators.
 Details: Support schema flavor/options required by each caller.
-- [ ] Task D8.1.b: Migrate validators to factory.
+- [x] Task D8.1.b: Migrate validators to factory.
 Details: Keep existing error message contract unless intentionally revised.
-- [ ] Task D8.1.c: Remove duplicated Ajv bootstrap logic.
+- [x] Task D8.1.c: Remove duplicated Ajv bootstrap logic.
+
+D8.1 status update (2026-02-10T00:47:01.2399605-05:00):
+- resolved: implemented shared Ajv factory module `src/shared/validation/ajv-factory.js` with dialect selection, schema cloning helper, and guarded compile helper.
+- resolved: migrated validator callsites in `src/config/validate.js`, `tools/api/validation.js`, `src/contracts/validators/{build-state,artifacts,analysis}.js`, and `src/index/build/failure-taxonomy.js` to use shared factory helpers while preserving caller option sets and error formatting behavior.
+- resolved: added `tests/shared/validation/ajv-factory-contract.test.js` with `applyTestEnv()` bootstrap and contract assertions for dialect selection, clone semantics, and compile guard behavior.
+- remaining: D8.2-D8.4 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this validation-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "new Ajv|ajv/dist/2020\\.js|cloneSchema|createAjv|compileSchema" src/config/validate.js tools/api/validation.js src/contracts/validators src/index/build/failure-taxonomy.js src/shared/validation/ajv-factory.js`.
 
 ### Subphase D8.2 — Download fetch helper consolidation
 Tasks:
@@ -1588,17 +1597,12 @@ Details: Assert no pending workers/timers/promises after shutdown hooks complete
 Details: Map each remediation item to implemented helpers, migrated callsites, and test evidence.
 
 ### Tests
-- [ ] `tests/shared/validation/ajv-factory-contract.test.js` (new)
+- [x] `tests/shared/validation/ajv-factory-contract.test.js` (new)
 - [ ] `tests/tooling/download/shared-fetch-contract.test.js` (new)
 - [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
 - [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
 - [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 - [ ] tooling docs tests updated and passing
-
-### Exit criteria
-- [ ] All roadmap clusters resolved or explicitly accepted with written rationale.
-- [ ] CI blocks reintroduction of legacy duplicates.
-- [ ] Phase is ready to move to `COMPLETED_PHASES.md` on completion commit.
 
 ---
 

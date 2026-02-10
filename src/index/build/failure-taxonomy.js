@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 
 export const FAILURE_CATEGORIES = Object.freeze([
   'parse',
@@ -58,8 +58,8 @@ const FAILURE_MITIGATIONS = {
   unknown: []
 };
 
-const ajv = new Ajv({ allErrors: true, strict: false });
-const validate = ajv.compile(FAILURE_SCHEMA);
+const ajv = createAjv({ allErrors: true, strict: false });
+const validate = compileSchema(ajv, FAILURE_SCHEMA, { clone: false });
 
 const normalizeString = (value) => (typeof value === 'string' ? value : '');
 

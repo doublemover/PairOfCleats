@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 
 const stringListSchema = {
   anyOf: [
@@ -105,8 +105,8 @@ const formatValidationErrors = (errors = []) => errors.map((err) => {
 });
 
 export const createSearchValidator = () => {
-  const ajv = new Ajv({ allErrors: false, strict: false });
-  const validateSearchRequest = ajv.compile(searchRequestSchema);
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateSearchRequest = compileSchema(ajv, searchRequestSchema);
   return (payload) => {
     const valid = validateSearchRequest(payload);
     if (valid) return { ok: true };
