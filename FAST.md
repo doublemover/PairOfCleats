@@ -335,7 +335,7 @@ Format:
 - Impact: Smoother write latency and less WAL burst behavior.
 - Risk: Must avoid excessive checkpoint frequency.
 
-28. Area: Cache-hit path overhead
+28. [x] Area: Cache-hit path overhead
 - Files: `src/retrieval/query-cache.js`, `src/retrieval/sqlite-cache.js`, `src/retrieval/index-cache.js`, `src/retrieval/cli/run-search-session.js`
 - Opportunity: Avoid full query-cache JSON parse and frequent sync stats on hit paths.
 - Impact: Lower P95 for repeated queries.

@@ -14,7 +14,7 @@ import {
   serializeContextIndex,
   hydrateContextIndex
 } from '../context-expansion.js';
-import { loadQueryCache, pruneQueryCache } from '../query-cache.js';
+import { findQueryCacheEntry, loadQueryCache, pruneQueryCache } from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
@@ -233,7 +233,7 @@ export async function runSearchSession({
     });
     cacheKey = cacheKeyInfo.key;
     cacheData = loadQueryCache(queryCachePath);
-    const entry = cacheData.entries.find((e) => e.key === cacheKey && e.signature === cacheSignature);
+    const entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature);
     if (entry) {
       const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
       if (!ttl || (Date.now() - entry.ts) <= ttl) {
