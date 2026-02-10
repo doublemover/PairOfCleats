@@ -1,7 +1,7 @@
 # USR Decomposed Contract Set
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 This directory decomposes the monolithic USR spec into focused normative contract documents.
 
@@ -14,6 +14,8 @@ Primary contracts:
 - `docs/specs/usr-language-risk-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 Per-language contracts:
 
@@ -32,5 +34,10 @@ Update workflow:
 4. update roadmap traceability links and required gates
 5. run decomposed-contract drift checks and attach evidence artifact links
 6. update per-language contracts impacted by changed keys or conformance rules
+
+Drift enforcement expectations:
+
+- every contract file with prefix `usr-` under `docs/specs/` MUST be represented in roadmap traceability (`TES_LAYN_ROADMAP.md` Appendix H)
+- machine-readable matrix files referenced by child contracts MUST exist in Phase 1 registry inventory
 
 

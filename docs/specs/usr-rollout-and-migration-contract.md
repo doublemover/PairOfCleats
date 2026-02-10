@@ -1,13 +1,13 @@
 # Spec -- USR Rollout and Migration Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
 This document defines rollout phases, dual-write/shadow-read strategy, parity criteria, and cutover gates for USR adoption.
 
-It decomposes `docs/specs/unified-syntax-representation.md` sections 26, 27, and 36.
+It decomposes `docs/specs/unified-syntax-representation.md` sections 26, 27, 36, and deployment obligations for sections 38 and 39.
 
 ## 1. Rollout phases (normative)
 
@@ -136,5 +136,7 @@ Required rollback artifacts:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/migration-and-backcompat.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 

@@ -1,7 +1,7 @@
 # Spec -- USR Resolution and Linking Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
@@ -120,19 +120,27 @@ Implementations MUST apply deterministic candidate scoring inputs in this preced
 
 Score tie handling MUST produce deterministic ambiguity output and MUST NOT auto-resolve ties.
 
-## 8. Suppression and derived-edge policy
+## 8. Embedded bridge resolution policy
+
+For edges crossing virtual segments in embedded/multi-surface documents:
+
+- resolution evidence MUST include bridge attrs from the embedding contract
+- candidate sets MUST preserve segment-level provenance for each candidate
+- bridge-edge unresolved/ambiguous outcomes MUST use canonical bridge reason codes
+
+## 9. Suppression and derived-edge policy
 
 - `suppressed` edges are allowed only when explicit policy forbids emission of an otherwise derivable edge.
 - `derived` edges MUST include evidence source and confidence rationale in attrs/evidence.
 - suppressed or derived outcomes MUST never violate endpoint constraints.
 
-## 9. Compatibility and migration rules
+## 10. Compatibility and migration rules
 
 - readers MUST handle `resolved|ambiguous|unresolved` in `usr-1.0.0`
 - strict compatibility scenarios MUST reject unknown reason codes
 - non-strict compatibility scenarios MAY accept additive resolution fields
 
-## 10. Required tests
+## 11. Required tests
 
 Minimum test categories:
 
@@ -151,10 +159,11 @@ Required report outputs:
 - `usr-resolution-ambiguity-budget.json`
 - `usr-resolution-candidate-cap-events.json`
 
-## 11. References
+## 12. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
 
 

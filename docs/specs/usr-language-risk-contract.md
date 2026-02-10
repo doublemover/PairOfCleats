@@ -1,7 +1,7 @@
 # Spec -- USR Language Risk Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
@@ -118,7 +118,15 @@ Each taxonomy row in machine-readable risk profiles MUST include:
 
 Signal IDs MUST be stable across minor versions.
 
-## 8. Required artifacts and files
+## 8. Provenance-aware risk attribution
+
+Risk findings derived from generated/macro/transpiled surfaces MUST preserve provenance attrs:
+
+- risk findings MUST include origin mapping quality from the provenance contract
+- findings with approximate or missing provenance MUST include downgrade diagnostics
+- cross-segment/template bridge risk findings MUST preserve bridge evidence attrs
+
+## 9. Required artifacts and files
 
 - `tests/lang/matrix/usr-language-risk-profiles.json`
 - risk fixtures under `tests/fixtures/usr/risk/<language-id>/`
@@ -129,10 +137,12 @@ Required report outputs:
 - `usr-risk-signal-distribution.json`
 - `usr-risk-gating-downgrades.json`
 
-## 9. References
+## 10. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 
