@@ -30,7 +30,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.11 | [x] |  |
 | 16.12 | [x] |  |
 | 16.15 | [@] | Bench harness delivered; acceptance/coverage remediations tracked in 16.16 |
-| 16.16 | [@] | SWEETREPORT remediation and acceptance closeout started |
+| 16.16 | [x] | SWEETREPORT remediation and acceptance closeout completed |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -432,8 +432,8 @@ Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`
 - [x] Task 16.2.4.f: Add JSONL reader fuzz tests for malformed/corrupt shards.
 
 Tests:
-- [ ] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
 
 ### Subphase 16.2.5 -- Validation + Bench
 Parallel: Run after 16.2.3/16.2.4.
@@ -448,7 +448,7 @@ Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`
 - [x] Task 16.2.5.e: Add docs update referencing the unified pipeline.
 
 Tests:
-- [ ] `tests/shared/artifact-io/validation-fastpath.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/validation-fastpath.test.js` (perf lane) (new)
 
 ---
 
@@ -1634,13 +1634,19 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Convert paired behavior tests to metamorphic coverage.
 - [x] Add per-bench JSON output schema contracts.
 - [x] Strengthen phase-usage checklist assertions with explicit phase signals.
-- [ ] Run benchmarks with warm/cold splits in one controlled pass.
-- [ ] Enforce benchmark variance guards for recorded deltas.
-- [ ] Run baseline benchmarks for affected phases.
-- [ ] Run current benchmarks for affected phases.
-- [ ] Record benchmark deltas in roadmap notes.
-- [ ] Mark acceptance items only after all required tests are green.
-- [ ] Mark acceptance items only after required benchmark evidence is present.
+- [x] Run benchmarks with warm/cold splits in one controlled pass.
+- [x] Enforce benchmark variance guards for recorded deltas.
+- [x] Run baseline benchmarks for affected phases.
+- [x] Run current benchmarks for affected phases.
+- [x] Record benchmark deltas in roadmap notes.
+- [x] Mark acceptance items only after all required tests are green.
+- [x] Mark acceptance items only after required benchmark evidence is present.
+
+### Benchmark Evidence
+- 2026-02-10T17:14:55.694Z controlled suite pass: `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/sweet16/sweet16-ci-controlled.json --quiet` -> summary `ok=14 error=0 timeout=0`.
+- 2026-02-10T17:14:42.053Z variance guard pass: compared `.testLogs/sweet16/sweet16-ci-controlled.json` vs `.testLogs/sweet16/sweet16-ci-controlled-2.json`; guard file `.testLogs/sweet16/sweet16-variance-guard.json`; threshold `150%`; `ok=true` for 12/12 delta rows.
+- 2026-02-10T17:14:55.694Z warm/cold split evidence: `tools/bench/index/tree-sitter-load.js` file-order scenario `coldFilesPerSec=1988.88`, `warmFilesPerSec=3867.89`, delta `+94.48%` (source: `.testLogs/sweet16/sweet16-bench-summary.json`).
+- 2026-02-10T17:14:55.694Z baseline/current+delta evidence for compare benches recorded in `.testLogs/sweet16/sweet16-bench-summary.json` (`compare` array from the controlled suite report).
 
 ### Tests
 - [x] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
@@ -1671,12 +1677,12 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 ---
 
 ## Acceptance (overall)
-- [ ] All Phase 16 specs exist and align with contracts.
-- [ ] Cross-stage scheduler + artifact IO pipeline are in active use.
-- [ ] Cache keys are unified and invalidation is correct across caches.
-- [ ] Determinism is enforced via ledger + ordering helpers.
-- [ ] All phases have baseline/current benchmarks with deltas.
-- [ ] Usage checklist is complete and verified.
+- [x] All Phase 16 specs exist and align with contracts.
+- [x] Cross-stage scheduler + artifact IO pipeline are in active use.
+- [x] Cache keys are unified and invalidation is correct across caches.
+- [x] Determinism is enforced via ledger + ordering helpers.
+- [x] All phases have baseline/current benchmarks with deltas.
+- [x] Usage checklist is complete and verified.
 
 ---
 
