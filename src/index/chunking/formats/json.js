@@ -24,6 +24,18 @@ const parseJsonString = (text, start) => {
   return null;
 };
 
+const findNextNonWhitespace = (text, start) => {
+  let i = start;
+  while (i < text.length) {
+    const code = text.charCodeAt(i);
+    if (code !== 0x20 && code !== 0x0a && code !== 0x0d && code !== 0x09) {
+      return i;
+    }
+    i += 1;
+  }
+  return -1;
+};
+
 export function chunkJson(text, context) {
   if (context?.treeSitter?.configChunking === true) {
     const treeChunks = buildTreeSitterChunks({
@@ -51,8 +63,7 @@ export function chunkJson(text, context) {
     if (ch === '"') {
       const parsedString = parseJsonString(text, i);
       if (!parsedString) break;
-      const nextIdx = text.slice(parsedString.end + 1).search(/\S/);
-      const nextPos = nextIdx >= 0 ? parsedString.end + 1 + nextIdx : -1;
+      const nextPos = findNextNonWhitespace(text, parsedString.end + 1);
       if (nextPos > 0 && text[nextPos] === ':' && depth === 1) {
         keys.push({ name: parsedString.value, index: i });
       }
