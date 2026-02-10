@@ -1,7 +1,7 @@
 # Spec -- USR Normalization Mapping Contract
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -109,8 +109,31 @@ Outputs:
 - `usr-node-kind-mapping-coverage.json` (recommended)
 - `usr-node-kind-mapping-conflicts.json` (on failure)
 
-## 8. References
+## 8. Registry ordering and canonical serialization requirements
+
+`usr-node-kind-mapping.json` entries MUST be serialized in canonical sorted order:
+
+1. `languageId` lexical (`*` last)
+2. `parserSource` lexical (`*` last)
+3. `rawKind` lexical
+4. `priority` numeric ascending
+5. `normalizedKind` lexical
+
+Writers MUST preserve this order across reruns for identical source inputs.
+
+## 9. Minimum schema strictness requirements
+
+Strict validators MUST enforce:
+
+- `confidence` in `[0,1]`
+- `priority >= 0`
+- non-empty `rawKind`
+- `normalizedKind` and `category` from canonical enums
+- disallow unknown keys unless explicitly namespaced extension fields are enabled
+
+## 10. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
+

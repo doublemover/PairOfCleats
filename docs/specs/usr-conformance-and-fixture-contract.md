@@ -1,7 +1,7 @@
 # Spec -- USR Conformance and Fixture Contract
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -67,6 +67,15 @@ Framework profiles additionally require:
 - style scope family
 - hydration boundary family (where applicable)
 
+Fixture ID format:
+
+- `<language-or-framework>::<family>::<case-id>`
+
+Examples:
+
+- `typescript::fallback::parser-unavailable-001`
+- `vue::template-binding::slot-prop-ambiguous-002`
+
 ## 3. Golden generation contract
 
 Golden files MUST:
@@ -93,6 +102,11 @@ Required outputs:
 
 - `usr-determinism-rerun-diff.json`
 - `usr-conformance-summary.json`
+
+Pass thresholds:
+
+- strict conformance lane: 100% pass for required assertions
+- warning-budget lane: failures allowed only for explicitly budgeted non-blocking scenarios
 
 ## 5. Failure triage protocol (normative)
 
@@ -121,9 +135,23 @@ Conformance fixtures MUST link to:
 - framework profiles (`usr-framework-profiles.json`)
 - backcompat matrix (`usr-backcompat-matrix.json`)
 
-## 7. References
+## 7. Required triage metadata fields
+
+Every conformance failure record SHOULD include:
+
+- `fixtureId`
+- `languageId`
+- `frameworkProfile` (nullable)
+- `conformanceLevel`
+- `diagnosticCodes`
+- `reasonCodes`
+- `owner`
+- `blocking`
+
+## 8. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+

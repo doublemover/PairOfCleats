@@ -1,7 +1,7 @@
 # Spec -- USR Resolution and Linking Contract
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -108,13 +108,31 @@ Normalization rules:
 | `template_binds` | cross-block/template binding ambiguity MUST preserve bridge candidates |
 | `style_scopes` | unresolved style ownership MUST use style-specific reason codes |
 
-## 7. Compatibility and migration rules
+## 7. Candidate scoring policy
+
+Implementations MUST apply deterministic candidate scoring inputs in this precedence:
+
+1. lexical and scope compatibility
+2. type/shape compatibility
+3. module/import graph proximity
+4. framework/compiler provenance strength
+5. heuristic evidence
+
+Score tie handling MUST produce deterministic ambiguity output and MUST NOT auto-resolve ties.
+
+## 8. Suppression and derived-edge policy
+
+- `suppressed` edges are allowed only when explicit policy forbids emission of an otherwise derivable edge.
+- `derived` edges MUST include evidence source and confidence rationale in attrs/evidence.
+- suppressed or derived outcomes MUST never violate endpoint constraints.
+
+## 9. Compatibility and migration rules
 
 - readers MUST handle `resolved|ambiguous|unresolved` in `usr-1.0.0`
 - strict compatibility scenarios MUST reject unknown reason codes
 - non-strict compatibility scenarios MAY accept additive resolution fields
 
-## 8. Required tests
+## 10. Required tests
 
 Minimum test categories:
 
@@ -124,8 +142,15 @@ Minimum test categories:
 - non-strict compatibility adapter behavior
 - edge endpoint + resolution envelope coherence
 
-## 9. References
+Required report outputs:
+
+- `usr-resolution-outcome-distribution.json`
+- `usr-resolution-reason-code-distribution.json`
+- `usr-resolution-ambiguity-budget.json`
+
+## 11. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+
