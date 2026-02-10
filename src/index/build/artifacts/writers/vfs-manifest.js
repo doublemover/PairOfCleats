@@ -13,7 +13,6 @@ import {
 import { stringifyJsonValue } from '../../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../../shared/json-stream/streams.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
 import { mergeSortedRuns, readJsonlRows } from '../../../../shared/merge.js';
 import {
@@ -23,17 +22,16 @@ import {
 } from '../../../tooling/vfs.js';
 import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildShardedPartEntries,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
 const VFS_BLOOM_FALSE_POSITIVE = 0.01;
 const VFS_BLOOM_MIN_BITS = 1024;
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
 
 const resolveLineBytes = (value) => {
   const line = stringifyJsonValue(value);
@@ -461,26 +459,13 @@ export const enqueueVfsManifestArtifacts = async ({
               compression,
               gzipOptions
             });
-          const parts = result.parts.map((part, index) => ({
-            path: part,
-            records: result.counts[index] || 0,
-            bytes: result.bytes[index] || 0
-          }));
-          await writeJsonObjectFile(metaPath, {
-            fields: {
-              schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-              artifact: 'vfs_manifest',
-              format: 'jsonl-sharded',
-              generatedAt: new Date().toISOString(),
-              compression: compression || 'none',
-              totalRecords: result.total,
-              totalBytes: result.totalBytes,
-              maxPartRecords: result.maxPartRecords,
-              maxPartBytes: result.maxPartBytes,
-              targetMaxBytes: result.targetMaxBytes,
-              parts
-            },
-            atomic: true
+          const parts = buildShardedPartEntries(result);
+          await writeShardedJsonlMeta({
+            metaPath,
+            artifact: 'vfs_manifest',
+            compression,
+            result,
+            parts
           });
           for (let i = 0; i < result.parts.length; i += 1) {
             const relPath = result.parts[i];
@@ -517,26 +502,13 @@ export const enqueueVfsManifestArtifacts = async ({
                 atomic: true,
                 compression: null
               });
-            const mapParts = mapResult.parts.map((part, index) => ({
-              path: part,
-              records: mapResult.counts[index] || 0,
-              bytes: mapResult.bytes[index] || 0
-            }));
-            await writeJsonObjectFile(mapMetaPath, {
-              fields: {
-                schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-                artifact: 'vfs_path_map',
-                format: 'jsonl-sharded',
-                generatedAt: new Date().toISOString(),
-                compression: 'none',
-                totalRecords: mapResult.total,
-                totalBytes: mapResult.totalBytes,
-                maxPartRecords: mapResult.maxPartRecords,
-                maxPartBytes: mapResult.maxPartBytes,
-                targetMaxBytes: mapResult.targetMaxBytes,
-                parts: mapParts
-              },
-              atomic: true
+            const mapParts = buildShardedPartEntries(mapResult);
+            await writeShardedJsonlMeta({
+              metaPath: mapMetaPath,
+              artifact: 'vfs_path_map',
+              compression: null,
+              result: mapResult,
+              parts: mapParts
             });
             for (let i = 0; i < mapResult.parts.length; i += 1) {
               const relPath = mapResult.parts[i];

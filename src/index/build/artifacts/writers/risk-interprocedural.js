@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   writeJsonLinesFile,
@@ -6,29 +5,15 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { buildRiskInterproceduralArtifactRef, buildRiskInterproceduralStats } from '../../../risk-interprocedural/engine.js';
-
-const measureTotalBytes = (rows) => {
-  let total = 0;
-  for (const row of rows || []) {
-    const line = JSON.stringify(row);
-    total += Buffer.byteLength(line, 'utf8') + 1;
-  }
-  return total;
-};
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
-
-const removeJsonlVariants = async (outDir, base) => {
-  await fs.rm(path.join(outDir, `${base}.jsonl`), { force: true });
-  await fs.rm(path.join(outDir, `${base}.jsonl.gz`), { force: true });
-  await fs.rm(path.join(outDir, `${base}.jsonl.zst`), { force: true });
-};
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  measureJsonlRows,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const writeJsonlArtifact = ({
   name,
@@ -45,7 +30,7 @@ const writeJsonlArtifact = ({
 }) => {
   if (!Array.isArray(rows)) return null;
   if (!rows.length && !forceEmpty) return null;
-  const totalBytes = measureTotalBytes(rows);
+  const { totalBytes } = measureJsonlRows(rows);
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
   const useShards = resolvedMaxBytes && totalBytes > resolvedMaxBytes && rows.length > 0;
   const jsonlExtension = resolveJsonlExtension(compression);
@@ -56,9 +41,11 @@ const writeJsonlArtifact = ({
     enqueueWrite(
       formatArtifactLabel(basePath),
       async () => {
-        await removeJsonlVariants(outDir, name);
-        await fs.rm(metaPath, { force: true });
-        await fs.rm(path.join(outDir, `${name}.parts`), { recursive: true, force: true });
+        await removeArtifacts([
+          ...buildJsonlVariantPaths({ outDir, baseName: name }),
+          metaPath,
+          path.join(outDir, `${name}.parts`)
+        ]);
         await writeJsonLinesFile(basePath, rows, { atomic: true, compression, gzipOptions });
       }
     );
@@ -84,7 +71,7 @@ const writeJsonlArtifact = ({
   enqueueWrite(
     formatArtifactLabel(metaPath),
     async () => {
-      await removeJsonlVariants(outDir, name);
+      await removeArtifacts(buildJsonlVariantPaths({ outDir, baseName: name }));
       const result = await writeJsonLinesSharded({
         dir: outDir,
         partsDirName: `${name}.parts`,
@@ -95,26 +82,13 @@ const writeJsonlArtifact = ({
         compression,
         gzipOptions
       });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
-      await writeJsonObjectFile(metaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: name,
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          parts
-        },
-        atomic: true
+      const parts = buildShardedPartEntries(result);
+      await writeShardedJsonlMeta({
+        metaPath,
+        artifact: name,
+        compression,
+        result,
+        parts
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];

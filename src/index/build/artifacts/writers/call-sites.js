@@ -8,9 +8,16 @@ import {
 import { sha1 } from '../../../../shared/hash.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createOffsetsMeta } from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  measureJsonlRows,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const MAX_ARGS_PER_CALL = 5;
 const MAX_ARG_TEXT_LEN = 80;
@@ -178,20 +185,7 @@ export const enqueueCallSitesArtifacts = ({
   if (!rows.length && !forceEmpty) return null;
 
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
-  let totalBytes = 0;
-  let maxLineBytes = 0;
-  for (const row of rows) {
-    const line = JSON.stringify(row);
-    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-    totalBytes += lineBytes;
-    if (lineBytes > maxLineBytes) maxLineBytes = lineBytes;
-  }
-
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
+  const { totalBytes, maxLineBytes } = measureJsonlRows(rows);
   const jsonlExtension = resolveJsonlExtension(compression);
   const callSitesPath = path.join(outDir, `call_sites.${jsonlExtension}`);
   const callSitesMetaPath = path.join(outDir, 'call_sites.meta.json');
@@ -199,12 +193,9 @@ export const enqueueCallSitesArtifacts = ({
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${callSitesPath}.${offsetsConfig.suffix}` : null;
 
-  const removeJsonlVariants = async () => {
-    await fs.rm(path.join(outDir, 'call_sites.jsonl'), { force: true });
-    await fs.rm(path.join(outDir, 'call_sites.jsonl.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'call_sites.jsonl.zst'), { force: true });
-    await fs.rm(path.join(outDir, 'call_sites.jsonl.offsets.bin'), { force: true });
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'call_sites', includeOffsets: true })
+  );
 
   if (resolvedMaxBytes && maxLineBytes > resolvedMaxBytes) {
     throw new Error(`call_sites row exceeds max JSON size (${maxLineBytes} bytes).`);
@@ -276,32 +267,19 @@ export const enqueueCallSitesArtifacts = ({
         gzipOptions,
         offsets: offsetsConfig
       });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
+      const parts = buildShardedPartEntries(result);
       const offsetsMeta = createOffsetsMeta({
         suffix: offsetsConfig?.suffix || null,
         parts: result.offsets,
         compression: 'none'
       });
-      await writeJsonObjectFile(callSitesMetaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: 'call_sites',
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined,
-          parts
-        },
-        atomic: true
+      await writeShardedJsonlMeta({
+        metaPath: callSitesMetaPath,
+        artifact: 'call_sites',
+        compression,
+        result,
+        parts,
+        extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];

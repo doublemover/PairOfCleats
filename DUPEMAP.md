@@ -62,7 +62,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | --- | --- | --- |
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [@] | Shared primitive consolidation |
-| D2 | [@] | JSONL merge + artifact writer scaffolding |
+| D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
 | D5 | [ ] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
@@ -1035,30 +1035,40 @@ D2.1 status update (2026-02-09T22:12:23.3819463-05:00):
 
 ### Subphase D2.2 — Writer scaffolding commonization
 Tasks:
-- [ ] Task D2.2.a: Create `_common.js` helpers for extension resolution, cleanup, sizing, and shard/meta output.
+- [x] Task D2.2.a: Create `_common.js` helpers for extension resolution, cleanup, sizing, and shard/meta output.
 Details: API must support all artifact writer combinations.
-- [ ] Task D2.2.b: Migrate all artifact writers to `_common.js`.
+- [x] Task D2.2.b: Migrate all artifact writers to `_common.js`.
 Details: Cover call-sites, chunk-meta, chunk-uid-map, file-relations, risk-interprocedural, symbol-edges, symbol-occurrences, symbols, vfs-manifest.
-- [ ] Task D2.2.c: Remove writer-local extension resolver and duplicate cleanup logic.
+- [x] Task D2.2.c: Remove writer-local extension resolver and duplicate cleanup logic.
 Details: Ensure all writers call canonical helpers.
-- [ ] Task D2.2.d: Remove duplicate `resolveJsonlExtension` body in `src/shared/json-stream.js`.
+- [x] Task D2.2.d: Remove duplicate `resolveJsonlExtension` body in `src/shared/json-stream.js`.
 Details: Keep one implementation and one export path.
 
+D2.2 status update (2026-02-09T22:25:47.8177996-05:00):
+- resolved: added canonical writer scaffolding helper module `src/index/build/artifacts/writers/_common.js` (extension resolution, cleanup path builders, JSONL size measurement, sharded-part/meta construction).
+- resolved: migrated writer callsites (`call-sites`, `chunk-meta`, `chunk-uid-map`, `file-relations`, `risk-interprocedural`, `symbol-edges`, `symbol-occurrences`, `symbols`, `vfs-manifest`) to shared writer scaffolding APIs.
+- resolved: removed writer-local `resolveJsonlExtension` helper bodies and replaced duplicate cleanup/meta-part mapping blocks with shared helpers.
+- resolved: consolidated `resolveJsonlExtension` in `src/shared/json-stream.js` to one exported implementation used by both sharded sync/async write paths.
+- remaining: D4+ phase work remains (retrieval/API/MCP/ANN and later phases).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "class MinHeap|function\* readJsonlRows|mergeSortedRuns\(" src`, `rg "resolveJsonlExtension\(" src/index/build/artifacts/writers src/shared/json-stream.js`, `rg "\.parts|\.meta\.json|jsonl\.zst|jsonl\.gz" src/index/build/artifacts/writers`.
+
 ### Exhaustive sweeps
-- [ ] `rg "class MinHeap|function\* readJsonlRows|mergeSortedRuns\(" src`
-- [ ] `rg "resolveJsonlExtension\(" src/index/build/artifacts/writers src/shared/json-stream.js`
-- [ ] `rg "\.parts|\.meta\.json|jsonl\.zst|jsonl\.gz" src/index/build/artifacts/writers`
+- [x] `rg "class MinHeap|function\* readJsonlRows|mergeSortedRuns\(" src`
+- [x] `rg "resolveJsonlExtension\(" src/index/build/artifacts/writers src/shared/json-stream.js`
+- [x] `rg "\.parts|\.meta\.json|jsonl\.zst|jsonl\.gz" src/index/build/artifacts/writers`
 
 ### Tests
-- [ ] `tests/shared/merge/merge-contract.test.js` (new)
-- [ ] `tests/shared/merge/merge-determinism.test.js` (new)
-- [ ] `tests/indexing/artifacts/writers/writer-common-contract.test.js` (new)
-- [ ] `tests/indexing/artifacts/resolution-strictness-parity.test.js` (new)
+- [x] `tests/shared/merge/merge-contract.test.js` (new)
+- [x] `tests/shared/merge/merge-determinism.test.js` (new)
+- [x] `tests/indexing/artifacts/writers/writer-common-contract.test.js` (new)
+- [x] `tests/indexing/artifacts/resolution-strictness-parity.test.js` (new)
 - [x] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (update)
 - [x] `tests/tooling/vfs/vfs-manifest-streaming.test.js` (update; merge plan in D7)
 
 ### Exit criteria
-- [ ] Exactly one merge/read stack and one writer scaffolding stack remain.
+- [x] Exactly one merge/read stack and one writer scaffolding stack remain.
 
 ---
 

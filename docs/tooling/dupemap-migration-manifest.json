@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:12:23.3819463-05:00",
+  "updatedAt": "2026-02-09T22:25:47.8177996-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -17,7 +17,7 @@
       "clusterId": "C02",
       "title": "JSONL writer scaffolding + extension resolution",
       "phase": "D2",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/build/artifacts/writers/symbols.js",
         "src/index/build/artifacts/writers/chunk-meta.js"
@@ -303,7 +303,7 @@
       "clusterId": "A01",
       "title": "Duplicate resolveJsonlExtension within src/shared/json-stream.js",
       "phase": "D2",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/shared/json-stream.js"
       ],
@@ -344,8 +344,8 @@
     }
   ],
   "migrations": [
-    { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "planned" },
-    { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "planned" },
+    { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
+    { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
     { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::buildSqliteFromArtifacts", "newPathOrSymbol": "src/storage/sqlite/build/core.js::buildSqliteCore", "status": "planned" },
     { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveSqliteOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveSqliteOutputPaths", "status": "planned" },
     { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "planned" },
@@ -371,7 +371,7 @@
     { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
     { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
     { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
-    { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "planned" },
+    { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "planned" },
     { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
     { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" },
@@ -422,7 +422,15 @@
     { "migrationId": "M076", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/vfs-manifest.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
     { "migrationId": "M077", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/tooling/vfs.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
     { "migrationId": "M078", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/integrations/tooling/api-contracts.js::readJsonlRows import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
-    { "migrationId": "M079", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::mergeSortedRuns import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" }
+    { "migrationId": "M079", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::mergeSortedRuns import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
+    { "migrationId": "M080", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::resolveJsonlExtension (writer-local bodies)", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M081", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::result.parts.map({path,records,bytes})", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::buildShardedPartEntries", "status": "completed" },
+    { "migrationId": "M082", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::duplicate jsonl variant cleanup/remove blocks", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::{buildJsonlVariantPaths,removeArtifacts}", "status": "completed" },
+    { "migrationId": "M083", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/{call-sites,chunk-uid-map,risk-interprocedural,symbols}::row-byte sizing loops", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::measureJsonlRows", "status": "completed" },
+    { "migrationId": "M084", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/file-relations.js::resolveJsonExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonExtension", "status": "completed" },
+    { "migrationId": "M085", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::inline sharded metadata payload boilerplate", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::writeShardedJsonlMeta", "status": "completed" },
+    { "migrationId": "M086", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::writeJsonLinesSharded local resolveJsonlExtension body", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M087", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::writeJsonLinesShardedAsync local resolveJsonlExtension body", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -515,6 +523,13 @@
       "scope": "src/**,tools/**",
       "pattern": "local MinHeap/readJsonlRows/mergeSortedRuns helper bodies outside src/shared/merge.js",
       "replacement": "src/shared/merge.js::{MinHeap,readJsonlRows,mergeSortedRuns}"
+    },
+    {
+      "banId": "B023",
+      "phase": "D2",
+      "scope": "src/index/build/artifacts/writers/**",
+      "pattern": "writer-local resolveJsonlExtension helper bodies",
+      "replacement": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension"
     }
   ],
   "exceptions": [],
