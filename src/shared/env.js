@@ -67,6 +67,7 @@ export function getEnvConfig(env = process.env) {
     schedulerStarvationMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_STARVATION_MS),
     schedulerLowResource: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_LOW_RESOURCE),
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
+    traceArtifactIo: normalizeBoolean(env.PAIROFCLEATS_TRACE_ARTIFACT_IO),
     modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
     dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),
     extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),

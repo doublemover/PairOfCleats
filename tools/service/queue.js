@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
+import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 
@@ -13,59 +15,21 @@ const readJson = async (filePath, fallback) => {
   }
 };
 
-const isProcessAlive = (pid) => {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
-};
-
-const readLockInfo = async (lockPath) => readJson(lockPath, null);
-
-const isLockStale = async (lockPath, staleMs) => {
-  try {
-    const info = await readLockInfo(lockPath);
-    if (info?.startedAt) {
-      const startedAt = Date.parse(info.startedAt);
-      if (Number.isFinite(startedAt) && Date.now() - startedAt > staleMs) return true;
-    }
-    const stat = await fs.stat(lockPath);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return false;
-  }
-};
-
 const withLock = async (lockPath, worker) => {
-  const start = Date.now();
-  while (true) {
-    try {
-      const handle = await fs.open(lockPath, 'wx');
-      try {
-        await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
-        return await worker();
-      } finally {
-        await handle.close();
-        await fs.rm(lockPath, { force: true });
-      }
-    } catch (err) {
-      if (err?.code !== 'EEXIST') throw err;
-      const info = await readLockInfo(lockPath);
-      const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
-      const pidAlive = pid ? isProcessAlive(pid) : false;
-      const stale = await isLockStale(lockPath, DEFAULT_LOCK_STALE_MS);
-      if ((pid && !pidAlive) || (stale && !pid)) {
-        try {
-          await fs.rm(lockPath, { force: true });
-          continue;
-        } catch {}
-      }
-      if (Date.now() - start > 5000) throw new Error('Queue lock timeout.');
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs: 5000,
+    pollMs: 100,
+    staleMs: DEFAULT_LOCK_STALE_MS,
+    metadata: { scope: 'service-queue' },
+    timeoutBehavior: 'throw',
+    timeoutMessage: 'Queue lock timeout.'
+  });
+  if (!lock) throw new Error('Queue lock timeout.');
+  try {
+    return await worker();
+  } finally {
+    await lock.release();
   }
 };
 
@@ -119,7 +83,7 @@ export async function loadQueue(dirPath, queueName = null) {
 
 export async function saveQueue(dirPath, queue, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
-  await fs.writeFile(queuePath, JSON.stringify(queue, null, 2));
+  await atomicWriteJson(queuePath, queue, { spaces: 2 });
 }
 
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
@@ -213,11 +177,11 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     await saveQueue(dirPath, queue, queueName);
     const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
     try {
-      await fs.writeFile(reportPath, JSON.stringify({
+      await atomicWriteJson(reportPath, {
         updatedAt: new Date().toISOString(),
         status: job.status,
         job
-      }, null, 2));
+      }, { spaces: 2 });
     } catch {}
     return job;
   });

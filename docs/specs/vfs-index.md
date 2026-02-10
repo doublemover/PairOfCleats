@@ -45,6 +45,17 @@ Each index row corresponds to exactly one JSONL row in the paired `vfs_manifest`
 - `offset` and `bytes` MUST identify a single JSONL line that parses to a row with the matching `virtualPath`.
 - Index emission is skipped for compressed manifests (gzip/zstd), because offsets are not stable.
 
+### 3.1 Lookup fast-path and fallbacks (notes)
+
+Consumers SHOULD treat `vfs_manifest.vfsidx` as a fast-path for `virtualPath -> row` resolution:
+
+- Preferred: Bloom gate -> vfsidx map lookup -> offset read.
+- Negative lookups SHOULD short-circuit via Bloom when available (avoid touching the index or scanning).
+- Full scans of `vfs_manifest` MUST be treated as an explicit fallback, and SHOULD be disabled by default
+  (see `loadVfsManifestRowByPath(..., allowScan=false)`).
+
+When a scan fallback is enabled (e.g., during debugging), consumers SHOULD surface the fallback in telemetry.
+
 ---
 
 ## 4) Producers / Consumers

@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-02-10T05:51:01.7514959-05:00",
+  "suite": "indexing-hotpath-bench",
+  "fixtures": {
+    "html": "benchmarks/repos/swift/alamofire__alamofire/docs/Classes.html",
+    "htmlBytes": 104354,
+    "swiftNoImportBytes": 441000
+  },
+  "results": {
+    "htmlFast": {
+      "label": "collectHtmlImports.fast",
+      "iterations": 30,
+      "totalMs": 3.976,
+      "perIterMs": 0.133
+    },
+    "htmlBaseline": {
+      "label": "collectHtmlImports.old_parse5",
+      "iterations": 8,
+      "totalMs": 116.381,
+      "perIterMs": 14.548
+    },
+    "htmlSpeedup": 109.38,
+    "swiftImportsFast": {
+      "label": "collectSwiftImports.fast_no_import_hint",
+      "iterations": 40,
+      "totalMs": 4.878,
+      "perIterMs": 0.122
+    },
+    "swiftImportsBaseline": {
+      "label": "collectSwiftImports.old_split_lines",
+      "iterations": 40,
+      "totalMs": 111.934,
+      "perIterMs": 2.798
+    },
+    "swiftImportsSpeedup": 22.93,
+    "swiftRelationsFast": {
+      "label": "buildSwiftRelations.fast_no_decl_hint",
+      "iterations": 20,
+      "totalMs": 38.596,
+      "perIterMs": 1.93
+    },
+    "swiftRelationsBaseline": {
+      "label": "buildSwiftRelations.old_decl_scan",
+      "iterations": 20,
+      "totalMs": 44.596,
+      "perIterMs": 2.23
+    },
+    "swiftRelationsSpeedup": 1.16
+  }
+}

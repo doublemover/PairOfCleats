@@ -64,6 +64,7 @@ export const SCHEDULER_QUEUE_NAMES = {
   stage1Proc: 'stage1.proc',
   stage1Postings: 'stage1.postings',
   stage2Relations: 'stage2.relations',
+  stage2RelationsIo: 'stage2.relations.io',
   stage4Sqlite: 'stage4.sqlite',
   embeddingsCompute: 'embeddings.compute',
   embeddingsIo: 'embeddings.io'

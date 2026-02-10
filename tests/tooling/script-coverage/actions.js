@@ -11,6 +11,23 @@ import { buildServiceActions } from './actions/services.js';
 import { buildStorageActions } from './actions/storage.js';
 import { buildToolActions } from './actions/tools.js';
 
+export const SCRIPT_COVERAGE_GROUPS = Object.freeze([
+  'core',
+  'storage',
+  'indexing',
+  'language',
+  'benchmarks',
+  'search',
+  'embeddings',
+  'services',
+  'fixtures',
+  'tools'
+]);
+
+const withGroup = (group, actions) => (
+  (actions || []).map((action) => ({ ...action, group: action.group || group }))
+);
+
 export const buildActions = async (context) => {
   const { root, fixtureRoot, repoEnv, baseCacheRoot, runNode } = context;
   const ciOutDir = context.ciOutDir || path.join(baseCacheRoot, 'ci-artifacts');
@@ -34,16 +51,16 @@ export const buildActions = async (context) => {
   };
 
   const actions = [
-    ...buildCoreActions(actionContext),
-    ...buildStorageActions(actionContext),
-    ...buildIndexingActions(actionContext),
-    ...buildLanguageActions(actionContext),
-    ...buildBenchmarkActions(actionContext),
-    ...buildSearchActions(actionContext),
-    ...buildEmbeddingActions(actionContext),
-    ...buildServiceActions(actionContext),
-    ...buildFixtureActions(actionContext),
-    ...buildToolActions(actionContext)
+    ...withGroup('core', buildCoreActions(actionContext)),
+    ...withGroup('storage', buildStorageActions(actionContext)),
+    ...withGroup('indexing', buildIndexingActions(actionContext)),
+    ...withGroup('language', buildLanguageActions(actionContext)),
+    ...withGroup('benchmarks', buildBenchmarkActions(actionContext)),
+    ...withGroup('search', buildSearchActions(actionContext)),
+    ...withGroup('embeddings', buildEmbeddingActions(actionContext)),
+    ...withGroup('services', buildServiceActions(actionContext)),
+    ...withGroup('fixtures', buildFixtureActions(actionContext)),
+    ...withGroup('tools', buildToolActions(actionContext))
   ];
 
   const mergeDir = context.mergeDir || path.join(baseCacheRoot, 'merge');
@@ -54,11 +71,12 @@ export const buildActions = async (context) => {
   await fsPromises.writeFile(mergeTarget, 'beta\ngamma\n');
 
   if (scriptNames) {
-    return actions.map((action) => ({
+    const filtered = actions.map((action) => ({
       ...action,
       covers: filterCovers(action.covers),
       coversTierB: filterCovers(action.coversTierB)
     }));
+    return filtered;
   }
   return actions;
 };

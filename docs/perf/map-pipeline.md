@@ -67,3 +67,9 @@ Outputs:
 ## Related docs
 - `docs/specs/map-artifact.md`
 - `docs/guides/code-maps.md`
+
+## Benchmarks
+- `node tools/bench/map/build-map-streaming.js --repo <repoRoot> --json`
+- `node tools/bench/map/build-map-memory.js --repo <repoRoot> --json`
+- Bench harness:
+- `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`

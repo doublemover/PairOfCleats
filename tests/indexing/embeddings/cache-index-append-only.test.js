@@ -77,7 +77,7 @@ const loadCacheIndex = async (rootDir) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const first = await loadCacheIndex(cacheRoot);
 const firstKeys = Object.keys(first.index.entries || {});
@@ -99,7 +99,7 @@ const before = await fsPromises.stat(shardPath);
 
 await fsPromises.appendFile(srcPath, 'export const beta = () => 2;\n');
 runNode('build_index changed', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_embeddings changed', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings changed', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const second = await loadCacheIndex(cacheRoot);
 const secondKeys = Object.keys(second.index.entries || {});

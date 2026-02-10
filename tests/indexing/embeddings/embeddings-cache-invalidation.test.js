@@ -113,6 +113,17 @@ const cacheKey = buildCacheKey({
   pathPolicy: 'posix'
 });
 assert.ok(cacheKey, 'expected cache key for hashed file');
+const cacheKeyOtherMode = buildCacheKey({
+  file: 'src/index.js',
+  hash: 'hash-1',
+  signature,
+  identityKey: base.key,
+  repoId: 'repo-1',
+  mode: 'prose',
+  featureFlags: ['normalize'],
+  pathPolicy: 'posix'
+});
+assert.notEqual(cacheKey, cacheKeyOtherMode, 'expected cache key to change with mode');
 const cacheKeyMismatch = buildCacheKey({
   file: 'src/index.js',
   hash: 'hash-1',

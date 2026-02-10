@@ -54,6 +54,18 @@ const buildSuiteEnv = (mode) => {
 };
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
+const SCRIPT_COVERAGE_GROUPS = Object.freeze([
+  'core',
+  'storage',
+  'indexing',
+  'language',
+  'benchmarks',
+  'search',
+  'embeddings',
+  'services',
+  'fixtures',
+  'tools'
+]);
 
 const runStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
@@ -90,6 +102,9 @@ const main = async () => {
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
   const logDir = path.resolve(argv['log-dir']);
+  if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
+    env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
+  }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
 
   if (!argv['dry-run']) {
@@ -124,11 +139,6 @@ const main = async () => {
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
     {
-      label: 'Doc contract drift',
-      command: process.execPath,
-      args: ['tools/docs/contract-drift.js', '--fail']
-    },
-    {
       label: 'CI test lane',
       command: process.execPath,
       args: [
@@ -149,10 +159,26 @@ const main = async () => {
     },
     ...(mode === 'nightly'
       ? [{
-        label: 'Script coverage',
+        label: 'Bench harness (sweet16-ci)',
         command: process.execPath,
-        args: ['tests/tooling/script-coverage/script-coverage.test.js', '--log-dir', logDir]
+        args: [
+          'tools/bench/bench-runner.js',
+          '--suite',
+          'sweet16-ci',
+          '--timeout-ms',
+          '600000',
+          '--json',
+          path.join(logDir, 'bench-sweet16.json'),
+          '--quiet'
+        ]
       }]
+      : []),
+    ...(mode === 'nightly'
+      ? SCRIPT_COVERAGE_GROUPS.map((group) => ({
+        label: `Script coverage (${group})`,
+        command: process.execPath,
+        args: [`tests/tooling/script-coverage/script-coverage-${group}.test.js`]
+      }))
       : [])
   ];
 

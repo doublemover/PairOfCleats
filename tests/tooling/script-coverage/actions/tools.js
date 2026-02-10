@@ -42,6 +42,26 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['gtags-ingest-test']
   },
   {
+    label: 'ctags-ingest-help',
+    run: () => runNode('ctags-ingest', path.join(root, 'tools', 'ingest', 'ctags.js'), ['--help']),
+    covers: ['ctags-ingest']
+  },
+  {
+    label: 'scip-ingest-help',
+    run: () => runNode('scip-ingest', path.join(root, 'tools', 'ingest', 'scip.js'), ['--help']),
+    covers: ['scip-ingest']
+  },
+  {
+    label: 'lsif-ingest-help',
+    run: () => runNode('lsif-ingest', path.join(root, 'tools', 'ingest', 'lsif.js'), ['--help']),
+    covers: ['lsif-ingest']
+  },
+  {
+    label: 'gtags-ingest-help',
+    run: () => runNode('gtags-ingest', path.join(root, 'tools', 'ingest', 'gtags.js'), ['--help']),
+    covers: ['gtags-ingest']
+  },
+  {
     label: 'vscode-extension-test',
     run: () => runNode('vscode-extension-test', path.join(root, 'tests', 'tooling', 'vscode', 'vscode-extension.test.js')),
     covers: ['vscode-extension-test']
@@ -185,6 +205,86 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     label: 'config-dump-test',
     run: () => runNode('config-dump-test', path.join(root, 'tests', 'tooling', 'config', 'config-dump.test.js')),
     covers: ['config-dump-test']
+  },
+  {
+    label: 'structural-search-help',
+    run: () => runNode('structural-search', path.join(root, 'tools', 'analysis', 'structural-search.js'), ['--help']),
+    covers: ['structural-search']
+  },
+  {
+    label: 'build-tantivy-index-help',
+    run: () => runNode('build-tantivy-index', path.join(root, 'tools', 'build', 'tantivy-index.js'), ['--help']),
+    covers: ['build-tantivy-index']
+  },
+  {
+    label: 'map-iso-help',
+    run: () => runNode('map-iso', path.join(root, 'tools', 'analysis', 'map-iso-serve.js'), ['--help']),
+    covers: ['map-iso']
+  },
+  {
+    label: 'config-dump-help',
+    run: () => runNode('config-dump', path.join(root, 'tools', 'config', 'dump.js'), ['--help']),
+    covers: ['config-dump']
+  },
+  {
+    label: 'config-reset-help',
+    run: () => runNode('config-reset', path.join(root, 'tools', 'config', 'reset.js'), ['--help']),
+    covers: ['config-reset']
+  },
+  {
+    label: 'config-budget-help',
+    run: () => runNode('config:budget', path.join(root, 'tools', 'config', 'inventory.js'), ['--help']),
+    covers: ['config:budget']
+  },
+  {
+    label: 'env-check-help',
+    run: () => runNode('env:check', path.join(root, 'tools', 'ci', 'check-env-usage.js'), ['--help']),
+    covers: ['env:check']
+  },
+  {
+    label: 'release-check-help',
+    run: () => runNode('release-check', path.join(root, 'tools', 'release', 'check.js'), ['--help']),
+    covers: ['release-check']
+  },
+  {
+    label: 'release-check-breaking-help',
+    run: () => runNode('release-check:breaking', path.join(root, 'tools', 'release', 'check.js'), ['--help']),
+    covers: ['release-check:breaking']
+  },
+  {
+    label: 'parity-matrix-help',
+    run: () => runNode('parity:matrix', path.join(root, 'tools', 'reports', 'parity-matrix.js'), ['--help']),
+    covers: ['parity:matrix']
+  },
+  {
+    label: 'eval-run-help',
+    run: () => runNode('eval-run', path.join(root, 'tools', 'eval', 'run.js'), ['--help']),
+    covers: ['eval-run']
+  },
+  {
+    label: 'bench-micro-tiny-help',
+    run: () => runNode('bench-micro:tiny', path.join(root, 'tools', 'bench', 'micro', 'tinybench.js'), ['--help']),
+    covers: ['bench-micro:tiny']
+  },
+  {
+    label: 'bench-queries-help',
+    run: () => runNode('bench-queries', path.join(root, 'tools', 'bench', 'query-generator.js'), ['--help']),
+    covers: ['bench-queries']
+  },
+  {
+    label: 'show-throughput-help',
+    run: () => runNode('show-throughput', path.join(root, 'tools', 'reports', 'show-throughput.js'), ['--help']),
+    covers: ['show-throughput']
+  },
+  {
+    label: 'get-last-failure-help',
+    run: () => runNode('get-last-failure', path.join(root, 'tools', 'ci', 'get-last-failure.js'), ['--help']),
+    covers: ['get-last-failure']
+  },
+  {
+    label: 'shard-census-help',
+    run: () => runNode('shard-census', path.join(root, 'tools', 'index', 'shard-census.js'), ['--help']),
+    covers: ['shard-census']
   },
   {
     label: 'uv-threadpool-env-test',

@@ -8,7 +8,6 @@ import { normalizeOptionalNumber } from '../../../src/shared/limits.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
-  loadGraphRelations,
   loadPiecesManifest,
   readCompatibilityKey
 } from '../../../src/shared/artifact-io.js';
@@ -22,6 +21,8 @@ import {
   buildChunkIndex,
   clearContextPackCaches
 } from '../../../src/context-pack/assemble.js';
+
+const durationMs = (startNs, endNs = process.hrtime.bigint()) => Number((endNs - startNs) / 1000000n);
 
 const resolveDefaultSeed = (chunkMeta) => {
   const first = Array.isArray(chunkMeta) ? chunkMeta[0] : null;
@@ -80,26 +81,58 @@ export async function runContextPackLatencyBench({
   caps = {},
   mode = 'compare'
 }) {
+  const timings = {};
+
+  const manifestStart = process.hrtime.bigint();
   const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
-  const graphRelations = await loadGraphRelations(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
-  const { key: indexCompatKey } = readCompatibilityKey(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  const indexSignature = await buildIndexSignature(indexDir);
+  timings.manifestMs = durationMs(manifestStart);
+
   const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
   const includeCsr = graphStore.hasArtifact('graph_relations_csr');
+
+  const chunkMetaStart = process.hrtime.bigint();
+  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
+  timings.chunkMetaMs = durationMs(chunkMetaStart);
+
+  const graphRelationsStart = process.hrtime.bigint();
+  const graphRelations = await graphStore.loadGraph();
+  timings.graphRelationsMs = durationMs(graphRelationsStart);
+
+  const compatStart = process.hrtime.bigint();
+  const { key: indexCompatKey } = readCompatibilityKey(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  timings.compatKeyMs = durationMs(compatStart);
+
+  const signatureStart = process.hrtime.bigint();
+  const indexSignature = await buildIndexSignature(indexDir);
+  timings.indexSignatureMs = durationMs(signatureStart);
+
   const graphCacheKey = buildGraphIndexCacheKey({
     indexSignature,
     repoRoot,
     graphs: ['callGraph', 'usageGraph', 'importGraph'],
     includeCsr
   });
+  const graphIndexStart = process.hrtime.bigint();
   const graphIndex = await graphStore.loadGraphIndex({
     repoRoot,
     cacheKey: graphCacheKey,
     graphs: ['callGraph', 'usageGraph', 'importGraph'],
     includeCsr
   });
+  timings.graphIndexColdMs = durationMs(graphIndexStart);
+
+  const graphIndexWarmStart = process.hrtime.bigint();
+  await graphStore.loadGraphIndex({
+    repoRoot,
+    cacheKey: graphCacheKey,
+    graphs: ['callGraph', 'usageGraph', 'importGraph'],
+    includeCsr
+  });
+  timings.graphIndexWarmMs = durationMs(graphIndexWarmStart);
+
+  const chunkIndexStart = process.hrtime.bigint();
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
+  timings.chunkIndexMs = durationMs(chunkIndexStart);
 
   const resolvedSeed = seed || resolveDefaultSeed(chunkMeta);
   if (!resolvedSeed) {
@@ -131,6 +164,7 @@ export async function runContextPackLatencyBench({
       iterations,
       buildPayload: () => {
         clearContextPackCaches();
+        if (graphIndex && graphIndex._traversalCache) graphIndex._traversalCache.clear();
         return assembleCompositeContextPack({
           ...assembleArgs,
           graphRelations,
@@ -146,15 +180,37 @@ export async function runContextPackLatencyBench({
       iterations,
       buildPayload: () => assembleCompositeContextPack({
         ...assembleArgs,
-        graphRelations,
+        graphRelations: null,
         graphIndex,
         chunkIndex
       })
     });
   }
 
+  const graphStoreStats = graphStore.stats();
+  const traversalTelemetry = graphIndex?._traversalTelemetry && typeof graphIndex._traversalTelemetry === 'object'
+    ? graphIndex._traversalTelemetry
+    : null;
+  const traversalCacheSize = graphIndex?._traversalCache?.size || 0;
+
   return {
     mode: normalizedMode,
+    meta: {
+      seed: resolvedSeed,
+      timings,
+      graphStore: graphStoreStats,
+      graphStoreArtifactsUsed: graphStore.getArtifactsUsed(),
+      csr: {
+        available: Boolean(includeCsr),
+        used: Boolean(graphIndex?.graphRelationsCsr),
+        source: graphStoreStats?.lastBuild?.csrSource || null,
+        bytes: graphStoreStats?.lastBuild?.csrBytes || 0
+      },
+      traversalCache: {
+        size: traversalCacheSize,
+        telemetry: traversalTelemetry
+      }
+    },
     ...results
   };
 }

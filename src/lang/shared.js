@@ -127,8 +127,11 @@ export function extractDocComment(lines, startLineIdx, options = {}) {
 export function collectAttributes(lines, startLineIdx, signature) {
   const accessor = resolveLinesAccessor(lines);
   const attrs = new Set();
+  const attrRe = /@([A-Za-z_][A-Za-z0-9_]*)/g;
   const addLine = (line) => {
-    for (const match of line.matchAll(/@([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    attrRe.lastIndex = 0;
+    let match;
+    while ((match = attrRe.exec(line)) !== null) {
       attrs.add(match[1]);
     }
   };

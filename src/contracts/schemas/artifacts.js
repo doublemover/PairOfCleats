@@ -835,6 +835,20 @@ const vfsManifestIndexRow = {
   additionalProperties: false
 };
 
+const vfsManifestBloom = {
+  type: 'object',
+  required: ['schemaVersion', 'algorithm', 'bits', 'hashes', 'count', 'bytes'],
+  properties: {
+    schemaVersion: { type: 'string' },
+    algorithm: { type: 'string' },
+    bits: intId,
+    hashes: intId,
+    count: intId,
+    bytes: { type: 'string' }
+  },
+  additionalProperties: false
+};
+
 const chunkUidMapRow = {
   type: 'object',
   required: ['docId', 'chunkUid', 'chunkId', 'file', 'start', 'end'],
@@ -898,6 +912,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
     type: 'array',
     items: vfsManifestIndexRow
   },
+  vfs_manifest_bloom: vfsManifestBloom,
   file_meta: {
     anyOf: [
       {

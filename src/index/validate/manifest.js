@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadPiecesManifest } from '../../shared/artifact-io.js';
+import { existsOrBak } from '../../shared/artifact-io/fs.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
 import { fromPosix, isAbsolutePathNative } from '../../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
@@ -8,24 +9,29 @@ import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const loadPiecesManifestWithRetry = async (dir, { strict }) => {
+  if (!strict) return loadPiecesManifest(dir, { strict: false });
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return loadPiecesManifest(dir, { strict: true });
+    } catch (err) {
+      if (err?.code !== 'ERR_MANIFEST_MISSING' || attempt >= maxAttempts) {
+        throw err;
+      }
+      await sleep(25 * attempt);
+    }
+  }
+  return null;
+};
+
 export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeReport }) => {
   let manifest = null;
-  const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-  if (!fs.existsSync(manifestPath)) {
-    const message = 'pieces/manifest.json missing';
-    if (strict) {
-      modeReport.ok = false;
-      modeReport.missing.push(message);
-      report.issues.push(`[${mode}] ${message}`);
-    } else {
-      modeReport.warnings.push(message);
-      report.warnings.push(`[${mode}] ${message}`);
-    }
-    return { manifest };
-  }
 
   try {
-    manifest = loadPiecesManifest(dir, { strict });
+    manifest = await loadPiecesManifestWithRetry(dir, { strict });
     validateSchema(
       report,
       mode,
@@ -81,7 +87,7 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
           }
           continue;
         }
-        if (!fs.existsSync(absPath)) {
+        if (!existsOrBak(absPath)) {
           const issue = `piece missing: ${relPath}`;
           modeReport.ok = false;
           modeReport.missing.push(issue);
@@ -124,12 +130,17 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
       }
     }
   } catch (err) {
-    const issue = 'pieces/manifest.json invalid';
-    modeReport.ok = false;
-    modeReport.missing.push(issue);
-    report.issues.push(`[${mode}] ${issue}`);
+    const issue = err?.code === 'ERR_MANIFEST_MISSING'
+      ? 'pieces/manifest.json missing'
+      : 'pieces/manifest.json invalid';
     if (strict) {
+      modeReport.ok = false;
+      modeReport.missing.push(issue);
+      report.issues.push(`[${mode}] ${issue}`);
       report.hints.push('Rebuild index artifacts for this mode.');
+    } else {
+      modeReport.warnings.push(issue);
+      report.warnings.push(`[${mode}] ${issue}`);
     }
   }
 

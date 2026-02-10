@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
@@ -12,15 +13,11 @@ const cacheRoot = path.join(root, '.testCache', 'format-fidelity');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  testing: '1',
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], {
   cwd: fixtureRoot,
@@ -55,6 +52,7 @@ function findChunk(meta, match, fileById) {
     if (match.file && file !== match.file) return false;
     if (match.kind && chunk.kind !== match.kind) return false;
     if (match.nameIncludes && !String(chunk.name || '').includes(match.nameIncludes)) return false;
+    if (match.sigIncludes && !String(chunk?.docmeta?.signature || '').includes(match.sigIncludes)) return false;
     return true;
   });
 }
@@ -64,8 +62,8 @@ const failures = [];
 if (!findChunk(codeMeta, { file: 'src/config.json', nameIncludes: 'database' }, codeFileById)) {
   failures.push('Missing JSON chunk for database.');
 }
-if (!findChunk(codeMeta, { file: 'src/config.toml', nameIncludes: 'database' }, codeFileById)) {
-  failures.push('Missing TOML chunk for database.');
+if (!findChunk(codeMeta, { file: 'src/config.toml', nameIncludes: 'host' }, codeFileById)) {
+  failures.push('Missing TOML chunk for host.');
 }
 if (!findChunk(codeMeta, { file: 'src/config.ini', nameIncludes: 'server' }, codeFileById)) {
   failures.push('Missing INI chunk for server.');
@@ -88,19 +86,19 @@ if (!findChunk(codeMeta, { file: '.github/workflows/ci.yml', nameIncludes: 'buil
 if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration', nameIncludes: 'html' }, codeFileById)) {
   failures.push('Missing HTML element chunk for unknown.html.');
 }
-if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'settings' }, codeFileById)) {
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ScriptElement', sigIncludes: 'application/json' }, codeFileById)) {
   failures.push('Missing embedded JSON chunk for unknown.html.');
 }
-if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'build' }, codeFileById)) {
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration', sigIncludes: 'language-toml' }, codeFileById)) {
   failures.push('Missing embedded TOML chunk for unknown.html.');
 }
-if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'server' }, codeFileById)) {
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration', sigIncludes: 'language-ini' }, codeFileById)) {
   failures.push('Missing embedded INI chunk for unknown.html.');
 }
-if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'Section', nameIncludes: 'Doc Block' }, codeFileById)) {
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration', sigIncludes: 'language-markdown' }, codeFileById)) {
   failures.push('Missing embedded Markdown chunk for unknown.html.');
 }
-if (!findChunk(codeMeta, { file: 'src/styles.css', kind: 'StyleRule', nameIncludes: '.page-header' }, codeFileById)) {
+if (!findChunk(codeMeta, { file: 'src/styles.css', kind: 'RuleSet', nameIncludes: '.page-header' }, codeFileById)) {
   failures.push('Missing CSS chunk for styles.css.');
 }
 

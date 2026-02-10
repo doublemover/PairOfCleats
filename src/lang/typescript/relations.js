@@ -1,23 +1,34 @@
 import { parseBabelAst } from '../babel-parser.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findCLikeBodyBounds } from '../clike.js';
+import { resolveCalleeParts, resolveCallLocation, truncateCallText } from '../js-ts/relations-shared.js';
 import { TS_CALL_KEYWORDS, TS_USAGE_SKIP } from './constants.js';
 import { resolveTypeScriptParser, stripTypeScriptComments } from './parser.js';
 
 const MAX_CALL_ARGS = 5;
 const MAX_CALL_ARG_LEN = 80;
 const MAX_CALL_ARG_DEPTH = 2;
+const WALK_SKIP_KEYS = new Set([
+  'loc',
+  'start',
+  'end',
+  'tokens',
+  'comments',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+  'extra',
+  'parent'
+]);
+const OWN_HAS = Object.prototype.hasOwnProperty;
 
-const normalizeCallText = (value) => {
-  if (value === null || value === undefined) return '';
-  return String(value).replace(/\s+/g, ' ').trim();
-};
-
-const truncateCallText = (value, maxLen = MAX_CALL_ARG_LEN) => {
-  const normalized = normalizeCallText(value);
-  if (!normalized) return '';
-  if (normalized.length <= maxLen) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxLen - 3))}...`;
+const getLastDottedSegment = (raw) => {
+  if (!raw || typeof raw !== 'string') return '';
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === '.') end -= 1;
+  if (!end) return '';
+  const idx = raw.lastIndexOf('.', end - 1);
+  return raw.slice(idx + 1, end);
 };
 
 const getMemberName = (node) => {
@@ -57,45 +68,6 @@ const getCalleeName = (callee) => {
   return null;
 };
 
-const resolveCalleeParts = (calleeName) => {
-  if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
-  const raw = String(calleeName);
-  const parts = raw.split('.').filter(Boolean);
-  if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
-  if (parts.length === 1) {
-    return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
-  }
-  return {
-    calleeRaw: raw,
-    calleeNormalized: parts[parts.length - 1],
-    receiver: parts.slice(0, -1).join('.')
-  };
-};
-
-const resolveCallLocation = (node) => {
-  if (!node || typeof node !== 'object') return null;
-  const start = Number.isFinite(node.start)
-    ? node.start
-    : (Array.isArray(node.range) ? node.range[0] : null);
-  const end = Number.isFinite(node.end)
-    ? node.end
-    : (Array.isArray(node.range) ? node.range[1] : null);
-  const loc = node.loc || null;
-  const startLine = Number.isFinite(loc?.start?.line) ? loc.start.line : null;
-  const startCol = Number.isFinite(loc?.start?.column) ? loc.start.column + 1 : null;
-  const endLine = Number.isFinite(loc?.end?.line) ? loc.end.line : null;
-  const endCol = Number.isFinite(loc?.end?.column) ? loc.end.column + 1 : null;
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return {
-    start,
-    end,
-    startLine,
-    startCol,
-    endLine,
-    endCol
-  };
-};
-
 const formatCallArg = (arg, depth = 0) => {
   if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
   if (arg.type === 'Identifier') return arg.name;
@@ -121,23 +93,14 @@ const formatCallArg = (arg, depth = 0) => {
   return '...';
 };
 
-/**
- * Collect import paths from TypeScript source text.
- * @param {string} text
- * @returns {string[]}
- */
-export function collectTypeScriptImports(text, options = {}) {
-  const importsOnly = options?.importsOnly === true || options?.typescript?.importsOnly === true;
-  const parser = resolveTypeScriptParser(options);
-  if (!importsOnly && (parser === 'babel' || parser === 'auto')) {
-    const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
-    if (ast) return collectImportsFromAst(ast);
-  }
+function collectTypeScriptImportsFromNormalized(normalized) {
   const imports = new Set();
-  const normalized = stripTypeScriptComments(text);
   const capture = (regex) => {
-    for (const match of normalized.matchAll(regex)) {
+    regex.lastIndex = 0;
+    let match;
+    while ((match = regex.exec(normalized)) !== null) {
       if (match[1]) imports.add(match[1]);
+      if (!match[0]) regex.lastIndex += 1;
     }
   };
   capture(/\b(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g);
@@ -146,7 +109,29 @@ export function collectTypeScriptImports(text, options = {}) {
   return Array.from(imports);
 }
 
+/**
+ * Collect import paths from TypeScript source text.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function collectTypeScriptImports(text, options = {}) {
+  if (!text || (!text.includes('import') && !text.includes('export') && !text.includes('require'))) {
+    return [];
+  }
+  const importsOnly = options?.importsOnly === true || options?.typescript?.importsOnly === true;
+  const parser = resolveTypeScriptParser(options);
+  if (!importsOnly && (parser === 'babel' || parser === 'auto')) {
+    const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
+    if (ast) return collectImportsFromAst(ast);
+  }
+  const normalized = typeof options?.normalizedText === 'string'
+    ? options.normalizedText
+    : stripTypeScriptComments(text);
+  return collectTypeScriptImportsFromNormalized(normalized);
+}
+
 function collectTypeScriptExports(text) {
+  if (!text || !text.includes('export ')) return [];
   const exports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -159,32 +144,41 @@ function collectTypeScriptExports(text) {
     }
     match = trimmed.match(/^export\s*\{([^}]+)\}/);
     if (match) {
-      match[1].split(',').map((s) => s.trim()).filter(Boolean).forEach((name) => {
+      for (const part of match[1].split(',')) {
+        const name = part.trim();
+        if (!name) continue;
         const clean = name.split(/\s+as\s+/i)[0].trim();
         if (clean) exports.add(clean);
-      });
+      }
     }
   }
   return Array.from(exports);
 }
 
-function collectTypeScriptCallsAndUsages(text) {
+function collectTypeScriptCallsAndUsages(text, normalizedText = null) {
   const calls = new Set();
   const usages = new Set();
-  const normalized = stripTypeScriptComments(text);
-  for (const match of normalized.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$.]*)\s*\(/g)) {
+  const normalized = typeof normalizedText === 'string'
+    ? normalizedText
+    : stripTypeScriptComments(text);
+  const callRe = /\b([A-Za-z_$][A-Za-z0-9_$.]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split('.').filter(Boolean).pop();
+    const base = getLastDottedSegment(raw);
     if (!base || TS_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_$][A-Za-z0-9_$]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_$][A-Za-z0-9_$]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (TS_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -196,7 +190,8 @@ function collectTypeScriptCallsAndUsages(text) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildTypeScriptRelations(text, tsChunks, options = {}) {
-  const imports = collectTypeScriptImports(text, options);
+  const normalizedText = stripTypeScriptComments(text);
+  const imports = collectTypeScriptImports(text, { ...options, normalizedText });
   const exports = new Set(collectTypeScriptExports(text));
   const calls = [];
   const callDetails = [];
@@ -212,13 +207,34 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         end: chunk.end,
         span: Math.max(0, chunk.end - chunk.start)
       }))
+      .sort((a, b) => (a.start - b.start) || (a.end - b.end))
     : [];
+
+  const findLastChunkStartIndex = (value) => {
+    let lo = 0;
+    let hi = chunkRanges.length - 1;
+    let best = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (chunkRanges[mid].start <= value) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return best;
+  };
 
   const resolveCallerName = (start, end) => {
     if (!Number.isFinite(start) || !Number.isFinite(end) || !chunkRanges.length) return '(module)';
+    const startIdx = findLastChunkStartIndex(start);
+    if (startIdx < 0) return '(module)';
     let best = null;
-    for (const chunk of chunkRanges) {
-      if (start < chunk.start || end > chunk.end) continue;
+    for (let i = startIdx; i >= 0; i -= 1) {
+      const chunk = chunkRanges[i];
+      if (best && (start - chunk.start) >= best.span) break;
+      if (end > chunk.end) continue;
       if (!best || chunk.span < best.span) {
         best = chunk;
       }
@@ -229,13 +245,17 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const recordCall = (node) => {
     const calleeName = getCalleeName(node.callee);
     if (!calleeName) return;
-    const base = calleeName.split('.').filter(Boolean).pop();
+    const base = getLastDottedSegment(calleeName);
     if (!base || TS_CALL_KEYWORDS.has(base)) return;
     const location = resolveCallLocation(node);
     const callerName = location ? resolveCallerName(location.start, location.end) : '(module)';
-    const args = Array.isArray(node.arguments)
-      ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
-      : [];
+    const args = [];
+    if (Array.isArray(node.arguments)) {
+      for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
+        const value = truncateCallText(formatCallArg(node.arguments[i]), MAX_CALL_ARG_LEN);
+        if (value) args.push(value);
+      }
+    }
     const calleeParts = resolveCalleeParts(calleeName);
     const detail = {
       caller: callerName,
@@ -257,19 +277,6 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     calls.push([callerName, calleeName]);
   };
 
-  const WALK_SKIP_KEYS = new Set([
-    'loc',
-    'start',
-    'end',
-    'tokens',
-    'comments',
-    'leadingComments',
-    'trailingComments',
-    'innerComments',
-    'extra',
-    'parent'
-  ]);
-
   const walk = (root) => {
     const seen = new Set();
     const stack = [root];
@@ -290,9 +297,8 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
       if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
         usages.add(node.name);
       }
-      const keys = Object.keys(node);
-      for (let i = keys.length - 1; i >= 0; i -= 1) {
-        const key = keys[i];
+      for (const key in node) {
+        if (!OWN_HAS.call(node, key)) continue;
         if (WALK_SKIP_KEYS.has(key)) continue;
         const value = node[key];
         if (value && typeof value === 'object') {
@@ -306,7 +312,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     walk(ast);
   }
 
-  const { usages: regexUsages } = collectTypeScriptCallsAndUsages(text);
+  const { usages: regexUsages } = collectTypeScriptCallsAndUsages(text, normalizedText);
   for (const usage of regexUsages) usages.add(usage);
 
   if (!callDetails.length && Array.isArray(tsChunks)) {

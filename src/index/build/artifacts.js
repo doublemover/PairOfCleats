@@ -21,6 +21,7 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
   resolveTokenPostingsPlan
@@ -55,6 +56,7 @@ import { createOrderingHasher } from '../../shared/order.js';
  */
 export async function writeIndexArtifacts(input) {
   const {
+    scheduler = null,
     outDir,
     buildRoot,
     mode,
@@ -325,8 +327,87 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const resolveExistingOrBakPath = (targetPath) => {
+    if (!targetPath) return null;
+    if (fsSync.existsSync(targetPath)) return targetPath;
+    const bakPath = `${targetPath}.bak`;
+    if (fsSync.existsSync(bakPath)) return bakPath;
+    return null;
+  };
+  const previousPiecesManifestPath = path.join(outDir, 'pieces', 'manifest.json');
+  let previousPiecesManifest = null;
+  try {
+    const source = resolveExistingOrBakPath(previousPiecesManifestPath);
+    if (source) {
+      previousPiecesManifest = readJsonFile(source, { maxBytes: maxJsonBytes });
+    }
+  } catch {}
+  const previousPieces = Array.isArray(previousPiecesManifest?.pieces) ? previousPiecesManifest.pieces : [];
+  const previousFilterIndexPiece = previousPieces.find((piece) => piece?.name === 'filter_index' && piece?.path);
+  const previousFilterIndexPath = previousFilterIndexPiece?.path
+    ? path.join(outDir, ...String(previousFilterIndexPiece.path).split('/'))
+    : null;
+  const previousFilterIndexSource = resolveExistingOrBakPath(previousFilterIndexPath);
   let filterIndex = null;
   let filterIndexStats = null;
+  let filterIndexReused = false;
+  let filterIndexFallback = null;
+  const reusePreviousFilterIndex = (reason) => {
+    if (!previousFilterIndexSource) return false;
+    const note = reason ? ` (${reason})` : '';
+    log(`[warn] [filter_index] build skipped; reusing previous artifact.${note}`);
+    let previousRaw = null;
+    try {
+      previousRaw = readJsonFile(previousFilterIndexSource, { maxBytes: maxJsonBytes });
+      validateSerializedFilterIndex(previousRaw);
+    } catch (err) {
+      const message = err?.message || String(err);
+      log(`[warn] [filter_index] failed to reuse previous artifact; validation failed. (${message})`);
+      return false;
+    }
+    filterIndexReused = true;
+    filterIndexFallback = {
+      piece: {
+        type: previousFilterIndexPiece?.type || 'chunks',
+        name: 'filter_index',
+        format: previousFilterIndexPiece?.format || 'json'
+      },
+      path: previousFilterIndexSource
+    };
+    try {
+      filterIndexStats = summarizeFilterIndex(previousRaw);
+    } catch {
+      filterIndexStats = { reused: true };
+    }
+    if (filterIndexStats && typeof filterIndexStats === 'object') {
+      filterIndexStats.reused = true;
+    }
+    return true;
+  };
+  const validateSerializedFilterIndex = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error('expected object');
+    }
+    if (!Number.isFinite(Number(candidate.schemaVersion))) {
+      throw new Error('missing schemaVersion');
+    }
+    if (!Number.isFinite(Number(candidate.fileChargramN))) {
+      throw new Error('missing fileChargramN');
+    }
+    if (!Array.isArray(candidate.fileById)) {
+      throw new Error('missing fileById');
+    }
+    if (!Array.isArray(candidate.fileChunksById)) {
+      throw new Error('missing fileChunksById');
+    }
+    if (candidate.fileById.length !== candidate.fileChunksById.length) {
+      throw new Error('fileById/fileChunksById length mismatch');
+    }
+    if (candidate.byLang == null || typeof candidate.byLang !== 'object') {
+      throw new Error('missing byLang');
+    }
+    return true;
+  };
   try {
     filterIndex = buildSerializedFilterIndex({
       chunks: state.chunks,
@@ -334,7 +415,14 @@ export async function writeIndexArtifacts(input) {
       userConfig,
       root
     });
+    validateSerializedFilterIndex(filterIndex);
     filterIndexStats = summarizeFilterIndex(filterIndex);
+    if (filterIndexStats && typeof filterIndexStats === 'object' && Number.isFinite(filterIndexStats.jsonBytes)) {
+      // filter_index is currently written uncompressed (compressible=false); keep a stable estimate
+      // in case later phases make it compressible.
+      filterIndexStats.diskBytesEstimate = filterIndexStats.jsonBytes;
+      filterIndexStats.compressionRatioEstimate = 1;
+    }
     if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
       log(
         `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
@@ -346,6 +434,17 @@ export async function writeIndexArtifacts(input) {
     log(`[warn] [filter_index] build failed; skipping. (${message})`);
     filterIndex = null;
     filterIndexStats = null;
+    reusePreviousFilterIndex(message);
+  }
+  if (indexState && typeof indexState === 'object') {
+    const filterIndexState = indexState.filterIndex && typeof indexState.filterIndex === 'object'
+      && !Array.isArray(indexState.filterIndex)
+      ? indexState.filterIndex
+      : {};
+    filterIndexState.ready = Boolean(filterIndex) || filterIndexReused;
+    filterIndexState.reused = Boolean(filterIndexStats?.reused);
+    filterIndexState.stats = filterIndexStats || null;
+    indexState.filterIndex = filterIndexState;
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)
@@ -865,6 +964,8 @@ export async function writeIndexArtifacts(input) {
       compressible: false,
       piece: { type: 'chunks', name: 'filter_index' }
     });
+  } else if (filterIndexFallback?.path) {
+    addPieceFile(filterIndexFallback.piece, filterIndexFallback.path);
   }
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs
@@ -1097,7 +1198,17 @@ export async function writeIndexArtifacts(input) {
       stageCheckpoints
     });
   }
-  const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
+  const scheduleRelations = scheduler?.schedule
+    ? (fn) => scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1, mem: 1 },
+      fn
+    )
+    : (fn) => fn();
+  const scheduleRelationsIo = scheduler?.schedule
+    ? (fn) => scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2RelationsIo, { io: 1 }, fn)
+    : (fn) => fn();
+  const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
     chunks: state?.chunks || [],
     fileRelations: state?.fileRelations || null,
@@ -1106,11 +1217,12 @@ export async function writeIndexArtifacts(input) {
     maxJsonBytes: graphRelationsMaxBytes,
     byteBudget: graphRelationsBudget,
     log,
+    scheduleIo: scheduleRelationsIo,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     removeArtifact
-  });
+  }));
   await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
@@ -1181,6 +1293,31 @@ export async function writeIndexArtifacts(input) {
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+  if (filterIndexStats && typeof filterIndexStats === 'object') {
+    const filterIndexPiece = pieceEntries.find((entry) => entry?.name === 'filter_index' && entry?.path);
+    const filterIndexPath = filterIndexPiece?.path ? path.join(outDir, filterIndexPiece.path) : null;
+    let filterIndexDiskBytes = null;
+    if (filterIndexPiece?.path) {
+      const metric = artifactMetrics.get(filterIndexPiece.path);
+      if (Number.isFinite(metric?.bytes)) filterIndexDiskBytes = metric.bytes;
+    }
+    if (!Number.isFinite(filterIndexDiskBytes) && filterIndexPath) {
+      try {
+        const stat = await fs.stat(filterIndexPath);
+        filterIndexDiskBytes = stat.size;
+      } catch {}
+    }
+    if (Number.isFinite(filterIndexDiskBytes)) {
+      filterIndexStats.diskBytes = filterIndexDiskBytes;
+    }
+    if (
+      Number.isFinite(filterIndexDiskBytes)
+      && Number.isFinite(filterIndexStats.jsonBytes)
+      && filterIndexStats.jsonBytes > 0
+    ) {
+      filterIndexStats.compressionRatio = filterIndexDiskBytes / filterIndexStats.jsonBytes;
+    }
+  }
 
   for (const entry of pieceEntries) {
     if (!entry?.path) continue;

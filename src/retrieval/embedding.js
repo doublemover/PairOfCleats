@@ -1,11 +1,16 @@
 import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';
+import { getEnvConfig } from '../shared/env.js';
+import { createWarnOnce } from '../shared/logging/warn-once.js';
 
-let warnedEmbedderFailure = false;
+const warnOnce = createWarnOnce();
 
-const warnOnce = (message) => {
-  if (warnedEmbedderFailure) return;
-  warnedEmbedderFailure = true;
-  console.warn(message);
+const resolveEnvEmbeddingMode = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'stub') return 'stub';
+  if (['off', 'false', '0', 'disabled', 'none'].includes(normalized)) return 'off';
+  return null;
 };
 
 /**
@@ -31,9 +36,12 @@ export async function getQueryEmbedding({
   normalize
 }) {
   try {
+    const envMode = resolveEnvEmbeddingMode(getEnvConfig().embeddings);
+    if (envMode === 'off') return null;
+    const resolvedUseStub = useStub === true || envMode === 'stub';
     const adapter = getEmbeddingAdapter({
       rootDir,
-      useStub: useStub === true,
+      useStub: resolvedUseStub,
       modelId,
       dims,
       modelsDir: modelDir,

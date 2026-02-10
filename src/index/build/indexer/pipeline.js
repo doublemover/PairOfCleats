@@ -109,7 +109,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
   const crashLogger = await createCrashLogger({
     repoCacheRoot: runtime.repoCacheRoot,
-    enabled: runtime.debugCrash,
+    enabled: runtime.debugCrash === true,
     log
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -303,6 +303,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     mode,
     runtime: runtimeRef,
     discovery,
+    outDir,
     entries: allEntries,
     contextWin,
     timing,
@@ -373,7 +374,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1 },
+      { cpu: 1, mem: 1 },
       () => runCrossFileInference({
         runtime: runtimeRef,
         mode,

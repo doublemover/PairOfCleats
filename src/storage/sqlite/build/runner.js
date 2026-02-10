@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createTempPath } from '../../../shared/json-stream.js';
+import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
@@ -54,18 +55,6 @@ const normalizeModeArg = (value) => {
   return 'all';
 };
 
-const createNoopTask = () => ({
-  tick() {},
-  set() {},
-  done() {},
-  fail() {},
-  update() {}
-});
-
-const resolveTaskFactory = (taskFactory) => (
-  typeof taskFactory === 'function' ? taskFactory : (() => createNoopTask())
-);
-
 /**
  * Build sqlite indexes without CLI parsing.
  * @param {object} options
@@ -80,6 +69,7 @@ const resolveTaskFactory = (taskFactory) => (
  * @param {string} [options.extractedProseDir]
  * @param {string} [options.recordsDir]
  * @param {string|boolean} [options.validateMode]
+ * @param {number} [options.batchSize]
  * @param {string} [options.progress]
  * @param {boolean} [options.verbose]
  * @param {boolean} [options.quiet]
@@ -106,6 +96,7 @@ export async function buildSqliteIndex(options = {}) {
     'prose-dir': options.proseDir || null,
     'extracted-prose-dir': options.extractedProseDir || null,
     'records-dir': options.recordsDir || null,
+    'batch-size': options.batchSize ?? null,
     progress: options.progress || 'auto',
     verbose: options.verbose === true,
     quiet: options.quiet === true
@@ -397,6 +388,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const indexDir = modeArg === 'all' ? null : resolveIndexDir(modeArg);
     const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
     const incrementalRequested = argv.incremental === true;
+    const requestedBatchSize = Number(argv['batch-size'] ?? options.batchSize);
+    const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
+      ? Math.floor(requestedBatchSize)
+      : null;
     const modeList = modeArg === 'all'
       ? ['code', 'prose', 'extracted-prose', 'records']
       : [modeArg];
@@ -491,9 +486,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
           ? pieces.denseVec.vectors.length
           : 0;
+        const vectorRequiredForMode = vectorAnnEnabled
+          && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose');
         const bundleManifest = incrementalData?.manifest || null;
         let bundleSkipReason = null;
-        if (hasIncrementalBundles && expectedDenseCount > 0 && bundleManifest?.bundleEmbeddings === false) {
+        if (hasIncrementalBundles
+          && vectorRequiredForMode
+          && expectedDenseCount > 0
+          && bundleManifest?.bundleEmbeddings === false) {
           const stageNote = bundleManifest.bundleEmbeddingStage
             ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
             : '';
@@ -537,6 +537,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             expectedDense: pieces?.denseVec || null,
             logger: externalLogger || { log, warn, error },
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
           if (updateResult?.used) {
@@ -626,9 +627,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             modelConfig,
             logger: externalLogger || { log, warn, error },
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
-          const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
+          const missingDense = vectorRequiredForMode && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
           if (bundleFailureReason) {
             warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);
@@ -650,6 +652,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               logger: externalLogger || { log, warn, error },
               task: workTask,
               inputBytes,
+              batchSize: batchSizeOverride,
               stats: sqliteStats
             });
           } else {
@@ -673,6 +676,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             logger: externalLogger || { log, warn, error },
             task: workTask,
             inputBytes,
+            batchSize: batchSizeOverride,
             stats: sqliteStats
           });
         }

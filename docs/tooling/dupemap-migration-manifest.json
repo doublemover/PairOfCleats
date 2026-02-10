@@ -1,0 +1,853 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-02-10T00:57:03.8919931-05:00",
+  "clusters": [
+    {
+      "clusterId": "C01",
+      "title": "JSONL merge/spill helpers",
+      "phase": "D2",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/build/artifacts/helpers.js",
+        "src/map/build-map/io.js"
+      ],
+      "canonicalPath": "src/shared/merge.js"
+    },
+    {
+      "clusterId": "C02",
+      "title": "JSONL writer scaffolding + extension resolution",
+      "phase": "D2",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/build/artifacts/writers/symbols.js",
+        "src/index/build/artifacts/writers/chunk-meta.js"
+      ],
+      "canonicalPath": "src/index/build/artifacts/writers/_common.js"
+    },
+    {
+      "clusterId": "C03",
+      "title": "SQLite build pipeline duplication",
+      "phase": "D3",
+      "status": "completed",
+      "legacyPaths": [
+        "src/storage/sqlite/build/from-artifacts.js",
+        "src/storage/sqlite/build/from-bundles.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/build/core.js"
+    },
+    {
+      "clusterId": "C04",
+      "title": "SQLite src/tools duplicate helpers",
+      "phase": "D3",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/build/sqlite/output-paths.js",
+        "tools/build/sqlite/index-state.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/build/output-paths.js"
+    },
+    {
+      "clusterId": "C05",
+      "title": "Embedding quantization normalization",
+      "phase": "D3",
+      "status": "completed",
+      "legacyPaths": [
+        "src/storage/sqlite/vector.js",
+        "tools/build/embeddings/embed.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/quantization.js"
+    },
+    {
+      "clusterId": "C06",
+      "title": "SQLite vocab lookup + statement cache",
+      "phase": "D3",
+      "status": "completed",
+      "legacyPaths": [
+        "src/storage/sqlite/build/vocab.js",
+        "src/retrieval/sqlite-helpers.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/vocab.js"
+    },
+    {
+      "clusterId": "C07",
+      "title": "LMDB codec/presence/meta validation",
+      "phase": "D3",
+      "status": "completed",
+      "legacyPaths": [
+        "src/retrieval/lmdb-helpers.js",
+        "src/index/validate/lmdb.js"
+      ],
+      "canonicalPath": "src/storage/lmdb/utils.js"
+    },
+    {
+      "clusterId": "C08",
+      "title": "ANN readiness + backend normalization",
+      "phase": "D4",
+      "status": "completed",
+      "legacyPaths": [
+        "src/retrieval/pipeline/ann-backends.js",
+        "src/retrieval/ann/providers/hnsw.js"
+      ],
+      "canonicalPath": "src/retrieval/ann/utils.js"
+    },
+    {
+      "clusterId": "C09",
+      "title": "API/MCP request mapping drift",
+      "phase": "D4",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/api/router/search.js",
+        "tools/mcp/tools/search-args.js"
+      ],
+      "canonicalPath": "tools/shared/search-request.js"
+    },
+    {
+      "clusterId": "C10",
+      "title": "Path normalization + containment",
+      "phase": "D1",
+      "status": "in_progress",
+      "legacyPaths": [
+        "src/shared/path-normalize.js",
+        "src/index/build/watch/shared.js"
+      ],
+      "canonicalPath": "src/shared/path-normalize.js"
+    },
+    {
+      "clusterId": "C11",
+      "title": "Find-upwards logic",
+      "phase": "D1",
+      "status": "in_progress",
+      "legacyPaths": [
+        "src/index/build/watch/shared.js",
+        "tests/helpers/root.js"
+      ],
+      "canonicalPath": "src/shared/fs/find-upwards.js"
+    },
+    {
+      "clusterId": "C12",
+      "title": "Map-based LRU duplicates",
+      "phase": "D1",
+      "status": "in_progress",
+      "legacyPaths": [
+        "src/shared/cache.js",
+        "src/retrieval/cache/index-cache.js"
+      ],
+      "canonicalPath": "src/shared/cache.js"
+    },
+    {
+      "clusterId": "C13",
+      "title": "Bytes/size formatting + traversal",
+      "phase": "D1",
+      "status": "completed",
+      "legacyPaths": [
+        "src/shared/disk-space.js",
+        "tools/analysis/map-iso-serve.js"
+      ],
+      "canonicalPath": "src/shared/disk-space.js"
+    },
+    {
+      "clusterId": "C14",
+      "title": "warn-once variants",
+      "phase": "D1",
+      "status": "in_progress",
+      "legacyPaths": [
+        "src/index/build/runtime/warnings.js",
+        "src/index/build/tree-sitter-scheduler/lookup.js"
+      ],
+      "canonicalPath": "src/shared/logging/warn-once.js"
+    },
+    {
+      "clusterId": "C15",
+      "title": "Minified-file detection",
+      "phase": "D1",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/build/file-scan.js",
+        "src/index/build/watch/watch.js"
+      ],
+      "canonicalPath": "src/index/build/watch/shared.js"
+    },
+    {
+      "clusterId": "C16",
+      "title": "Root normalization duplicates",
+      "phase": "D1",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/build/watch/watch.js",
+        "src/index/build/discovery.js"
+      ],
+      "canonicalPath": "src/index/build/watch/shared.js"
+    },
+    {
+      "clusterId": "C17",
+      "title": "File locking variants",
+      "phase": "D1",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/build/indexer/lock.js",
+        "src/index/build/runtime/queue-lock.js"
+      ],
+      "canonicalPath": "src/shared/locks/file-lock.js"
+    },
+    {
+      "clusterId": "C18",
+      "title": "Chunking helper duplication",
+      "phase": "D6",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/chunking/formats/markdown.js",
+        "src/index/chunking/formats/rst-asciidoc.js"
+      ],
+      "canonicalPath": "src/index/chunking/helpers.js"
+    },
+    {
+      "clusterId": "C19",
+      "title": "Risk utility duplication",
+      "phase": "D6",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/risk.js",
+        "src/index/risk-interprocedural/engine.js"
+      ],
+      "canonicalPath": "src/index/risk/shared.js"
+    },
+    {
+      "clusterId": "C20",
+      "title": "Relative import resolution duplication",
+      "phase": "D6",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/type-inference-crossfile/resolve-relative-import.js",
+        "src/index/build/import-resolution.js"
+      ],
+      "canonicalPath": "src/index/shared/import-candidates.js"
+    },
+    {
+      "clusterId": "C21",
+      "title": "Binary discovery helper duplication",
+      "phase": "D5",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/tooling/doctor.js",
+        "src/index/tooling/pyright-provider.js"
+      ],
+      "canonicalPath": "src/index/tooling/binary-utils.js"
+    },
+    {
+      "clusterId": "C22",
+      "title": "TypeScript loader duplication",
+      "phase": "D5",
+      "status": "completed",
+      "legacyPaths": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/parser.js"
+      ],
+      "canonicalPath": "src/index/tooling/typescript/load.js"
+    },
+    {
+      "clusterId": "C23",
+      "title": "Signature parsing/readSignatureLines duplication",
+      "phase": "D5",
+      "status": "completed",
+      "legacyPaths": [
+        "src/lang/clike.js",
+        "src/lang/typescript/signature.js"
+      ],
+      "canonicalPath": "src/index/tooling/signature-parse/shared.js"
+    },
+    {
+      "clusterId": "C24",
+      "title": "JS/TS relations duplication",
+      "phase": "D5",
+      "status": "completed",
+      "legacyPaths": [
+        "src/lang/javascript/relations.js",
+        "src/lang/typescript/relations.js"
+      ],
+      "canonicalPath": "src/lang/js-ts/relations-shared.js"
+    },
+    {
+      "clusterId": "C25",
+      "title": "Map filter/escape/config merge duplication",
+      "phase": "D6",
+      "status": "completed",
+      "legacyPaths": [
+        "src/map/build-map/filters.js",
+        "src/map/html-writer.js"
+      ],
+      "canonicalPath": "src/map/shared/escape-html.js"
+    },
+    {
+      "clusterId": "C26",
+      "title": "AJV validation scaffolding duplication",
+      "phase": "D8",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/api/validation.js",
+        "src/config/validate.js",
+        "src/contracts/validators/build-state.js",
+        "src/contracts/validators/artifacts.js",
+        "src/contracts/validators/analysis.js",
+        "src/index/build/failure-taxonomy.js"
+      ],
+      "canonicalPath": "src/shared/validation/ajv-factory.js"
+    },
+    {
+      "clusterId": "C27",
+      "title": "Misc helper duplicates",
+      "phase": "D1/D4/D8",
+      "status": "completed",
+      "legacyPaths": [
+        "src/shared/text/escape-regex.js",
+        "tools/shared/search-request.js"
+      ],
+      "canonicalPath": "src/shared"
+    },
+    {
+      "clusterId": "A01",
+      "title": "Duplicate resolveJsonlExtension within src/shared/json-stream.js",
+      "phase": "D2",
+      "status": "completed",
+      "legacyPaths": [
+        "src/shared/json-stream.js"
+      ],
+      "canonicalPath": "src/shared/json-stream.js"
+    },
+    {
+      "clusterId": "A02",
+      "title": "Duplicate normalizeMetaFilters in API/MCP",
+      "phase": "D4",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/api/validation.js",
+        "tools/mcp/tools/helpers.js"
+      ],
+      "canonicalPath": "tools/shared/search-request.js"
+    },
+    {
+      "clusterId": "A03",
+      "title": "Map bench wiring duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/bench/map/viewer-fps.js",
+        "tools/bench/map/viewer-lod-stress.js"
+      ],
+      "canonicalPath": "tools/bench/map/shared.js"
+    },
+    {
+      "clusterId": "A04",
+      "title": "Repo cache default duplication",
+      "phase": "D4",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/api/router/cache.js",
+        "tools/mcp/repo.js"
+      ],
+      "canonicalPath": "tools/shared/repo-cache-config.js"
+    },
+    {
+      "clusterId": "A05",
+      "title": "ANN pipeline test fixture duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/retrieval/pipeline/ann-optional-skip.test.js",
+        "tests/retrieval/pipeline/ann-preflight.test.js"
+      ],
+      "canonicalPath": "tests/retrieval/pipeline/helpers/ann-scenarios.js"
+    },
+    {
+      "clusterId": "A06",
+      "title": "Interprocedural flow-cap test setup duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/indexing/risk/interprocedural/flows-conservative.test.js",
+        "tests/indexing/risk/interprocedural/flows-max-total-flows.test.js",
+        "tests/indexing/risk/interprocedural/flows-timeout.test.js"
+      ],
+      "canonicalPath": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js"
+    },
+    {
+      "clusterId": "A07",
+      "title": "VFS and SQLite streaming test setup duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/indexing/vfs/vfs-manifest-streaming.test.js",
+        "tests/tooling/vfs/vfs-manifest-streaming.test.js",
+        "tests/storage/sqlite/sqlite-jsonl-streaming-gzip.test.js",
+        "tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js"
+      ],
+      "canonicalPath": "tests/helpers/vfs-streaming-fixture.js + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js"
+    },
+    {
+      "clusterId": "A08",
+      "title": "Graph/symbol/sqlite test harness setup duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/perf/graph-context-pack-latency-bench-contract.test.js",
+        "tests/perf/graph-neighborhood-bench-contract.test.js",
+        "tests/indexing/artifacts/symbol-artifacts-smoke.test.js",
+        "tests/indexing/artifacts/symbols/symbol-by-file-index.test.js",
+        "tests/storage/sqlite/sqlite-build-rowcount-contract.test.js",
+        "tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js"
+      ],
+      "canonicalPath": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
+    },
+    {
+      "clusterId": "A09",
+      "title": "Map bench build options duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/bench/map/build-map-memory.js",
+        "tools/bench/map/build-map-streaming.js"
+      ],
+      "canonicalPath": "tools/bench/map/shared.js::resolveMapBenchInputs"
+    },
+    {
+      "clusterId": "A10",
+      "title": "Download redirect/request helper duplication",
+      "phase": "D8",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/download/dicts.js",
+        "tools/download/extensions.js"
+      ],
+      "canonicalPath": "tools/download/shared-fetch.js::fetchDownloadUrl"
+    },
+    {
+      "clusterId": "A11",
+      "title": "CI lane order drift for dedupe contract coverage",
+      "phase": "D8",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/ci-lite/ci-lite.order.txt",
+        "tests/ci-long/ci-long.order.txt"
+      ],
+      "canonicalPath": "tests/ci-{lite,long}/ci-*.order.txt"
+    }
+  ],
+  "migrations": [
+    { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
+    { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext}", "status": "completed" },
+    { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveOutputPaths", "status": "completed" },
+    { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams + retrieval dense_meta manual levels/scale branches", "newPathOrSymbol": "src/storage/sqlite/quantization.js::{resolveQuantizationParams,resolveDenseMetaRecord}", "status": "completed" },
+    { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows + src/storage/sqlite/build/vocab.js", "newPathOrSymbol": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds}", "status": "completed" },
+    { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js + src/index/validate/lmdb.js local Unpackr/decode/data.mdb helpers", "newPathOrSymbol": "src/storage/lmdb/utils.js::{createLmdbCodec,decodeLmdbValue,hasLmdbStore}", "status": "completed" },
+    { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
+    { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "completed" },
+    { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/git.js::findGitRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/index-cache.js::createIndexCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/lock.js::acquireIndexLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/dispatch.js + src/index/chunking/formats/{ini-toml,yaml,rst-asciidoc}.js::buildChunksFromLineHeadings local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "completed" },
+    { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js + src/index/risk-interprocedural/engine.js::SEVERITY_RANK local constants", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "completed" },
+    { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js + src/index/build/import-resolution.js local relative-import candidate loops", "newPathOrSymbol": "src/index/shared/import-candidates.js::{resolveRelativeImportCandidates,resolveRelativeImportCandidate}", "status": "completed" },
+    { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "completed" },
+    { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
+    { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "completed" },
+    { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "completed" },
+    { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::{applyScopeFilter,applyCollapse}", "newPathOrSymbol": "src/map/build-map/filters.js::{createScopeFilters,createCollapseTransform}", "status": "completed" },
+    { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::local Ajv bootstrap + schema compile wiring", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
+    { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
+    { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
+    { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/{viewer-fps,viewer-lod-stress}.js inline static server/wiring", "newPathOrSymbol": "tools/bench/map/shared.js::startMapViewerStaticServer", "status": "completed" },
+    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::normalizeCacheConfig + policy defaults", "newPathOrSymbol": "tools/shared/repo-cache-config.js::{normalizeCacheConfig,createRepoCacheManager}", "status": "completed" },
+    { "migrationId": "M032", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::findJjRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M033", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::findNearestConfig (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M034", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "tools/dict-utils/paths/repo.js::findConfigRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M035", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/core/status.js::isInside", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M036", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "tools/shared/path-utils.js::isInside (inline relative check)", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M037", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/retrieval/embedding.js::warnOnce (boolean guard)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M038", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/retrieval/lancedb.js::warnOnce (boolean guards)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M039", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "tools/sqlite/vector-extension.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M040", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/shared/json-stream/runtime.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M041", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/sqlite-cache.js::createSqliteDbCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M042", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/query-plan-cache.js::createQueryPlanCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M043", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/vfs-segment-hash-cache.js::createVfsSegmentHashCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M044", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/tree-sitter-scheduler/lookup.js::rowCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M045", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "src/integrations/core/status.js::sizeOfPath (local recursive traversal)", "newPathOrSymbol": "src/shared/disk-space.js::sizeOfPath", "status": "completed" },
+    { "migrationId": "M046", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/index/cache-gc.js::sizeOfPath (local recursive traversal)", "newPathOrSymbol": "src/shared/disk-space.js::sizeOfPath", "status": "completed" },
+    { "migrationId": "M047", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/index/report-artifacts.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M048", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::formatBytes (local helper export)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M049", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/bench/merge/spill-merge-compare.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M050", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M051", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/discover.js::MINIFIED_NAME_REGEX (local copy)", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M052", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch.js::MINIFIED_NAME_REGEX (local copy)", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M053", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/discover.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M054", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/records.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M055", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/guardrails.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M056", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/build/embeddings/cache.js::withCacheLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M057", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/service/queue.js::withLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M058", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/sourcekit-provider.js::acquireHostSourcekitLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M059", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/bench/language/locks.js::{readLockInfo,isProcessAlive}", "newPathOrSymbol": "src/shared/locks/file-lock.js::{readLockInfo,isProcessAlive}", "status": "completed" },
+    { "migrationId": "M060", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/release/check.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
+    { "migrationId": "M061", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/runtime/caps.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" },
+    { "migrationId": "M062", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/preprocess.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" },
+    { "migrationId": "M063", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-processor/read.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" },
+    { "migrationId": "M064", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/import-resolution-cache.js::saveImportResolutionCache (direct fs.writeFile)", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M065", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/incremental.js::pruneIncrementalManifest (direct fs.writeFile)", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M066", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/service/queue.js::{saveQueue,completeJob report write} (direct fs.writeFile)", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M067", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/retrieval/cli/run-search-session.js::persistContextIndexCache (direct fs.writeFileSync)", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M068", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/retrieval/cli/run-search-session.js::queryCache write (direct fs.writeFile)", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M069", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/build-state.js::writeJsonStringAtomic + writer-local timer cleanup", "newPathOrSymbol": "src/shared/io/atomic-write.js::{atomicWriteJson,atomicWriteText} + src/shared/lifecycle/registry.js::createLifecycleRegistry", "status": "completed" },
+    { "migrationId": "M070", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/promotion.js::current.json write via json-stream writer", "newPathOrSymbol": "src/shared/io/atomic-write.js::atomicWriteJson", "status": "completed" },
+    { "migrationId": "M071", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/api/router/cache.js::normalizeCacheConfig and ad-hoc cache policy constants", "newPathOrSymbol": "src/shared/cache/policy.js::{defineCachePolicy,resolveCachePolicy}", "status": "completed" },
+    { "migrationId": "M072", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/mcp/repo.js::ad-hoc cache policy constants", "newPathOrSymbol": "src/shared/cache/policy.js::defineCachePolicy", "status": "completed" },
+    { "migrationId": "M073", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/service/indexer-service.js::manual timer/promise lifecycle handling", "newPathOrSymbol": "src/shared/lifecycle/registry.js::createLifecycleRegistry", "status": "completed" },
+    { "migrationId": "M074", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::{MinHeap,readJsonlRows,mergeSortedRuns} (local implementations)", "newPathOrSymbol": "src/shared/merge.js::{MinHeap,readJsonlRows,mergeSortedRuns}", "status": "completed" },
+    { "migrationId": "M075", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/map/build-map/io.js::{MinHeap,readJsonlRows,mergeSortedRuns} (local implementations)", "newPathOrSymbol": "src/shared/merge.js::{mergeSortedRuns,readJsonlRows,MinHeap}", "status": "completed" },
+    { "migrationId": "M076", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/vfs-manifest.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M077", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/tooling/vfs.js::readJsonlRows (local implementation)", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M078", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/integrations/tooling/api-contracts.js::readJsonlRows import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::readJsonlRows", "status": "completed" },
+    { "migrationId": "M079", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::mergeSortedRuns import from artifacts helper bridge", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
+    { "migrationId": "M080", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::resolveJsonlExtension (writer-local bodies)", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M081", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::result.parts.map({path,records,bytes})", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::buildShardedPartEntries", "status": "completed" },
+    { "migrationId": "M082", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::duplicate jsonl variant cleanup/remove blocks", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::{buildJsonlVariantPaths,removeArtifacts}", "status": "completed" },
+    { "migrationId": "M083", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/{call-sites,chunk-uid-map,risk-interprocedural,symbols}::row-byte sizing loops", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::measureJsonlRows", "status": "completed" },
+    { "migrationId": "M084", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/file-relations.js::resolveJsonExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonExtension", "status": "completed" },
+    { "migrationId": "M085", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/*::inline sharded metadata payload boilerplate", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::writeShardedJsonlMeta", "status": "completed" },
+    { "migrationId": "M086", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::writeJsonLinesSharded local resolveJsonlExtension body", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M087", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::writeJsonLinesShardedAsync local resolveJsonlExtension body", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension", "status": "completed" },
+    { "migrationId": "M088", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/ann/providers/*::local isEmbeddingReady/early-return gating", "newPathOrSymbol": "src/retrieval/ann/utils.js::{isEmbeddingReady,isAnnProviderAvailable,canRunAnnQuery}", "status": "completed" },
+    { "migrationId": "M089", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/cli/normalize-options.js::normalizeAnnBackend (local helper)", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
+    { "migrationId": "M090", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline.js::local embedding readiness check + pipeline ann-backends normalization import", "newPathOrSymbol": "src/retrieval/ann/utils.js::isEmbeddingReady + src/retrieval/ann/normalize-backend.js::resolveAnnOrder", "status": "completed" },
+    { "migrationId": "M091", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/api/router/search.js::buildSearchParams local request normalization/argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
+    { "migrationId": "M092", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildMcpSearchArgs local argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
+    { "migrationId": "M093", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/api/validation.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
+    { "migrationId": "M094", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/mcp/repo.js::repo/index/sqlite cache policy defaults and manager lifecycle", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" },
+    { "migrationId": "M095", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::createRepoCacheManager", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" },
+    { "migrationId": "M096", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M097", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/pyright-provider.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M098", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "tools/tooling/utils.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M099", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::resolveTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
+    { "migrationId": "M100", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/parser.js::loadTypeScriptModule", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScriptModule", "status": "completed" },
+    { "migrationId": "M101", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript local implementation", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
+    { "migrationId": "M102", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/clike.js::splitClikeParams", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::splitTopLevel", "status": "completed" },
+    { "migrationId": "M103", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/python.js::{splitPythonParams,findTopLevelIndex,stripDefaultValue}", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::{splitTopLevel,findTopLevelIndex,stripTopLevelAssignment}", "status": "completed" },
+    { "migrationId": "M104", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/signature-parse/swift.js::{splitSwiftParams,findTopLevelIndex,stripDefaultValue}", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::{splitTopLevel,findTopLevelIndex,stripTopLevelAssignment}", "status": "completed" },
+    { "migrationId": "M105", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/signature.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" },
+    { "migrationId": "M106", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/{clike,csharp,go,java,kotlin,perl,php,rust,shell}.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" },
+    { "migrationId": "M107", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/relations.js::resolveCalleeParts", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCalleeParts", "status": "completed" },
+    { "migrationId": "M108", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/{javascript,typescript}/relations.js::normalize/truncate call text", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::{normalizeCallText,truncateCallText}", "status": "completed" },
+    { "migrationId": "M109", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/index-state.js::updateSqliteState", "newPathOrSymbol": "src/storage/sqlite/build/index-state.js::updateSqliteState", "status": "completed" },
+    { "migrationId": "M110", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/runner.js::createNoopTask/resolveTaskFactory local implementations", "newPathOrSymbol": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}", "status": "completed" },
+    { "migrationId": "M111", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-bundles.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
+    { "migrationId": "M112", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-{artifacts,bundles}.js::manual BEGIN/COMMIT/ROLLBACK + validate/optimize/checkpoint/cleanup blocks", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{beginSqliteBuildTransaction,commitSqliteBuildTransaction,rollbackSqliteBuildTransaction,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
+    { "migrationId": "M113", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "tools/build/{compact-sqlite-index,embeddings/*} + src/index/build/runtime/embeddings.js quantization imports from vector.js", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "completed" },
+    { "migrationId": "M114", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/incremental-update.js::ensureVocabIds from build-local module", "newPathOrSymbol": "src/storage/sqlite/vocab.js::ensureVocabIds", "status": "completed" },
+    { "migrationId": "M115", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli-lmdb.js::validateStore/schema+mode checks + src/index/validate/lmdb-report.js required-artifact key checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::{validateLmdbSchemaAndMode,validateLmdbArtifactKeys}", "status": "completed" },
+    { "migrationId": "M116", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli/index-loader.js + src/integrations/core/status.js data.mdb direct checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbStore", "status": "completed" },
+    { "migrationId": "M117", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/{markdown,rst-asciidoc}.js::buildChunksFromMatches local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromMatches", "status": "completed" },
+    { "migrationId": "M118", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js::isIdentCharCode/lineContainsVarRange pattern loop + src/index/risk-interprocedural/engine.js::containsIdentifier/matchesRulePatterns", "newPathOrSymbol": "src/index/risk/shared.js::{containsIdentifier,matchRulePatterns}", "status": "completed" },
+    { "migrationId": "M119", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/{html-writer,dot-writer}.js::local escapeHtml", "newPathOrSymbol": "src/map/shared/escape-html.js::escapeHtml", "status": "completed" },
+    { "migrationId": "M120", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/isometric/client/dom.js::local mergeConfig", "newPathOrSymbol": "src/shared/config.js::mergeConfig", "status": "completed" },
+    { "migrationId": "M121", "clusterId": "A05", "phase": "D7", "oldPathOrSymbol": "tests/retrieval/pipeline/{ann-optional-skip,ann-preflight}.test.js duplicated ANN pipeline fixture/context/index setup", "newPathOrSymbol": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario", "status": "completed" },
+    { "migrationId": "M122", "clusterId": "A06", "phase": "D7", "oldPathOrSymbol": "tests/indexing/risk/interprocedural/{flows-conservative,flows-max-total-flows,flows-timeout}.test.js duplicated source/sink/runtime setup", "newPathOrSymbol": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js + flows-cap-matrix.test.js", "status": "completed" },
+    { "migrationId": "M123", "clusterId": "A07", "phase": "D7", "oldPathOrSymbol": "tests/{indexing/tooling}/vfs/*-manifest-streaming + tests/storage/sqlite/sqlite-jsonl-streaming-{gzip,zstd}.test.js duplicated fixture/build setup", "newPathOrSymbol": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase", "status": "completed" },
+    { "migrationId": "M124", "clusterId": "A08", "phase": "D7", "oldPathOrSymbol": "tests/perf/graph-*.test.js + tests/indexing/artifacts/symbol-* + tests/storage/sqlite/sqlite-build-{rowcount,validate-auto-fast-path}.test.js duplicated fixture setup blocks", "newPathOrSymbol": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js", "status": "completed" },
+    { "migrationId": "M125", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js and viewer-lod-stress.js duplicated resolveRepo/getIndex/buildOptions setup", "newPathOrSymbol": "tools/bench/map/shared.js::resolveMapBenchInputs", "status": "completed" },
+    { "migrationId": "M126", "clusterId": "A09", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/build-map-{memory,streaming}.js duplicated resolveLimit/resolveRepo/getIndex/buildOptions and run-count parsing", "newPathOrSymbol": "tools/bench/map/shared.js::{resolveMapBenchInputs,resolveRuns}", "status": "completed" },
+    { "migrationId": "M127", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/config/validate.js::Ajv2020 bootstrap + direct schema clone/compile", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,cloneJsonSchema,compileSchema}", "status": "completed" },
+    { "migrationId": "M128", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/build-state.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M129", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/artifacts.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M130", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/analysis.js::local Ajv bootstrap + repeated cloneSchema compile chain", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M131", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/index/build/failure-taxonomy.js::local Ajv bootstrap", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M132", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/dicts.js::requestUrl redirect/request loop", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (stream mode)", "status": "completed" },
+    { "migrationId": "M133", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/extensions.js::requestUrl redirect/request loop + maxBytes body aggregation", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (buffer mode)", "status": "completed" },
+    { "migrationId": "M134", "clusterId": "A11", "phase": "D8", "oldPathOrSymbol": "tests/ci-lite/ci-lite.order.txt::stale D7 flow-cap IDs + missing D8 contract tests", "newPathOrSymbol": "tests/ci-lite/ci-lite.order.txt::flows-cap-matrix + D8 contract test IDs", "status": "completed" },
+    { "migrationId": "M135", "clusterId": "A11", "phase": "D8", "oldPathOrSymbol": "tests/ci-long/ci-long.order.txt::missing D8 contract test IDs", "newPathOrSymbol": "tests/ci-long/ci-long.order.txt::includes D8 contract test IDs", "status": "completed" }
+  ],
+  "banPatterns": [
+    {
+      "banId": "B010",
+      "phase": "D1",
+      "scope": "src/**",
+      "pattern": "function isInside(parent, child)",
+      "replacement": "src/shared/path-normalize.js::isPathUnderDir"
+    },
+    {
+      "banId": "B011",
+      "phase": "D1",
+      "scope": "src/**",
+      "pattern": "const isPathUnderDir = (baseDir, targetPath) =>",
+      "replacement": "src/shared/path-normalize.js::isPathUnderDir"
+    },
+    {
+      "banId": "B012",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "manual upward directory walkups for repo/config root detection",
+      "replacement": "src/shared/fs/find-upwards.js::findUpwards"
+    },
+    {
+      "banId": "B013",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local warnOnce state via ad-hoc booleans/Sets",
+      "replacement": "src/shared/logging/warn-once.js::createWarnOnce"
+    },
+    {
+      "banId": "B014",
+      "phase": "D1",
+      "scope": "src/retrieval/**,src/index/build/**",
+      "pattern": "direct ad-hoc bounded LRU wrappers around Map/LRUCache",
+      "replacement": "src/shared/cache.js::createLruCache"
+    },
+    {
+      "banId": "B015",
+      "phase": "D1",
+      "scope": "src/index/build/**",
+      "pattern": "local MINIFIED_NAME_REGEX or normalizeRoot helper bodies in watch/discover modules",
+      "replacement": "src/index/build/watch/shared.js::{MINIFIED_NAME_REGEX,normalizeRoot}"
+    },
+    {
+      "banId": "B016",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local formatBytes or sizeOfPath helper implementations",
+      "replacement": "src/shared/disk-space.js::{formatBytes,sizeOfPath}"
+    },
+    {
+      "banId": "B017",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "ad-hoc lock helpers duplicating pid/stale checks around *.lock files",
+      "replacement": "src/shared/locks/file-lock.js::acquireFileLock"
+    },
+    {
+      "banId": "B018",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local escapeRegex/pickMinLimit helper bodies",
+      "replacement": "src/shared/text/escape-regex.js::escapeRegex and src/index/build/runtime/limits.js::pickMinLimit"
+    },
+    {
+      "banId": "B019",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "direct state/cache/manifest/pointer writes using fs.writeFile*/appendFile* without atomic helper",
+      "replacement": "src/shared/io/atomic-write.js::{atomicWriteJson,atomicWriteText}"
+    },
+    {
+      "banId": "B020",
+      "phase": "D1",
+      "scope": "tools/api/**,tools/mcp/**",
+      "pattern": "ad-hoc cache policy constants/normalizers without explicit shutdown+invalidation contract",
+      "replacement": "src/shared/cache/policy.js::{defineCachePolicy,resolveCachePolicy}"
+    },
+    {
+      "banId": "B021",
+      "phase": "D1",
+      "scope": "src/**,tools/service/**",
+      "pattern": "manual timer/promise lifecycle cleanup for long-lived services/watchers",
+      "replacement": "src/shared/lifecycle/registry.js::createLifecycleRegistry"
+    },
+    {
+      "banId": "B022",
+      "phase": "D2",
+      "scope": "src/**,tools/**",
+      "pattern": "local MinHeap/readJsonlRows/mergeSortedRuns helper bodies outside src/shared/merge.js",
+      "replacement": "src/shared/merge.js::{MinHeap,readJsonlRows,mergeSortedRuns}"
+    },
+    {
+      "banId": "B023",
+      "phase": "D2",
+      "scope": "src/index/build/artifacts/writers/**",
+      "pattern": "writer-local resolveJsonlExtension helper bodies",
+      "replacement": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension"
+    },
+    {
+      "banId": "B024",
+      "phase": "D4",
+      "scope": "src/retrieval/ann/**,src/retrieval/cli/**,src/retrieval/pipeline/**",
+      "pattern": "local ANN backend normalization or provider query gating helper bodies",
+      "replacement": "src/retrieval/ann/{normalize-backend.js,utils.js}"
+    },
+    {
+      "banId": "B025",
+      "phase": "D4",
+      "scope": "tools/api/**,tools/mcp/**",
+      "pattern": "local search request argv builders or normalizeMetaFilters helper bodies",
+      "replacement": "tools/shared/search-request.js::{buildSearchRequestArgs,normalizeMetaFilters}"
+    },
+    {
+      "banId": "B026",
+      "phase": "D4",
+      "scope": "tools/api/**,tools/mcp/**",
+      "pattern": "local repo cache policy defaults/manager lifecycle stacks for repo/index/sqlite caches",
+      "replacement": "tools/shared/repo-cache-config.js::createRepoCacheManager"
+    },
+    {
+      "banId": "B027",
+      "phase": "D5",
+      "scope": "src/index/tooling/**,tools/tooling/**",
+      "pattern": "local candidateNames/findBinaryInDirs helper bodies for tooling binary lookup",
+      "replacement": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}"
+    },
+    {
+      "banId": "B028",
+      "phase": "D5",
+      "scope": "src/index/tooling/**,src/lang/typescript/**",
+      "pattern": "local async/sync TypeScript module loader helper bodies",
+      "replacement": "src/index/tooling/typescript/load.js::{loadTypeScript,loadTypeScriptModule}"
+    },
+    {
+      "banId": "B029",
+      "phase": "D5",
+      "scope": "src/lang/**,src/index/tooling/signature-parse/**",
+      "pattern": "local split*Params/findTopLevelIndex/readSignatureLines helper bodies for signature parsing",
+      "replacement": "src/index/tooling/signature-parse/shared.js + src/lang/shared/signature-lines.js"
+    },
+    {
+      "banId": "B030",
+      "phase": "D5",
+      "scope": "src/lang/javascript/**,src/lang/typescript/**",
+      "pattern": "local resolveCalleeParts/resolveCallLocation/call-text normalization helper bodies",
+      "replacement": "src/lang/js-ts/relations-shared.js"
+    },
+    {
+      "banId": "B031",
+      "phase": "D3",
+      "scope": "tools/build/sqlite/**",
+      "pattern": "tool-local sqlite output-path/index-state helper modules",
+      "replacement": "src/storage/sqlite/build/{output-paths.js,index-state.js}"
+    },
+    {
+      "banId": "B032",
+      "phase": "D3",
+      "scope": "src/storage/sqlite/build/**,tools/shared/**",
+      "pattern": "local createNoopTask/resolveTaskFactory helper bodies",
+      "replacement": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}"
+    },
+    {
+      "banId": "B033",
+      "phase": "D3",
+      "scope": "src/storage/sqlite/build/from-{artifacts,bundles}.js",
+      "pattern": "duplicated sqlite build setup stacks (batch/statement normalization, pragmas/schema setup, multi-row inserter wiring, transaction bookkeeping, post-commit validate/cleanup)",
+      "replacement": "src/storage/sqlite/build/core.js shared helper API"
+    },
+    {
+      "banId": "B034",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/storage/sqlite/**,tools/build/embeddings/**",
+      "pattern": "manual quantization min/max/levels normalization or dense_meta scale fallback branches",
+      "replacement": "src/storage/sqlite/quantization.js::{resolveQuantizationParams,resolveDenseMetaRecord}"
+    },
+    {
+      "banId": "B035",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/storage/sqlite/build/**",
+      "pattern": "local sqlite vocab statement cache/fetch helper bodies",
+      "replacement": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds,getVocabCount}"
+    },
+    {
+      "banId": "B036",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/index/validate/**,src/integrations/core/status.js",
+      "pattern": "local LMDB decode/presence/schema-required-key helper bodies",
+      "replacement": "src/storage/lmdb/utils.js::{createLmdbCodec,decodeLmdbValue,hasLmdbStore,validateLmdbSchemaAndMode,validateLmdbArtifactKeys}"
+    },
+    {
+      "banId": "B037",
+      "phase": "D6",
+      "scope": "src/index/chunking/**",
+      "pattern": "local buildChunksFromLineHeadings/buildChunksFromMatches helper bodies in chunking dispatch/format modules",
+      "replacement": "src/index/chunking/helpers.js::{buildChunksFromLineHeadings,buildChunksFromMatches}"
+    },
+    {
+      "banId": "B038",
+      "phase": "D6",
+      "scope": "src/index/risk.js,src/index/risk-interprocedural/engine.js",
+      "pattern": "local severity rank / identifier boundary / rule pattern match helper bodies",
+      "replacement": "src/index/risk/shared.js::{SEVERITY_RANK,containsIdentifier,matchRulePatterns}"
+    },
+    {
+      "banId": "B039",
+      "phase": "D6",
+      "scope": "src/index/type-inference-crossfile/**,src/index/build/import-resolution.js",
+      "pattern": "local relative import candidate enumeration loops",
+      "replacement": "src/index/shared/import-candidates.js::{resolveRelativeImportCandidates,resolveRelativeImportCandidate}"
+    },
+    {
+      "banId": "B040",
+      "phase": "D6",
+      "scope": "src/map/**",
+      "pattern": "legacy applyScopeFilter/applyCollapse APIs and map-local escapeHtml/mergeConfig helper bodies",
+      "replacement": "src/map/build-map/filters.js::{createScopeFilters,createCollapseTransform} + src/map/shared/escape-html.js::escapeHtml + src/shared/config.js::mergeConfig"
+    },
+    {
+      "banId": "B041",
+      "phase": "D7",
+      "scope": "tests/retrieval/pipeline/{ann-optional-skip.test.js,ann-preflight.test.js}",
+      "pattern": "duplicated ANN pipeline fixture/context/index setup blocks",
+      "replacement": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario"
+    },
+    {
+      "banId": "B042",
+      "phase": "D7",
+      "scope": "tests/indexing/risk/interprocedural/**",
+      "pattern": "duplicated interprocedural flow-cap source/sink/runtime setup across cap scenarios",
+      "replacement": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js::runFlowCapScenario"
+    },
+    {
+      "banId": "B043",
+      "phase": "D7",
+      "scope": "tests/indexing/vfs/**,tests/tooling/vfs/**,tests/storage/sqlite/**",
+      "pattern": "duplicated VFS manifest streaming fixture setup or sqlite jsonl compression fixture setup across gzip/zstd variants",
+      "replacement": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase"
+    },
+    {
+      "banId": "B044",
+      "phase": "D7",
+      "scope": "tests/perf/**,tests/indexing/artifacts/**,tests/storage/sqlite/**",
+      "pattern": "duplicated graph bench, symbol artifact, or sqlite build fixture setup blocks across paired contract tests",
+      "replacement": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
+    },
+    {
+      "banId": "B045",
+      "phase": "D7",
+      "scope": "tools/bench/map/**",
+      "pattern": "duplicated map bench static server wiring or map build option resolver blocks across viewer/build scripts",
+      "replacement": "tools/bench/map/shared.js::{startMapViewerStaticServer,resolveMapBenchInputs,resolveRuns}"
+    },
+    {
+      "banId": "B046",
+      "phase": "D8",
+      "scope": "src/**,tools/**",
+      "pattern": "local Ajv bootstrap/compile stacks with ad-hoc cloneSchema helpers",
+      "replacement": "src/shared/validation/ajv-factory.js::{createAjv,cloneJsonSchema,compileSchema}"
+    },
+    {
+      "banId": "B047",
+      "phase": "D8",
+      "scope": "tools/download/**",
+      "pattern": "tool-local requestUrl/fetch redirect loops for dictionary or extension downloads",
+      "replacement": "tools/download/shared-fetch.js::fetchDownloadUrl"
+    }
+  ],
+  "exceptions": [],
+  "exceptionSemantics": {
+    "requiredFields": [
+      "exceptionId",
+      "phase",
+      "reason",
+      "owner",
+      "createdAt",
+      "expiresPhase",
+      "scope"
+    ],
+    "forbidPermanentExceptions": true,
+    "notes": "Each exception must include a concrete phase expiry and cannot be permanent."
+  }
+}

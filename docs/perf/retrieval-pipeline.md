@@ -32,3 +32,31 @@ Pools are capped and drop oversized buffers to avoid unbounded growth.
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
+
+## Graph/Context Pack Caches
+
+When graph-backed expansion (impact/context-pack) is enabled, `GraphStore` maintains small bounded LRU caches
+for graph artifacts and indexes to avoid per-request rebuilds.
+
+Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CSR inclusion flag. When present,
+`graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
+`graph_relations` representation (and may derive CSR from it).
+
+Callers should pass either a prebuilt `graphIndex` (preferred) or raw `graphRelations` (baseline). When CSR is enabled,
+some graphIndex variants store a trimmed graph_relations representation (no adjacency lists); passing both `graphIndex` and
+raw `graphRelations` will trigger `GRAPH_INDEX_MISMATCH` and disable cache reuse.
+
+When CSR is available, incoming traversal (`direction=in|both`) should use a reverse-edge CSR derived once per graphIndex,
+instead of materializing full `in`/`both` adjacency lists.
+
+Some traversal results may be cached per graphIndex, keyed by the traversal query signature (seeds, filters, depth/direction, caps, includePaths)
+and `indexSignature`. Cache hits must preserve deterministic ordering.
+
+Composite context-pack assembly may avoid loading full `chunk_meta` by resolving only the primary chunk's excerpt range via `chunk_uid_map`.
+
+Benchmarks:
+- `node tools/bench/graph/context-pack-latency.js --index <indexDir> --mode compare`
+- `node tools/bench/graph/neighborhood-index-dir.js --index <indexDir> --mode compare`
+
+Bench harness:
+- `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`

@@ -13,6 +13,7 @@ import { mergeSortedRuns } from '../../../shared/merge.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { resolveChunkId } from '../../chunk-id.js';
 import { resolveRelativeImport } from '../../type-inference-crossfile/resolve-relative-import.js';
+import { hashTokenId64Parts, TOKEN_ID_CONSTANTS } from '../../../shared/token-id.js';
 import {
   buildGraphRelationsCsr,
   createRowSpillCollector,
@@ -28,6 +29,11 @@ const GRAPH_RELATION_VERSION = 2;
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
+
+// Dedupe edges cheaply within spill buffers to reduce redundant spill rows.
+// Collision strategy: primary hash + independent fingerprint (both fnv1a64 with distinct seeds).
+const EDGE_DEDUPE_HASH_SEED = TOKEN_ID_CONSTANTS.DEFAULT_TOKEN_ID_SEED;
+const EDGE_DEDUPE_FINGERPRINT_SEED = TOKEN_ID_CONSTANTS.DEFAULT_TOKEN_ID_SEED ^ 0x243f6a8885a308d3n;
 
 const resolveCaps = (caps) => ({
   maxNodes: normalizeCap(caps?.maxNodes, GRAPH_MAX_NODES),
@@ -172,12 +178,14 @@ export async function enqueueGraphRelationsArtifacts({
   maxJsonBytes,
   byteBudget = null,
   log,
+  scheduleIo = null,
   enqueueWrite,
   addPieceFile,
   formatArtifactLabel,
   removeArtifact,
   stageCheckpoints
 }) {
+  const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
   const hasPayload = graphRelations && typeof graphRelations === 'object';
   const hasInputs = Array.isArray(chunks) && chunks.length;
   if (!hasPayload && !hasInputs) return;
@@ -192,8 +200,8 @@ export async function enqueueGraphRelationsArtifacts({
     const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
 
     const stagingDir = path.join(outDir, 'graph_relations.staging');
-    await fs.rm(stagingDir, { recursive: true, force: true });
-    await fs.mkdir(stagingDir, { recursive: true });
+    await schedule(() => fs.rm(stagingDir, { recursive: true, force: true }));
+    await schedule(() => fs.mkdir(stagingDir, { recursive: true }));
 
     const chunkByUid = new Map();
     const chunkUids = [];
@@ -242,13 +250,15 @@ export async function enqueueGraphRelationsArtifacts({
       outDir: stagingDir,
       runPrefix: 'graph-relations-out',
       compare: compareEdgesOut,
-      maxBufferBytes: spillBufferBytes
+      maxBufferBytes: spillBufferBytes,
+      scheduleIo
     });
     const inCollector = createRowSpillCollector({
       outDir: stagingDir,
       runPrefix: 'graph-relations-in',
       compare: compareEdgesIn,
-      maxBufferBytes: spillBufferBytes
+      maxBufferBytes: spillBufferBytes,
+      scheduleIo
     });
 
     const edgeCountsRaw = Object.create(null);
@@ -280,8 +290,11 @@ export async function enqueueGraphRelationsArtifacts({
           return;
         }
       }
-      await outCollector.append(edge);
-      await inCollector.append(edge);
+      const dedupeParts = [edge.g, edge.s, edge.t];
+      const dedupeHash = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_HASH_SEED);
+      const dedupeFingerprint = hashTokenId64Parts(dedupeParts, EDGE_DEDUPE_FINGERPRINT_SEED);
+      await outCollector.append(edge, { dedupeHash, dedupeFingerprint });
+      await inCollector.append(edge, { dedupeHash, dedupeFingerprint });
       if (guard?.label) edgeCountsRaw[guard.label] = (edgeCountsRaw[guard.label] || 0) + 1;
     };
 
@@ -348,6 +361,7 @@ export async function enqueueGraphRelationsArtifacts({
     if (fileRelations && typeof fileRelations.entries === 'function') {
       for (const [file, relations] of fileRelations.entries()) {
         if (!file) continue;
+        if (fileSet.size && !fileSet.has(file)) continue;
         importNodesSet.add(file);
         let imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
         if (!imports.length && Array.isArray(relations?.imports) && fileSet.size) {
@@ -357,6 +371,7 @@ export async function enqueueGraphRelationsArtifacts({
         }
         for (const target of imports) {
           if (!target) continue;
+          if (fileSet.size && !fileSet.has(target)) continue;
           importNodesSet.add(target);
         }
       }
@@ -367,6 +382,7 @@ export async function enqueueGraphRelationsArtifacts({
     if (!importGuard.disabled && fileRelations && typeof fileRelations.entries === 'function') {
       for (const [file, relations] of fileRelations.entries()) {
         if (!file) continue;
+        if (fileSet.size && !fileSet.has(file)) continue;
         if (importNodes.allowed && !importNodes.allowed.has(file)) continue;
         let imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
         if (!imports.length && Array.isArray(relations?.imports) && fileSet.size) {
@@ -377,6 +393,7 @@ export async function enqueueGraphRelationsArtifacts({
         const context = { file, chunkId: null, chunkUid: null };
         for (const target of imports) {
           if (!target) continue;
+          if (fileSet.size && !fileSet.has(target)) continue;
           if (importNodes.allowed && !importNodes.allowed.has(target)) continue;
           await appendEdge(importGuard, { g: 2, s: file, t: target }, context);
           if (importGuard.disabled && importGuard.reason === 'maxEdges') break;
@@ -469,14 +486,10 @@ export async function enqueueGraphRelationsArtifacts({
       }
     })();
 
-    // Remove legacy variants up front so staged writes don't leave ambiguous sources.
-    await removeArtifact(graphPath);
-    await removeArtifact(graphJsonlPath);
-    await removeArtifact(graphMetaPath);
-    await removeArtifact(graphPartsDir);
-    await removeArtifact(csrPath);
+    // Preserve existing artifacts until new outputs are fully written.
+    // Strict consumers must be manifest-first; non-strict filesystem discovery may see legacy variants.
 
-    const result = await writeJsonLinesShardedAsync({
+    const result = await schedule(() => writeJsonLinesShardedAsync({
       dir: outDir,
       partsDirName: 'graph_relations.parts',
       partPrefix: 'graph_relations.part-',
@@ -484,7 +497,7 @@ export async function enqueueGraphRelationsArtifacts({
       maxBytes: maxJsonBytes,
       atomic: true,
       offsets: offsetsConfig
-    });
+    }));
 
     const parts = result.parts.map((part, index) => ({
       path: part,
@@ -497,7 +510,7 @@ export async function enqueueGraphRelationsArtifacts({
       compression: 'none'
     });
 
-    await writeJsonObjectFile(graphMetaPath, {
+    await schedule(() => writeJsonObjectFile(graphMetaPath, {
       fields: {
         schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
         artifact: 'graph_relations',
@@ -518,13 +531,31 @@ export async function enqueueGraphRelationsArtifacts({
           },
           caps: capsPayload,
           version: GRAPH_RELATION_VERSION,
+          spill: {
+            out: outSpill?.stats
+              ? {
+                runsSpilled: outSpill.stats.runsSpilled || 0,
+                spillBytes: outSpill.stats.spillBytes || 0,
+                dedupedRows: outSpill.stats.dedupedRows || 0,
+                dedupeCollisions: outSpill.stats.dedupeCollisions || 0
+              }
+              : null,
+            in: inSpill?.stats
+              ? {
+                runsSpilled: inSpill.stats.runsSpilled || 0,
+                spillBytes: inSpill.stats.spillBytes || 0,
+                dedupedRows: inSpill.stats.dedupedRows || 0,
+                dedupeCollisions: inSpill.stats.dedupeCollisions || 0
+              }
+              : null
+          },
           ...(byteCapStats ? { byteCaps: byteCapStats } : {}),
           ...(offsetsMeta ? { offsets: offsetsMeta } : {}),
           ...(Number.isFinite(maxRowBytes) ? { maxRowBytes } : {})
         }
       },
       atomic: true
-    });
+    }));
 
     for (let i = 0; i < result.parts.length; i += 1) {
       const relPath = result.parts[i];
@@ -565,7 +596,7 @@ export async function enqueueGraphRelationsArtifacts({
 
     await outSpill.cleanup();
     await inSpill.cleanup();
-    await fs.rm(stagingDir, { recursive: true, force: true });
+    await schedule(() => fs.rm(stagingDir, { recursive: true, force: true }));
 
     return { orderingHash, orderingCount };
   }
@@ -593,10 +624,6 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphPath),
       async () => {
-        await removeArtifact(graphJsonlPath);
-        await removeArtifact(graphMetaPath);
-        await removeArtifact(graphPartsDir);
-        await removeArtifact(csrPath);
         const payload = materializeGraphRelationsPayload(graphRelations);
         await writeJsonObjectFile(graphPath, { fields: payload, atomic: true });
       }
@@ -610,8 +637,6 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphMetaPath),
       async () => {
-        await removeArtifact(graphPath);
-        await removeArtifact(graphJsonlPath);
         const byteBudget = Number.isFinite(graphRelations?.caps?.maxBytes)
           ? Math.max(0, Math.floor(Number(graphRelations.caps.maxBytes)))
           : null;

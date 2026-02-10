@@ -13,6 +13,11 @@ Spec references:
   per-request rebuilds.
 - Optional CSR-backed graph relations (`graph_relations_csr`) for low
   allocation adjacency traversal.
+- When CSR is enabled, `GraphStore` loads the CSR artifact from the pieces manifest, validates invariants (ordering/offsets/bounds),
+  and falls back to deriving CSR from `graph_relations` when the artifact is missing or invalid.
+- For `direction=in|both`, incoming neighbors are resolved via a reverse-edge CSR derived from the forward CSR (built once per graphIndex and cached),
+  avoiding full materialization of `in`/`both` adjacency lists.
+- Graph neighborhood traversals may be cached per graphIndex, keyed by `(seeds, filters, depth, direction, caps, includePaths, indexSignature)`.
 - Lazy edge loading based on requested graph types and edge filters.
 - Deterministic ordering for graph/context-pack outputs (stable sorting
   across nodes, edges, and witness paths).
@@ -20,6 +25,8 @@ Spec references:
   memory growth.
 - Context-pack excerpt IO moved to range reads with small LRU caches and
   prefetch batching to reduce repeated file reads.
+- Provider-based composite context-pack assembly can use `chunk_uid_map` to resolve the seed's primary chunk excerpt range
+  without materializing the full `chunk_meta` array.
 
 ## Cache Keys
 Graph index cache keys include:
@@ -47,6 +54,18 @@ node tools/bench/graph/context-pack-latency.js --index <indexDir> --seed chunk:<
 
 The harness reports min/avg/p95 timing and RSS deltas over multiple iterations. It
 defaults to auto-discovered code index when `--index` is omitted.
+
+For real-index traversal/impact throughput (baseline vs graphIndex, warm vs cold caches, includePaths on/off):
+
+```
+node tools/bench/graph/neighborhood-index-dir.js --index <indexDir> --mode compare
+```
+
+Bench JSON output includes:
+- `meta.graphStore.cache` (index/artifact cache hits/misses/evictions)
+- `meta.graphStore.lastBuild` (artifact load ms, CSR source/bytes, graph sizes)
+- `meta.traversalCache` (hit/miss telemetry + cache size)
+- `meta.timings` (artifact/index load timings)
 
 Additional graph Phase 10 benches:
 

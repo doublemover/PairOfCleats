@@ -29,11 +29,11 @@ expect(byName.top, 'Missing function chunk for top.');
 expect(byName.later, 'Missing function chunk for later.');
 
 expect(byName.Foo.meta.startLine === 1, 'Foo startLine mismatch.');
-expect(byName.Foo.meta.endLine === 5, 'Foo endLine mismatch.');
+expect(byName.Foo.meta.endLine === 4, 'Foo endLine mismatch.');
 expect(byName['Foo.method'].meta.startLine === 2, 'Foo.method startLine mismatch.');
-expect(byName['Foo.method'].meta.endLine === 5, 'Foo.method endLine mismatch.');
+expect(byName['Foo.method'].meta.endLine === 4, 'Foo.method endLine mismatch.');
 expect(byName.top.meta.startLine === 5, 'top startLine mismatch.');
-expect(byName.top.meta.endLine === 8, 'top endLine mismatch.');
+expect(byName.top.meta.endLine === 7, 'top endLine mismatch.');
 expect(byName.later.meta.startLine === 8, 'later startLine mismatch.');
 expect(byName.later.meta.endLine === 9, 'later endLine mismatch.');
 

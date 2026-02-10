@@ -16,6 +16,7 @@ import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/t
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
@@ -231,6 +232,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   throwIfAborted(abortSignal);
   await writeIndexArtifacts({
     outDir,
+    buildRoot: runtime.buildRoot,
     mode: 'records',
     state,
     postings,
@@ -247,12 +249,6 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     repoProvenance: runtime.repoProvenance
   });
 }
-
-const isPathUnderDir = (baseDir, targetPath) => {
-  if (!baseDir || !targetPath) return false;
-  const rel = path.relative(baseDir, targetPath);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-};
 
 async function listMarkdownFiles(rootDir) {
   try {

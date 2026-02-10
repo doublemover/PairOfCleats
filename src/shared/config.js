@@ -10,6 +10,7 @@ export function mergeConfig(base, overrides) {
     if (isPlainObject(value) && isPlainObject(next[key])) {
       next[key] = mergeConfig(next[key], value);
     } else {
+      // Arrays and non-plain objects are replaced as whole values by override.
       next[key] = value;
     }
   }

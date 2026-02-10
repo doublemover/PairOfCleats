@@ -1,5 +1,5 @@
 {
-  "schemaHash": "d17e7ceccddda636bcbd6588b847a491def75aed",
+  "schemaHash": "499a787e66593d5c7604b2242d67fa0e4222d613",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -899,6 +899,21 @@
       ]
     },
     {
+      "artifact": "vfs_manifest_bloom",
+      "schemaVersion": {
+        "type": "string"
+      },
+      "requiredFields": [
+        "algorithm",
+        "bits",
+        "bytes",
+        "count",
+        "hashes",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
       "artifact": "vfs_manifest_index",
       "schemaVersion": {
         "type": "string"
@@ -974,6 +989,15 @@
       ],
       "optionalFields": [
         "extensions"
+      ]
+    },
+    {
+      "artifact": "vocab_order",
+      "schemaVersion": null,
+      "requiredFields": [],
+      "optionalFields": [
+        "fields",
+        "vocab"
       ]
     }
   ]

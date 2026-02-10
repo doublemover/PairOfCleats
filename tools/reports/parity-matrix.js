@@ -33,7 +33,7 @@ const argv = createCli({
 const scriptRoot = resolveToolRoot();
 const { repoRoot, userConfig } = resolveRepoConfig(null);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
-const parityScript = path.join(scriptRoot, 'tests', 'parity.js');
+const parityScript = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity.test.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(
   argv.results || path.join(scriptRoot, 'benchmarks', 'results')

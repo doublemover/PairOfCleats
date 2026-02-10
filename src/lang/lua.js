@@ -50,23 +50,42 @@ function stripLuaComments(text) {
   return text.replace(/--\[\[[\s\S]*?\]\]/g, ' ').replace(/--.*$/gm, ' ');
 }
 
+function getLastLuaSegment(raw) {
+  if (!raw) return '';
+  let end = raw.length;
+  while (end > 0 && (raw[end - 1] === '.' || raw[end - 1] === ':')) end -= 1;
+  if (!end) return '';
+  let idx = end - 1;
+  while (idx >= 0) {
+    const ch = raw[idx];
+    if (ch === '.' || ch === ':') break;
+    idx -= 1;
+  }
+  return raw.slice(idx + 1, end);
+}
+
 function collectLuaCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
   const normalized = stripLuaComments(text);
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split(/[.:]/).filter(Boolean).pop();
+    const base = getLastLuaSegment(raw);
     if (!base || LUA_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (LUA_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -106,6 +125,7 @@ function normalizeLuaName(name) {
  * @returns {string[]}
  */
 export function collectLuaImports(text) {
+  if (!text || !text.includes('require')) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {

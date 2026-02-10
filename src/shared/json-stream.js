@@ -18,6 +18,12 @@ const resolveShardLimits = ({ maxBytes, maxItems }) => ({
   maxItems: normalizeShardLimit(maxItems)
 });
 
+export const resolveJsonlExtension = (value) => {
+  if (value === 'gzip') return 'jsonl.gz';
+  if (value === 'zstd') return 'jsonl.zst';
+  return 'jsonl';
+};
+
 /**
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
@@ -172,11 +178,6 @@ export async function writeJsonLinesSharded(input) {
   await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const extension = resolveJsonlExtension(resolvedCompression);
 
   let compressionPool = null;
@@ -359,11 +360,6 @@ export async function writeJsonLinesShardedAsync(input) {
   await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const extension = resolveJsonlExtension(resolvedCompression);
 
   let compressionPool = null;

@@ -74,8 +74,12 @@ if (previousCacheRoot === undefined) {
 const db = new Database(sqlitePaths.codePath);
 const indexList = db.prepare("PRAGMA index_list('token_postings')").all();
 const indexNames = new Set(indexList.map((row) => row.name));
-if (!indexNames.has('idx_token_postings_token')) {
-  console.error('Expected idx_token_postings_token to exist');
+if (indexNames.has('idx_token_postings_token')) {
+  console.error('Did not expect redundant idx_token_postings_token to exist');
+  process.exit(1);
+}
+if (!indexList.some((row) => row.origin === 'pk')) {
+  console.error('Expected token_postings PRIMARY KEY index to exist');
   process.exit(1);
 }
 const chunkIndexList = db.prepare("PRAGMA index_list('chunks')").all();

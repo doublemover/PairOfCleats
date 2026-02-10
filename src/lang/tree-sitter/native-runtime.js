@@ -1,0 +1,223 @@
+import { createRequire } from 'node:module';
+import { LANGUAGE_GRAMMAR_KEYS } from './config.js';
+
+const require = createRequire(import.meta.url);
+
+const nativeTreeSitterState = {
+  ParserCtor: null,
+  initError: null,
+  initTried: false,
+  grammarCache: new Map(), // languageId -> { language, error }
+  sharedParser: null,
+  sharedParserLanguageId: null,
+  loggedMissing: new Set()
+};
+
+const NATIVE_GRAMMAR_MODULES = Object.freeze({
+  javascript: {
+    moduleName: 'tree-sitter-javascript',
+    exportKey: 'javascript',
+    fallbackExportKeys: ['language']
+  },
+  jsx: {
+    moduleName: 'tree-sitter-javascript',
+    exportKey: 'jsx',
+    fallbackExportKeys: ['language']
+  },
+  typescript: { moduleName: 'tree-sitter-typescript', exportKey: 'typescript' },
+  tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
+  python: { moduleName: 'tree-sitter-python' },
+  json: { moduleName: 'tree-sitter-json' },
+  yaml: { moduleName: '@tree-sitter-grammars/tree-sitter-yaml' },
+  toml: { moduleName: '@tree-sitter-grammars/tree-sitter-toml' },
+  markdown: { moduleName: '@tree-sitter-grammars/tree-sitter-markdown' },
+  kotlin: { moduleName: 'tree-sitter-kotlin' },
+  csharp: { moduleName: 'tree-sitter-c-sharp' },
+  clike: { moduleName: 'tree-sitter-c' },
+  c: { moduleName: 'tree-sitter-c' },
+  cpp: { moduleName: 'tree-sitter-cpp' },
+  objc: { moduleName: 'tree-sitter-objc' },
+  go: { moduleName: 'tree-sitter-go' },
+  rust: { moduleName: 'tree-sitter-rust' },
+  java: { moduleName: 'tree-sitter-java' },
+  css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
+  html: { moduleName: 'tree-sitter-html' },
+  swift: { moduleName: 'tree-sitter-swift' }
+});
+
+const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
+
+const resolveGrammarLanguageExport = (grammarModule, grammarSpec) => {
+  const preferredKey = typeof grammarSpec?.exportKey === 'string' && grammarSpec.exportKey
+    ? grammarSpec.exportKey
+    : null;
+  if (preferredKey && grammarModule?.[preferredKey]) {
+    return { language: grammarModule[preferredKey], source: preferredKey };
+  }
+
+  const fallbackKeys = Array.isArray(grammarSpec?.fallbackExportKeys)
+    ? grammarSpec.fallbackExportKeys
+    : [];
+  for (const key of fallbackKeys) {
+    if (typeof key !== 'string' || !key) continue;
+    if (grammarModule?.[key]) {
+      return { language: grammarModule[key], source: key };
+    }
+  }
+
+  if (!preferredKey) {
+    return { language: grammarModule, source: null };
+  }
+  return { language: null, source: preferredKey };
+};
+
+const normalizeLanguageBinding = (languageValue, grammarModule) => {
+  if (!languageValue || typeof languageValue !== 'object') return null;
+  if (languageValue.language && languageValue.nodeTypeInfo) return languageValue;
+  if (grammarModule && grammarModule.nodeTypeInfo && languageValue === grammarModule.language) {
+    return grammarModule;
+  }
+  return null;
+};
+
+const loadGrammarModule = (grammarSpec) => {
+  if (grammarSpec?.prebuildBinary) {
+    const prebuildId = `${process.platform}-${process.arch}`;
+    const bindingPath = `${grammarSpec.moduleName}/prebuilds/${prebuildId}/${grammarSpec.prebuildBinary}`;
+    const binding = require(bindingPath);
+    try {
+      binding.nodeTypeInfo = require(`${grammarSpec.moduleName}/src/node-types.json`);
+    } catch {
+      // ignore missing node-types metadata
+    }
+    return binding;
+  }
+  return require(grammarSpec.moduleName);
+};
+
+export function hasNativeTreeSitterGrammar(languageId) {
+  return Boolean(resolveGrammarModule(languageId));
+}
+
+export function resolveNativeTreeSitterTarget(languageId, ext = null) {
+  const resolvedId = typeof languageId === 'string' ? languageId : null;
+  if (!resolvedId) return null;
+  if (!hasNativeTreeSitterGrammar(resolvedId)) return null;
+  const grammarKey = LANGUAGE_GRAMMAR_KEYS?.[resolvedId] || `native:${resolvedId}`;
+  return {
+    languageId: resolvedId,
+    grammarKey,
+    runtimeKind: 'native',
+    ext: typeof ext === 'string' && ext ? ext : null
+  };
+}
+
+export function initNativeTreeSitter({ log } = {}) {
+  if (nativeTreeSitterState.initTried) return nativeTreeSitterState.ParserCtor != null;
+  nativeTreeSitterState.initTried = true;
+  try {
+    nativeTreeSitterState.ParserCtor = require('tree-sitter');
+    return true;
+  } catch (err) {
+    nativeTreeSitterState.initError = err;
+    if (log) {
+      const message = err?.message || String(err);
+      log(`[tree-sitter] Parser unavailable (${message}).`);
+    }
+    return false;
+  }
+}
+
+export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
+  const cached = nativeTreeSitterState.grammarCache.get(languageId);
+  if (cached) return cached;
+  const grammarSpec = resolveGrammarModule(languageId);
+  if (!grammarSpec) {
+    const entry = { language: null, error: new Error(`Unsupported native grammar: ${languageId}`) };
+    nativeTreeSitterState.grammarCache.set(languageId, entry);
+    return entry;
+  }
+  const moduleName = grammarSpec.moduleName;
+  try {
+    const grammarModule = loadGrammarModule(grammarSpec);
+    const resolved = resolveGrammarLanguageExport(grammarModule, grammarSpec);
+    const language = normalizeLanguageBinding(resolved.language, grammarModule);
+    if (!language) throw new Error(`Missing export "${resolved.source || 'module'}" in ${moduleName}`);
+    const entry = { language, error: null };
+    nativeTreeSitterState.grammarCache.set(languageId, entry);
+    return entry;
+  } catch (err) {
+    const entry = { language: null, error: err };
+    nativeTreeSitterState.grammarCache.set(languageId, entry);
+    if (log && !nativeTreeSitterState.loggedMissing.has(languageId)) {
+      const message = err?.message || String(err);
+      log(`[tree-sitter] Missing grammar for ${languageId} (${moduleName}): ${message}`);
+      nativeTreeSitterState.loggedMissing.add(languageId);
+    }
+    return entry;
+  }
+}
+
+export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}) {
+  const unique = Array.from(new Set((languageIds || []).filter((id) => typeof id === 'string' && id)));
+  const missing = [];
+  const unavailable = [];
+  if (!unique.length) return { ok: true, missing, unavailable };
+  const ready = initNativeTreeSitter({ log });
+  if (!ready) {
+    unavailable.push(...unique);
+    return { ok: false, missing, unavailable };
+  }
+  for (const languageId of unique) {
+    const target = resolveNativeTreeSitterTarget(languageId);
+    if (!target) {
+      missing.push(languageId);
+      continue;
+    }
+    const loaded = loadNativeTreeSitterGrammar(languageId, { log });
+    if (!loaded?.language) {
+      unavailable.push(languageId);
+    }
+  }
+  return {
+    ok: missing.length === 0 && unavailable.length === 0,
+    missing,
+    unavailable
+  };
+}
+
+export function getNativeTreeSitterParser(languageId, options = {}) {
+  const resolvedId = typeof languageId === 'string' ? languageId : null;
+  if (!resolvedId) return null;
+  const log = options?.log || null;
+  if (!initNativeTreeSitter({ log })) return null;
+  const { language } = loadNativeTreeSitterGrammar(resolvedId, { log });
+  if (!language) return null;
+
+  try {
+    if (!nativeTreeSitterState.sharedParser) {
+      nativeTreeSitterState.sharedParser = new nativeTreeSitterState.ParserCtor();
+      nativeTreeSitterState.sharedParserLanguageId = null;
+    }
+
+    if (nativeTreeSitterState.sharedParserLanguageId !== resolvedId) {
+      // tree-sitter doesn't expose a documented `reset()`; treat language
+      // switches as the synchronization point.
+      nativeTreeSitterState.sharedParser.setLanguage(language);
+      nativeTreeSitterState.sharedParserLanguageId = resolvedId;
+    }
+
+    return nativeTreeSitterState.sharedParser;
+  } catch (err) {
+    try {
+      nativeTreeSitterState.sharedParser?.delete?.();
+    } catch {}
+    nativeTreeSitterState.sharedParser = null;
+    nativeTreeSitterState.sharedParserLanguageId = null;
+    if (log) {
+      const message = err?.message || String(err);
+      log(`[tree-sitter] Failed to activate ${resolvedId}: ${message}`);
+    }
+    return null;
+  }
+}

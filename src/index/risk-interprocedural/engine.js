@@ -1,9 +1,9 @@
 import { sha1 } from '../../shared/hash.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
+import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_FLOW_ROW_BYTES = 32 * 1024;
-const SEVERITY_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 
 const sortByKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -98,55 +98,6 @@ const sortSinks = (sinks) => {
   return list;
 };
 
-const containsIdentifier = (text, name) => {
-  if (!text || !name) return false;
-  const hay = String(text);
-  const needle = String(name);
-  if (!needle) return false;
-  let idx = 0;
-  const len = needle.length;
-  const isIdentChar = (code) => (
-    (code >= 48 && code <= 57)
-    || (code >= 65 && code <= 90)
-    || (code >= 97 && code <= 122)
-    || code === 95
-    || code === 36
-  );
-  while ((idx = hay.indexOf(needle, idx)) !== -1) {
-    const beforePos = idx - 1;
-    const afterPos = idx + len;
-    const beforeOk = beforePos < 0 || !isIdentChar(hay.charCodeAt(beforePos));
-    const afterOk = afterPos >= hay.length || !isIdentChar(hay.charCodeAt(afterPos));
-    if (beforeOk && afterOk) return true;
-    idx += 1;
-  }
-  return false;
-};
-
-const matchesRulePatterns = (text, rule) => {
-  if (!text || !rule) return false;
-  const patterns = Array.isArray(rule.patterns) ? rule.patterns : [];
-  for (const pattern of patterns) {
-    if (!pattern) continue;
-    const prefilter = pattern.prefilter;
-    if (prefilter) {
-      if (pattern.prefilterLower) {
-        const lower = text.toLowerCase();
-        if (!lower.includes(pattern.prefilterLower)) continue;
-      } else if (!text.includes(prefilter)) {
-        continue;
-      }
-    }
-    try {
-      pattern.lastIndex = 0;
-      if (pattern.test(text)) return true;
-    } catch {
-      continue;
-    }
-  }
-  return false;
-};
-
 const isArgTainted = (argText, taintedIdentifiers, sourceRules) => {
   const text = String(argText || '').trim();
   if (!text) return false;
@@ -154,7 +105,7 @@ const isArgTainted = (argText, taintedIdentifiers, sourceRules) => {
     if (containsIdentifier(text, name)) return true;
   }
   for (const rule of sourceRules || []) {
-    if (matchesRulePatterns(text, rule)) return true;
+    if (matchRulePatterns(text, rule)) return true;
   }
   return false;
 };

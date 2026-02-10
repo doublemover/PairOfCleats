@@ -20,16 +20,16 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.3 | [@] | Cache key schema/helpers in progress |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
-| 16.13 | [ ] |  |
-| 16.14 | [ ] |  |
-| 16.6 | [ ] |  |
-| 16.7 | [ ] |  |
-| 16.8 | [ ] |  |
-| 16.9 | [ ] |  |
-| 16.10 | [ ] |  |
-| 16.11 | [ ] |  |
-| 16.12 | [ ] |  |
-| 16.15 | [ ] |  |
+| 16.13 | [x] |  |
+| 16.14 | [x] |  |
+| 16.6 | [x] |  |
+| 16.7 | [x] | Stage2 relations/filter-index hardening + tests/bench complete |
+| 16.8 | [x] |  |
+| 16.9 | [x] |  |
+| 16.10 | [x] |  |
+| 16.11 | [x] |  |
+| 16.12 | [x] |  |
+| 16.15 | [x] | Bench harness + bench output contracts + usage checklist complete |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -920,7 +920,7 @@ Tasks:
 - [x] Task 16.14.1.f.1: Add rolling snapshot cadence (configurable N).
 
 Tests:
-- [ ] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
+- [x] `tests/indexing/artifacts/index-state-skip-write.test.js` (perf lane)
 
 ### Subphase 16.14.2 -- File Meta
 Parallel: Can run alongside 16.14.1/16.14.3 with clear ownership.
@@ -949,8 +949,8 @@ Tasks:
 - [x] Task 16.14.2.f.1: Ensure loader uses JSONL when columnar exceeds cap.
 
 Tests:
-- [ ] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
-- [ ] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/artifacts/file-meta-columnar-roundtrip.test.js` (perf lane)
+- [x] `tests/indexing/artifacts/file-meta-bench-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.14.3 -- Minhash
 Parallel: Can run alongside 16.14.1/16.14.2 with clear ownership.
@@ -1118,7 +1118,7 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [x] Task 16.7.1.doc: Update docs/specs and touchpoints listed for this subphase.
 - [x] Task 16.7.1.a: Implement typed edge storage during build.
-- [ ] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
+- [x] Task 16.7.1.a.1: Define edge schema version + canonical field ordering in spec.
 - [x] Task 16.7.1.b: Implement two-phase streaming relations build.
 - [x] Task 16.7.1.b.1: Define spill file format + merge contract (ordering + dedupe).
 - [x] Task 16.7.1.b.2: Add staging directory for spill outputs and atomic finalization.
@@ -1127,14 +1127,14 @@ Tasks:
 - [x] Task 16.7.1.c: Add deterministic ordering without global sort.
 - [x] Task 16.7.1.c.1: Deterministic ordering for spill merge without global sort.
 - [x] Task 16.7.1.c.2: Preserve stable JSON key ordering for `graph_relations` rows and node fields to prevent ordering hash drift.
-- [ ] Task 16.7.1.d: Add edge dedupe via compact hashes.
-- [ ] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
+- [x] Task 16.7.1.d: Add edge dedupe via compact hashes.
+- [x] Task 16.7.1.d.1: Add collision strategy (hash + fingerprint or secondary compare).
 - [x] Task 16.7.1.d.2: Add max edges per file/repo guardrails.
 - [x] Task 16.7.1.d.3: Ensure dedupe/collision handling works on a streamed edge merge (no full materialization).
 - [x] Task 16.7.1.e: Add spill thresholds by bytes.
-- [ ] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
-- [ ] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
-- [ ] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
+- [x] Task 16.7.1.e.1: Add memory budget enforcement + backpressure integration for Stage2.
+- [x] Task 16.7.1.f: Add fast reject filter for excluded files before edge creation.
+- [x] Task 16.7.1.g: Add scheduler queue integration for relations IO/CPU.
 
 Tests:
 - [x] `tests/perf/indexing/relations/relations-streaming-build.test.js` (perf lane) (new)
@@ -1146,15 +1146,15 @@ Touchpoints: `src/index/build/indexer/steps/relations.js (anchor: buildRelations
 Tasks:
 - [x] Task 16.7.2.doc: Update docs/specs and touchpoints listed for this subphase.
 - [x] Task 16.7.2.a: Add per-file bitmaps in filter index.
-- [ ] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
+- [x] Task 16.7.2.a.1: Specify bitmap format (sparse/dense) + versioning.
 - [x] Task 16.7.2.b: Add repo map batching + safer writes (defer delta compression).
-- [ ] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
-- [ ] Task 16.7.2.c: Add concurrency split for relations IO.
-- [ ] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
+- [x] Task 16.7.2.b.1: Define delta compression header/version and fallback handling.
+- [x] Task 16.7.2.c: Add concurrency split for relations IO.
+- [x] Task 16.7.2.c.1: Tie IO split to scheduler queues + memory budget.
 - [x] Task 16.7.2.d: Add filter index size telemetry.
-- [ ] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
+- [x] Task 16.7.2.d.1: Record size + compression ratio in build_state/metrics.
 - [x] Task 16.7.2.e: Add fallback to previous filter index on failure.
-- [ ] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
+- [x] Task 16.7.2.e.1: Validate new filter index before swap; keep previous on validation failure.
 - [x] Task 16.7.2.f: Add atomic staging + swap for filter index and repo map outputs.
 - [x] Task 16.7.2.f.1: Update piece manifest only after successful swap; retain previous pieces on failure.
 
@@ -1173,23 +1173,24 @@ Tasks:
 - [x] Task 16.7.3.b: Add relations memory regression test.
 - [x] Task 16.7.3.b.1: Assert memory budget throttling + metrics for relations build.
 - [x] Task 16.7.3.c: Add determinism test for relations output.
-- [ ] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
-- [ ] Task 16.7.3.d: Add repo map delta compression test.
-- [ ] Task 16.7.3.d.1: Roundtrip delta compression with versioned header.
+- [x] Task 16.7.3.c.1: Run with differing concurrency and compare outputs byte-for-byte.
+- [x] Task 16.7.3.d: Add repo map sharded roundtrip test (meta + loader).
+- [x] Task 16.7.3.d.1: Roundtrip sharded repo_map with versioned meta header.
 - [x] Task 16.7.3.e: Add docs update for Stage2 changes.
 - [x] Task 16.7.3.e.1: Document staging/atomic swap + fallback behavior.
-- [ ] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
-- [ ] Task 16.7.3.g: Add collision regression test for hash dedupe.
-- [ ] Task 16.7.3.h: Update script inventory + commands docs for new bench scripts.
-- [ ] Task 16.7.3.i: Update any tests that directly read `graph_relations.json`/filter index files to load via artifact loaders (shards/legacy compatible).
+- [x] Task 16.7.3.f: Add relations atomicity regression test for partial output rollback.
+- [x] Task 16.7.3.g: Add collision regression test for hash dedupe.
+- [x] Task 16.7.3.h: Update commands docs for new bench scripts (bench scripts run directly; npm script inventory remains package.json-only).
+- [x] Task 16.7.3.i: Update any tests that directly read `graph_relations.json`/filter index files to load via artifact loaders (shards/legacy compatible).
 
 Tests:
-- [ ] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-determinism-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-collision-guard.test.js` (perf lane) (new)
 - [x] `tests/indexing/relations/relations-memory-budget.test.js` (perf lane) (new)
-- [ ] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
+- [x] `tests/indexing/relations/relations-atomicity-rollback.test.js` (perf lane) (new)
+- [x] `tests/indexing/filter-index/filter-index-atomic-swap.test.js` (perf lane) (new)
 - [x] `tests/indexing/filter-index/filter-index-metrics.test.js` (perf lane) (new)
-- [x] `tests/indexing/repo-map/repo-map-delta-roundtrip.test.js` (perf lane) (new)
+- [x] `tests/indexing/repo-map/repo-map-roundtrip.test.js` (perf lane) (new)
 
 ---
 
@@ -1202,57 +1203,57 @@ Parallel: Can run alongside 16.8.2 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/cache.js (anchor: buildCacheKey)`, `src/shared/embedding-identity.js (anchor: buildEmbeddingIdentity)`, `src/shared/cache-key.js (anchor: buildCacheKey)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`
 Tasks:
-- [ ] Task 16.8.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.1.a: Cache identity must be derived from `src/shared/embedding-identity.js` only; audit coverage for provider/modelId/dims/normalize/quantization/pooling/truncation/stub.
-- [ ] Task 16.8.1.b: Keep cache fast-reject O(1) via `cache.index.json` metadata (identityKey/hash/chunkSignature) without reading shard payloads; add telemetry + regression test.
-- [ ] Task 16.8.1.c: Enforce per-mode cache isolation (mode always in key); add regression test for cross-mode collision prevention.
-- [ ] Task 16.8.1.d: Fail-closed cache validity: reject on dims/normalize mismatch, incomplete vectors, or signature/hash mismatch; never partially apply an invalid entry.
-- [ ] Task 16.8.1.e: Telemetry: standardize cacheStats fields and ensure they land in `index_state.embeddings.cacheStats` + metrics output.
-- [ ] Task 16.8.1.f: Pruning safety: verify prune plan is safe under concurrent builds (append-only shards, atomic index updates); update docs and tests.
+- [x] Task 16.8.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.1.a: Cache identity must be derived from `src/shared/embedding-identity.js` only; audit coverage for provider/modelId/dims/normalize/quantization/pooling/truncation/stub.
+- [x] Task 16.8.1.b: Keep cache fast-reject O(1) via `cache.index.json` metadata (identityKey/hash/chunkSignature) without reading shard payloads; add telemetry + regression test.
+- [x] Task 16.8.1.c: Enforce per-mode cache isolation (mode always in key); add regression test for cross-mode collision prevention.
+- [x] Task 16.8.1.d: Fail-closed cache validity: reject on dims/normalize mismatch, incomplete vectors, or signature/hash mismatch; never partially apply an invalid entry.
+- [x] Task 16.8.1.e: Telemetry: standardize cacheStats fields and ensure they land in `index_state.embeddings.cacheStats` + metrics output.
+- [x] Task 16.8.1.f: Pruning safety: verify prune plan is safe under concurrent builds (append-only shards, atomic index updates); update docs and tests.
 
 Tests:
-- [ ] `tests/indexing/embeddings/embeddings-cache-identity.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/cache-index-append-only.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-cache-fast-reject.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embeddings-cache-identity.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-cache-invalidation.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/cache-index-append-only.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-cache-fast-reject.test.js` (perf lane) (new)
 
 ### Subphase 16.8.2 -- IO + Batching
 Parallel: Can run alongside 16.8.1 with clear file ownership.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/pipeline.js (anchor: createFileEmbeddingsProcessor)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/build/embeddings/scheduler.js (anchor: createEmbeddingsScheduler)`, `src/shared/embedding-batch.js (anchor: resolveAutoEmbeddingBatchSize)`
 Tasks:
-- [ ] Task 16.8.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.2.a: Implement writer pipeline as a bounded queue (all writes go through the IO scheduler; no bypass paths).
-- [ ] Task 16.8.2.b: Add IO backpressure to compute path (when writer queue is saturated, compute awaits).
-- [ ] Task 16.8.2.c: Batch-size auto-tuning: centralize in `src/shared/embedding-batch.js`, plumb to Stage3, and document provider limits.
-- [ ] Task 16.8.2.d: Vector pre-allocation + pooling for hot paths (typed arrays); add guardrails against cross-file mutation.
-- [ ] Task 16.8.2.e: Enforce chunk-stable batching (deterministic chunk ordering independent of concurrency and batch size).
-- [ ] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads (stub/onnx paths).
+- [x] Task 16.8.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.2.a: Implement writer pipeline as a bounded queue (all writes go through the IO scheduler; no bypass paths).
+- [x] Task 16.8.2.b: Add IO backpressure to compute path (when writer queue is saturated, compute awaits).
+- [x] Task 16.8.2.c: Batch-size auto-tuning: centralize in `src/shared/embedding-batch.js`, plumb to Stage3, and document provider limits.
+- [x] Task 16.8.2.d: Vector pre-allocation + pooling for hot paths (typed arrays); add guardrails against cross-file mutation.
+- [x] Task 16.8.2.e: Enforce chunk-stable batching (deterministic chunk ordering independent of concurrency and batch size).
+- [x] Task 16.8.2.f: Add CPU-only batch sizing tuned by available threads (stub/onnx paths).
 
 Tests:
-- [ ] `tests/indexing/embeddings/embedding-queue.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batch-autotune.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batcher-flush-reentrancy.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-writer-backpressure.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embedding-queue.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batch-autotune.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batcher-flush-reentrancy.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-writer-backpressure.test.js` (perf lane) (new)
 
 ### Subphase 16.8.3 -- Tests + Bench
 Parallel: Run after 16.8.1/16.8.2.
 Docs/specs to update: `docs/specs/embeddings-cache.md`, `docs/specs/runtime-envelope.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `tools/build/embeddings/runner.js (anchor: runBuildEmbeddingsWithConfig)`, `tools/build/embeddings/batch.js (anchor: flushEmbeddingsBatch)`, `tools/bench/cache-hit-rate.js`, `src/shared/embedding-utils.js (anchor: mergeEmbeddingVectors)`, `src/shared/concurrency.js (anchor: runWithQueue)`
 Tasks:
-- [ ] Task 16.8.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.8.3.a: Extend `cache-hit-rate` bench to include writer queue + backpressure.
-- [ ] Task 16.8.3.b: Add throughput benchmark for batch-size tuning across providers (stub/onnx/openai).
-- [ ] Task 16.8.3.c: Add regression test for embedding output determinism (same inputs produce identical vectors + manifests).
-- [ ] Task 16.8.3.d: Add docs update for embeddings pipeline (include queue/backpressure knobs + telemetry fields).
-- [ ] Task 16.8.3.e: Add memory regression test for embeddings (heap plateau under backlog).
+- [x] Task 16.8.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.8.3.a: Extend `cache-hit-rate` bench to include writer queue + backpressure.
+- [x] Task 16.8.3.b: Add throughput benchmark for batch-size tuning across providers (stub/onnx/openai).
+- [x] Task 16.8.3.c: Add regression test for embedding output determinism (same inputs produce identical vectors + manifests).
+- [x] Task 16.8.3.d: Add docs update for embeddings pipeline (include queue/backpressure knobs + telemetry fields).
+- [x] Task 16.8.3.e: Add memory regression test for embeddings (heap plateau under backlog).
 
 Tests:
-- [ ] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-batch-throughput.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embedding-normalization-consistency.test.js` (perf lane)
-- [ ] `tests/indexing/embeddings/embeddings-determinism.test.js` (perf lane) (new)
-- [ ] `tests/indexing/embeddings/embeddings-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-hit-rate-contract.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-batch-throughput.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embedding-normalization-consistency.test.js` (perf lane)
+- [x] `tests/indexing/embeddings/embeddings-determinism.test.js` (perf lane) (new)
+- [x] `tests/indexing/embeddings/embeddings-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
@@ -1265,54 +1266,54 @@ Parallel: Must land before 16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/build/runner.js (anchor: runBuildSqliteIndexWithConfig)`, `src/storage/sqlite/build/output-paths.js (anchor: resolveOutputPaths)`, `src/storage/sqlite/build/from-artifacts.js (anchor: buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/from-bundles.js (anchor: buildDatabaseFromBundles)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchor: applyBuildPragmas)`, `src/storage/sqlite/utils.js (anchor: resolveSqliteBatchSize)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`
 Tasks:
-- [ ] Task 16.9.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.1.a: Ensure BOTH artifact builds and bundle builds use a consistent load-first flow (schema base, ingest, then indexes/optimize) and share common ingestion helpers where possible.
-- [ ] Task 16.9.1.b: Add a top-level transaction boundary for full builds (one `BEGIN`/`COMMIT` spanning all table loads + index creation); ensure no accidental autocommit islands (including `db.exec()` multi-statement inserts).
-- [ ] Task 16.9.1.c: Split statements for full rebuild vs incremental update: full rebuild must prefer `INSERT` (fail-fast on duplicates) while incremental update may use `INSERT OR REPLACE` where needed.
-- [ ] Task 16.9.1.d: Reduce prepare/parse overhead: prepare insert statements once per DB handle and reuse across all artifact shards (no per-shard `db.prepare` churn).
-- [ ] Task 16.9.1.e: Batch sizing: make batch size decisions observable in telemetry (input bytes, chosen batch size, rows/sec per table) and ensure overrides are consistently plumbed through Stage4 runner.
-- [ ] Task 16.9.1.f: Evaluate multi-row INSERT vs statement loops for heavy tables (token/phrase/chargram postings); pick the faster path per benchmark and document the decision in `docs/perf/sqlite-build.md`.
+- [x] Task 16.9.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.1.a: Ensure BOTH artifact builds and bundle builds use a consistent load-first flow (schema base, ingest, then indexes/optimize) and share common ingestion helpers where possible.
+- [x] Task 16.9.1.b: Add a top-level transaction boundary for full builds (one `BEGIN`/`COMMIT` spanning all table loads + index creation); ensure no accidental autocommit islands (including `db.exec()` multi-statement inserts).
+- [x] Task 16.9.1.c: Split statements for full rebuild vs incremental update: full rebuild must prefer `INSERT` (fail-fast on duplicates) while incremental update may use `INSERT OR REPLACE` where needed.
+- [x] Task 16.9.1.d: Reduce prepare/parse overhead: prepare insert statements once per DB handle and reuse across all artifact shards (no per-shard `db.prepare` churn).
+- [x] Task 16.9.1.e: Batch sizing: make batch size decisions observable in telemetry (input bytes, chosen batch size, rows/sec per table) and ensure overrides are consistently plumbed through Stage4 runner.
+- [x] Task 16.9.1.f: Evaluate multi-row INSERT vs statement loops for heavy tables (token/phrase/chargram postings); pick the faster path per benchmark and document the decision in `docs/perf/sqlite-build.md`.
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-build-full-transaction.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-pragmas-dynamic.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-build-pragmas-restore.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-build-full-transaction.test.js` (perf lane) (new)
 
 ### Subphase 16.9.2 -- FTS/Index Build
 Parallel: Run after 16.9.1.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `src/storage/sqlite/schema.js (anchor: CREATE_INDEXES_SQL)`, `src/storage/sqlite/schema.js (anchor: CREATE_TABLES_BASE_SQL)`, `src/storage/sqlite/build/pragmas.js (anchor: optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/retrieval/sqlite-helpers.js (anchor: rankSqliteFts)`
 Tasks:
-- [ ] Task 16.9.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.2.a: FTS strategy: make `chunks_fts` contentless (`content=''`) to avoid duplicating chunk text; confirm runtime does not depend on reading FTS-stored content (ranking-only is OK).
-- [ ] Task 16.9.2.b: Add explicit FTS post-load optimization (`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`) and include it in Stage4 telemetry.
-- [ ] Task 16.9.2.c: Index plan: audit `CREATE_INDEXES_SQL` for redundant indexes (especially those subsumed by PRIMARY KEY ordering); remove/adjust indexes based on query plans + benchmarks and update tests accordingly.
-- [ ] Task 16.9.2.d: Row-shape optimizations: evaluate `WITHOUT ROWID` for postings/vocab tables with composite PRIMARY KEYs; document which tables change and why (size vs build time vs query plan effects).
-- [ ] Task 16.9.2.e: Artifact read pipeline: keep reads streaming and bounded (no full materialization of large JSONL shards); add guardrails for maxBytes enforcement on all artifact readers used by Stage4.
-- [ ] Task 16.9.2.f: Post-build sequencing: run index creation, then `PRAGMA optimize`, then `ANALYZE` (gated by size), and finish with an explicit WAL checkpoint/cleanup step when building a new DB.
+- [x] Task 16.9.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.2.a: FTS strategy: make `chunks_fts` contentless (`content=''`) to avoid duplicating chunk text; confirm runtime does not depend on reading FTS-stored content (ranking-only is OK).
+- [x] Task 16.9.2.b: Add explicit FTS post-load optimization (`INSERT INTO chunks_fts(chunks_fts) VALUES('optimize')`) and include it in Stage4 telemetry.
+- [x] Task 16.9.2.c: Index plan: audit `CREATE_INDEXES_SQL` for redundant indexes (especially those subsumed by PRIMARY KEY ordering); remove/adjust indexes based on query plans + benchmarks and update tests accordingly.
+- [x] Task 16.9.2.d: Row-shape optimizations: evaluate `WITHOUT ROWID` for postings/vocab tables with composite PRIMARY KEYs; document which tables change and why (size vs build time vs query plan effects).
+- [x] Task 16.9.2.e: Artifact read pipeline: keep reads streaming and bounded (no full materialization of large JSONL shards); add guardrails for maxBytes enforcement on all artifact readers used by Stage4.
+- [x] Task 16.9.2.f: Post-build sequencing: run index creation, then `PRAGMA optimize`, then `ANALYZE` (gated by size), and finish with an explicit WAL checkpoint/cleanup step when building a new DB.
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-indexes.test.js` (perf lane)
-- [ ] `tests/storage/sqlite/sqlite-fts-contentless-schema.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-indexes.test.js` (perf lane)
+- [x] `tests/storage/sqlite/sqlite-fts-contentless-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.9.3 -- Tests + Bench
 Parallel: Run after 16.9.1/16.9.2.
 Docs/specs to update: `docs/perf/sqlite-build.md`, `docs/specs/artifact-schemas.md`, `docs/perf/index-artifact-pipelines.md`
 Touchpoints: `tools/bench/sqlite/build-from-artifacts.js (anchors: parseArgs, runBuild)`, `src/storage/sqlite/build/from-artifacts.js (anchors: loadIndexPieces, buildDatabaseFromArtifacts)`, `src/storage/sqlite/build/statements.js (anchor: createInsertStatements)`, `src/storage/sqlite/build/pragmas.js (anchors: applyBuildPragmas, optimizeBuildDatabase)`, `src/storage/sqlite/build/validate.js (anchor: validateSqliteDatabase)`, `src/storage/sqlite/schema.js (anchors: CREATE_TABLES_BASE_SQL, CREATE_INDEXES_SQL)`
 Tasks:
-- [ ] Task 16.9.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.9.3.a: Extend `tools/bench/sqlite/build-from-artifacts.js` with `--index-dir <dir>` so the bench can run against a real Stage2/Stage3 index output (when absent, keep the synthetic artifact generator path).
-- [ ] Task 16.9.3.b: Add a bench switch for statement strategy (prepared reuse vs prepare-per-shard vs multi-row exec) and report per-table ingestion stats (rows, rows/sec, prepare counts) so 16.9.1 decisions stay measurable.
-- [ ] Task 16.9.3.c: Add a row-count contract test that derives expected counts from artifacts (chunk_meta totals, postings meta, dense/minhash presence) and asserts per-mode table counts match (including FTS).
-- [ ] Task 16.9.3.d: Add regression test enforcing prepared statement reuse (no `db.prepare()` churn per shard) using ingestion stats or explicit instrumentation.
-- [ ] Task 16.9.3.e: Add post-build validation "fast path" test for `validateMode=auto` (quick_check for large DBs; integrity_check for small DBs) while still enforcing expected row-count guards.
-- [ ] Task 16.9.3.f: Add docs update for the Stage4 build/validate flow (transaction boundary, validate modes, per-table stats, and bench commands).
+- [x] Task 16.9.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.9.3.a: Extend `tools/bench/sqlite/build-from-artifacts.js` with `--index-dir <dir>` so the bench can run against a real Stage2/Stage3 index output (when absent, keep the synthetic artifact generator path).
+- [x] Task 16.9.3.b: Add a bench switch for statement strategy (prepared reuse vs prepare-per-shard vs multi-row exec) and report per-table ingestion stats (rows, rows/sec, prepare counts) so 16.9.1 decisions stay measurable.
+- [x] Task 16.9.3.c: Add a row-count contract test that derives expected counts from artifacts (chunk_meta totals, postings meta, dense/minhash presence) and asserts per-mode table counts match (including FTS).
+- [x] Task 16.9.3.d: Add regression test enforcing prepared statement reuse (no `db.prepare()` churn per shard) using ingestion stats or explicit instrumentation.
+- [x] Task 16.9.3.e: Add post-build validation "fast path" test for `validateMode=auto` (quick_check for large DBs; integrity_check for small DBs) while still enforcing expected row-count guards.
+- [x] Task 16.9.3.f: Add docs update for the Stage4 build/validate flow (transaction boundary, validate modes, per-table stats, and bench commands).
 
 Tests:
-- [ ] `tests/storage/sqlite/sqlite-build-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-prepared-statement-reuse.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-rowcount-contract.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-prepared-statement-reuse.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js` (perf lane) (new)
 
 ---
 
@@ -1323,55 +1324,55 @@ Parallel: Can run alongside 16.10.2 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/tooling/vfs.js (anchors: buildToolingVirtualDocuments, loadVfsManifestRowByPath, loadVfsManifestBloomFilter, loadVfsManifestIndex, readVfsManifestRowAtOffset)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/index/tooling/vfs-hash-routing.js (anchor: buildVfsRoutingToken)`, `src/integrations/tooling/providers/lsp.js (anchor: ensureVirtualFilesBatch)`, `src/index/segments/jsx.js (anchor: segmentJsx)`, `src/index/segments.js (anchor: chunkSegments)`
 Tasks:
-- [ ] Task 16.10.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.1.a: Harden the VFS manifest lookup fast-path (bloom -> vfsidx -> offset read); add telemetry for scan fallbacks and negative-cache hit rates.
-- [ ] Task 16.10.1.b: Add batched row loads that reuse a single file handle and pooled buffers for offset reads (critical for per-language tooling batching without N open/close churn).
-- [ ] Task 16.10.1.c: Fix `[tooling] Invalid virtualRange ...; skipping target.` by making chunk-to-virtual range mapping segment-safe (no full-container AST reuse for sliced segments), and add a degraded fallback target (whole-container) so we never silently drop work.
-- [ ] Task 16.10.1.d: Ensure VFS routing supports per-language batching deterministically (stable `languageId`/`effectiveExt` on rows, stable `virtualPath` and routing token composition across runs).
-- [ ] Task 16.10.1.e: Decide and document whether extracted-prose participates in VFS routing/manifests; if yes, add coverage and ensure per-language bucketing remains deterministic.
+- [x] Task 16.10.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.1.a: Harden the VFS manifest lookup fast-path (bloom -> vfsidx -> offset read); add telemetry for scan fallbacks and negative-cache hit rates.
+- [x] Task 16.10.1.b: Add batched row loads that reuse a single file handle and pooled buffers for offset reads (critical for per-language tooling batching without N open/close churn).
+- [x] Task 16.10.1.c: Fix `[tooling] Invalid virtualRange ...; skipping target.` by making chunk-to-virtual range mapping segment-safe (no full-container AST reuse for sliced segments), and add a degraded fallback target (whole-container) so we never silently drop work.
+- [x] Task 16.10.1.d: Ensure VFS routing supports per-language batching deterministically (stable `languageId`/`effectiveExt` on rows, stable `virtualPath` and routing token composition across runs).
+- [x] Task 16.10.1.e: Decide and document whether extracted-prose participates in VFS routing/manifests; if yes, add coverage and ensure per-language bucketing remains deterministic.
 
 Tests:
-- [ ] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-index-lookup.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` (perf lane) (new)
+- [x] `tests/tooling/vfs/vfs-bloom-negative-lookup.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-index-lookup.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-io-batch-consistency.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-maps-segment-offsets.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-invalid-virtual-range-regression.test.js` (perf lane) (new)
 
 ### Subphase 16.10.2 -- Merge/Compaction
 Parallel: Can run alongside 16.10.1 with clear file ownership.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `src/index/build/vfs-manifest-collector.js (anchor: createVfsManifestCollector)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`, `src/shared/merge.js (anchor: mergeSortedRuns)`, `src/index/tooling/vfs-index.js (anchor: buildVfsManifestSortKey)`
 Tasks:
-- [ ] Task 16.10.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.2.a: Audit spill and compaction thresholds (bytes and record-count) and ensure they remain bounded-memory under worst-case VFS density.
-- [ ] Task 16.10.2.b: Ensure merge/compaction is deterministic under concurrency (stable compare keys, stable trim/drop policy); add telemetry for merge fan-in and spill frequency.
-- [ ] Task 16.10.2.c: Ensure manifest + vfsidx + bloom are swapped atomically as a unit; on failure keep the previous artifact set and clean partial outputs.
-- [ ] Task 16.10.2.d: Define and implement an incremental rebuild story (when allowed) keyed by CDC/segmentUid/docHash so rebuilds avoid full rewrites and reduce IO churn.
+- [x] Task 16.10.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.2.a: Audit spill and compaction thresholds (bytes and record-count) and ensure they remain bounded-memory under worst-case VFS density.
+- [x] Task 16.10.2.b: Ensure merge/compaction is deterministic under concurrency (stable compare keys, stable trim/drop policy); add telemetry for merge fan-in and spill frequency.
+- [x] Task 16.10.2.c: Ensure manifest + vfsidx + bloom are swapped atomically as a unit; on failure keep the previous artifact set and clean partial outputs.
+- [x] Task 16.10.2.d: Define and implement an incremental rebuild story (when allowed) keyed by CDC/segmentUid/docHash so rebuilds avoid full rewrites and reduce IO churn.
 
 Tests:
-- [ ] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (perf lane)
-- [ ] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js` (perf lane)
-- [ ] `tests/indexing/vfs/vfs-compaction-atomic-swap.test.js` (perf lane) (new)
+- [x] `tests/tooling/vfs/vfs-collector-cleanup-on-error.test.js` (perf lane)
+- [x] `tests/tooling/vfs/vfs-merge-heap-deterministic.test.js` (perf lane)
+- [x] `tests/indexing/vfs/merge-core-integration.test.js` (perf lane)
+- [x] `tests/indexing/vfs/vfs-manifest-row-trimming.test.js` (perf lane)
+- [x] `tests/indexing/vfs/vfs-compaction-atomic-swap.test.js` (perf lane) (new)
 
 ### Subphase 16.10.3 -- Tests + Bench
 Parallel: Run after 16.10.1/16.10.2.
 Docs/specs to update: `docs/specs/vfs-manifest-artifact.md`, `docs/specs/vfs-io-batching.md`, `docs/specs/vfs-index.md`, `docs/specs/vfs-segment-hash-cache.md`
 Touchpoints: `tools/bench/vfs/parallel-manifest-build.js`, `tools/bench/vfs/merge-runs-heap.js`, `tools/bench/vfs/vfsidx-lookup.js`, `tools/bench/vfs/hash-routing-lookup.js`, `tools/bench/vfs/bloom-negative-lookup.js`, `tools/bench/micro/utils.js (anchors: summarizeDurations, formatStats)`, `src/index/tooling/vfs.js (anchors: buildVfsManifestRowsForFile, createVfsColdStartCache, loadVfsManifestRowByPath, loadVfsManifestIndex)`, `src/index/build/artifacts/writers/vfs-manifest.js (anchor: enqueueVfsManifestArtifacts)`
 Tasks:
-- [ ] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.10.3.a: Add VFS bench contract coverage for manifest build + merge paths using relative invariants (e.g., concurrency scaling in `parallel-manifest-build`, heap merge dominating linear merge at high run-count) rather than hard machine-specific thresholds.
-- [ ] Task 16.10.3.b: Add VFS lookup bench contract coverage validating fast-path behavior (bloom/vfsidx negative lookups must avoid full scans; hash-routing lookups must match vfs manifest routing; surface fallbacks explicitly in JSON output).
-- [ ] Task 16.10.3.c: Add memory regression test for cold-start cache + index load (repeat load/lookup loops must plateau; caches must honor maxBytes/maxAge and not grow unbounded under repeated queries).
-- [ ] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations (include "invalid virtualRange" behavior and how it is surfaced/guarded).
+- [x] Task 16.10.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.10.3.a: Add VFS bench contract coverage for manifest build + merge paths using relative invariants (e.g., concurrency scaling in `parallel-manifest-build`, heap merge dominating linear merge at high run-count) rather than hard machine-specific thresholds.
+- [x] Task 16.10.3.b: Add VFS lookup bench contract coverage validating fast-path behavior (bloom/vfsidx negative lookups must avoid full scans; hash-routing lookups must match vfs manifest routing; surface fallbacks explicitly in JSON output).
+- [x] Task 16.10.3.c: Add memory regression test for cold-start cache + index load (repeat load/lookup loops must plateau; caches must honor maxBytes/maxAge and not grow unbounded under repeated queries).
+- [x] Task 16.10.3.d: Add docs update for VFS manifest and per-language batching expectations (include "invalid virtualRange" behavior and how it is surfaced/guarded).
 
 Tests:
-- [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane) (existing)
-- [ ] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane) (existing)
-- [ ] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane) (existing)
-- [ ] `tests/perf/vfs-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/perf/vfs-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (perf lane) (existing)
+- [x] `tests/tooling/vfs/vfs-cold-start-cache.test.js` (perf lane) (existing)
+- [x] `tests/tooling/vfs/vfs-parallel-manifest-deterministic.test.js` (perf lane) (existing)
+- [x] `tests/perf/vfs-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/vfs-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
@@ -1382,60 +1383,60 @@ Parallel: Can run alongside 16.11.2 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/tree-sitter-runtime.md` (new)
 Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: initTreeSitterWasm, preloadTreeSitterLanguages, pruneTreeSitterLanguages, getTreeSitterParser)`, `src/lang/tree-sitter/state.js (anchor: treeSitterState)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/lang/tree-sitter/worker.js (anchors: getTreeSitterWorkerPool, sanitizeTreeSitterOptions)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchor: resolveTreeSitterPreloadPlan)`
 Tasks:
-- [ ] Task 16.11.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.1.a: Audit and harden WASM grammar caching (alias dedupe, in-flight load dedupe, LRU eviction) and ensure `maxLoadedLanguages` caps behave predictably on main thread vs worker threads.
-- [ ] Task 16.11.1.b: Document and lock in the single shared `Parser` strategy (avoid per-language parser pools by default due to memory/Windows OOM risk); if we ever add pooling it must be explicitly opt-in with guardrails.
-- [ ] Task 16.11.1.c: Ensure preload planning stays deterministic and bounded (stable order, stable caps) and avoid redundant preloads across shards/batches.
-- [ ] Task 16.11.1.d: Harden grammar load fallback (path load vs bytes load) and add telemetry for load mode + failures.
-- [ ] Task 16.11.1.e: Expose tree-sitter cache metrics in the stage audit (wasm loads/evictions, parser activations, query cache hits, chunk cache hits, worker fallbacks).
+- [x] Task 16.11.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.1.a: Audit and harden WASM grammar caching (alias dedupe, in-flight load dedupe, LRU eviction) and ensure `maxLoadedLanguages` caps behave predictably on main thread vs worker threads.
+- [x] Task 16.11.1.b: Document and lock in the single shared `Parser` strategy (avoid per-language parser pools by default due to memory/Windows OOM risk); if we ever add pooling it must be explicitly opt-in with guardrails.
+- [x] Task 16.11.1.c: Ensure preload planning stays deterministic and bounded (stable order, stable caps) and avoid redundant preloads across shards/batches.
+- [x] Task 16.11.1.d: Harden grammar load fallback (path load vs bytes load) and add telemetry for load mode + failures.
+- [x] Task 16.11.1.e: Expose tree-sitter cache metrics in the stage audit (wasm loads/evictions, parser activations, query cache hits, chunk cache hits, worker fallbacks).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-runtime.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-runtime.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-wasm-path-cache.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-limited.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-preload-order-deterministic.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-eviction-determinism.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-query-precompile-cache.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-worker-prune-bounds.test.js` (perf lane)
 
 ### Subphase 16.11.2 -- Parse Scheduling
 Parallel: Can run alongside 16.11.1 with clear file ownership.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`, `docs/specs/concurrency-abort-runwithqueue.md`
 Touchpoints: `src/index/build/indexer/steps/process-files.js (anchor: processFiles)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, buildTreeSitterEntryBatches, preloadTreeSitterBatch, sortEntriesByTreeSitterBatchKey)`, `src/index/build/file-processor/cpu/chunking.js (anchor: chunkSegmentsWithTreeSitterPasses)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunksAsync, ensureChunkCache)`, `src/lang/tree-sitter/worker.js (anchor: getTreeSitterWorkerPool)`
 Tasks:
-- [ ] Task 16.11.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.2.a: Make batch-by-language scheduling explicitly deadlock-safe with ordered output/backpressure (no uncontrolled reordering that can pin queue reservations); document the invariants.
-- [ ] Task 16.11.2.b: Strengthen batch execution: reset/prune/preload strategy per batch, metrics for batch sizes, deferrals, and parser activation churn.
-- [ ] Task 16.11.2.c: Tighten incremental reuse via chunk cache (cache key, option invalidation, max entries) so unchanged files do not re-parse, while bounding memory.
-- [ ] Task 16.11.2.d: Ensure parse tree memory stays bounded (explicit `Tree.delete()`, `Parser.reset()`, worker timeouts/disable logic, per-language budgets) and add telemetry for budget abort reasons.
-- [ ] Task 16.11.2.e: Validate deterministic chunk outputs across scheduling strategies (language passes within file + batch-by-language across files) and ensure final chunk ordering is stable.
+- [x] Task 16.11.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.2.a: Make batch-by-language scheduling explicitly deadlock-safe with ordered output/backpressure (no uncontrolled reordering that can pin queue reservations); document the invariants.
+- [x] Task 16.11.2.b: Strengthen batch execution: reset/prune/preload strategy per batch, metrics for batch sizes, deferrals, and parser activation churn.
+- [x] Task 16.11.2.c: Tighten incremental reuse via chunk cache (cache key, option invalidation, max entries) so unchanged files do not re-parse, while bounding memory.
+- [x] Task 16.11.2.d: Ensure parse tree memory stays bounded (explicit `Tree.delete()`, `Parser.reset()`, worker timeouts/disable logic, per-language budgets) and add telemetry for budget abort reasons.
+- [x] Task 16.11.2.e: Validate deterministic chunk outputs across scheduling strategies (language passes within file + batch-by-language across files) and ensure final chunk ordering is stable.
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js` (perf lane)
-- [ ] `tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-batch-by-language.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-timeout-disable.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js` (perf lane)
+- [x] `tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js` (perf lane)
 
 ### Subphase 16.11.3 -- Tests + Bench
 Parallel: Run after 16.11.1/16.11.2.
 Docs/specs to update: `docs/specs/segmentation-perf.md`, `docs/specs/large-file-caps-strategy.md`, `docs/perf/indexing-stage-audit.md`
 Touchpoints: `src/lang/tree-sitter/runtime.js (anchors: preloadTreeSitterLanguages, getTreeSitterStats)`, `src/lang/tree-sitter/chunking.js (anchors: buildTreeSitterChunks, buildTreeSitterChunksAsync, resolveChunkCacheKey)`, `src/index/build/indexer/steps/process-files/tree-sitter.js (anchors: applyTreeSitterBatching, resolveTreeSitterPreloadPlan)`, `tools/bench/index/tree-sitter-load.js` (new), `tests/indexing/tree-sitter/*`
 Tasks:
-- [ ] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.11.3.a: Implement `tree-sitter-load` benchmark (place under `tools/bench/index/tree-sitter-load.js`) to measure parse/chunk throughput per language and per batching policy (file-order vs batch-by-language), emitting JSON with `getTreeSitterStats()` counters.
-- [ ] Task 16.11.3.b: Add cold vs warm cache modes in the benchmark (clear caches vs reuse) and add contract coverage asserting warm is faster than cold and that batch-by-language reduces redundant WASM loads under mixed-language inputs.
-- [ ] Task 16.11.3.c: Add regression test for parse determinism (same inputs must yield identical chunk boundaries/names/kinds across runs and across worker vs main thread where applicable).
-- [ ] Task 16.11.3.d: Add regression test for parse reuse on unchanged files (chunk cache hits and query cache reuse must be observable via stats; no re-parse when content hash unchanged).
-- [ ] Task 16.11.3.e: Add memory regression test for parse trees/caches (repeat parse loops must plateau; `maxLoadedLanguages` must cap growth on both main and worker pools).
-- [ ] Task 16.11.3.f: Add docs update for tree-sitter load strategy (batching, cache knobs, determinism invariants, telemetry fields surfaced in stage audit).
+- [x] Task 16.11.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.11.3.a: Implement `tree-sitter-load` benchmark (place under `tools/bench/index/tree-sitter-load.js`) to measure parse/chunk throughput per language and per batching policy (file-order vs batch-by-language), emitting JSON with `getTreeSitterStats()` counters.
+- [x] Task 16.11.3.b: Add cold vs warm cache modes in the benchmark (clear caches vs reuse) and add contract coverage asserting warm is faster than cold and that batch-by-language reduces redundant WASM loads under mixed-language inputs.
+- [x] Task 16.11.3.c: Add regression test for parse determinism (same inputs must yield identical chunk boundaries/names/kinds across runs and across worker vs main thread where applicable).
+- [x] Task 16.11.3.d: Add regression test for parse reuse on unchanged files (chunk cache hits and query cache reuse must be observable via stats; no re-parse when content hash unchanged).
+- [x] Task 16.11.3.e: Add memory regression test for parse trees/caches (repeat parse loops must plateau; `maxLoadedLanguages` must cap growth on both main and worker pools).
+- [x] Task 16.11.3.f: Add docs update for tree-sitter load strategy (batching, cache knobs, determinism invariants, telemetry fields surfaced in stage audit).
 
 Tests:
-- [ ] `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-load-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-parse-determinism.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js` (perf lane) (new)
 
 ---
 
@@ -1446,60 +1447,60 @@ Parallel: Can run alongside 16.12.2 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/store.js (anchors: createGraphStore, buildGraphIndex, buildGraphIndexCacheKey)`, `src/graph/indexes.js (anchors: buildAdjacencyIndex, buildAdjacencyCsr, buildIdTable)`, `src/shared/artifact-io/loaders.js (anchor: loadGraphRelations)`
 Tasks:
-- [ ] Task 16.12.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.1.a: Teach `GraphStore` to load the `graph_relations_csr` artifact from the pieces manifest (add `loadGraphRelationsCsr` to artifact-io).
-- [ ] Task 16.12.1.b: Plumb CSR into `GraphIndex` (`graphRelationsCsr`) and ensure `buildGraphIndexCacheKey` segments caches on CSR presence and graph selection.
-- [ ] Task 16.12.1.c: Add strict validation + fallback behavior for CSR payloads (offset monotonicity, edge bounds, stable node ordering); fall back to `graph_relations` on invalid CSR.
-- [ ] Task 16.12.1.d: Reduce redundant in-memory structures when CSR is available (avoid building per-node `both` adjacency lists; keep legacy path as fallback).
-- [ ] Task 16.12.1.e: Add graph store cache telemetry (hit/miss, build time, eviction) and basic memory accounting for loaded graph artifacts/indexes.
+- [x] Task 16.12.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.1.a: Teach `GraphStore` to load the `graph_relations_csr` artifact from the pieces manifest (add `loadGraphRelationsCsr` to artifact-io).
+- [x] Task 16.12.1.b: Plumb CSR into `GraphIndex` (`graphRelationsCsr`) and ensure `buildGraphIndexCacheKey` segments caches on CSR presence and graph selection.
+- [x] Task 16.12.1.c: Add strict validation + fallback behavior for CSR payloads (offset monotonicity, edge bounds, stable node ordering); fall back to `graph_relations` on invalid CSR.
+- [x] Task 16.12.1.d: Reduce redundant in-memory structures when CSR is available (avoid building per-node `both` adjacency lists; keep legacy path as fallback).
+- [x] Task 16.12.1.e: Add graph store cache telemetry (hit/miss, build time, eviction) and basic memory accounting for loaded graph artifacts/indexes.
 
 Tests:
-- [ ] `tests/graph/graph-store-cache-eviction.test.js` (existing)
-- [ ] `tests/graph/graph-index-cache-reuse.test.js` (existing)
-- [ ] `tests/graph/graph-id-remap-roundtrip.test.js` (existing)
-- [ ] `tests/graph/graph-store-csr-artifact-load.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-store-cache-eviction.test.js` (existing)
+- [x] `tests/graph/graph-index-cache-reuse.test.js` (existing)
+- [x] `tests/graph/graph-id-remap-roundtrip.test.js` (existing)
+- [x] `tests/graph/graph-store-csr-artifact-load.test.js` (perf lane) (new)
 
 ### Subphase 16.12.2 -- Traversal + Filtering
 Parallel: Can run alongside 16.12.1 with clear module ownership.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/graph/context-pack.js (anchor: buildGraphContextPack)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`, `src/retrieval/output/graph-impact.js (anchor: renderGraphImpact)`
 Tasks:
-- [ ] Task 16.12.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.2.a: Use CSR-backed neighbor resolution in `buildGraphNeighborhood` when `graphIndex.graphRelationsCsr` is available (preserve determinism + cap enforcement).
-- [ ] Task 16.12.2.b: Add a reverse-edge index strategy for `direction=in|both` without materializing full `in`/`both` adjacency lists (build once per graphIndex and cache).
-- [ ] Task 16.12.2.c: Add traversal-result caching keyed by query signature (seed(s), graphs/edgeTypes, depth, direction, caps, includePaths, indexSignature) with telemetry and strict invalidation.
-- [ ] Task 16.12.2.d: Define "streaming context-pack assembly" precisely and add an assembly path that does not require a full in-memory `chunkMeta` array or `chunkIndex` (provider-based lookup for required chunks/excerpts).
-- [ ] Task 16.12.2.e: Lock determinism across legacy vs CSR paths and across caching (explicit invariants + regression tests).
-- [ ] Task 16.12.2.f: Expand traversal stats to include cap trigger counts + import graph lookup misses, and ensure they are surfaced consistently in outputs.
+- [x] Task 16.12.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.2.a: Use CSR-backed neighbor resolution in `buildGraphNeighborhood` when `graphIndex.graphRelationsCsr` is available (preserve determinism + cap enforcement).
+- [x] Task 16.12.2.b: Add a reverse-edge index strategy for `direction=in|both` without materializing full `in`/`both` adjacency lists (build once per graphIndex and cache).
+- [x] Task 16.12.2.c: Add traversal-result caching keyed by query signature (seed(s), graphs/edgeTypes, depth, direction, caps, includePaths, indexSignature) with telemetry and strict invalidation.
+- [x] Task 16.12.2.d: Define "streaming context-pack assembly" precisely and add an assembly path that does not require a full in-memory `chunkMeta` array or `chunkIndex` (provider-based lookup for required chunks/excerpts).
+- [x] Task 16.12.2.e: Lock determinism across legacy vs CSR paths and across caching (explicit invariants + regression tests).
+- [x] Task 16.12.2.f: Expand traversal stats to include cap trigger counts + import graph lookup misses, and ensure they are surfaced consistently in outputs.
 
 Tests:
-- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
-- [ ] `tests/graph/graph-filter-predicate-deterministic.test.js` (existing)
-- [ ] `tests/graph/graph-truncation-deterministic.test.js` (existing)
-- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
-- [ ] `tests/graph/graph-csr-neighbors-deterministic.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [x] `tests/graph/graph-filter-predicate-deterministic.test.js` (existing)
+- [x] `tests/graph/graph-truncation-deterministic.test.js` (existing)
+- [x] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [x] `tests/graph/graph-csr-neighbors-deterministic.test.js` (perf lane) (new)
 
 ### Subphase 16.12.3 -- Tests + Bench
 Parallel: Run after 16.12.1/16.12.2.
 Docs/specs to update: `docs/specs/graph-filtering-and-dedupe.md`, `docs/specs/context-packs.md`, `docs/specs/impact-analysis.md`, `docs/perf/graph-context-pack.md`, `docs/perf/retrieval-pipeline.md`
 Touchpoints: `tools/bench/graph/context-pack-latency.js (anchors: runContextPackLatencyBench, runContextPackLatencyBenchCli)`, `tools/bench/graph/neighborhood-cache.js (anchors: runNeighborhoodBench, runNeighborhoodBenchCli)`, `tools/bench/graph/neighborhood-index-dir.js` (new), `tools/bench/graph/store-lazy-load.js`, `src/graph/store.js (anchors: createGraphStore, buildGraphIndexCacheKey)`, `src/graph/neighborhood.js (anchor: buildGraphNeighborhood)`, `src/graph/impact.js (anchor: buildImpactAnalysis)`, `src/context-pack/assemble.js (anchors: buildChunkIndex, assembleCompositeContextPack)`
 Tasks:
-- [ ] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.12.3.a: Extend `context-pack-latency` bench to report cache effectiveness and artifact load costs (GraphStore cache hits/misses, CSR vs legacy path when both are available) and keep output schema stable for contract tests.
-- [ ] Task 16.12.3.b: Add a real-index traversal bench (new: `tools/bench/graph/neighborhood-index-dir.js`) that loads graph artifacts via `GraphStore` and measures traversal/impact throughput (baseline vs current, warm vs cold caches, includePaths on/off).
-- [ ] Task 16.12.3.c: Add perf contract coverage for graph/context-pack benches using relative invariants (current must outperform baseline in the same run; CSR must not regress determinism/caps; warm must outperform cold).
-- [ ] Task 16.12.3.d: Add determinism regression coverage specific to cache boundaries (GraphStore cache reuse must not change output ordering; CSR vs legacy output equality where applicable).
-- [ ] Task 16.12.3.e: Add memory regression test for graph traversal/output (repeat expansions must plateau; spill/merge windows must cap edge buffering; caps must bound work).
-- [ ] Task 16.12.3.f: Add streaming context-pack integration test once 16.12.2.d exists (provider-based assembly must not require full `chunkMeta` materialization).
-- [ ] Task 16.12.3.g: Add docs update for graph/context-pack changes (bench commands, determinism invariants, caching boundaries, and how to interpret stats/memory fields).
+- [x] Task 16.12.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.12.3.a: Extend `context-pack-latency` bench to report cache effectiveness and artifact load costs (GraphStore cache hits/misses, CSR vs legacy path when both are available) and keep output schema stable for contract tests.
+- [x] Task 16.12.3.b: Add a real-index traversal bench (new: `tools/bench/graph/neighborhood-index-dir.js`) that loads graph artifacts via `GraphStore` and measures traversal/impact throughput (baseline vs current, warm vs cold caches, includePaths on/off).
+- [x] Task 16.12.3.c: Add perf contract coverage for graph/context-pack benches using relative invariants (current must outperform baseline in the same run; CSR must not regress determinism/caps; warm must outperform cold).
+- [x] Task 16.12.3.d: Add determinism regression coverage specific to cache boundaries (GraphStore cache reuse must not change output ordering; CSR vs legacy output equality where applicable).
+- [x] Task 16.12.3.e: Add memory regression test for graph traversal/output (repeat expansions must plateau; spill/merge windows must cap edge buffering; caps must bound work).
+- [x] Task 16.12.3.f: Add streaming context-pack integration test once 16.12.2.d exists (provider-based assembly must not require full `chunkMeta` materialization).
+- [x] Task 16.12.3.g: Add docs update for graph/context-pack changes (bench commands, determinism invariants, caching boundaries, and how to interpret stats/memory fields).
 
 Tests:
-- [ ] `tests/perf/graph-context-pack-latency-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/perf/graph-neighborhood-bench-contract.test.js` (perf lane) (new)
-- [ ] `tests/graph/graph-output-deterministic.test.js` (existing)
-- [ ] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
-- [ ] `tests/graph/graph-memory-plateau.test.js` (perf lane) (new)
-- [ ] `tests/retrieval/graph/context-pack-streaming-assembly.test.js` (perf lane) (new)
+- [x] `tests/perf/graph-context-pack-latency-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/graph-neighborhood-bench-contract.test.js` (perf lane) (new)
+- [x] `tests/graph/graph-output-deterministic.test.js` (existing)
+- [x] `tests/retrieval/graph/context-pack-determinism.test.js` (existing)
+- [x] `tests/graph/graph-memory-plateau.test.js` (perf lane) (new)
+- [x] `tests/retrieval/graph/context-pack-streaming-assembly.test.js` (perf lane) (new)
 
 ---
 
@@ -1510,56 +1511,56 @@ Parallel: Can run alongside 16.15.2/16.15.3.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.1.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.1.a: Verify Phase 0 usage (shared components in graph/context-pack).
-- [ ] Task 16.15.1.b: Verify Phase 1 usage (stage checkpoints in build_state).
-- [ ] Task 16.15.1.c: Verify Phase 2 usage (shared IO paths in build/search).
-- [ ] Task 16.15.1.d: Verify Phase 3 usage (postings guards in Stage1).
-- [ ] Task 16.15.1.e: Verify Phase 4 usage (relations/filter index in Stage2).
-- [ ] Task 16.15.1.f: Verify Phase 5 usage (embeddings cache in Stage3).
-- [ ] Task 16.15.1.g: Verify Phase 6 usage (sqlite optimizations in Stage4).
-- [ ] Task 16.15.1.h: Verify Phase 7 usage (VFS pipeline in build/tooling).
-- [ ] Task 16.15.1.i: Verify Phase 8 usage (tree-sitter load strategy).
-- [ ] Task 16.15.1.j: Verify Phase 9 usage (retrieval pipeline in search).
-- [ ] Task 16.15.1.k: Verify Phase 10 usage (graph/context-pack in search).
-- [ ] Task 16.15.1.l: Verify Phase 11 usage (CLI startup fast paths).
-- [ ] Task 16.15.1.m: Verify Phase 12 usage (map build/viewer).
-- [ ] Task 16.15.1.n: Verify Phase 13 usage (doc/JSDoc guardrails).
-- [ ] Task 16.15.1.o: Verify Phase 14 usage (artifact pipeline optimizations).
-- [ ] Task 16.15.1.p: Verify Phase 15 usage (index_state/file_meta/minhash paths).
+- [x] Task 16.15.1.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.1.a: Verify Phase 0 usage (shared components in graph/context-pack).
+- [x] Task 16.15.1.b: Verify Phase 1 usage (stage checkpoints in build_state).
+- [x] Task 16.15.1.c: Verify Phase 2 usage (shared IO paths in build/search).
+- [x] Task 16.15.1.d: Verify Phase 3 usage (postings guards in Stage1).
+- [x] Task 16.15.1.e: Verify Phase 4 usage (relations/filter index in Stage2).
+- [x] Task 16.15.1.f: Verify Phase 5 usage (embeddings cache in Stage3).
+- [x] Task 16.15.1.g: Verify Phase 6 usage (sqlite optimizations in Stage4).
+- [x] Task 16.15.1.h: Verify Phase 7 usage (VFS pipeline in build/tooling).
+- [x] Task 16.15.1.i: Verify Phase 8 usage (tree-sitter load strategy).
+- [x] Task 16.15.1.j: Verify Phase 9 usage (retrieval pipeline in search).
+- [x] Task 16.15.1.k: Verify Phase 10 usage (graph/context-pack in search).
+- [x] Task 16.15.1.l: Verify Phase 11 usage (CLI startup fast paths).
+- [x] Task 16.15.1.m: Verify Phase 12 usage (map build/viewer).
+- [x] Task 16.15.1.n: Verify Phase 13 usage (doc/JSDoc guardrails).
+- [x] Task 16.15.1.o: Verify Phase 14 usage (artifact pipeline optimizations).
+- [x] Task 16.15.1.p: Verify Phase 15 usage (index_state/file_meta/minhash paths).
 
 Tests:
-- [ ] `tests/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
 
 ### Subphase 16.15.2 -- Bench Harness
 Parallel: Can run alongside 16.15.1; ensure bench harness exists before validating outputs.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.2.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.2.a: Ensure each phase has a baseline/current benchmark.
-- [ ] Task 16.15.2.b: Enforce delta reporting (amount, throughput, percentage, duration).
-- [ ] Task 16.15.2.c: Add real-index inputs for all benchmarks where applicable.
-- [ ] Task 16.15.2.d: Add bench runner that batches all phase benches.
-- [ ] Task 16.15.2.e: Add bench output summary report in CI artifacts.
+- [x] Task 16.15.2.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.2.a: Ensure each phase has a baseline/current benchmark.
+- [x] Task 16.15.2.b: Enforce delta reporting (amount, throughput, percentage, duration).
+- [x] Task 16.15.2.c: Add real-index inputs for all benchmarks where applicable.
+- [x] Task 16.15.2.d: Add bench runner that batches all phase benches.
+- [x] Task 16.15.2.e: Add bench output summary report in CI artifacts.
 
 Tests:
-- [ ] `tests/tooling/bench/bench-runner-contract.test.js` (perf lane) (new)
+- [x] `tests/perf/tooling/bench/bench-runner-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.15.3 -- Bench Output Contracts
 Parallel: Run after 16.15.2; can overlap with 16.15.1.
 Docs/specs to update: `docs/perf/indexing-stage-audit.md`, `docs/perf/retrieval-pipeline.md`, `docs/perf/map-pipeline.md`, `docs/perf/shared-component-audit.md`, `docs/specs/test-strategy-and-conformance-matrix.md`
 Touchpoints: `tools/bench/* (anchor: benchRunner)`, `tests/tooling/bench/* (anchor: bench output schema)`, `src/index/build/indexer/* (anchor: runPipeline)`, `src/retrieval/* (anchor: runSearch)`
 Tasks:
-- [ ] Task 16.15.3.doc: Update docs/specs and touchpoints listed for this subphase.
-- [ ] Task 16.15.3.a: Add schema for bench output JSON.
-- [ ] Task 16.15.3.b: Enforce schema in bench scripts.
-- [ ] Task 16.15.3.c: Add regression test for bench output format.
-- [ ] Task 16.15.3.d: Add docs for bench output semantics.
-- [ ] Task 16.15.3.e: Add tool to diff bench results between commits.
+- [x] Task 16.15.3.doc: Update docs/specs and touchpoints listed for this subphase.
+- [x] Task 16.15.3.a: Add schema for bench output JSON.
+- [x] Task 16.15.3.b: Enforce schema in bench scripts.
+- [x] Task 16.15.3.c: Add regression test for bench output format.
+- [x] Task 16.15.3.d: Add docs for bench output semantics.
+- [x] Task 16.15.3.e: Add tool to diff bench results between commits.
 
 Tests:
-- [ ] `tests/tooling/bench/bench-output-schema.test.js` (perf lane) (new)
+- [x] `tests/perf/tooling/bench/bench-output-schema.test.js` (perf lane) (new)
 
 ---
 

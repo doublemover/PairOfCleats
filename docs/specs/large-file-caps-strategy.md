@@ -227,6 +227,12 @@ Maintenance note: if `watch.js` grows again, prefer extracting additional pure h
 * Stage1 now applies a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
 * Stage1 perf coverage includes `tools/bench/index/postings-real.js` (end-to-end) and `tools/bench/index/chargram-postings.js --rolling-hash` (microbench).
 
+### 7.2 Tree-sitter Guardrails (Phase 16.11)
+* Tree-sitter chunking is gated by per-language `maxBytes`/`maxLines` caps to keep parsing bounded on large files.
+* WASM grammar caches are bounded with `maxLoadedLanguages` and use LRU eviction; worker threads use conservative defaults because caches multiply per thread.
+* Chunk/query caches must plateau under repeated parses: `chunkCacheMaxEntries` caps the chunk cache, and query cache growth is bounded by the number of enabled languages.
+* Any "skip due to caps" behavior in tree-sitter must remain deterministic and should be surfaced (same inputs/config yield same fallback decisions).
+
 ## 8. Future Phase Alignment
 
 * Phase 9/19 scaling work benefits from deterministic, bounded skipping.

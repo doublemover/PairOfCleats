@@ -89,3 +89,18 @@ Unsharded JSONL writers now pass `maxBytes` into `writeJsonLinesFile`/`writeJson
 
 - Target: lower heap and competitive rows/sec when using streaming iterator.
 - Output: rows/sec, heap delta, and delta vs baseline materialized read.
+
+## SQLite Build (Phase 16.9)
+Stage4 SQLite build throughput benchmarks live under `tools/bench/sqlite/`:
+- `node tools/bench/sqlite/build-from-artifacts.js --mode compare`
+- `node tools/bench/sqlite/build-from-bundles.js --mode compare`
+- `node tools/bench/sqlite/incremental-update.js --mode compare`
+- `node tools/bench/sqlite/jsonl-streaming.js`
+
+Use these when changing statement strategies (multi-row vs per-row prepared) and transaction boundaries so throughput decisions remain measurable.
+`build-from-artifacts` supports `--index-dir <path>` for benchmarking real Stage2 output and `--statement-strategy` for forcing prepared vs multi-row behavior.
+
+Stage4 notes:
+- `chunks_fts` is contentless (`content=''`, `contentless_delete=1`) and is used for MATCH + bm25 ranking only.
+- Full builds run an explicit FTS optimize step before `PRAGMA optimize`/`ANALYZE`.
+- Most lookup-heavy tables rely on PRIMARY KEY/UNIQUE indexes (and avoid redundant secondary indexes).

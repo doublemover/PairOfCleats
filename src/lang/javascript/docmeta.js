@@ -6,17 +6,46 @@
  */
 export function extractDocMeta(text, chunk, astMeta = null) {
   const chunkText = text.slice(chunk.start, chunk.end);
-  const lines = chunkText.split('\n');
-  const docLines = lines.filter((l) =>
-    l.trim().startsWith('*') || l.trim().startsWith('//') || l.trim().startsWith('#')
-  );
-  const params = [...chunkText.matchAll(/@param +(\w+)/g)].map((m) => m[1]);
-  const returnsDoc = !!chunkText.match(/@returns? /);
-  const returnTypeMatch = chunkText.match(/@returns?\s+{([^}]+)}/);
-  const returnType = returnTypeMatch ? returnTypeMatch[1].trim() : null;
+  const docLines = [];
+  const params = [];
   const paramTypes = {};
-  for (const match of chunkText.matchAll(/@param\s+{([^}]+)}\s+(\w+)/g)) {
-    paramTypes[match[2]] = match[1].trim();
+  let returnsDoc = false;
+  let returnType = null;
+
+  if (
+    chunkText.includes('//')
+    || chunkText.includes('/*')
+    || chunkText.includes('\n*')
+    || chunkText.includes('\n#')
+    || chunkText.trimStart().startsWith('*')
+    || chunkText.trimStart().startsWith('#')
+  ) {
+    const lines = chunkText.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('#')) {
+        docLines.push(line);
+      }
+    }
+  }
+
+  if (chunkText.includes('@param')) {
+    const paramRe = /@param\s+(?:{([^}]+)}\s+)?(\w+)/g;
+    let match;
+    while ((match = paramRe.exec(chunkText)) !== null) {
+      const type = match[1] ? match[1].trim() : '';
+      const name = match[2];
+      if (!name) continue;
+      params.push(name);
+      if (type) paramTypes[name] = type;
+      if (!match[0]) paramRe.lastIndex += 1;
+    }
+  }
+
+  if (chunkText.includes('@return')) {
+    returnsDoc = /@returns? /.test(chunkText);
+    const returnTypeMatch = chunkText.match(/@returns?\s+{([^}]+)}/);
+    returnType = returnTypeMatch ? returnTypeMatch[1].trim() : null;
   }
   let signature = null;
   const matchFn = chunkText.match(/function\s+([A-Za-z0-9_$]+)?\s*\(([^\)]*)\)/);

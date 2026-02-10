@@ -10,10 +10,16 @@
 - chunk_meta: order by file, chunkUid, chunkId/id, start, then name.
 - relations: order by srcId, dstId, edgeType, then callSiteId.
 - file_relations: order by file path.
-- graph_relations: order by graph order (callGraph, usageGraph, importGraph), then node id, then sorted neighbor ids.
+- graph_relations (schema v2): order by graph order (callGraph, usageGraph, importGraph), then node id, then sorted neighbor ids.
+  - Canonical row JSON shape: `{"graph": "<graphName>", "node": { ... }}`.
+  - Canonical key ordering (for ordering hashes): `graph`, then `node`.
+  - Canonical node key ordering (for ordering hashes): `id`, `file`, `name`, `kind`, `chunkId`, `chunkUid`, `legacyKey`, `symbolId`, `out`, `in`.
+  - Neighbor lists (`out`/`in`) MUST be sorted and deduped deterministically.
 - graph edges: order by src, dst, kind, then weight.
 - repo map: order by file, name, kind, signature, then startLine.
-- filter_index: treated as an optional lookup artifact; when present its serialized maps are unordered JSON objects. Any bitmap acceleration is derived at hydration time and MUST NOT affect ordering hashes.
+  - If a future delta/dictionary encoding is introduced, ordering rules apply to the decoded row representation and MUST remain stable across encodings.
+- filter_index: treated as an optional lookup artifact; when present its serialized maps are unordered JSON objects.
+  - Serialized sets are sparse arrays of ids; any bitmap acceleration (RoaringBitmap when available, thresholded by set size) is derived at hydration time and MUST NOT affect ordering hashes.
 
 ## Tie-breakers
 - Use stable string comparisons on normalized paths.

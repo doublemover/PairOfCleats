@@ -167,6 +167,10 @@ interface RuntimeEnvelopeV1 {
   - `cpu`: `max(16, cpuConcurrency * 4)`
   - `embedding`: `max(16, embeddingConcurrency * 4)`
 
+Embedding batch size auto-tuning is centralized in `src/shared/embedding-batch.js`.
+Stage3 `build-embeddings` uses provider-aware defaults when batch size is not explicitly configured
+(for CPU-only providers like `stub`/`onnx`, batch size is additionally capped by available threads).
+
 ## 4.5 Scheduler config (build runtime)
 The build scheduler configuration is resolved alongside the runtime envelope (in `createBuildRuntime`) and stored on the build runtime object. It is **not** part of the RuntimeEnvelope schema.
 
@@ -182,6 +186,10 @@ The `build-embeddings` tool resolves the scheduler configuration using the same
 envelope inputs (argv, config, env) and schedules embedding compute + artifact IO
 via `embeddings.compute` and `embeddings.io` queues. This keeps Stage3 backpressure
 consistent with the rest of the build pipeline.
+
+Stage3 cache writes also use a bounded in-process writer queue to avoid unbounded pending payload retention.
+Writer `maxPending` defaults to a small value derived from IO tokens (capped) and is additionally bounded by
+`indexing.scheduler.queues[embeddings.io].maxPending` when configured.
 
 Config path:
 - `indexing.scheduler.*` (config file)
