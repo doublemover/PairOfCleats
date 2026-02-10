@@ -15,6 +15,7 @@ USR decomposition linkage:
 - `docs/specs/unified-syntax-representation.md` sections 38 and 39 are authoritative for embedded-language bridge and generated-provenance coverage.
 - `docs/specs/usr-embedding-bridge-contract.md` is authoritative for bridge evidence and multi-surface segment invariants.
 - `docs/specs/usr-generated-provenance-contract.md` is authoritative for provenance attrs and mapping quality semantics.
+- `docs/specs/usr-registry-schema-contract.md` is authoritative for machine-readable matrix schema and cross-registry invariants.
 
 Bench harness note:
 - Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.

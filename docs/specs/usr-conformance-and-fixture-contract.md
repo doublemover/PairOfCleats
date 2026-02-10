@@ -1,7 +1,7 @@
 # Spec -- USR Conformance and Fixture Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -147,7 +147,10 @@ On failure:
 Conformance fixtures MUST link to:
 
 - language profiles (`usr-language-profiles.json`)
+- language version policies (`usr-language-version-policy.json`)
+- language embedding policies (`usr-language-embedding-policy.json`)
 - framework profiles (`usr-framework-profiles.json`)
+- parser/runtime locks (`usr-parser-runtime-lock.json`)
 - backcompat matrix (`usr-backcompat-matrix.json`)
 
 ## 7. Required triage metadata fields
@@ -173,5 +176,7 @@ Every conformance failure record MUST include:
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
 
 

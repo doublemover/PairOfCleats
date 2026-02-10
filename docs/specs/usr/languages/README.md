@@ -1,7 +1,7 @@
 # USR Language Contracts Index
 
-Status: Draft v0.5
-Last updated: 2026-02-10T07:40:00Z
+Status: Draft v0.6
+Last updated: 2026-02-10T08:15:00Z
 
 This index lists per-language USR contract documents.
 
@@ -23,6 +23,7 @@ Mandatory per-language completion requirements:
 - explicit generated/macro provenance expectations
 - explicit completion evidence artifact list
 - explicit synchronization with language version/embedding policy matrices
+- explicit parser/runtime lock coverage alignment for parser sources used by the language profile
 
 ## Baseline matrix
 

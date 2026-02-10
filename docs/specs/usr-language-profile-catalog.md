@@ -1,7 +1,7 @@
 # Spec -- USR Language Profile Catalog
 
-Status: Draft v0.5
-Last updated: 2026-02-10T07:40:00Z
+Status: Draft v0.6
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -171,6 +171,7 @@ Implementations MUST maintain:
 - `tests/lang/matrix/usr-language-profiles.json` (authoritative machine-readable catalog)
 - `tests/lang/matrix/usr-language-version-policy.json` (language version and dialect policy matrix)
 - `tests/lang/matrix/usr-language-embedding-policy.json` (language embedding policy matrix)
+- `tests/lang/matrix/usr-parser-runtime-lock.json` (parser/runtime lock coverage for language parser sources)
 - `tests/lang/matrix/usr-generated-provenance-cases.json` (language provenance coverage matrix)
 - `docs/specs/usr/languages/<language-id>.md` for each registry language
 
@@ -209,6 +210,7 @@ Child contracts MUST NOT conflict with this catalog. Conflicts are Tier 3 blocke
 - `embeddingPolicy.embeddedLanguageAllowlist` values are valid registry language IDs
 - every language ID in the registry has exactly one row
 - every language ID in the registry has exactly one row in both version and embedding policy matrices
+- every parser source used by a language profile (`parserPreference` + `fallbackChain`) is covered by at least one matching row in `usr-parser-runtime-lock.json`
 
 Required report outputs:
 
@@ -225,5 +227,6 @@ Required report outputs:
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
 
 

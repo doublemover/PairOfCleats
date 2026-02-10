@@ -1,7 +1,7 @@
 # Spec -- USR Framework Profile Catalog
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -261,6 +261,7 @@ Additional validation rules:
 - segmentation ordering arrays match canonical extraction phases
 - `embeddedLanguageBridges` is non-empty when framework segmentation spans multiple block types
 - `edgeCaseCaseIds` exactly matches case IDs declared for the framework in `usr-framework-edge-cases.json`
+- parser/compiler sources required by framework extraction are covered by `usr-parser-runtime-lock.json`
 
 Required report outputs:
 
@@ -274,5 +275,6 @@ Required report outputs:
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
 
 

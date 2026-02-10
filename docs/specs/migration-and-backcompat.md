@@ -1,6 +1,6 @@
 # Phase 9 Spec -- Migration and Backward Compatibility
 
-Last updated: 2026-02-10T07:05:00Z
+Last updated: 2026-02-10T08:15:00Z
 
 This document is aligned with:
 
@@ -9,6 +9,8 @@ This document is aligned with:
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
 
 ## Why a migration spec is necessary
 Phase 9 replaces several legacy join assumptions:
