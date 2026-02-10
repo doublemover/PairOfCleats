@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T00:08:55.4192957-05:00
+Last updated: 2026-02-10T00:11:52.8315093-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1467,10 +1467,19 @@ D7.1 status update (2026-02-10T00:08:55.4192957-05:00):
 
 ### Subphase D7.2 — Interprocedural flow cap tests
 Tasks:
-- [ ] Task D7.2.a: Build parameterized flow-cap matrix helper.
+- [x] Task D7.2.a: Build parameterized flow-cap matrix helper.
 Details: Inputs: conservative/max/overflow edge cases.
-- [ ] Task D7.2.b: Convert duplicated flow tests to matrix-driven assertions.
+- [x] Task D7.2.b: Convert duplicated flow tests to matrix-driven assertions.
 Details: Maintain current expected counts and failure messages.
+
+D7.2 status update (2026-02-10T00:11:52.8315093-05:00):
+- resolved: added shared flow-cap matrix helper `tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js` for reusable interprocedural risk chunks/runtime assembly and scenario execution.
+- resolved: replaced duplicated standalone cap tests (`flows-conservative`, `flows-max-total-flows`, `flows-timeout`) with matrix-driven assertions in `tests/indexing/risk/interprocedural/flows-cap-matrix.test.js`.
+- resolved: preserved scenario-specific assertions/messages for conservative flow emission, `maxTotalFlows=0` cap handling, and timeout overflow behavior.
+- remaining: D7.3-D7.6 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this test-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "flows-conservative|flows-max-total-flows|flows-timeout|runFlowCapScenario" tests/indexing/risk/interprocedural`.
 
 ### Subphase D7.3 — VFS and SQLite streaming tests
 Tasks:

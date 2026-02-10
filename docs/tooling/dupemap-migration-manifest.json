@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:08:55.4192957-05:00",
+  "updatedAt": "2026-02-10T00:11:52.8315093-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -352,6 +352,18 @@
         "tests/retrieval/pipeline/ann-preflight.test.js"
       ],
       "canonicalPath": "tests/retrieval/pipeline/helpers/ann-scenarios.js"
+    },
+    {
+      "clusterId": "A06",
+      "title": "Interprocedural flow-cap test setup duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/indexing/risk/interprocedural/flows-conservative.test.js",
+        "tests/indexing/risk/interprocedural/flows-max-total-flows.test.js",
+        "tests/indexing/risk/interprocedural/flows-timeout.test.js"
+      ],
+      "canonicalPath": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js"
     }
   ],
   "migrations": [
@@ -475,7 +487,8 @@
     { "migrationId": "M118", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js::isIdentCharCode/lineContainsVarRange pattern loop + src/index/risk-interprocedural/engine.js::containsIdentifier/matchesRulePatterns", "newPathOrSymbol": "src/index/risk/shared.js::{containsIdentifier,matchRulePatterns}", "status": "completed" },
     { "migrationId": "M119", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/{html-writer,dot-writer}.js::local escapeHtml", "newPathOrSymbol": "src/map/shared/escape-html.js::escapeHtml", "status": "completed" },
     { "migrationId": "M120", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/isometric/client/dom.js::local mergeConfig", "newPathOrSymbol": "src/shared/config.js::mergeConfig", "status": "completed" },
-    { "migrationId": "M121", "clusterId": "A05", "phase": "D7", "oldPathOrSymbol": "tests/retrieval/pipeline/{ann-optional-skip,ann-preflight}.test.js duplicated ANN pipeline fixture/context/index setup", "newPathOrSymbol": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario", "status": "completed" }
+    { "migrationId": "M121", "clusterId": "A05", "phase": "D7", "oldPathOrSymbol": "tests/retrieval/pipeline/{ann-optional-skip,ann-preflight}.test.js duplicated ANN pipeline fixture/context/index setup", "newPathOrSymbol": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario", "status": "completed" },
+    { "migrationId": "M122", "clusterId": "A06", "phase": "D7", "oldPathOrSymbol": "tests/indexing/risk/interprocedural/{flows-conservative,flows-max-total-flows,flows-timeout}.test.js duplicated source/sink/runtime setup", "newPathOrSymbol": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js + flows-cap-matrix.test.js", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -701,6 +714,13 @@
       "scope": "tests/retrieval/pipeline/{ann-optional-skip.test.js,ann-preflight.test.js}",
       "pattern": "duplicated ANN pipeline fixture/context/index setup blocks",
       "replacement": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario"
+    },
+    {
+      "banId": "B042",
+      "phase": "D7",
+      "scope": "tests/indexing/risk/interprocedural/**",
+      "pattern": "duplicated interprocedural flow-cap source/sink/runtime setup across cap scenarios",
+      "replacement": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js::runFlowCapScenario"
     }
   ],
   "exceptions": [],

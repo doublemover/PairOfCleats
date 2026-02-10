@@ -1,7 +1,5 @@
-#!/usr/bin/env node
-import assert from 'node:assert/strict';
-import { buildRiskSummaries } from '../../../../src/index/risk-interprocedural/summaries.js';
-import { computeInterproceduralRisk } from '../../../../src/index/risk-interprocedural/engine.js';
+import { buildRiskSummaries } from '../../../../../src/index/risk-interprocedural/summaries.js';
+import { computeInterproceduralRisk } from '../../../../../src/index/risk-interprocedural/engine.js';
 
 const sourceChunk = {
   file: 'src/source.js',
@@ -72,7 +70,7 @@ const sinkChunk = {
   }
 };
 
-const runtime = {
+const createRuntime = (caps) => ({
   riskInterproceduralConfig: {
     enabled: true,
     summaryOnly: false,
@@ -85,38 +83,41 @@ const runtime = {
       maxTotalFlows: 100,
       maxCallSitesPerEdge: 2,
       maxEdgeExpansions: 100,
-      maxMs: null
+      maxMs: null,
+      ...(caps || {})
     }
   },
   riskInterproceduralEnabled: true,
   riskConfig: { rules: { sources: [] } }
+});
+
+const CHUNKS = [sourceChunk, sinkChunk];
+
+export const runFlowCapScenario = ({
+  caps = null,
+  nowStepMs = null
+} = {}) => {
+  const runtime = createRuntime(caps);
+  const { rows } = buildRiskSummaries({
+    chunks: CHUNKS,
+    runtime,
+    mode: 'code'
+  });
+  const originalNow = Date.now;
+  if (Number.isFinite(nowStepMs)) {
+    let tick = 0;
+    Date.now = () => {
+      tick += nowStepMs;
+      return tick;
+    };
+  }
+  try {
+    return computeInterproceduralRisk({
+      chunks: CHUNKS,
+      summaries: rows,
+      runtime
+    });
+  } finally {
+    Date.now = originalNow;
+  }
 };
-
-const { rows } = buildRiskSummaries({
-  chunks: [sourceChunk, sinkChunk],
-  runtime,
-  mode: 'code'
-});
-
-const result = computeInterproceduralRisk({
-  chunks: [sourceChunk, sinkChunk],
-  summaries: rows,
-  runtime
-});
-
-assert.equal(result.status, 'ok');
-assert.equal(result.flowRows.length, 1, 'expected a single flow');
-const flow = result.flowRows[0];
-assert.equal(flow.source.chunkUid, 'uid-source');
-assert.equal(flow.sink.chunkUid, 'uid-sink');
-assert.equal(flow.path.chunkUids.length, 2);
-assert.equal(flow.path.callSiteIdsByStep.length, 1);
-assert.ok(Array.isArray(flow.path.callSiteIdsByStep[0]));
-assert.ok(flow.flowId.startsWith('sha1:'), 'flowId should be sha1');
-const expectedConfidence = Math.max(0.05, Math.min(1, Math.sqrt(0.6 * 0.8) * 0.85));
-assert.ok(
-  Math.abs(flow.confidence - expectedConfidence) < 1e-6,
-  `expected confidence ${expectedConfidence}, got ${flow.confidence}`
-);
-
-console.log('risk interprocedural conservative flow test passed');
