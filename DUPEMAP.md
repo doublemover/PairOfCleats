@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T02:46:07.7902373-05:00
+Last updated: 2026-02-10T02:53:04.7758141-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -76,7 +76,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F4 | [x] | Retrieval/ANN/embeddings correctness + boundedness |
 | F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [x] | Map/graph/context-pack correctness + cleanup safety |
-| F7 | [ ] | Security/path/input hardening across surfaces |
+| F7 | [x] | Security/path/input hardening across surfaces |
 | F8 | [ ] | Contract-test expansion + `src/**` coverage lock |
 | F9 | [ ] | CI gating + burn-down closure for all findings |
 
@@ -634,23 +634,40 @@ Touchpoints:
 - artifact/schema/manifest parsing boundaries
 
 Subphase F7.1 — Path traversal and containment:
-- [ ] Resolve VFS/baseDir escape findings and enforce canonical containment checks.
-- [ ] Remove platform separator ambiguity in path validation.
-- [ ] Add hard fail behavior for out-of-root resolutions.
+- [x] Resolve VFS/baseDir escape findings and enforce canonical containment checks.
+- [x] Remove platform separator ambiguity in path validation.
+- [x] Add hard fail behavior for out-of-root resolutions.
 
 Subphase F7.2 — Input validation and fail-closed behavior:
-- [ ] Enforce strict type validation for manifest/config max-byte settings.
-- [ ] Enforce reader bounds across JSONL/varint/file-descriptor flows.
-- [ ] Add malformed URI and malformed payload tests for all public decode entry points.
+- [x] Enforce strict type validation for manifest/config max-byte settings.
+- [x] Enforce reader bounds across JSONL/varint/file-descriptor flows.
+- [x] Add malformed URI and malformed payload tests for all public decode entry points.
 
 Tests:
-- [ ] `tests/shared/path-normalize/path-containment-contract.test.js` (from D1)
-- [ ] `tests/indexing/vfs/vfs-path-traversal-deny.test.js` (new)
-- [ ] `tests/shared/jsonl/read-row-max-bytes-enforced.test.js` (new)
-- [ ] `tests/contracts/manifest-max-bytes-validation.test.js` (new)
+- [x] `tests/shared/path-normalize/path-containment-contract.test.js` (from D1)
+- [x] `tests/indexing/vfs/vfs-path-traversal-deny.test.js` (new)
+- [x] `tests/shared/jsonl/read-row-max-bytes-enforced.test.js` (new)
+- [x] `tests/contracts/manifest-max-bytes-validation.test.js` (new)
 
 Exit criteria:
-- [ ] Security-relevant findings are fixed with explicit deny-path tests.
+- [x] Security-relevant findings are fixed with explicit deny-path tests.
+
+F7 status update (2026-02-10T02:53:04.7758141-05:00):
+- resolved: hardened `resolveVfsDiskPath` in `src/index/tooling/vfs.js` with canonical root resolution, absolute-path rejection, separator normalization, deny-list traversal handling, and containment checks via `isPathUnderDir`.
+- resolved: enforced strict numeric validation for VFS cold-start settings (`maxBytes`, `maxAgeDays`) and manifest max-byte handling with explicit `ERR_MANIFEST_MAX_BYTES` failures in strict mode.
+- resolved: enforced JSONL row read bounds in `readJsonlRowAt` with finite-positive `maxBytes` validation (`ERR_INVALID_MAX_BYTES`) and pre-allocation size checks mapped to `ERR_JSON_TOO_LARGE`.
+- resolved: added/updated deny-path and malformed-input tests for traversal denial, manifest max-byte validation, JSONL row size enforcement, VFS disk-path safety, and malformed URI decode guard.
+- remaining: none (F7 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "resolveVfsDiskPath|isAbsolutePathAny|isPathUnderDir|VFS virtualPath" src/index/tooling/vfs.js`
+  - `rg --line-number "resolveManifestMaxBytes|ERR_MANIFEST_MAX_BYTES|strict" src/shared/artifact-io/manifest.js`
+  - `rg --line-number "readJsonlRowAt|maxBytes|ERR_INVALID_MAX_BYTES|toJsonTooLargeError" src/shared/artifact-io/offsets.js`
+  - `rg --line-number "vfs path traversal deny|read row max-bytes enforcement|manifest max-bytes validation|LSP URI malformed decode guard" tests -g "*.test.js"`
+
+F7.DOC no-doc-change rationale (2026-02-10T02:53:04.7758141-05:00):
+- F7 changes hardened internal path/input validation and error handling contracts without introducing new user-facing commands/config knobs; existing docs remain accurate.
 
 ### Phase F8 — Contract-test expansion + coverage lock
 
@@ -808,7 +825,7 @@ Documents: `docs/api/*`, `docs/specs/*` (tooling/service behavior docs touched),
 - [x] Task F6.DOC: Map/graph/context-pack correctness docs.
 Documents: `docs/specs/*` (map/graph/context-pack behavior docs touched), `docs/testing/*`, `docs/benchmarks/*` (if perf-sensitive map/graph behavior changed).
 
-- [ ] Task F7.DOC: Security/path/input hardening docs.
+- [x] Task F7.DOC: Security/path/input hardening docs.
 Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` (new knobs/limits), `docs/specs/*` (security constraints), `docs/guides/*` (user-facing behavior changes).
 
 - [ ] Task F8.DOC: Contract-test expansion and coverage-lock docs.

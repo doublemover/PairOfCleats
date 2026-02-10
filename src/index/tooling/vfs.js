@@ -5,7 +5,8 @@ import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
-import { fromPosix, toPosix } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { buildChunkRef } from '../../shared/identity.js';
 import { decodeBloomFilter } from '../../shared/bloom.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
@@ -789,19 +790,38 @@ export const ensureVfsDiskDocument = async ({
  * @returns {string}
  */
 export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
+  const baseRaw = String(baseDir || '').trim();
+  if (!baseRaw) {
+    throw new Error('VFS baseDir is required.');
+  }
+  const rootDir = path.resolve(baseRaw);
   const encodeUnsafeChar = (ch) => {
     const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(2, '0');
     return `%${hex}`;
   };
-  const parts = String(virtualPath || '').split('/');
+  const rawPath = toPosix(String(virtualPath || '').trim());
+  if (!rawPath) {
+    throw new Error('VFS virtualPath is required.');
+  }
+  if (isAbsolutePathAny(rawPath)) {
+    throw new Error(`VFS virtualPath must be relative: ${virtualPath}`);
+  }
+  const parts = rawPath.split('/').filter((part) => part.length > 0);
+  if (!parts.length) {
+    throw new Error(`VFS virtualPath is invalid: ${virtualPath}`);
+  }
   const safeParts = parts.map((part) => {
     if (part === '.' || part === '..') {
-      return part.split('').map((ch) => encodeUnsafeChar(ch)).join('');
+      throw new Error(`VFS virtualPath must not escape the baseDir: ${virtualPath}`);
     }
-    return part.replace(/[:*?"<>|]/g, (ch) => encodeUnsafeChar(ch));
+    return part.replace(/[:*?"<>|/\\]/g, (ch) => encodeUnsafeChar(ch));
   });
   const relative = safeParts.join(path.sep);
-  return path.join(baseDir, relative);
+  const resolvedPath = path.resolve(rootDir, relative);
+  if (!isPathUnderDir(rootDir, resolvedPath)) {
+    throw new Error(`VFS virtualPath resolves outside baseDir: ${virtualPath}`);
+  }
+  return resolvedPath;
 };
 
 /**
@@ -902,11 +922,17 @@ const resolveColdStartConfig = (value) => {
   if (isTestingEnv() && value?.enabled !== true) {
     return { enabled: false };
   }
-  const maxBytes = Number.isFinite(Number(value?.maxBytes))
-    ? Math.max(0, Math.floor(Number(value.maxBytes)))
+  if (value?.maxBytes != null && (typeof value.maxBytes !== 'number' || !Number.isFinite(value.maxBytes))) {
+    throw new Error('vfs cold-start maxBytes must be a finite number.');
+  }
+  if (value?.maxAgeDays != null && (typeof value.maxAgeDays !== 'number' || !Number.isFinite(value.maxAgeDays))) {
+    throw new Error('vfs cold-start maxAgeDays must be a finite number.');
+  }
+  const maxBytes = Number.isFinite(value?.maxBytes)
+    ? Math.max(0, Math.floor(value.maxBytes))
     : VFS_COLD_START_MAX_BYTES;
-  const maxAgeDays = Number.isFinite(Number(value?.maxAgeDays))
-    ? Math.max(0, Number(value.maxAgeDays))
+  const maxAgeDays = Number.isFinite(value?.maxAgeDays)
+    ? Math.max(0, value.maxAgeDays)
     : VFS_COLD_START_MAX_AGE_DAYS;
   const cacheRoot = typeof value?.cacheRoot === 'string' && value.cacheRoot.trim()
     ? path.resolve(value.cacheRoot)
