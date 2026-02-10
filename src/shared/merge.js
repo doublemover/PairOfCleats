@@ -6,6 +6,7 @@ import { createJsonlBatchWriter } from './json-stream/jsonl-batch.js';
 import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { writeJsonObjectFile } from './json-stream.js';
 import { compareStrings } from './sort.js';
+import { compareWithAntisymmetryInvariant } from './invariants.js';
 
 export const MERGE_RUN_FORMAT = 'jsonl';
 export const MERGE_RUN_SCHEMA_VERSION = 1;
@@ -121,17 +122,7 @@ const resolveRunPath = (run) => {
 const createComparator = (compare, { validateComparator = false } = {}) => {
   const base = typeof compare === 'function' ? compare : compareStrings;
   if (!validateComparator) return base;
-  return (left, right) => {
-    const result = base(left, right);
-    const reverse = base(right, left);
-    if (result === 0 && reverse !== 0) {
-      throw new Error('Comparator is not antisymmetric (0 vs non-zero)');
-    }
-    if (result !== 0 && reverse !== 0 && Math.sign(result) !== -Math.sign(reverse)) {
-      throw new Error('Comparator is not antisymmetric');
-    }
-    return result;
-  };
+  return (left, right) => compareWithAntisymmetryInvariant(base, left, right);
 };
 
 export const createMergeRunManifest = ({
