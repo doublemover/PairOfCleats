@@ -27,6 +27,12 @@ const bumpTelemetry = (bucket, key, amount = 1) => {
   bucket[key] = current + amount;
 };
 
+const recordPeakTelemetry = (bucket, key, value) => {
+  if (!bucket || typeof bucket !== 'object' || !key) return;
+  const current = Number.isFinite(bucket[key]) ? bucket[key] : 0;
+  if (value > current) bucket[key] = value;
+};
+
 const getCachedGraphIndex = (key, telemetry = null) => {
   if (!key) return null;
   if (!graphIndexCache.has(key)) {
@@ -49,6 +55,7 @@ const setCachedGraphIndex = (key, value, telemetry = null) => {
     graphIndexCache.delete(oldest);
     bumpTelemetry(telemetry?.indexCache, 'evictions', 1);
   }
+  recordPeakTelemetry(telemetry?.indexCache, 'peakSize', graphIndexCache.size);
 };
 
 const getCachedGraphArtifacts = (key, telemetry = null) => {
@@ -73,6 +80,7 @@ const setCachedGraphArtifacts = (key, value, telemetry = null) => {
     graphArtifactCache.delete(oldest);
     bumpTelemetry(telemetry?.artifactCache, 'evictions', 1);
   }
+  recordPeakTelemetry(telemetry?.artifactCache, 'peakSize', graphArtifactCache.size);
 };
 
 const normalizeGraphList = (graphs) => {
@@ -225,8 +233,8 @@ export const createGraphStore = ({
   const artifactCache = new Map();
   const artifactsUsed = new Set();
   const telemetry = {
-    indexCache: { hits: 0, misses: 0, evictions: 0, builds: 0 },
-    artifactCache: { hits: 0, misses: 0, evictions: 0 },
+    indexCache: { hits: 0, misses: 0, evictions: 0, builds: 0, peakSize: 0 },
+    artifactCache: { hits: 0, misses: 0, evictions: 0, peakSize: 0 },
     lastBuild: null
   };
 

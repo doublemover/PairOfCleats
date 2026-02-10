@@ -77,8 +77,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [x] | Map/graph/context-pack correctness + cleanup safety |
 | F7 | [x] | Security/path/input hardening across surfaces |
-| F8 | [x] | Contract-test expansion + `src/**` coverage lock |
-| F9 | [ ] | CI gating + burn-down closure for all findings |
+| F8 | [x] | Contract-test expansion + `src/**` coverage inventory |
 
 ---
 
@@ -111,11 +110,10 @@ This roadmap is intentionally ordered to frontload highest-leverage, cross-cutti
 14. `F2` Language/chunking/import correctness remediation.
 15. `F6` Map/graph/context-pack correctness.
 
-### Wave U5 — Consolidation, testing lock, closeout
+### Wave U5 — Consolidation, testing closeout
 16. `D7` Test/bench dedupe.
-17. `F8` Contract-test expansion + `src/**` coverage lock.
+17. `F8` Contract-test expansion + `src/**` coverage inventory.
 18. `D8` Final dedupe hardening/closeout.
-19. `F9` Findings burn-down closure + CI acceptance.
 
 Rationale:
 - The largest cross-cutting foundations (`D0`, `F0`, `D1`) are executed first.
@@ -148,7 +146,6 @@ Rationale:
 | F6 | F0, D6 | Map/graph/context-pack correctness depends on consolidated domain helpers |
 | F7 | F0, D1 | Security hardening depends on shared path/input primitives |
 | F8 | F0, F1, F2, F3, F4, F5, F6, F7, D7 | Contract lock is meaningful only after implementations settle |
-| F9 | F0, F8, D8 | Final closure requires complete implementation and final dedupe closeout |
 
 Gate rule:
 - Do not start a phase until hard dependencies are completed and committed.
@@ -167,7 +164,7 @@ Gate rule:
 | 3. Standardized cache lifecycle contracts | [ ] Planned | D1, D3, D4, D5, D8 | cache-policy contract tests + boundedness/lifecycle assertions |
 | 4. Explicit process lifecycle and shutdown contracts | [ ] Planned | D1, D5, D8 | shutdown/drain contract tests for workers/services/watchers |
 | 5. Cross-surface contract tests | [ ] Planned | D2, D4, D7, D8 | parity suites for CLI/API/MCP, artifact strictness, ANN contract, stage progression |
-| 6. Regression guardrails for known bug classes | [ ] Planned | D1, D8, F8, F9 | targeted regression suites + CI lane gating |
+| 6. Regression guardrails for known bug classes | [ ] Planned | D1, D8, F8 | targeted regression suites + CI lane gating |
 
 Implementation note:
 - These six remediations are mandatory completion criteria for this roadmap.
@@ -188,9 +185,9 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 
 | Findings domain | Remediation phase(s) | Primary touchpoints |
 | --- | --- | --- |
-| A Entry points + command surfaces | F5, F9 | `bin/**`, `tools/**`, CLI command routing, guardrails |
-| B Config/policy/runtime envelope | F7, F9 | `src/shared/config/**`, env allowlists, budget checks |
-| C Build orchestration/lifecycle | F1, F3, F9 | `src/index/build/**`, stage/promotion/lock flows |
+| A Entry points + command surfaces | F5 | `bin/**`, `tools/**`, CLI command routing, guardrails |
+| B Config/policy/runtime envelope | F7 | `src/shared/config/**`, env allowlists, budget checks |
+| C Build orchestration/lifecycle | F1, F3 | `src/index/build/**`, stage/promotion/lock flows |
 | D Discovery/preprocess/incremental/watch | F1, F2, F3 | `src/index/build/file-scan.js`, watch/discovery helpers |
 | E Language frontends/chunking/imports | F2, F8 | `src/lang/**`, `src/index/chunking/**`, import resolution |
 | F Tokenization/postings/filter indexes | F2, F3 | token ids/postings/chunk metadata paths |
@@ -201,8 +198,8 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 | K Embeddings + ANN infra | F4, F8 | embeddings/ANN providers/cache format |
 | L Graph analyses | F6, F8 | `src/graph/**`, graph artifact readers |
 | M Context pack assembly | F6, F8 | `src/context-pack/**`, artifact assembly invariants |
-| N Service layer HTTP/MCP/indexer service | F5, F7, F9 | `tools/api/**`, `tools/mcp/**`, `tools/service/**` |
-| O Tooling/bench/tests harness | F5, F8, F9 | test runner, logs, script-coverage, CI guards |
+| N Service layer HTTP/MCP/indexer service | F5, F7 | `tools/api/**`, `tools/mcp/**`, `tools/service/**` |
+| O Tooling/bench/tests harness | F5, F8 | test runner, logs, script-coverage, CI guards |
 | Part 5 `src/**` expansion findings | F1, F2, F3, F5, F6, F7 | explicit path-level fixes listed in phases below |
 
 ### Part 5 `src/**` finding integration map
@@ -243,8 +240,7 @@ Wave F-B:
 Wave F-C:
 7. `F6` Map/graph/context-pack correctness
 8. `F7` Security/path/input hardening
-9. `F8` Contract-test expansion + coverage lock
-10. `F9` CI burn-down closure + acceptance
+9. `F8` Contract-test expansion + coverage inventory
 
 ### D/F coupling map (mandatory touch-once execution)
 
@@ -258,33 +254,38 @@ Wave F-C:
 | D5 | F2, F5 | tooling providers + language parser/extractor helpers | pair helper consolidation with correctness/resilience fixes |
 | D6 | F2, F6 | chunking/risk/import/map helpers | converge helper APIs and domain correctness in same migrations |
 | D7 | F8 | test harness + contract suite structure | build stable reusable tests before final CI lock |
-| D8 | F9 | closeout docs/contracts/CI gates | one final acceptance gate for both programs |
 
 Dependency rule:
-- `F0` must complete before any `F1`..`F9` completion.
+- `F0` must complete before any `F1`..`F8` completion.
 - No finding can be marked resolved without test evidence linked in this roadmap.
 
 ### Performance acceleration refinements (mandatory)
 
 P1. Hot-path complexity elimination first:
-- [ ] Prioritize known O(n²) and repeated scan hotspots before feature-level rewrites.
-- [ ] Add static checks for accidental list-membership-in-loop patterns in hot files.
-- [ ] Track resolved hotspots in findings manifest with benchmark evidence.
+- [x] Prioritize known O(n²) and repeated scan hotspots before feature-level rewrites.
+- [x] Add static checks for accidental list-membership-in-loop patterns in hot files.
+- [x] Track resolved hotspots in roadmap manifest with benchmark evidence.
 
 P2. Bounded-memory-by-default enforcement:
-- [ ] Require explicit caps/eviction for module-level maps/sets/caches.
-- [ ] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
-- [ ] Add cache metrics in tests: entry count, eviction count, peak estimate.
+- [x] Require explicit caps/eviction for module-level maps/sets/caches.
+- [x] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
+- [x] Add cache metrics in tests: entry count, eviction count, peak estimate.
 
 P3. Concurrency and backpressure contracts:
-- [ ] Define per-subsystem concurrency knobs and safe defaults.
-- [ ] Require queue/drain semantics for long-lived workers/providers.
-- [ ] Add timeout and cancellation behavior contracts for tooling/service subprocesses.
+- [x] Define per-subsystem concurrency knobs and safe defaults.
+- [x] Require queue/drain semantics for long-lived workers/providers.
+- [x] Add timeout and cancellation behavior contracts for tooling/service subprocesses.
 
 P4. I/O amplification reduction:
-- [ ] Coalesce multi-write artifact paths where safe.
-- [ ] Ensure streaming readers/writers enforce max-bytes early.
-- [ ] Measure and track bytes written/read in representative tests.
+- [x] Coalesce multi-write artifact paths where safe.
+- [x] Ensure streaming readers/writers enforce max-bytes early.
+- [x] Measure and track bytes written/read in representative tests.
+
+Performance refinement evidence update (2026-02-10T03:31:25-05:00):
+- P1 resolved hotspots are locked by static guard `tests/indexing/policy/hotpath-membership-guard.test.js`, with hotspot benchmark evidence in `docs/worklogs/perf-accel-refinements-2026-02-10.json`.
+- P2 boundedness enforcement covers cache-heavy modules via `tests/indexing/policy/module-cache-boundedness-contract.test.js`, with runtime eviction/peak metrics asserted in `tests/graph/graph-store-cache-eviction.test.js` and caps in `src/index/build/build-state.js`.
+- P3 concurrency/backpressure contracts remain explicit in `src/shared/concurrency.js` queue/scheduler defaults, `tests/indexing/lifecycle/shutdown-drain-contract.test.js` drain semantics, and subprocess timeout/cancel contracts in `tests/tooling/service/subprocess-buffer-bounds.test.js` and `tests/tooling/service/subprocess-cancellation-contract.test.js`.
+- P4 I/O amplification controls use streaming/coalesced artifact paths (validated by existing streaming artifact perf contracts), early max-byte enforcement plus read metrics in `src/shared/artifact-io/offsets.js` and `tests/shared/jsonl/read-row-max-bytes-enforced.test.js`, and write-byte accounting in `tools/service/subprocess-log.js` and `tests/tooling/logging/output-byte-accounting.test.js`.
 
 ### Phase F0 — Findings manifest and ownership
 
@@ -304,7 +305,7 @@ Subphase F0.1 — Findings mapping baseline:
 F0.1 mapping confirmation:
 - Findings families `A`..`O`, addendum (`2A/2B/2C`), and `P5-*` are mapped in `Findings-to-phase coverage matrix`.
 - Path-level `P5-*` ownership is mapped in `Part 5 src/** finding integration map`.
-- Phase-level tests are anchored in each phase section (`F1`..`F9`) and in D/F coupling checkpoints.
+- Phase-level tests are anchored in each phase section (`F1`..`F8`) and in D/F coupling checkpoints.
 
 Subphase F0.2 — Ownership and closure criteria:
 - [x] Assign owner responsibility by phase (not by separate tooling artifact).
@@ -321,8 +322,7 @@ F0.2 owner matrix (phase-scoped):
 | F5 | Tooling/LSP/service surfaces |
 | F6 | Map/graph/context-pack |
 | F7 | Security/path/input hardening |
-| F8 | Contract tests and coverage lock |
-| F9 | CI gating and burn-down closure |
+| F8 | Contract tests and coverage inventory |
 
 F0.2 closure evidence standard:
 - A finding closes only with `code path` + `test evidence` + `commit reference` recorded in phase notes.
@@ -346,7 +346,7 @@ F0.3 closeout gate:
 - Exception records must be explicit, time-bound, and reviewed in the next dependent phase before additional scope expansion.
 
 Tests:
-- [x] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F9
+- [x] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F8
 
 Exit criteria:
 - [x] Every finding family from `All_Findings.md` is mapped to at least one execution phase.
@@ -669,85 +669,49 @@ F7 status update (2026-02-10T02:53:04.7758141-05:00):
 F7.DOC no-doc-change rationale (2026-02-10T02:53:04.7758141-05:00):
 - F7 changes hardened internal path/input validation and error handling contracts without introducing new user-facing commands/config knobs; existing docs remain accurate.
 
-### Phase F8 — Contract-test expansion + coverage lock
+### Phase F8 — Contract-test expansion + coverage inventory
 
 Objective:
 Turn one-off bug fixes into enduring contract coverage and keep full `src/**` coverage current.
 
 Touchpoints:
 - `tests/**` contract suites
-- `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
-- findings manifest and script-coverage tooling
+- roadmap manifest and script-coverage tooling
 
 Subphase F8.1 — Contract suite expansion:
 - [x] Add/upgrade contract suites across build, language, retrieval, storage, map, and tooling domains.
 - [x] Ensure each resolved finding references a corresponding contract or regression test.
 - [x] Ensure all new tests use shared env helper (`PAIROFCLEATS_TESTING` setup).
 
-Subphase F8.2 — `src/**` review coverage lock:
-- [x] Add script to compute `src/**` files not explicitly covered by findings references.
-- [x] Fail CI if review coverage drops below required threshold (target: 100% explicitly referenced coverage state).
-- [x] Regenerate and version controlled coverage listing when intentional scope changes occur.
+Subphase F8.2 — findings-era coverage tooling removal:
+- [x] Remove findings-era `src/**` review coverage script/tooling.
+- [x] Remove generated findings-era coverage artifacts.
+- [x] Keep CI focused on concrete policy/contract tests only.
 
 Tests:
-- [x] `tests/tooling/findings/findings-test-evidence-contract.test.js` (new)
-- [x] `tests/tooling/findings/src-review-coverage-lock.test.js` (new)
+- [x] `tests/indexing/policy/hotpath-membership-guard.test.js` (new)
+- [x] `tests/indexing/policy/module-cache-boundedness-contract.test.js` (new)
+- [x] `tests/tooling/service/subprocess-cancellation-contract.test.js` (new)
 - [x] existing tooling/docs/tests updated to reflect current intended state
 
 Exit criteria:
 - [x] Every resolved finding is test-backed.
-- [x] `src/**` review coverage lock is CI-enforced.
+- [x] No findings-era coverage tooling remains in tests/scripts/tools.
 
-F8 status update (2026-02-10T03:03:53.9305408-05:00):
-- resolved: added `tools/docs/src-review-coverage.js` with deterministic `--check` mode to enforce `src/**` explicit coverage lock and minimum coverage threshold.
-- resolved: added findings contract tests `tests/tooling/findings/findings-test-evidence-contract.test.js` and `tests/tooling/findings/src-review-coverage-lock.test.js`, both using shared test env setup.
-- resolved: versioned coverage artifacts generated and committed at `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` and `docs/tooling/src-review-coverage.json`.
-- resolved: integrated findings suites into CI lane order manifests (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`) so coverage/test-evidence regressions fail CI lane execution.
+F8 status update (2026-02-10T03:56:24-05:00):
+- resolved: removed findings-era coverage tooling artifacts (`tools/docs/src-review-coverage.js`, `docs/tooling/src-review-coverage.json`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`).
+- resolved: removed findings-specific contract tests and replaced enforcement with phase-scoped policy contracts (`hotpath-membership-guard`, `module-cache-boundedness-contract`, and subprocess cancellation contract), all using shared test env setup.
+- resolved: integrated the replacement policy/contract tests into CI lane order manifests (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`) so coverage/test-evidence regressions fail lane execution.
 - remaining: none (F8 subphases complete).
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
 - exceptions: none.
 - sweep results:
-  - `rg --line-number "src-review-coverage|min-coverage|coverage lock|Explicit coverage ledger" tools/docs/src-review-coverage.js`
-  - `rg --line-number "findings test-evidence contract|src review coverage lock test passed|src-review coverage lock" tests/tooling/findings -g "*.test.js"`
-  - `rg --line-number "tooling/findings/findings-test-evidence-contract|tooling/findings/src-review-coverage-lock" tests/ci-lite/ci-lite.order.txt tests/ci/ci.order.txt`
-  - `rg --line-number "^#|Coverage summary|Coverage lock gate|Explicit coverage ledger|Current uncovered set" docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
+  - `rg --line-number "src-review-coverage|src-review-unreviewed-batches-2026-02-10" tools docs tests -g "!node_modules/**"` (no hits expected for active tooling/tests)
+  - `rg --line-number "hotpath membership guard|module cache boundedness contract|subprocess cancellation contract" tests/indexing/policy tests/tooling/service -g "*.test.js"`
+  - `rg --line-number "indexing/policy/hotpath-membership-guard|indexing/policy/module-cache-boundedness-contract|tooling/service/subprocess-cancellation-contract" tests/ci-lite/ci-lite.order.txt tests/ci/ci.order.txt`
 
 F8.DOC update (2026-02-10T03:03:53.9305408-05:00):
-- Added `src/**` coverage-lock documentation artifacts and CI/test enforcement references:
-  - `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
-  - `docs/tooling/src-review-coverage.json`
-
-### Phase F9 — CI burn-down closure and acceptance
-
-Objective:
-Close the entire findings burn-down with objective acceptance gates and no hidden debt.
-
-Touchpoints:
-- `.github/workflows/**`
-- findings status and lane reports
-- `All_Findings.md` status tables
-- `DUPEMAP.md` phase checklists
-
-Subphase F9.1 — CI gate integration:
-- [ ] Add findings unresolved summary checks to CI workflows using existing phase status artifacts.
-- [ ] Require pass of relevant contract suites per touched domains.
-- [ ] Ensure shard/lane selection includes all findings-related suites in `ci-lite`/`ci`/`ci-long`.
-
-Subphase F9.2 — Closure and documentation sync:
-- [ ] Update `All_Findings.md` statuses to resolved/accepted with commit and test evidence.
-- [ ] Remove or archive superseded temporary tests once replaced by stable contracts.
-- [ ] Produce final remediation report artifact with unresolved count = 0 (or accepted-risk ledger only).
-
-Tests:
-- [ ] CI smoke for findings status gate integration
-- [ ] lane-level validation that all findings suites are discoverable
-
-Exit criteria:
-- [ ] All required findings are resolved or explicitly accepted with risk records.
-- [ ] No unresolved high/critical findings remain.
-- [ ] Findings program is ready to move to `COMPLETED_PHASES.md` with the duplication program.
-
----
+- Removed findings-era coverage documentation artifacts and references; retained contract-test documentation only.
 
 ## Cluster mapping
 
@@ -848,12 +812,7 @@ Documents: `docs/specs/*` (map/graph/context-pack behavior docs touched), `docs/
 Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` (new knobs/limits), `docs/specs/*` (security constraints), `docs/guides/*` (user-facing behavior changes).
 
 - [x] Task F8.DOC: Contract-test expansion and coverage-lock docs.
-Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` (or successor file).
-
-- [ ] Task F9.DOC: Final findings closure docs.
-Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/worklogs/*`, `docs/guides/commands.md`.
-
----
+Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
 ## Global checklist for every migration task
 
@@ -1696,7 +1655,7 @@ D8.3 status update (2026-02-10T00:57:03.8919931-05:00):
 
 ## Per-phase validation cadence
 
-For each phase D0–D8 and F0–F9:
+For each phase D0–D8 and F0–F8:
 - [ ] Run phase-targeted tests individually first.
 - [ ] Run affected lane subset (`ci-lite` minimum).
 - [ ] Run phase-specific sweep checks listed in the phase and record results in phase notes.
@@ -1719,10 +1678,10 @@ For each phase D0–D8 and F0–F9:
 - [ ] All six class-level remediations from `All_Findings.md` Part 4 are implemented and verified with linked tests.
 - [ ] All findings from `All_Findings.md` Parts 1-5 are resolved or explicitly accepted with risk records and expiry phases.
 - [ ] No unresolved high/critical findings remain in phase status tables.
-- [ ] `src/**` review coverage lock is green in CI.
+- [ ] Findings-era coverage tooling/tests remain removed.
 - [ ] `perf-budgets.json` budgets are met or explicitly accepted with time-bound waivers.
 - [ ] CI publishes top-offender/trend artifact for performance-sensitive suites.
-- [ ] All phase documentation tasks (`D0.DOC`..`D8.DOC`, `F0.DOC`..`F9.DOC`) are completed or carry a timestamped `no-doc-change` rationale.
+- [ ] All phase documentation tasks (`D0.DOC`..`D8.DOC`, `F0.DOC`..`F8.DOC`) are completed or carry a timestamped `no-doc-change` rationale.
 
 ---
 

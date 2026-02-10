@@ -10,6 +10,8 @@ tooling/lsp/pyright-provider-output-shape
 tooling/install/setup
 indexing/relations/segment-call-site-offsets
 indexing/policy/analysis-policy-gating
+indexing/policy/hotpath-membership-guard
+indexing/policy/module-cache-boundedness-contract
 indexing/discovery/discover
 tooling/lsp/typescript/typescript-vfs-segment-vue
 tooling/lsp/typescript/typescript-js-parity-basic
@@ -39,6 +41,8 @@ indexing/embeddings/embedding-batch-autotune
 indexing/watch/watch-debounce
 indexing/watch/watch-backend-selection
 tooling/install/download-extensions
+tooling/install/postinstall-patch-enforcement
+tooling/install/rebuild-native-required-contract
 indexing/watch/watch-e2e-promotion
 cli/search/search-missing-index
 tooling/config-inventory/inventory-sync
@@ -51,6 +55,7 @@ lang/rust/prose-rust-exclusion
 indexer/call-sites/call-sites-empty-required
 indexer/call-sites/call-sites-emit-artifacts-none
 shared/encoding/unicode-offset
+tooling/service/subprocess-cancellation-contract
 indexing/imports/import-links
 indexing/tree-sitter/js-tree-sitter-maxbytes
 shared/runtime/runtime-envelope-spawn-env

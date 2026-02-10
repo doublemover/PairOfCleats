@@ -20,18 +20,22 @@ const toUtf8ByteLength = (value) => {
 };
 
 const appendLogLines = (logPath, lines, { onWriteError = null } = {}) => {
-  if (!logPath || typeof logPath !== 'string') return;
+  if (!logPath || typeof logPath !== 'string') return 0;
   const payload = Array.isArray(lines)
     ? lines.filter((line) => typeof line === 'string' && line.length > 0).join('\n')
     : '';
-  if (!payload) return;
+  if (!payload) return 0;
+  const text = `${payload}\n`;
+  const bytes = Buffer.byteLength(text, 'utf8');
   try {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(logPath, `${payload}\n`);
+    fs.appendFileSync(logPath, text);
+    return bytes;
   } catch (err) {
     if (typeof onWriteError === 'function') {
       onWriteError(err);
     }
+    return 0;
   }
 };
 
@@ -98,6 +102,7 @@ export const runLoggedSubprocess = async ({
   command,
   args = [],
   env = process.env,
+  signal = null,
   extraEnv = {},
   logPath = null,
   maxOutputBytes = null,
@@ -112,6 +117,7 @@ export const runLoggedSubprocess = async ({
   const startedAt = new Date().toISOString();
   let stdoutBytes = 0;
   let stderrBytes = 0;
+  let logBytesWritten = 0;
 
   const baseOptions = {
     stdio: useLog ? ['ignore', 'pipe', 'pipe'] : 'inherit',
@@ -122,6 +128,9 @@ export const runLoggedSubprocess = async ({
     outputMode: 'string',
     maxOutputBytes: policy.maxOutputBytes
   };
+  if (signal) {
+    baseOptions.signal = signal;
+  }
 
   if (useLog) {
     baseOptions.onStdout = (chunk) => {
@@ -142,7 +151,7 @@ export const runLoggedSubprocess = async ({
     const stderr = typeof result.stderr === 'string' ? result.stderr : '';
     const exitCode = Number.isFinite(result.exitCode) ? result.exitCode : 1;
     if (useLog) {
-      appendLogLines(
+      logBytesWritten += appendLogLines(
         logPath,
         buildLogBlock({
           startedAt,
@@ -168,6 +177,7 @@ export const runLoggedSubprocess = async ({
       stderr,
       stdoutBytes,
       stderrBytes,
+      logBytesWritten,
       maxOutputBytes: policy.maxOutputBytes,
       timeoutMs: policy.timeoutMs,
       errorCode: null,
@@ -182,7 +192,7 @@ export const runLoggedSubprocess = async ({
     const exitCode = Number.isFinite(result.exitCode) ? result.exitCode : 1;
     const errorMessage = err?.message || String(err);
     if (useLog) {
-      appendLogLines(
+      logBytesWritten += appendLogLines(
         logPath,
         buildLogBlock({
           startedAt,
@@ -208,6 +218,7 @@ export const runLoggedSubprocess = async ({
       stderr,
       stdoutBytes,
       stderrBytes,
+      logBytesWritten,
       maxOutputBytes: policy.maxOutputBytes,
       timeoutMs: policy.timeoutMs,
       errorCode: err?.code || null,

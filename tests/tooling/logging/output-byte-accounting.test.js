@@ -21,8 +21,10 @@ const result = await runLoggedSubprocess({
 assert.equal(result.exitCode, 0);
 assert.equal(result.stdoutBytes, 4);
 assert.equal(result.stderrBytes, 2);
+assert.ok(Number.isFinite(result.logBytesWritten) && result.logBytesWritten > 0);
 
 const logText = await fs.readFile(logPath, 'utf8');
+assert.equal(result.logBytesWritten, Buffer.byteLength(logText, 'utf8'));
 assert.match(logText, /output bytes stdout=4 stderr=2/);
 assert.match(logText, /\[stdout\][\s\S]*abcd/);
 assert.match(logText, /\[stderr\][\s\S]*xy/);

@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-02-10T03:28:16.8245075-05:00",
+  "suite": "perf-accel-refinements",
+  "results": [
+    {
+      "test": "tests/indexing/policy/hotpath-membership-guard.test.js",
+      "exitCode": 0,
+      "durationMs": 65
+    },
+    {
+      "test": "tests/indexing/policy/module-cache-boundedness-contract.test.js",
+      "exitCode": 0,
+      "durationMs": 51
+    },
+    {
+      "test": "tests/graph/graph-store-cache-eviction.test.js",
+      "exitCode": 0,
+      "durationMs": 79
+    },
+    {
+      "test": "tests/shared/jsonl/read-row-max-bytes-enforced.test.js",
+      "exitCode": 0,
+      "durationMs": 57
+    },
+    {
+      "test": "tests/tooling/logging/output-byte-accounting.test.js",
+      "exitCode": 0,
+      "durationMs": 90
+    },
+    {
+      "test": "tests/tooling/service/subprocess-buffer-bounds.test.js",
+      "exitCode": 0,
+      "durationMs": 1177
+    },
+    {
+      "test": "tests/tooling/service/subprocess-cancellation-contract.test.js",
+      "exitCode": 0,
+      "durationMs": 235
+    },
+    {
+      "test": "tests/indexing/watch/build-state.test.js",
+      "exitCode": 0,
+      "durationMs": 581
+    },
+    {
+      "test": "tests/indexing/build-state/ledger-roundtrip.test.js",
+      "exitCode": 0,
+      "durationMs": 600
+    },
+    {
+      "test": "tests/indexing/lifecycle/shutdown-drain-contract.test.js",
+      "exitCode": 0,
+      "durationMs": 90
+    }
+  ]
+}

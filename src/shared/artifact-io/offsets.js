@@ -50,7 +50,8 @@ export const readJsonlRowAt = async (
   index,
   {
     maxBytes = MAX_JSON_BYTES,
-    requiredKeys = null
+    requiredKeys = null,
+    metrics = null
   } = {}
 ) => {
   if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0) {
@@ -76,6 +77,10 @@ export const readJsonlRowAt = async (
   }
   const length = end - start;
   if (length === 0) return null;
+  if (metrics && typeof metrics === 'object') {
+    const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
+    metrics.bytesRequested = currentRequested + length;
+  }
   if (length > resolvedMaxBytes) {
     throw toJsonTooLargeError(jsonlPath, length);
   }
@@ -84,6 +89,12 @@ export const readJsonlRowAt = async (
     const buffer = Buffer.allocUnsafe(length);
     const { bytesRead } = await handle.read(buffer, 0, length, start);
     const line = buffer.slice(0, bytesRead).toString('utf8');
+    if (metrics && typeof metrics === 'object') {
+      const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
+      metrics.bytesRead = currentRead + bytesRead;
+      const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
+      metrics.rowsRead = currentRows + 1;
+    }
     return parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys);
   } finally {
     await handle.close();

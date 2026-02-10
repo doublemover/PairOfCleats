@@ -32,7 +32,7 @@ export async function triageIngest(args = {}, context = {}) {
     ? ({ stream, line }) => progress({ message: line, stream })
     : null;
   if (progress) {
-    progress({ message: `Ingesting ${source} findings.`, phase: 'start' });
+    progress({ message: `Ingesting ${source} records.`, phase: 'start' });
   }
   const { stdout } = await runNodeAsync(repoPath, ingestArgs, {
     streamOutput: true,

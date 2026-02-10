@@ -12,6 +12,8 @@ indexing/scm/jj-changed-files-normalization
 tooling/vscode/vscode-extension
 ci/nightly-workflow-contract
 ci/workflow-contract
+indexing/policy/hotpath-membership-guard
+indexing/policy/module-cache-boundedness-contract
 indexing/embeddings/quantization-clamp-warning
 tooling/eval/eval-match-mode
 indexing/type-inference/providers/type-inference-typescript-provider-no-ts
@@ -19,6 +21,8 @@ indexing/contracts/semver-policy-enforced
 retrieval/backend/retrieval-backend-policy
 ci/npm-script-targets
 indexing/policy/script-surface-policy
+tooling/install/postinstall-patch-enforcement
+tooling/install/rebuild-native-required-contract
 indexing/type-inference/crossfile/apply
 indexing/type-inference/local/type-inference-local
 lang/php/php-methods-unique
@@ -29,6 +33,7 @@ tooling/docs/truth-table
 retrieval/ranking/graph-ranking-explain
 indexing/type-inference/crossfile/symbols
 tooling/test-selection/suggest-tests-witness-path
+tooling/service/subprocess-cancellation-contract
 indexing/chunk-id/stable-id-does-not-depend-on-name-or-kind
 indexing/risk/rules/risk-rules-config
 retrieval/graph/impact-analysis-determinism

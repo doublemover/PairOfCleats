@@ -39,6 +39,7 @@ const timedOut = await runLoggedSubprocess({
 
 assert.equal(timedOut.timedOut, true, 'expected timeout to be reported');
 assert.equal(timedOut.exitCode, 1);
+assert.ok(Number.isFinite(timedOut.logBytesWritten) && timedOut.logBytesWritten > 0);
 
 const timeoutLog = await fs.readFile(timeoutLogPath, 'utf8');
 assert.match(timeoutLog, /job timeout/);

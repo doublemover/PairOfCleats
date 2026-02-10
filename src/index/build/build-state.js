@@ -21,12 +21,30 @@ const VERY_LONG_DEBOUNCE_MS = 1000;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_PATCH_BYTES = 64 * 1024;
+const STATE_MAP_MAX_ENTRIES = 64;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
 const stateCaches = new Map();
 const statePending = new Map();
 const statePendingLifecycles = new Map();
+
+const isActiveStateKey = (key) => (
+  stateQueues.has(key)
+  || statePending.has(key)
+  || statePendingLifecycles.has(key)
+);
+
+const trimStateMap = (map, { maxEntries = STATE_MAP_MAX_ENTRIES, skipActive = false } = {}) => {
+  if (!(map instanceof Map)) return;
+  if (!Number.isFinite(maxEntries) || maxEntries <= 0) return;
+  if (map.size <= maxEntries) return;
+  for (const [key] of map.entries()) {
+    if (map.size <= maxEntries) break;
+    if (skipActive && isActiveStateKey(key)) continue;
+    map.delete(key);
+  }
+};
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
@@ -60,6 +78,7 @@ const getCacheEntry = (buildRoot) => {
       lastHash: null,
       lastComparableHash: null
     });
+    trimStateMap(stateCaches, { skipActive: true });
   }
   return stateCaches.get(key);
 };
@@ -313,6 +332,7 @@ const recordStateError = (buildRoot, err) => {
     message
   };
   stateErrors.set(key, next);
+  trimStateMap(stateErrors, { skipActive: true });
   // Surface the failure without crashing the build.
   console.warn(`[build_state] ${message}`);
 };
