@@ -24,27 +24,28 @@
   - spill to disk
   - shard more aggressively
   - skip with warning (only if allowed)
-- Perf lane enforces strict overflow behavior by default.
+- Overflow `fail`/`abort` throws `ERR_BYTE_BUDGET`.
+- Other overflow modes record checkpoint telemetry and log warnings unless strict mode is enabled.
 
 ## Budget Table
-- chunk_meta: maxJsonBytes, overflow=trim
+- chunk_meta: maxJsonBytes, overflow=shard
 - file_meta: maxJsonBytes, overflow=shard
 - token_postings: maxJsonBytes, overflow=shard
 - repo_map: maxJsonBytes, overflow=shard
 - file_relations: maxJsonBytes, overflow=shard
 - vfs_manifest: maxJsonBytes, overflow=fail
-- symbol_occurrences: maxJsonBytes, overflow=trim
-- symbol_edges: maxJsonBytes, overflow=trim
-- call_sites: maxJsonBytes, overflow=trim
+- symbol_occurrences: maxJsonBytes, overflow=shard
+- symbol_edges: maxJsonBytes, overflow=shard
+- call_sites: maxJsonBytes, overflow=shard
 - chunk_uid_map: maxJsonBytes, overflow=shard
 - graph_relations: maxJsonBytes, overflow=drop
 
 ## Artifact Policy Mapping
 - vfs_manifest: fail if any row exceeds maxJsonBytes; shard when totalBytes exceeds maxJsonBytes.
-- symbol_occurrences / symbol_edges: trim oversized rows first; drop if still above MAX_ROW_BYTES.
+- symbol_occurrences / symbol_edges: shard outputs when over budget; strict mode converts warnings to failures.
 - symbol_occurrences ordering: compare by host file/chunkUid, role, ref targetName, then status.
 - symbol_edges ordering: compare by from chunkUid, type, to targetName, then status.
-- chunk_meta: trim fields in priority order; if still above maxJsonBytes, drop tokens/contexts before final emit.
+- chunk_meta: switch to JSONL sharding and enforce row-size guardrails.
 - file_relations / repo_map: shard by maxJsonBytes; fail on single-row overflow.
 
 ## Telemetry
