@@ -1,7 +1,7 @@
 # USR Language Contract -- csharp
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: csharp
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the csharp-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C2,C3
 - Applicable framework overlays: none
 - Required fallback chain: native-parser,tree-sitter,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `10`
+- maxVersion: `null`
+- dialects: `csharp`
+- featureFlags: `nullable,top-level-statements`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `html,css,javascript,razor`
 
 ## 2. Required syntax and node coverage
 

@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.6
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.7
+Last updated: 2026-02-10T07:40:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1349,6 +1349,8 @@ USR requires machine-readable registries to prevent doc drift.
 Required files:
 
 - `tests/lang/matrix/usr-language-profiles.json`
+- `tests/lang/matrix/usr-language-version-policy.json`
+- `tests/lang/matrix/usr-language-embedding-policy.json`
 - `tests/lang/matrix/usr-framework-profiles.json`
 - `tests/lang/matrix/usr-node-kind-mapping.json`
 - `tests/lang/matrix/usr-edge-kind-constraints.json`
@@ -1363,6 +1365,8 @@ Required files:
 Registry drift policy:
 
 - registry language IDs and `usr-language-profiles.json` entries MUST be exact-set equal
+- registry language IDs and `usr-language-version-policy.json` entries MUST be exact-set equal
+- registry language IDs and `usr-language-embedding-policy.json` entries MUST be exact-set equal
 - framework profile IDs referenced by language profiles MUST exist in `usr-framework-profiles.json`
 - unknown keys in registry JSON MUST fail strict schema validation
 - every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`

@@ -1,7 +1,7 @@
 # USR Language Contract -- python
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: python
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the python-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C2,C3
 - Applicable framework overlays: none
 - Required fallback chain: native-parser,tree-sitter,tooling,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `3.9`
+- maxVersion: `null`
+- dialects: `cpython`
+- featureFlags: `type-comments,pattern-matching`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `false`
+- canBeEmbedded: `false`
+- embeddedLanguageAllowlist: `none`
 
 ## 2. Required syntax and node coverage
 
