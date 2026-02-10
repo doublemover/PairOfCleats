@@ -68,8 +68,8 @@ export function validateSqliteDatabase(db, mode, options = {}) {
     if (chunkCount !== expectedChunks) {
       errors.push(`chunks=${chunkCount} expected=${expectedChunks}`);
     }
-    const ftsCount = db.prepare('SELECT COUNT(*) AS total FROM chunks_fts WHERE mode = ?')
-      .get(mode)?.total ?? 0;
+    const ftsCount = db.prepare('SELECT COUNT(*) AS total FROM chunks_fts')
+      .get()?.total ?? 0;
     if (ftsCount !== expectedChunks) {
       errors.push(`chunks_fts=${ftsCount} expected=${expectedChunks}`);
     }

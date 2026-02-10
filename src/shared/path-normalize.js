@@ -61,3 +61,15 @@ export const normalizeFilePath = (value, { lower = false } = {}) => {
   const normalized = toPosix(String(value || ''));
   return lower ? normalized.toLowerCase() : normalized;
 };
+
+/**
+ * Return true when targetPath is at or under baseDir.
+ * @param {string} baseDir
+ * @param {string} targetPath
+ * @returns {boolean}
+ */
+export const isPathUnderDir = (baseDir, targetPath) => {
+  if (!baseDir || !targetPath) return false;
+  const rel = path.relative(path.resolve(baseDir), path.resolve(targetPath));
+  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
+};

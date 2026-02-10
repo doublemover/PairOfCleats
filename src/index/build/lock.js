@@ -1,65 +1,11 @@
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import {
+  acquireFileLock,
+  readLockInfo,
+  removeLockFileSyncIfOwned
+} from '../../shared/locks/file-lock.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const isProcessAlive = (pid) => {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-  } catch (err) {
-    if (err?.code === 'EPERM') return true;
-    return false;
-  }
-  if (process.platform !== 'win32') return true;
-  try {
-    const result = spawnSync(
-      'tasklist',
-      ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
-      { encoding: 'utf8', windowsHide: true }
-    );
-    if (result.error) return true;
-    const output = String(result.stdout || '').trim();
-    if (!output) return false;
-    if (/INFO:\s+No tasks are running/i.test(output)) return false;
-    const line = output.split(/\r?\n/)[0] || '';
-    const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
-    const pidText = parts[1] || '';
-    const parsedPid = Number(pidText);
-    if (Number.isFinite(parsedPid)) return parsedPid === pid;
-  } catch {
-    return true;
-  }
-  return true;
-};
-
-const readLockInfo = async (lockPath) => {
-  try {
-    const raw = await fs.readFile(lockPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-};
-
-const isLockStale = async (lockPath, staleMs) => {
-  try {
-    const info = await readLockInfo(lockPath);
-    if (info?.startedAt) {
-      const started = Date.parse(info.startedAt);
-      if (Number.isFinite(started) && Date.now() - started > staleMs) return true;
-    }
-    const stat = await fs.stat(lockPath);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Acquire a repo-scoped index lock to prevent concurrent writes.
@@ -73,103 +19,69 @@ export async function acquireIndexLock({
   staleMs = DEFAULT_STALE_MS,
   log = () => {}
 }) {
-  const lockDir = path.join(repoCacheRoot, 'locks');
-  const lockPath = path.join(lockDir, 'index.lock');
-  await fs.mkdir(lockDir, { recursive: true });
-  const deadline = waitMs > 0 ? Date.now() + waitMs : 0;
-
-  while (true) {
-    try {
-      const handle = await fs.open(lockPath, 'wx');
-      const payload = {
-        pid: process.pid,
-        startedAt: new Date().toISOString()
-      };
-      await handle.writeFile(JSON.stringify(payload));
-      await handle.close();
-      let released = false;
-      const cleanupSync = () => {
-        if (released) return;
-        released = true;
-        try {
-          const raw = fsSync.readFileSync(lockPath, 'utf8');
-          const info = JSON.parse(raw);
-          if (info?.pid && info.pid !== process.pid) return;
-        } catch {}
-        try {
-          fsSync.rmSync(lockPath, { force: true });
-        } catch {}
-      };
-      const handlers = [];
-      const registerHandler = (event, handler) => {
-        process.once(event, handler);
-        handlers.push({ event, handler });
-      };
-      const detachHandlers = () => {
-        for (const entry of handlers) {
-          process.off(entry.event, entry.handler);
-        }
-        handlers.length = 0;
-      };
-      registerHandler('exit', cleanupSync);
-      registerHandler('SIGINT', () => {
-        cleanupSync();
-        process.exit(130);
-      });
-      registerHandler('SIGTERM', () => {
-        cleanupSync();
-        process.exit(143);
-      });
-      if (process.platform === 'win32') {
-        registerHandler('SIGBREAK', () => {
-          cleanupSync();
-          process.exit(1);
-        });
+  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs,
+    pollMs,
+    staleMs,
+    metadata: { scope: 'index' },
+    onStale: ({ reason, pid }) => {
+      if (reason === 'dead-pid' && Number.isFinite(pid)) {
+        log(`Removed stale index lock at ${lockPath} (pid ${pid} not running).`);
+        return;
       }
-      return {
-        lockPath,
-        release: async () => {
-          try {
-            await fs.rm(lockPath, { force: true });
-            released = true;
-          } catch {}
-          if (released) {
-            detachHandlers();
-          }
-        }
-      };
-    } catch (err) {
-      if (err?.code !== 'EEXIST') throw err;
-      const stale = await isLockStale(lockPath, staleMs);
-      if (stale) {
-        const info = await readLockInfo(lockPath);
-        const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
-        const alive = pid ? isProcessAlive(pid) : false;
-        if (!alive) {
-          try {
-            await fs.rm(lockPath, { force: true });
-            log(`Removed stale index lock at ${lockPath}.`);
-            continue;
-          } catch {}
-        }
-      }
-      const info = await readLockInfo(lockPath);
-      const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
-      if (pid && !isProcessAlive(pid)) {
-        try {
-          await fs.rm(lockPath, { force: true });
-          log(`Removed stale index lock at ${lockPath} (pid ${pid} not running).`);
-          continue;
-        } catch {}
-      }
-      if (waitMs > 0 && Date.now() < deadline) {
-        await sleep(pollMs);
-        continue;
-      }
-      const detailInfo = info || (fsSync.existsSync(lockPath) ? await readLockInfo(lockPath) : null);
-      const detail = detailInfo?.pid ? ` (pid ${detailInfo.pid})` : '';
-      log(`Index lock held, skipping build${detail}.`);
-      return null;
+      log(`Removed stale index lock at ${lockPath}.`);
     }
+  });
+  if (!lock) {
+    const detailInfo = await readLockInfo(lockPath);
+    const detail = detailInfo?.pid ? ` (pid ${detailInfo.pid})` : '';
+    log(`Index lock held, skipping build${detail}.`);
+    return null;
   }
+
+  let released = false;
+  const handlers = [];
+  const cleanupSync = () => {
+    if (released) return;
+    removeLockFileSyncIfOwned(lockPath, lock.payload);
+    released = true;
+  };
+  const registerHandler = (event, handler) => {
+    process.once(event, handler);
+    handlers.push({ event, handler });
+  };
+  const detachHandlers = () => {
+    for (const entry of handlers) {
+      process.off(entry.event, entry.handler);
+    }
+    handlers.length = 0;
+  };
+  registerHandler('exit', cleanupSync);
+  registerHandler('SIGINT', () => {
+    cleanupSync();
+    process.exit(130);
+  });
+  registerHandler('SIGTERM', () => {
+    cleanupSync();
+    process.exit(143);
+  });
+  if (process.platform === 'win32') {
+    registerHandler('SIGBREAK', () => {
+      cleanupSync();
+      process.exit(1);
+    });
+  }
+
+  return {
+    lockPath,
+    release: async () => {
+      if (!released) {
+        await lock.release();
+        released = true;
+      }
+      detachHandlers();
+    }
+  };
 }

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { formatBytes } from '../../src/shared/disk-space.js';
 import { getStatus } from '../../src/integrations/core/status.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
@@ -92,24 +93,6 @@ status.corruption = corruption;
 if (argv.json) {
   console.log(JSON.stringify(status, null, 2));
   process.exit(0);
-}
-
-/**
- * Format a byte count as a human-readable string.
- * @param {number} bytes
- * @returns {string}
- */
-function formatBytes(bytes) {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const rounded = value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2);
-  return `${rounded} ${units[unit]}`;
 }
 
 const formatBytesWithRaw = (value) => {

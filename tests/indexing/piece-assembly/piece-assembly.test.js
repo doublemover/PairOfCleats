@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from '../../helpers/test-env.js';
-import { loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io.js';
+import { loadChunkMeta, loadGraphRelationsSync, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 
 const root = process.cwd();
@@ -387,6 +387,9 @@ const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   (entry?.type === 'stats' && entry?.name === 'filelists')
   || (entry?.type === 'stats' && entry?.name === 'index_state')
   || (entry?.type === 'relations' && entry?.name === 'graph_relations')
+  || (entry?.type === 'relations' && entry?.name === 'graph_relations_meta')
+  || (entry?.type === 'relations' && entry?.name === 'graph_relations_offsets')
+  || (entry?.type === 'relations' && entry?.name === 'graph_relations_csr')
   || entry?.name === 'import_resolution_graph'
   || entry?.name === 'dense_vectors_hnsw_meta'
   || entry?.name === 'dense_vectors_lancedb_meta'
@@ -400,6 +403,9 @@ const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   || entry?.name === 'dense_vectors_doc_hnsw'
   || entry?.name === 'dense_vectors_code_lancedb'
   || entry?.name === 'dense_vectors_doc_lancedb'
+  || entry?.name === 'vfs_manifest'
+  || entry?.name === 'vfs_manifest_bloom'
+  || entry?.name === 'vfs_manifest_index'
   || entry?.name === 'risk_interprocedural_stats'
 ));
 const normalizedAll = sortPieces(stripManifestEntries(piecesAll).map(normalizePiece));
@@ -409,12 +415,8 @@ if (stableStringify(normalizedAll) !== stableStringify(normalizedEquiv)) {
   process.exit(1);
 }
 
-const graphAll = JSON.parse(
-  await fsPromises.readFile(path.join(indexAll, 'graph_relations.json'), 'utf8')
-);
-const graphEquiv = JSON.parse(
-  await fsPromises.readFile(path.join(assembledEquiv, 'graph_relations.json'), 'utf8')
-);
+const graphAll = loadGraphRelationsSync(indexAll);
+const graphEquiv = loadGraphRelationsSync(assembledEquiv);
 delete graphAll.generatedAt;
 delete graphEquiv.generatedAt;
 if (JSON.stringify(graphAll) !== JSON.stringify(graphEquiv)) {

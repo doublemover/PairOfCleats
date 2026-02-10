@@ -6,6 +6,7 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveFtsWeights } from '../fts.js';
 import { parseJson } from '../query-cache.js';
 import { parseChurnArg, parseModifiedArgs } from '../query-parse.js';
+import { normalizeAnnBackend } from '../ann/normalize-backend.js';
 import {
   mergeExtFilters,
   mergeLangFilters,
@@ -17,20 +18,6 @@ import {
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
-
-const normalizeAnnBackend = (value) => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return null;
-  if (trimmed === 'sqlite' || trimmed === 'sqlite-extension' || trimmed === 'vector-extension') {
-    return 'sqlite-vector';
-  }
-  if (trimmed === 'dense') return 'js';
-  if (['auto', 'lancedb', 'sqlite-vector', 'hnsw', 'js'].includes(trimmed)) {
-    return trimmed;
-  }
-  return null;
-};
 
 const normalizeDenseVectorMode = (value) => {
   if (typeof value !== 'string') return null;
@@ -151,7 +138,9 @@ export function normalizeSearchOptions({
     : null;
   const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
   const annBackendRaw = argv['ann-backend'];
-  const annBackend = annBackendRaw == null ? 'lancedb' : normalizeAnnBackend(annBackendRaw);
+  const annBackend = annBackendRaw == null
+    ? 'lancedb'
+    : normalizeAnnBackend(annBackendRaw, { strict: true, defaultBackend: null });
   if (annBackendRaw != null && !annBackend) {
     throw new Error(`Invalid --ann-backend "${annBackendRaw}". Use auto|lancedb|sqlite|hnsw|js.`);
   }

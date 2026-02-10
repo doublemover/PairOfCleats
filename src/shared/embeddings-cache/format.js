@@ -58,14 +58,19 @@ const writeLengths = (lengths, encoding) => {
 
 const readLengths = (buffer, offset, count, encoding) => {
   const bytesPer = encoding === 'u32' ? 4 : 2;
+  const resolvedCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
+  const available = buffer.length - offset;
+  if (available < 0 || resolvedCount > Math.floor(available / bytesPer)) {
+    throw new Error('[embeddings] Cache lengths section truncated.');
+  }
   const lengths = new Array(count);
-  for (let i = 0; i < count; i += 1) {
+  for (let i = 0; i < resolvedCount; i += 1) {
     const pos = offset + i * bytesPer;
     lengths[i] = encoding === 'u32'
       ? buffer.readUInt32LE(pos)
       : buffer.readUInt16LE(pos);
   }
-  return { lengths, bytes: count * bytesPer };
+  return { lengths, bytes: resolvedCount * bytesPer };
 };
 
 const encodeVectorSection = (vectors, encoding) => {
@@ -85,11 +90,21 @@ const encodeVectorSection = (vectors, encoding) => {
 const decodeVectorSection = (buffer, offset, count, encoding) => {
   const { lengths, bytes } = readLengths(buffer, offset, count, encoding);
   const dataOffset = offset + bytes;
-  const totalBytes = lengths.reduce((sum, len) => sum + len, 0);
+  const remaining = buffer.length - dataOffset;
+  let totalBytes = 0;
+  for (const len of lengths) {
+    if (!Number.isFinite(len) || len < 0) {
+      throw new Error('[embeddings] Cache vector length is invalid.');
+    }
+    totalBytes += len;
+    if (totalBytes > remaining) {
+      throw new Error('[embeddings] Cache vector section truncated.');
+    }
+  }
   const data = buffer.subarray(dataOffset, dataOffset + totalBytes);
-  const vectors = new Array(count);
+  const vectors = new Array(lengths.length);
   let cursor = 0;
-  for (let i = 0; i < count; i += 1) {
+  for (let i = 0; i < lengths.length; i += 1) {
     const len = lengths[i];
     if (!len) {
       vectors[i] = new Uint8Array(0);
@@ -217,7 +232,7 @@ export async function decodeEmbeddingsCache(buffer) {
   }
   const header = JSON.parse(raw.subarray(headerStart, headerEnd).toString('utf8'));
   const vectors = header?.vectors || {};
-  const count = Number.isFinite(Number(vectors.count)) ? Math.max(0, Number(vectors.count)) : 0;
+  const count = Number.isFinite(Number(vectors.count)) ? Math.max(0, Math.floor(Number(vectors.count))) : 0;
   const lengths = vectors.lengths || {};
   const codeEncoding = lengths.code === 'u32' ? 'u32' : 'u16';
   const docEncoding = lengths.doc === 'u32' ? 'u32' : 'u16';

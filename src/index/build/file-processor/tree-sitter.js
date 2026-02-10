@@ -56,4 +56,13 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ex
   return Array.from(languages);
 };
 
-export { resolveTreeSitterLanguageForSegment, resolveTreeSitterLanguagesForSegments };
+const isTreeSitterSchedulerLanguage = (languageId) => (
+  Boolean(languageId)
+  && TREE_SITTER_LANG_IDS.has(languageId)
+);
+
+export {
+  resolveTreeSitterLanguageForSegment,
+  resolveTreeSitterLanguagesForSegments,
+  isTreeSitterSchedulerLanguage
+};

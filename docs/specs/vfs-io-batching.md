@@ -63,6 +63,22 @@ Rules:
 - The final on-disk content MUST match the result of sequential `ensureVfsDiskDocument` calls.
 - Coalescing MUST be deterministic (last write in order wins).
 
+### 3.1 Per-language batching expectations (notes)
+
+VFS IO batching is typically paired with per-language tooling batching:
+
+- Work SHOULD be bucketed by `languageId`/`effectiveExt` on the *virtual document* (not container file extension).
+- Scheduling MUST preserve deterministic output ordering for any artifacts derived from VFS routing
+  (stable `virtualPath` ordering independent of concurrency).
+
+### 3.2 `virtualRange` guardrails (notes)
+
+Tooling targets include a `virtualRange` mapping into virtual document text. Implementations SHOULD:
+
+- Prefer segment-relative offset mapping (`virtual = container - segmentStart`) when segments exist.
+- If a caller accidentally supplies already-relative offsets, allow a bounded fallback when it is provably in-range.
+- If the mapping is invalid, surface it explicitly (log/telemetry) and avoid silently dropping work.
+
 ---
 
 ## 4) Failure handling

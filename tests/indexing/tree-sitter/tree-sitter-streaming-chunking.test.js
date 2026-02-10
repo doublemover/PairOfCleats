@@ -2,20 +2,19 @@
 import assert from 'node:assert/strict';
 
 import {
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   buildTreeSitterChunks
 } from '../../../src/lang/tree-sitter.js';
 
 const run = async () => {
-  const ok = await initTreeSitterWasm({ log: () => {} });
+  const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping streaming chunking test.');
+    console.log('tree-sitter runtime unavailable; skipping streaming chunking test.');
     return;
   }
 
   await preloadTreeSitterLanguages(['javascript'], {
-    maxLoadedLanguages: 1,
     skipDispose: true
   });
 
@@ -31,7 +30,6 @@ const run = async () => {
     options: {
       treeSitter: {
         enabled: true,
-        maxLoadedLanguages: 1,
         maxChunkNodes: 3,
         useQueries: false
       },
@@ -47,7 +45,6 @@ const run = async () => {
     options: {
       treeSitter: {
         enabled: true,
-        maxLoadedLanguages: 1,
         maxChunkNodes: 100,
         useQueries: false
       },
@@ -61,3 +58,5 @@ const run = async () => {
 };
 
 await run();
+
+

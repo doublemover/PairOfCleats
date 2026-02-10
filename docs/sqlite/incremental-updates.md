@@ -19,7 +19,8 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Schema Additions
 - `file_manifest` table tracks per-file hashes and sizes used for change detection.
-- `idx_chunks_file` speeds `file -> doc_id` lookups during deletes.
+- `idx_chunks_file_id` speeds `file -> doc_id` lookups during deletes.
+- `chunks_fts` is contentless (`content=''`) but supports deletes via `contentless_delete=1`.
 - File paths are normalized to forward slashes in SQLite to match the manifest keys.
 
 ## Update Flow

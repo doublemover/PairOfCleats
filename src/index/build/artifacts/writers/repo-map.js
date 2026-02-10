@@ -1,4 +1,4 @@
-import { orderRepoMapEntries, stableOrder } from '../../../../shared/order.js';
+import { orderRepoMapEntries } from '../../../../shared/order.js';
 
 export const createRepoMapIterator = ({ chunks, fileRelations }) => {
   const fileExportMap = new Map();
@@ -9,7 +9,7 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
     }
   }
   return function* repoMapIterator() {
-    const grouped = new Map();
+    const entries = [];
     for (const c of chunks) {
       if (!c?.name) continue;
       const exportsSet = fileExportMap.get(c.file) || null;
@@ -33,21 +33,14 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         endLine: c.endLine,
         exported
       };
+      entries.push(entry);
+    }
+    const orderedEntries = orderRepoMapEntries(entries);
+    let lastDedupeKey = null;
+    for (const entry of orderedEntries) {
       const fileKey = String(entry.file || '');
       const nameKey = String(entry.name || '');
       const kindKey = String(entry.kind || '');
-      const groupKey = `${fileKey}\u0000${nameKey}\u0000${kindKey}`;
-      let group = grouped.get(groupKey);
-      if (!group) {
-        group = {
-          file: fileKey,
-          name: nameKey,
-          kind: kindKey,
-          entries: [],
-          seen: new Set()
-        };
-        grouped.set(groupKey, group);
-      }
       const dedupeKey = [
         fileKey,
         nameKey,
@@ -55,20 +48,9 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         entry.signature == null ? '' : String(entry.signature),
         Number.isFinite(entry.startLine) ? entry.startLine : ''
       ].join('::');
-      if (group.seen.has(dedupeKey)) continue;
-      group.seen.add(dedupeKey);
-      group.entries.push(entry);
-    }
-    const groups = stableOrder(Array.from(grouped.values()), [
-      (group) => group.file,
-      (group) => group.name,
-      (group) => group.kind
-    ]);
-    for (const group of groups) {
-      const orderedEntries = orderRepoMapEntries(group.entries);
-      for (const entry of orderedEntries) {
-        yield entry;
-      }
+      if (dedupeKey === lastDedupeKey) continue;
+      lastDedupeKey = dedupeKey;
+      yield entry;
     }
   };
 };

@@ -163,6 +163,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     chunks: state.chunks,
     df: state.df,
     tokenPostings: state.tokenPostings,
+    tokenIdMap: state.tokenIdMap,
     docLengths: state.docLengths,
     fieldPostings: state.fieldPostings,
     fieldDocLengths: state.fieldDocLengths,

@@ -1,32 +1,14 @@
-import fsSync from 'node:fs';
-import path from 'node:path';
-import { Unpackr } from 'msgpackr';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
+import {
+  decodeLmdbValue,
+  hasLmdbStore,
+  validateLmdbSchemaAndMode
+} from '../storage/lmdb/utils.js';
 
 let open = null;
 try {
   ({ open } = await import('lmdb'));
 } catch {}
-
-const unpackr = new Unpackr();
-const decode = (value) => (value == null ? null : unpackr.unpack(value));
-
-const isStorePresent = (storePath) => {
-  if (!storePath || !fsSync.existsSync(storePath)) return false;
-  return fsSync.existsSync(path.join(storePath, 'data.mdb'));
-};
-
-const validateStore = (db, label) => {
-  const version = decode(db.get(LMDB_META_KEYS.schemaVersion));
-  if (version !== LMDB_SCHEMA_VERSION) {
-    return { ok: false, reason: `lmdb schema mismatch (expected ${LMDB_SCHEMA_VERSION}, got ${version ?? 'missing'})` };
-  }
-  const mode = decode(db.get(LMDB_META_KEYS.mode));
-  if (mode && mode !== label) {
-    return { ok: false, reason: `lmdb mode mismatch (expected ${label}, got ${mode})` };
-  }
-  return { ok: true };
-};
 
 export async function createLmdbBackend(options) {
   const {
@@ -76,15 +58,22 @@ export async function createLmdbBackend(options) {
   }
 
   const openStore = (storePath, label) => {
-    if (!isStorePresent(storePath)) return null;
+    if (!hasLmdbStore(storePath)) return null;
     const db = open({ path: storePath, readOnly: true });
-    const validation = validateStore(db, label);
+    const validation = validateLmdbSchemaAndMode({
+      db,
+      label,
+      decode: decodeLmdbValue,
+      metaKeys: LMDB_META_KEYS,
+      schemaVersion: LMDB_SCHEMA_VERSION
+    });
     if (!validation.ok) {
       db.close();
+      const reason = validation.issues.map((issue) => `lmdb ${issue}`).join('; ');
       if (backendForcedLmdb) {
-        throw new Error(`LMDB ${label} invalid: ${validation.reason}`);
+        throw new Error(`LMDB ${label} invalid: ${reason}`);
       }
-      console.warn(`LMDB ${label} invalid: ${validation.reason}`);
+      console.warn(`LMDB ${label} invalid: ${reason}`);
       return null;
     }
     return db;

@@ -132,7 +132,8 @@ export async function createSqliteBackend(options) {
       'churn_deleted',
       'churn_commits'
     ],
-    chunks_fts: ['mode', 'file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens'],
+    // `chunks_fts` is contentless and keyed by `rowid` (joined to chunks.id). Mode filtering happens via `chunks.mode`.
+    chunks_fts: ['file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens'],
     token_vocab: ['mode', 'token_id', 'token'],
     token_postings: ['mode', 'token_id', 'doc_id', 'tf'],
     doc_lengths: ['mode', 'doc_id', 'len'],

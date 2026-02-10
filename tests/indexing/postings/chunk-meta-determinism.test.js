@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { getRepoId } from '../../../tools/shared/dict-utils.js';
+import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
+import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
+import { sha1 } from '../../../src/shared/hash.js';
+
+const root = process.cwd();
+const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism');
+const buildIndexPath = path.join(root, 'build_index.js');
+
+const safeRm = async (dir) => {
+  try {
+    await fs.rm(dir, { recursive: true, force: true });
+  } catch {}
+};
+
+const readBuildRoot = async (cacheRoot) => {
+  const versioned = resolveVersionedCacheRoot(cacheRoot);
+  const repoId = getRepoId(fixtureRoot);
+  const repoCacheRoot = path.join(versioned, 'repos', repoId);
+  const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
+  const raw = await fs.readFile(currentPath, 'utf8');
+  const data = JSON.parse(raw) || {};
+  const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+  const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+  const buildRoot = buildRootRaw
+    ? (path.isAbsolute(buildRootRaw) ? buildRootRaw : path.join(repoCacheRoot, buildRootRaw))
+    : (buildId ? path.join(repoCacheRoot, 'builds', buildId) : null);
+  if (!buildRoot) throw new Error('Missing buildRoot in current.json');
+  return { repoCacheRoot, buildRoot };
+};
+
+const readVocabOrder = async (indexDir) => {
+  const vocabOrderPath = path.join(indexDir, 'vocab_order.json');
+  if (!fsSync.existsSync(vocabOrderPath)) {
+    throw new Error(`Missing vocab_order.json at ${vocabOrderPath}`);
+  }
+  const raw = await fs.readFile(vocabOrderPath, 'utf8');
+  const parsed = JSON.parse(raw);
+  const payload = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed.fields || parsed) : null;
+  const vocab = payload?.vocab || null;
+  if (!vocab || typeof vocab !== 'object') {
+    throw new Error(`Invalid vocab_order.json at ${vocabOrderPath}`);
+  }
+  return vocab;
+};
+
+const hashPayload = (payload) => sha1(stableStringifyForSignature(payload));
+
+const runBuild = async ({ label, threads }) => {
+  const cacheRoot = path.join(benchRoot, label);
+  await safeRm(cacheRoot);
+  await fs.mkdir(cacheRoot, { recursive: true });
+  const env = {
+    ...process.env,
+    PAIROFCLEATS_TESTING: '1',
+    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    PAIROFCLEATS_EMBEDDINGS: 'stub'
+  };
+  const args = [
+    buildIndexPath,
+    '--mode',
+    'code',
+    '--stage',
+    'stage1',
+    '--threads',
+    String(threads),
+    '--stub-embeddings',
+    '--scm-provider',
+    'none',
+    '--repo',
+    fixtureRoot,
+    '--quiet',
+    '--progress',
+    'off'
+  ];
+  const result = spawnSync(process.execPath, args, { cwd: fixtureRoot, env, encoding: 'utf8' });
+  if (result.status !== 0) {
+    console.error(result.stdout || '');
+    console.error(result.stderr || '');
+    throw new Error(`build_index failed for ${label}`);
+  }
+  const { buildRoot } = await readBuildRoot(cacheRoot);
+  const indexDir = path.join(buildRoot, 'index-code');
+  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, strict: false });
+  const vocabOrder = await readVocabOrder(indexDir);
+  return {
+    chunkMetaHash: hashPayload(chunkMeta),
+    vocabOrderHash: hashPayload(vocabOrder),
+    chunkCount: Array.isArray(chunkMeta) ? chunkMeta.length : 0
+  };
+};
+
+const runA = await runBuild({ label: 'run-a', threads: 1 });
+const runB = await runBuild({ label: 'run-b', threads: 4 });
+
+assert.ok(runA.chunkCount > 0, 'expected chunk_meta to include chunks');
+assert.equal(runA.chunkMetaHash, runB.chunkMetaHash, 'chunk_meta should be deterministic across concurrency');
+assert.equal(runA.vocabOrderHash, runB.vocabOrderHash, 'vocab_order should be deterministic across concurrency');
+
+console.log('chunk meta determinism test passed');
+

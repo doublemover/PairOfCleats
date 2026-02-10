@@ -22,6 +22,7 @@ export const normalizeMinhash = (raw) => ({
 
 export const normalizeTokenPostings = (raw) => ({
   vocab: extractArray(raw, 'vocab'),
+  vocabIds: extractArray(raw, 'vocabIds'),
   postings: extractArray(raw, 'postings'),
   docLengths: extractArray(raw, 'docLengths'),
   avgDocLen: Number.isFinite(Number(raw?.avgDocLen)) ? Number(raw.avgDocLen) : null

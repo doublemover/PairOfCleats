@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -23,13 +24,7 @@ const PROVIDERS = {
   }
 };
 
-const warningCache = new Set();
-
-function warnOnce(key, message) {
-  if (warningCache.has(key)) return;
-  warningCache.add(key);
-  console.warn(message);
-}
+const warnOnce = createWarnOnce();
 
 function isSafeIdentifier(value) {
   return IDENTIFIER_RE.test(String(value || ''));

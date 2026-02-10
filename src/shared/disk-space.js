@@ -85,6 +85,31 @@ export async function estimateDirBytes(targetPath, options = {}) {
   return { bytes: total, truncated };
 }
 
+export async function sizeOfPath(targetPath, { followSymlinks = false } = {}) {
+  if (!targetPath) return 0;
+  const stack = [targetPath];
+  let total = 0;
+  while (stack.length) {
+    const current = stack.pop();
+    try {
+      const stat = followSymlinks
+        ? await fsPromises.stat(current)
+        : await fsPromises.lstat(current);
+      if (!followSymlinks && stat.isSymbolicLink()) continue;
+      if (stat.isFile()) {
+        total += Number(stat.size) || 0;
+        continue;
+      }
+      if (!stat.isDirectory()) continue;
+      const entries = await fsPromises.readdir(current);
+      for (const entry of entries) {
+        stack.push(path.join(current, entry));
+      }
+    } catch {}
+  }
+  return total;
+}
+
 export function buildDiskSpaceMessage({
   label,
   targetPath,

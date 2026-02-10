@@ -6,9 +6,11 @@ const TIER_B_DEFAULT = [
 
 const createCoverageEntry = () => ({ status: 'pending', via: null, reason: null });
 
-export const createCoverageState = ({ scriptNames }) => {
+export const createCoverageState = ({ scriptNames, enforceTierB = true }) => {
   const coverage = new Map(scriptNames.map((name) => [name, createCoverageEntry()]));
-  const tierBRequired = new Set(TIER_B_DEFAULT.filter((name) => coverage.has(name)));
+  const tierBRequired = enforceTierB
+    ? new Set(TIER_B_DEFAULT.filter((name) => coverage.has(name)))
+    : new Set();
   const tierBCoverage = new Map(
     Array.from(tierBRequired, (name) => [name, createCoverageEntry()])
   );
@@ -31,6 +33,7 @@ export const createCoverageState = ({ scriptNames }) => {
   };
 
   const markTierBCovered = (name, via) => {
+    if (!enforceTierB) return;
     if (!tierBCoverage.has(name)) {
       unknownCovers.add(name);
       return;
@@ -84,6 +87,12 @@ export const applyDefaultSkips = (state) => {
   state.markSkipped('smoke:embeddings', 'smoke lanes are run manually');
   state.markSkipped('smoke:sqlite', 'smoke lanes are run manually');
   state.markSkipped('watch-index', 'watch mode runs until interrupted');
+  state.markSkipped('api-server', 'service runs until interrupted');
+  state.markSkipped('indexer-service', 'service runs until interrupted');
+  state.markSkipped('bootstrap:ci', 'ci bootstrap wrapper command');
+  state.markSkipped('patch', 'patch-package wrapper command');
+  state.markSkipped('rebuild:native', 'native rebuild wrapper command');
+  state.markSkipped('postinstall', 'npm lifecycle hook');
   state.markSkipped('format', 'modifies working tree');
   state.markSkipped('lint', 'requires npm install and project lint config');
 

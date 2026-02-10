@@ -1,12 +1,9 @@
-import { preloadTreeSitterLanguages } from '../../../lang/tree-sitter.js';
 import {
   normalizeLimit,
   normalizeOptionalLimit,
   normalizeTreeSitterByLanguage
 } from './caps.js';
 
-const DEFAULT_MAX_LOADED_LANGUAGES = 3;
-const DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES = 1;
 const DEFAULT_DEFER_MISSING_MAX = 2;
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
@@ -64,22 +61,12 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
       : normalizedDeferMissingMax)
     : DEFAULT_DEFER_MISSING_MAX;
 
-  // IMPORTANT: Tree-sitter WASM grammar loading can consume non-trivial memory.
-  // Default to *on-demand* loading rather than preloading every enabled grammar.
+  // Native tree-sitter grammar activation happens on demand in the scheduler.
+  // Keep preload config parsing for compatibility, but no eager preload is used.
   const treeSitterPreload = normalizePreloadMode(treeSitterConfig.preload);
   const treeSitterPreloadConcurrency = normalizeOptionalLimit(
     treeSitterConfig.preloadConcurrency
   );
-
-  // Optional cap for the number of loaded WASM grammars retained in memory.
-  // When null, the tree-sitter runtime will use its conservative internal defaults.
-  const hasMaxLoadedLanguages = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'maxLoadedLanguages');
-  const defaultMaxLoadedLanguages = treeSitterLanguagePasses
-    ? DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES
-    : DEFAULT_MAX_LOADED_LANGUAGES;
-  const treeSitterMaxLoadedLanguages = hasMaxLoadedLanguages
-    ? normalizeOptionalLimit(treeSitterConfig.maxLoadedLanguages)
-    : defaultMaxLoadedLanguages;
 
   return {
     treeSitterEnabled,
@@ -91,7 +78,6 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterByLanguage: mergedTreeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
-    treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
     treeSitterLanguagePasses,
@@ -105,23 +91,12 @@ export const preloadTreeSitterRuntimeLanguages = async ({
   treeSitterEnabled,
   treeSitterLanguages: _treeSitterLanguages,
   treeSitterPreload,
-  treeSitterPreloadConcurrency,
-  treeSitterMaxLoadedLanguages,
-  observedLanguages = null,
+  treeSitterPreloadConcurrency: _treeSitterPreloadConcurrency,
+  observedLanguages: _observedLanguages = null,
   log
 }) => {
   if (!treeSitterEnabled) return 0;
-  if (treeSitterPreload === 'none') return 0;
-
-  const observed = Array.isArray(observedLanguages) ? observedLanguages.filter(Boolean) : null;
-  if (!observed || !observed.length) return 0;
-  const enabledTreeSitterLanguages = observed;
-
-  await preloadTreeSitterLanguages(enabledTreeSitterLanguages, {
-    log,
-    parallel: treeSitterPreload === 'parallel',
-    concurrency: treeSitterPreloadConcurrency,
-    maxLoadedLanguages: treeSitterMaxLoadedLanguages
-  });
-  return enabledTreeSitterLanguages.length;
+  void treeSitterPreload;
+  void log;
+  return 0;
 };

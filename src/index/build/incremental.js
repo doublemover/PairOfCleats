@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import {
   normalizeBundleFormat,
@@ -413,7 +414,7 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     delete manifest.files[relKey];
   }
   try {
-    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
   } catch {}
 }
 

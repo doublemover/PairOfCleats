@@ -14,6 +14,9 @@ During indexing, `src/index/build/state.js::appendChunk()` appends into:
 
 This grows monotonically for the entire repository. Later, `src/index/build/postings.js::buildPostings()` materializes **sorted** `tokenEntries`, `tokenVocab`, and `tokenPostingsList`, temporarily creating a second copy of the same information (peak live set). On large repos (e.g., Swift), V8 cannot reclaim enough because most objects are still reachable, causing OOM near heap limit.
 
+**Phase 16.6 note:** token postings keys may be canonical token IDs (64-bit hex) with a `tokenIdMap` mapping back to token strings; `token_postings` artifacts can include `vocabIds` aligned with `token_vocab` to preserve determinism.
+**Phase 16.6 note:** Stage1 now enforces a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
+
 SPIMI (“Single-Pass In-Memory Indexing”) fixes this by flushing sorted postings blocks to disk and merging them later, bounding in-memory growth.
 
 ---
@@ -368,6 +371,7 @@ Modify `src/index/build/artifacts/token-postings.js::enqueueTokenPostingsArtifac
   - write shard file via the shared shard writer (compression supported)
 - Track `vocabCount` during streaming, and write meta at end.
 - `postings.tokenVocabCount` must be set for metrics/logging compatibility.
+- If canonical token IDs are enabled, emit `vocabIds` aligned with vocab entries in each shard.
 
 ### 7.2 Changes to resolve plan
 In `resolveTokenPostingsPlan(...)`:
@@ -802,6 +806,8 @@ await writeMeta({ vocabCount, parts, docLengths, avgDocLen, ... });
 - `tools/bench/merge/merge-core-throughput.js`
 - `tools/bench/merge/spill-merge-compare.js`
 - `tools/bench/merge/missing-run-file.js` (failure simulation)
+- `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)
+- `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)
 
 ## Tests
 - `tests/shared/merge/merge-benchmark-contract.test.js`

@@ -1,27 +1,21 @@
 import fs from 'node:fs';
+import { distanceToSimilarity } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
+import { createWarnOnce } from '../shared/logging/warn-once.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
+const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
+const CONNECTION_CACHE_MAX_ENTRIES = 8;
 
 let cachedModule = null;
-let warnedMissing = false;
-let warnedQuery = false;
-
-const warnOnce = (message) => {
-  if (warnedQuery) return;
-  warnedQuery = true;
-  console.warn(message);
-};
+const warnOnce = createWarnOnce();
 
 const loadLanceDb = async () => {
   if (cachedModule) return cachedModule;
   const result = await tryImport('@lancedb/lancedb');
   if (!result.ok) {
-    if (!warnedMissing) {
-      warnedMissing = true;
-      console.warn('[ann] LanceDB unavailable; falling back to other ANN backends.');
-    }
+    warnOnce('lancedb-missing', '[ann] LanceDB unavailable; falling back to other ANN backends.');
     return null;
   }
   cachedModule = result.mod?.default || result.mod;
@@ -30,32 +24,143 @@ const loadLanceDb = async () => {
 
 const connectionCache = new Map();
 
+const closeMaybe = async (resource) => {
+  if (!resource) return;
+  const close = resource.close || resource.closeSync;
+  if (typeof close !== 'function') return;
+  try {
+    const result = close.call(resource);
+    if (result && typeof result.then === 'function') {
+      await result;
+    }
+  } catch {}
+};
+
+const closeConnectionEntry = async (entry) => {
+  if (!entry || typeof entry !== 'object') return;
+  const tables = entry.tables instanceof Map ? Array.from(entry.tables.values()) : [];
+  for (const table of tables) {
+    await closeMaybe(table);
+  }
+  await closeMaybe(entry.db);
+  entry.tables = new Map();
+  entry.db = null;
+  entry.pending = null;
+};
+
+const touchConnectionEntry = (entry, now = Date.now()) => {
+  if (!entry || typeof entry !== 'object') return;
+  entry.lastAccessMs = now;
+  entry.expiresAtMs = now + CONNECTION_CACHE_TTL_MS;
+};
+
+const pruneConnectionCache = async ({ now = Date.now() } = {}) => {
+  const staleKeys = [];
+  for (const [key, entry] of connectionCache.entries()) {
+    if (!entry || typeof entry !== 'object') {
+      staleKeys.push(key);
+      continue;
+    }
+    if (entry.pending) continue;
+    if (entry.expiresAtMs && entry.expiresAtMs <= now) {
+      staleKeys.push(key);
+    }
+  }
+  for (const key of staleKeys) {
+    const entry = connectionCache.get(key);
+    connectionCache.delete(key);
+    await closeConnectionEntry(entry);
+  }
+  if (connectionCache.size <= CONNECTION_CACHE_MAX_ENTRIES) return;
+  const evictable = Array.from(connectionCache.entries())
+    .filter(([, entry]) => !entry?.pending)
+    .sort((a, b) => (a[1]?.lastAccessMs || 0) - (b[1]?.lastAccessMs || 0));
+  let overflow = connectionCache.size - CONNECTION_CACHE_MAX_ENTRIES;
+  for (const [key, entry] of evictable) {
+    if (overflow <= 0) break;
+    connectionCache.delete(key);
+    await closeConnectionEntry(entry);
+    overflow -= 1;
+  }
+};
+
+export const clearLanceDbConnectionCache = async () => {
+  const entries = Array.from(connectionCache.values());
+  connectionCache.clear();
+  for (const entry of entries) {
+    await closeConnectionEntry(entry);
+  }
+};
+
 const getConnection = async (dir) => {
   if (!dir) return null;
+  const now = Date.now();
+  await pruneConnectionCache({ now });
   const cached = connectionCache.get(dir);
-  if (cached) {
-    return cached instanceof Promise ? await cached : cached;
+  if (cached && cached.pending) {
+    touchConnectionEntry(cached, now);
+    try {
+      const db = await cached.pending;
+      cached.pending = null;
+      if (!cached.db && db) {
+        cached.db = db;
+      }
+      if (cached.db) {
+        touchConnectionEntry(cached);
+        return cached;
+      }
+      connectionCache.delete(dir);
+      await closeConnectionEntry(cached);
+      return null;
+    } catch {
+      connectionCache.delete(dir);
+      await closeConnectionEntry(cached);
+      return null;
+    }
   }
+  if (cached && cached.db) {
+    touchConnectionEntry(cached, now);
+    return cached;
+  }
+
+  const entry = {
+    db: null,
+    tables: new Map(),
+    pending: null,
+    lastAccessMs: now,
+    expiresAtMs: now + CONNECTION_CACHE_TTL_MS
+  };
   const pending = (async () => {
     const lancedb = await loadLanceDb();
     const connect = lancedb?.connect || lancedb?.default?.connect;
     if (!connect) return null;
-    const db = await connect(dir);
-    return { db, tables: new Map() };
+    return connect(dir);
   })();
-  connectionCache.set(dir, pending);
-  const entry = await pending;
-  if (!entry) {
+  entry.pending = pending;
+  connectionCache.set(dir, entry);
+  await pruneConnectionCache({ now });
+  try {
+    const db = await pending;
+    entry.pending = null;
+    if (!db) {
+      connectionCache.delete(dir);
+      await closeConnectionEntry(entry);
+      return null;
+    }
+    entry.db = db;
+    touchConnectionEntry(entry);
+    return entry;
+  } catch {
     connectionCache.delete(dir);
+    await closeConnectionEntry(entry);
     return null;
   }
-  connectionCache.set(dir, entry);
-  return entry;
 };
 
 const getTable = async (dir, tableName) => {
   const connection = await getConnection(dir);
   if (!connection || !tableName) return null;
+  touchConnectionEntry(connection);
   if (connection.tables.has(tableName)) return connection.tables.get(tableName);
   const openTable = connection.db?.openTable;
   if (typeof openTable !== 'function') return null;
@@ -72,13 +177,6 @@ const toArray = async (query) => {
   return [];
 };
 
-const normalizeSim = (distance, metric) => {
-  if (!Number.isFinite(distance)) return null;
-  if (metric === 'l2') return -distance;
-  if (metric === 'cosine') return 1 - distance;
-  return distance;
-};
-
 const readRowId = (row, idColumn) => {
   const value = row?.[idColumn] ?? row?.id ?? row?._id ?? row?.idx;
   const numeric = Number(value);
@@ -89,7 +187,7 @@ const readRowId = (row, idColumn) => {
 const readRowScore = (row, metric) => {
   const distanceRaw = row?._distance ?? row?.distance;
   if (distanceRaw != null) {
-    return normalizeSim(Number(distanceRaw), metric);
+    return distanceToSimilarity(distanceRaw, metric);
   }
   const scoreRaw = row?.score ?? row?._score ?? row?.sim ?? row?.similarity;
   const score = Number(scoreRaw);
@@ -132,7 +230,10 @@ export async function rankLanceDb({
   try {
     table = await getTable(dir, tableName);
   } catch (err) {
-    warnOnce(`[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`);
+    warnOnce(
+      'lancedb-table-load',
+      `[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`
+    );
     return [];
   }
   if (!table || typeof table.search !== 'function') return [];
@@ -194,7 +295,10 @@ export async function rankLanceDb({
     try {
       rows = await toArray(buildQuery(limit));
     } catch (err) {
-      warnOnce(`[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
+      warnOnce(
+        'lancedb-query',
+        `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`
+      );
       return [];
     }
     const hits = [];

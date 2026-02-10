@@ -1,6 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
-import { getTreeSitterParser } from './tree-sitter.js';
+import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
 import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 import { isTreeSitterEnabled } from './tree-sitter/options.js';
 
@@ -84,6 +84,7 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedTraversalBudget = new Set();
 const loggedUnavailable = new Set();
+const CSS_IMPORT_HINT = /@import/i;
 
 // Guardrails: CSS can contain extremely large selector lists or nested at-rules.
 // Keep traversal and chunk extraction bounded to avoid pathological memory / CPU usage.
@@ -222,9 +223,11 @@ function gatherRuleNodes(root, budget) {
 }
 
 export function collectCssImports(text) {
+  if (!text || !CSS_IMPORT_HINT.test(text)) return [];
   const imports = new Set();
-  const regex = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
-  for (const match of text.matchAll(regex)) {
+  const importRe = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
+  let match;
+  while ((match = importRe.exec(text)) !== null) {
     if (match[1]) imports.add(match[1]);
   }
   return Array.from(imports);
@@ -239,7 +242,7 @@ export function buildCssChunks(text, options = {}) {
     return buildCssHeuristicChunks(text, options);
   }
 
-  const parser = getTreeSitterParser('css', options);
+  const parser = getNativeTreeSitterParser('css', options);
   if (!parser) {
     if (options?.log && !loggedUnavailable.has('css')) {
       options.log('Tree-sitter unavailable for css; falling back to heuristic chunking.');
@@ -324,7 +327,7 @@ export function buildCssChunks(text, options = {}) {
     chunks.sort((a, b) => a.start - b.start);
     return chunks;
   } finally {
-    // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
+    // Tree objects can retain parser-side allocations and should be explicitly released.
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();
     } catch {

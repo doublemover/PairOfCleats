@@ -117,7 +117,7 @@
         "(^|/)query-cache$",
         "(^|/)search-rrf$",
         "(^|/)shard-merge$",
-        "(^|/)script-coverage$",
+        "^tooling/script-coverage/script-coverage-(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)$",
         "^indexing/runtime/two-stage-state$"
       ]
     },

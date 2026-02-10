@@ -3,12 +3,10 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import http from 'node:http';
-import https from 'node:https';
-import { URL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { replaceFile } from '../../src/shared/json-stream.js';
 import { getDictConfig, resolveRepoConfig } from '../shared/dict-utils.js';
+import { fetchDownloadUrl } from './shared-fetch.js';
 import {
   parseHashOverrides,
   resolveDownloadPolicy,
@@ -78,40 +76,6 @@ function parseUrls(input, hashes = null) {
   return sources;
 }
 
-/**
- * Fetch a URL with basic redirect handling.
- * @param {string} url
- * @param {object} headers
- * @param {number} redirects
- * @returns {Promise<{statusCode:number,headers:object,body:Buffer}>}
- */
-function requestUrl(url, headers = {}, redirects = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirects > 5) return reject(new Error('Too many redirects'));
-    const parsed = new URL(url);
-    const handler = parsed.protocol === 'https:' ? https : http;
-    const options = {
-      method: 'GET',
-      headers
-    };
-    const req = handler.request(parsed, options, (res) => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
-        const location = res.headers.location;
-        if (!location) return reject(new Error('Redirect without location'));
-        res.resume();
-        return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1));
-      }
-      resolve({
-        statusCode: res.statusCode,
-        headers: res.headers,
-        stream: res
-      });
-    });
-    req.on('error', reject);
-    req.end();
-  });
-}
-
 const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) => new Promise((resolve, reject) => {
   let total = 0;
   let lastByte = null;
@@ -173,7 +137,13 @@ async function downloadSource(source) {
     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
   }
 
-  const response = await requestUrl(source.url, headers);
+  const response = await fetchDownloadUrl(source.url, {
+    headers,
+    responseType: 'stream',
+    maxBytes: downloadPolicy.maxBytes,
+    timeoutMs: downloadPolicy.timeoutMs,
+    maxRedirects: downloadPolicy.maxRedirects
+  });
   if (response.statusCode === 304) {
     response.stream?.resume?.();
     return { name: source.name, skipped: true };

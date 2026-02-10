@@ -4,7 +4,12 @@ import {
   LMDB_REQUIRED_ARTIFACT_KEYS,
   LMDB_SCHEMA_VERSION
 } from '../../storage/lmdb/schema.js';
-import { decode, hasLmdbStore } from './lmdb.js';
+import {
+  decodeLmdbValue,
+  hasLmdbStore,
+  validateLmdbArtifactKeys,
+  validateLmdbSchemaAndMode
+} from '../../storage/lmdb/utils.js';
 import { addIssue } from './issues.js';
 
 export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled }) => {
@@ -48,40 +53,43 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
       }
       const db = openLmdb({ path: storePath, readOnly: true });
       try {
-        const version = decode(db.get(LMDB_META_KEYS.schemaVersion));
-        if (version !== LMDB_SCHEMA_VERSION) {
+        const schemaValidation = validateLmdbSchemaAndMode({
+          db,
+          label,
+          decode: decodeLmdbValue,
+          metaKeys: LMDB_META_KEYS,
+          schemaVersion: LMDB_SCHEMA_VERSION
+        });
+        for (const issue of schemaValidation.issues) {
           addLmdbIssue(
             label,
-            `schema mismatch (expected ${LMDB_SCHEMA_VERSION}, got ${version ?? 'missing'})`,
+            issue,
             'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
-        const modeValue = decode(db.get(LMDB_META_KEYS.mode));
-        if (modeValue && modeValue !== label) {
-          addLmdbIssue(
-            label,
-            `mode mismatch (expected ${label}, got ${modeValue})`,
-            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
-          );
-        }
-        const chunkCount = decode(db.get(LMDB_META_KEYS.chunkCount));
+        const chunkCount = decodeLmdbValue(db.get(LMDB_META_KEYS.chunkCount));
         if (chunkCount != null && !Number.isFinite(Number(chunkCount))) {
           addLmdbWarning(label, 'meta:chunkCount invalid');
         }
-        const mapSizeBytes = decode(db.get(LMDB_META_KEYS.mapSizeBytes));
+        const mapSizeBytes = decodeLmdbValue(db.get(LMDB_META_KEYS.mapSizeBytes));
         if (mapSizeBytes == null) {
           addLmdbWarning(label, 'meta:mapSizeBytes missing');
         } else if (!Number.isFinite(Number(mapSizeBytes))) {
           addLmdbWarning(label, 'meta:mapSizeBytes invalid');
         }
-        const mapSizeEstimatedBytes = decode(db.get(LMDB_META_KEYS.mapSizeEstimatedBytes));
+        const mapSizeEstimatedBytes = decodeLmdbValue(db.get(LMDB_META_KEYS.mapSizeEstimatedBytes));
         if (mapSizeEstimatedBytes == null) {
           addLmdbWarning(label, 'meta:mapSizeEstimatedBytes missing');
         } else if (!Number.isFinite(Number(mapSizeEstimatedBytes))) {
           addLmdbWarning(label, 'meta:mapSizeEstimatedBytes invalid');
         }
-        const artifacts = decode(db.get(LMDB_META_KEYS.artifacts));
-        if (!Array.isArray(artifacts)) {
+        const artifactValidation = validateLmdbArtifactKeys({
+          db,
+          requiredKeys: LMDB_REQUIRED_ARTIFACT_KEYS,
+          decode: decodeLmdbValue,
+          metaKeys: LMDB_META_KEYS
+        });
+        if (artifactValidation.missingMeta) {
           addLmdbIssue(
             label,
             'meta:artifacts missing or invalid',
@@ -89,21 +97,19 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
           );
           return;
         }
-        for (const key of LMDB_REQUIRED_ARTIFACT_KEYS) {
-          if (!artifacts.includes(key)) {
-            addLmdbIssue(
-              label,
-              `missing artifact key ${key}`,
-              'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
-            );
-          }
-          if (db.get(key) == null) {
-            addLmdbIssue(
-              label,
-              `artifact missing: ${key}`,
-              'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
-            );
-          }
+        for (const key of artifactValidation.missingArtifactKeys) {
+          addLmdbIssue(
+            label,
+            `missing artifact key ${key}`,
+            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
+          );
+        }
+        for (const key of artifactValidation.missingArtifactValues) {
+          addLmdbIssue(
+            label,
+            `artifact missing: ${key}`,
+            'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
+          );
         }
       } finally {
         db.close();

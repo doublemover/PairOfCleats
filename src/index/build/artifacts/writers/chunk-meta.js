@@ -2,7 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
-import { ensureDiskSpace } from '../../../../shared/disk-space.js';
+import { encodeVarint64List } from '../../../../shared/artifact-io/varint.js';
+import { parseHash64 } from '../../../../shared/token-id.js';
+import { ensureDiskSpace, formatBytes } from '../../../../shared/disk-space.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
 import {
   writeJsonLinesFile,
@@ -12,7 +14,6 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareChunkMetaRows,
@@ -21,6 +22,13 @@ import {
   recordArtifactTelemetry
 } from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const ORDER_BUCKET_TARGET = 64;
 const ORDER_BUCKET_MIN = 5000;
@@ -103,18 +111,6 @@ const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   return Math.floor(parsed);
 };
 
-const formatBytes = (bytes) => {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) return '0B';
-  if (value < 1024) return `${Math.round(value)}B`;
-  const kb = value / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)}KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}GB`;
-};
-
 const recordTrimmedField = (stats, field) => {
   if (!stats || !field) return;
   if (!stats.trimmedFields) stats.trimmedFields = {};
@@ -138,6 +134,14 @@ const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   if ('tokens' in trimmed) {
     delete trimmed.tokens;
     tokenFields.push('tokens');
+  }
+  if ('token_ids_packed' in trimmed) {
+    delete trimmed.token_ids_packed;
+    tokenFields.push('token_ids_packed');
+  }
+  if ('token_ids_count' in trimmed) {
+    delete trimmed.token_ids_count;
+    tokenFields.push('token_ids_count');
   }
   if ('ngrams' in trimmed) {
     delete trimmed.ngrams;
@@ -338,6 +342,21 @@ export const createChunkMetaIterator = ({
           : ngrams;
         entry.tokens = tokenOut;
         entry.ngrams = ngramOut;
+        const tokenIds = Array.isArray(c.tokenIds) ? c.tokenIds : null;
+        if (tokenIds && tokenIds.length) {
+          const packInput = resolvedTokenMode === 'sample'
+            ? tokenIds.slice(0, tokenSampleSize)
+            : tokenIds;
+          const packed = encodeVarint64List(packInput.map((value) => parseHash64(value)));
+          entry.token_ids_packed = packed.toString('base64');
+          entry.token_ids_count = packInput.length;
+        } else if (typeof c.token_ids_packed === 'string' && Number.isFinite(Number(c.token_ids_count))) {
+          const packedCount = Math.max(0, Math.floor(Number(c.token_ids_count)));
+          if (resolvedTokenMode !== 'sample' || packedCount <= tokenSampleSize) {
+            entry.token_ids_packed = c.token_ids_packed;
+            entry.token_ids_count = packedCount;
+          }
+        }
       }
       const hadMetaV2 = !!entry.metaV2;
       const compacted = compactChunkMetaEntry(entry, maxJsonBytes, trackStats ? stats : null);
@@ -715,23 +734,15 @@ export const enqueueChunkMetaArtifacts = async ({
     label: mode ? `${mode} chunk_meta` : 'chunk_meta'
   });
 
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `chunk_meta.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${jsonlPath}.${offsetsConfig.suffix}` : null;
   const columnarPath = path.join(outDir, 'chunk_meta.columnar.json');
-  const removeJsonlVariants = async () => {
-    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
-    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.zst'));
-    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.offsets.bin'));
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
+  );
 
   if (resolvedUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
@@ -824,40 +835,27 @@ export const enqueueChunkMetaArtifacts = async ({
               gzipOptions,
               offsets: offsetsConfig
             });
-          const parts = result.parts.map((part, index) => ({
-            path: part,
-            records: result.counts[index] || 0,
-            bytes: result.bytes[index] || 0
-          }));
+          const parts = buildShardedPartEntries(result);
           const offsetsMeta = createOffsetsMeta({
             suffix: offsetsConfig?.suffix || null,
             parts: result.offsets,
             compression: 'none'
           });
-          await writeJsonObjectFile(metaPath, {
-            fields: {
-              schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-              artifact: 'chunk_meta',
-              format: 'jsonl-sharded',
-              generatedAt: new Date().toISOString(),
-              compression: compression || 'none',
-              totalRecords: result.total,
-              totalBytes: result.totalBytes,
-              maxPartRecords: result.maxPartRecords,
-              maxPartBytes: result.maxPartBytes,
-              targetMaxBytes: result.targetMaxBytes,
-              extensions: {
-                trim: {
-                  trimmedEntries,
-                  trimmedMetaV2,
-                  trimmedFields: trimmedFieldsPayload
-                },
-                ...(bucketSize ? { orderBuckets: { size: bucketSize, count: buckets.length } } : {}),
-                ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+          await writeShardedJsonlMeta({
+            metaPath,
+            artifact: 'chunk_meta',
+            compression,
+            result,
+            parts,
+            extensions: {
+              trim: {
+                trimmedEntries,
+                trimmedMetaV2,
+                trimmedFields: trimmedFieldsPayload
               },
-              parts
-            },
-            atomic: true
+              ...(bucketSize ? { orderBuckets: { size: bucketSize, count: buckets.length } } : {}),
+              ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+            }
           });
           for (let i = 0; i < result.parts.length; i += 1) {
             const relPath = result.parts[i];

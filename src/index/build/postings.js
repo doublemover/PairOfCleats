@@ -53,6 +53,7 @@ export async function buildPostings(input) {
     chunks,
     df,
     tokenPostings,
+    tokenIdMap,
     docLengths,
     fieldPostings,
     fieldDocLengths,
@@ -136,6 +137,7 @@ export async function buildPostings(input) {
       chargramVocab: [],
       chargramPostings: [],
       tokenVocab: [],
+      tokenVocabIds: [],
       tokenPostingsList: [],
       avgDocLen: 0,
       minhashSigs: [],
@@ -471,7 +473,9 @@ export async function buildPostings(input) {
     }
   } else {
     const stageLabel = buildStage ? ` (${buildStage})` : '';
-    log(`Embeddings disabled${stageLabel}; skipping dense vector build.`);
+    if (typeof log === 'function') {
+      log(`Embeddings disabled${stageLabel}; skipping dense vector build.`);
+    }
   }
 
   // Convert phrase/chargram postings into dense arrays while aggressively
@@ -737,12 +741,23 @@ export async function buildPostings(input) {
     }
   }
 
-  const tokenVocab = Array.from(tokenPostings.keys()).sort(sortStrings);
-  const tokenPostingsList = new Array(tokenVocab.length);
-  for (let i = 0; i < tokenVocab.length; i += 1) {
-    const token = tokenVocab[i];
-    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(token));
-    tokenPostings.delete(token);
+  let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
+  const tokenEntries = Array.from(tokenPostings.keys()).map((id) => {
+    const mapped = tokenIdMap?.get(id);
+    if (!mapped) includeTokenIds = false;
+    const token = mapped ?? (typeof id === 'string' ? id : String(id));
+    return { id, token };
+  });
+  tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
+  const tokenVocab = new Array(tokenEntries.length);
+  const tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
+  const tokenPostingsList = new Array(tokenEntries.length);
+  for (let i = 0; i < tokenEntries.length; i += 1) {
+    const entry = tokenEntries[i];
+    tokenVocab[i] = entry.token;
+    if (tokenVocabIds) tokenVocabIds[i] = entry.id;
+    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
+    tokenPostings.delete(entry.id);
   }
   if (typeof tokenPostings.clear === 'function') tokenPostings.clear();
   const avgDocLen = normalizedDocLengths.length
@@ -825,6 +840,7 @@ export async function buildPostings(input) {
     chargramPostings,
     chargramStats,
     tokenVocab,
+    tokenVocabIds,
     tokenPostingsList,
     avgDocLen,
     minhashSigs,

@@ -5,13 +5,15 @@ import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
-import { fromPosix, toPosix } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { buildChunkRef } from '../../shared/identity.js';
 import { decodeBloomFilter } from '../../shared/bloom.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isTestingEnv } from '../../shared/env.js';
 import { readJsonFile } from '../../shared/artifact-io.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import { readJsonlRows } from '../../shared/merge.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
@@ -641,7 +643,7 @@ export const buildVfsManifestRowsForFile = async ({
   const seen = new Set();
   const groups = [];
   for (const chunk of chunks) {
-    if (!chunk?.file) continue;
+    if (!chunk) continue;
     const segment = chunk.segment || null;
     const segmentUid = segment?.segmentUid || null;
     const key = `${segmentUid || ''}`;
@@ -788,62 +790,38 @@ export const ensureVfsDiskDocument = async ({
  * @returns {string}
  */
 export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
+  const baseRaw = String(baseDir || '').trim();
+  if (!baseRaw) {
+    throw new Error('VFS baseDir is required.');
+  }
+  const rootDir = path.resolve(baseRaw);
   const encodeUnsafeChar = (ch) => {
     const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(2, '0');
     return `%${hex}`;
   };
-  const parts = String(virtualPath || '').split('/');
+  const rawPath = toPosix(String(virtualPath || '').trim());
+  if (!rawPath) {
+    throw new Error('VFS virtualPath is required.');
+  }
+  if (isAbsolutePathAny(rawPath)) {
+    throw new Error(`VFS virtualPath must be relative: ${virtualPath}`);
+  }
+  const parts = rawPath.split('/').filter((part) => part.length > 0);
+  if (!parts.length) {
+    throw new Error(`VFS virtualPath is invalid: ${virtualPath}`);
+  }
   const safeParts = parts.map((part) => {
     if (part === '.' || part === '..') {
-      return part.split('').map((ch) => encodeUnsafeChar(ch)).join('');
+      throw new Error(`VFS virtualPath must not escape the baseDir: ${virtualPath}`);
     }
-    return part.replace(/[:*?"<>|]/g, (ch) => encodeUnsafeChar(ch));
+    return part.replace(/[:*?"<>|/\\]/g, (ch) => encodeUnsafeChar(ch));
   });
   const relative = safeParts.join(path.sep);
-  return path.join(baseDir, relative);
-};
-
-const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let lineNumber = 0;
-  let buffer = '';
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          const row = JSON.parse(trimmed);
-          yield row;
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        const row = JSON.parse(trimmed);
-        yield row;
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
+  const resolvedPath = path.resolve(rootDir, relative);
+  if (!isPathUnderDir(rootDir, resolvedPath)) {
+    throw new Error(`VFS virtualPath resolves outside baseDir: ${virtualPath}`);
   }
+  return resolvedPath;
 };
 
 /**
@@ -944,11 +922,17 @@ const resolveColdStartConfig = (value) => {
   if (isTestingEnv() && value?.enabled !== true) {
     return { enabled: false };
   }
-  const maxBytes = Number.isFinite(Number(value?.maxBytes))
-    ? Math.max(0, Math.floor(Number(value.maxBytes)))
+  if (value?.maxBytes != null && (typeof value.maxBytes !== 'number' || !Number.isFinite(value.maxBytes))) {
+    throw new Error('vfs cold-start maxBytes must be a finite number.');
+  }
+  if (value?.maxAgeDays != null && (typeof value.maxAgeDays !== 'number' || !Number.isFinite(value.maxAgeDays))) {
+    throw new Error('vfs cold-start maxAgeDays must be a finite number.');
+  }
+  const maxBytes = Number.isFinite(value?.maxBytes)
+    ? Math.max(0, Math.floor(value.maxBytes))
     : VFS_COLD_START_MAX_BYTES;
-  const maxAgeDays = Number.isFinite(Number(value?.maxAgeDays))
-    ? Math.max(0, Number(value.maxAgeDays))
+  const maxAgeDays = Number.isFinite(value?.maxAgeDays)
+    ? Math.max(0, value.maxAgeDays)
     : VFS_COLD_START_MAX_AGE_DAYS;
   const cacheRoot = typeof value?.cacheRoot === 'string' && value.cacheRoot.trim()
     ? path.resolve(value.cacheRoot)

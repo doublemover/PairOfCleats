@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isPathUnderDir } from '../../src/shared/path-normalize.js';
 
 /**
  * Check if a path is contained within another path.
@@ -8,8 +8,7 @@ import { isAbsolutePathNative } from '../../src/shared/files.js';
  * @returns {boolean}
  */
 export function isInside(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
+  return isPathUnderDir(parent, child);
 }
 
 /**

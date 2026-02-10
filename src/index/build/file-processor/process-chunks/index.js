@@ -3,7 +3,12 @@ import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
-import { createTokenizationBuffers, resolveTokenDictWords, tokenizeChunkText } from '../../tokenization.js';
+import {
+  classifyTokenBuckets,
+  createTokenizationBuffers,
+  resolveTokenDictWords,
+  tokenizeChunkText
+} from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';
 import { buildChunkPayload } from '../assemble.js';
 import { attachEmbeddings } from '../embeddings.js';
@@ -50,6 +55,7 @@ export const processChunks = async (context) => {
     getChunkEmbedding,
     getChunkEmbeddings,
     runEmbedding,
+    runProc,
     workerPool,
     workerDictOverride,
     workerState,
@@ -139,6 +145,9 @@ export const processChunks = async (context) => {
     && workerPool.shouldUseForFile
     ? workerPool.shouldUseForFile(fileStat.size)
     : false;
+  const runTokenize = useWorkerForTokens && typeof workerPool?.runTokenize === 'function'
+    ? (payload) => (runProc ? runProc(() => workerPool.runTokenize(payload)) : workerPool.runTokenize(payload))
+    : null;
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
@@ -316,11 +325,12 @@ export const processChunks = async (context) => {
     const fieldChargramTokens = null;
 
     let tokenPayload = null;
-    if (useWorkerForTokens) {
+    let usedWorkerTokenize = false;
+    if (runTokenize) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
-        tokenPayload = await workerPool.runTokenize({
+        tokenPayload = await runTokenize({
           text: tokenText,
           mode: chunkMode,
           ext: effectiveExt,
@@ -333,6 +343,7 @@ export const processChunks = async (context) => {
         const tokenDurationMs = Date.now() - tokenStart;
         addTokenizeDuration(tokenDurationMs);
         if (tokenPayload) {
+          usedWorkerTokenize = true;
           addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
         }
       } catch (err) {
@@ -385,8 +396,33 @@ export const processChunks = async (context) => {
       addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
     }
 
+    const tokenClassificationEnabled = tokenContext?.tokenClassification?.enabled === true
+      && chunkMode === 'code';
+    if (tokenClassificationEnabled && usedWorkerTokenize) {
+      // Tokenization workers intentionally do not run tree-sitter classification to avoid
+      // multiplying parser/grammar memory across --threads. Attach buckets here using the
+      // main thread tree-sitter runtime (global caps).
+      const classification = classifyTokenBuckets({
+        text: tokenText,
+        tokens: Array.isArray(tokenPayload.tokens) ? tokenPayload.tokens : [],
+        languageId: chunkLanguageId,
+        ext: effectiveExt,
+        dictWords: dictWordsForChunk,
+        dictConfig,
+        context: tokenContext
+      });
+      tokenPayload = {
+        ...tokenPayload,
+        identifierTokens: classification.identifierTokens,
+        keywordTokens: classification.keywordTokens,
+        operatorTokens: classification.operatorTokens,
+        literalTokens: classification.literalTokens
+      };
+    }
+
     const {
       tokens,
+      tokenIds,
       seq,
       minhashSig,
       stats,
@@ -446,6 +482,7 @@ export const processChunks = async (context) => {
       fileHashAlgo,
       fileSize: fileStat.size,
       tokens,
+      tokenIds,
       identifierTokens,
       keywordTokens,
       operatorTokens,

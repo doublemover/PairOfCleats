@@ -46,7 +46,6 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
-  const excludeNeedleSet = excludeNeedles.length ? new Set(excludeNeedles) : null;
   const normalizePhraseNeedle = (value) => {
     const normalized = caseTokens ? String(value || '') : normalize(value);
     return normalized.replace(/\s+/g, '_');
@@ -209,17 +208,15 @@ const resolveFilterState = ({
       if (candidate) indexedCandidates.push(candidate);
     }
     if (fileMatchers.length && filePrefilterEnabled) {
-      const filePrefilterIds = collectFilePrefilterMatches({
+      const filePrefilterCandidate = collectFilePrefilterMatches({
         fileMatchers,
         fileChargramN,
         filterIndex,
         normalizeFilePrefilter,
-        intersectTwoSets
+        intersectTwoSets,
+        buildCandidate
       });
-      if (filePrefilterIds) {
-        const candidate = buildCandidate([filePrefilterIds], []);
-        if (candidate) indexedCandidates.push(candidate);
-      }
+      if (filePrefilterCandidate) indexedCandidates.push(filePrefilterCandidate);
     }
   }
   const candidateIds = indexedCandidates.length

@@ -5,7 +5,11 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
-export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
+const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
+const CLANGD_OBJC_EXTS = ['.m', '.mm'];
+export const CLIKE_EXTS = process.platform === 'darwin'
+  ? [...CLANGD_BASE_EXTS, ...CLANGD_OBJC_EXTS]
+  : CLANGD_BASE_EXTS;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 
@@ -177,6 +181,9 @@ export const createClangdProvider = () => ({
       };
     }
     const clangdArgs = [];
+    // clangd is very chatty at info-level (e.g. missing compilation DB).
+    // Keep stdout/stderr noise down during indexing runs.
+    clangdArgs.push('--log=error');
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
     const result = await collectLspTypes({
       rootDir: ctx.repoRoot,
@@ -201,7 +208,7 @@ export const createClangdProvider = () => ({
       byChunkUid: result.byChunkUid,
       diagnostics: appendDiagnosticChecks(
         result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-        duplicateChecks
+        [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
       )
     };
   }

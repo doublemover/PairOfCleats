@@ -1,5 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import {
   CLIKE_CALL_KEYWORDS,
   CLIKE_EXPORT_KINDS,
@@ -165,7 +166,9 @@ function parseObjcSelector(signature) {
   if (!match) return '';
   const rest = match[1] + (match[2] || '');
   const parts = [];
-  for (const seg of rest.matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)) {
+  const selectorSegmentRe = /([A-Za-z_][A-Za-z0-9_]*)\s*:/g;
+  let seg;
+  while ((seg = selectorSegmentRe.exec(rest)) !== null) {
     parts.push(seg[1]);
   }
   if (parts.length) return `${parts.join(':')}:`;
@@ -174,7 +177,9 @@ function parseObjcSelector(signature) {
 
 function extractObjcParams(signature) {
   const params = [];
-  for (const match of signature.matchAll(/:\s*\([^)]*\)\s*([A-Za-z_][A-Za-z0-9_]*)/g)) {
+  const paramRe = /:\s*\([^)]*\)\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  let match;
+  while ((match = paramRe.exec(signature)) !== null) {
     params.push(match[1]);
   }
   return params;
@@ -229,33 +234,6 @@ function parseCLikeSignature(signature) {
   return { name, returns };
 }
 
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
-}
-
 function findCLikeDocStartLine(lines, startLineIdx) {
   let idx = startLineIdx;
   while (idx > 0) {
@@ -279,6 +257,7 @@ function findCLikeDocStartLine(lines, startLineIdx) {
  * @returns {string[]}
  */
 export function collectCLikeImports(text) {
+  if (!text || !text.includes('#')) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -300,26 +279,45 @@ function resolveCLikeKeywordSets(ext) {
   return { callKeywords: CLIKE_CALL_KEYWORDS, usageSkip: CLIKE_USAGE_SKIP };
 }
 
+function getLastCLikeSegment(raw) {
+  if (!raw) return '';
+  let end = raw.length;
+  while (end > 0 && (raw[end - 1] === '.' || raw[end - 1] === ':')) end -= 1;
+  if (!end) return '';
+  let idx = end - 1;
+  while (idx >= 0) {
+    const ch = raw[idx];
+    if (ch === '.' || ch === ':') break;
+    idx -= 1;
+  }
+  return raw.slice(idx + 1, end);
+}
+
 function collectCLikeCallsAndUsages(text, keywordSets = {}) {
   const callKeywords = keywordSets.callKeywords || CLIKE_CALL_KEYWORDS;
   const usageSkip = keywordSets.usageSkip || CLIKE_USAGE_SKIP;
   const calls = new Set();
   const usages = new Set();
   const normalized = stripCLikeComments(text).replace(/->/g, '.');
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split(/\.|::/).filter(Boolean).pop();
+    const base = getLastCLikeSegment(raw);
     if (!base || callKeywords.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (usageSkip.has(name)) continue;
     if (/^[A-Z0-9_]{2,}$/.test(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -346,7 +344,8 @@ export function buildCLikeChunks(text, ext, options = {}) {
   };
 
   const typeRe = /^\s*(typedef\s+)?(struct|class|enum|union)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
-  for (const match of text.matchAll(typeRe)) {
+  let match;
+  while ((match = typeRe.exec(text)) !== null) {
     const start = match.index;
     const startLine = offsetToLine(lineIndex, start);
     const line = lines[startLine - 1] || '';
@@ -378,7 +377,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
 
   if (objc) {
     const objcTypeRe = /^\s*@(?:(interface|implementation|protocol))\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
-    for (const match of text.matchAll(objcTypeRe)) {
+    while ((match = objcTypeRe.exec(text)) !== null) {
       const start = match.index;
       const startLine = offsetToLine(lineIndex, start);
       const end = findObjcEnd(text, start);
@@ -611,13 +610,16 @@ export function computeCLikeFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_:]*)/g)) {
+    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_:]*)/g;
+    let match;
+    while ((match = throwRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }
     out.throws = Array.from(throws);
     const awaits = new Set();
-    for (const match of cleaned.matchAll(/\b(?:co_await|await)\b\s+([A-Za-z_][A-Za-z0-9_.:]*)/g)) {
+    const awaitRe = /\b(?:co_await|await)\b\s+([A-Za-z_][A-Za-z0-9_.:]*)/g;
+    while ((match = awaitRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) awaits.add(name);
     }

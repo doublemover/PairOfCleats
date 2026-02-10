@@ -1,12 +1,13 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import semver from 'semver';
 import { execaSync } from 'execa';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { findBinaryInDirs } from './binary-utils.js';
+import { loadTypeScript } from './typescript/load.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
@@ -14,71 +15,18 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-
-const candidateNames = (name) => {
-  if (process.platform === 'win32') {
-    return [`${name}.cmd`, `${name}.exe`, name];
-  }
-  return [name];
-};
-
-const findBinaryInDirs = (name, dirs) => {
-  const candidates = candidateNames(name);
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = path.join(dir, candidate);
-      if (fsSync.existsSync(full)) return full;
-    }
-  }
-  return null;
-};
-
 const canRunBinary = (cmd, argsList) => {
   if (!cmd) return false;
   for (const args of argsList) {
     try {
       const result = execaSync(cmd, args, {
         stdio: 'ignore',
-        shell: shouldUseShell(cmd),
         reject: false
       });
       if (typeof result.exitCode === 'number' && result.exitCode === 0) return true;
     } catch {}
   }
   return false;
-};
-
-const resolveTypeScript = async (toolingConfig, repoRoot) => {
-  if (toolingConfig?.typescript?.enabled === false) return null;
-  const toolingRoot = toolingConfig?.dir || '';
-  const resolveOrder = Array.isArray(toolingConfig?.typescript?.resolveOrder)
-    ? toolingConfig.typescript.resolveOrder
-    : ['repo', 'cache', 'global'];
-  const lookup = {
-    repo: path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
-    cache: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
-    tooling: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
-  };
-
-  for (const entry of resolveOrder) {
-    const key = String(entry || '').toLowerCase();
-    if (key === 'global') {
-      try {
-        const mod = await import('typescript');
-        return mod?.default || mod;
-      } catch {
-        continue;
-      }
-    }
-    const candidate = lookup[key];
-    if (!candidate || !fsSync.existsSync(candidate)) continue;
-    try {
-      const mod = await import(pathToFileURL(candidate).href);
-      return mod?.default || mod;
-    } catch {}
-  }
-  return null;
 };
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
@@ -200,6 +148,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   const disabledTools = Array.isArray(toolingConfig.disabledTools) ? toolingConfig.disabledTools : [];
   report.config.enabledTools = enabledTools.slice();
   report.config.disabledTools = disabledTools.slice();
+  const isProviderExplicitlyEnabled = (id) => (
+    enabledTools.length > 0 && enabledTools.includes(normalizeProviderId(id))
+  );
   let scmSelection = null;
   let scmProvenance = null;
   let scmError = null;
@@ -278,9 +229,11 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     };
     let providerErrors = 0;
     let providerWarnings = 0;
+    let providerAvailable = true;
     const addCheck = (check) => {
       providerReport.checks.push(check);
       if (check.status === 'error') {
+        providerAvailable = false;
         providerErrors += 1;
         report.summary.errors += 1;
       } else if (check.status === 'warn') {
@@ -288,6 +241,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         report.summary.warnings += 1;
       }
     };
+    const missingBinaryStatus = isProviderExplicitlyEnabled(providerId) ? 'error' : 'warn';
 
     if (!providerReport.enabled) {
       addCheck({
@@ -296,7 +250,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         message: 'Provider disabled by tooling configuration.'
       });
     } else if (providerId === 'typescript') {
-      const ts = await resolveTypeScript(toolingConfig, repoRoot);
+      const ts = await loadTypeScript(toolingConfig, repoRoot);
       if (!ts) {
         addCheck({
           name: 'typescript',
@@ -369,33 +323,37 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
       const resolvedCmd = resolveCommand('clangd');
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: 'clangd',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'clangd binary not available.'
         });
       }
     } else if (providerId === 'pyright') {
       const resolvedCmd = resolvePyrightCommand(repoRoot, toolingConfig);
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: 'pyright-langserver',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'pyright-langserver binary not available.'
         });
       }
     } else if (providerId === 'sourcekit') {
       const resolvedCmd = resolveCommand('sourcekit-lsp');
       if (!canRunBinary(resolvedCmd, [['--help'], ['--version']])) {
+        providerAvailable = false;
         addCheck({
           name: 'sourcekit-lsp',
-          status: 'error',
+          status: missingBinaryStatus,
           message: 'sourcekit-lsp binary not available.'
         });
       }
     } else if (provider?.requires?.cmd) {
       const resolvedCmd = resolveCommand(provider.requires.cmd);
       if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
+        providerAvailable = false;
         addCheck({
           name: provider.requires.cmd,
           status: 'warn',
@@ -405,7 +363,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     }
 
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
-    providerReport.available = providerErrors === 0;
+    providerReport.available = providerAvailable;
     report.providers.push(providerReport);
   }
 

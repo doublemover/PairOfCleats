@@ -261,6 +261,9 @@ export const buildImpactAnalysis = ({
         symbolEdges: artifactsUsed.symbolEdges,
         callSites: artifactsUsed.callSites
       },
+      cache: neighborhood?.stats?.cache || null,
+      capsTriggered: neighborhood?.stats?.capsTriggered || null,
+      importGraphLookupMisses: neighborhood?.stats?.importGraphLookupMisses || null,
       counts: {
         impacted: impacted.length,
         workUnitsUsed

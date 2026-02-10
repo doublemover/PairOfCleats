@@ -1,5 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
@@ -83,8 +84,11 @@ const RUST_DOC_OPTIONS = {
 
 function collectRustAttributes(lines, startLineIdx, signature) {
   const attrs = new Set();
+  const attrRe = /#\s*\[\s*([A-Za-z_][A-Za-z0-9_:]*)/g;
   const addLine = (line) => {
-    for (const match of line.matchAll(/#\s*\[\s*([A-Za-z_][A-Za-z0-9_:]*)/g)) {
+    attrRe.lastIndex = 0;
+    let match;
+    while ((match = attrRe.exec(line)) !== null) {
       attrs.add(match[1]);
     }
   };
@@ -185,6 +189,7 @@ function parseRustImplTarget(signature) {
  * @returns {string[]}
  */
 export function collectRustImports(text) {
+  if (!text || (!text.includes('use ') && !text.includes('extern crate'))) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -400,32 +405,6 @@ export function buildRustChunks(text, options = {}) {
   }));
 }
 
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
-}
 
 /**
  * Build import/export/call/usage relations for Rust chunks.
@@ -436,7 +415,8 @@ export function buildRustRelations(text) {
   const imports = collectRustImports(text);
   const exportRe = /^\s*pub(?:\([^)]+\))?\s+(struct|enum|trait|fn|mod|const|type)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
   const exports = new Set();
-  for (const match of text.matchAll(exportRe)) {
+  let match;
+  while ((match = exportRe.exec(text)) !== null) {
     exports.add(match[2]);
   }
   return {
@@ -507,12 +487,13 @@ export function computeRustFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bpanic!\s*\(|\bpanic\s*\(/g)) {
-      if (match) throws.add('panic');
-    }
+    const panicRe = /\bpanic!\s*\(|\bpanic\s*\(/g;
+    if (panicRe.test(cleaned)) throws.add('panic');
     out.throws = Array.from(throws);
     const awaits = new Set();
-    for (const match of cleaned.matchAll(/([A-Za-z_][A-Za-z0-9_.]*)\s*\.await\b/g)) {
+    const awaitRe = /([A-Za-z_][A-Za-z0-9_.]*)\s*\.await\b/g;
+    let match;
+    while ((match = awaitRe.exec(cleaned)) !== null) {
       const name = match[1].trim();
       if (name) awaits.add(name);
     }

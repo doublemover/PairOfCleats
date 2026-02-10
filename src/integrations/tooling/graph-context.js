@@ -133,6 +133,7 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
     const graphIndex = await graphStore.loadGraphIndex({
       repoRoot,
       cacheKey: graphCacheKey,
+      indexSignature,
       graphs: graphSelection,
       includeCsr
     });

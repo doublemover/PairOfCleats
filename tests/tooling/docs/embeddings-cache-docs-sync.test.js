@@ -9,7 +9,7 @@ const docPath = path.join(root, 'docs', 'specs', 'embeddings-cache.md');
 const text = await fs.readFile(docPath, 'utf8');
 assert.ok(text.includes('# Embeddings Cache'), 'missing doc title');
 assert.ok(text.includes('## Layout'), 'missing layout section');
-assert.ok(text.includes('## Cache Entry Format'), 'missing cache entry format');
+assert.ok(/##\s+Cache entry format/i.test(text), 'missing cache entry format');
 assert.ok(text.includes('## Invalidation'), 'missing invalidation section');
 assert.ok(text.includes('## Pruning'), 'missing pruning section');
 assert.ok(text.includes('## Configuration'), 'missing configuration section');

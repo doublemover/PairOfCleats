@@ -26,10 +26,13 @@ import {
   createGraphRelationsShell,
   appendGraphRelationsEntry,
   appendGraphRelationsEntries,
-  finalizeGraphRelations
+  finalizeGraphRelations,
+  normalizeGraphRelationsCsr
 } from './graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
+import { decodeVarint64List } from './varint.js';
+import { formatHash64 } from '../token-id.js';
 
 const warnedNonStrictJsonFallback = new Set();
 const warnedMaterializeFallback = new Set();
@@ -950,6 +953,44 @@ export const loadGraphRelations = async (
   throw new Error('Missing index artifact: graph_relations.json');
 };
 
+export const loadGraphRelationsCsr = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations_csr',
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for graph_relations_csr');
+    }
+    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  if (strict) {
+    throw new Error('Missing manifest entry for graph_relations_csr');
+  }
+  const legacyPath = path.join(dir, 'graph_relations.csr.json');
+  if (existsOrBak(legacyPath)) {
+    warnNonStrictJsonFallback(dir, 'graph_relations_csr');
+    const payload = readJsonFile(legacyPath, { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  return null;
+};
+
 export const loadGraphRelationsSync = (
   dir,
   {
@@ -1057,12 +1098,69 @@ export const loadGraphRelationsSync = (
   throw new Error('Missing index artifact: graph_relations.json');
 };
 
-export const loadChunkMeta = async (
+export const loadGraphRelationsCsrSync = (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
     strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations_csr',
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format !== 'json') {
+      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
+    }
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for graph_relations_csr');
+    }
+    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  if (strict) {
+    throw new Error('Missing manifest entry for graph_relations_csr');
+  }
+  const legacyPath = path.join(dir, 'graph_relations.csr.json');
+  if (existsOrBak(legacyPath)) {
+    warnNonStrictJsonFallback(dir, 'graph_relations_csr');
+    const payload = readJsonFile(legacyPath, { maxBytes });
+    return normalizeGraphRelationsCsr(payload, { strict });
+  }
+  return null;
+};
+
+const inflatePackedTokenIds = (chunkMeta) => {
+  if (!Array.isArray(chunkMeta)) return chunkMeta;
+  for (const entry of chunkMeta) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (Array.isArray(entry.tokenIds)) continue;
+    const packed = entry.token_ids_packed;
+    if (typeof packed !== 'string' || !packed) continue;
+    const buffer = Buffer.from(packed, 'base64');
+    const decoded = decodeVarint64List(buffer);
+    entry.tokenIds = decoded.map((value) => formatHash64(value));
+  }
+  return chunkMeta;
+};
+
+const maybeInflatePackedTokenIds = (chunkMeta, materializeTokenIds) => (
+  materializeTokenIds ? inflatePackedTokenIds(chunkMeta) : chunkMeta
+);
+
+export const loadChunkMeta = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true,
+    materializeTokenIds = false
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
@@ -1081,7 +1179,10 @@ export const loadChunkMeta = async (
         if (sources.paths.length > 1) {
           throw new Error('Ambiguous JSON sources for chunk_meta');
         }
-        return readJsonFile(sources.paths[0], { maxBytes });
+        return maybeInflatePackedTokenIds(
+          readJsonFile(sources.paths[0], { maxBytes }),
+          materializeTokenIds
+        );
       }
       if (sources.format === 'columnar') {
         if (sources.paths.length > 1) {
@@ -1090,13 +1191,14 @@ export const loadChunkMeta = async (
         const payload = readJsonFile(sources.paths[0], { maxBytes });
         const inflated = inflateColumnarRows(payload);
         if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-        return inflated;
+        return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
       }
-      return await readJsonLinesArray(sources.paths, {
+      const rows = await readJsonLinesArray(sources.paths, {
         maxBytes,
         requiredKeys,
         validationMode
       });
+      return maybeInflatePackedTokenIds(rows, materializeTokenIds);
     }
     throw new Error('Missing manifest entry for chunk_meta');
   }
@@ -1113,7 +1215,10 @@ export const loadChunkMeta = async (
       if (sources.paths.length > 1) {
         throw new Error('Ambiguous JSON sources for chunk_meta');
       }
-      return readJsonFile(sources.paths[0], { maxBytes });
+      return maybeInflatePackedTokenIds(
+        readJsonFile(sources.paths[0], { maxBytes }),
+        materializeTokenIds
+      );
     }
     if (sources.format === 'columnar') {
       if (sources.paths.length > 1) {
@@ -1122,13 +1227,14 @@ export const loadChunkMeta = async (
       const payload = readJsonFile(sources.paths[0], { maxBytes });
       const inflated = inflateColumnarRows(payload);
       if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-      return inflated;
+      return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
     }
-    return await readJsonLinesArray(sources.paths, {
+    const rows = await readJsonLinesArray(sources.paths, {
       maxBytes,
       requiredKeys,
       validationMode
     });
+    return maybeInflatePackedTokenIds(rows, materializeTokenIds);
   }
 
   const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
@@ -1137,11 +1243,14 @@ export const loadChunkMeta = async (
     const payload = readJsonFile(columnarPath, { maxBytes });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-    return inflated;
+    return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
-    return readJsonFile(jsonPath, { maxBytes });
+    return maybeInflatePackedTokenIds(
+      readJsonFile(jsonPath, { maxBytes }),
+      materializeTokenIds
+    );
   }
   throw new Error('Missing index artifact: chunk_meta.json');
 };
@@ -1167,6 +1276,7 @@ export const loadTokenPostings = (
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
+    const vocabIds = Array.isArray(arrays?.vocabIds) ? arrays.vocabIds : [];
     const docLengths = Array.isArray(arrays?.docLengths) ? arrays.docLengths : [];
     const offsetsName = typeof fields?.offsets === 'string'
       ? fields.offsets
@@ -1192,6 +1302,7 @@ export const loadTokenPostings = (
       avgDocLen,
       totalDocs: Number.isFinite(fields?.totalDocs) ? fields.totalDocs : docLengths.length,
       vocab,
+      ...(vocabIds.length ? { vocabIds } : {}),
       postings,
       docLengths
     };
@@ -1201,6 +1312,7 @@ export const loadTokenPostings = (
       throw new Error(`Missing token_postings shard files in ${shardsDir}`);
     }
     const vocab = [];
+    const vocabIds = [];
     const postings = [];
     const pushChunked = (target, items) => {
       const CHUNK = 4096;
@@ -1213,10 +1325,14 @@ export const loadTokenPostings = (
       const shardVocab = Array.isArray(shard?.vocab)
         ? shard.vocab
         : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
+      const shardVocabIds = Array.isArray(shard?.vocabIds)
+        ? shard.vocabIds
+        : (Array.isArray(shard?.arrays?.vocabIds) ? shard.arrays.vocabIds : []);
       const shardPostings = Array.isArray(shard?.postings)
         ? shard.postings
         : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
       if (shardVocab.length) pushChunked(vocab, shardVocab);
+      if (shardVocabIds.length) pushChunked(vocabIds, shardVocabIds);
       if (shardPostings.length) pushChunked(postings, shardPostings);
     }
     const docLengths = Array.isArray(meta?.docLengths)
@@ -1225,6 +1341,7 @@ export const loadTokenPostings = (
     return {
       ...meta,
       vocab,
+      ...(vocabIds.length ? { vocabIds } : {}),
       postings,
       docLengths
     };

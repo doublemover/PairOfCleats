@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
+import { loadIndex } from '../../../src/storage/sqlite/utils.js';
 
 let Database = null;
 try {
@@ -39,87 +40,111 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
   ? String(args.mode).toLowerCase()
   : 'compare';
 const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-build-from-artifacts');
-const indexDir = path.join(tempRoot, 'index-code');
+const generatedIndexDir = path.join(tempRoot, 'index-code');
 const baselineIndexDir = path.join(tempRoot, 'index-baseline');
 const outPathBaseline = path.join(tempRoot, 'index-code-baseline.db');
 const outPathCurrent = path.join(tempRoot, 'index-code-current.db');
+const indexDir = typeof args['index-dir'] === 'string' && args['index-dir'].trim()
+  ? path.resolve(args['index-dir'].trim())
+  : generatedIndexDir;
+const statementStrategy = typeof args['statement-strategy'] === 'string' && args['statement-strategy'].trim()
+  ? args['statement-strategy'].trim()
+  : null;
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(indexDir, { recursive: true });
+await fs.mkdir(tempRoot, { recursive: true });
 await fs.mkdir(baselineIndexDir, { recursive: true });
 
-const tokens = ['alpha', 'beta'];
-const chunkIterator = function* chunkIterator() {
-  for (let i = 0; i < chunkCount; i += 1) {
-    yield {
-      id: i,
-      file: `src/file-${i % 10}.js`,
-      start: 0,
-      end: 10,
-      startLine: 1,
-      endLine: 1,
-      kind: 'code',
-      name: `fn${i}`,
-      tokens
-    };
-  }
-};
+let shardResult = null;
+let postingsPart = null;
+let tokens = ['alpha', 'beta'];
+if (indexDir === generatedIndexDir) {
+  await fs.mkdir(indexDir, { recursive: true });
 
-const shardResult = await writeJsonLinesSharded({
-  dir: indexDir,
-  partsDirName: 'chunk_meta.parts',
-  partPrefix: 'chunk_meta.part-',
-  items: chunkIterator(),
-  maxBytes: 8192,
-  atomic: true
-});
-await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
-  fields: {
-    schemaVersion: '0.0.1',
-    artifact: 'chunk_meta',
-    format: 'jsonl-sharded',
-    generatedAt: new Date().toISOString(),
-    compression: 'none',
-    totalRecords: shardResult.total,
-    totalBytes: shardResult.totalBytes,
-    maxPartRecords: shardResult.maxPartRecords,
-    maxPartBytes: shardResult.maxPartBytes,
-    targetMaxBytes: shardResult.targetMaxBytes,
-    parts: shardResult.parts.map((part, index) => ({
-      path: part,
-      records: shardResult.counts[index] || 0,
-      bytes: shardResult.bytes[index] || 0
-    }))
-  },
-  atomic: true
-});
+  const chunkIterator = function* chunkIterator() {
+    for (let i = 0; i < chunkCount; i += 1) {
+      yield {
+        id: i,
+        file: `src/file-${i % 10}.js`,
+        start: 0,
+        end: 10,
+        startLine: 1,
+        endLine: 1,
+        kind: 'code',
+        name: `fn${i}`,
+        tokens
+      };
+    }
+  };
 
-const postingsDir = path.join(indexDir, 'token_postings.shards');
-await fs.mkdir(postingsDir, { recursive: true });
-const postingsPart = path.join(postingsDir, 'token_postings.part-00000.json');
-const postingsEntries = Array.from({ length: chunkCount }, (_, i) => [i, 1]);
-await writeJsonObjectFile(postingsPart, {
-  arrays: {
-    vocab: ['alpha'],
-    postings: [postingsEntries]
-  },
-  atomic: true
-});
-const docLengths = Array.from({ length: chunkCount }, () => tokens.length);
-await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
-  fields: {
-    avgDocLen: tokens.length,
-    totalDocs: chunkCount,
-    format: 'sharded',
-    shardSize: 1,
-    vocabCount: 1,
-    parts: ['token_postings.shards/token_postings.part-00000.json']
-  },
-  arrays: { docLengths },
-  atomic: true
-});
+  shardResult = await writeJsonLinesSharded({
+    dir: indexDir,
+    partsDirName: 'chunk_meta.parts',
+    partPrefix: 'chunk_meta.part-',
+    items: chunkIterator(),
+    maxBytes: 8192,
+    atomic: true
+  });
+  await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
+    fields: {
+      schemaVersion: '0.0.1',
+      artifact: 'chunk_meta',
+      format: 'jsonl-sharded',
+      generatedAt: new Date().toISOString(),
+      compression: 'none',
+      totalRecords: shardResult.total,
+      totalBytes: shardResult.totalBytes,
+      maxPartRecords: shardResult.maxPartRecords,
+      maxPartBytes: shardResult.maxPartBytes,
+      targetMaxBytes: shardResult.targetMaxBytes,
+      parts: shardResult.parts.map((part, index) => ({
+        path: part,
+        records: shardResult.counts[index] || 0,
+        bytes: shardResult.bytes[index] || 0
+      }))
+    },
+    atomic: true
+  });
+
+  const postingsDir = path.join(indexDir, 'token_postings.shards');
+  await fs.mkdir(postingsDir, { recursive: true });
+  postingsPart = path.join(postingsDir, 'token_postings.part-00000.json');
+  const postingsEntries = Array.from({ length: chunkCount }, (_, i) => [i, 1]);
+  await writeJsonObjectFile(postingsPart, {
+    arrays: {
+      vocab: ['alpha'],
+      postings: [postingsEntries]
+    },
+    atomic: true
+  });
+  const docLengths = Array.from({ length: chunkCount }, () => tokens.length);
+  await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
+    fields: {
+      avgDocLen: tokens.length,
+      totalDocs: chunkCount,
+      format: 'sharded',
+      shardSize: 1,
+      vocabCount: 1,
+      parts: ['token_postings.shards/token_postings.part-00000.json']
+    },
+    arrays: { docLengths },
+    atomic: true
+  });
+} else if (!fsSync.existsSync(indexDir)) {
+  console.error(`Missing index dir: ${indexDir}`);
+  process.exit(1);
+}
 
 const buildBaselineIndex = async () => {
+  if (indexDir !== generatedIndexDir) {
+    const loaded = await loadIndex(indexDir, null);
+    if (!loaded) {
+      console.error(`Failed to load index artifacts from ${indexDir}`);
+      process.exit(1);
+    }
+    return loaded;
+  }
+
   const chunkMeta = [];
   for (const part of shardResult.parts) {
     const partPath = path.join(indexDir, part);
@@ -164,7 +189,8 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
     modelConfig: { id: null },
     buildPragmas,
     optimize,
-    stats
+    stats,
+    statementStrategy
   });
   const durationMs = performance.now() - start;
   if (!fsSync.existsSync(targetPath)) {
@@ -172,6 +198,21 @@ const runBuild = async ({ label, outPath: targetPath, index, indexDir: targetInd
     process.exit(1);
   }
   console.log(`[bench] build-from-artifacts ${label} chunks=${count} ms=${durationMs.toFixed(1)}`);
+  console.log(
+    `[bench] ${label} statementStrategy=${stats.statementStrategy} batchSize=${stats.batchSize} prepares=${stats?.prepare?.total ?? 0}`
+  );
+  if (stats.transaction) {
+    console.log(`[bench] ${label} transaction`, stats.transaction);
+  }
+  if (stats.multiRow) {
+    console.log(`[bench] ${label} multiRow`, stats.multiRow);
+  }
+  if (stats.ftsOptimize) {
+    console.log(`[bench] ${label} ftsOptimize`, stats.ftsOptimize);
+  }
+  if (stats.optimize) {
+    console.log(`[bench] ${label} optimize`, stats.optimize);
+  }
   if (stats.pragmas) {
     console.log(`[bench] ${label} pragmas`, stats.pragmas);
   }
@@ -189,7 +230,7 @@ if (mode !== 'current') {
     label: 'baseline',
     outPath: outPathBaseline,
     index: baselineIndex,
-    indexDir: baselineIndexDir,
+    indexDir: indexDir === generatedIndexDir ? baselineIndexDir : indexDir,
     buildPragmas: false,
     optimize: false
   });

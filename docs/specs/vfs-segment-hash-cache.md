@@ -44,6 +44,10 @@ Requirements:
   - If `key` is present, reuse `docHash`.
   - If not present, compute `docHash` from the segment text and store it.
 
+Notes:
+- The cap is the primary guardrail against unbounded growth under repeated tooling/indexing runs.
+- Consumers SHOULD treat cache size/evictions as a perf knob, not as correctness-critical state.
+
 ---
 
 ## 3) Invariants

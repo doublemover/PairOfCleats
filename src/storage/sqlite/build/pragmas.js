@@ -105,12 +105,14 @@ export const restoreBuildPragmas = (db, state = null) => {
     applyPragma(db, `${label} = ${value}`, label);
   };
 
+  applyIfValue('journal_mode', restoreValue('journal_mode', null));
   applyIfValue('synchronous', restoreValue('synchronous', 'NORMAL'));
   applyIfValue('temp_store', restoreValue('temp_store', 'DEFAULT'));
   applyIfValue('cache_size', restoreValue('cache_size', null));
   applyIfValue('mmap_size', restoreValue('mmap_size', null));
   applyIfValue('wal_autocheckpoint', restoreValue('wal_autocheckpoint', null));
   applyIfValue('journal_size_limit', restoreValue('journal_size_limit', null));
+  applyIfValue('page_size', restoreValue('page_size', null));
   applyIfValue('locking_mode', restoreValue('locking_mode', 'NORMAL'));
 };
 
@@ -138,5 +140,36 @@ export const optimizeBuildDatabase = (db, options = {}) => {
       analyzed,
       durationMs: performance.now() - start
     };
+  }
+};
+
+export const optimizeFtsTable = (db, tableName, options = {}) => {
+  if (!db) return;
+  const target = typeof tableName === 'string' ? tableName.trim() : '';
+  if (!target) return;
+  // Avoid SQL injection. Stage4 only optimizes known internal tables.
+  if (target !== 'chunks_fts') {
+    throw new Error(`[sqlite] Unsupported FTS optimize target: ${target}`);
+  }
+  const stats = options.stats && typeof options.stats === 'object' ? options.stats : null;
+  const start = performance.now();
+  let optimized = false;
+  let error = null;
+  try {
+    db.exec(`INSERT INTO ${target}(${target}) VALUES('optimize')`);
+    optimized = true;
+  } catch (err) {
+    error = err;
+  }
+  if (stats) {
+    stats.ftsOptimize = {
+      table: target,
+      optimized,
+      durationMs: performance.now() - start,
+      error: error ? (error?.message || String(error)) : null
+    };
+  }
+  if (error) {
+    console.warn(`[sqlite] FTS optimize failed (${target}): ${error?.message || error}`);
   }
 };

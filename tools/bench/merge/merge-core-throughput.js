@@ -2,8 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { writeJsonLinesFileAsync } from '../../../src/shared/json-stream.js';
-import { mergeSortedRuns as legacyMergeSortedRuns } from '../../../src/index/build/artifacts/helpers.js';
-import { mergeSortedRunsToFile, writeJsonlRunFile } from '../../../src/shared/merge.js';
+import {
+  mergeSortedRuns as legacyMergeSortedRuns,
+  mergeSortedRunsToFile,
+  writeJsonlRunFile
+} from '../../../src/shared/merge.js';
+import { formatBytes } from '../../../src/shared/disk-space.js';
 
 const parseArgs = (argv) => {
   const args = { runs: 32, runSize: 2000, seed: 1337 };
@@ -22,18 +26,6 @@ const parseArgs = (argv) => {
     }
   }
   return args;
-};
-
-const formatBytes = (bytes) => {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) return '0B';
-  if (value < 1024) return `${Math.round(value)}B`;
-  const kb = value / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)}KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(2)}GB`;
 };
 
 const mulberry32 = (seed) => {

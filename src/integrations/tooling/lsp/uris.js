@@ -21,7 +21,15 @@ export const encodeVfsVirtualPath = (virtualPath) => {
 export const decodeVfsVirtualPath = (encodedPath) => {
   const raw = String(encodedPath || '');
   if (!raw) return '';
-  return raw.split('/').map((part) => decodeURIComponent(part)).join('/');
+  const decodedParts = [];
+  for (const part of raw.split('/')) {
+    try {
+      decodedParts.push(decodeURIComponent(part));
+    } catch {
+      return null;
+    }
+  }
+  return decodedParts.join('/');
 };
 
 export const buildVfsUri = (virtualPath) => {

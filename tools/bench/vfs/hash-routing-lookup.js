@@ -3,8 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
-import { sha1 } from '../../../src/shared/hash.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+import { buildVfsVirtualPath, resolveVfsVirtualPath } from '../../../src/index/tooling/vfs.js';
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({
@@ -15,6 +15,7 @@ const cli = createCli({
     lookups: { type: 'number', default: 50000, describe: 'Lookup count' },
     samples: { type: 'number', default: 10, describe: 'Sample buckets for timing stats' },
     seed: { type: 'number', default: 1 },
+    missingDocHashRate: { type: 'number', default: 0, describe: 'Fraction of docs missing docHash (forces legacy-path fallback)' },
     input: { type: 'string', describe: 'JSON file with virtualPaths array' },
     json: { type: 'boolean', default: false },
     out: { type: 'string', describe: 'Write JSON results to a file' }
@@ -26,11 +27,17 @@ const docs = clampInt(argv.docs, 1, 20000);
 const lookups = clampInt(argv.lookups, 1, 50000);
 const samples = clampInt(argv.samples, 1, 10);
 const seed = Number.isFinite(argv.seed) ? Number(argv.seed) : 1;
+const missingDocHashRate = clampFloat(argv.missingDocHashRate, 0, 1, 0);
 const inputPath = argv.input ? path.resolve(String(argv.input)) : null;
 
-const { virtualPaths, docHashes, source } = loadVirtualPaths({ docs, seed, inputPath });
+const { virtualPaths, hashVirtualPaths, source, fallbacks, mismatches } = loadVirtualPaths({
+  docs,
+  seed,
+  inputPath,
+  missingDocHashRate
+});
 const lookupIndices = buildLookupIndices(lookups, virtualPaths.length, seed + 11);
-const hashToPath = new Map(docHashes.map((hash, idx) => [hash, virtualPaths[idx]]));
+const hashToPath = new Map(virtualPaths.map((virtualPath, idx) => [virtualPath, hashVirtualPaths[idx]]));
 
 const encodeBench = runSampled({
   iterations: lookups,
@@ -41,7 +48,7 @@ const encodeBench = runSampled({
 const hashBench = runSampled({
   iterations: lookups,
   samples,
-  fn: (i) => hashToPath.get(docHashes[lookupIndices[i]])
+  fn: (i) => hashToPath.get(virtualPaths[lookupIndices[i]])
 });
 
 const results = {
@@ -50,6 +57,9 @@ const results = {
   docs: virtualPaths.length,
   lookups,
   samples,
+  missingDocHashRate,
+  fallbacks,
+  validation: { mismatches },
   bench: {
     pathEncode: encodeBench,
     hashLookup: hashBench
@@ -75,6 +85,12 @@ function clampInt(value, min, fallback) {
   return Math.max(min, Math.floor(parsed));
 }
 
+function clampFloat(value, min, max, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 function createRng(seedValue) {
   let state = (seedValue >>> 0) || 1;
   return () => {
@@ -92,9 +108,13 @@ function buildLookupIndices(count, max, seedValue) {
   return indices;
 }
 
-function loadVirtualPaths({ docs: targetDocs, seed: seedValue, inputPath: input }) {
+function loadVirtualPaths({ docs: targetDocs, seed: seedValue, inputPath: input, missingDocHashRate: missingRate }) {
   let virtualPaths = null;
+  let hashVirtualPaths = null;
   let source = { type: 'generated' };
+  let fallbacks = { legacyPath: 0, missingDocHash: 0 };
+  let mismatches = 0;
+
   if (input) {
     if (!fs.existsSync(input)) {
       throw new Error(`Input not found: ${input}`);
@@ -112,25 +132,52 @@ function loadVirtualPaths({ docs: targetDocs, seed: seedValue, inputPath: input 
       throw new Error('Input file did not include virtualPaths.');
     }
     source = { type: 'input', inputPath: input };
+    hashVirtualPaths = new Array(virtualPaths.length);
+    for (let i = 0; i < virtualPaths.length; i += 1) {
+      const effectiveExt = path.extname(virtualPaths[i]) || '';
+      const docHash = formatDocHash(i);
+      hashVirtualPaths[i] = `.poc-vfs/by-hash/${docHash}${effectiveExt}`;
+    }
   }
+
   if (!virtualPaths) {
     const rng = createRng(seedValue);
     const exts = ['ts', 'js', 'py', 'go', 'rs'];
     virtualPaths = new Array(targetDocs);
+    hashVirtualPaths = new Array(targetDocs);
     for (let i = 0; i < targetDocs; i += 1) {
       const ext = exts[i % exts.length];
-      const lang = ext === 'ts' || ext === 'js' ? 'typescript' : ext;
       const dir = Math.floor(rng() * 500);
-      const segStart = Math.floor(rng() * 4000);
-      const segEnd = segStart + 100 + Math.floor(rng() * 400);
-      virtualPaths[i] = `.poc-vfs/${lang}/dir-${dir}/file-${i}.${ext}#${segStart}-${segEnd}`;
+      const containerPath = `src/dir-${dir}/file-${i}.${ext}`;
+      const segmentUid = `segu:v1:${i.toString(16)}`;
+      const effectiveExt = `.${ext}`;
+      const legacyVirtualPath = buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt });
+      const docHash = rng() < missingRate ? null : formatDocHash(i);
+      const resolved = resolveVfsVirtualPath({
+        containerPath,
+        segmentUid,
+        effectiveExt,
+        docHash,
+        hashRouting: true
+      });
+      if (!docHash) {
+        fallbacks.legacyPath += 1;
+        fallbacks.missingDocHash += 1;
+      } else {
+        const expected = `.poc-vfs/by-hash/${docHash}${effectiveExt}`;
+        if (resolved !== expected) mismatches += 1;
+      }
+      virtualPaths[i] = legacyVirtualPath;
+      hashVirtualPaths[i] = resolved;
     }
   }
+
   if (Number.isFinite(targetDocs) && virtualPaths.length > targetDocs) {
     virtualPaths = virtualPaths.slice(0, targetDocs);
+    hashVirtualPaths = hashVirtualPaths.slice(0, targetDocs);
   }
-  const docHashes = virtualPaths.map((entry) => sha1(entry));
-  return { virtualPaths, docHashes, source };
+
+  return { virtualPaths, hashVirtualPaths, source, fallbacks, mismatches };
 }
 
 function runSampled({ iterations, samples, fn }) {
@@ -159,4 +206,10 @@ function printBench(label, bench) {
   const stats = bench.stats ? formatStats(bench.stats) : 'n/a';
   const ops = Number.isFinite(bench.opsPerSec) ? bench.opsPerSec.toFixed(1) : 'n/a';
   console.error(`- ${label}: ${stats} | ops/sec ${ops}`);
+}
+
+function formatDocHash(index) {
+  const value = BigInt(index);
+  const hex = value.toString(16).padStart(16, '0');
+  return `xxh64:${hex}`;
 }
