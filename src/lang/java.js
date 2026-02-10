@@ -157,24 +157,38 @@ function stripJavaComments(text) {
     .replace(/\/\/.*$/gm, ' ');
 }
 
+function getLastDottedSegment(raw) {
+  if (!raw) return '';
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === '.') end -= 1;
+  if (!end) return '';
+  const idx = raw.lastIndexOf('.', end - 1);
+  return raw.slice(idx + 1, end);
+}
+
 function collectJavaCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
   const normalized = stripJavaComments(text).replace(/->/g, '.');
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split('.').filter(Boolean).pop();
+    const base = getLastDottedSegment(raw);
     if (!base || JAVA_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (JAVA_USAGE_SKIP.has(name)) continue;
     if (/^[A-Z0-9_]{2,}$/.test(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -185,6 +199,7 @@ function collectJavaCallsAndUsages(text) {
  * @returns {string[]}
  */
 export function collectJavaImports(text) {
+  if (!text || !text.includes('import ')) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -410,7 +425,9 @@ export function computeJavaFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_.]*)/g;
+    let match;
+    while ((match = throwRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }

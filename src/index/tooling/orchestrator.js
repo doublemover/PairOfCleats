@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 
@@ -306,7 +307,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       }
       if (cachePath && output) {
         try {
-          await fs.writeFile(cachePath, JSON.stringify(output, null, 2));
+          await atomicWriteJson(cachePath, output, { spaces: 2 });
         } catch {}
       }
     }

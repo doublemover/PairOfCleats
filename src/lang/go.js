@@ -143,23 +143,37 @@ function stripGoComments(text) {
     .replace(/\/\/.*$/gm, ' ');
 }
 
+function getLastDottedSegment(raw) {
+  if (!raw) return '';
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === '.') end -= 1;
+  if (!end) return '';
+  const idx = raw.lastIndexOf('.', end - 1);
+  return raw.slice(idx + 1, end);
+}
+
 function collectGoCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
   const normalized = stripGoComments(text);
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split('.').filter(Boolean).pop();
+    const base = getLastDottedSegment(raw);
     if (!base || GO_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (GO_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -171,6 +185,7 @@ function collectGoCallsAndUsages(text) {
  * @returns {string[]}
  */
 export function collectGoImports(text) {
+  if (!text || !text.includes('import')) return [];
   const imports = new Set();
   const lines = text.split('\n');
   let inBlock = false;
@@ -404,9 +419,8 @@ export function computeGoFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bpanic\s*\(/g)) {
-      if (match) throws.add('panic');
-    }
+    const panicRe = /\bpanic\s*\(/g;
+    if (panicRe.test(cleaned)) throws.add('panic');
     out.throws = Array.from(throws);
   }
 

@@ -1,29 +1,35 @@
 export const normalizeCallText = (value) => {
   if (value === null || value === undefined) return '';
-  return String(value).replace(/\s+/g, ' ').trim();
+  const raw = String(value);
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (!/\s/.test(trimmed)) return trimmed;
+  return trimmed.replace(/\s+/g, ' ');
 };
 
 export const truncateCallText = (value, maxLen) => {
   const normalized = normalizeCallText(value);
   if (!normalized) return '';
-  if (!Number.isFinite(Number(maxLen)) || maxLen <= 0 || normalized.length <= maxLen) {
+  const resolvedMax = Number(maxLen);
+  if (!Number.isFinite(resolvedMax) || resolvedMax <= 0 || normalized.length <= resolvedMax) {
     return normalized;
   }
-  return `${normalized.slice(0, Math.max(0, Number(maxLen) - 3))}...`;
+  return `${normalized.slice(0, Math.max(0, resolvedMax - 3))}...`;
 };
 
 export const resolveCalleeParts = (calleeName) => {
   if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
   const raw = String(calleeName);
-  const parts = raw.split('.').filter(Boolean);
-  if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
-  if (parts.length === 1) {
-    return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
+  const lastDot = raw.lastIndexOf('.');
+  if (lastDot <= 0 || lastDot === raw.length - 1) {
+    return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
   }
+  const calleeNormalized = raw.slice(lastDot + 1);
+  const receiver = raw.slice(0, lastDot);
   return {
     calleeRaw: raw,
-    calleeNormalized: parts[parts.length - 1],
-    receiver: parts.slice(0, -1).join('.')
+    calleeNormalized,
+    receiver
   };
 };
 

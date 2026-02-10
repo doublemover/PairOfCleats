@@ -154,18 +154,27 @@ function collectPhpCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
   const normalized = stripPhpComments(text);
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_\\]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_\\]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split('\\').filter(Boolean).pop();
+    let end = raw.length;
+    while (end > 0 && raw[end - 1] === '\\') end -= 1;
+    if (!end) continue;
+    const sepIdx = raw.lastIndexOf('\\', end - 1);
+    const base = sepIdx === -1 ? raw.slice(0, end) : raw.slice(sepIdx + 1, end);
     if (!base || PHP_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\$([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || PHP_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -182,6 +191,7 @@ function extractVisibility(modifiers) {
  * @returns {string[]}
  */
 export function collectPhpImports(text) {
+  if (!text || !text.includes('use ')) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -423,7 +433,9 @@ export function computePhpFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_\\\\]*)/g)) {
+    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_\\\\]*)/g;
+    let match;
+    while ((match = throwRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }

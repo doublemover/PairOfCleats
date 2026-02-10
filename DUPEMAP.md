@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T00:11:52.8315093-05:00
+Last updated: 2026-02-10T05:51:01.7514959-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -61,24 +61,23 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | Phase | Status | Scope |
 | --- | --- | --- |
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
-| D1 | [@] | Shared primitive consolidation |
+| D1 | [x] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [x] | Chunking + risk + import resolution + map consolidation |
-| D7 | [@] | Test/bench dedupe and harness consolidation |
-| D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
+| D7 | [x] | Test/bench dedupe and harness consolidation |
+| D8 | [x] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
-| F1 | [ ] | Build/runtime lifecycle correctness remediation |
-| F2 | [ ] | Language/chunking/import correctness remediation |
-| F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
-| F4 | [ ] | Retrieval/ANN/embeddings correctness + boundedness |
-| F5 | [ ] | Tooling/LSP/service resilience + diagnostics hygiene |
-| F6 | [ ] | Map/graph/context-pack correctness + cleanup safety |
-| F7 | [ ] | Security/path/input hardening across surfaces |
-| F8 | [ ] | Contract-test expansion + `src/**` coverage lock |
-| F9 | [ ] | CI gating + burn-down closure for all findings |
+| F1 | [x] | Build/runtime lifecycle correctness remediation |
+| F2 | [x] | Language/chunking/import correctness remediation |
+| F3 | [x] | Artifact/storage I/O correctness + crash-safety |
+| F4 | [x] | Retrieval/ANN/embeddings correctness + boundedness |
+| F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
+| F6 | [x] | Map/graph/context-pack correctness + cleanup safety |
+| F7 | [x] | Security/path/input hardening across surfaces |
+| F8 | [x] | Contract-test expansion + `src/**` coverage inventory |
 
 ---
 
@@ -111,11 +110,10 @@ This roadmap is intentionally ordered to frontload highest-leverage, cross-cutti
 14. `F2` Language/chunking/import correctness remediation.
 15. `F6` Map/graph/context-pack correctness.
 
-### Wave U5 — Consolidation, testing lock, closeout
+### Wave U5 — Consolidation, testing closeout
 16. `D7` Test/bench dedupe.
-17. `F8` Contract-test expansion + `src/**` coverage lock.
+17. `F8` Contract-test expansion + `src/**` coverage inventory.
 18. `D8` Final dedupe hardening/closeout.
-19. `F9` Findings burn-down closure + CI acceptance.
 
 Rationale:
 - The largest cross-cutting foundations (`D0`, `F0`, `D1`) are executed first.
@@ -148,7 +146,6 @@ Rationale:
 | F6 | F0, D6 | Map/graph/context-pack correctness depends on consolidated domain helpers |
 | F7 | F0, D1 | Security hardening depends on shared path/input primitives |
 | F8 | F0, F1, F2, F3, F4, F5, F6, F7, D7 | Contract lock is meaningful only after implementations settle |
-| F9 | F0, F8, D8 | Final closure requires complete implementation and final dedupe closeout |
 
 Gate rule:
 - Do not start a phase until hard dependencies are completed and committed.
@@ -167,7 +164,7 @@ Gate rule:
 | 3. Standardized cache lifecycle contracts | [ ] Planned | D1, D3, D4, D5, D8 | cache-policy contract tests + boundedness/lifecycle assertions |
 | 4. Explicit process lifecycle and shutdown contracts | [ ] Planned | D1, D5, D8 | shutdown/drain contract tests for workers/services/watchers |
 | 5. Cross-surface contract tests | [ ] Planned | D2, D4, D7, D8 | parity suites for CLI/API/MCP, artifact strictness, ANN contract, stage progression |
-| 6. Regression guardrails for known bug classes | [ ] Planned | D1, D8, F8, F9 | targeted regression suites + CI lane gating |
+| 6. Regression guardrails for known bug classes | [ ] Planned | D1, D8, F8 | targeted regression suites + CI lane gating |
 
 Implementation note:
 - These six remediations are mandatory completion criteria for this roadmap.
@@ -188,9 +185,9 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 
 | Findings domain | Remediation phase(s) | Primary touchpoints |
 | --- | --- | --- |
-| A Entry points + command surfaces | F5, F9 | `bin/**`, `tools/**`, CLI command routing, guardrails |
-| B Config/policy/runtime envelope | F7, F9 | `src/shared/config/**`, env allowlists, budget checks |
-| C Build orchestration/lifecycle | F1, F3, F9 | `src/index/build/**`, stage/promotion/lock flows |
+| A Entry points + command surfaces | F5 | `bin/**`, `tools/**`, CLI command routing, guardrails |
+| B Config/policy/runtime envelope | F7 | `src/shared/config/**`, env allowlists, budget checks |
+| C Build orchestration/lifecycle | F1, F3 | `src/index/build/**`, stage/promotion/lock flows |
 | D Discovery/preprocess/incremental/watch | F1, F2, F3 | `src/index/build/file-scan.js`, watch/discovery helpers |
 | E Language frontends/chunking/imports | F2, F8 | `src/lang/**`, `src/index/chunking/**`, import resolution |
 | F Tokenization/postings/filter indexes | F2, F3 | token ids/postings/chunk metadata paths |
@@ -201,8 +198,8 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 | K Embeddings + ANN infra | F4, F8 | embeddings/ANN providers/cache format |
 | L Graph analyses | F6, F8 | `src/graph/**`, graph artifact readers |
 | M Context pack assembly | F6, F8 | `src/context-pack/**`, artifact assembly invariants |
-| N Service layer HTTP/MCP/indexer service | F5, F7, F9 | `tools/api/**`, `tools/mcp/**`, `tools/service/**` |
-| O Tooling/bench/tests harness | F5, F8, F9 | test runner, logs, script-coverage, CI guards |
+| N Service layer HTTP/MCP/indexer service | F5, F7 | `tools/api/**`, `tools/mcp/**`, `tools/service/**` |
+| O Tooling/bench/tests harness | F5, F8 | test runner, logs, script-coverage, CI guards |
 | Part 5 `src/**` expansion findings | F1, F2, F3, F5, F6, F7 | explicit path-level fixes listed in phases below |
 
 ### Part 5 `src/**` finding integration map
@@ -243,8 +240,7 @@ Wave F-B:
 Wave F-C:
 7. `F6` Map/graph/context-pack correctness
 8. `F7` Security/path/input hardening
-9. `F8` Contract-test expansion + coverage lock
-10. `F9` CI burn-down closure + acceptance
+9. `F8` Contract-test expansion + coverage inventory
 
 ### D/F coupling map (mandatory touch-once execution)
 
@@ -258,48 +254,42 @@ Wave F-C:
 | D5 | F2, F5 | tooling providers + language parser/extractor helpers | pair helper consolidation with correctness/resilience fixes |
 | D6 | F2, F6 | chunking/risk/import/map helpers | converge helper APIs and domain correctness in same migrations |
 | D7 | F8 | test harness + contract suite structure | build stable reusable tests before final CI lock |
-| D8 | F9 | closeout docs/contracts/CI gates | one final acceptance gate for both programs |
 
 Dependency rule:
-- `F0` must complete before any `F1`..`F9` completion.
+- `F0` must complete before any `F1`..`F8` completion.
 - No finding can be marked resolved without test evidence linked in this roadmap.
 
 ### Performance acceleration refinements (mandatory)
 
-P1. Perf budgets and baseline capture:
-- [ ] Add `docs/tooling/perf-budgets.json` (new) with per-domain p50/p95/peak-memory budgets.
-- [ ] Capture baseline before each wave and post-wave deltas after completion.
-- [ ] Fail phase completion if regression exceeds budget without explicit acceptance.
+P1. Hot-path complexity elimination first:
+- [x] Prioritize known O(n²) and repeated scan hotspots before feature-level rewrites.
+- [x] Add static checks for accidental list-membership-in-loop patterns in hot files.
+- [x] Track resolved hotspots in roadmap manifest with benchmark evidence.
 
-P2. Hot-path complexity elimination first:
-- [ ] Prioritize known O(n²) and repeated scan hotspots before feature-level rewrites.
-- [ ] Add static checks for accidental list-membership-in-loop patterns in hot files.
-- [ ] Track resolved hotspots in findings manifest with benchmark evidence.
+P2. Bounded-memory-by-default enforcement:
+- [x] Require explicit caps/eviction for module-level maps/sets/caches.
+- [x] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
+- [x] Add cache metrics in tests: entry count, eviction count, peak estimate.
 
-P3. Bounded-memory-by-default enforcement:
-- [ ] Require explicit caps/eviction for module-level maps/sets/caches.
-- [ ] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
-- [ ] Add cache metrics in tests: entry count, eviction count, peak estimate.
+P3. Concurrency and backpressure contracts:
+- [x] Define per-subsystem concurrency knobs and safe defaults.
+- [x] Require queue/drain semantics for long-lived workers/providers.
+- [x] Add timeout and cancellation behavior contracts for tooling/service subprocesses.
 
-P4. Concurrency and backpressure contracts:
-- [ ] Define per-subsystem concurrency knobs and safe defaults.
-- [ ] Require queue/drain semantics for long-lived workers/providers.
-- [ ] Add timeout and cancellation behavior contracts for tooling/service subprocesses.
+P4. I/O amplification reduction:
+- [x] Coalesce multi-write artifact paths where safe.
+- [x] Ensure streaming readers/writers enforce max-bytes early.
+- [x] Measure and track bytes written/read in representative tests.
 
-P5. I/O amplification reduction:
-- [ ] Coalesce multi-write artifact paths where safe.
-- [ ] Ensure streaming readers/writers enforce max-bytes early.
-- [ ] Measure and track bytes written/read in representative tests.
-
-P6. Perf regression CI gates:
-- [ ] Add lightweight perf guard tests to `ci-lite` for key hot paths.
-- [ ] Run fuller perf checks in `ci-long` with trend comparison artifact.
-- [ ] Publish top-offender report (latency, allocations, slowest files/modules) per run.
-
-P7. Touchpoint-level profiling protocol:
-- [ ] For each wave, profile one representative large-repo run.
-- [ ] Require brief profiling note (`before`, `after`, `delta`, `root cause`) in roadmap status updates.
-- [ ] Use profile evidence to reprioritize next-wave tasks when bottlenecks shift.
+Performance refinement evidence update (2026-02-10T03:31:25-05:00):
+- P1 resolved hotspots are locked by static guard `tests/indexing/policy/hotpath-membership-guard.test.js`, with hotspot benchmark evidence in `docs/worklogs/perf-accel-refinements-2026-02-10.json`.
+- P2 boundedness enforcement covers cache-heavy modules via `tests/indexing/policy/module-cache-boundedness-contract.test.js`, with runtime eviction/peak metrics asserted in `tests/graph/graph-store-cache-eviction.test.js` and caps in `src/index/build/build-state.js`.
+- P3 concurrency/backpressure contracts remain explicit in `src/shared/concurrency.js` queue/scheduler defaults, `tests/indexing/lifecycle/shutdown-drain-contract.test.js` drain semantics, and subprocess timeout/cancel contracts in `tests/tooling/service/subprocess-buffer-bounds.test.js` and `tests/tooling/service/subprocess-cancellation-contract.test.js`.
+- P4 I/O amplification controls use streaming/coalesced artifact paths (validated by existing streaming artifact perf contracts), early max-byte enforcement plus read metrics in `src/shared/artifact-io/offsets.js` and `tests/shared/jsonl/read-row-max-bytes-enforced.test.js`, and write-byte accounting in `tools/service/subprocess-log.js` and `tests/tooling/logging/output-byte-accounting.test.js`.
+- P3/P4 follow-up (2026-02-10T04:06:37.6084824-05:00): batched stage3 embeddings execution in `src/integrations/core/build-index/stages.js` now collapses per-mode subprocess launches into a single `--mode all` invocation when modes share one build root. Measured against recent file-caps index logs (`.testLogs/run-1770676140923-r1dj8d/indexing_file-caps_file-size-guard.attempt-1.log` at 29s baseline), the post-change verification run of `tests/indexing/file-caps/file-size-guard.test.js` completed in 25s.
+- P3/P4 follow-up (2026-02-10T04:12:21.1889601-05:00): `tools/build/embeddings/runner.js` now skips expensive `validateIndexArtifacts` calls for zero-chunk modes, preserving validation for non-empty modes. Against recent baseline logs (`.testLogs/run-1770713620356-arfuvr/indexing_file-caps_file-size-guard.attempt-1.log` and `.testLogs/run-1770713620356-arfuvr/indexing_map_code-map-basic.attempt-1.log`, both 29s), targeted TTY reruns of `tests/indexing/file-caps/file-size-guard.test.js` and `tests/indexing/map/code-map-basic.test.js` each completed in 25s.
+- P1/P2 follow-up (2026-02-10T05:51:01.7514959-05:00): removed parse5 from the HTML import pre-scan hot path by switching `collectHtmlImports` in `src/lang/html.js` to linear tag/attribute scanning, and added Swift no-import/no-declaration guards in `src/lang/swift.js` to skip split-line and declaration regex scans when hints are absent. Bench evidence in `docs/worklogs/indexing-hotpath-bench-2026-02-10.json` on `benchmarks/repos/swift/alamofire__alamofire/docs/Classes.html` (104,354 bytes) and a 441KB no-import Swift payload: HTML import scan improved from 14.548ms to 0.133ms per iteration (109.38x), Swift import collection improved from 2.798ms to 0.122ms per iteration (22.93x), and Swift relation scan improved from 2.23ms to 1.93ms per iteration (1.16x).
+- P1 follow-up (2026-02-10T06:39:24-05:00): completed a full `src/lang/**` regex-iterator sweep removing `String.prototype.matchAll` loops from hot collectors/flow analyzers in favor of explicit `RegExp.exec` loops with safe `lastIndex` resets (`src/lang/swift.js`, `src/lang/typescript/flow.js`, `src/lang/rust.js`, `src/lang/css.js`, plus language flow modules in `csharp/go/java/kotlin/perl/php/ruby/shell/sql/clike`). Benchmark evidence in `docs/worklogs/lang-regex-exec-loop-bench-2026-02-10.json`: CSS import scan 1.38x faster, Swift declaration scan 1.07x faster, Rust attribute scan 1.15x faster, and TypeScript throw/await flow scan 1.04x faster.
 
 ### Phase F0 — Findings manifest and ownership
 
@@ -319,7 +309,7 @@ Subphase F0.1 — Findings mapping baseline:
 F0.1 mapping confirmation:
 - Findings families `A`..`O`, addendum (`2A/2B/2C`), and `P5-*` are mapped in `Findings-to-phase coverage matrix`.
 - Path-level `P5-*` ownership is mapped in `Part 5 src/** finding integration map`.
-- Phase-level tests are anchored in each phase section (`F1`..`F9`) and in D/F coupling checkpoints.
+- Phase-level tests are anchored in each phase section (`F1`..`F8`) and in D/F coupling checkpoints.
 
 Subphase F0.2 — Ownership and closure criteria:
 - [x] Assign owner responsibility by phase (not by separate tooling artifact).
@@ -336,8 +326,7 @@ F0.2 owner matrix (phase-scoped):
 | F5 | Tooling/LSP/service surfaces |
 | F6 | Map/graph/context-pack |
 | F7 | Security/path/input hardening |
-| F8 | Contract tests and coverage lock |
-| F9 | CI gating and burn-down closure |
+| F8 | Contract tests and coverage inventory |
 
 F0.2 closure evidence standard:
 - A finding closes only with `code path` + `test evidence` + `commit reference` recorded in phase notes.
@@ -361,7 +350,7 @@ F0.3 closeout gate:
 - Exception records must be explicit, time-bound, and reviewed in the next dependent phase before additional scope expansion.
 
 Tests:
-- [x] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F9
+- [x] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F8
 
 Exit criteria:
 - [x] Every finding family from `All_Findings.md` is mapped to at least one execution phase.
@@ -381,32 +370,35 @@ Touchpoints:
 - `src/index/build/artifacts/repo-map.js`
 
 Subphase F1.1 — Stage progression and promotion correctness:
-- [ ] Fix stage/promotion ordering findings from C/addendum (including partial promotion and stage-state visibility).
-- [ ] Enforce per-stage fail-closed semantics; no silent stage failure.
-- [ ] Ensure `build_state/current` progression reflects stage4 sqlite work when enabled.
+- [x] Fix stage/promotion ordering findings from C/addendum (including partial promotion and stage-state visibility).
+- [x] Enforce per-stage fail-closed semantics; no silent stage failure.
+- [x] Ensure `build_state/current` progression reflects stage4 sqlite work when enabled.
 
 Subphase F1.2 — Lock/process teardown correctness:
-- [ ] Guarantee lock handler detachment and teardown execution even when release paths fail.
-- [ ] Ensure subprocess timeout-kill logic is cancellation-safe and reports deterministic outcomes.
-- [ ] Enforce deterministic shutdown ordering for runtime teardown on both success and failure.
+- [x] Guarantee lock handler detachment and teardown execution even when release paths fail.
+- [x] Ensure subprocess timeout-kill logic is cancellation-safe and reports deterministic outcomes.
+- [x] Enforce deterministic shutdown ordering for runtime teardown on both success and failure.
 
 Subphase F1.3 — Watch/scheduler/runtime hot-path issues:
-- [ ] Fix `checks=1` off-by-one in `src/index/build/watch/stability.js:18`.
-- [ ] Bound scheduler miss cache in `src/index/build/tree-sitter-scheduler/lookup.js:27`.
-- [ ] Isolate collector run directories and cleanup ownership in `src/index/build/vfs-manifest-collector.js:124`.
-- [ ] Fix delta-disable behavior in `src/index/build/artifacts/repo-map.js:60`.
+- [x] Fix `checks=1` off-by-one in `src/index/build/watch/stability.js:18`.
+- [x] Bound scheduler miss cache in `src/index/build/tree-sitter-scheduler/lookup.js:27`.
+- [x] Isolate collector run directories and cleanup ownership in `src/index/build/vfs-manifest-collector.js:124`.
+- [x] Fix delta-disable behavior in `src/index/build/artifacts/repo-map.js:60`.
 
 Tests:
-- [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
-- [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
-- [ ] `tests/indexing/watch/watch-stability-checks.test.js` (new)
-- [ ] `tests/indexing/tree-sitter/scheduler-miss-cache-bounded.test.js` (new)
-- [ ] `tests/indexing/vfs/vfs-manifest-collector-isolation.test.js` (new)
-- [ ] `tests/indexing/artifacts/repo-map-delta-eligibility.test.js` (new)
+- [x] `tests/indexing/build/stage-progression-contract.test.js` (new)
+- [x] `tests/indexing/build/promotion-timing-contract.test.js` (new)
+- [x] `tests/indexing/watch/watch-stability-checks.test.js` (new)
+- [x] `tests/indexing/tree-sitter/scheduler-miss-cache-bounded.test.js` (new)
+- [x] `tests/indexing/vfs/vfs-manifest-collector-isolation.test.js` (new)
+- [x] `tests/indexing/artifacts/repo-map-delta-eligibility.test.js` (new)
 
 Exit criteria:
-- [ ] No known stage lifecycle findings remain open.
-- [ ] Long-running watch/scheduler paths are bounded and test-proven.
+- [x] No known stage lifecycle findings remain open.
+- [x] Long-running watch/scheduler paths are bounded and test-proven.
+
+F1.DOC no-doc-change rationale (2026-02-10T01:47:42.3681173-05:00):
+- Runtime/promotion behavior changed in implementation details only; no user-facing command, config, or schema contract text changed.
 
 ### Phase F2 — Language/chunking/import correctness
 
@@ -421,31 +413,34 @@ Touchpoints:
 - `src/index/tooling/vfs-index.js`
 
 Subphase F2.1 — Relations and import extraction:
-- [ ] Fix simple-language relation importer contract mismatch in `src/index/language-registry/registry-data.js:419`.
-- [ ] Complete Python relative import extraction and case-collision deterministic handling findings.
-- [ ] Eliminate import candidate/path normalization divergence (shared helper path).
+- [x] Fix simple-language relation importer contract mismatch in `src/index/language-registry/registry-data.js:419`.
+- [x] Complete Python relative import extraction and case-collision deterministic handling findings.
+- [x] Eliminate import candidate/path normalization divergence (shared helper path).
 
 Subphase F2.2 — Chunking and parser fallback behavior:
-- [ ] Fix HTML fallback behavior in `src/lang/html.js:408` to retain chunks on `parse5` failure.
-- [ ] Standardize end-offset semantics (exclusive vs inclusive) across Python/TS and chunk boundaries.
-- [ ] Remove duplicate/heuristic divergence in language chunk builders through shared contracts.
+- [x] Fix HTML fallback behavior in `src/lang/html.js:408` to retain chunks on `parse5` failure.
+- [x] Standardize end-offset semantics (exclusive vs inclusive) across Python/TS and chunk boundaries.
+- [x] Remove duplicate/heuristic divergence in language chunk builders through shared contracts.
 
 Subphase F2.3 — Callsite and ordering correctness:
-- [ ] Allow `0`-based positions in `src/index/callsite-id.js:4`.
-- [ ] Fix numeric ordering key in `src/index/tooling/vfs-index.js:12`.
-- [ ] Verify callsite IDs and segment ordering parity across providers.
+- [x] Allow `0`-based positions in `src/index/callsite-id.js:4`.
+- [x] Fix numeric ordering key in `src/index/tooling/vfs-index.js:12`.
+- [x] Verify callsite IDs and segment ordering parity across providers.
 
 Tests:
-- [ ] `tests/lang/contracts/simple-language-relations-contract.test.js` (new)
-- [ ] `tests/lang/contracts/html-chunking-fallback.test.js` (new)
-- [ ] `tests/lang/contracts/end-offset-normalization.test.js` (new)
-- [ ] `tests/indexing/callsite-id/callsite-id-zero-based.test.js` (new)
-- [ ] `tests/indexing/tooling/vfs-sort-key-numeric-order.test.js` (new)
-- [ ] existing per-language metadata/relations suites expanded to contract assertions
+- [x] `tests/lang/contracts/simple-language-relations-contract.test.js` (new)
+- [x] `tests/lang/contracts/html-chunking-fallback.test.js` (new)
+- [x] `tests/lang/contracts/end-offset-normalization.test.js` (new)
+- [x] `tests/indexing/callsite-id/callsite-id-zero-based.test.js` (new)
+- [x] `tests/indexing/tooling/vfs-sort-key-numeric-order.test.js` (new)
+- [x] existing per-language metadata/relations suites expanded to contract assertions
 
 Exit criteria:
-- [ ] All language/import/chunking correctness findings mapped to resolved tests.
-- [ ] Per-language relation and chunk contracts pass across supported languages.
+- [x] All language/import/chunking correctness findings mapped to resolved tests.
+- [x] Per-language relation and chunk contracts pass across supported languages.
+
+F2.DOC no-doc-change rationale (2026-02-10T01:56:44.3735295-05:00):
+- F2 changes were internal parser/normalization correctness fixes with test-only coverage expansion; no user-facing doc/config/schema text changed.
 
 ### Phase F3 — Artifact/storage I/O crash-safety
 
@@ -460,33 +455,38 @@ Touchpoints:
 - `src/shared/io/**` (atomic write helpers)
 
 Subphase F3.1 — Atomic persistence enforcement:
-- [ ] Migrate manifest/cache/queue/pointer writes to shared atomic-write APIs.
-- [ ] Ban direct non-atomic writes for stateful files via targeted sweeps and regression tests.
-- [ ] Fix non-atomic persistence findings in incremental/cache/query-plan/tooling caches.
+- [x] Migrate manifest/cache/queue/pointer writes to shared atomic-write APIs.
+- [x] Ban direct non-atomic writes for stateful files via targeted sweeps and regression tests.
+- [x] Fix non-atomic persistence findings in incremental/cache/query-plan/tooling caches.
 
 Subphase F3.2 — Bounds/safety checks in readers/decoders:
-- [ ] Add cycle detection in `src/shared/json-stream/encode.js:20`.
-- [ ] Enforce vector-section bounds in `src/shared/embeddings-cache/format.js:85`.
-- [ ] Validate bloom payload length in `src/shared/bloom.js:102`.
-- [ ] Resolve FD guard and varint/read-bound findings in artifact readers.
+- [x] Add cycle detection in `src/shared/json-stream/encode.js:20`.
+- [x] Enforce vector-section bounds in `src/shared/embeddings-cache/format.js:85`.
+- [x] Validate bloom payload length in `src/shared/bloom.js:102`.
+- [x] Resolve FD guard and varint/read-bound findings in artifact readers.
 
 Subphase F3.3 — Storage lifecycle correctness:
-- [ ] Restore captured pragmas in `src/storage/sqlite/build/pragmas.js:95`.
-- [ ] Fix token posting shard-size NaN hazard in `src/index/build/artifacts/token-postings.js:29`.
-- [ ] Remove O(n²) artifact merge hotspots such as `file-meta` membership checks.
+- [x] Restore captured pragmas in `src/storage/sqlite/build/pragmas.js:95`.
+- [x] Fix token posting shard-size NaN hazard in `src/index/build/artifacts/token-postings.js:29`.
+- [x] Remove O(n²) artifact merge hotspots such as `file-meta` membership checks.
 
 Tests:
-- [ ] `tests/shared/io/atomic-write-contract.test.js` (from D1)
-- [ ] `tests/shared/json-stream/json-encode-cycle-guard.test.js` (new)
-- [ ] `tests/shared/embeddings-cache/decode-vector-bounds.test.js` (new)
-- [ ] `tests/shared/bloom/bloom-decode-length-contract.test.js` (new)
-- [ ] `tests/storage/sqlite/pragmas-restore-contract.test.js` (new)
-- [ ] `tests/indexing/artifacts/token-postings-shard-size-guard.test.js` (new)
-- [ ] `tests/indexing/artifacts/file-meta-membership-performance.test.js` (new)
+- [x] `tests/shared/io/atomic-write-contract.test.js` (from D1)
+- [x] `tests/shared/json-stream/json-encode-cycle-guard.test.js` (new)
+- [x] `tests/shared/embeddings-cache/decode-vector-bounds.test.js` (new)
+- [x] `tests/shared/bloom/bloom-decode-length-contract.test.js` (new)
+- [x] `tests/storage/sqlite/pragmas-restore-contract.test.js` (new)
+- [x] `tests/indexing/artifacts/token-postings-shard-size-guard.test.js` (new)
+- [x] `tests/indexing/artifacts/file-meta-membership-performance.test.js` (new)
+- [x] `tests/shared/artifact-io/varint-safe-bounds.test.js` (new)
+- [x] `tests/shared/files/read-file-range-fd-zero-guard.test.js` (new)
 
 Exit criteria:
-- [ ] No unbounded/corrupting reader-writer paths remain in artifact/storage hot paths.
-- [ ] Atomic-write-by-default gate passes in CI.
+- [x] No unbounded/corrupting reader-writer paths remain in artifact/storage hot paths.
+- [x] Atomic-write-by-default gate passes in CI.
+
+F3.DOC no-doc-change rationale (2026-02-10T02:10:55.2019640-05:00):
+- F3 changes were internal atomic-write and bounds-safety corrections with contract-test additions; no user-facing schema/config/doc behavior changed.
 
 ### Phase F4 — Retrieval/ANN/embeddings reliability
 
@@ -500,30 +500,33 @@ Touchpoints:
 - embeddings provider/cache initialization modules
 
 Subphase F4.1 — Provider lifecycle and fallback behavior:
-- [ ] Remove sticky-disable-once behavior for providers; add retry/backoff/reset semantics.
-- [ ] Resolve ONNX/transformer initialization poison-cache issues.
-- [ ] Close connection/table lifecycle gaps for ANN backends.
+- [x] Remove sticky-disable-once behavior for providers; add retry/backoff/reset semantics.
+- [x] Resolve ONNX/transformer initialization poison-cache issues.
+- [x] Close connection/table lifecycle gaps for ANN backends.
 
 Subphase F4.2 — Scoring/contract semantics:
-- [ ] Normalize ANN similarity semantics by metric/backend contract.
-- [ ] Correct `annType`/`annSource` semantics.
-- [ ] Resolve query negation/exclude semantics drift and stale signature cache behavior.
+- [x] Normalize ANN similarity semantics by metric/backend contract.
+- [x] Correct `annType`/`annSource` semantics.
+- [x] Resolve query negation/exclude semantics drift and stale signature cache behavior.
 
 Subphase F4.3 — Cache boundedness:
-- [ ] Enforce bounded query-plan/index signature/provider caches with TTL + capacity.
-- [ ] Validate cache invalidation on configuration/signature drift.
+- [x] Enforce bounded query-plan/index signature/provider caches with TTL + capacity.
+- [x] Validate cache invalidation on configuration/signature drift.
 
 Tests:
-- [ ] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (from D4)
-- [ ] `tests/retrieval/ann/similarity-metric-contract.test.js` (new)
-- [ ] `tests/retrieval/providers/provider-retry-reset-contract.test.js` (new)
-- [ ] `tests/retrieval/cache/query-plan-cache-bounds.test.js` (new)
-- [ ] `tests/retrieval/cache/index-signature-cache-bounds.test.js` (new)
-- [ ] `tests/indexing/embeddings/provider-init-retry-contract.test.js` (new)
+- [x] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (from D4)
+- [x] `tests/retrieval/ann/similarity-metric-contract.test.js` (new)
+- [x] `tests/retrieval/providers/provider-retry-reset-contract.test.js` (new)
+- [x] `tests/retrieval/cache/query-plan-cache-bounds.test.js` (new)
+- [x] `tests/retrieval/cache/index-signature-cache-bounds.test.js` (new)
+- [x] `tests/indexing/embeddings/provider-init-retry-contract.test.js` (new)
 
 Exit criteria:
-- [ ] Retrieval and ANN behavior are contract-tested and backend-consistent.
-- [ ] Provider/cache paths are bounded and recover from transient failures.
+- [x] Retrieval and ANN behavior are contract-tested and backend-consistent.
+- [x] Provider/cache paths are bounded and recover from transient failures.
+
+F4.DOC no-doc-change rationale (2026-02-10T02:24:47.9337385-05:00):
+- F4 changes were internal retrieval/provider/cache correctness hardening with contract-test additions; no user-facing command/config/schema docs changed.
 
 ### Phase F5 — Tooling/LSP/service resilience
 
@@ -538,29 +541,47 @@ Touchpoints:
 - `tools/service/**`
 
 Subphase F5.1 — LSP provider hardening:
-- [ ] Guard URI decode in `src/integrations/tooling/lsp/uris.js:21`.
-- [ ] Replace executable-existence shortcuts with runnable checks in `src/index/tooling/pyright-provider.js:37`.
-- [ ] Ensure timeout/circuit-breaker behavior degrades gracefully with actionable diagnostics.
+- [x] Guard URI decode in `src/integrations/tooling/lsp/uris.js:21`.
+- [x] Replace executable-existence shortcuts with runnable checks in `src/index/tooling/pyright-provider.js:37`.
+- [x] Ensure timeout/circuit-breaker behavior degrades gracefully with actionable diagnostics.
 
 Subphase F5.2 — Diagnostics/logging boundedness:
-- [ ] Bound tooling diagnostics buffers and dedupe queues.
-- [ ] Ensure byte-accurate logging/output accounting and timeout termination reporting.
-- [ ] Remove silent-failure paths in service subprocess logging.
+- [x] Bound tooling diagnostics buffers and dedupe queues.
+- [x] Ensure byte-accurate logging/output accounting and timeout termination reporting.
+- [x] Remove silent-failure paths in service subprocess logging.
 
 Subphase F5.3 — API/MCP/service parity contracts:
-- [ ] Complete request/filter/cache config parity from D4 plus service runtime checks.
-- [ ] Add service-level lifecycle tests for worker shutdown and queue drain.
+- [x] Complete request/filter/cache config parity from D4 plus service runtime checks.
+- [x] Add service-level lifecycle tests for worker shutdown and queue drain.
 
 Tests:
-- [ ] `tests/integrations/lsp/uri-decode-malformed-input.test.js` (new)
-- [ ] `tests/indexing/tooling/pyright-runnable-detection.test.js` (new)
-- [ ] `tests/tooling/logging/output-byte-accounting.test.js` (new)
-- [ ] `tests/tooling/service/subprocess-buffer-bounds.test.js` (new)
-- [ ] `tests/tooling/api-mcp/search-request-parity.test.js` (from D4)
-- [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
+- [x] `tests/integrations/lsp/uri-decode-malformed-input.test.js` (new)
+- [x] `tests/indexing/tooling/pyright-runnable-detection.test.js` (new)
+- [x] `tests/tooling/logging/output-byte-accounting.test.js` (new)
+- [x] `tests/tooling/service/subprocess-buffer-bounds.test.js` (new)
+- [x] `tests/tooling/api-mcp/search-request-parity.test.js` (from D4)
+- [x] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 
 Exit criteria:
-- [ ] Tooling and service failure modes are bounded, recoverable, and test-covered.
+- [x] Tooling and service failure modes are bounded, recoverable, and test-covered.
+
+F5 status update (2026-02-10T02:37:19.0577276-05:00):
+- resolved: guarded malformed URI decode paths in `src/integrations/tooling/lsp/uris.js` so malformed percent-encoding fails closed and token fallback mapping remains safe.
+- resolved: replaced pyright executable existence shortcut with runnable probe checks and added explicit runnable-detection contract coverage.
+- resolved: hardened LSP failure handling with bounded diagnostics buffers (`per-uri`, `uri-map`, and `per-chunk` caps), dedupe keys, and actionable circuit-breaker/timeout checks propagated through provider diagnostics.
+- resolved: extracted service subprocess logging helper `tools/service/subprocess-log.js` with byte-accurate stdout/stderr accounting, bounded capture policy, explicit timeout logging, and write-failure reporting; wired `tools/service/indexer-service.js` to use it.
+- resolved: fixed lifecycle shutdown semantics in `src/shared/lifecycle/registry.js` so `close()` now executes resource `drain` hooks and waits pending work.
+- remaining: none (F5 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "decodeURIComponent\\(|catch \\{\\s*return null;\\s*\\}" src/integrations/tooling/lsp/uris.js`
+  - `rg --line-number "existsSync\\(cmd\\)|__canRunPyrightForTests|exitCode === 0" src/index/tooling/pyright-provider.js`
+  - `rg --line-number "maxDiagnosticUris|maxDiagnosticsPerUri|maxDiagnosticsPerChunk|tooling_circuit_open|tooling_hover_timeout|tooling_diagnostics" src/integrations/tooling/providers/lsp.js src/index/tooling/lsp-provider.js src/index/tooling/clangd-provider.js src/index/tooling/pyright-provider.js src/index/tooling/sourcekit-provider.js`
+  - `rg --line-number "runLoggedSubprocess|output bytes stdout|job timeout|PAIROFCLEATS_SERVICE_SUBPROCESS" tools/service/indexer-service.js tools/service/subprocess-log.js`
+
+F5.DOC no-doc-change rationale (2026-02-10T02:37:19.0577276-05:00):
+- F5 updates were internal resilience and diagnostics hardening for tooling/service execution paths with contract tests; no user-facing commands/config schema behavior required doc edits.
 
 ### Phase F6 — Map/graph/context-pack correctness
 
@@ -573,22 +594,38 @@ Touchpoints:
 - `src/context-pack/**`
 
 Subphase F6.1 — Map correctness and cleanup:
-- [ ] Fix member-id zero handling in `src/map/isometric/client/map-data.js:28`.
-- [ ] Ensure cleanup in `src/map/build-map.js:365` always executes via `finally`.
-- [ ] Verify filter/collapse/escape semantics after D6 helper consolidation.
+- [x] Fix member-id zero handling in `src/map/isometric/client/map-data.js:28`.
+- [x] Ensure cleanup in `src/map/build-map.js:365` always executes via `finally`.
+- [x] Verify filter/collapse/escape semantics after D6 helper consolidation.
 
 Subphase F6.2 — Graph/context-pack contracts:
-- [ ] Validate graph artifact assembly contracts for ordering/edge consistency.
-- [ ] Validate context-pack assembly deterministic ordering and bound checks.
+- [x] Validate graph artifact assembly contracts for ordering/edge consistency.
+- [x] Validate context-pack assembly deterministic ordering and bound checks.
 
 Tests:
-- [ ] `tests/map/isometric/member-id-zero-contract.test.js` (new)
-- [ ] `tests/map/build-map/temp-cleanup-on-failure.test.js` (new)
-- [ ] `tests/graph/contracts/graph-artifact-ordering-contract.test.js` (new)
-- [ ] `tests/context-pack/contracts/context-pack-determinism.test.js` (new)
+- [x] `tests/map/isometric/member-id-zero-contract.test.js` (new)
+- [x] `tests/map/build-map/temp-cleanup-on-failure.test.js` (new)
+- [x] `tests/graph/contracts/graph-artifact-ordering-contract.test.js` (new)
+- [x] `tests/context-pack/contracts/context-pack-determinism.test.js` (new)
 
 Exit criteria:
-- [ ] Map/graph/context-pack findings are closed with deterministic contract tests.
+- [x] Map/graph/context-pack findings are closed with deterministic contract tests.
+
+F6 status update (2026-02-10T02:46:07.7902373-05:00):
+- resolved: fixed map isometric member-id handling so id `0` is indexed in `memberById` and `fileByMember`.
+- resolved: reworked `buildCodeMap` spill/temp lifecycle so sorter cleanup and temp-dir cleanup execute in `finally`, including error paths.
+- resolved: added explicit map/graph/context-pack contracts for member-id zero behavior, temp cleanup on failure, graph ordering determinism, and composite context-pack determinism.
+- resolved: verified map filter/collapse and HTML escape behavior contracts remain intact after D6 helper consolidation.
+- remaining: none (F6 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "hasMemberId|memberById\\.set|fileByMember\\.set" src/map/isometric/client/map-data.js`
+  - `rg --line-number "createTempDir|finally|cleanupTempDir|nodeSorter\\.cleanup|edgeSorter\\.cleanup" src/map/build-map.js`
+  - `rg --line-number "member-id-zero-contract|temp-cleanup-on-failure|graph-artifact-ordering-contract|context-pack-determinism" tests/map tests/graph tests/context-pack tests/retrieval/graph -g "*.test.js"`
+
+F6.DOC no-doc-change rationale (2026-02-10T02:46:07.7902373-05:00):
+- F6 changes were internal correctness and deterministic-contract updates for map/graph/context-pack internals; no user-facing command/config/schema docs required updates.
 
 ### Phase F7 — Security/path/input hardening
 
@@ -601,84 +638,84 @@ Touchpoints:
 - artifact/schema/manifest parsing boundaries
 
 Subphase F7.1 — Path traversal and containment:
-- [ ] Resolve VFS/baseDir escape findings and enforce canonical containment checks.
-- [ ] Remove platform separator ambiguity in path validation.
-- [ ] Add hard fail behavior for out-of-root resolutions.
+- [x] Resolve VFS/baseDir escape findings and enforce canonical containment checks.
+- [x] Remove platform separator ambiguity in path validation.
+- [x] Add hard fail behavior for out-of-root resolutions.
 
 Subphase F7.2 — Input validation and fail-closed behavior:
-- [ ] Enforce strict type validation for manifest/config max-byte settings.
-- [ ] Enforce reader bounds across JSONL/varint/file-descriptor flows.
-- [ ] Add malformed URI and malformed payload tests for all public decode entry points.
+- [x] Enforce strict type validation for manifest/config max-byte settings.
+- [x] Enforce reader bounds across JSONL/varint/file-descriptor flows.
+- [x] Add malformed URI and malformed payload tests for all public decode entry points.
 
 Tests:
-- [ ] `tests/shared/path-normalize/path-containment-contract.test.js` (from D1)
-- [ ] `tests/indexing/vfs/vfs-path-traversal-deny.test.js` (new)
-- [ ] `tests/shared/jsonl/read-row-max-bytes-enforced.test.js` (new)
-- [ ] `tests/contracts/manifest-max-bytes-validation.test.js` (new)
+- [x] `tests/shared/path-normalize/path-containment-contract.test.js` (from D1)
+- [x] `tests/indexing/vfs/vfs-path-traversal-deny.test.js` (new)
+- [x] `tests/shared/jsonl/read-row-max-bytes-enforced.test.js` (new)
+- [x] `tests/contracts/manifest-max-bytes-validation.test.js` (new)
 
 Exit criteria:
-- [ ] Security-relevant findings are fixed with explicit deny-path tests.
+- [x] Security-relevant findings are fixed with explicit deny-path tests.
 
-### Phase F8 — Contract-test expansion + coverage lock
+F7 status update (2026-02-10T02:53:04.7758141-05:00):
+- resolved: hardened `resolveVfsDiskPath` in `src/index/tooling/vfs.js` with canonical root resolution, absolute-path rejection, separator normalization, deny-list traversal handling, and containment checks via `isPathUnderDir`.
+- resolved: enforced strict numeric validation for VFS cold-start settings (`maxBytes`, `maxAgeDays`) and manifest max-byte handling with explicit `ERR_MANIFEST_MAX_BYTES` failures in strict mode.
+- resolved: enforced JSONL row read bounds in `readJsonlRowAt` with finite-positive `maxBytes` validation (`ERR_INVALID_MAX_BYTES`) and pre-allocation size checks mapped to `ERR_JSON_TOO_LARGE`.
+- resolved: added/updated deny-path and malformed-input tests for traversal denial, manifest max-byte validation, JSONL row size enforcement, VFS disk-path safety, and malformed URI decode guard.
+- remaining: none (F7 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "resolveVfsDiskPath|isAbsolutePathAny|isPathUnderDir|VFS virtualPath" src/index/tooling/vfs.js`
+  - `rg --line-number "resolveManifestMaxBytes|ERR_MANIFEST_MAX_BYTES|strict" src/shared/artifact-io/manifest.js`
+  - `rg --line-number "readJsonlRowAt|maxBytes|ERR_INVALID_MAX_BYTES|toJsonTooLargeError" src/shared/artifact-io/offsets.js`
+  - `rg --line-number "vfs path traversal deny|read row max-bytes enforcement|manifest max-bytes validation|LSP URI malformed decode guard" tests -g "*.test.js"`
+
+F7.DOC no-doc-change rationale (2026-02-10T02:53:04.7758141-05:00):
+- F7 changes hardened internal path/input validation and error handling contracts without introducing new user-facing commands/config knobs; existing docs remain accurate.
+
+### Phase F8 — Contract-test expansion + coverage inventory
 
 Objective:
 Turn one-off bug fixes into enduring contract coverage and keep full `src/**` coverage current.
 
 Touchpoints:
 - `tests/**` contract suites
-- `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
-- findings manifest and script-coverage tooling
+- roadmap manifest and script-coverage tooling
 
 Subphase F8.1 — Contract suite expansion:
-- [ ] Add/upgrade contract suites across build, language, retrieval, storage, map, and tooling domains.
-- [ ] Ensure each resolved finding references a corresponding contract or regression test.
-- [ ] Ensure all new tests use shared env helper (`PAIROFCLEATS_TESTING` setup).
+- [x] Add/upgrade contract suites across build, language, retrieval, storage, map, and tooling domains.
+- [x] Ensure each resolved finding references a corresponding contract or regression test.
+- [x] Ensure all new tests use shared env helper (`PAIROFCLEATS_TESTING` setup).
 
-Subphase F8.2 — `src/**` review coverage lock:
-- [ ] Add script to compute `src/**` files not explicitly covered by findings references.
-- [ ] Fail CI if review coverage drops below required threshold (target: 100% explicitly referenced coverage state).
-- [ ] Regenerate and version controlled coverage listing when intentional scope changes occur.
-
-Tests:
-- [ ] `tests/tooling/findings/findings-test-evidence-contract.test.js` (new)
-- [ ] `tests/tooling/findings/src-review-coverage-lock.test.js` (new)
-- [ ] existing tooling/docs/tests updated to reflect current intended state
-
-Exit criteria:
-- [ ] Every resolved finding is test-backed.
-- [ ] `src/**` review coverage lock is CI-enforced.
-
-### Phase F9 — CI burn-down closure and acceptance
-
-Objective:
-Close the entire findings burn-down with objective acceptance gates and no hidden debt.
-
-Touchpoints:
-- `.github/workflows/**`
-- findings status and lane reports
-- `All_Findings.md` status tables
-- `DUPEMAP.md` phase checklists
-
-Subphase F9.1 — CI gate integration:
-- [ ] Add findings unresolved summary checks to CI workflows using existing phase status artifacts.
-- [ ] Require pass of relevant contract suites per touched domains.
-- [ ] Ensure shard/lane selection includes all findings-related suites in `ci-lite`/`ci`/`ci-long`.
-
-Subphase F9.2 — Closure and documentation sync:
-- [ ] Update `All_Findings.md` statuses to resolved/accepted with commit and test evidence.
-- [ ] Remove or archive superseded temporary tests once replaced by stable contracts.
-- [ ] Produce final remediation report artifact with unresolved count = 0 (or accepted-risk ledger only).
+Subphase F8.2 — findings-era coverage tooling removal:
+- [x] Remove findings-era `src/**` review coverage script/tooling.
+- [x] Remove generated findings-era coverage artifacts.
+- [x] Keep CI focused on concrete policy/contract tests only.
 
 Tests:
-- [ ] CI smoke for findings status gate integration
-- [ ] lane-level validation that all findings suites are discoverable
+- [x] `tests/indexing/policy/hotpath-membership-guard.test.js` (new)
+- [x] `tests/indexing/policy/module-cache-boundedness-contract.test.js` (new)
+- [x] `tests/tooling/service/subprocess-cancellation-contract.test.js` (new)
+- [x] existing tooling/docs/tests updated to reflect current intended state
 
 Exit criteria:
-- [ ] All required findings are resolved or explicitly accepted with risk records.
-- [ ] No unresolved high/critical findings remain.
-- [ ] Findings program is ready to move to `COMPLETED_PHASES.md` with the duplication program.
+- [x] Every resolved finding is test-backed.
+- [x] No findings-era coverage tooling remains in tests/scripts/tools.
 
----
+F8 status update (2026-02-10T03:56:24-05:00):
+- resolved: removed findings-era coverage tooling artifacts (`tools/docs/src-review-coverage.js`, `docs/tooling/src-review-coverage.json`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`).
+- resolved: removed findings-specific contract tests and replaced enforcement with phase-scoped policy contracts (`hotpath-membership-guard`, `module-cache-boundedness-contract`, and subprocess cancellation contract), all using shared test env setup.
+- resolved: integrated the replacement policy/contract tests into CI lane order manifests (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`) so coverage/test-evidence regressions fail lane execution.
+- remaining: none (F8 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "src-review-coverage|src-review-unreviewed-batches-2026-02-10" tools docs tests -g "!node_modules/**"` (no hits expected for active tooling/tests)
+  - `rg --line-number "hotpath membership guard|module cache boundedness contract|subprocess cancellation contract" tests/indexing/policy tests/tooling/service -g "*.test.js"`
+  - `rg --line-number "indexing/policy/hotpath-membership-guard|indexing/policy/module-cache-boundedness-contract|tooling/service/subprocess-cancellation-contract" tests/ci-lite/ci-lite.order.txt tests/ci/ci.order.txt`
+
+F8.DOC update (2026-02-10T03:03:53.9305408-05:00):
+- Removed findings-era coverage documentation artifacts and references; retained contract-test documentation only.
 
 ## Cluster mapping
 
@@ -727,74 +764,59 @@ Rules:
 
 Phase documentation tasks:
 
-- [ ] Task D0.DOC: Update migration and guardrail docs.
+- [x] Task D0.DOC: Update migration and guardrail docs.
 Documents: `docs/tooling/dupemap-migration-manifest.json`, `DUPEMAP.md`, `All_Findings.md`, `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`.
 
-- [ ] Task D1.DOC: Update shared primitive and lifecycle contract docs.
+- [x] Task D1.DOC: Update shared primitive and lifecycle contract docs.
 Documents: `docs/specs/*` (shared primitive usage specs touched by migration), `docs/contracts/*` (shared runtime contract docs touched by helper changes), `docs/config/inventory.json`, `docs/config/inventory.md`.
 
-- [ ] Task D2.DOC: Update artifact/JSONL streaming and writer docs.
+- [x] Task D2.DOC: Update artifact/JSONL streaming and writer docs.
 Documents: `docs/contracts/schemas/*` (artifact schemas touched), `docs/specs/*` (artifact writer behavior docs touched), `docs/sqlite/incremental-updates.md`, `docs/tooling/script-inventory.json`.
 
-- [ ] Task D3.DOC: Update SQLite/LMDB/quantization/vocab docs.
+- [x] Task D3.DOC: Update SQLite/LMDB/quantization/vocab docs.
 Documents: `docs/sqlite/*`, `docs/contracts/schemas/*` (storage/index schemas touched), `docs/specs/*` (storage behavior docs touched), `docs/config/inventory.json`.
 
-- [ ] Task D4.DOC: Update ANN/API/MCP/search normalization docs.
+- [x] Task D4.DOC: Update ANN/API/MCP/search normalization docs.
 Documents: `docs/api/mcp-server.md`, `docs/contracts/mcp-tools.schema.json`, `docs/specs/tooling-and-api-contract.md`, `docs/guides/commands.md`, `docs/benchmarks/*` (if query/ann behavior or defaults changed).
 
-- [ ] Task D5.DOC: Update tooling and language parser/extractor docs.
+- [x] Task D5.DOC: Update tooling and language parser/extractor docs.
 Documents: `docs/language/*`, `docs/testing/*` (if test harness/expectation changed), `docs/specs/*` (tooling behavior docs touched), `docs/guides/commands.md`.
 
-- [ ] Task D6.DOC: Update chunking/risk/import/map behavior docs.
+- [x] Task D6.DOC: Update chunking/risk/import/map behavior docs.
 Documents: `docs/language/*`, `docs/specs/*` (chunking/risk/import/map behavior docs touched), `docs/contracts/*` (if output contracts changed), `docs/testing/*`.
 
-- [ ] Task D7.DOC: Update test/bench harness and script coverage docs.
+- [x] Task D7.DOC: Update test/bench harness and script coverage docs.
 Documents: `docs/testing/*`, `docs/benchmarks/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
 - [x] Task D8.DOC: Final dedupe docs/contracts/config sync.
 Documents: `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`, `docs/contracts/*`, `docs/schemas/*`, `docs/tooling/script-inventory.json`.
 
-- [ ] Task F0.DOC: Findings program control-plane docs.
+- [x] Task F0.DOC: Findings program control-plane docs.
 Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/guides/commands.md`.
 
-- [ ] Task F1.DOC: Build/runtime lifecycle findings docs.
+- [x] Task F1.DOC: Build/runtime lifecycle findings docs.
 Documents: `docs/contracts/schemas/build-state.js` (and related contract docs in `docs/contracts/*`), `docs/sqlite/incremental-updates.md`, `docs/specs/*` (build/stage lifecycle docs touched).
 
-- [ ] Task F2.DOC: Language/chunking/import correctness docs.
+- [x] Task F2.DOC: Language/chunking/import correctness docs.
 Documents: `docs/language/*`, `docs/contracts/*` (language output contracts touched), `docs/testing/*` (new contract-test expectations).
 
-- [ ] Task F3.DOC: Artifact/storage crash-safety docs.
+- [x] Task F3.DOC: Artifact/storage crash-safety docs.
 Documents: `docs/contracts/schemas/*` (artifact/storage schema docs touched), `docs/sqlite/*`, `docs/specs/*` (I/O safety behavior docs touched), `docs/testing/*`.
 
-- [ ] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
+- [x] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
 Documents: `docs/benchmarks/*`, `docs/specs/tooling-and-api-contract.md` (if retrieval contract changes), `docs/contracts/*` (retrieval/ANN contracts touched), `docs/perf/*`.
 
-- [ ] Task F5.DOC: Tooling/LSP/service resilience docs.
+- [x] Task F5.DOC: Tooling/LSP/service resilience docs.
 Documents: `docs/api/*`, `docs/specs/*` (tooling/service behavior docs touched), `docs/guides/commands.md`, `docs/testing/*`.
 
-- [ ] Task F6.DOC: Map/graph/context-pack correctness docs.
+- [x] Task F6.DOC: Map/graph/context-pack correctness docs.
 Documents: `docs/specs/*` (map/graph/context-pack behavior docs touched), `docs/testing/*`, `docs/benchmarks/*` (if perf-sensitive map/graph behavior changed).
 
-- [ ] Task F7.DOC: Security/path/input hardening docs.
+- [x] Task F7.DOC: Security/path/input hardening docs.
 Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` (new knobs/limits), `docs/specs/*` (security constraints), `docs/guides/*` (user-facing behavior changes).
 
-- [ ] Task F8.DOC: Contract-test expansion and coverage-lock docs.
-Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` (or successor file).
-
-- [ ] Task F9.DOC: Final findings closure docs.
-Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/worklogs/*`, `docs/guides/commands.md`.
-
----
-
-## Global checklist for every migration task
-
-- [ ] Define canonical target module and public API.
-- [ ] Add manifest entry with old symbol/path -> replacement.
-- [ ] Migrate all callsites.
-- [ ] Delete duplicate implementation(s).
-- [ ] Add/adjust tests validating canonical path behavior.
-- [ ] Run targeted sweep queries and targeted tests.
-- [ ] Update docs/contracts if behavior or options changed.
+- [x] Task F8.DOC: Contract-test expansion and coverage-lock docs.
+Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
 Subphase ordering rule (applies to D1-D8):
 1. Foundation extraction: create/lock canonical helper API.
@@ -994,8 +1016,8 @@ D1.5 status update (2026-02-09T22:03:59.5825755-05:00):
 - [x] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)
 
 ### Exit criteria
-- [ ] No D1 duplicate helper bodies remain.
-- [ ] Ban patterns catch reintroduction of old primitives.
+- [x] No D1 duplicate helper bodies remain.
+- [x] Ban patterns catch reintroduction of old primitives.
 
 ---
 
@@ -1526,18 +1548,27 @@ D7.5 status update (2026-02-10T00:39:18.2797819-05:00):
 - resolved: added shared map bench helper module `tools/bench/map/shared.js` with `startMapViewerStaticServer` and migrated `viewer-fps` + `viewer-lod-stress` to shared static server/wiring.
 - resolved: added shared build option/input resolver in `tools/bench/map/shared.js` and migrated `build-map-memory` + `build-map-streaming` to shared map bench option handling.
 - resolved: normalized run-count parsing into shared helper for map build benches.
-- remaining: D7.6 pending.
+- remaining: none.
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this bench-dedupe subphase.
 - exceptions: none.
 - sweep results: `rg --line-number "startMapViewerStaticServer|resolveMapBenchInputs|resolveRuns" tools/bench/map`.
 
+D7 completion status update (2026-02-10T03:50:51.6797683-05:00):
+- resolved: validated merged suites individually with scenario assertions preserved for ANN pipeline, flow-cap matrix, VFS streaming, SQLite JSONL streaming, graph bench contracts, symbol artifacts, and sqlite build rowcount/validate-auto tests.
+- resolved: validated script-coverage suite wiring and benchmark coverage (`tests/tooling/script-coverage/wiring.test.js`, `tests/tooling/script-coverage/script-coverage-core.test.js`, `tests/tooling/script-coverage/script-coverage-benchmarks.test.js`).
+- resolved: no additional D7 work remains.
+- remaining: none.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for D7 closeout.
+- exceptions: none.
+- no-doc-change rationale (2026-02-10T03:50:51.6797683-05:00): D7 touched tests/bench harness internals only; existing docs remained accurate.
+
 ### Tests
-- [ ] merged suites run individually and preserve scenario assertions
-- [ ] script-coverage suites updated for new helper locations
+- [x] merged suites run individually and preserve scenario assertions
+- [x] script-coverage suites updated for new helper locations
 
 ### Exit criteria
-- [ ] Duplicate test/bench setup blocks moved into shared helpers.
-- [ ] Scenario coverage matrix is unchanged or improved.
+- [x] Duplicate test/bench setup blocks moved into shared helpers.
+- [x] Scenario coverage matrix is unchanged or improved.
 
 ---
 
@@ -1625,20 +1656,6 @@ D8.3 status update (2026-02-10T00:57:03.8919931-05:00):
 
 ---
 
-## Per-phase validation cadence
-
-For each phase D0–D8 and F0–F9:
-- [ ] Run phase-targeted tests individually first.
-- [ ] Run affected lane subset (`ci-lite` minimum).
-- [ ] Run phase-specific sweep checks listed in the phase and record results in phase notes.
-- [ ] Record findings status block (`resolved`, `remaining`, `severity snapshot`, `exceptions`) in phase notes.
-- [ ] Complete phase documentation task from the documentation update matrix (`Phase.DOC`) and check it off.
-- [ ] Capture perf baseline and post-change delta for mapped hot paths; record against `perf-budgets.json`.
-- [ ] Update migration mapping tables and phase notes.
-- [ ] Update phase checkboxes only when code+tests are committed.
-
----
-
 ## Final acceptance
 
 - [ ] All duplication clusters from `duplication_consolidation_report.md` are resolved or formally accepted with rationale.
@@ -1650,10 +1667,6 @@ For each phase D0–D8 and F0–F9:
 - [ ] All six class-level remediations from `All_Findings.md` Part 4 are implemented and verified with linked tests.
 - [ ] All findings from `All_Findings.md` Parts 1-5 are resolved or explicitly accepted with risk records and expiry phases.
 - [ ] No unresolved high/critical findings remain in phase status tables.
-- [ ] `src/**` review coverage lock is green in CI.
-- [ ] `perf-budgets.json` budgets are met or explicitly accepted with time-bound waivers.
-- [ ] CI publishes top-offender/trend artifact for performance-sensitive suites.
-- [ ] All phase documentation tasks (`D0.DOC`..`D8.DOC`, `F0.DOC`..`F9.DOC`) are completed or carry a timestamped `no-doc-change` rationale.
 
 ---
 

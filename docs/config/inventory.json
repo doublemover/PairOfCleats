@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T05:55:07.731Z",
+  "generatedAt": "2026-02-10T12:29:56.304Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -72,6 +72,8 @@
       "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -96,6 +98,7 @@
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
       "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "PAIROFCLEATS_VERBOSE",
@@ -1717,6 +1720,7 @@
         "tests/tooling/reports/metrics-dashboard.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
@@ -2096,6 +2100,20 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
         "tests/runner/all.js",
@@ -2407,6 +2425,15 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
+      "files": [
+        "src/shared/env.js",
+        "tests/helpers/triage.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "files": [
         "tests/services/mcp/mcp-schema.test.js",
@@ -2478,7 +2505,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 297,
+    "totalFlags": 298,
     "publicFlags": [
       "backend",
       "host",
@@ -2638,6 +2665,7 @@
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
+      "maxNodeBytes",
       "maxNodes",
       "maxPaths",
       "maxPerHit",
@@ -3017,6 +3045,12 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/map/build-map/temp-cleanup-on-failure.test.js",
+        "flags": [
+          "maxNodeBytes"
         ]
       },
       {

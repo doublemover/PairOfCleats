@@ -4,6 +4,7 @@ import { readVfsManifestRowAtOffset } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
 const DEFAULT_ROW_CACHE_MAX = 50000;
+const DEFAULT_MISS_CACHE_MAX = 10000;
 
 const coercePositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -15,29 +16,34 @@ export const createTreeSitterSchedulerLookup = ({
   outDir,
   index = new Map(),
   log = null,
-  maxCacheEntries = null
+  maxCacheEntries = null,
+  maxMissCacheEntries = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveInt(maxCacheEntries, DEFAULT_ROW_CACHE_MAX);
+  const missCacheMax = coercePositiveInt(maxMissCacheEntries, DEFAULT_MISS_CACHE_MAX);
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
   });
-  const missCache = new Set();
+  const missCache = createLruCache({
+    name: 'tree-sitter-scheduler-miss',
+    maxEntries: missCacheMax
+  });
 
   const loadRow = async (virtualPath) => {
     if (!virtualPath) return null;
     const cached = rowCache.get(virtualPath);
     if (cached) return cached;
-    if (missCache.has(virtualPath)) return null;
+    if (missCache.get(virtualPath)) return null;
     const entry = index.get(virtualPath) || null;
     if (!entry) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     const grammarKey = entry.grammarKey || null;
     if (!grammarKey) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
@@ -47,7 +53,7 @@ export const createTreeSitterSchedulerLookup = ({
       bytes: entry.bytes
     });
     if (!row) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     rowCache.set(virtualPath, row);
@@ -78,7 +84,7 @@ export const createTreeSitterSchedulerLookup = ({
     stats: () => ({
       indexEntries: index.size,
       cacheEntries: rowCache.size(),
-      missEntries: missCache.size,
+      missEntries: missCache.size(),
       grammarKeys: grammarKeys().length
     }),
     log

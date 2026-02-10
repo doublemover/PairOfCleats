@@ -118,7 +118,35 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
   return null;
 }
 
+const ONNX_CACHE_TTL_MS = 15 * 60 * 1000;
+const ONNX_CACHE_MAX_ENTRIES = 8;
 const onnxCache = new Map();
+
+const touchCacheEntry = (entry, now = Date.now()) => {
+  if (!entry || typeof entry !== 'object') return;
+  entry.lastAccessAt = now;
+  entry.expiresAt = now + ONNX_CACHE_TTL_MS;
+};
+
+const pruneOnnxCache = (now = Date.now()) => {
+  for (const [key, entry] of onnxCache.entries()) {
+    if (!entry || typeof entry !== 'object') {
+      onnxCache.delete(key);
+      continue;
+    }
+    if (entry.expiresAt && entry.expiresAt <= now) {
+      onnxCache.delete(key);
+    }
+  }
+  if (onnxCache.size <= ONNX_CACHE_MAX_ENTRIES) return;
+  const overflow = onnxCache.size - ONNX_CACHE_MAX_ENTRIES;
+  const oldest = Array.from(onnxCache.entries())
+    .sort((a, b) => (a[1]?.lastAccessAt || 0) - (b[1]?.lastAccessAt || 0))
+    .slice(0, overflow);
+  for (const [key] of oldest) {
+    onnxCache.delete(key);
+  }
+};
 
 export const createRunQueue = () => {
   let runQueue = Promise.resolve();
@@ -306,7 +334,12 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     interOpNumThreads: normalized.interOpNumThreads || null,
     graphOptimizationLevel: normalized.graphOptimizationLevel || null
   });
-  if (!onnxCache.has(cacheKey)) {
+  const now = Date.now();
+  pruneOnnxCache(now);
+  const cached = onnxCache.get(cacheKey);
+  if (cached) {
+    touchCacheEntry(cached, now);
+  } else {
     const sessionOptions = buildSessionOptions(normalized, { lowMemory });
     const promise = (async () => {
       const { AutoTokenizer, env } = await import('@xenova/transformers');
@@ -327,10 +360,18 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
         }
       }
       return { tokenizer, session, Tensor };
-    })();
-    onnxCache.set(cacheKey, promise);
+    })().catch((err) => {
+      onnxCache.delete(cacheKey);
+      throw err;
+    });
+    onnxCache.set(cacheKey, {
+      promise,
+      lastAccessAt: now,
+      expiresAt: now + ONNX_CACHE_TTL_MS
+    });
+    pruneOnnxCache(now);
   }
-  const embedderPromise = onnxCache.get(cacheKey);
+  const embedderPromise = onnxCache.get(cacheKey)?.promise || null;
   const runScratch = { data: null };
   // onnxruntime-node sessions are not guaranteed to be thread-safe.
   const queueSessionRun = createRunQueue();

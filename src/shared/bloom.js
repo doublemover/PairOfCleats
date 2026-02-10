@@ -101,14 +101,18 @@ export const encodeBloomFilter = (filter) => {
  */
 export const decodeBloomFilter = (input) => {
   if (!input || typeof input !== 'object') return null;
-  const bits = Number(input.bits);
-  const hashes = Number(input.hashes);
-  if (!Number.isFinite(bits) || !Number.isFinite(hashes)) return null;
+  const bits = Number.isFinite(Number(input.bits)) ? Math.floor(Number(input.bits)) : NaN;
+  const hashes = Number.isFinite(Number(input.hashes)) ? Math.floor(Number(input.hashes)) : NaN;
+  if (!Number.isFinite(bits) || bits <= 0 || !Number.isFinite(hashes) || hashes <= 0) return null;
+  const expectedByteLength = Math.ceil(bits / 8);
   const bytes = typeof input.bytes === 'string' ? Buffer.from(input.bytes, 'base64') : null;
+  if (!(bytes instanceof Buffer) || bytes.length !== expectedByteLength) {
+    return null;
+  }
   const filter = new BloomFilter({
     bits,
     hashes,
-    bytes: bytes ? new Uint8Array(bytes) : null
+    bytes: new Uint8Array(bytes)
   });
   if (Number.isFinite(Number(input.count))) {
     filter.count = Math.max(0, Math.floor(Number(input.count)));

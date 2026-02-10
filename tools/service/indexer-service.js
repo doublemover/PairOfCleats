@@ -29,6 +29,7 @@ import {
 } from './queue.js';
 import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from './indexer-service-helpers.js';
+import { runLoggedSubprocess } from './subprocess-log.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -224,37 +225,23 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
 };
 
 const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
-  const useLog = typeof logPath === 'string' && logPath.trim();
-  const stdio = useLog ? ['ignore', 'pipe', 'pipe'] : 'inherit';
-  try {
-    const result = await spawnSubprocess(process.execPath, args, {
-      stdio,
-      env: { ...process.env, ...extraEnv },
-      rejectOnNonZeroExit: false,
-      captureStdout: useLog,
-      captureStderr: useLog,
-      outputMode: 'string'
-    });
-    if (useLog) {
-      fs.mkdirSync(path.dirname(logPath), { recursive: true });
-      const parts = [];
-      parts.push(`[${new Date().toISOString()}] job start`);
-      const stdoutText = typeof result.stdout === 'string' ? result.stdout : '';
-      const stderrText = typeof result.stderr === 'string' ? result.stderr : '';
-      if (stdoutText) parts.push(stdoutText.trimEnd());
-      if (stderrText) parts.push(stderrText.trimEnd());
-      parts.push(`[${new Date().toISOString()}] job exit ${result.exitCode ?? 1}`);
-      fs.appendFileSync(logPath, `${parts.join('\n')}\n`);
+  const result = await runLoggedSubprocess({
+    command: process.execPath,
+    args,
+    env: process.env,
+    extraEnv,
+    logPath,
+    onWriteError: (err) => {
+      console.error(`[indexer] failed writing subprocess log (${logPath}): ${err?.message || err}`);
     }
-    return result.exitCode ?? 1;
-  } catch (err) {
-    if (useLog) {
-      fs.mkdirSync(path.dirname(logPath), { recursive: true });
-      const message = err?.message || String(err);
-      fs.appendFileSync(logPath, `[${new Date().toISOString()}] job error ${message}\n`);
-    }
-    return 1;
+  });
+  if (result.errorMessage) {
+    const reason = result.timedOut
+      ? `timed out after ${result.durationMs ?? 'unknown'}ms`
+      : result.errorMessage;
+    console.error(`[indexer] subprocess failed: ${reason}`);
   }
+  return Number.isFinite(result.exitCode) ? result.exitCode : 1;
 };
 
 const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) => {

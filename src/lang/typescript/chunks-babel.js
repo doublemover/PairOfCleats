@@ -35,7 +35,7 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
   const buildSignature = (start, bodyStart) => sliceSignature(text, start, bodyStart);
   const buildMetaBase = (start, end, signature) => {
     const startLine = offsetToLine(lineIndex, start);
-    const endLine = offsetToLine(lineIndex, end);
+    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
     const modifiers = extractTypeScriptModifiers(signature);
     return {
       startLine,

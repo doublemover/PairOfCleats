@@ -10,11 +10,11 @@ const REQUIRED_NATIVE_PACKAGES = [
   'hnswlib-node',
   'onnxruntime-node',
   '@lancedb/lancedb',
-  'sharp',
   'lmdb'
 ];
 
 const OPTIONAL_NATIVE_PACKAGES = [
+  'sharp',
   '@mongodb-js/zstd',
   '@parcel/watcher',
   're2',
@@ -91,4 +91,3 @@ if (optionalFailures > 0) {
 } else {
   console.error('[rebuild:native] completed successfully.');
 }
-
