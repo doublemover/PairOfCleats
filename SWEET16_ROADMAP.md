@@ -156,8 +156,8 @@ Details: Enumerate counters/metrics and required log lines for diagnosing starva
 Notes: Include diagrams for scheduling flow and queue ownership.
 
 Tests:
-- [ ] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
-- [ ] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
+- [x] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
 
 ### Subphase 16.0.2 -- Artifact IO Pipeline Spec
 Parallel: Can run alongside 16.0.1 and 16.0.3–16.0.7; reconcile glossary/terms at end of Phase 16.0.
@@ -178,7 +178,7 @@ Details: Document temp file naming, swap rules, cleanup behavior, and partial-wr
 Notes: Breaking changes are allowed; no backward compatibility required.
 
 Tests:
-- [ ] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.3 -- Cache Key + Invalidation Spec
 Parallel: Can run alongside 16.0.1–16.0.2 and 16.0.4–16.0.7; reconcile glossary/terms at end of Phase 16.0.
@@ -199,7 +199,7 @@ Details: Identify which caches can expire by time and the default TTLs.
 Notes: Provide a table mapping cache types to required key components.
 
 Tests:
-- [ ] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
 
 ### Subphase 16.0.4 -- Build Truth Ledger Spec
 Parallel: Can run alongside 16.0.1–16.0.3 and 16.0.5–16.0.7; reconcile glossary/terms at end of Phase 16.0.
@@ -238,7 +238,7 @@ Details: Enumerate required metrics (spill count, bytes, merge duration, peak he
 Notes: Include determinism guarantees and merge stability rules.
 
 Tests:
-- [ ] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.6 -- Byte Budget Policy Spec
 Parallel: Can run alongside 16.0.1–16.0.5 and 16.0.7; reconcile glossary/terms at end of Phase 16.0.
@@ -259,7 +259,7 @@ Details: Specify decision flow and precedence rules.
 Notes: Include a mapping table from artifact type to default budgets.
 
 Tests:
-- [ ] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.7 -- Deterministic Ordering Spec
 Parallel: Can run alongside 16.0.1–16.0.6; reconcile glossary/terms at end of Phase 16.0.
@@ -279,7 +279,7 @@ Details: Document breaking-change behavior and how ordering updates are handled.
 Notes: Include a table of ordering keys per artifact.
 
 Tests:
-- [ ] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
 
 ---
 
@@ -1593,13 +1593,13 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Add malformed artifact corpus fixtures for loader hardening.
 - [x] Add corrupt artifact corpus fixtures for loader hardening.
 - [x] Add partial artifact corpus fixtures for loader hardening.
-- [ ] Add `tests/shared/concurrency/scheduler-contract.test.js`.
-- [ ] Add `tests/shared/concurrency/scheduler-config-parse.test.js`.
-- [ ] Add `tests/shared/artifact-io/artifact-io-spec-contract.test.js`.
-- [ ] Add `tests/shared/cache/cache-key-schema.test.js`.
-- [ ] Add `tests/shared/merge/spill-merge-contract.test.js`.
-- [ ] Add `tests/indexing/runtime/byte-budget-policy-contract.test.js`.
-- [ ] Add `tests/shared/order/deterministic-ordering-contract.test.js`.
+- [x] Add `tests/shared/concurrency/scheduler-contract.test.js`.
+- [x] Add `tests/shared/concurrency/scheduler-config-parse.test.js`.
+- [x] Add `tests/shared/artifact-io/artifact-io-spec-contract.test.js`.
+- [x] Add `tests/shared/cache/cache-key-schema.test.js`.
+- [x] Add `tests/shared/merge/spill-merge-contract.test.js`.
+- [x] Add `tests/indexing/runtime/byte-budget-policy-contract.test.js`.
+- [x] Add `tests/shared/order/deterministic-ordering-contract.test.js`.
 - [x] Detect missing sibling artifacts for partial shards in loader paths.
 - [x] Fail deterministically on partial shard detection.
 - [x] Add malformed shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
@@ -1643,13 +1643,13 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [ ] Mark acceptance items only after required benchmark evidence is present.
 
 ### Tests
-- [ ] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
-- [ ] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
-- [ ] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
-- [ ] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
-- [ ] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
-- [ ] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
+- [x] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
+- [x] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
 - [ ] `tests/shared/cache/cache-root-versioning.test.js` (perf lane) (new)
