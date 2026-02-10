@@ -1,7 +1,7 @@
 # Spec -- USR Language Profile Catalog
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
@@ -201,5 +201,6 @@ Required report outputs:
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 

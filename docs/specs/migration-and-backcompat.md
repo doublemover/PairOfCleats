@@ -1,12 +1,14 @@
 # Phase 9 Spec -- Migration and Backward Compatibility
 
-Last updated: 2026-02-10T06:20:00Z
+Last updated: 2026-02-10T07:05:00Z
 
 This document is aligned with:
 
 - `docs/specs/unified-syntax-representation.md` sections 19, 27, and 36
 - `docs/specs/unified-syntax-representation.md` sections 38 and 39
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 ## Why a migration spec is necessary
 Phase 9 replaces several legacy join assumptions:

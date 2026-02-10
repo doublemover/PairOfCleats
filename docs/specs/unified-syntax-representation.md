@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.5
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.6
+Last updated: 2026-02-10T07:05:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1335,6 +1335,8 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-language-risk-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -2806,6 +2808,10 @@ Required governance behavior:
 
 ## 38. Embedded-language bridge contract (normative)
 
+Decomposed contract:
+
+- `docs/specs/usr-embedding-bridge-contract.md`
+
 USR MUST preserve deterministic bridge semantics whenever one document contains multiple language surfaces (for example `.vue`, `.svelte`, `.astro`, Razor, Angular template/style pairs, HTML with inline script/style).
 
 Required behavior:
@@ -2831,6 +2837,10 @@ Each case entry MUST include:
 - `blocking`
 
 ## 39. Generated/macro provenance contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-generated-provenance-contract.md`
 
 USR MUST preserve source provenance for generated, macro-expanded, transpiled, or compiler-synthesized artifacts.
 

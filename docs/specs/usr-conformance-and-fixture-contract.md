@@ -1,13 +1,13 @@
 # Spec -- USR Conformance and Fixture Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
 This document defines exact conformance assertions, fixture requirements, deterministic rerun policy, and triage protocol for USR.
 
-It decomposes `docs/specs/unified-syntax-representation.md` section 16 and related sections 33-36.
+It decomposes `docs/specs/unified-syntax-representation.md` section 16 and related sections 33-36, 38, and 39.
 
 ## 1. Conformance levels (normative assertions)
 
@@ -48,6 +48,8 @@ Required assertions:
 - framework segmentation rules
 - canonical route/template/style edge mappings
 - framework edge-case fixtures
+- embedded-language bridge invariants and bridge evidence attrs
+- generated/framework-compiler provenance assertions for framework-produced entities
 
 ## 2. Required fixture families (normative)
 
@@ -169,5 +171,7 @@ Every conformance failure record MUST include:
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 
