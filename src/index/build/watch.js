@@ -424,6 +424,10 @@ export async function watchIndex({
     let lock = null;
     let attempt = null;
     let attemptRuntime = null;
+    let validationRunning = false;
+    let validationDone = false;
+    let promoteRunning = false;
+    let promoteDone = false;
     lock = await resolvedDeps.acquireIndexLockWithBackoff({
       repoCacheRoot: runtimeRef.repoCacheRoot,
       shouldExit: () => shouldExit,
@@ -437,7 +441,12 @@ export async function watchIndex({
       return;
     }
     if (shouldExit) {
-      await lock.release();
+      try {
+        await lock.release();
+      } catch (err) {
+        status = 'error';
+        log(`[watch] Index lock release failed during shutdown: ${err?.message || err}`);
+      }
       running = false;
       return;
     }
@@ -496,6 +505,7 @@ export async function watchIndex({
         return;
       }
       await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'running');
+      validationRunning = true;
       const validation = await resolvedDeps.validateIndexArtifacts({
         root: attemptRuntime.root,
         indexRoot: attemptRuntime.buildRoot,
@@ -513,10 +523,13 @@ export async function watchIndex({
       if (!validation.ok) {
         status = 'error';
         await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed');
+        validationDone = true;
         log('[watch] Index update failed validation; skipping promotion.');
       } else {
         await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'done');
+        validationDone = true;
         await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'running');
+        promoteRunning = true;
         await resolvedDeps.promoteBuild({
           repoRoot: attemptRuntime.root,
           userConfig: attemptRuntime.userConfig,
@@ -529,6 +542,7 @@ export async function watchIndex({
           compatibilityKey: attemptRuntime.compatibilityKey || null
         });
         await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'done');
+        promoteDone = true;
         log('[watch] Index update complete.');
       }
     } catch (err) {
@@ -537,21 +551,42 @@ export async function watchIndex({
     } finally {
       activeBuildAbort = null;
       if (attemptRuntime) {
-        await markBuildPhase(
-          attemptRuntime.buildRoot,
-          'watch',
-          status === 'ok' ? 'done' : 'failed'
-        );
+        if (promoteRunning && !promoteDone) {
+          try { await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'failed'); } catch {}
+        }
+        if (validationRunning && !validationDone) {
+          try { await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed'); } catch {}
+        }
+        try {
+          await markBuildPhase(
+            attemptRuntime.buildRoot,
+            'watch',
+            status === 'ok' ? 'done' : 'failed'
+          );
+        } catch (err) {
+          status = 'error';
+          log(`[watch] Failed to write build phase state: ${err?.message || err}`);
+        }
+      }
+      let releaseError = null;
+      try {
+        await lock.release();
+      } catch (err) {
+        status = 'error';
+        releaseError = err;
+        log(`[watch] Index lock release failed: ${err?.message || err}`);
       }
       if (attempt) {
         await attemptManager.recordOutcome(attempt, status === 'ok');
       }
-      await lock.release();
       running = false;
       observeWatchBuildDuration({
         status,
         seconds: Number(process.hrtime.bigint() - startTime) / 1e9
       });
+      if (releaseError) {
+        return;
+      }
     }
     if (pending) {
       pending = false;

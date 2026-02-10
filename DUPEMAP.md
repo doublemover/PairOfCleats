@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T00:11:52.8315093-05:00
+Last updated: 2026-02-10T01:47:53.4875963-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -70,7 +70,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D7 | [@] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
-| F1 | [ ] | Build/runtime lifecycle correctness remediation |
+| F1 | [x] | Build/runtime lifecycle correctness remediation |
 | F2 | [ ] | Language/chunking/import correctness remediation |
 | F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
 | F4 | [ ] | Retrieval/ANN/embeddings correctness + boundedness |
@@ -381,32 +381,35 @@ Touchpoints:
 - `src/index/build/artifacts/repo-map.js`
 
 Subphase F1.1 — Stage progression and promotion correctness:
-- [ ] Fix stage/promotion ordering findings from C/addendum (including partial promotion and stage-state visibility).
-- [ ] Enforce per-stage fail-closed semantics; no silent stage failure.
-- [ ] Ensure `build_state/current` progression reflects stage4 sqlite work when enabled.
+- [x] Fix stage/promotion ordering findings from C/addendum (including partial promotion and stage-state visibility).
+- [x] Enforce per-stage fail-closed semantics; no silent stage failure.
+- [x] Ensure `build_state/current` progression reflects stage4 sqlite work when enabled.
 
 Subphase F1.2 — Lock/process teardown correctness:
-- [ ] Guarantee lock handler detachment and teardown execution even when release paths fail.
-- [ ] Ensure subprocess timeout-kill logic is cancellation-safe and reports deterministic outcomes.
-- [ ] Enforce deterministic shutdown ordering for runtime teardown on both success and failure.
+- [x] Guarantee lock handler detachment and teardown execution even when release paths fail.
+- [x] Ensure subprocess timeout-kill logic is cancellation-safe and reports deterministic outcomes.
+- [x] Enforce deterministic shutdown ordering for runtime teardown on both success and failure.
 
 Subphase F1.3 — Watch/scheduler/runtime hot-path issues:
-- [ ] Fix `checks=1` off-by-one in `src/index/build/watch/stability.js:18`.
-- [ ] Bound scheduler miss cache in `src/index/build/tree-sitter-scheduler/lookup.js:27`.
-- [ ] Isolate collector run directories and cleanup ownership in `src/index/build/vfs-manifest-collector.js:124`.
-- [ ] Fix delta-disable behavior in `src/index/build/artifacts/repo-map.js:60`.
+- [x] Fix `checks=1` off-by-one in `src/index/build/watch/stability.js:18`.
+- [x] Bound scheduler miss cache in `src/index/build/tree-sitter-scheduler/lookup.js:27`.
+- [x] Isolate collector run directories and cleanup ownership in `src/index/build/vfs-manifest-collector.js:124`.
+- [x] Fix delta-disable behavior in `src/index/build/artifacts/repo-map.js:60`.
 
 Tests:
-- [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
-- [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
-- [ ] `tests/indexing/watch/watch-stability-checks.test.js` (new)
-- [ ] `tests/indexing/tree-sitter/scheduler-miss-cache-bounded.test.js` (new)
-- [ ] `tests/indexing/vfs/vfs-manifest-collector-isolation.test.js` (new)
-- [ ] `tests/indexing/artifacts/repo-map-delta-eligibility.test.js` (new)
+- [x] `tests/indexing/build/stage-progression-contract.test.js` (new)
+- [x] `tests/indexing/build/promotion-timing-contract.test.js` (new)
+- [x] `tests/indexing/watch/watch-stability-checks.test.js` (new)
+- [x] `tests/indexing/tree-sitter/scheduler-miss-cache-bounded.test.js` (new)
+- [x] `tests/indexing/vfs/vfs-manifest-collector-isolation.test.js` (new)
+- [x] `tests/indexing/artifacts/repo-map-delta-eligibility.test.js` (new)
 
 Exit criteria:
-- [ ] No known stage lifecycle findings remain open.
-- [ ] Long-running watch/scheduler paths are bounded and test-proven.
+- [x] No known stage lifecycle findings remain open.
+- [x] Long-running watch/scheduler paths are bounded and test-proven.
+
+F1.DOC no-doc-change rationale (2026-02-10T01:47:42.3681173-05:00):
+- Runtime/promotion behavior changed in implementation details only; no user-facing command, config, or schema contract text changed.
 
 ### Phase F2 — Language/chunking/import correctness
 
@@ -757,7 +760,7 @@ Documents: `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config
 - [ ] Task F0.DOC: Findings program control-plane docs.
 Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/guides/commands.md`.
 
-- [ ] Task F1.DOC: Build/runtime lifecycle findings docs.
+- [x] Task F1.DOC: Build/runtime lifecycle findings docs.
 Documents: `docs/contracts/schemas/build-state.js` (and related contract docs in `docs/contracts/*`), `docs/sqlite/incremental-updates.md`, `docs/specs/*` (build/stage lifecycle docs touched).
 
 - [ ] Task F2.DOC: Language/chunking/import correctness docs.
