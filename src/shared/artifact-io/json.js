@@ -248,6 +248,26 @@ export const readJsonLinesEach = async (
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
     }
+    if (stat.size <= SMALL_JSONL_BYTES) {
+      const shouldMeasure = hasArtifactReadObserver();
+      const start = shouldMeasure ? performance.now() : 0;
+      const buffer = readBuffer(targetPath, maxBytes);
+      const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, targetPath);
+      const { rows, bytes } = readJsonlFromBuffer(decompressed, targetPath);
+      if (cleanup) cleanupBak(targetPath);
+      if (shouldMeasure) {
+        recordArtifactRead({
+          path: targetPath,
+          format: 'jsonl',
+          compression: 'gzip',
+          rawBytes: stat.size,
+          bytes,
+          rows,
+          durationMs: performance.now() - start
+        });
+      }
+      return;
+    }
     const plan = resolveJsonlReadPlan(stat.size);
     const stream = fs.createReadStream(targetPath, { highWaterMark: plan.highWaterMark });
     const gunzip = createGunzip({ chunkSize: plan.chunkSize });
@@ -873,6 +893,26 @@ export const readJsonLinesArray = async (
       const stat = fs.statSync(sourcePath);
       if (stat.size > maxBytes) {
         throw toJsonTooLargeError(sourcePath, stat.size);
+      }
+      if (stat.size <= SMALL_JSONL_BYTES) {
+        const shouldMeasure = hasArtifactReadObserver();
+        const start = shouldMeasure ? performance.now() : 0;
+        const buffer = readBuffer(sourcePath, maxBytes);
+        const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, sourcePath);
+        const parsed = readJsonlFromBuffer(decompressed, sourcePath);
+        if (cleanup) cleanupBak(sourcePath);
+        if (shouldMeasure) {
+          recordArtifactRead({
+            path: sourcePath,
+            format: 'jsonl',
+            compression: 'gzip',
+            rawBytes: stat.size,
+            bytes: decompressed.length,
+            rows: parsed.length,
+            durationMs: performance.now() - start
+          });
+        }
+        return parsed;
       }
       const plan = resolveJsonlReadPlan(stat.size);
       const stream = fs.createReadStream(sourcePath, { highWaterMark: plan.highWaterMark });
