@@ -1,7 +1,7 @@
 # USR Language Contract -- sql
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: sql
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the sql-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C2,C3
 - Applicable framework overlays: none
 - Required fallback chain: native-parser,tree-sitter,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `ansi-sql-2016`
+- maxVersion: `null`
+- dialects: `postgres,mysql,sqlite`
+- featureFlags: `cte,window-functions`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `false`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `none`
 
 ## 2. Required syntax and node coverage
 

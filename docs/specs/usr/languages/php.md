@@ -1,7 +1,7 @@
 # USR Language Contract -- php
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: php
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the php-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C2,C3
 - Applicable framework overlays: none
 - Required fallback chain: tree-sitter,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `8.1`
+- maxVersion: `null`
+- dialects: `php`
+- featureFlags: `attributes,named-arguments`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `html,css,javascript`
 
 ## 2. Required syntax and node coverage
 

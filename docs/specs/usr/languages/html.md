@@ -1,7 +1,7 @@
 # USR Language Contract -- html
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: html
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the html-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C4
 - Applicable framework overlays: vue,nuxt,svelte,sveltekit,angular,astro
 - Required fallback chain: tree-sitter,framework-compiler,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `html5`
+- maxVersion: `null`
+- dialects: `html`
+- featureFlags: `custom-elements,web-components`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `javascript,typescript,css,handlebars,mustache,jinja,razor`
 
 ## 2. Required syntax and node coverage
 
