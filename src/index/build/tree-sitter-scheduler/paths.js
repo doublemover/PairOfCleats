@@ -19,6 +19,7 @@ export const resolveTreeSitterSchedulerPaths = (indexDir) => {
     planPath: path.join(baseDir, 'plan.json'),
     jobPathForGrammarKey: (grammarKey) => path.join(jobsDir, `${sanitizeKey(grammarKey)}.jsonl`),
     resultsPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.jsonl`),
-    resultsIndexPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.vfsidx`)
+    resultsIndexPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.vfsidx`),
+    resultsMetaPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.meta.jsonl`)
   };
 };

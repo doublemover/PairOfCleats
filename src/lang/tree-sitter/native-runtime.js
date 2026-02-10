@@ -8,10 +8,11 @@ const nativeTreeSitterState = {
   initError: null,
   initTried: false,
   grammarCache: new Map(), // languageId -> { language, error }
-  sharedParser: null,
-  sharedParserLanguageId: null,
+  parserCache: new Map(), // languageId -> parser instance
+  parserLru: [],
   loggedMissing: new Set()
 };
+const MAX_PARSER_CACHE_SIZE = 4;
 
 const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: {
@@ -195,25 +196,31 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
   if (!language) return null;
 
   try {
-    if (!nativeTreeSitterState.sharedParser) {
-      nativeTreeSitterState.sharedParser = new nativeTreeSitterState.ParserCtor();
-      nativeTreeSitterState.sharedParserLanguageId = null;
+    const cached = nativeTreeSitterState.parserCache.get(resolvedId);
+    if (cached) {
+      nativeTreeSitterState.parserLru = nativeTreeSitterState.parserLru.filter((id) => id !== resolvedId);
+      nativeTreeSitterState.parserLru.push(resolvedId);
+      return cached;
     }
-
-    if (nativeTreeSitterState.sharedParserLanguageId !== resolvedId) {
-      // tree-sitter doesn't expose a documented `reset()`; treat language
-      // switches as the synchronization point.
-      nativeTreeSitterState.sharedParser.setLanguage(language);
-      nativeTreeSitterState.sharedParserLanguageId = resolvedId;
+    const parser = new nativeTreeSitterState.ParserCtor();
+    parser.setLanguage(language);
+    nativeTreeSitterState.parserCache.set(resolvedId, parser);
+    nativeTreeSitterState.parserLru.push(resolvedId);
+    while (nativeTreeSitterState.parserLru.length > MAX_PARSER_CACHE_SIZE) {
+      const evictedId = nativeTreeSitterState.parserLru.shift();
+      if (!evictedId) continue;
+      const evictedParser = nativeTreeSitterState.parserCache.get(evictedId);
+      nativeTreeSitterState.parserCache.delete(evictedId);
+      try {
+        evictedParser?.delete?.();
+      } catch {}
     }
-
-    return nativeTreeSitterState.sharedParser;
+    return parser;
   } catch (err) {
-    try {
-      nativeTreeSitterState.sharedParser?.delete?.();
-    } catch {}
-    nativeTreeSitterState.sharedParser = null;
-    nativeTreeSitterState.sharedParserLanguageId = null;
+    const parser = nativeTreeSitterState.parserCache.get(resolvedId);
+    nativeTreeSitterState.parserCache.delete(resolvedId);
+    nativeTreeSitterState.parserLru = nativeTreeSitterState.parserLru.filter((id) => id !== resolvedId);
+    try { parser?.delete?.(); } catch {}
     if (log) {
       const message = err?.message || String(err);
       log(`[tree-sitter] Failed to activate ${resolvedId}: ${message}`);

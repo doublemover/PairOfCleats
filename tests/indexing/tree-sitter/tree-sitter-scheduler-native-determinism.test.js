@@ -67,7 +67,8 @@ const snapshotRun = async (tag) => {
     artifacts[grammarKey] = {
       jobs: await fs.readFile(paths.jobPathForGrammarKey(grammarKey), 'utf8'),
       results: await fs.readFile(paths.resultsPathForGrammarKey(grammarKey), 'utf8'),
-      index: await fs.readFile(paths.resultsIndexPathForGrammarKey(grammarKey), 'utf8')
+      index: await fs.readFile(paths.resultsIndexPathForGrammarKey(grammarKey), 'utf8'),
+      meta: await fs.readFile(paths.resultsMetaPathForGrammarKey(grammarKey), 'utf8')
     };
   }
   const sortedIndexRows = Array.from(scheduler.index.entries())

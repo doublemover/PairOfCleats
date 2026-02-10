@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import { compareStrings } from '../../../shared/sort.js';
 import { createLruCache } from '../../../shared/cache.js';
+import { readJsonlRows } from '../../../shared/merge.js';
 import {
   createVfsManifestOffsetReader,
   readVfsManifestRowsAtOffsets
@@ -34,6 +36,7 @@ export const createTreeSitterSchedulerLookup = ({
     maxEntries: missCacheMax
   });
   const readersByManifestPath = new Map();
+  const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
 
   const getReaderForManifest = (manifestPath) => {
     if (readersByManifestPath.has(manifestPath)) {
@@ -47,11 +50,61 @@ export const createTreeSitterSchedulerLookup = ({
   const close = async () => {
     const readers = Array.from(readersByManifestPath.values());
     readersByManifestPath.clear();
+    segmentMetaByGrammarKey.clear();
     await Promise.all(readers.map(async (reader) => {
       try {
         await reader.close();
       } catch {}
     }));
+  };
+
+  const loadSegmentMeta = async (grammarKey) => {
+    if (!grammarKey) return null;
+    if (segmentMetaByGrammarKey.has(grammarKey)) {
+      return segmentMetaByGrammarKey.get(grammarKey);
+    }
+    const pending = (async () => {
+      const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
+      if (!metaPath || !fs.existsSync(metaPath)) return null;
+      const metaByRef = new Map();
+      for await (const row of readJsonlRows(metaPath)) {
+        const ref = Number(row?.segmentRef);
+        if (!Number.isFinite(ref) || ref < 0) continue;
+        metaByRef.set(ref, row);
+      }
+      return metaByRef;
+    })();
+    segmentMetaByGrammarKey.set(grammarKey, pending);
+    return pending;
+  };
+
+  const hydrateRowWithSegmentMeta = (row, metaByRef) => {
+    if (!row || typeof row !== 'object') return null;
+    if (
+      typeof row.containerPath === 'string'
+      && typeof row.languageId === 'string'
+      && typeof row.effectiveExt === 'string'
+    ) {
+      return row;
+    }
+    const ref = Number(row.segmentRef);
+    if (!Number.isFinite(ref) || ref < 0 || !(metaByRef instanceof Map)) {
+      return row;
+    }
+    const meta = metaByRef.get(ref);
+    if (!meta || typeof meta !== 'object') return row;
+    return {
+      ...row,
+      containerPath: typeof row.containerPath === 'string'
+        ? row.containerPath
+        : (typeof meta.containerPath === 'string' ? meta.containerPath : null),
+      languageId: typeof row.languageId === 'string'
+        ? row.languageId
+        : (typeof meta.languageId === 'string' ? meta.languageId : null),
+      effectiveExt: typeof row.effectiveExt === 'string'
+        ? row.effectiveExt
+        : (typeof meta.effectiveExt === 'string' ? meta.effectiveExt : null)
+    };
   };
 
   const loadRow = async (virtualPath) => {
@@ -96,6 +149,8 @@ export const createTreeSitterSchedulerLookup = ({
 
     for (const [manifestPath, list] of groups.entries()) {
       const reader = getReaderForManifest(manifestPath);
+      const grammarKey = list[0]?.entry?.grammarKey || null;
+      const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const requests = list.map(({ entry }) => ({
         offset: entry.offset,
         bytes: entry.bytes
@@ -107,7 +162,7 @@ export const createTreeSitterSchedulerLookup = ({
       });
       for (let i = 0; i < list.length; i += 1) {
         const { index: rowIndex, virtualPath } = list[i];
-        const row = loadedRows[i] || null;
+        const row = hydrateRowWithSegmentMeta(loadedRows[i] || null, segmentMeta);
         rows[rowIndex] = row;
         if (row) {
           rowCache.set(virtualPath, row);

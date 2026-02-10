@@ -209,7 +209,7 @@ Format:
 - Impact: Lower startup/module-load overhead.
 - Risk: Worker lifecycle and isolation complexity.
 
-7. Area: Parser language switch churn
+7. [x] Area: Parser language switch churn
 - Files: `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/tree-sitter-scheduler/executor.js`, `src/lang/tree-sitter/native-runtime.js`
 - Opportunity: Batch executor jobs to reduce `setLanguage` churn for mixed-language groups.
 - Impact: Better parser throughput.
@@ -221,7 +221,7 @@ Format:
 - Impact: Reduced disk/hash cost.
 - Risk: Stale-read prevention logic required.
 
-9. Area: Scheduler result metadata repetition
+9. [x] Area: Scheduler result metadata repetition
 - Files: `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/file-processor/cpu.js`
 - Opportunity: Segment metadata table + references instead of per-chunk duplication.
 - Impact: Smaller artifacts and lower parse cost.

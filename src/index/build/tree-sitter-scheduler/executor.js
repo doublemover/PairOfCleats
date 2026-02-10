@@ -114,8 +114,10 @@ export const executeTreeSitterSchedulerPlan = async ({
 
     const resultsPath = paths.resultsPathForGrammarKey(grammarKey);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
+    const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
     const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
     const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: true });
+    const { stream: metaStream, done: metaDone } = createJsonWriteStream(metaPath, { atomic: true });
 
     let offset = 0;
     let wrote = 0;
@@ -123,6 +125,8 @@ export const executeTreeSitterSchedulerPlan = async ({
     let currentText = null;
     let currentLineIndex = null;
     let currentFileVersionSignature = null;
+    const segmentMetaByKey = new Map();
+    const segmentMetaRows = [];
 
     try {
       for (const job of jobs) {
@@ -217,18 +221,38 @@ export const executeTreeSitterSchedulerPlan = async ({
           segmentEndLine,
           embeddingContext
         }));
+        const normalizedContainerPath = coercePosix(containerPath);
+        const segmentMetaKey = [
+          normalizedContainerPath,
+          languageId || '',
+          segmentExt || '',
+          segmentUid || '',
+          segment?.segmentId || '',
+          Number.isFinite(segmentStart) ? String(segmentStart) : '',
+          Number.isFinite(segmentEnd) ? String(segmentEnd) : ''
+        ].join('|');
+        let segmentRef = segmentMetaByKey.get(segmentMetaKey);
+        if (!Number.isFinite(segmentRef)) {
+          segmentRef = segmentMetaRows.length;
+          segmentMetaByKey.set(segmentMetaKey, segmentRef);
+          segmentMetaRows.push({
+            schemaVersion: '1.0.0',
+            segmentRef,
+            containerPath: normalizedContainerPath,
+            languageId,
+            effectiveExt: segmentExt || null,
+            segmentUid,
+            segmentId: segment?.segmentId || null,
+            segmentStart,
+            segmentEnd
+          });
+        }
 
         const row = {
-          schemaVersion: '1.0.0',
+          schemaVersion: '1.1.0',
           virtualPath,
           grammarKey,
-          containerPath: coercePosix(containerPath),
-          languageId,
-          effectiveExt: segmentExt || null,
-          segmentUid,
-          segmentId: segment?.segmentId || null,
-          segmentStart,
-          segmentEnd,
+          segmentRef,
           chunks: adjusted
         };
 
@@ -252,14 +276,21 @@ export const executeTreeSitterSchedulerPlan = async ({
         wrote += 1;
         totalJobs += 1;
       }
+      for (const metaRow of segmentMetaRows) {
+        await writeChunk(metaStream, stringifyJsonValue(metaRow));
+        await writeChunk(metaStream, '\n');
+      }
       resultsStream.end();
       indexStream.end();
-      await Promise.all([resultsDone, indexDone]);
+      metaStream.end();
+      await Promise.all([resultsDone, indexDone, metaDone]);
     } catch (err) {
       try { resultsStream.destroy(err); } catch {}
       try { indexStream.destroy(err); } catch {}
+      try { metaStream.destroy(err); } catch {}
       try { await resultsDone; } catch {}
       try { await indexDone; } catch {}
+      try { await metaDone; } catch {}
       throw err;
     }
 
