@@ -97,7 +97,33 @@ const resolveWithinRoot = (rootAbs, absPath) => {
   return normalizeRelPath(toPosix(rel));
 };
 
-const createFileLookup = ({ entries, root }) => {
+const createFsMemo = () => {
+  const existsCache = new Map();
+  const statCache = new Map();
+  return {
+    existsSync: (targetPath) => {
+      if (existsCache.has(targetPath)) return existsCache.get(targetPath);
+      let exists = false;
+      try {
+        exists = fs.existsSync(targetPath);
+      } catch {}
+      existsCache.set(targetPath, exists);
+      return exists;
+    },
+    statSync: (targetPath) => {
+      if (statCache.has(targetPath)) return statCache.get(targetPath);
+      let stat = null;
+      try {
+        stat = fs.statSync(targetPath);
+      } catch {}
+      statCache.set(targetPath, stat);
+      return stat;
+    }
+  };
+};
+
+const createFileLookup = ({ entries, root, fsMemo = null }) => {
+  const io = fsMemo || createFsMemo();
   const rootAbs = path.resolve(root);
   const fileSet = new Set();
   const fileLower = new Map();
@@ -123,7 +149,7 @@ const createFileLookup = ({ entries, root }) => {
   }
   if (!hasTsconfig) {
     try {
-      if (fs.existsSync(path.join(rootAbs, 'tsconfig.json'))) {
+      if (io.existsSync(path.join(rootAbs, 'tsconfig.json'))) {
         hasTsconfig = true;
       }
     } catch {}
@@ -205,7 +231,8 @@ const resolveTsConfigExtends = (baseDir, extendsValue) => {
   return null;
 };
 
-const createTsConfigLoader = ({ rootAbs, fileSet }) => {
+const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
+  const io = fsMemo || createFsMemo();
   const tsconfigCache = new Map();
   const dirCache = new Map();
   const fileLookup = fileSet instanceof Set ? fileSet : null;
@@ -216,7 +243,7 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
 
   const loadConfig = (tsconfigPath, stack = new Set()) => {
     if (!tsconfigPath || stack.has(tsconfigPath)) return null;
-    const stat = fs.existsSync(tsconfigPath) ? fs.statSync(tsconfigPath) : null;
+    const stat = io.statSync(tsconfigPath);
     if (!stat) return null;
     const cacheKey = `${stat.mtimeMs}:${stat.size}`;
     const cached = tsconfigCache.get(tsconfigPath);
@@ -297,12 +324,12 @@ const createTsConfigLoader = ({ rootAbs, fileSet }) => {
       if (candidateRel && fileLookup) {
         hasCandidate = fileLookup.has(candidateRel);
         if (!hasCandidate) {
-          hasCandidate = fs.existsSync(candidate);
+          hasCandidate = io.existsSync(candidate);
         }
       } else if (candidateRel) {
-        hasCandidate = fs.existsSync(candidate);
+        hasCandidate = io.existsSync(candidate);
       } else {
-        hasCandidate = fs.existsSync(candidate);
+        hasCandidate = io.existsSync(candidate);
       }
       if (hasCandidate) {
         for (const seen of visited) dirCache.set(seen, candidate);
@@ -387,10 +414,11 @@ const parsePackageName = (spec) => {
   return name || null;
 };
 
-const resolvePackageFingerprint = (rootAbs) => {
+const resolvePackageFingerprint = (rootAbs, fsMemo = null) => {
+  const io = fsMemo || createFsMemo();
   if (!rootAbs) return null;
   const packagePath = path.join(rootAbs, 'package.json');
-  if (!fs.existsSync(packagePath)) return null;
+  if (!io.existsSync(packagePath)) return null;
   try {
     const raw = fs.readFileSync(packagePath, 'utf8');
     return sha1(raw);
@@ -426,8 +454,9 @@ export function resolveImportLinks({
   fileHashes = null,
   cacheStats = null
 }) {
-  const lookup = createFileLookup({ entries, root });
-  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet });
+  const fsMemo = createFsMemo();
+  const lookup = createFileLookup({ entries, root, fsMemo });
+  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet, fsMemo });
   const cacheState = cache && typeof cache === 'object' ? cache : null;
   const cacheMetrics = cacheState
     ? (cacheStats || {
@@ -449,7 +478,7 @@ export function resolveImportLinks({
   const fileSetChanged = !!(cacheState
     && fileSetFingerprint
     && cacheState.fileSetFingerprint !== fileSetFingerprint);
-  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs) : null;
+  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs, fsMemo) : null;
   const repoHash = cacheState ? sha1(lookup.rootAbs) : null;
   const cacheKeyInfo = cacheState && fileSetFingerprint
     ? buildCacheKey({
