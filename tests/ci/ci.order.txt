@@ -10,6 +10,8 @@ tooling/lsp/pyright-provider-output-shape
 tooling/install/setup
 indexing/relations/segment-call-site-offsets
 indexing/policy/analysis-policy-gating
+tooling/findings/findings-test-evidence-contract
+tooling/findings/src-review-coverage-lock
 indexing/discovery/discover
 tooling/lsp/typescript/typescript-vfs-segment-vue
 tooling/lsp/typescript/typescript-js-parity-basic

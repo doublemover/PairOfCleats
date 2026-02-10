@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T02:53:04.7758141-05:00
+Last updated: 2026-02-10T03:03:53.9305408-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -77,7 +77,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [x] | Map/graph/context-pack correctness + cleanup safety |
 | F7 | [x] | Security/path/input hardening across surfaces |
-| F8 | [ ] | Contract-test expansion + `src/**` coverage lock |
+| F8 | [x] | Contract-test expansion + `src/**` coverage lock |
 | F9 | [ ] | CI gating + burn-down closure for all findings |
 
 ---
@@ -680,23 +680,42 @@ Touchpoints:
 - findings manifest and script-coverage tooling
 
 Subphase F8.1 — Contract suite expansion:
-- [ ] Add/upgrade contract suites across build, language, retrieval, storage, map, and tooling domains.
-- [ ] Ensure each resolved finding references a corresponding contract or regression test.
-- [ ] Ensure all new tests use shared env helper (`PAIROFCLEATS_TESTING` setup).
+- [x] Add/upgrade contract suites across build, language, retrieval, storage, map, and tooling domains.
+- [x] Ensure each resolved finding references a corresponding contract or regression test.
+- [x] Ensure all new tests use shared env helper (`PAIROFCLEATS_TESTING` setup).
 
 Subphase F8.2 — `src/**` review coverage lock:
-- [ ] Add script to compute `src/**` files not explicitly covered by findings references.
-- [ ] Fail CI if review coverage drops below required threshold (target: 100% explicitly referenced coverage state).
-- [ ] Regenerate and version controlled coverage listing when intentional scope changes occur.
+- [x] Add script to compute `src/**` files not explicitly covered by findings references.
+- [x] Fail CI if review coverage drops below required threshold (target: 100% explicitly referenced coverage state).
+- [x] Regenerate and version controlled coverage listing when intentional scope changes occur.
 
 Tests:
-- [ ] `tests/tooling/findings/findings-test-evidence-contract.test.js` (new)
-- [ ] `tests/tooling/findings/src-review-coverage-lock.test.js` (new)
-- [ ] existing tooling/docs/tests updated to reflect current intended state
+- [x] `tests/tooling/findings/findings-test-evidence-contract.test.js` (new)
+- [x] `tests/tooling/findings/src-review-coverage-lock.test.js` (new)
+- [x] existing tooling/docs/tests updated to reflect current intended state
 
 Exit criteria:
-- [ ] Every resolved finding is test-backed.
-- [ ] `src/**` review coverage lock is CI-enforced.
+- [x] Every resolved finding is test-backed.
+- [x] `src/**` review coverage lock is CI-enforced.
+
+F8 status update (2026-02-10T03:03:53.9305408-05:00):
+- resolved: added `tools/docs/src-review-coverage.js` with deterministic `--check` mode to enforce `src/**` explicit coverage lock and minimum coverage threshold.
+- resolved: added findings contract tests `tests/tooling/findings/findings-test-evidence-contract.test.js` and `tests/tooling/findings/src-review-coverage-lock.test.js`, both using shared test env setup.
+- resolved: versioned coverage artifacts generated and committed at `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` and `docs/tooling/src-review-coverage.json`.
+- resolved: integrated findings suites into CI lane order manifests (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`) so coverage/test-evidence regressions fail CI lane execution.
+- remaining: none (F8 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "src-review-coverage|min-coverage|coverage lock|Explicit coverage ledger" tools/docs/src-review-coverage.js`
+  - `rg --line-number "findings test-evidence contract|src review coverage lock test passed|src-review coverage lock" tests/tooling/findings -g "*.test.js"`
+  - `rg --line-number "tooling/findings/findings-test-evidence-contract|tooling/findings/src-review-coverage-lock" tests/ci-lite/ci-lite.order.txt tests/ci/ci.order.txt`
+  - `rg --line-number "^#|Coverage summary|Coverage lock gate|Explicit coverage ledger|Current uncovered set" docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
+
+F8.DOC update (2026-02-10T03:03:53.9305408-05:00):
+- Added `src/**` coverage-lock documentation artifacts and CI/test enforcement references:
+  - `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`
+  - `docs/tooling/src-review-coverage.json`
 
 ### Phase F9 — CI burn-down closure and acceptance
 
@@ -828,7 +847,7 @@ Documents: `docs/specs/*` (map/graph/context-pack behavior docs touched), `docs/
 - [x] Task F7.DOC: Security/path/input hardening docs.
 Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` (new knobs/limits), `docs/specs/*` (security constraints), `docs/guides/*` (user-facing behavior changes).
 
-- [ ] Task F8.DOC: Contract-test expansion and coverage-lock docs.
+- [x] Task F8.DOC: Contract-test expansion and coverage-lock docs.
 Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` (or successor file).
 
 - [ ] Task F9.DOC: Final findings closure docs.
