@@ -1,7 +1,7 @@
 # Spec -- USR Framework Profile Catalog
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -46,6 +46,12 @@ type USRFrameworkProfileV1 = {
     boundarySignals: string[];
     ssrCsrModes: string[];
   };
+  embeddedLanguageBridges: Array<{
+    sourceBlock: string;
+    targetBlock: string;
+    edgeKinds: string[];
+  }>;
+  edgeCaseCaseIds: string[]; // canonical case IDs from usr-framework-edge-cases.json
   requiredConformance: Array<"C4">;
 };
 ```
@@ -213,8 +219,8 @@ Failure after step 1 MUST preserve partial outputs and emit diagnostics.
 | Edge kind | Required attrs | Notes |
 | --- | --- | --- |
 | `route_maps_to` | `routePattern`, `router` | route pattern MUST use bracket canonical form |
-| `template_binds` | `bindingKind`, `bindingName` | directive/event syntax MAY be additional attrs |
-| `style_scopes` | `scopeType`, `styleSystem` | scope tokens/encapsulation MAY be additional attrs |
+| `template_binds` | `bindingKind`, `bindingName` | directive/event syntax MUST use canonical attrs plus optional extensions |
+| `style_scopes` | `scopeType`, `styleSystem` | scope tokens/encapsulation MUST use canonical attrs plus optional extensions |
 | `hydration_boundary` | `boundaryType`, `runtimeSide` | required when framework exposes SSR/CSR boundaries |
 
 ## 6. C4 conformance requirements
@@ -243,7 +249,8 @@ Conflict outcomes MUST emit:
 ## 8. Required artifacts and files
 
 - `tests/lang/matrix/usr-framework-profiles.json`
-- `tests/lang/matrix/usr-framework-edge-cases.json` (recommended)
+- `tests/lang/matrix/usr-framework-edge-cases.json`
+- `tests/lang/matrix/usr-embedding-bridge-cases.json`
 - fixture families under `tests/fixtures/usr/frameworks/<framework-id>/`
 
 Additional validation rules:
@@ -252,8 +259,10 @@ Additional validation rules:
 - `appliesToLanguages` entries are valid registry language IDs
 - required attrs maps for edge families include at least required keys from this spec
 - segmentation ordering arrays match canonical extraction phases
+- `embeddedLanguageBridges` is non-empty when framework segmentation spans multiple block types
+- `edgeCaseCaseIds` exactly matches case IDs declared for the framework in `usr-framework-edge-cases.json`
 
-Recommended report outputs:
+Required report outputs:
 
 - `usr-framework-profile-coverage.json`
 - `usr-framework-detection-conflicts.json`
@@ -264,4 +273,5 @@ Recommended report outputs:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+
 

@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T02:00:00Z
+Last rewritten: 2026-02-10T06:20:00Z
 Branch: `LANGMANE`
-Document status: planning baseline (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v0.5 (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.3).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.5).
 
 Primary shifts in this rewrite:
 
@@ -49,6 +49,20 @@ This roadmap is governed by these authoritative documents:
 - `docs/contracts/analysis-schemas.md`
 - `src/index/language-registry/registry-data.js`
 
+### 2.1 Contract precedence policy
+
+When two documents overlap, precedence is:
+
+1. `docs/specs/unified-syntax-representation.md` (umbrella USR contract)
+2. decomposed USR contracts in `docs/specs/usr*.md` and `docs/specs/usr/**`
+3. roadmap task decompositions and appendices
+
+If contradictions are found:
+
+- treat as blocker
+- open explicit contract reconciliation task in Phase 0
+- do not continue implementation on contradictory areas until resolved
+
 ## 3) Supported Coverage Surface
 
 ### 3.1 Registry Language IDs (authoritative)
@@ -89,12 +103,17 @@ This roadmap is governed by these authoritative documents:
 - [ ] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
 - [ ] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
 - [ ] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
+- [ ] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
+- [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
+- [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
+- [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
+- [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
 
 ## 6) Phase Index (Implementation before Test Rollout)
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.3 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.5 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -118,6 +137,7 @@ This roadmap is governed by these authoritative documents:
 ### 0.1 USR traceability
 
 - [ ] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
+- [ ] Add decomposition traceability matrix mapping each `docs/specs/usr*.md` contract to roadmap phases and CI gates.
 - [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
 - [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
 - [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
@@ -147,6 +167,10 @@ This roadmap is governed by these authoritative documents:
 - [ ] Create `tests/lang/matrix/usr-capability-matrix.json`.
 - [ ] Create `tests/lang/matrix/usr-conformance-levels.json`.
 - [ ] Create `tests/lang/matrix/usr-backcompat-matrix.json` (USR section 36.4).
+- [ ] Create `tests/lang/matrix/usr-framework-edge-cases.json`.
+- [ ] Create `tests/lang/matrix/usr-language-risk-profiles.json`.
+- [ ] Create `tests/lang/matrix/usr-embedding-bridge-cases.json`.
+- [ ] Create `tests/lang/matrix/usr-generated-provenance-cases.json`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
@@ -166,6 +190,8 @@ This roadmap is governed by these authoritative documents:
 - [ ] Add unknown-key strictness test for all USR matrix files.
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
+- [ ] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
+- [ ] Add decomposed-contract cross-reference consistency test: required contract links are present and valid.
 
 ### 1.4 Exit criteria
 
@@ -218,6 +244,8 @@ This roadmap is governed by these authoritative documents:
 - [ ] Preserve raw parser/compiler kind in `rawKind`.
 - [ ] Map unknown kinds deterministically to `unknown`.
 - [ ] Validate family-specific synonym mappings.
+- [ ] Enforce canonical mapping registry ordering and strict mapping conflict checks from `docs/specs/usr-normalization-mapping-contract.md`.
+- [ ] Enforce generated/macro provenance mapping requirements and deterministic source-origin mapping retention.
 
 ### 3.3 Framework extraction ordering (USR section 11.5)
 
@@ -266,6 +294,8 @@ This roadmap is governed by these authoritative documents:
 - [ ] Complete Angular profile tasks (Appendix D).
 - [ ] Complete Astro profile tasks (Appendix D).
 - [ ] Implement section 35 canonical edge attrs requirements (`route_maps_to`, `template_binds`, `style_scopes`) for each framework profile.
+- [ ] Implement deterministic framework detection conflict resolution policy from `docs/specs/usr-framework-profile-catalog.md`.
+- [ ] Implement section 38 embedded-language bridge requirements and required bridge evidence attrs for all multi-block framework profiles.
 
 ### 5.2 Framework applicability enforcement
 
@@ -291,6 +321,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Complete C3 requirements for risk-local and risk-interprocedural where required.
 - [ ] Implement capability state machine transitions and diagnostic semantics.
 - [ ] Implement remediation-class routing for diagnostics (USR section 33.4) in reporting outputs.
+- [ ] Implement machine-readable risk signal taxonomy and risk gating outputs aligned with `docs/specs/usr-language-risk-contract.md`.
 
 ### 6.3 Query/filter semantics
 
@@ -312,6 +343,9 @@ This roadmap is governed by these authoritative documents:
 - [ ] Expand framework fixtures for all profile-specific edge cases.
 - [ ] Materialize canonical example bundles matching USR section 34 minimal/maximal entities with cross-entity coherence checks.
 - [ ] Materialize framework edge-case fixtures per USR section 35.11 checklist.
+- [ ] Materialize embedded-language bridge fixtures per USR section 38 matrix requirements.
+- [ ] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
+- [ ] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
 
 ### 7.2 Golden generation and review
 
@@ -359,6 +393,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Validate framework profile completion evidence.
 - [ ] Validate conformance matrix readiness by language.
 - [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
+- [ ] Validate per-language contract approval checklists are complete for target rollout set.
 
 ### 9.2 Go/No-Go decision
 
@@ -383,6 +418,9 @@ This roadmap is governed by these authoritative documents:
 - [ ] Materialize capability state machine checks in harness.
 - [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
 - [ ] Materialize canonical example bundle validator lane for section 34 references.
+- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout contracts).
+- [ ] Materialize section 38 embedded-language bridge validators.
+- [ ] Materialize section 39 generated/macro provenance validators.
 
 ### 10.2 Lane wiring
 
@@ -476,11 +514,15 @@ This roadmap is governed by these authoritative documents:
 - [ ] Emit framework-level conformance dashboards.
 - [ ] Emit capability transition and degradation reports.
 - [ ] Emit compatibility matrix rollups including required section 36.8 dimensions.
+- [ ] Emit embedded-language bridge coverage and failure dashboards.
+- [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 
 ### 15.3 Maintenance
 
 - [ ] Enforce USR spec change-control policy linkage in PR templates.
 - [ ] Enforce registry drift checks for language/framework profile files.
+- [ ] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
+- [ ] Enforce per-language contract freshness checks and ownership rotation policy.
 
 ### 15.4 Exit criteria
 
@@ -516,6 +558,9 @@ This roadmap is governed by these authoritative documents:
 | 34 | canonical JSON examples | 7, 10 |
 | 35 | per-framework edge canonicalization examples | 5, 7, 13 |
 | 36 | backward-compatibility matrix | 1, 9, 10, 15 |
+| 37 | decomposed contract governance | 0, 1, 15 |
+| 38 | embedded-language bridge contract | 1, 3, 5, 7, 10, 13, 14 |
+| 39 | generated/macro provenance contract | 1, 3, 4, 7, 10, 12, 14 |
 
 ---
 
@@ -528,6 +573,9 @@ This roadmap is governed by these authoritative documents:
 - [ ] registry drift checks pass.
 - [ ] diagnostic/reason-code taxonomy validators implemented and passing.
 - [ ] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
+- [ ] framework edge-case and language risk matrix registries exist and validate.
+- [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
+- [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
 
@@ -549,6 +597,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] harness and lanes materialized.
 - [ ] conformance rollout authorized.
 - [ ] backward-compat matrix strict scenarios are green in CI.
+- [ ] decomposed contract drift checks are green in CI.
 
 ---
 
@@ -1096,6 +1145,12 @@ This roadmap is governed by these authoritative documents:
 - [ ] Enforce section 35 route/template/style canonical attrs and framework edge-case checklist in C4 lanes.
 - [ ] Enforce section 36 compatibility matrix execution, pairwise expansion, and reporting dimensions in CI.
 
+### F.6 Decomposed contract synchronization requirements
+
+- [ ] Keep umbrella USR spec and decomposed contract suite synchronized on every Tier 2/Tier 3 change.
+- [ ] Keep per-language contracts synchronized with language/profile matrix rows.
+- [ ] Keep framework and risk contracts synchronized with fixture and conformance lane implementations.
+
 ---
 
 ## Appendix G - Immediate Execution Milestones
@@ -1109,3 +1164,34 @@ This roadmap is governed by these authoritative documents:
 7. Complete Phase 6 through Phase 9 implementation gates.
 8. Start phased conformance rollout (Phase 10 through Phase 14).
 9. Finalize CI and change-control operations (Phase 15).
+
+---
+
+## Appendix H - Decomposed Contract Workstream Traceability
+
+| Contract | Primary intent | Required phases |
+| --- | --- | --- |
+| `docs/specs/usr-language-profile-catalog.md` | language profile schema/policy | 1, 4, 10, 11, 12 |
+| `docs/specs/usr-framework-profile-catalog.md` | framework profile schema/policy | 1, 5, 10, 13 |
+| `docs/specs/usr-normalization-mapping-contract.md` | raw-kind to USR mapping determinism | 1, 3, 10, 12 |
+| `docs/specs/usr-resolution-and-linking-contract.md` | reference/import resolution state machine | 1, 3, 6, 10, 12, 14 |
+| `docs/specs/usr-language-risk-contract.md` | language/framework risk taxonomy and gating | 1, 6, 10, 12, 14 |
+| `docs/specs/usr-conformance-and-fixture-contract.md` | C0-C4 assertions and fixture policy | 7, 8, 10, 11, 12, 13, 14 |
+| `docs/specs/usr-rollout-and-migration-contract.md` | rollout/cutover/deprecation policy | 9, 15 |
+| `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
+
+---
+
+## Appendix I - Per-Language Definition of Done
+
+A language profile is implementation-complete only when all items below are true:
+
+- [ ] Language contract file defines exact node/edge/capability/fallback requirements (no remaining seed placeholders).
+- [ ] Language profile row in `usr-language-profiles.json` matches the contract exactly.
+- [ ] Required fixture families are present with concrete fixture IDs and deterministic goldens.
+- [ ] Required conformance levels for the language are green in strict mode.
+- [ ] Risk expectations (where C3 applies) are implemented and validated with required diagnostics.
+- [ ] Generated/macro provenance behavior is either implemented or explicitly unsupported with diagnostics.
+- [ ] Embedded-language bridge behavior is implemented or explicitly non-applicable with evidence.
+- [ ] Unknown-kind budget for the language is within allowed threshold and reported.
+- [ ] All degradations and unsupported capabilities are explicitly declared and mapped to diagnostics/reason codes.

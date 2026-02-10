@@ -1,7 +1,7 @@
 # USR Language Contract -- cmake
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 Language ID: cmake
 
 ## 0. Scope
@@ -25,13 +25,34 @@ This document defines the cmake-specific USR contract as a child profile of:
 
 cmake MUST define language-specific required mappings for declarations, callables, linkage constructs, and control/data constructs required by its conformance levels.
 
+### 2.1 RequiredNodeKinds baseline
+
+- build_stmt, variable_decl, call_expr
+
 ## 3. Required edge coverage
 
 cmake MUST provide deterministic extraction for applicable edge kinds: defines, references, calls, contains, plus language-applicable imports, exports, and uses_type.
 
+### 3.1 RequiredEdgeKinds baseline
+
+- contains, references, calls, imports
+
 ## 4. Capability state baseline
 
 Capabilities MUST explicitly declare state for docmeta, ast, symbolGraph, relations, imports, controlFlow, dataFlow, riskLocal, and riskInterprocedural.
+
+### 4.1 RequiredCapabilities baseline
+
+- imports: supported
+- relations: supported
+- docmeta: supported
+- ast: supported
+- controlFlow: partial
+- dataFlow: partial
+- graphRelations: supported
+- riskLocal: unsupported
+- riskInterprocedural: unsupported
+- symbolGraph: supported
 
 ## 5. Language-specific edge focus
 
@@ -55,11 +76,31 @@ Required fixture families: positive syntax, malformed/fallback, unresolved/ambig
 
 Conformance checks MUST align with C0,C1,C2.
 
-## 10. Open implementation notes
+## 10. Dialect/version and embedding contract
 
-Follow-up revisions SHOULD add exact parser-kind mapping rows, risk taxonomy row entries, and concrete fixture IDs and owning test lanes.
+The language contract MUST explicitly declare:
 
-## 11. Required profile deltas before implementation-complete
+- supported language versions and dialects (with fallback boundaries)
+- parser/compiler feature flags required for deterministic extraction
+- whether the language can host embedded languages and allowed embedded language IDs
+- whether the language can be embedded inside container documents and required bridge behavior
+
+## 11. Required fixture minimums and evidence
+
+Minimum fixture groups for this language:
+
+- cmake::positive::*
+- cmake::fallback::*
+- cmake::resolution::*
+- cmake::determinism::*
+- cmake::provenance::*
+- cmake::risk::* (when C3 applies)
+
+If this language hosts embedded surfaces, add:
+
+- cmake::embedding-bridge::*
+
+## 12. Required profile deltas before implementation-complete
 
 The following MUST be explicitly filled for this language before declaring profile completion:
 
@@ -69,7 +110,7 @@ The following MUST be explicitly filled for this language before declaring profi
 - exact fallback downgrade behavior by stage
 - exact framework applicability overrides (if any)
 
-## 12. Required fixture ID mapping
+## 13. Required fixture ID mapping
 
 This language contract MUST map concrete fixture IDs to conformance assertions.
 
@@ -79,15 +120,24 @@ Minimum required fixture ID groups:
 - cmake::fallback::*
 - cmake::resolution::*
 - cmake::determinism::*
+- cmake::provenance::*
 - cmake::risk::* (when C3 applies)
 
-## 13. Approval checklist
+## 14. Approval checklist
 
 - [ ] Node kind mapping rows are defined and validated.
 - [ ] Edge extraction assertions are covered by fixtures.
 - [ ] Capability baseline and downgrade behavior are validated.
 - [ ] Resolution reason-code expectations are validated.
 - [ ] Risk expectations (if applicable) are validated.
+- [ ] Generated/macro provenance expectations are validated.
+- [ ] Embedded-language bridge behavior is validated or marked non-applicable with evidence.
 - [ ] Deterministic rerun checks are green.
 
+## 15. Completion evidence artifacts
 
+- `usr-language-profile-coverage.json`
+- `usr-node-kind-mapping-coverage.json`
+- `usr-resolution-outcome-distribution.json`
+- `usr-risk-coverage-summary.json` (when C3 applies)
+- `usr-determinism-rerun-diff.json`

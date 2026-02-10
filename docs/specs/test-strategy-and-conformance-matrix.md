@@ -8,6 +8,12 @@ This document is **normative** for Phase 12 testing. It defines:
 
 It is intended to remove ambiguity and give Codex everything it needs to implement Phase 12 correctly without further research.
 
+USR decomposition linkage:
+
+- `docs/specs/usr-conformance-and-fixture-contract.md` is authoritative for C0-C4 fixture and conformance semantics.
+- `docs/specs/usr-rollout-and-migration-contract.md` is authoritative for compatibility rollout and cutover gates.
+- `docs/specs/unified-syntax-representation.md` sections 38 and 39 are authoritative for embedded-language bridge and generated-provenance coverage.
+
 Bench harness note:
 - Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.
 
@@ -376,6 +382,8 @@ Placement guidance:
 Compatibility matrix policy:
 - Strict scenarios (`BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`) are release-blocking.
 - Non-strict compatibility scenarios are warning-level by default but MUST still emit explicit diagnostics and matrix reports.
+- Compatibility fixture IDs SHOULD follow `<language-or-framework>::<family>::<case-id>`.
+- Embedded-language and generated-provenance fixture families MUST be included for framework and transpiled/macro-heavy profiles.
 
 ---
 

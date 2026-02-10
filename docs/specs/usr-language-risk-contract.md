@@ -1,7 +1,7 @@
 # Spec -- USR Language Risk Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -39,12 +39,16 @@ type USRLanguageRiskProfileV1 = {
     minEvidenceKinds: string[];
     requiredCallLinkConfidence: number;
   };
+  severityPolicy: {
+    levels: Array<"info" | "low" | "medium" | "high" | "critical">;
+    defaultLevel: "info" | "low" | "medium" | "high" | "critical";
+  };
 };
 ```
 
 ## 2. Risk taxonomy classes
 
-Taxonomy entries SHOULD be grouped by class:
+Taxonomy entries MUST be grouped by class:
 
 - code execution
 - command/process execution
@@ -101,7 +105,7 @@ Minimum gating policy:
 
 ## 7. Risk taxonomy row requirements
 
-Each taxonomy row in machine-readable risk profiles SHOULD include:
+Each taxonomy row in machine-readable risk profiles MUST include:
 
 - `id` (stable risk signal ID)
 - `class` (taxonomy class from section 2)
@@ -110,15 +114,16 @@ Each taxonomy row in machine-readable risk profiles SHOULD include:
 - `frameworkProfile` (nullable)
 - `evidenceKinds` (minimum evidence required)
 - `defaultSeverity`
+- `remediationClass`
 
 Signal IDs MUST be stable across minor versions.
 
 ## 8. Required artifacts and files
 
-- `tests/lang/matrix/usr-language-risk-profiles.json` (recommended)
+- `tests/lang/matrix/usr-language-risk-profiles.json`
 - risk fixtures under `tests/fixtures/usr/risk/<language-id>/`
 
-Recommended report outputs:
+Required report outputs:
 
 - `usr-risk-coverage-summary.json`
 - `usr-risk-signal-distribution.json`
@@ -129,4 +134,5 @@ Recommended report outputs:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+
 
