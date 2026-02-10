@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 let Database = null;
 try {
@@ -44,7 +45,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_sqlite', [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot]);
+await runSqliteBuild(repoRoot);
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
@@ -73,8 +74,12 @@ if (previousCacheRoot === undefined) {
 const db = new Database(sqlitePaths.codePath);
 const indexList = db.prepare("PRAGMA index_list('token_postings')").all();
 const indexNames = new Set(indexList.map((row) => row.name));
-if (!indexNames.has('idx_token_postings_token')) {
-  console.error('Expected idx_token_postings_token to exist');
+if (indexNames.has('idx_token_postings_token')) {
+  console.error('Did not expect redundant idx_token_postings_token to exist');
+  process.exit(1);
+}
+if (!indexList.some((row) => row.origin === 'pk')) {
+  console.error('Expected token_postings PRIMARY KEY index to exist');
   process.exit(1);
 }
 const chunkIndexList = db.prepare("PRAGMA index_list('chunks')").all();

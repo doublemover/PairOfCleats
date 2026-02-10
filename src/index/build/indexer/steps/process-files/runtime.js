@@ -25,23 +25,30 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
     : Math.max(1, fileConcurrency);
   const pendingLimits = baseRuntime?.envelope?.queues || null;
   const scheduler = baseRuntime?.scheduler || null;
+  const stage1Queues = baseRuntime?.stage1Queues || null;
+  const procConcurrency = baseRuntime?.procConcurrency ?? null;
   const { queues } = createRuntimeQueues({
     ioConcurrency,
     cpuConcurrency,
     fileConcurrency,
     embeddingConcurrency,
     pendingLimits,
-    scheduler
+    scheduler,
+    stage1Queues,
+    procConcurrency
   });
   const destroyQueues = async () => {
-    await Promise.all([
+    const idles = [
       queues.io.onIdle(),
       queues.cpu.onIdle(),
       queues.embedding.onIdle()
-    ]);
+    ];
+    if (queues.proc?.onIdle) idles.push(queues.proc.onIdle());
+    await Promise.all(idles);
     queues.io.clear();
     queues.cpu.clear();
     queues.embedding.clear();
+    if (queues.proc?.clear) queues.proc.clear();
   };
   const destroy = async () => {
     await destroyQueues();

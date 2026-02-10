@@ -119,6 +119,7 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
       ? await graphStore.loadGraphIndex({
         repoRoot,
         cacheKey: graphCacheKey,
+        indexSignature,
         graphs: graphList,
         includeCsr
       })

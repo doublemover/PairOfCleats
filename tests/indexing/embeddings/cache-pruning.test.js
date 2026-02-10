@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsSync from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { pruneCacheIndex } from '../../../tools/build-embeddings/cache.js';
+import { pruneCacheIndex } from '../../../tools/build/embeddings/cache.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'embeddings-cache-pruning');

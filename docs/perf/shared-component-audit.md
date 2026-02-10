@@ -16,3 +16,6 @@ Completed consolidations:
 Open audit items:
 - Stage management, ANN, embeddings, benchmarking, and test runner utilities reviewed for duplicate helpers.
 - Remaining audit: look for any new one-off normalization/truncation helpers added in future changes.
+
+Bench harness:
+- `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`

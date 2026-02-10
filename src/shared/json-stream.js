@@ -1,6 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { createTempPath, replaceFile } from './json-stream/atomic.js';
+import { createTempPath, replaceDir, replaceFile } from './json-stream/atomic.js';
 import { writeJsonValue, stringifyJsonValue, writeArrayItems } from './json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from './json-stream/streams.js';
 import { createJsonlBatchWriter, createJsonlCompressionPool } from './json-stream/jsonl-batch.js';
@@ -17,6 +17,12 @@ const resolveShardLimits = ({ maxBytes, maxItems }) => ({
   maxBytes: normalizeShardLimit(maxBytes),
   maxItems: normalizeShardLimit(maxItems)
 });
+
+export const resolveJsonlExtension = (value) => {
+  if (value === 'gzip') return 'jsonl.gz';
+  if (value === 'zstd') return 'jsonl.zst';
+  return 'jsonl';
+};
 
 /**
  * Stream JSON lines to disk (one JSON object per line).
@@ -168,14 +174,10 @@ export async function writeJsonLinesSharded(input) {
   }
   const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
   const partsDir = path.join(dir, partsDirName);
-  await fsPromises.rm(partsDir, { recursive: true, force: true });
-  await fsPromises.mkdir(partsDir, { recursive: true });
+  const tempPartsDir = createTempPath(partsDir);
+  await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
+  await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const extension = resolveJsonlExtension(resolvedCompression);
 
   let compressionPool = null;
@@ -227,7 +229,7 @@ export async function writeJsonLinesSharded(input) {
     partCount = 0;
     partLogicalBytes = 0;
     const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.${extension}`;
-    const absPath = path.join(partsDir, partName);
+    const absPath = path.join(tempPartsDir, partName);
     const relPath = path.posix.join(partsDirName, partName);
     parts.push(relPath);
     counts.push(0);
@@ -244,7 +246,7 @@ export async function writeJsonLinesSharded(input) {
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
       const offsetsName = `${partName}.${suffix}`;
-      const offsetsAbs = path.join(partsDir, offsetsName);
+      const offsetsAbs = path.join(tempPartsDir, offsetsName);
       const offsetsRel = path.posix.join(partsDirName, offsetsName);
       offsetsParts.push(offsetsRel);
       offsetsWriter = createOffsetsWriter(offsetsAbs, {
@@ -296,6 +298,7 @@ export async function writeJsonLinesSharded(input) {
       }
     }
     await closePart();
+    await replaceDir(tempPartsDir, partsDir);
   } catch (err) {
     if (current) {
       try { await current.destroy(err); } catch {}
@@ -304,6 +307,7 @@ export async function writeJsonLinesSharded(input) {
       await offsetsWriter.destroy(err);
       offsetsWriter = null;
     }
+    try { await fsPromises.rm(tempPartsDir, { recursive: true, force: true }); } catch {}
     throw err;
   } finally {
     await closeCompressionPool();
@@ -352,14 +356,10 @@ export async function writeJsonLinesShardedAsync(input) {
   }
   const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
   const partsDir = path.join(dir, partsDirName);
-  await fsPromises.rm(partsDir, { recursive: true, force: true });
-  await fsPromises.mkdir(partsDir, { recursive: true });
+  const tempPartsDir = createTempPath(partsDir);
+  await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
+  await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const extension = resolveJsonlExtension(resolvedCompression);
 
   let compressionPool = null;
@@ -411,7 +411,7 @@ export async function writeJsonLinesShardedAsync(input) {
     partCount = 0;
     partLogicalBytes = 0;
     const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.${extension}`;
-    const absPath = path.join(partsDir, partName);
+    const absPath = path.join(tempPartsDir, partName);
     const relPath = path.posix.join(partsDirName, partName);
     parts.push(relPath);
     counts.push(0);
@@ -428,7 +428,7 @@ export async function writeJsonLinesShardedAsync(input) {
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
       const offsetsName = `${partName}.${suffix}`;
-      const offsetsAbs = path.join(partsDir, offsetsName);
+      const offsetsAbs = path.join(tempPartsDir, offsetsName);
       const offsetsRel = path.posix.join(partsDirName, offsetsName);
       offsetsParts.push(offsetsRel);
       offsetsWriter = createOffsetsWriter(offsetsAbs, {
@@ -471,6 +471,7 @@ export async function writeJsonLinesShardedAsync(input) {
       }
     }
     await closePart();
+    await replaceDir(tempPartsDir, partsDir);
   } catch (err) {
     if (current) {
       try { await current.destroy(err); } catch {}
@@ -479,6 +480,7 @@ export async function writeJsonLinesShardedAsync(input) {
       await offsetsWriter.destroy(err);
       offsetsWriter = null;
     }
+    try { await fsPromises.rm(tempPartsDir, { recursive: true, force: true }); } catch {}
     throw err;
   } finally {
     await closeCompressionPool();

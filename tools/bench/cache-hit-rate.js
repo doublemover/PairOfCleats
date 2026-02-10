@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { performance } from 'node:perf_hooks';
 import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
+import { createBoundedWriterQueue } from '../build/embeddings/writer-queue.js';
 
 const parseArgs = () => {
   const out = {};
@@ -28,6 +29,10 @@ const iterations = Number(args.iterations) || 1;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
+const includeWriter = args.writer !== undefined ? Boolean(args.writer) : true;
+const writerOps = Number(args.writerOps) || 5000;
+const writerDelayMs = Number(args.writerDelayMs) || 0;
+const writerMaxPending = Number(args.writerMaxPending) || 2;
 
 const hitThreshold = Math.round(hitRate * 100);
 
@@ -96,4 +101,33 @@ if (mode !== 'baseline') {
   if (baseline) {
     printDelta(baseline, current);
   }
+}
+
+if (includeWriter) {
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const runWriterBench = async () => {
+    const writer = createBoundedWriterQueue({
+      scheduleIo: (fn) => Promise.resolve().then(async () => {
+        if (writerDelayMs > 0) await delay(writerDelayMs);
+        return fn();
+      }),
+      maxPending: writerMaxPending
+    });
+
+    const start = performance.now();
+    for (let i = 0; i < writerOps; i += 1) {
+      await writer.enqueue(async () => {});
+    }
+    await writer.onIdle();
+    const durationMs = performance.now() - start;
+    const throughput = writerOps ? (writerOps / (durationMs / 1000)) : 0;
+    const stats = writer.stats();
+    console.log(
+      `[bench] writer duration=${durationMs.toFixed(1)}ms `
+      + `throughput=${throughput.toFixed(1)}/s `
+      + `ops=${writerOps} maxPending=${stats.maxPending} waits=${stats.waits} peakPending=${stats.peakPending}`
+    );
+  };
+
+  await runWriterBench();
 }

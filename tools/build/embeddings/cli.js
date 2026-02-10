@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
@@ -48,15 +49,21 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       ? (baseStubEmbeddings ? 'stub' : 'inline')
       : normalizedEmbeddingMode);
 
+  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
+
   const embeddingBatchRaw = Number(argv.batch ?? indexingConfig.embeddingBatchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
   if (!embeddingBatchSize) {
-    embeddingBatchSize = resolveAutoEmbeddingBatchSize();
+    const cpuCount = typeof os.availableParallelism === 'function'
+      ? os.availableParallelism()
+      : os.cpus().length;
+    embeddingBatchSize = resolveAutoEmbeddingBatchSize(os.totalmem(), {
+      provider: useStubEmbeddings ? 'stub' : embeddingProvider,
+      cpuCount
+    });
   }
-
-  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
   const configuredDims = Number.isFinite(Number(argv.dims))
     ? Math.max(1, Math.floor(Number(argv.dims)))
     : null;

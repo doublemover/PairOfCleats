@@ -5,6 +5,7 @@ This document captures the shared JSON streaming and artifact IO performance wor
 ## JSON Streaming Controls
 - `writeJsonLinesFile`, `writeJsonLinesSharded`, `writeJsonArrayFile`, and `writeJsonObjectFile` now accept `highWaterMark`.
 - `writeJsonLinesFile` and `writeJsonLinesFileAsync` accept `maxBytes` to fail fast when a single JSONL row exceeds the budget.
+- Sharded JSONL writers swap the entire parts directory atomically (temp dir → final) to avoid partial outputs.
 - `highWaterMark` is applied to the JSON write stream buffer.
 - `highWaterMark` is applied to compression transforms (gzip/zstd).
 - `highWaterMark` is applied to the byte counter transform.
@@ -47,6 +48,9 @@ Telemetry only fires when:
 - Zstd reads use streaming decompression for large shards; buffer decompression is limited to small files.
 - Sharded JSONL reads support bounded parallelism with deterministic ordering.
 - Validation modes: strict (required keys checked) vs trusted (skip required-key checks for hot paths).
+- Missing shard parts are treated as errors in strict mode (surface missing paths early).
+- Streaming row iterators are the default for large JSONL reads; materialized arrays require explicit opt-in.
+- Streaming iterators support backpressure and optional in-flight row caps.
 
 ## Expectations
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.

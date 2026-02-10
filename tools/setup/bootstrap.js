@@ -132,7 +132,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
 }
 
 if (argv['with-sqlite']) {
-  const sqliteArgs = [path.join(toolRoot, 'tools', 'build', 'sqlite-index.js')];
+  const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4'];
   if (useIncremental) sqliteArgs.push('--incremental');
   run(process.execPath, sqliteArgs, 'build sqlite index');
 }

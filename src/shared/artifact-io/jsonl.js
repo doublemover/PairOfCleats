@@ -41,6 +41,7 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
     'offset',
     'bytes'
   ],
+  file_meta: ['id', 'file'],
   repo_map: ['file', 'name'],
   file_relations: ['file', 'relations'],
   symbols: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],

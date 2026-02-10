@@ -55,7 +55,6 @@ export async function createIndexerWorkerPool(input = {}) {
   };
   const sanitizeTreeSitterConfig = (raw) => {
     if (!raw || typeof raw !== 'object') return null;
-    const maxLoadedLanguages = Number(raw.maxLoadedLanguages);
     const maxBytes = Number(raw.maxBytes);
     const maxLines = Number(raw.maxLines);
     const maxParseMs = Number(raw.maxParseMs);
@@ -65,9 +64,6 @@ export async function createIndexerWorkerPool(input = {}) {
       allowedLanguages: Array.isArray(raw.allowedLanguages)
         ? raw.allowedLanguages.filter((entry) => typeof entry === 'string')
         : undefined,
-      maxLoadedLanguages: Number.isFinite(maxLoadedLanguages) && maxLoadedLanguages > 0
-        ? Math.floor(maxLoadedLanguages)
-        : null,
       maxBytes: Number.isFinite(maxBytes) && maxBytes > 0 ? Math.floor(maxBytes) : null,
       maxLines: Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : null,
       maxParseMs: Number.isFinite(maxParseMs) && maxParseMs > 0 ? Math.floor(maxParseMs) : null,

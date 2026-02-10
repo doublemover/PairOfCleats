@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../../../src/shared/files.js';
+import { normalizeMetaFilters } from '../../../shared/search-request.js';
 import { loadUserConfig } from '../../../shared/dict-utils.js';
 import { resolveRepoPath } from '../../repo.js';
 import { runNodeAsync, runNodeSync } from '../../runner.js';
-import { normalizeMetaFilters, resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
 import { buildIndex } from './indexing.js';
 
 /**
@@ -31,7 +32,7 @@ export async function triageIngest(args = {}, context = {}) {
     ? ({ stream, line }) => progress({ message: line, stream })
     : null;
   if (progress) {
-    progress({ message: `Ingesting ${source} findings.`, phase: 'start' });
+    progress({ message: `Ingesting ${source} records.`, phase: 'start' });
   }
   const { stdout } = await runNodeAsync(repoPath, ingestArgs, {
     streamOutput: true,

@@ -10,18 +10,12 @@ const entries = [
   { treeSitterBatchLanguages: ['html'] }
 ];
 
-const plan = resolveTreeSitterPreloadPlan(entries, { maxLoadedLanguages: 3 });
+const plan = resolveTreeSitterPreloadPlan(entries);
 assert.deepStrictEqual(
   plan.languages,
   ['html', 'javascript', 'python'],
   'preload order should sort by frequency desc, then language id'
 );
 
-const limited = resolveTreeSitterPreloadPlan(entries, { maxLoadedLanguages: 2 });
-assert.deepStrictEqual(
-  limited.languages,
-  ['html', 'javascript'],
-  'preload plan should respect maxLoadedLanguages'
-);
-
 console.log('tree-sitter preload order deterministic ok');
+

@@ -220,6 +220,19 @@ Maintenance note: if `watch.js` grows again, prefer extracting additional pure h
 * Threading `languageId` is already done in `file-processor.js` (via `getLanguageForFile`), so no additional IO is introduced.
 * Mode-specific caps (`byMode`) are optional and backward compatible; absence yields existing behavior.
 
+### 7.1 Stage1 Postings Guardrails (Phase 16.6)
+* Chargram generation now uses a rolling 64-bit hash (`h64:`) and enforces `chargramMaxTokenLength` even when precomputed chargrams are supplied.
+* Token IDs are canonicalized at tokenize time (64-bit hash) to make postings deterministic independent of discovery order.
+* Chunk metadata can store packed token IDs to reduce retention overhead; large-file caps still apply before tokenization.
+* Stage1 now applies a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
+* Stage1 perf coverage includes `tools/bench/index/postings-real.js` (end-to-end) and `tools/bench/index/chargram-postings.js --rolling-hash` (microbench).
+
+### 7.2 Tree-sitter Guardrails (Phase 16.11)
+* Tree-sitter chunking is gated by per-language `maxBytes`/`maxLines` caps to keep parsing bounded on large files.
+* WASM grammar caches are bounded with `maxLoadedLanguages` and use LRU eviction; worker threads use conservative defaults because caches multiply per thread.
+* Chunk/query caches must plateau under repeated parses: `chunkCacheMaxEntries` caps the chunk cache, and query cache growth is bounded by the number of enabled languages.
+* Any "skip due to caps" behavior in tree-sitter must remain deterministic and should be surfaced (same inputs/config yield same fallback decisions).
+
 ## 8. Future Phase Alignment
 
 * Phase 9/19 scaling work benefits from deterministic, bounded skipping.

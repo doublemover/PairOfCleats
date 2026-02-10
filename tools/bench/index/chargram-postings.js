@@ -28,6 +28,7 @@ const vocabSize = Number(args.vocab) || 250000;
 const docs = Number(args.docs) || 50000;
 const postingsPerToken = Number(args.postings) || 3;
 const spillThreshold = Number(args.spill) || 100000;
+const enableRollingHash = args.rolling === true || args['rolling-hash'] === true;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
@@ -35,10 +36,26 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
 const benchRoot = path.join(process.cwd(), '.benchCache', 'chargram-postings');
 await fs.mkdir(benchRoot, { recursive: true });
 
+const MASK_64 = (1n << 64n) - 1n;
+const MIX_CONST = 0x9e3779b97f4a7c15n;
+
+const formatH64 = (value) => {
+  const normalized = (value & MASK_64).toString(16);
+  return normalized.length >= 16 ? normalized.slice(-16) : normalized.padStart(16, '0');
+};
+
+const buildChargramKey = (i) => {
+  if (enableRollingHash) {
+    const mixed = (BigInt(i) * MIX_CONST) & MASK_64;
+    return `h64:${formatH64(mixed)}`;
+  }
+  return i.toString(36).padStart(4, '0');
+};
+
 const buildTriPost = () => {
   const map = new Map();
   for (let i = 0; i < vocabSize; i += 1) {
-    const token = `cg-${i.toString(36)}`;
+    const token = buildChargramKey(i);
     const postings = new Array(postingsPerToken);
     const base = (i * 131) % Math.max(docs, 1);
     for (let j = 0; j < postingsPerToken; j += 1) {
@@ -90,6 +107,7 @@ const runOnce = async (label, spillMaxUnique) => {
   const heapAfter = process.memoryUsage().heapUsed;
   return {
     label,
+    algorithm: enableRollingHash ? 'rolling-hash' : 'substring',
     durationMs,
     heapDelta: heapAfter - heapBefore,
     vocab: result.chargramVocab.length,
@@ -110,6 +128,7 @@ const formatStats = (label, stats) => {
 
 const printResult = (result, baseline = null) => {
   const parts = [
+    `algo=${result.algorithm}`,
     `ms=${result.durationMs.toFixed(1)}`,
     `heapΔ=${(result.heapDelta / (1024 * 1024)).toFixed(1)}MB`,
     `vocab=${result.vocab}`
@@ -134,3 +153,21 @@ if (mode !== 'baseline') {
   current = await runOnce('current', spillThreshold);
   printResult(current, baseline);
 }
+
+if (baseline && current) {
+  const deltaMs = current.durationMs - baseline.durationMs;
+  const pct = baseline.durationMs > 0 ? (deltaMs / baseline.durationMs) * 100 : 0;
+  console.log(`[bench] delta ms=${deltaMs.toFixed(1)} (${pct.toFixed(1)}%)`);
+}
+
+const summary = {
+  generatedAt: new Date().toISOString(),
+  algo: enableRollingHash ? 'rolling-hash' : 'substring',
+  vocabSize,
+  docs,
+  postingsPerToken,
+  spillThreshold,
+  baseline,
+  current
+};
+console.log(JSON.stringify(summary, null, 2));

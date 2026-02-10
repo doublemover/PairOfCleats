@@ -2,13 +2,15 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { treeSitterState } from './state.js';
 
+const CPU_COUNT = os.cpus().length;
+
 const normalizeTreeSitterWorkerConfig = (raw) => {
   if (raw === false) return { enabled: false };
   if (raw === true) return { enabled: true };
   if (!raw || typeof raw !== 'object') return { enabled: false };
   const enabled = raw.enabled !== false;
   const maxWorkersRaw = Number(raw.maxWorkers);
-  const defaultMax = Math.max(1, Math.min(4, os.cpus().length));
+  const defaultMax = Math.max(1, Math.min(4, CPU_COUNT));
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
     ? Math.max(1, Math.floor(maxWorkersRaw))
     : defaultMax;
@@ -36,7 +38,6 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
     maxBytes: config.maxBytes ?? null,
     maxLines: config.maxLines ?? null,
     maxParseMs: config.maxParseMs ?? null,
-    maxLoadedLanguages: config.maxLoadedLanguages ?? null,
     maxAstNodes: config.maxAstNodes ?? null,
     maxAstStack: config.maxAstStack ?? null,
     maxChunkNodes: config.maxChunkNodes ?? null,
@@ -89,7 +90,7 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
     : [];
   const maxOldMb = parseMaxOldSpaceSizeMb([...execArgv, ...nodeOptionsArgv]);
 
-  // Tree-sitter workers can load multiple WASM grammars. When indexing a repo
+  // Tree-sitter workers can load multiple grammars. When indexing a repo
   // that spans many languages, overly small heaps can crash workers with V8
   // "Zone" OOMs even when overall RSS remains low.
   let budgetMb = null;

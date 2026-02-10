@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
-import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
+import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-template.js';
 
 const argv = createCli({
   scriptName: 'reset-config',

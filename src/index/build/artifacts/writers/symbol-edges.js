@@ -8,7 +8,6 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix, toPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareSymbolEdgeRows,
@@ -20,14 +19,15 @@ import {
   writePerFileVarintIndex
 } from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
 
 const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
@@ -260,14 +260,14 @@ export const enqueueSymbolEdgesArtifacts = async ({
     }
   });
   if (!totalRows) {
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_edges.meta.json'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_edges.parts'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileMetaPath, { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileDataPath, { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileOffsetsPath, { recursive: true, force: true }).catch(() => {});
+    await removeArtifacts([
+      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_edges' }),
+      path.join(outDir, 'symbol_edges.meta.json'),
+      path.join(outDir, 'symbol_edges.parts'),
+      perFileMetaPath,
+      perFileDataPath,
+      perFileOffsetsPath
+    ]);
     if (collected?.cleanup) await collected.cleanup();
     return;
   }
@@ -280,17 +280,10 @@ export const enqueueSymbolEdgesArtifacts = async ({
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${edgesPath}.${offsetsConfig.suffix}` : null;
 
-  const removeJsonlVariants = async () => {
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.zst'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_edges.jsonl.offsets.bin'), { force: true });
-  };
-  const removePerFileIndex = async () => {
-    await fs.rm(perFileMetaPath, { force: true });
-    await fs.rm(perFileDataPath, { force: true });
-    await fs.rm(perFileOffsetsPath, { force: true });
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'symbol_edges', includeOffsets: true })
+  );
+  const removePerFileIndex = async () => removeArtifacts([perFileMetaPath, perFileDataPath, perFileOffsetsPath]);
 
   if (useColumnar) {
     enqueueWrite(
@@ -440,39 +433,26 @@ export const enqueueSymbolEdgesArtifacts = async ({
           gzipOptions,
           offsets: offsetsConfig
         });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
+      const parts = buildShardedPartEntries(result);
       const offsetsMeta = createOffsetsMeta({
         suffix: offsetsConfig?.suffix || null,
         parts: result.offsets,
         compression: 'none'
       });
-      await writeJsonObjectFile(edgesMetaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: 'symbol_edges',
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          extensions: {
-            trim: {
-              trimmedRows: stats?.trimmedRows || 0,
-              droppedRows: stats?.droppedRows || 0,
-              maxRowBytes: stats?.maxRowBytes || 0
-            },
-            ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+      await writeShardedJsonlMeta({
+        metaPath: edgesMetaPath,
+        artifact: 'symbol_edges',
+        compression,
+        result,
+        parts,
+        extensions: {
+          trim: {
+            trimmedRows: stats?.trimmedRows || 0,
+            droppedRows: stats?.droppedRows || 0,
+            maxRowBytes: stats?.maxRowBytes || 0
           },
-          parts
-        },
-        atomic: true
+          ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+        }
       });
       if (tracker?.perFileRows && Array.isArray(result.offsets) && result.offsets.length) {
         const perFileIndex = await writePerFileVarintIndex({

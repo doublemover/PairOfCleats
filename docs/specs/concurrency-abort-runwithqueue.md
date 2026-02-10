@@ -255,6 +255,16 @@ Callbacks:
 * With `bestEffort=true`, results for failed items should be `undefined` (or remain unfilled), but errors must be included in the thrown `AggregateError`.
   * Explicitly document this behavior.
 
+### 6.4 Ordered output + backpressure (notes)
+
+Some pipelines intentionally reorder work for throughput (e.g., batch-by-language scheduling) but must preserve deterministic output ordering.
+When pairing `runWithQueue` with an ordered appender/flush stage:
+
+* Do not hold scarce reservations (memory/IO tokens) while waiting for an ordered flush to advance.
+  Always attach reservation releases in `finally` blocks so out-of-order completion cannot deadlock progress.
+* If a task is deferred or skipped, the ordered appender MUST be notified (`skip(orderIndex)`) so the flush cursor can advance.
+* If the pipeline aborts before a contiguous `orderIndex` is enqueued, the ordered appender MUST abort to reject waiters and prevent hangs/leaks.
+
 ---
 
 ## 7. AbortSignal propagation (Phase 4.4)

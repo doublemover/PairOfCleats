@@ -2,10 +2,54 @@ import { log } from '../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
-import { buildRelationGraphs } from '../../graphs.js';
 import { scanImports } from '../../imports.js';
 import { resolveImportLinks } from '../../import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../import-resolution-cache.js';
+
+const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
+
+const normalizeUnresolvedSamples = (samples) => {
+  if (!Array.isArray(samples) || samples.length === 0) return [];
+  const deduped = new Map();
+  for (const sample of samples) {
+    const importer = typeof sample?.importer === 'string' ? sample.importer : '';
+    const specifier = typeof sample?.specifier === 'string' ? sample.specifier : '';
+    const reason = typeof sample?.reason === 'string' ? sample.reason : 'unresolved';
+    const key = `${importer}|${specifier}|${reason}`;
+    if (!deduped.has(key)) {
+      deduped.set(key, { importer, specifier, reason });
+    }
+  }
+  return Array.from(deduped.values()).sort((a, b) => {
+    const aKey = `${a.importer}|${a.specifier}|${a.reason}`;
+    const bKey = `${b.importer}|${b.specifier}|${b.reason}`;
+    return aKey.localeCompare(bKey);
+  });
+};
+
+const logUnresolvedImportSamples = ({ samples, suppressed, unresolvedTotal }) => {
+  const normalized = normalizeUnresolvedSamples(samples);
+  if (normalized.length === 0) {
+    if (Number.isFinite(unresolvedTotal) && unresolvedTotal > 0) {
+      log(`[imports] unresolved imports=${unresolvedTotal}; no unresolved samples were captured.`);
+    }
+    return;
+  }
+  const visible = normalized.slice(0, MAX_UNRESOLVED_IMPORT_LOG_LINES);
+  const total = Number.isFinite(unresolvedTotal) ? unresolvedTotal : normalized.length;
+  log(`[imports] unresolved import samples (${visible.length} of ${total}):`);
+  for (const entry of visible) {
+    const from = entry.importer || '<unknown-importer>';
+    const specifier = entry.specifier || '<empty-specifier>';
+    log(`[imports] unresolved: ${from} -> ${specifier}`);
+  }
+  const suppressedCount = Number.isFinite(suppressed) && suppressed > 0 ? suppressed : 0;
+  const omitted = Math.max(0, total - visible.length);
+  const omittedTotal = Math.max(omitted, suppressedCount);
+  if (omittedTotal > 0) {
+    log(`[imports] unresolved imports omitted from log: ${omittedTotal}`);
+  }
+};
 
 export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
@@ -132,6 +176,8 @@ export const postScanImports = async ({
   const resolvedResult = {
     importsByFile,
     stats: resolution?.stats || null,
+    unresolvedSamples: resolution?.unresolvedSamples || null,
+    unresolvedSuppressed: resolution?.unresolvedSuppressed || 0,
     cacheStats: resolution?.cacheStats || cacheStats || null,
     durationMs: Date.now() - importStart
   };
@@ -139,6 +185,13 @@ export const postScanImports = async ({
   if (resolvedResult?.stats) {
     const { resolved, external, unresolved } = resolvedResult.stats;
     log(`→ Imports: resolved=${resolved}, external=${external}, unresolved=${unresolved}`);
+    if (unresolved > 0) {
+      logUnresolvedImportSamples({
+        samples: resolvedResult.unresolvedSamples,
+        suppressed: resolvedResult.unresolvedSuppressed,
+        unresolvedTotal: unresolved
+      });
+    }
   }
   return resolvedResult;
 };
@@ -221,30 +274,6 @@ export const runCrossFileInference = async ({
       );
     }
   }
-  const graphRelations = mode === 'code' && relationsEnabled
-    ? buildRelationGraphs({
-      chunks: state.chunks,
-      fileRelations: state.fileRelations,
-      caps: runtime.indexingConfig?.graph?.caps,
-      emitNodes: false
-    })
-    : null;
-  if (graphRelations?.caps) {
-    const formatSamples = (samples) => (samples || [])
-      .map((sample) => {
-        const file = sample?.file || 'unknown';
-        const chunkId = sample?.chunkId ? `#${sample.chunkId}` : '';
-        return `${file}${chunkId}`;
-      })
-      .filter(Boolean)
-      .join(', ');
-    for (const [label, cap] of Object.entries(graphRelations.caps)) {
-      if (!cap?.reason) continue;
-      const sampleText = formatSamples(cap.samples);
-      const suffix = sampleText ? ` Examples: ${sampleText}` : '';
-      log(`[relations] ${label} capped (${cap.reason}).${suffix}`);
-    }
-  }
   if (shouldBuildRiskSummaries) {
     crashLogger.updatePhase('risk-summaries');
     const summaryStart = Date.now();
@@ -261,5 +290,7 @@ export const runCrossFileInference = async ({
       log(`Risk summaries: ${stats.emitted.toLocaleString()} rows`);
     }
   }
-  return { crossFileEnabled, graphRelations };
+  // graph_relations is written during the artifact phase from streamed edges to avoid
+  // materializing Graphology graphs in memory.
+  return { crossFileEnabled, graphRelations: null };
 };

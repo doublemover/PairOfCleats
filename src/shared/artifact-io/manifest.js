@@ -44,9 +44,25 @@ const warnUnsafePath = (dir, relPath, reason) => {
   console.warn(`[manifest] Non-strict mode: skipping unsafe path (${reason}): ${relPath}`);
 };
 
-const resolveManifestMaxBytes = (maxBytes) => {
-  const parsed = Number(maxBytes);
-  if (!Number.isFinite(parsed) || parsed <= 0) return maxBytes;
+const resolveManifestMaxBytes = (maxBytes, { strict = true } = {}) => {
+  if (maxBytes == null) return maxBytes;
+  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes)) {
+    if (strict) {
+      const err = new Error('manifest maxBytes must be a finite number.');
+      err.code = 'ERR_MANIFEST_MAX_BYTES';
+      throw err;
+    }
+    return undefined;
+  }
+  if (maxBytes <= 0) {
+    if (strict) {
+      const err = new Error('manifest maxBytes must be greater than zero.');
+      err.code = 'ERR_MANIFEST_MAX_BYTES';
+      throw err;
+    }
+    return undefined;
+  }
+  const parsed = Math.floor(maxBytes);
   return Math.max(Math.floor(parsed), MIN_MANIFEST_BYTES);
 };
 
@@ -93,7 +109,7 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     }
     return null;
   }
-  const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes);
+  const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cached = readCache(manifestPath);
   if (cached) return cached;
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
@@ -230,6 +246,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
       const metaRaw = readJsonFile(metaPath, { maxBytes });
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
+      const offsets = Array.isArray(meta?.offsets) ? meta.offsets : [];
       if (parts.length) {
         const partSet = new Set(entries.map((entry) => entry?.path));
         if (strict) {
@@ -241,15 +258,24 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
             }
           }
         }
+        if (strict && offsets.length && offsets.length !== parts.length) {
+          const err = new Error(`Manifest offsets length mismatch for ${name}`);
+          err.code = 'ERR_MANIFEST_INVALID';
+          throw err;
+        }
         const paths = parts
           .map((part) => resolveManifestPath(dir, part, strict))
+          .filter(Boolean);
+        const resolvedOffsets = offsets
+          .map((offset) => resolveManifestPath(dir, offset, strict))
           .filter(Boolean);
         if (paths.length) {
           return {
             format: resolveMetaFormat(meta, 'jsonl'),
             paths,
             meta,
-            metaPath
+            metaPath,
+            offsets: resolvedOffsets.length === paths.length ? resolvedOffsets : null
           };
         }
       }

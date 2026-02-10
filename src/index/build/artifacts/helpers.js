@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
-import { writeJsonLinesFile } from '../../../shared/json-stream.js';
-import { createJsonlBatchWriter } from '../../../shared/json-stream/jsonl-batch.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
+import { writeJsonlRunFile } from '../../../shared/merge.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
 import {
   OFFSETS_COMPRESSION,
@@ -34,156 +33,6 @@ export const createOffsetsIndexMeta = ({ path: offsetsPath = null, count = null,
   path: offsetsPath,
   count
 });
-
-export class MinHeap {
-  constructor(compare) {
-    this.compare = compare;
-    this.items = [];
-  }
-
-  get size() {
-    return this.items.length;
-  }
-
-  push(value) {
-    this.items.push(value);
-    this.bubbleUp(this.items.length - 1);
-  }
-
-  pop() {
-    if (!this.items.length) return null;
-    const top = this.items[0];
-    const last = this.items.pop();
-    if (this.items.length && last) {
-      this.items[0] = last;
-      this.bubbleDown(0);
-    }
-    return top;
-  }
-
-  bubbleUp(index) {
-    const { items, compare } = this;
-    let i = index;
-    while (i > 0) {
-      const parent = Math.floor((i - 1) / 2);
-      if (compare(items[i], items[parent]) >= 0) break;
-      [items[i], items[parent]] = [items[parent], items[i]];
-      i = parent;
-    }
-  }
-
-  bubbleDown(index) {
-    const { items, compare } = this;
-    let i = index;
-    for (;;) {
-      const left = i * 2 + 1;
-      const right = left + 1;
-      let smallest = i;
-      if (left < items.length && compare(items[left], items[smallest]) < 0) {
-        smallest = left;
-      }
-      if (right < items.length && compare(items[right], items[smallest]) < 0) {
-        smallest = right;
-      }
-      if (smallest === i) break;
-      [items[i], items[smallest]] = [items[smallest], items[i]];
-      i = smallest;
-    }
-  }
-}
-
-export const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let buffer = '';
-  let lineNumber = 0;
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          yield JSON.parse(trimmed);
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        yield JSON.parse(trimmed);
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
-  }
-};
-
-export const mergeSortedRuns = async function* (runs, { compare, readRun = readJsonlRows } = {}) {
-  const compareFn = typeof compare === 'function' ? compare : compareStrings;
-  const advance = async (cursor) => {
-    const next = await cursor.iterator.next();
-    if (next.done) {
-      cursor.done = true;
-      cursor.row = null;
-      return false;
-    }
-    cursor.row = next.value;
-    return true;
-  };
-  const heap = new MinHeap((a, b) => {
-    const cmp = compareFn(a.row, b.row);
-    if (cmp !== 0) return cmp;
-    return a.order - b.order;
-  });
-  for (let i = 0; i < runs.length; i += 1) {
-    const run = runs[i];
-    if (!run) continue;
-    const iterator = readRun(run)[Symbol.asyncIterator]();
-    const cursor = { iterator, row: null, done: false, order: i };
-    const hasRow = await advance(cursor);
-    if (hasRow) heap.push(cursor);
-  }
-  while (heap.size) {
-    const best = heap.pop();
-    if (!best) break;
-    yield best.row;
-    const hasMore = await advance(best);
-    if (hasMore) heap.push(best);
-  }
-};
-
-export const writeJsonlRunFile = async (filePath, rows, { atomic = true, serialize = null } = {}) => {
-  if (typeof serialize !== 'function') {
-    return writeJsonLinesFile(filePath, rows, { atomic });
-  }
-  const writer = createJsonlBatchWriter(filePath, { atomic });
-  try {
-    for (const entry of rows) {
-      const line = serialize(entry);
-      const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-      await writer.writeLine(line, lineBytes);
-    }
-    await writer.close();
-  } catch (err) {
-    try { await writer.destroy(err); } catch {}
-    throw err;
-  }
-};
 
 export const createByteTracker = ({ maxJsonBytes = null } = {}) => {
   const stats = {
@@ -226,17 +75,27 @@ export const createTrimStats = () => ({
   totalRows: 0,
   trimmedRows: 0,
   droppedRows: 0,
+  dedupedRows: 0,
+  dedupeCollisions: 0,
   totalBytes: 0,
   maxRowBytes: 0,
   runsSpilled: 0,
   spillBytes: 0
 });
 
-export const recordTrimStats = (stats, { rowBytes = 0, trimmed = false, dropped = false } = {}) => {
+export const recordTrimStats = (stats, {
+  rowBytes = 0,
+  trimmed = false,
+  dropped = false,
+  deduped = false,
+  dedupeCollision = false
+} = {}) => {
   if (!stats) return;
-  stats.totalRows += dropped ? 0 : 1;
+  stats.totalRows += (dropped || deduped) ? 0 : 1;
   if (trimmed) stats.trimmedRows += 1;
   if (dropped) stats.droppedRows += 1;
+  if (deduped) stats.dedupedRows += 1;
+  if (dedupeCollision) stats.dedupeCollisions += 1;
   if (rowBytes) {
     stats.totalBytes += rowBytes;
     stats.maxRowBytes = Math.max(stats.maxRowBytes, rowBytes);
@@ -279,23 +138,26 @@ export const createRowSpillCollector = ({
   maxJsonBytes = null,
   stats = createTrimStats(),
   mapRow = null,
-  serialize = null
+  serialize = null,
+  scheduleIo = null
 } = {}) => {
   const buffer = [];
   let bufferBytes = 0;
   let runsDir = null;
   let runIndex = 0;
   const runs = [];
+  let dedupeBuckets = null;
   const compareRows = typeof compare === 'function' ? compare : compareStrings;
   const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
   const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
+  const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
   const runDirName = `${runPrefix || 'rows'}.runs`;
 
   const ensureRunsDir = async () => {
     if (runsDir) return runsDir;
     if (!outDir) throw new Error('row spill collector requires outDir');
     runsDir = path.join(outDir, runDirName);
-    await fs.promises.mkdir(runsDir, { recursive: true });
+    await schedule(() => fs.promises.mkdir(runsDir, { recursive: true }));
     return runsDir;
   };
 
@@ -307,7 +169,7 @@ export const createRowSpillCollector = ({
     const runPath = path.join(dir, runName);
     runIndex += 1;
     const spillBytes = bufferBytes;
-    await writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow });
+    await schedule(() => writeJsonlRunFile(runPath, buffer, { atomic: true, serialize: serializeRow }));
     runs.push(runPath);
     if (stats) {
       stats.runsSpilled = (stats.runsSpilled || 0) + 1;
@@ -315,12 +177,42 @@ export const createRowSpillCollector = ({
     }
     buffer.length = 0;
     bufferBytes = 0;
+    if (dedupeBuckets) {
+      for (const bucket of dedupeBuckets.values()) bucket.clear();
+      dedupeBuckets.clear();
+    }
   };
 
-  const append = async (row, { trimmed = false, dropped = false, line = null, lineBytes = null } = {}) => {
+  const append = async (
+    row,
+    {
+      trimmed = false,
+      dropped = false,
+      dedupeHash = null,
+      dedupeFingerprint = null,
+      line = null,
+      lineBytes = null
+    } = {}
+  ) => {
     if (!row || dropped) {
       recordTrimStats(stats, { dropped: true });
       return;
+    }
+    if (dedupeHash != null) {
+      if (!dedupeBuckets) dedupeBuckets = new Map();
+      let bucket = dedupeBuckets.get(dedupeHash);
+      if (!bucket) {
+        bucket = new Set();
+        dedupeBuckets.set(dedupeHash, bucket);
+      }
+      if (bucket.size && !bucket.has(dedupeFingerprint)) {
+        recordTrimStats(stats, { dedupeCollision: true });
+      }
+      if (bucket.has(dedupeFingerprint)) {
+        recordTrimStats(stats, { deduped: true });
+        return;
+      }
+      bucket.add(dedupeFingerprint);
     }
     const resolvedLine = line ?? serializeRow(row);
     const resolvedBytes = lineBytes == null
@@ -349,7 +241,7 @@ export const createRowSpillCollector = ({
         stats,
         cleanup: async () => {
           if (runsDir) {
-            await fs.promises.rm(runsDir, { recursive: true, force: true });
+            await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
           }
         }
       };
@@ -360,7 +252,7 @@ export const createRowSpillCollector = ({
       stats,
       cleanup: async () => {
         if (runsDir) {
-          await fs.promises.rm(runsDir, { recursive: true, force: true });
+          await schedule(() => fs.promises.rm(runsDir, { recursive: true, force: true }));
         }
       }
     };
@@ -474,17 +366,7 @@ export const compareGraphRelationRows = (a, b) => {
   return compareStrings(a?.node?.id, b?.node?.id);
 };
 
-export const formatBytes = (bytes) => {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) return '0B';
-  if (value < 1024) return `${Math.round(value)}B`;
-  const kb = value / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)}KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}GB`;
-};
+export { formatBytes } from '../../../shared/disk-space.js';
 
 export const summarizeFilterIndex = (value) => {
   if (!value || typeof value !== 'object') return null;

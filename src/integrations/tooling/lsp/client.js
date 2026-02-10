@@ -42,6 +42,17 @@ export function languageIdForFileExt(ext) {
   return map[normalized] || 'plaintext';
 }
 
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/\s|"/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const buildWindowsShellCommand = (cmd, args) => (
+  [cmd, ...(Array.isArray(args) ? args : [])].map(quoteWindowsCmdArg).join(' ')
+);
+
 /**
  * Create a minimal JSON-RPC client for LSP servers.
  * @param {{cmd:string,args?:string[],cwd?:string,env?:object,log?:(msg:string)=>void,onNotification?:(msg:object)=>void,onRequest?:(msg:object)=>Promise<any>}} options
@@ -174,7 +185,12 @@ export function createLspClient(options) {
     }
     generation += 1;
     const childGen = generation;
-    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell: useShell });
+    const spawnCmd = useShell ? buildWindowsShellCommand(cmd, args) : cmd;
+    const spawnArgs = useShell ? [] : args;
+    const spawnOptions = { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell: useShell };
+    const child = useShell
+      ? spawn(spawnCmd, spawnOptions)
+      : spawn(spawnCmd, spawnArgs, spawnOptions);
     proc = child;
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,

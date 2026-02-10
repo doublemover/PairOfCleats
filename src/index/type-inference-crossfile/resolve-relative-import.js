@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { toPosix } from '../../shared/files.js';
+import { resolveRelativeImportCandidate } from '../shared/import-candidates.js';
 
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
@@ -12,19 +13,8 @@ export const resolveRelativeImport = (importerFile, spec, fileSet) => {
   const normalized = path.posix.normalize(path.posix.join(baseDir, rawSpec));
   if (!fileSet || !(fileSet instanceof Set)) return null;
 
-  const ext = path.posix.extname(normalized);
-  const candidates = [];
-  if (ext) {
-    candidates.push(normalized);
-  } else {
-    for (const candidateExt of EXTENSIONS) {
-      candidates.push(`${normalized}${candidateExt}`);
-      candidates.push(path.posix.join(normalized, `index${candidateExt}`));
-    }
-  }
-
-  for (const candidate of candidates) {
-    if (fileSet.has(candidate)) return candidate;
-  }
-  return null;
+  return resolveRelativeImportCandidate(normalized, {
+    extensions: EXTENSIONS,
+    resolve: (candidate) => (fileSet.has(candidate) ? candidate : null)
+  });
 };

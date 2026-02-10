@@ -39,6 +39,9 @@
 - JSONL parsing uses buffer scanning (no readline).
 - CRLF normalization on read.
 - Per-line validation in strict mode; trusted fast-path skips validation.
+- Default reader path is streaming row iteration; materialized reads must be explicitly requested.
+- Streaming readers apply backpressure via async iteration (no unbounded buffering).
+- Readers enforce `MAX_JSON_BYTES` by default unless overridden.
 
 ## Atomic Writes
 - Write to temp dir: .tmp/<artifact>/
@@ -49,6 +52,7 @@
 ## Failure Handling
 - Any missing shard or invalid offsets is a hard error in strict mode.
 - If offsets missing or invalid, reader falls back to full JSONL scan.
+- If JSON/columnar payloads exceed max bytes, non-strict readers may fall back to JSONL shards when available.
 - All failures are logged with artifact name and shard path.
 
 ## Telemetry

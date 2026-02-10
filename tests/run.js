@@ -52,6 +52,9 @@ const BORDER_PATTERN = '╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=
 
 const main = async () => {
   const argv = parseArgs();
+  // yargs prints help, but we disable its auto-exit to control failure modes.
+  // Ensure `--help` doesn't fall through and start running tests.
+  if (argv.help) return;
   const hasLogTimesFlag = process.argv.includes('--log-times');
   const selectors = argv._.map((value) => String(value));
   const includePatterns = [...selectors, ...argv.match];

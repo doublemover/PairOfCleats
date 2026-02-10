@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
@@ -11,6 +12,21 @@ const normalizeTokenPostingsFormat = (value, artifactMode) => {
   if (artifactMode === 'json') return 'json';
   if (artifactMode === 'sharded') return 'sharded';
   return 'auto';
+};
+
+const normalizeShardSize = (value, fallback = 50000) => {
+  if (Number.isFinite(Number(value))) {
+    return Math.max(1, Math.floor(Number(value)));
+  }
+  return Math.max(1, Math.floor(Number(fallback) || 50000));
+};
+
+const resolveTargetShardSize = (shardTargetBytes, avgBytes, fallback) => {
+  if (!Number.isFinite(shardTargetBytes) || shardTargetBytes <= 0) return fallback;
+  if (!Number.isFinite(avgBytes) || avgBytes <= 0) return fallback;
+  const target = Math.floor(shardTargetBytes / avgBytes);
+  if (!Number.isFinite(target) || target <= 0) return fallback;
+  return Math.max(1, target);
 };
 
 export function resolveTokenPostingsPlan({
@@ -25,7 +41,7 @@ export function resolveTokenPostingsPlan({
   log
 }) {
   const tokenPostingsFormat = normalizeTokenPostingsFormat(tokenPostingsFormatConfig, artifactMode);
-  let resolvedShardSize = tokenPostingsShardSize;
+  let resolvedShardSize = normalizeShardSize(tokenPostingsShardSize);
   let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
     || (tokenPostingsFormat === 'auto'
       && postings.tokenVocab.length >= tokenPostingsShardThreshold);
@@ -39,15 +55,23 @@ export function resolveTokenPostingsPlan({
   if (tokenPostingsEstimate) {
     if (tokenPostingsEstimate.estimatedBytes > maxJsonBytesSoft) {
       tokenPostingsUseShards = tokenPostingsFormat !== 'packed';
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
+      const targetShardSize = resolveTargetShardSize(
+        shardTargetBytes,
+        tokenPostingsEstimate.avgBytes,
+        resolvedShardSize
+      );
+      resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
       log(
         `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
         `using sharded output to stay under ${formatBytes(maxJsonBytes)}.`
       );
     } else if (tokenPostingsUseShards) {
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
+      const targetShardSize = resolveTargetShardSize(
+        shardTargetBytes,
+        tokenPostingsEstimate.avgBytes,
+        resolvedShardSize
+      );
+      resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
     }
   }
   return {
@@ -71,6 +95,8 @@ export async function enqueueTokenPostingsArtifacts({
   addPieceFile,
   formatArtifactLabel
 }) {
+  const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
+  const tokenIdMeta = vocabIds ? TOKEN_ID_META : null;
   const writePackedTokenPostings = async () => {
     const packedPath = path.join(outDir, 'token_postings.packed.bin');
     const offsetsPath = path.join(outDir, 'token_postings.packed.offsets.bin');
@@ -108,10 +134,12 @@ export async function enqueueTokenPostingsArtifacts({
             encoding: 'delta-varint',
             blockSize: packed.blockSize,
             vocabCount: postings.tokenVocab.length,
-            offsets: path.posix.basename(offsetsPath)
+            offsets: path.posix.basename(offsetsPath),
+            ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
           },
           arrays: {
             vocab: postings.tokenVocab,
+            ...(vocabIds ? { vocabIds } : {}),
             docLengths: state.docLengths
           },
           atomic: true
@@ -164,6 +192,7 @@ export async function enqueueTokenPostingsArtifacts({
           await writeJsonObjectFile(partPath, {
             arrays: {
               vocab: postings.tokenVocab.slice(part.start, part.end),
+              ...(vocabIds ? { vocabIds: vocabIds.slice(part.start, part.end) } : {}),
               postings: postings.tokenPostingsList.slice(part.start, part.end)
             },
             compression: tokenPostingsCompression,
@@ -185,7 +214,8 @@ export async function enqueueTokenPostingsArtifacts({
             shardSize: tokenPostingsShardSize,
             vocabCount: postings.tokenVocab.length,
             parts,
-            compression: tokenPostingsCompression || null
+            compression: tokenPostingsCompression || null,
+            ...(tokenIdMeta ? { extensions: { tokenId: tokenIdMeta } } : {})
           },
           arrays: {
             docLengths: state.docLengths
@@ -198,10 +228,12 @@ export async function enqueueTokenPostingsArtifacts({
     enqueueJsonObject('token_postings', {
       fields: {
         avgDocLen: postings.avgDocLen,
-        totalDocs: state.docLengths.length
+        totalDocs: state.docLengths.length,
+        ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
       },
       arrays: {
         vocab: postings.tokenVocab,
+        ...(vocabIds ? { vocabIds } : {}),
         postings: postings.tokenPostingsList,
         docLengths: state.docLengths
       }

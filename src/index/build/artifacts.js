@@ -21,6 +21,7 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
   resolveTokenPostingsPlan
@@ -46,6 +47,8 @@ import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.j
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
 import { recordOrderingHash, updateBuildState } from './build-state.js';
 import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
+import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
+import { createOrderingHasher } from '../../shared/order.js';
 
 /**
  * Write index artifacts and metrics.
@@ -53,6 +56,7 @@ import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
  */
 export async function writeIndexArtifacts(input) {
   const {
+    scheduler = null,
     outDir,
     buildRoot,
     mode,
@@ -85,6 +89,20 @@ export async function writeIndexArtifacts(input) {
       rule,
       count: ordering.orderingCount
     });
+  };
+  const measureVocabOrdering = (vocab = []) => {
+    if (!Array.isArray(vocab) || !vocab.length) {
+      return { orderingHash: null, orderingCount: 0 };
+    }
+    const orderingHasher = createOrderingHasher();
+    for (const entry of vocab) {
+      orderingHasher.update(entry);
+    }
+    const result = orderingHasher.digest();
+    return {
+      orderingHash: result?.hash || null,
+      orderingCount: result?.count || 0
+    };
   };
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
@@ -309,18 +327,124 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
-  const filterIndex = buildSerializedFilterIndex({
-    chunks: state.chunks,
-    resolvedConfig,
-    userConfig,
-    root
-  });
-  const filterIndexStats = summarizeFilterIndex(filterIndex);
-  if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
-    log(
-      `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
-      'large filter indexes increase memory usage (consider sqlite for large repos).'
-    );
+  const resolveExistingOrBakPath = (targetPath) => {
+    if (!targetPath) return null;
+    if (fsSync.existsSync(targetPath)) return targetPath;
+    const bakPath = `${targetPath}.bak`;
+    if (fsSync.existsSync(bakPath)) return bakPath;
+    return null;
+  };
+  const previousPiecesManifestPath = path.join(outDir, 'pieces', 'manifest.json');
+  let previousPiecesManifest = null;
+  try {
+    const source = resolveExistingOrBakPath(previousPiecesManifestPath);
+    if (source) {
+      previousPiecesManifest = readJsonFile(source, { maxBytes: maxJsonBytes });
+    }
+  } catch {}
+  const previousPieces = Array.isArray(previousPiecesManifest?.pieces) ? previousPiecesManifest.pieces : [];
+  const previousFilterIndexPiece = previousPieces.find((piece) => piece?.name === 'filter_index' && piece?.path);
+  const previousFilterIndexPath = previousFilterIndexPiece?.path
+    ? path.join(outDir, ...String(previousFilterIndexPiece.path).split('/'))
+    : null;
+  const previousFilterIndexSource = resolveExistingOrBakPath(previousFilterIndexPath);
+  let filterIndex = null;
+  let filterIndexStats = null;
+  let filterIndexReused = false;
+  let filterIndexFallback = null;
+  const reusePreviousFilterIndex = (reason) => {
+    if (!previousFilterIndexSource) return false;
+    const note = reason ? ` (${reason})` : '';
+    log(`[warn] [filter_index] build skipped; reusing previous artifact.${note}`);
+    let previousRaw = null;
+    try {
+      previousRaw = readJsonFile(previousFilterIndexSource, { maxBytes: maxJsonBytes });
+      validateSerializedFilterIndex(previousRaw);
+    } catch (err) {
+      const message = err?.message || String(err);
+      log(`[warn] [filter_index] failed to reuse previous artifact; validation failed. (${message})`);
+      return false;
+    }
+    filterIndexReused = true;
+    filterIndexFallback = {
+      piece: {
+        type: previousFilterIndexPiece?.type || 'chunks',
+        name: 'filter_index',
+        format: previousFilterIndexPiece?.format || 'json'
+      },
+      path: previousFilterIndexSource
+    };
+    try {
+      filterIndexStats = summarizeFilterIndex(previousRaw);
+    } catch {
+      filterIndexStats = { reused: true };
+    }
+    if (filterIndexStats && typeof filterIndexStats === 'object') {
+      filterIndexStats.reused = true;
+    }
+    return true;
+  };
+  const validateSerializedFilterIndex = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error('expected object');
+    }
+    if (!Number.isFinite(Number(candidate.schemaVersion))) {
+      throw new Error('missing schemaVersion');
+    }
+    if (!Number.isFinite(Number(candidate.fileChargramN))) {
+      throw new Error('missing fileChargramN');
+    }
+    if (!Array.isArray(candidate.fileById)) {
+      throw new Error('missing fileById');
+    }
+    if (!Array.isArray(candidate.fileChunksById)) {
+      throw new Error('missing fileChunksById');
+    }
+    if (candidate.fileById.length !== candidate.fileChunksById.length) {
+      throw new Error('fileById/fileChunksById length mismatch');
+    }
+    if (candidate.byLang == null || typeof candidate.byLang !== 'object') {
+      throw new Error('missing byLang');
+    }
+    return true;
+  };
+  try {
+    filterIndex = buildSerializedFilterIndex({
+      chunks: state.chunks,
+      resolvedConfig,
+      userConfig,
+      root
+    });
+    validateSerializedFilterIndex(filterIndex);
+    filterIndexStats = summarizeFilterIndex(filterIndex);
+    if (filterIndexStats && typeof filterIndexStats === 'object' && Number.isFinite(filterIndexStats.jsonBytes)) {
+      // filter_index is currently written uncompressed (compressible=false); keep a stable estimate
+      // in case later phases make it compressible.
+      filterIndexStats.diskBytesEstimate = filterIndexStats.jsonBytes;
+      filterIndexStats.compressionRatioEstimate = 1;
+    }
+    if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
+      log(
+        `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
+        'large filter indexes increase memory usage (consider sqlite for large repos).'
+      );
+    }
+  } catch (err) {
+    const message = err?.message || String(err);
+    log(`[warn] [filter_index] build failed; skipping. (${message})`);
+    filterIndex = null;
+    filterIndexStats = null;
+    reusePreviousFilterIndex(message);
+  }
+  if (indexState && typeof indexState === 'object') {
+    const filterIndexState = indexState.filterIndex && typeof indexState.filterIndex === 'object'
+      && !Array.isArray(indexState.filterIndex)
+      ? indexState.filterIndex
+      : {};
+    filterIndexState.ready = Boolean(filterIndex) || filterIndexReused;
+    filterIndexState.reused = Boolean(filterIndexStats?.reused);
+    filterIndexState.stats = filterIndexStats || null;
+    indexState.filterIndex = filterIndexState;
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)
@@ -379,6 +503,9 @@ export async function writeIndexArtifacts(input) {
   });
   const removeArtifact = async (targetPath) => {
     try {
+      if (fsSync.existsSync(targetPath)) {
+        logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
+      }
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
@@ -663,7 +790,8 @@ export async function writeIndexArtifacts(input) {
         piece: { type: 'chunks', name: 'file_meta' },
         metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,
-        gzipOptions: null
+        gzipOptions: null,
+        offsets: true
       });
     } else {
       enqueueJsonArray('file_meta', fileMeta, {
@@ -836,6 +964,8 @@ export async function writeIndexArtifacts(input) {
       compressible: false,
       piece: { type: 'chunks', name: 'filter_index' }
     });
+  } else if (filterIndexFallback?.path) {
+    addPieceFile(filterIndexFallback.piece, filterIndexFallback.path);
   }
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs
@@ -940,6 +1070,15 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  const vocabOrder = {};
+  const tokenOrdering = measureVocabOrdering(postings.tokenVocab);
+  await recordOrdering('token_vocab', tokenOrdering, 'token_vocab:token');
+  if (tokenOrdering.orderingHash) {
+    vocabOrder.token = {
+      hash: tokenOrdering.orderingHash,
+      count: tokenOrdering.orderingCount
+    };
+  }
   if (postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
       piece: { type: 'postings', name: 'field_postings' }
@@ -1059,17 +1198,31 @@ export async function writeIndexArtifacts(input) {
       stageCheckpoints
     });
   }
-  const graphRelationsOrdering = await enqueueGraphRelationsArtifacts({
+  const scheduleRelations = scheduler?.schedule
+    ? (fn) => scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1, mem: 1 },
+      fn
+    )
+    : (fn) => fn();
+  const scheduleRelationsIo = scheduler?.schedule
+    ? (fn) => scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2RelationsIo, { io: 1 }, fn)
+    : (fn) => fn();
+  const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
+    chunks: state?.chunks || [],
+    fileRelations: state?.fileRelations || null,
+    caps: indexingConfig?.graph?.caps || null,
     outDir,
     maxJsonBytes: graphRelationsMaxBytes,
     byteBudget: graphRelationsBudget,
     log,
+    scheduleIo: scheduleRelationsIo,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     removeArtifact
-  });
+  }));
   await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
@@ -1077,12 +1230,40 @@ export async function writeIndexArtifacts(input) {
     }, {
       piece: { type: 'postings', name: 'phrase_ngrams', count: postings.phraseVocab.length }
     });
+    const phraseOrdering = measureVocabOrdering(postings.phraseVocab);
+    await recordOrdering('phrase_ngrams', phraseOrdering, 'phrase_ngrams:ngram');
+    if (phraseOrdering.orderingHash) {
+      vocabOrder.phrase = {
+        hash: phraseOrdering.orderingHash,
+        count: phraseOrdering.orderingCount
+      };
+    }
   }
   if (resolvedConfig.enableChargrams !== false) {
     enqueueJsonObject('chargram_postings', {
+      fields: { hash: CHARGRAM_HASH_META },
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
     }, {
       piece: { type: 'postings', name: 'chargram_postings', count: postings.chargramVocab.length }
+    });
+    const chargramOrdering = measureVocabOrdering(postings.chargramVocab);
+    await recordOrdering('chargram_postings', chargramOrdering, 'chargram_postings:gram');
+    if (chargramOrdering.orderingHash) {
+      vocabOrder.chargram = {
+        hash: chargramOrdering.orderingHash,
+        count: chargramOrdering.orderingCount
+      };
+    }
+  }
+  if (Object.keys(vocabOrder).length) {
+    enqueueJsonObject('vocab_order', {
+      fields: {
+        algo: 'sha1',
+        generatedAt: new Date().toISOString(),
+        vocab: vocabOrder
+      }
+    }, {
+      piece: { type: 'postings', name: 'vocab_order' }
     });
   }
   totalWrites = writes.length;
@@ -1112,6 +1293,31 @@ export async function writeIndexArtifacts(input) {
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+  if (filterIndexStats && typeof filterIndexStats === 'object') {
+    const filterIndexPiece = pieceEntries.find((entry) => entry?.name === 'filter_index' && entry?.path);
+    const filterIndexPath = filterIndexPiece?.path ? path.join(outDir, filterIndexPiece.path) : null;
+    let filterIndexDiskBytes = null;
+    if (filterIndexPiece?.path) {
+      const metric = artifactMetrics.get(filterIndexPiece.path);
+      if (Number.isFinite(metric?.bytes)) filterIndexDiskBytes = metric.bytes;
+    }
+    if (!Number.isFinite(filterIndexDiskBytes) && filterIndexPath) {
+      try {
+        const stat = await fs.stat(filterIndexPath);
+        filterIndexDiskBytes = stat.size;
+      } catch {}
+    }
+    if (Number.isFinite(filterIndexDiskBytes)) {
+      filterIndexStats.diskBytes = filterIndexDiskBytes;
+    }
+    if (
+      Number.isFinite(filterIndexDiskBytes)
+      && Number.isFinite(filterIndexStats.jsonBytes)
+      && filterIndexStats.jsonBytes > 0
+    ) {
+      filterIndexStats.compressionRatio = filterIndexDiskBytes / filterIndexStats.jsonBytes;
+    }
+  }
 
   for (const entry of pieceEntries) {
     if (!entry?.path) continue;

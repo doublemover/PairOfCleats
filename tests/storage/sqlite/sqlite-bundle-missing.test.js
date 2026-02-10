@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -77,24 +78,23 @@ if (!fs.existsSync(bundlePath)) {
 }
 await fsPromises.rm(bundlePath, { force: true });
 
-const sqliteBuild = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'build/sqlite-index.js'),
-    '--incremental',
-    '--mode',
-    'code',
-    '--repo',
-    repoRoot
-  ],
-  { cwd: repoRoot, env, encoding: 'utf8' }
-);
-if (sqliteBuild.status !== 0) {
-  console.error('build-sqlite-index failed for missing bundle test.');
-  if (sqliteBuild.stderr) console.error(sqliteBuild.stderr.trim());
-  process.exit(sqliteBuild.status ?? 1);
+const sqliteLogs = [];
+try {
+  await runSqliteBuild(repoRoot, {
+    mode: 'code',
+    incremental: true,
+    logger: {
+      log: (message) => sqliteLogs.push(message),
+      warn: (message) => sqliteLogs.push(message),
+      error: (message) => sqliteLogs.push(message)
+    }
+  });
+} catch (err) {
+  console.error('sqlite build failed for missing bundle test.');
+  if (err?.message) console.error(err.message);
+  process.exit(1);
 }
-const output = getCombinedOutput(sqliteBuild);
+const output = getCombinedOutput({ stdout: sqliteLogs.join('\n'), stderr: '' });
 if (!output.includes('Incremental bundles unavailable') && !output.includes('falling back to artifacts')) {
   console.error('Expected bundle fallback warning not found in output.');
   process.exit(1);

@@ -76,7 +76,7 @@ const getRemediationHint = (error) => {
 
   if (parts.includes('sqlite backend requested but index not found')
     || parts.includes('missing required tables')) {
-    return 'Run `node tools/build/sqlite-index.js` or set sqlite.use=false / --backend memory.';
+    return 'Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) or set sqlite.use=false / --backend memory.';
   }
   if (parts.includes('better-sqlite3 is required')) {
     return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';

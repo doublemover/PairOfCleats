@@ -3,11 +3,13 @@ import {
   buildChunkInfo,
   buildGraphNodeIndex,
   buildImportGraphIndex,
+  buildReverseAdjacencyCsr,
   buildSymbolEdgesIndex,
   normalizeFileRef,
   normalizeImportPath
 } from './indexes.js';
 import { normalizeCap, normalizeDepth } from '../shared/limits.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
@@ -46,6 +48,30 @@ const EDGE_TYPE_ALIASES = new Map([
   ['symbol', 'symbol']
 ]);
 const KNOWN_EDGE_TYPES = new Set(['call', 'usage', 'import', 'export', 'dataflow', 'symbol']);
+
+const TRAVERSAL_CACHE_MAX = 32;
+
+const getCachedValue = (cache, key) => {
+  if (!cache || !key) return null;
+  if (!cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+};
+
+const setCachedValue = (cache, key, value, maxSize) => {
+  if (!cache || !key) return;
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  let evictions = 0;
+  while (cache.size > maxSize) {
+    const oldest = cache.keys().next().value;
+    cache.delete(oldest);
+    evictions += 1;
+  }
+  return evictions;
+};
 
 const normalizeCaps = (caps) => ({
   maxDepth: normalizeCap(caps?.maxDepth),
@@ -288,15 +314,21 @@ export const buildGraphNeighborhood = ({
   const warnings = [];
   if (graphRelations) validateGraphCounts(graphRelations, warnings);
   const truncation = createTruncationRecorder({ scope: 'graph' });
-  const recordTruncation = (cap, detail) => truncation.record(cap, detail);
+  const capTriggerCounts = Object.create(null);
+  const recordTruncation = (cap, detail) => {
+    capTriggerCounts[cap] = (capTriggerCounts[cap] || 0) + 1;
+    truncation.record(cap, detail);
+  };
   const missingImportGraphRefs = new Set();
-  let importGraphMisses = 0;
+  let importGraphLookupMissesTotal = 0;
+  let importGraphLookupMissesLogged = 0;
   const recordImportGraphMiss = (sourceId) => {
     if (!sourceId) return;
+    importGraphLookupMissesTotal += 1;
     if (missingImportGraphRefs.has(sourceId)) return;
-    if (importGraphMisses >= 3) return;
     missingImportGraphRefs.add(sourceId);
-    importGraphMisses += 1;
+    if (importGraphLookupMissesLogged >= 3) return;
+    importGraphLookupMissesLogged += 1;
     warnings.push({
       code: 'IMPORT_GRAPH_LOOKUP_MISS',
       message: 'Import graph lookup missed for a normalized path; import expansion may be incomplete.',
@@ -432,6 +464,63 @@ export const buildGraphNeighborhood = ({
     maxWallClockMs: normalizedCaps.maxWallClockMs
   });
 
+  const traversalCacheEnabled = Boolean(graphIndexEffective && workBudget == null);
+  const cacheKeyInfo = traversalCacheEnabled
+    ? buildLocalCacheKey({
+      namespace: 'graph-neighborhood',
+      payload: {
+        indexSignature: graphIndexEffective.indexSignature || null,
+        repoRoot: effectiveRepoRoot || null,
+        seeds: resolvedSeeds.map((entry) => nodeKey(entry)).filter(Boolean),
+        direction: normalizedDirection,
+        depth: requestedDepth,
+        effectiveDepth,
+        includePaths: Boolean(includePaths),
+        edgeFilters: {
+          graphs: graphFilter ? Array.from(graphFilter).sort(compareStrings) : null,
+          edgeTypes: edgeTypeFilter ? Array.from(edgeTypeFilter).sort(compareStrings) : null,
+          minConfidence,
+          unknownGraphs: filter.unknownGraphs,
+          unknownEdgeTypes: filter.unknownEdgeTypes
+        },
+        caps: normalizedCaps
+      }
+    })
+    : null;
+  const traversalCache = traversalCacheEnabled
+    ? (graphIndexEffective._traversalCache || (graphIndexEffective._traversalCache = new Map()))
+    : null;
+  const traversalTelemetry = traversalCacheEnabled
+    ? (graphIndexEffective._traversalTelemetry || (graphIndexEffective._traversalTelemetry = { hits: 0, misses: 0, evictions: 0 }))
+    : null;
+  const cacheState = traversalCacheEnabled
+    ? { enabled: true, hit: false, key: cacheKeyInfo.key }
+    : { enabled: false, hit: false, key: null };
+  if (traversalCacheEnabled) {
+    const cached = getCachedValue(traversalCache, cacheKeyInfo.key);
+    if (cached) {
+      traversalTelemetry.hits += 1;
+      const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
+      const cachedStats = cached?.stats && typeof cached.stats === 'object' ? cached.stats : {};
+      const cachedCounts = cachedStats.counts && typeof cachedStats.counts === 'object'
+        ? cachedStats.counts
+        : {};
+      return {
+        ...cached,
+        stats: {
+          ...cachedStats,
+          cache: { ...cachedStats.cache, ...cacheState, hit: true },
+          timing: { elapsedMs },
+          counts: {
+            ...cachedCounts,
+            workUnitsUsed: 0
+          }
+        }
+      };
+    }
+    traversalTelemetry.misses += 1;
+  }
+
   const nodeMap = new Map();
   const edgeByKey = new Map();
   const edges = [];
@@ -546,19 +635,128 @@ export const buildGraphNeighborhood = ({
     });
   }
 
+  const ensureReverseCsr = (graphName) => {
+    if (!graphIndexEffective?.graphRelationsCsr || !graphName) return null;
+    const forward = graphIndexEffective.graphRelationsCsr[graphName];
+    if (!forward || !(forward.offsets instanceof Uint32Array) || !(forward.edges instanceof Uint32Array)) return null;
+    const cache = graphIndexEffective._csrReverse || (graphIndexEffective._csrReverse = {});
+    if (cache[graphName]) return cache[graphName];
+    const reverse = buildReverseAdjacencyCsr({ offsets: forward.offsets, edges: forward.edges });
+    if (!reverse) return null;
+    cache[graphName] = reverse;
+    return reverse;
+  };
+
+  const mergeSortedUniqueStrings = (left, right) => {
+    const out = [];
+    let i = 0;
+    let j = 0;
+    let last = null;
+    while (i < left.length || j < right.length) {
+      const pickLeft = j >= right.length
+        || (i < left.length && compareStrings(left[i], right[j]) <= 0);
+      const value = pickLeft ? left[i++] : right[j++];
+      if (!value || value === last) continue;
+      out.push(value);
+      last = value;
+    }
+    return out;
+  };
+
+  const collectCsrNeighborIds = ({ ids, offsets, edges, nodeIndex }) => {
+    if (!Array.isArray(ids)) return [];
+    if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return [];
+    if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return [];
+    const start = offsets[nodeIndex];
+    const end = offsets[nodeIndex + 1];
+    if (end <= start) return [];
+    const neighbors = [];
+    let prev = null;
+    for (let idx = start; idx < end; idx += 1) {
+      const neighborIndex = edges[idx];
+      if (prev != null && neighborIndex === prev) continue;
+      prev = neighborIndex;
+      const neighborId = ids[neighborIndex];
+      if (neighborId) neighbors.push(neighborId);
+    }
+    return neighbors;
+  };
+
+  const resolveCsrNeighbors = (graphName, nodeId, dir, normalizeNeighborId = null) => {
+    const csr = graphIndexEffective?.graphRelationsCsr;
+    if (!csr || !graphName) return null;
+    const graph = csr[graphName];
+    if (!graph || !Array.isArray(graph.ids)) return null;
+    const idTable = graphName === 'callGraph'
+      ? graphIndexEffective.callGraphIds
+      : graphName === 'usageGraph'
+        ? graphIndexEffective.usageGraphIds
+        : graphIndexEffective.importGraphIds;
+    const nodeIndex = idTable?.idToIndex?.get(nodeId);
+    if (nodeIndex == null) return [];
+    if (dir === 'out') {
+      const out = collectCsrNeighborIds({ ...graph, nodeIndex });
+      if (!normalizeNeighborId) return out;
+      const set = new Set();
+      for (const entry of out) {
+        const normalized = normalizeNeighborId(entry);
+        if (normalized) set.add(normalized);
+      }
+      const list = Array.from(set);
+      list.sort(compareStrings);
+      return list;
+    }
+    if (dir === 'in') {
+      const reverse = ensureReverseCsr(graphName);
+      if (!reverse) return [];
+      const incoming = collectCsrNeighborIds({
+        ids: graph.ids,
+        offsets: reverse.offsets,
+        edges: reverse.edges,
+        nodeIndex
+      });
+      if (!normalizeNeighborId) return incoming;
+      const set = new Set();
+      for (const entry of incoming) {
+        const normalized = normalizeNeighborId(entry);
+        if (normalized) set.add(normalized);
+      }
+      const list = Array.from(set);
+      list.sort(compareStrings);
+      return list;
+    }
+    const out = resolveCsrNeighbors(graphName, nodeId, 'out', normalizeNeighborId) || [];
+    const incoming = resolveCsrNeighbors(graphName, nodeId, 'in', normalizeNeighborId) || [];
+    if (!out.length) return incoming;
+    if (!incoming.length) return out;
+    return mergeSortedUniqueStrings(out, incoming);
+  };
+
   const resolveGraphNeighbors = (
     graphNodes,
     nodeId,
     dir,
     normalizeNeighborId = null,
-    adjacencyIndex = null
+    adjacencyIndex = null,
+    graphName = null
   ) => {
+    const csrNeighbors = resolveCsrNeighbors(graphName, nodeId, dir, normalizeNeighborId);
+    if (csrNeighbors) return csrNeighbors;
     if (adjacencyIndex && adjacencyIndex.has(nodeId)) {
       const entry = adjacencyIndex.get(nodeId);
       if (!entry) return [];
       if (dir === 'out') return entry.out || [];
       if (dir === 'in') return entry.in || [];
-      return entry.both || [];
+      if (entry.both) return entry.both;
+      const out = Array.isArray(entry.out) ? entry.out : [];
+      const incoming = Array.isArray(entry.in) ? entry.in : [];
+      if (!out.length && !incoming.length) return [];
+      const set = new Set();
+      for (const neighbor of out) set.add(neighbor);
+      for (const neighbor of incoming) set.add(neighbor);
+      const list = Array.from(set);
+      list.sort(compareStrings);
+      return list;
     }
     const node = graphNodes.get(nodeId);
     if (!node) return [];
@@ -664,7 +862,8 @@ export const buildGraphNeighborhood = ({
         currentRef.chunkUid,
         normalizedDirection,
         null,
-        callGraphAdjacency
+        callGraphAdjacency,
+        'callGraph'
       );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
@@ -692,7 +891,8 @@ export const buildGraphNeighborhood = ({
         currentRef.chunkUid,
         normalizedDirection,
         null,
-        usageGraphAdjacency
+        usageGraphAdjacency,
+        'usageGraph'
       );
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
@@ -723,7 +923,8 @@ export const buildGraphNeighborhood = ({
           sourceId,
           normalizedDirection,
           normalizeImportId,
-          importGraphAdjacency
+          importGraphAdjacency,
+          'importGraph'
         );
         for (const neighborId of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
@@ -921,7 +1122,7 @@ export const buildGraphNeighborhood = ({
     `${b?.code || ''}:${b?.message || ''}`
   ));
 
-  return {
+  const output = {
     nodes,
     edges: mergedEdges,
     paths: includePaths ? paths : null,
@@ -929,6 +1130,7 @@ export const buildGraphNeighborhood = ({
     warnings: warningList.length ? warningList : null,
     stats: {
       sorted: true,
+      cache: cacheState,
       timing: { elapsedMs },
       memory: {
         start: snapshotMemory(memoryStart),
@@ -940,6 +1142,12 @@ export const buildGraphNeighborhood = ({
         symbolEdges: hasSymbolEdges,
         callSites: Array.isArray(callSites) && callSites.length > 0
       },
+      capsTriggered: capTriggerCounts,
+      importGraphLookupMisses: {
+        total: importGraphLookupMissesTotal,
+        unique: missingImportGraphRefs.size,
+        logged: importGraphLookupMissesLogged
+      },
       counts: {
         nodesReturned: nodes.length,
         edgesReturned: mergedEdges.length,
@@ -948,4 +1156,11 @@ export const buildGraphNeighborhood = ({
       }
     }
   };
+
+  if (traversalCacheEnabled) {
+    const evictions = setCachedValue(traversalCache, cacheKeyInfo.key, output, TRAVERSAL_CACHE_MAX) || 0;
+    traversalTelemetry.evictions += evictions;
+  }
+
+  return output;
 };

@@ -5,10 +5,14 @@ import {
   MAX_JSON_BYTES,
   loadChunkMeta,
   loadTokenPostings,
-  loadMinhashSignatures,
+  loadMinhashSignatureRows,
+  loadJsonArrayArtifact,
+  loadJsonArrayArtifactRows,
+  loadFileMetaRows,
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
+import { logLine } from '../../shared/progress.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -132,6 +136,109 @@ export function loadOptional(dir, name) {
   }
 }
 
+export async function loadOptionalArrayArtifact(dir, name) {
+  if (!dir || !name) return null;
+  try {
+    return await loadJsonArrayArtifact(dir, name, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+      return null;
+    }
+    if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export function loadOptionalArrayArtifactRows(dir, name, { materialize = false } = {}) {
+  return (async function* () {
+    if (!dir || !name) return;
+    try {
+      for await (const row of loadJsonArrayArtifactRows(dir, name, {
+        maxBytes: MAX_JSON_BYTES,
+        strict: false,
+        materialize
+      })) {
+        yield row;
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+        return;
+      }
+      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+        return;
+      }
+      throw err;
+    }
+  })();
+}
+
+export function loadOptionalFileMetaRows(
+  dir,
+  { materialize = false } = {}
+) {
+  return (async function* () {
+    if (!dir) return;
+    try {
+      for await (const row of loadFileMetaRows(dir, {
+        maxBytes: MAX_JSON_BYTES,
+        strict: false,
+        materialize
+      })) {
+        yield row;
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(`[sqlite] Skipping file_meta: ${err.message}`);
+        return;
+      }
+      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+        return;
+      }
+      throw err;
+    }
+  })();
+}
+
+export function loadOptionalMinhashRows(dir, { materialize = false } = {}) {
+  return (async function* () {
+    if (!dir) return;
+    try {
+      for await (const row of loadMinhashSignatureRows(dir, {
+        maxBytes: MAX_JSON_BYTES,
+        strict: false,
+        materialize
+      })) {
+        yield row;
+      }
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
+        return;
+      }
+      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+        return;
+      }
+      throw err;
+    }
+  })();
+}
+
+export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
+  const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
+  if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  return {
+    fileMeta: loadOptionalFileMetaRows(dir),
+    minhash: loadOptionalMinhashRows(dir),
+    denseVec,
+    phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
+    chargrams: loadOptional(dir, 'chargram_postings.json')
+  };
+}
+
 /**
  * Load file-backed index artifacts from a directory.
  * @param {string} dir
@@ -148,23 +255,14 @@ export async function loadIndex(dir, modelId) {
     return null;
   }
   const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
-  const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
-  if (denseVec && !denseVec.model) denseVec.model = modelId || null;
-  let minhash = null;
-  try {
-    minhash = await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
-  } catch (err) {
-    if (err?.code === 'ERR_JSON_TOO_LARGE') {
-      console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
-    }
-  }
+  const optional = loadSqliteIndexOptionalArtifacts(dir, { modelId });
   return {
     chunkMeta,
-    fileMeta: loadOptional(dir, 'file_meta.json'),
-    denseVec,
-    phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
-    chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash,
+    fileMeta: optional.fileMeta,
+    denseVec: optional.denseVec,
+    phraseNgrams: optional.phraseNgrams,
+    chargrams: optional.chargrams,
+    minhash: optional.minhash,
     tokenPostings: (() => {
       const direct = loadOptional(dir, 'token_postings.json');
       if (direct) return direct;
@@ -187,7 +285,11 @@ const SQLITE_SIDECARS = ['-wal', '-shm'];
 export async function removeSqliteSidecars(basePath) {
   await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
     try {
-      await fsPromises.rm(`${basePath}${suffix}`, { force: true });
+      const targetPath = `${basePath}${suffix}`;
+      if (fs.existsSync(targetPath)) {
+        logLine(`[sqlite-cleanup] remove ${targetPath}`, { kind: 'status' });
+      }
+      await fsPromises.rm(targetPath, { force: true });
     } catch {}
   }));
 }

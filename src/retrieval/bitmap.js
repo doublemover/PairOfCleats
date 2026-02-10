@@ -200,6 +200,19 @@ export const buildBitmapIndex = (index, options = {}) => {
     }
     return out;
   };
+  const buildFileChunks = (source) => {
+    const out = [];
+    if (!Array.isArray(source)) return out;
+    for (let i = 0; i < source.length; i += 1) {
+      const set = source[i];
+      if (!set || !shouldUseBitmap(set.size, minSize)) {
+        out.push(null);
+        continue;
+      }
+      out.push(createBitmapFromIds(set, { force: true, minSize }) || null);
+    }
+    return out;
+  };
   return {
     enabled: true,
     minSize,
@@ -208,6 +221,7 @@ export const buildBitmapIndex = (index, options = {}) => {
     byKind: buildMap(index.byKind),
     byAuthor: buildMap(index.byAuthor),
     byChunkAuthor: buildMap(index.byChunkAuthor),
-    byVisibility: buildMap(index.byVisibility)
+    byVisibility: buildMap(index.byVisibility),
+    fileChunksById: buildFileChunks(index.fileChunksById)
   };
 };

@@ -5,11 +5,6 @@ import {
 } from '../tree-sitter.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
-import {
-  preloadTreeSitterLanguages,
-  pruneTreeSitterLanguages,
-  resetTreeSitterParser
-} from '../../../../lang/tree-sitter.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -69,21 +64,6 @@ export const chunkSegmentsWithTreeSitterPasses = async ({
   }
   for (const [languageId, languageSegments] of passSegments) {
     const passTreeSitter = { ...(treeSitterConfig || {}), allowedLanguages: [languageId] };
-    resetTreeSitterParser({ hard: true });
-    pruneTreeSitterLanguages([languageId], {
-      log: languageOptions?.log || log,
-      maxLoadedLanguages: treeSitterConfig?.maxLoadedLanguages,
-      onlyIfExceeds: true
-    });
-    try {
-      await preloadTreeSitterLanguages([languageId], {
-        log: languageOptions?.log,
-        parallel: false,
-        maxLoadedLanguages: treeSitterConfig.maxLoadedLanguages
-      });
-    } catch {
-      // ignore preload failures; chunking will fall back if needed.
-    }
     const passChunks = chunkSegments({
       text,
       ext,

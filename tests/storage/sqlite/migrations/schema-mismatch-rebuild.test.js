@@ -3,6 +3,7 @@ import path from 'node:path';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
 import { getCombinedOutput } from '../../../helpers/stdio.js';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncrementalRepo({
   name: 'schema-mismatch-rebuild'
@@ -13,11 +14,7 @@ run(
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-run(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
-  'build sqlite index',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
+await runSqliteBuild(repoRoot);
 
 let Database;
 try {
@@ -33,11 +30,16 @@ const dbDowngrade = new Database(sqlitePaths.codePath);
 dbDowngrade.pragma(`user_version = ${downgradeVersion}`);
 dbDowngrade.close();
 
-const rebuildResult = runCapture(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
-  'build sqlite index (schema mismatch)'
-);
-const rebuildOutput = getCombinedOutput(rebuildResult);
+const rebuildLogs = [];
+await runSqliteBuild(repoRoot, {
+  incremental: true,
+  logger: {
+    log: (message) => rebuildLogs.push(message),
+    warn: (message) => rebuildLogs.push(message),
+    error: (message) => rebuildLogs.push(message)
+  }
+});
+const rebuildOutput = getCombinedOutput({ stdout: rebuildLogs.join('\n'), stderr: '' });
 if (!rebuildOutput.includes('schema mismatch')) {
   console.error('Expected schema mismatch rebuild warning for incremental sqlite update.');
   process.exit(1);

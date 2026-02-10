@@ -18,8 +18,8 @@ Fast synchronous SQLite access for building/searching persistent indexes (includ
 2. Performance guide (WAL, pragmas, patterns) -- https://github.com/WiseLibs/better-sqlite3/blob/master/docs/performance.md
 
 ## Suggested extraction checklist
-- [x] Define artifact formats and version them (see `docs/contracts/artifact-contract.md`; schema version lives in `src/storage/sqlite/schema.js` and `user_version` is set in `tools/build/sqlite-index.js`).
-- [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs. (Chunk/doc IDs flow from deterministic `chunk_meta` ordering; shard lists are sorted in `tools/build/sqlite-index.js` `listShardFiles()`; paths normalized in `src/storage/sqlite/utils.js`.)
+- [x] Define artifact formats and version them (see `docs/contracts/artifact-contract.md`; schema version lives in `src/storage/sqlite/schema.js` and `user_version` is set during stage 4 sqlite builds).
+- [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs. (Chunk/doc IDs flow from deterministic `chunk_meta` ordering; shard lists are sorted in stage 4 sqlite builds; paths normalized in `src/storage/sqlite/utils.js`.)
 - [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load. (Track in `tests/storage/sqlite/sqlite-build-indexes.test.js`, `tests/storage/sqlite/sqlite-compact.test.js`, and bench runs.)
 - [x] Plan for corruption detection (hashes) and safe partial rebuilds. (`src/index/validate.js` checks required tables; incremental rebuilds in `src/storage/sqlite/incremental.js`; rebuild/compact via `tools/build/compact-sqlite-index.js`.)
 

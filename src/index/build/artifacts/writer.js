@@ -127,7 +127,8 @@ export const createArtifactWriter = ({
       piece = null,
       compression = null,
       gzipOptions = null,
-      metaExtensions = null
+      metaExtensions = null,
+      offsets = null
     } = {}
   ) => {
     const estimatedBytes = estimateJsonBytes(items);
@@ -139,6 +140,9 @@ export const createArtifactWriter = ({
     const partsDirName = `${base}.parts`;
     const partPrefix = `${base}.part-`;
     const partsDirPath = path.join(outDir, partsDirName);
+    const resolvedOffsets = offsets
+      ? (typeof offsets === 'object' ? offsets : { suffix: 'offsets.bin' })
+      : null;
     enqueueWrite(
       formatArtifactLabel(partsDirPath),
       async () => {
@@ -150,7 +154,8 @@ export const createArtifactWriter = ({
           maxBytes: resolvedMaxBytes,
           atomic: true,
           compression: compression || null,
-          gzipOptions: compression ? gzipOptions : null
+          gzipOptions: compression ? gzipOptions : null,
+          offsets: resolvedOffsets
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
@@ -171,6 +176,7 @@ export const createArtifactWriter = ({
             maxPartBytes: result.maxPartBytes,
             targetMaxBytes: result.targetMaxBytes,
             parts,
+            ...(result.offsets ? { offsets: result.offsets } : {}),
             extensions: metaExtensions || undefined
           },
           atomic: true

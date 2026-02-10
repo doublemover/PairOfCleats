@@ -20,6 +20,7 @@ export const INDEX_BUILD_OPTIONS = {
   'watch-poll': { type: 'number', default: 2000 },
   'watch-debounce': { type: 'number', default: 500 },
   sqlite: { type: 'boolean', describe: 'enable sqlite index build' },
+  'sqlite-batch-size': { type: 'number', describe: 'override sqlite batch size for stage4 builds' },
   'debug-crash': { type: 'boolean', default: false },
   model: { type: 'string' },
   repo: { type: 'string', describe: 'repo root (defaults to cwd or repo root)' },

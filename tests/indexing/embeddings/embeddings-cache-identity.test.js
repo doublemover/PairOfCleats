@@ -4,12 +4,14 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = path.join(root, '.testCache', 'embeddings-cache-identity');
 const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
+const cacheRootBase = path.join(tempRoot, 'cache');
+const cacheRoot = resolveVersionedCacheRoot(cacheRootBase);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -17,10 +19,10 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
   ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  PAIROFCLEATS_CACHE_ROOT: cacheRootBase,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRootBase;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildIndex = spawnSync(

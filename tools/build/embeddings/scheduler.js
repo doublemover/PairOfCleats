@@ -5,15 +5,7 @@ import { resolveSchedulerConfig, SCHEDULER_QUEUE_NAMES } from '../../../src/inde
 
 const scheduleWithFallback = async (scheduler, queueName, tokens, fn, enabled) => {
   if (!enabled) return fn();
-  try {
-    return await scheduler.schedule(queueName, tokens, fn);
-  } catch (err) {
-    const message = err?.message || '';
-    if (message.includes('maxPending')) {
-      return fn();
-    }
-    throw err;
-  }
+  return await scheduler.schedule(queueName, tokens, fn);
 };
 
 export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, envConfig, indexingConfig }) => {

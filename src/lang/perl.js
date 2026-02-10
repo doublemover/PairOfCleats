@@ -2,6 +2,7 @@ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 
 /**
  * Perl (lite) language chunking and relations.
@@ -61,54 +62,41 @@ const PERL_DOC_OPTIONS = {
   skipLine: (line) => line.startsWith('#!')
 };
 
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
-}
-
 function stripPerlComments(text) {
   return text.replace(/#.*$/gm, ' ');
+}
+
+function getLastDoubleColonSegment(raw) {
+  if (!raw) return '';
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === ':') end -= 1;
+  if (!end) return '';
+  const idx = raw.lastIndexOf('::', end - 1);
+  return idx === -1 ? raw.slice(0, end) : raw.slice(idx + 2, end);
 }
 
 function collectPerlCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
   const normalized = stripPerlComments(text).replace(/->/g, '::');
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_:]*)\s*\(/g)) {
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_:]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const raw = match[1];
     if (!raw) continue;
-    const base = raw.split('::').filter(Boolean).pop();
+    const base = getLastDoubleColonSegment(raw);
     if (!base || PERL_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (PERL_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -119,6 +107,7 @@ function collectPerlCallsAndUsages(text) {
  * @returns {string[]}
  */
 export function collectPerlImports(text) {
+  if (!text || (!text.includes('use ') && !text.includes('require'))) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -284,7 +273,9 @@ export function computePerlFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bdie\b\s*['\"]?([A-Za-z_][A-Za-z0-9_:]*)?/g)) {
+    const dieRe = /\bdie\b\s*['\"]?([A-Za-z_][A-Za-z0-9_:]*)?/g;
+    let match;
+    while ((match = dieRe.exec(cleaned)) !== null) {
       const name = (match[1] || 'die').replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }

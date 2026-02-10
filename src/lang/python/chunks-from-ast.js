@@ -30,7 +30,7 @@ export function buildPythonChunksFromAst(text, astData) {
     if (!end || end <= current.start) {
       end = next ? next.start : text.length;
     }
-    const endLine = offsetToLine(lineIndex, end);
+    const endLine = offsetToLine(lineIndex, Math.max(current.start, end - 1));
     chunks.push({
       start: current.start,
       end,

@@ -76,7 +76,7 @@ for (const mode of modes) {
       throw new Error(`[${mode}] search missing index error payload missing message`);
     }
     const hint = missingPayload.hint || '';
-    if (!hint.includes('build-index') && !hint.includes('build-sqlite-index')) {
+    if (!hint.includes('build-index') && !hint.includes('stage 4')) {
       console.error(`[${mode}] missing index payload:`, JSON.stringify(missingPayload, null, 2));
       throw new Error(`[${mode}] search missing index error payload missing hint`);
     }

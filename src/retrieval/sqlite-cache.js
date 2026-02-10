@@ -1,5 +1,5 @@
 import fsSync from 'node:fs';
-import { LRUCache } from 'lru-cache';
+import { createLruCache } from '../shared/cache.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 
 const DEFAULT_SQLITE_CACHE_MAX_ENTRIES = 4;
@@ -19,9 +19,27 @@ export function createSqliteDbCache({
   ttlMs = DEFAULT_SQLITE_CACHE_TTL_MS,
   onEvict = null
 } = {}) {
-  const resolvedMax = Number.isFinite(Number(maxEntries)) ? Math.floor(Number(maxEntries)) : DEFAULT_SQLITE_CACHE_MAX_ENTRIES;
-  const resolvedTtlMs = Number.isFinite(Number(ttlMs)) ? Math.max(0, Number(ttlMs)) : DEFAULT_SQLITE_CACHE_TTL_MS;
-  if (!resolvedMax || resolvedMax <= 0) {
+  const cacheHandle = createLruCache({
+    name: 'sqlite',
+    maxEntries,
+    ttlMs,
+    onEvict: ({ key, value, reason }) => {
+      try {
+        value?.db?.close?.();
+      } catch {}
+      if (typeof onEvict === 'function') {
+        onEvict({ key, entry: value, reason });
+      }
+      if (reason === 'evict' || reason === 'expire') {
+        incCacheEviction({ cache: 'sqlite' });
+      }
+      setCacheSize({ cache: 'sqlite', value: cacheHandle.size() });
+    },
+    onSizeChange: (size) => {
+      setCacheSize({ cache: 'sqlite', value: size });
+    }
+  });
+  if (!cacheHandle.cache) {
     return {
       get() {
         return null;
@@ -32,31 +50,13 @@ export function createSqliteDbCache({
       size: () => 0
     };
   }
-  const entries = new LRUCache({
-    max: resolvedMax,
-    ttl: resolvedTtlMs > 0 ? resolvedTtlMs : undefined,
-    allowStale: false,
-    updateAgeOnGet: true,
-    dispose: (entry, key, reason) => {
-      try {
-        entry?.db?.close?.();
-      } catch {}
-      if (typeof onEvict === 'function') {
-        onEvict({ key, entry, reason });
-      }
-      if (reason === 'evict' || reason === 'expire') {
-        incCacheEviction({ cache: 'sqlite' });
-      }
-      setCacheSize({ cache: 'sqlite', value: entries.size });
-    }
-  });
 
   const get = (dbPath) => {
-    const entry = entries.get(dbPath);
+    const entry = cacheHandle.get(dbPath);
     if (!entry) return null;
     const signature = fileSignature(dbPath);
     if (!signature || signature !== entry.signature) {
-      entries.delete(dbPath);
+      cacheHandle.delete(dbPath);
       return null;
     }
     return entry.db || null;
@@ -64,20 +64,17 @@ export function createSqliteDbCache({
 
   const set = (dbPath, db) => {
     const signature = fileSignature(dbPath);
-    entries.set(dbPath, { db, signature });
-    setCacheSize({ cache: 'sqlite', value: entries.size });
+    cacheHandle.set(dbPath, { db, signature });
   };
 
   const close = (dbPath) => {
-    const entry = entries.get(dbPath);
+    const entry = cacheHandle.get(dbPath);
     if (!entry) return;
-    entries.delete(dbPath);
-    setCacheSize({ cache: 'sqlite', value: entries.size });
+    cacheHandle.delete(dbPath);
   };
 
   const closeAll = () => {
-    entries.clear();
-    setCacheSize({ cache: 'sqlite', value: entries.size });
+    cacheHandle.clear();
   };
 
   return {
@@ -85,6 +82,6 @@ export function createSqliteDbCache({
     set,
     close,
     closeAll,
-    size: () => entries.size
+    size: cacheHandle.size
   };
 }

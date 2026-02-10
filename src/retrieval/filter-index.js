@@ -143,7 +143,8 @@ export function serializeFilterIndex(index) {
     byAuthor: serializeMap(index.byAuthor),
     byChunkAuthor: serializeMap(index.byChunkAuthor),
     byVisibility: serializeMap(index.byVisibility),
-    fileById: Array.isArray(index.fileById) ? index.fileById : [],
+    // Must be a copy because buildSerializedFilterIndex releases index memory after serialization.
+    fileById: Array.isArray(index.fileById) ? index.fileById.slice() : [],
     fileChunksById: Array.isArray(index.fileChunksById)
       ? index.fileChunksById.map((set) => Array.from(set || []))
       : [],

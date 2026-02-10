@@ -39,15 +39,30 @@ const run = (label, args) => {
 };
 
 if (!skipScriptCoverage) {
-  const args = [path.join(root, 'tests', 'tooling', 'script-coverage', 'script-coverage.test.js')];
   const passRetries = process.argv.some((arg) => arg === '--retries' || arg.startsWith('--retries='));
   if (passRetries) {
-    args.push('--retries', String(argv.retries));
+    process.env.PAIROFCLEATS_TEST_RETRIES = String(argv.retries);
   }
   if (argv['log-dir']) {
-    args.push('--log-dir', argv['log-dir']);
+    process.env.PAIROFCLEATS_TEST_LOG_DIR = argv['log-dir'];
   }
-  run('script-coverage-test', args);
+  const groups = [
+    'core',
+    'storage',
+    'indexing',
+    'language',
+    'benchmarks',
+    'search',
+    'embeddings',
+    'services',
+    'fixtures',
+    'tools'
+  ];
+  for (const group of groups) {
+    run(`script-coverage-${group}`, [
+      path.join(root, 'tests', 'tooling', 'script-coverage', `script-coverage-${group}.test.js`)
+    ]);
+  }
 }
 
 if (!skipBench) {

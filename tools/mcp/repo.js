@@ -1,12 +1,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { LRUCache } from 'lru-cache';
 import simpleGit from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env.js';
-import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
-import { createIndexCache } from '../../src/retrieval/index-cache.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import {
   getCacheRoot,
@@ -23,103 +20,23 @@ import {
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
-import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
+import { createRepoCacheManager } from '../shared/repo-cache-config.js';
 
-const repoCacheConfig = { maxEntries: 5, ttlMs: 15 * 60 * 1000 };
-const indexCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
-const sqliteCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
-const repoCaches = new LRUCache({
-  max: repoCacheConfig.maxEntries,
-  ttl: repoCacheConfig.ttlMs > 0 ? repoCacheConfig.ttlMs : undefined,
-  allowStale: false,
-  updateAgeOnGet: true,
-  dispose: (entry, _key, reason) => {
-    try {
-      entry?.indexCache?.clear?.();
-      entry?.sqliteCache?.closeAll?.();
-    } catch {}
-    if (reason === 'evict' || reason === 'expire') {
-      incCacheEviction({ cache: 'repo' });
-    }
-    setCacheSize({ cache: 'repo', value: repoCaches.size });
-  }
+const repoCacheManager = createRepoCacheManager({
+  defaultRepo: process.cwd(),
+  namespace: 'mcp'
 });
 
-const buildRepoCacheEntry = (repoPath) => {
-  const userConfig = loadUserConfig(repoPath);
-  const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
-  return {
-    indexCache: createIndexCache(indexCacheConfig),
-    sqliteCache: createSqliteDbCache(sqliteCacheConfig),
-    lastUsed: Date.now(),
-    buildId: null,
-    buildPointerPath: path.join(repoCacheRoot, 'builds', 'current.json'),
-    buildPointerMtimeMs: null
-  };
-};
-
-const refreshBuildPointer = async (entry) => {
-  if (!entry?.buildPointerPath) return;
-  let stat = null;
-  try {
-    stat = await fsPromises.stat(entry.buildPointerPath);
-  } catch {
-    stat = null;
-  }
-  const nextMtime = stat?.mtimeMs || null;
-  if (entry.buildPointerMtimeMs && entry.buildPointerMtimeMs === nextMtime) {
-    return;
-  }
-  entry.buildPointerMtimeMs = nextMtime;
-  if (!stat) {
-    if (entry.buildId) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
-    }
-    entry.buildId = null;
-    return;
-  }
-  try {
-    const raw = await fsPromises.readFile(entry.buildPointerPath, 'utf8');
-    const data = JSON.parse(raw) || {};
-    const nextBuildId = typeof data.buildId === 'string' ? data.buildId : null;
-    const changed = (entry.buildId && !nextBuildId)
-      || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
-      || (!entry.buildId && nextBuildId);
-    if (changed) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
-    }
-    entry.buildId = nextBuildId;
-  } catch {
-    entry.buildPointerMtimeMs = null;
-  }
-};
-
-export const getRepoCaches = (repoPath) => {
-  const key = repoPath || process.cwd();
-  let entry = repoCaches.get(key);
-  if (entry) {
-    entry.lastUsed = Date.now();
-  } else {
-    entry = buildRepoCacheEntry(key);
-    repoCaches.set(key, entry);
-    setCacheSize({ cache: 'repo', value: repoCaches.size });
-  }
-  return entry;
-};
+export const getRepoCaches = (repoPath) => repoCacheManager.getRepoCaches(repoPath);
 
 export const refreshRepoCaches = async (repoPath) => {
   if (!repoPath) return;
-  const entry = repoCaches.get(repoPath);
-  if (!entry) return;
-  await refreshBuildPointer(entry);
+  await repoCacheManager.refreshRepoCaches(repoPath);
 };
 
 export const clearRepoCaches = (repoPath) => {
   if (!repoPath) return;
-  repoCaches.delete(repoPath);
-  setCacheSize({ cache: 'repo', value: repoCaches.size });
+  repoCacheManager.clearRepoCaches(repoPath);
 };
 
 /**
@@ -389,7 +306,7 @@ export async function configStatus(args = {}) {
     if (missing.length) {
       warnings.push({
         code: 'sqlite_missing',
-        message: `SQLite indexes missing (${missing.join(', ')}). Run node tools/build/sqlite-index.js.`
+        message: `SQLite indexes missing (${missing.join(', ')}). Run "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`
       });
     }
   }

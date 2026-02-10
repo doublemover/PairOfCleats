@@ -5,9 +5,16 @@ import { createEmbedder } from '../../../src/index/embedding.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
+import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
-import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import {
+  loadChunkMeta,
+  loadFileMetaRows,
+  readJsonFile,
+  MAX_JSON_BYTES
+} from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
@@ -33,18 +40,18 @@ import {
   buildCacheIdentity,
   buildCacheKey,
   isCacheValid,
-  pruneCacheIndex,
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
   resolveCacheDir,
   resolveCacheRoot,
+  shouldFastRejectCacheLookup,
   updateCacheIndexAccess,
   upsertCacheIndexEntry,
   writeCacheEntry,
-  writeCacheIndex,
   writeCacheMeta
 } from './cache.js';
+import { flushCacheIndexIfNeeded } from './cache-flush.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
   assertVectorArrays,
@@ -61,6 +68,7 @@ import { createHnswBuilder } from './hnsw.js';
 import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
+import { createBoundedWriterQueue } from './writer-queue.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
@@ -131,6 +139,38 @@ export async function runBuildEmbeddingsWithConfig(config) {
       return null;
     }
   };
+  const traceArtifactIo = isTestingEnv() || (configEnv || getEnvConfig()).traceArtifactIo;
+  const hasArtifactFile = (filePath) => (
+    fsSync.existsSync(filePath)
+    || fsSync.existsSync(`${filePath}.gz`)
+    || fsSync.existsSync(`${filePath}.zst`)
+    || fsSync.existsSync(`${filePath}.bak`)
+  );
+  const logArtifactLocation = (mode, label, filePath) => {
+    if (!traceArtifactIo) return;
+    const exists = hasArtifactFile(filePath);
+    log(`[embeddings] ${mode}: artifact ${label} path=${filePath} exists=${exists}`);
+  };
+  const logExpectedArtifacts = (mode, indexDir, stageLabel) => {
+    if (!traceArtifactIo) return;
+    const expected = [
+      { label: 'chunk_meta', path: path.join(indexDir, 'chunk_meta.json') },
+      { label: 'chunk_meta_stream', path: path.join(indexDir, 'chunk_meta.jsonl') },
+      { label: 'chunk_meta_meta', path: path.join(indexDir, 'chunk_meta.meta.json') },
+      { label: 'token_postings', path: path.join(indexDir, 'token_postings.json') },
+      { label: 'token_postings_stream', path: path.join(indexDir, 'token_postings.jsonl') },
+      { label: 'token_postings_meta', path: path.join(indexDir, 'token_postings.meta.json') },
+      { label: 'phrase_ngrams', path: path.join(indexDir, 'phrase_ngrams.json') },
+      { label: 'chargram_postings', path: path.join(indexDir, 'chargram_postings.json') },
+      { label: 'index_state', path: path.join(indexDir, 'index_state.json') },
+      { label: 'filelists', path: path.join(indexDir, '.filelists.json') },
+      { label: 'pieces_manifest', path: path.join(indexDir, 'pieces', 'manifest.json') }
+    ];
+    log(`[embeddings] ${mode}: expected artifact snapshot (${stageLabel})`);
+    for (const entry of expected) {
+      logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -182,21 +222,37 @@ export async function runBuildEmbeddingsWithConfig(config) {
     useStubEmbeddings ? 'stub' : null
   ].filter(Boolean);
 
-  const embedder = createEmbedder({
-    rootDir: root,
-    useStubEmbeddings,
-    modelId,
-    dims: argv.dims,
-    modelsDir,
-    provider: embeddingProvider,
-    onnx: embeddingOnnx,
-    normalize: embeddingNormalize
-  });
-  const getChunkEmbeddings = embedder.getChunkEmbeddings;
-
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: true,
+    log
+  });
+  crashLogger.updatePhase('stage3:init');
+  let embedder;
+  try {
+    embedder = createEmbedder({
+      rootDir: root,
+      useStubEmbeddings,
+      modelId,
+      dims: argv.dims,
+      modelsDir,
+      provider: embeddingProvider,
+      onnx: embeddingOnnx,
+      normalize: embeddingNormalize
+    });
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3:init',
+      stage: 'embedder',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
+  }
+  const getChunkEmbeddings = embedder.getChunkEmbeddings;
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const { scheduler, scheduleCompute, scheduleIo } = createEmbeddingsScheduler({
     argv,
@@ -204,13 +260,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
     userConfig,
     envConfig,
     indexingConfig
-  });
-  const crashLoggingEnabled = isTestingEnv()
-    || envConfig.debugCrash === true;
-  const crashLogger = await createCrashLogger({
-    repoCacheRoot,
-    enabled: crashLoggingEnabled,
-    log: null
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
@@ -241,6 +290,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
+  const writerStatsByMode = {};
 
   try {
     for (const mode of modes) {
@@ -260,6 +310,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheFastRejects = 0;
       const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
+      logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
       let indexState = loadIndexState(statePath);
       indexState.generatedAt = indexState.generatedAt || stateNow;
@@ -285,24 +336,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
 
       try {
-        const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-        const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
-        const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
-        const hasChunkMeta = fsSync.existsSync(chunkMetaPath)
-        || fsSync.existsSync(chunkMetaJsonlPath)
-        || fsSync.existsSync(chunkMetaMetaPath);
 
         let chunkMeta;
         try {
-          if (hasChunkMeta) {
-            chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES }));
-          }
+          chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, {
+            maxBytes: MAX_JSON_BYTES,
+            strict: false
+          }));
         } catch (err) {
+          const message = String(err?.message || '');
           if (err?.code === 'ERR_JSON_TOO_LARGE') {
             warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
-          } else {
+          } else if (!message.includes('Missing index artifact: chunk_meta.json')) {
             warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
           }
           chunkMeta = null;
@@ -318,6 +365,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
               fileMeta = await scheduleIo(() => readJsonFile(fileMetaPath, { maxBytes: MAX_JSON_BYTES }));
             } catch (err) {
               warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
+              fileMeta = [];
+            }
+          } else {
+            try {
+              for await (const row of loadFileMetaRows(indexDir, {
+                maxBytes: MAX_JSON_BYTES,
+                strict: false
+              })) {
+                fileMeta.push(row);
+              }
+            } catch (err) {
+              const message = String(err?.message || '');
+              if (!message.includes('Missing index artifact: file_meta.json')) {
+                warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+              }
               fileMeta = [];
             }
           }
@@ -357,6 +419,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             continue;
           }
           log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
+        }
+
+        // Deterministic chunk ordering per file, independent of Map insertion order.
+        for (const list of chunksByFile.values()) {
+          if (!Array.isArray(list) || list.length < 2) continue;
+          list.sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
         }
 
         stageCheckpoints = createStageCheckpointRecorder({
@@ -487,6 +555,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const fileEntries = Array.from(chunksByFile.entries())
           .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
+        // Cache shard writes are serialized via cache.lock but can still be queued.
+        // Keep a bounded in-process queue so compute does not outrun IO and retain
+        // unbounded payloads in memory.
+        const schedulerStatsForWriter = scheduler?.stats?.() || null;
+        const schedulerIoQueue = schedulerStatsForWriter?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || null;
+        const schedulerIoMaxPending = Number.isFinite(Number(schedulerIoQueue?.maxPending))
+          ? Math.max(1, Math.floor(Number(schedulerIoQueue.maxPending)))
+          : null;
+        const ioTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.io?.total))
+          ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.io.total)))
+          : 1;
+        const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
+        const writerMaxPending = schedulerIoMaxPending
+          ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
+          : defaultWriterMaxPending;
+        const writerQueue = createBoundedWriterQueue({ scheduleIo, maxPending: writerMaxPending });
+
+        let sharedZeroVec = new Float32Array(0);
         const processFileEmbeddings = async (entry) => {
           const codeEmbeds = entry.codeEmbeds || [];
           const docVectorsRaw = entry.docVectorsRaw || [];
@@ -510,7 +596,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
 
           const dims = dimsValidator.getDims();
-          const zeroVec = dims ? new Float32Array(dims) : new Float32Array(0);
+          if (dims && sharedZeroVec.length !== dims) {
+            sharedZeroVec = new Float32Array(dims);
+          }
+          const zeroVec = sharedZeroVec;
 
           const cachedCodeVectors = [];
           const cachedDocVectors = [];
@@ -562,33 +651,41 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
           if (entry.cacheKey && entry.cacheDir) {
             try {
-              const shardEntry = await scheduleIo(() => writeCacheEntry(entry.cacheDir, entry.cacheKey, {
-                key: entry.cacheKey,
-                file: entry.normalizedRel,
-                hash: entry.fileHash,
-                chunkSignature: entry.chunkSignature,
-                chunkHashes: entry.chunkHashes,
-                cacheMeta: {
-                  schemaVersion: 1,
-                  identityKey: cacheIdentityKey,
-                  identity: cacheIdentity,
-                  createdAt: new Date().toISOString()
-                },
-                codeVectors: cachedCodeVectors,
-                docVectors: cachedDocVectors,
-                mergedVectors: cachedMergedVectors
-              }, { index: cacheIndex }));
-              if (shardEntry?.shard) {
-                upsertCacheIndexEntry(cacheIndex, entry.cacheKey, {
-                  key: entry.cacheKey,
-                  file: entry.normalizedRel,
-                  hash: entry.fileHash,
-                  chunkSignature: entry.chunkSignature,
-                  chunkHashes: entry.chunkHashes,
-                  codeVectors: cachedCodeVectors
-                }, shardEntry);
-                cacheIndexDirty = true;
-              }
+              const cacheDirLocal = entry.cacheDir;
+              const cacheKeyLocal = entry.cacheKey;
+              const normalizedRelLocal = entry.normalizedRel;
+              const fileHashLocal = entry.fileHash;
+              const chunkSignatureLocal = entry.chunkSignature;
+              const chunkHashesLocal = entry.chunkHashes;
+              await writerQueue.enqueue(async () => {
+                const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, {
+                  key: cacheKeyLocal,
+                  file: normalizedRelLocal,
+                  hash: fileHashLocal,
+                  chunkSignature: chunkSignatureLocal,
+                  chunkHashes: chunkHashesLocal,
+                  cacheMeta: {
+                    schemaVersion: 1,
+                    identityKey: cacheIdentityKey,
+                    identity: cacheIdentity,
+                    createdAt: new Date().toISOString()
+                  },
+                  codeVectors: cachedCodeVectors,
+                  docVectors: cachedDocVectors,
+                  mergedVectors: cachedMergedVectors
+                }, { index: cacheIndex });
+                if (shardEntry?.shard) {
+                  upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
+                    key: cacheKeyLocal,
+                    file: normalizedRelLocal,
+                    hash: fileHashLocal,
+                    chunkSignature: chunkSignatureLocal,
+                    chunkHashes: chunkHashesLocal,
+                    codeVectors: cachedCodeVectors
+                  }, shardEntry);
+                  cacheIndexDirty = true;
+                }
+              });
             } catch {
             // Ignore cache write failures.
             }
@@ -629,17 +726,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
           let cachedResult = null;
           if (cacheEligible && cacheKey) {
             cacheAttempts += 1;
-            const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
-            const identityMatches = !cacheIdentityKey
-              || !cacheIndex?.identityKey
-              || cacheIndex.identityKey === cacheIdentityKey;
-            const hashMatches = !fileHash
-              || !indexEntry?.hash
-              || indexEntry.hash === fileHash;
-            const signatureMatches = !chunkSignature
-              || !indexEntry?.chunkSignature
-              || indexEntry.chunkSignature === chunkSignature;
-            if (!identityMatches || !hashMatches || !signatureMatches) {
+            if (shouldFastRejectCacheLookup({
+              cacheIndex,
+              cacheKey,
+              identityKey: cacheIdentityKey,
+              fileHash,
+              chunkSignature
+            })) {
               cacheFastRejects += 1;
             } else {
               cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
@@ -710,19 +803,46 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
-          const absPath = mode === 'records'
-            ? path.resolve(
-              recordsDir,
-              fromPosix(
-                normalizedRel.startsWith('triage/records/')
-                  ? normalizedRel.slice('triage/records/'.length)
-                  : normalizedRel
-              )
-            )
-            : path.resolve(root, fromPosix(normalizedRel));
-          let textInfo;
+          const candidates = (() => {
+            if (mode !== 'records') {
+              return [path.resolve(root, fromPosix(normalizedRel))];
+            }
+            const resolvedRecordsDir = typeof recordsDir === 'string' && recordsDir
+              ? recordsDir
+              : root;
+            if (normalizedRel.startsWith('triage/records/')) {
+              const stripped = normalizedRel.slice('triage/records/'.length);
+              return [
+                path.resolve(resolvedRecordsDir, fromPosix(stripped)),
+                path.resolve(root, fromPosix(normalizedRel))
+              ];
+            }
+            return [
+              path.resolve(root, fromPosix(normalizedRel)),
+              path.resolve(resolvedRecordsDir, fromPosix(normalizedRel))
+            ];
+          })();
+          let absPath = candidates[0];
+          let textInfo = null;
+          let lastErr = null;
           try {
-            textInfo = await scheduleIo(() => readTextFileWithHash(absPath));
+            for (const candidate of candidates) {
+              absPath = candidate;
+              try {
+                textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
+                lastErr = null;
+                break;
+              } catch (err) {
+                lastErr = err;
+                if (mode === 'records' && err?.code === 'ENOENT') {
+                  continue;
+                }
+                break;
+              }
+            }
+            if (!textInfo) {
+              throw lastErr || new Error('Unknown read error');
+            }
           } catch (err) {
             const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
             warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);
@@ -744,17 +864,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
             let cachedAfterHash = null;
             if (cacheEligible && cacheKey) {
               cacheAttempts += 1;
-              const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
-              const identityMatches = !cacheIdentityKey
-                || !cacheIndex?.identityKey
-                || cacheIndex.identityKey === cacheIdentityKey;
-              const hashMatches = !fileHash
-                || !indexEntry?.hash
-                || indexEntry.hash === fileHash;
-              const signatureMatches = !chunkSignature
-                || !indexEntry?.chunkSignature
-                || indexEntry.chunkSignature === chunkSignature;
-              if (!identityMatches || !hashMatches || !signatureMatches) {
+              if (shouldFastRejectCacheLookup({
+                cacheIndex,
+                cacheKey,
+                identityKey: cacheIdentityKey,
+                fileHash,
+                chunkSignature
+              })) {
                 cacheFastRejects += 1;
               } else {
                 cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
@@ -910,22 +1026,18 @@ export async function runBuildEmbeddingsWithConfig(config) {
           });
         }
 
-        if (cacheIndex) {
-          if (cacheEligible) {
-            const pruneResult = await scheduleIo(() => pruneCacheIndex(cacheDir, cacheIndex, {
-              maxBytes: cacheMaxBytes,
-              maxAgeMs: cacheMaxAgeMs
-            }));
-            if (pruneResult.changed) cacheIndexDirty = true;
-          }
-          if (cacheIndexDirty) {
-            try {
-              await scheduleIo(() => writeCacheIndex(cacheDir, cacheIndex));
-            } catch {
-              // Ignore cache index write failures.
-            }
-          }
-        }
+        await writerQueue.onIdle();
+
+        ({ cacheIndexDirty } = await flushCacheIndexIfNeeded({
+          cacheDir,
+          cacheIndex,
+          cacheEligible,
+          cacheIndexDirty,
+          cacheIdentityKey,
+          cacheMaxBytes,
+          cacheMaxAgeMs,
+          scheduleIo
+        }));
 
         stageCheckpoints.record({
           stage: 'stage3',
@@ -958,6 +1070,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
         const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
         const codeVectorsPath = path.join(indexDir, 'dense_vectors_code_uint8.json');
+        if (traceArtifactIo) {
+          log(`[embeddings] ${mode}: writing vectors to ${mergedVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${docVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${codeVectorsPath}`);
+        }
         await scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
           fields: {
             model: modelId,
@@ -994,6 +1111,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           arrays: { vectors: codeVectors },
           atomic: true
         }));
+        logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
 
         Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
           mode,
@@ -1078,7 +1198,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           } else {
             try {
+              if (traceArtifactIo) {
+                log(`[embeddings] ${mode}: deleting optional sqlite vec meta ${sqliteMetaPath}`);
+              }
               await scheduleIo(() => fs.rm(sqliteMetaPath, { force: true }));
+              logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
             } catch {}
           }
         }
@@ -1175,9 +1299,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         try {
           await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
+          logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
         } catch {
         // Ignore piece manifest write failures.
         }
+        logExpectedArtifacts(mode, indexDir, 'pre-validate');
 
         const validation = await scheduleIo(() => validateIndexArtifacts({
           root,
@@ -1230,6 +1356,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
 
         log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+        writerStatsByMode[mode] = writerQueue.stats();
         const schedulerStats = scheduler?.stats?.();
         const starvationCount = schedulerStats?.counters?.starvation ?? 0;
         if (starvationCount > 0) {
@@ -1241,6 +1368,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
         finishMode(`built ${mode}`);
       } catch (err) {
+        logExpectedArtifacts(mode, indexDir, 'failure');
         const now = new Date().toISOString();
         const failureState = loadIndexState(statePath);
         failureState.generatedAt = failureState.generatedAt || now;
@@ -1281,7 +1409,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (hasBuildState) {
       await markBuildPhase(indexRoot, 'stage3', 'done');
     }
-    return { modes, scheduler: scheduler?.stats?.() };
+    return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3',
+      stage: 'embeddings',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
   } finally {
     scheduler?.shutdown?.();
     finalize();

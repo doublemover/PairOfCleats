@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-05T03:07:19.241Z",
+  "generatedAt": "2026-02-10T14:26:13.584Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -30,6 +30,9 @@
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_RUN",
       "PAIROFCLEATS_BUNDLE_THREADS",
+      "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
+      "PAIROFCLEATS_CACHE_NAMESPACE",
+      "PAIROFCLEATS_CACHE_REBUILD",
       "PAIROFCLEATS_CACHE_ROOT",
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
@@ -65,6 +68,12 @@
       "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
       "PAIROFCLEATS_SCHEDULER_MEM",
       "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
+      "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -89,6 +98,7 @@
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
       "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "PAIROFCLEATS_VERBOSE",
@@ -233,6 +243,8 @@
       "tooling.autoInstallOnDetect",
       "tooling.cache.dir",
       "tooling.cache.enabled",
+      "tooling.cache.maxBytes",
+      "tooling.cache.maxEntries",
       "tooling.circuitBreakerThreshold",
       "tooling.clangd.compileCommandsDir",
       "tooling.clangd.requireCompilationDatabase",
@@ -288,8 +300,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 234,
-    "leafKeys": 187,
+    "totalKeys": 236,
+    "leafKeys": 189,
     "topLevel": [
       {
         "key": "cache",
@@ -325,7 +337,7 @@
       },
       {
         "key": "tooling",
-        "count": 65
+        "count": 67
       }
     ]
   },
@@ -1254,6 +1266,16 @@
       "enum": null
     },
     {
+      "path": "tooling.cache.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.cache.maxEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "tooling.circuitBreakerThreshold",
       "type": "number",
       "enum": null
@@ -1586,6 +1608,28 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_NAMESPACE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_REBUILD",
+      "files": [
+        "src/shared/env.js",
+        "tests/shared/cache/cache-migration.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
         "src/shared/env.js",
@@ -1596,7 +1640,6 @@
         "tests/cli/search/search-tie-order.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
-        "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
@@ -1606,13 +1649,11 @@
         "tests/indexing/artifacts/clean-artifacts.test.js",
         "tests/indexing/artifacts/manifest/report-artifacts-manifest-driven.test.js",
         "tests/indexing/chunking/comment-join.test.js",
-        "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
-        "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
         "tests/indexing/embeddings/embeddings-validate.test.js",
         "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
         "tests/indexing/extracted-prose/extracted-prose.test.js",
@@ -1625,6 +1666,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
@@ -1639,6 +1681,7 @@
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/churn-filter.test.js",
+        "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
         "tests/run.js",
         "tests/services/api/api-server-stream.test.js",
@@ -1646,19 +1689,17 @@
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
-        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/cache/cache-gc.test.js",
+        "tests/shared/cache/cache-migration.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
-        "tests/smoke/smoke-retrieval.test.js",
         "tests/smoke/tantivy-smoke.test.js",
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
         "tests/storage/lmdb/lmdb-mapsize.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
@@ -1677,12 +1718,11 @@
         "tests/tooling/install/setup.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/metrics-dashboard.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
+        "tools/bench/index/postings-real.js",
+        "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -1742,7 +1782,6 @@
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
         "tests/helpers/fixture-index.js",
-        "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
@@ -1751,11 +1790,9 @@
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/chunking/comment-join.test.js",
-        "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
-        "tests/indexing/embeddings/embeddings-dims-mismatch.test.js",
         "tests/indexing/embeddings/embeddings-validate.test.js",
         "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
         "tests/indexing/extracted-prose/extracted-prose.test.js",
@@ -1768,6 +1805,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
@@ -1789,14 +1827,12 @@
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
-        "tests/smoke/smoke-retrieval.test.js",
         "tests/smoke/tantivy-smoke.test.js",
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
         "tests/storage/lmdb/lmdb-mapsize.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
@@ -1809,12 +1845,8 @@
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/fixtures/fixture-parity.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js",
@@ -1993,6 +2025,9 @@
       "name": "PAIROFCLEATS_SCHEDULER",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
+        "tests/perf/indexing/runtime/scheduler-no-output-regression.test.js",
+        "tools/bench/index/scheduler-build.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2000,6 +2035,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_CPU",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2007,6 +2043,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_IO",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2021,6 +2058,7 @@
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
         "src/shared/env.js",
+        "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2029,6 +2067,50 @@
       "files": [
         "src/shared/env.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
+      "files": [
+        "tests/tooling/script-coverage/group-runner.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
+      "files": [
+        "tests/tooling/script-coverage/group-runner.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
+      "files": [
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "files": [
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
       ]
     },
     {
@@ -2094,9 +2176,12 @@
       "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "files": [
         "tests/helpers/fixture-index.js",
+        "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/runner/run-execution.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
+        "tests/smoke/smoke-sqlite.test.js",
+        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2139,8 +2224,10 @@
       "files": [
         "tests/helpers/triage.js",
         "tests/run.js",
+        "tests/runner/all.js",
         "tests/tooling/script-coverage/runner.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2194,7 +2281,8 @@
       "name": "PAIROFCLEATS_TEST_RETRIES",
       "files": [
         "tests/run.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
+        "tests/runner/all.js",
+        "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2236,7 +2324,6 @@
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/chunking/comment-join.test.js",
-        "tests/indexing/chunking/formats/format-fidelity.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
         "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
@@ -2253,6 +2340,7 @@
         "tests/indexing/map/code-map-performance.test.js",
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/chunk-meta-determinism.test.js",
         "tests/indexing/risk/interprocedural/artifacts-written.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
@@ -2268,8 +2356,6 @@
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
-        "tests/retrieval/pipeline/ann-optional-skip.test.js",
-        "tests/retrieval/pipeline/ann-preflight.test.js",
         "tests/retrieval/pipeline/artifact-gating-deps.test.js",
         "tests/retrieval/pipeline/artifact-gating.test.js",
         "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
@@ -2301,16 +2387,13 @@
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
-        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/logging/stdout-contract.test.js",
-        "tests/smoke/smoke-retrieval.test.js",
         "tests/smoke/tantivy-smoke.test.js",
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
         "tests/storage/lmdb/lmdb-mapsize.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
@@ -2320,12 +2403,7 @@
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-memory.test.js",
-        "tests/tooling/reports/summary/summary-report-compare-sqlite.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite-fts.test.js",
-        "tests/tooling/reports/summary/summary-report-parity-sqlite.test.js",
-        "tests/tooling/script-coverage/script-coverage.test.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js"
@@ -2343,6 +2421,15 @@
         "tests/perf/bench/run.test.js",
         "tests/run.js",
         "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
+      "files": [
+        "src/shared/env.js",
+        "tests/helpers/triage.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2418,7 +2505,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 295,
+    "totalFlags": 298,
     "publicFlags": [
       "backend",
       "host",
@@ -2462,12 +2549,10 @@
       "chunk-meta-size",
       "clean",
       "code",
-      "code-dir",
       "collapse",
       "colorize",
       "column",
       "command",
-      "compact",
       "concurrency",
       "config",
       "cors-allow-any",
@@ -2502,13 +2587,13 @@
       "evidence",
       "expires",
       "extensions",
-      "extracted-prose-dir",
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
       "fanout",
       "fields",
       "files",
+      "filesPerLanguage",
       "finding",
       "fixture",
       "fixtures",
@@ -2521,6 +2606,7 @@
       "global",
       "graphFixture",
       "graphs",
+      "groups",
       "hashes",
       "hops",
       "in",
@@ -2549,6 +2635,7 @@
       "lang",
       "languages",
       "limit",
+      "list-groups",
       "list-packs",
       "load",
       "lod-edge-high",
@@ -2578,6 +2665,7 @@
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
+      "maxNodeBytes",
       "maxNodes",
       "maxPaths",
       "maxPerHit",
@@ -2599,12 +2687,12 @@
       "min-rank-corr",
       "minBytes",
       "minConfidence",
+      "missingDocHashRate",
       "model",
       "model-out",
       "models",
       "module",
       "no-ann",
-      "no-compact",
       "no-fallback",
       "node-list-out",
       "nodes",
@@ -2629,7 +2717,6 @@
       "pretty",
       "progress",
       "properties",
-      "prose-dir",
       "provider",
       "queries",
       "queries-dir",
@@ -2637,9 +2724,9 @@
       "quiet",
       "reason",
       "record",
-      "records-dir",
       "refresh",
       "registry",
+      "repeats",
       "require-dicts",
       "require-index",
       "require-sqlite",
@@ -2665,6 +2752,8 @@
       "segmentBytes",
       "segments",
       "sha256",
+      "shard-count",
+      "shard-index",
       "sink-rule",
       "size",
       "skip-artifacts",
@@ -2705,6 +2794,7 @@
       "unique",
       "update",
       "url",
+      "useQueries",
       "validate",
       "validate-config",
       "verbose",
@@ -2933,7 +3023,7 @@
         ]
       },
       {
-        "file": "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
+        "file": "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
         "flags": [
           "log",
           "treeSitter",
@@ -2958,6 +3048,12 @@
         ]
       },
       {
+        "file": "tests/map/build-map/temp-cleanup-on-failure.test.js",
+        "flags": [
+          "maxNodeBytes"
+        ]
+      },
+      {
         "file": "tests/map/map-build-determinism.test.js",
         "flags": [
           "mode"
@@ -2978,6 +3074,12 @@
       },
       {
         "file": "tests/map/map-edge-aggregate-stability.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
+        "file": "tests/perf/indexing/validate/phase-usage-checklist.test.js",
         "flags": [
           "mode"
         ]
@@ -3055,6 +3157,15 @@
         ]
       },
       {
+        "file": "tests/shared/cache/cache-reuse-determinism.test.js",
+        "flags": [
+          "focus",
+          "include",
+          "onlyExported",
+          "scope"
+        ]
+      },
+      {
         "file": "tests/shared/contracts/phase11-schemas-validate.test.js",
         "flags": [
           "caps",
@@ -3090,10 +3201,15 @@
         ]
       },
       {
-        "file": "tests/tooling/script-coverage/script-coverage.test.js",
+        "file": "tests/tooling/script-coverage/script-coverage.runner.js",
         "flags": [
+          "cache-root",
+          "groups",
+          "list-groups",
           "log-dir",
-          "retries"
+          "retries",
+          "shard-count",
+          "shard-index"
         ]
       },
       {
@@ -3194,6 +3310,17 @@
         ]
       },
       {
+        "file": "tools/bench/graph/neighborhood-index-dir.js",
+        "flags": [
+          "depth",
+          "index",
+          "iterations",
+          "mode",
+          "repo",
+          "seed"
+        ]
+      },
+      {
         "file": "tools/bench/graph/render-sort.js",
         "flags": [
           "iterations",
@@ -3208,6 +3335,19 @@
           "iterations",
           "mode",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/bench/index/tree-sitter-load.js",
+        "flags": [
+          "filesPerLanguage",
+          "json",
+          "languages",
+          "log",
+          "out",
+          "repeats",
+          "treeSitter",
+          "useQueries"
         ]
       },
       {
@@ -3377,6 +3517,7 @@
           "input",
           "json",
           "lookups",
+          "missingDocHashRate",
           "out",
           "samples",
           "seed"
@@ -3505,26 +3646,6 @@
         ]
       },
       {
-        "file": "tools/build/sqlite/cli.js",
-        "flags": [
-          "code-dir",
-          "compact",
-          "extracted-prose-dir",
-          "incremental",
-          "index-root",
-          "mode",
-          "no-compact",
-          "out",
-          "progress",
-          "prose-dir",
-          "quiet",
-          "records-dir",
-          "repo",
-          "validate",
-          "verbose"
-        ]
-      },
-      {
         "file": "tools/build/tantivy-index.js",
         "flags": [
           "index-root",
@@ -3533,6 +3654,14 @@
           "quiet",
           "repo",
           "verbose"
+        ]
+      },
+      {
+        "file": "tools/cache/clear-cache.js",
+        "flags": [
+          "all",
+          "cache-root",
+          "force"
         ]
       },
       {
@@ -4039,6 +4168,7 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -4048,7 +4178,6 @@
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/ci/restore-artifacts.js",
@@ -4091,7 +4220,7 @@
       },
       {
         "flag": "json",
-        "count": 45,
+        "count": 46,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4104,6 +4233,7 @@
           "tools/analysis/structural-search.js",
           "tools/api/server.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/query-generator.js",
@@ -4150,6 +4280,7 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
@@ -4166,7 +4297,6 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
-          "tools/build/sqlite/cli.js",
           "tools/ci/build-artifacts.js",
           "tools/config/generate-demo-config.js",
           "tools/dicts/generate-repo-dict.js",
@@ -4186,14 +4316,16 @@
       },
       {
         "flag": "mode",
-        "count": 28,
+        "count": 29,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
           "tests/map/map-edge-aggregate-stability.test.js",
+          "tests/perf/indexing/validate/phase-usage-checklist.test.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/graph/render-sort.js",
           "tools/bench/graph/store-lazy-load.js",
           "tools/bench/map/build-map-memory.js",
@@ -4207,7 +4339,6 @@
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
@@ -4220,13 +4351,14 @@
       },
       {
         "flag": "seed",
-        "count": 14,
+        "count": 15,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
           "tests/fixtures/medium/generate.js",
           "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -4240,7 +4372,7 @@
       },
       {
         "flag": "index-root",
-        "count": 11,
+        "count": 10,
         "files": [
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -4249,7 +4381,6 @@
           "tools/bench/query-generator.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/index/validate.js",
           "tools/reports/report-code-map.js"
@@ -4272,18 +4403,18 @@
         ]
       },
       {
-        "flag": "quiet",
+        "flag": "include",
         "count": 9,
         "files": [
-          "tools/api/server.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
+          "src/map/build-map.js",
+          "tests/indexing/map/map-build-symbol-identity.test.js",
+          "tests/indexing/map/map-chunkuid-join.test.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -4301,41 +4432,13 @@
         ]
       },
       {
-        "flag": "include",
+        "flag": "quiet",
         "count": 8,
         "files": [
-          "src/map/build-map.js",
-          "tests/indexing/map/map-build-symbol-identity.test.js",
-          "tests/indexing/map/map-chunkuid-join.test.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "progress",
-        "count": 8,
-        "files": [
+          "tools/api/server.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "verbose",
-        "count": 8,
-        "files": [
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js",
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
@@ -4356,16 +4459,16 @@
         ]
       },
       {
-        "flag": "incremental",
+        "flag": "focus",
         "count": 7,
         "files": [
-          "tools/build/sqlite/cli.js",
-          "tools/ci/build-artifacts.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/setup/bootstrap.js",
-          "tools/setup/setup.js",
-          "tools/triage/ingest.js"
+          "src/map/build-map.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -4382,6 +4485,45 @@
         ]
       },
       {
+        "flag": "log",
+        "count": 7,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
+        "flag": "progress",
+        "count": 7,
+        "files": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "scope",
+        "count": 7,
+        "files": [
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 7,
         "files": [
@@ -4395,51 +4537,65 @@
         ]
       },
       {
-        "flag": "focus",
-        "count": 6,
-        "files": [
-          "src/map/build-map.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "log",
-        "count": 6,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
-        ]
-      },
-      {
-        "flag": "scope",
-        "count": 6,
-        "files": [
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js",
-          "tools/tooling/install.js"
-        ]
-      },
-      {
         "flag": "treeSitter",
-        "count": 6,
+        "count": 7,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
           "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
           "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-fallback-missing-wasm.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js"
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
+        "flag": "verbose",
+        "count": 7,
+        "files": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "depth",
+        "count": 6,
+        "files": [
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js"
+        ]
+      },
+      {
+        "flag": "force",
+        "count": 6,
+        "files": [
+          "tools/cache/clear-cache.js",
+          "tools/ci/restore-artifacts.js",
+          "tools/config/reset.js",
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/index/assemble-pieces.js"
+        ]
+      },
+      {
+        "flag": "incremental",
+        "count": 6,
+        "files": [
+          "tools/ci/build-artifacts.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/setup/bootstrap.js",
+          "tools/setup/setup.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -4465,28 +4621,6 @@
         ]
       },
       {
-        "flag": "depth",
-        "count": 5,
-        "files": [
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-cache.js"
-        ]
-      },
-      {
-        "flag": "force",
-        "count": 5,
-        "files": [
-          "tools/ci/restore-artifacts.js",
-          "tools/config/reset.js",
-          "tools/download/dicts.js",
-          "tools/download/extensions.js",
-          "tools/index/assemble-pieces.js"
-        ]
-      },
-      {
         "flag": "includeCalls",
         "count": 5,
         "files": [
@@ -4495,6 +4629,28 @@
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context-expansion/context-expansion-shuffled-chunkmeta.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "index",
+        "count": 5,
+        "files": [
+          "tools/analysis/explain-risk.js",
+          "tools/bench/graph-caps-harness.js",
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/store-lazy-load.js"
+        ]
+      },
+      {
+        "flag": "iterations",
+        "count": 5,
+        "files": [
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js"
         ]
       },
       {
@@ -4586,6 +4742,16 @@
         ]
       },
       {
+        "flag": "all",
+        "count": 4,
+        "files": [
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/cache/clear-cache.js",
+          "tools/index/clean-artifacts.js",
+          "tools/index/report-artifacts.js"
+        ]
+      },
+      {
         "flag": "backend",
         "count": 4,
         "files": [
@@ -4616,23 +4782,13 @@
         ]
       },
       {
-        "flag": "index",
+        "flag": "languages",
         "count": 4,
         "files": [
-          "tools/analysis/explain-risk.js",
-          "tools/bench/graph-caps-harness.js",
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/store-lazy-load.js"
-        ]
-      },
-      {
-        "flag": "iterations",
-        "count": 4,
-        "files": [
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-cache.js",
-          "tools/bench/graph/render-sort.js",
-          "tools/bench/graph/store-lazy-load.js"
+          "tools/bench/index/tree-sitter-load.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
         ]
       },
       {
@@ -4776,21 +4932,21 @@
         ]
       },
       {
-        "flag": "all",
-        "count": 3,
-        "files": [
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/report-artifacts.js"
-        ]
-      },
-      {
         "flag": "args",
         "count": 3,
         "files": [
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/scip.js"
+        ]
+      },
+      {
+        "flag": "cache-root",
+        "count": 3,
+        "files": [
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/cache/clear-cache.js",
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -4809,15 +4965,6 @@
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
-        ]
-      },
-      {
-        "flag": "languages",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
         ]
       },
       {
@@ -5103,7 +5250,7 @@
         "count": 2,
         "files": [
           "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.test.js"
+          "tests/tooling/script-coverage/script-coverage.runner.js"
         ]
       },
       {
@@ -5144,6 +5291,14 @@
         "files": [
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
+        ]
+      },
+      {
+        "flag": "onlyExported",
+        "count": 2,
+        "files": [
+          "src/map/build-map.js",
+          "tests/shared/cache/cache-reuse-determinism.test.js"
         ]
       },
       {
@@ -5207,7 +5362,7 @@
         "count": 2,
         "files": [
           "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.test.js"
+          "tests/tooling/script-coverage/script-coverage.runner.js"
         ]
       },
       {
@@ -5315,14 +5470,6 @@
         ]
       },
       {
-        "flag": "validate",
-        "count": 2,
-        "files": [
-          "tools/build/lmdb-index.js",
-          "tools/build/sqlite/cli.js"
-        ]
-      },
-      {
         "flag": "validate-config",
         "count": 2,
         "files": [
@@ -5355,6 +5502,7 @@
       "src/index/build/file-processor/cpu.js",
       "src/index/build/file-processor/cpu/analyze.js",
       "src/index/build/file-processor/process-chunks/enrichment.js",
+      "src/index/build/tree-sitter-scheduler/executor.js",
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
@@ -5369,9 +5517,13 @@
       "src/retrieval/cli/run-search-session.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
+      "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
+      "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
+      "tools/build/embeddings/cache-flush.js",
       "tools/config/inventory/scan.js",
       "tools/sqlite/vector-extension.js"
     ]

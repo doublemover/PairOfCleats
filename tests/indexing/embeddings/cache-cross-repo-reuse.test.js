@@ -78,7 +78,7 @@ const loadCacheIndex = async (rootDir) => {
 };
 
 runNode(repoA, 'build_index A', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoA]);
-runNode(repoA, 'build_embeddings A', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoA]);
+runNode(repoA, 'build_embeddings A', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoA]);
 
 const firstIndex = await loadCacheIndex(cacheRoot);
 const firstKeys = new Set(Object.keys(firstIndex.entries || {}));
@@ -88,7 +88,7 @@ if (!firstKeys.size) {
 }
 
 runNode(repoB, 'build_index B', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoB]);
-runNode(repoB, 'build_embeddings B', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoB]);
+runNode(repoB, 'build_embeddings B', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoB]);
 
 const secondIndex = await loadCacheIndex(cacheRoot);
 const secondKeys = new Set(Object.keys(secondIndex.entries || {}));

@@ -15,6 +15,14 @@ import { fileExt, toPosix } from '../../shared/files.js';
  * @returns {Promise<number>}
  */
 export async function estimateContextWindow({ files, root, mode, languageOptions }) {
+  const sampleLanguageOptions = languageOptions && typeof languageOptions === 'object'
+    ? {
+      ...languageOptions,
+      // Context-window estimation does not require tree-sitter accuracy and
+      // should not trigger heavyweight grammar parser activation.
+      treeSitter: { ...(languageOptions.treeSitter || {}), enabled: false }
+    }
+    : { treeSitter: { enabled: false } };
   const sampleChunkLens = [];
   const ordered = Array.isArray(files) ? [...files].sort() : [];
   for (let i = 0; i < Math.min(20, ordered.length); ++i) {
@@ -30,7 +38,7 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
         relPath: relSampleKey,
         mode,
         text,
-        options: languageOptions
+        options: sampleLanguageOptions
       });
       const chunks0 = smartChunk({
         text,

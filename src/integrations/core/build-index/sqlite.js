@@ -1,5 +1,5 @@
-import { getRepoRoot } from '../../../../tools/shared/dict-utils.js';
-import { runBuildSqliteIndex } from '../../../../tools/build/sqlite-index.js';
+import { getRepoRoot } from '../../../shared/dict-utils.js';
+import { buildSqliteIndex as runBuildSqliteIndex } from '../../../storage/sqlite/build/runner.js';
 
 /**
  * Build or update SQLite indexes for a repo.
@@ -9,19 +9,19 @@ import { runBuildSqliteIndex } from '../../../../tools/build/sqlite-index.js';
  */
 export async function buildSqliteIndex(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
-  const rawArgs = Array.isArray(options.args) ? options.args.slice() : [];
-  if (!options.args) {
-    if (options.mode) rawArgs.push('--mode', String(options.mode));
-    if (options.incremental) rawArgs.push('--incremental');
-    if (options.compact) rawArgs.push('--compact');
-    if (options.out) rawArgs.push('--out', String(options.out));
-    if (options.codeDir) rawArgs.push('--code-dir', String(options.codeDir));
-    if (options.proseDir) rawArgs.push('--prose-dir', String(options.proseDir));
-    if (options.extractedProseDir) rawArgs.push('--extracted-prose-dir', String(options.extractedProseDir));
-    if (options.recordsDir) rawArgs.push('--records-dir', String(options.recordsDir));
-  }
-  return runBuildSqliteIndex(rawArgs, {
+  return runBuildSqliteIndex({
     root,
+    ...options,
+    mode: options.mode,
+    incremental: options.incremental === true,
+    compact: options.compact === true,
+    out: options.out || null,
+    indexRoot: options.indexRoot || null,
+    codeDir: options.codeDir || null,
+    proseDir: options.proseDir || null,
+    extractedProseDir: options.extractedProseDir || null,
+    recordsDir: options.recordsDir || null,
+    validateMode: options.validateMode ?? options.validate,
     emitOutput: options.emitOutput !== false,
     exitOnError: options.exitOnError === true,
     logger: options.logger || null

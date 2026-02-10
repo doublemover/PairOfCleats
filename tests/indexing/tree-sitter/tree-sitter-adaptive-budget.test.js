@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   buildTreeSitterChunks,
   resetTreeSitterStats
@@ -10,13 +10,13 @@ import {
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 
 const run = async () => {
-  const ok = await initTreeSitterWasm({ log: () => {} });
+  const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping adaptive budget test.');
+    console.log('tree-sitter runtime unavailable; skipping adaptive budget test.');
     return;
   }
 
-  await preloadTreeSitterLanguages(['javascript'], { maxLoadedLanguages: 1, skipDispose: true });
+  await preloadTreeSitterLanguages(['javascript'], { skipDispose: true });
   resetTreeSitterStats();
 
   treeSitterState.nodeDensity.set('javascript', { density: 1000, samples: 1 });
@@ -29,7 +29,6 @@ const run = async () => {
     options: {
       treeSitter: {
         enabled: true,
-        maxLoadedLanguages: 1,
         useQueries: false
       },
       log: () => {}
@@ -46,3 +45,5 @@ const run = async () => {
 };
 
 await run();
+
+

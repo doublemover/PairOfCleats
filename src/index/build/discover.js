@@ -15,6 +15,7 @@ import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
+import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 
 /**
  * Recursively discover indexable files under a directory.
@@ -129,14 +130,9 @@ export async function discoverEntries({
   const recordSkip = (filePath, reason, extra = {}) => {
     skippedCommon.push({ file: filePath, reason, ...extra });
   };
-  const minifiedNameRegex = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
   const resolveMaxBytesForFile = (ext, languageId) => {
     const caps = resolveFileCaps(fileCaps, ext, languageId, null);
     return pickMinLimit(maxBytes, caps.maxBytes);
-  };
-  const normalizeRoot = (value) => {
-    const resolved = path.resolve(value || '');
-    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
   };
   const normalizedRoot = normalizeRoot(root);
   const normalizedRecordsRoot = recordsDir ? normalizeRoot(recordsDir) : null;
@@ -233,7 +229,7 @@ export async function discoverEntries({
     const language = getLanguageForFile(ext, relPosix);
     const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
     const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
-    if (minifiedNameRegex.test(baseName.toLowerCase())) {
+    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
       return;
     }
