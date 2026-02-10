@@ -1630,9 +1630,9 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Stream `chunk_meta` in Stage4 where supported.
 - [x] Skip unnecessary token-text materialization in Stage4.
 - [x] Replace linear seed-resolution scans with indexed lookup in context-pack assembly.
-- [ ] Convert paired behavior tests to parameterized coverage.
-- [ ] Convert paired behavior tests to metamorphic coverage.
-- [ ] Add per-bench JSON output schema contracts.
+- [x] Convert paired behavior tests to parameterized coverage.
+- [x] Convert paired behavior tests to metamorphic coverage.
+- [x] Add per-bench JSON output schema contracts.
 - [ ] Strengthen phase-usage checklist assertions with explicit phase signals.
 - [ ] Run benchmarks with warm/cold splits in one controlled pass.
 - [ ] Enforce benchmark variance guards for recorded deltas.
@@ -1665,7 +1665,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)
 - [x] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
 - [x] `tests/retrieval/graph/context-pack-seed-indexing.test.js` (perf lane) (new)
-- [ ] `tests/perf/tooling/bench/per-bench-output-schema.test.js` (perf lane) (new)
+- [x] `tests/perf/tooling/bench/per-bench-output-schema.test.js` (perf lane) (new)
 - [ ] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (update)
 
 ---
