@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
-import { runAnnFallbackScenario } from './helpers/ann-scenarios.js';
+import { buildAnnPipelineFixture } from './helpers/ann-scenarios.js';
 
 let preflightCalls = 0;
 let queryCalls = 0;
@@ -19,15 +20,28 @@ const provider = {
   }
 };
 const scenario = 'ann-provider-preflight-failure-fallback';
-const { outputs, stageTracker } = await runAnnFallbackScenario({
-  createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, provider]]),
-  runs: 2
+const { stageTracker, context, idx } = buildAnnPipelineFixture({
+  createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, provider]])
 });
-const [results, resultsAgain] = outputs;
+const pipeline = createSearchPipeline(context);
+
+const realDateNow = Date.now;
+let nowMs = realDateNow();
+Date.now = () => nowMs;
+let results = [];
+let resultsAgain = [];
+try {
+  results = await pipeline(idx, 'code', [0.1, 0.2]);
+  // Advance beyond provider cooldown window but within preflight cache TTL.
+  nowMs += 1500;
+  resultsAgain = await pipeline(idx, 'code', [0.1, 0.2]);
+} finally {
+  Date.now = realDateNow;
+}
 
 assert.ok(results.length > 0, 'expected sparse fallback results');
 assert.ok(resultsAgain.length > 0, 'expected sparse fallback results on second run');
-assert.equal(preflightCalls, 1, 'expected preflight to run once');
+assert.equal(preflightCalls, 1, 'expected preflight to be reused from cache after failure');
 assert.equal(queryCalls, 0, 'expected ANN query to be skipped after preflight failure');
 
 const annStages = stageTracker.stages.filter((entry) => entry.stage === 'ann');

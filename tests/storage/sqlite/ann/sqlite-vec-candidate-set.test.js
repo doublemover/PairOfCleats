@@ -37,6 +37,25 @@ assert.ok(lastSql.includes('ORDER BY distance'), 'expected distance ordering');
 assert.equal(smallHits[0].idx, 1, 'expected rowid tie-break on distance');
 assert.equal(smallHits[1].idx, 3, 'expected rowid tie-break on distance');
 
+const bitmapLikeCandidates = {
+  ids: [1, 2, 3],
+  size() {
+    return this.ids.length;
+  },
+  has(id) {
+    return this.ids.includes(id);
+  },
+  values() {
+    return this.ids.values();
+  }
+};
+lastSql = null;
+lastParams = null;
+const bitmapLikeHits = queryVectorAnn(db, config, [0, 1], 2, bitmapLikeCandidates);
+assert.ok(lastSql.includes('rowid IN'), 'expected candidate pushdown for bitmap-like set');
+assert.equal(bitmapLikeHits.length, 2, 'expected bitmap-like candidates to return ranked hits');
+assert.equal(bitmapLikeHits[0].idx, 1, 'expected bitmap-like candidate tie-break ordering');
+
 const largeCandidates = new Set(Array.from({ length: 901 }, (_, i) => i));
 currentRows = [
   { rowid: 2000, distance: 0.05 },

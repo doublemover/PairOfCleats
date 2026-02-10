@@ -305,13 +305,13 @@ Format:
 - Impact: Lower memory spikes.
 - Risk: More complex random-access logic.
 
-23. Area: ANN candidate fallback type mismatch
+23. [x] Area: ANN candidate fallback type mismatch
 - Files: `src/retrieval/pipeline.js`, `tools/sqlite/vector-extension.js`, `src/retrieval/bitmap.js`
 - Opportunity: Normalize candidate set types (`Set` vs bitmap) before ANN query pushdown.
 - Impact: Prevent unnecessary full scans and truncation artifacts.
 - Risk: Must preserve existing candidate semantics.
 
-24. Area: ANN provider preflight unused
+24. [x] Area: ANN provider preflight unused
 - Files: `src/retrieval/pipeline.js`, `src/retrieval/ann/providers/*.js`
 - Opportunity: Implement provider `preflight` hooks to avoid repeated expensive failures.
 - Impact: Lower cold/misconfigured query cost.

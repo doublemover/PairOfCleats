@@ -370,9 +370,38 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     return [];
   }
   const limit = Math.max(1, Number(topN) || 1);
-  const candidateSize = candidateSet?.size || 0;
+  const getCandidateSize = (value) => {
+    if (!value) return 0;
+    if (Number.isFinite(Number(value.size))) return Number(value.size);
+    if (typeof value.size === 'function') {
+      const resolved = Number(value.size());
+      return Number.isFinite(resolved) ? resolved : 0;
+    }
+    if (typeof value.getSize === 'function') {
+      const resolved = Number(value.getSize());
+      return Number.isFinite(resolved) ? resolved : 0;
+    }
+    if (Array.isArray(value)) return value.length;
+    return 0;
+  };
+  const candidateHas = (value, id) => {
+    if (!value) return false;
+    if (typeof value.has === 'function') return value.has(id);
+    if (typeof value.contains === 'function') return value.contains(id);
+    if (typeof value.includes === 'function') return value.includes(id);
+    return false;
+  };
+  const candidateToArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value.toArray === 'function') return value.toArray();
+    if (typeof value.values === 'function') return Array.from(value.values());
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
+    return [];
+  };
+  const candidateSize = getCandidateSize(candidateSet);
   const canPushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
-  const candidates = canPushdown ? Array.from(candidateSet) : null;
+  const candidates = canPushdown ? candidateToArray(candidateSet) : null;
   const queryLimit = canPushdown ? limit : (candidateSize ? limit * 5 : limit);
   const encoded = encodeVector(embedding, config);
   if (!encoded) return [];
@@ -397,8 +426,8 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       const sim = row.distance !== undefined ? -raw : raw;
       return { idx: rowId, sim };
     });
-    if (candidateSet && candidateSet.size && !canPushdown) {
-      hits = hits.filter((hit) => candidateSet.has(hit.idx));
+    if (candidateSize && !canPushdown) {
+      hits = hits.filter((hit) => candidateHas(candidateSet, hit.idx));
     }
     return hits
       .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))

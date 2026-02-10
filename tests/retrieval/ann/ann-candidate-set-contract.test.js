@@ -10,6 +10,11 @@ assert.equal(isEmbeddingReady(null), false);
 assert.equal(isCandidateSetEmpty(null), false);
 assert.equal(isCandidateSetEmpty(new Set()), true);
 assert.equal(isCandidateSetEmpty(new Set([1])), false);
+assert.equal(isCandidateSetEmpty({ size: () => 0 }), true);
+assert.equal(isCandidateSetEmpty({ size: () => 2 }), false);
+assert.equal(isCandidateSetEmpty({ getSize: () => 0 }), true);
+assert.equal(isCandidateSetEmpty([]), true);
+assert.equal(isCandidateSetEmpty([1]), false);
 
 const embedding = [0.1, 0.2];
 assert.equal(

@@ -239,7 +239,36 @@ export async function rankLanceDb({
   if (!table || typeof table.search !== 'function') return [];
 
   const limitBase = Math.max(1, Number(topN) || 1);
-  const candidateCount = candidateSet && candidateSet.size ? candidateSet.size : 0;
+  const getCandidateCount = (value) => {
+    if (!value) return 0;
+    if (Number.isFinite(Number(value.size))) return Number(value.size);
+    if (typeof value.size === 'function') {
+      const resolved = Number(value.size());
+      return Number.isFinite(resolved) ? resolved : 0;
+    }
+    if (typeof value.getSize === 'function') {
+      const resolved = Number(value.getSize());
+      return Number.isFinite(resolved) ? resolved : 0;
+    }
+    if (Array.isArray(value)) return value.length;
+    return 0;
+  };
+  const candidateHas = (value, id) => {
+    if (!value) return false;
+    if (typeof value.has === 'function') return value.has(id);
+    if (typeof value.contains === 'function') return value.contains(id);
+    if (typeof value.includes === 'function') return value.includes(id);
+    return false;
+  };
+  const candidateToArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value.toArray === 'function') return value.toArray();
+    if (typeof value.values === 'function') return Array.from(value.values());
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
+    return [];
+  };
+  const candidateCount = getCandidateCount(candidateSet);
   const initialLimit = candidateCount
     ? Math.min(Math.max(limitBase * 4, limitBase + 10), candidateCount)
     : limitBase;
@@ -248,7 +277,7 @@ export async function rankLanceDb({
     : initialLimit;
 
   const candidateIds = (candidateCount && candidateCount <= CANDIDATE_PUSH_LIMIT && isSafeIdColumn(idColumn))
-    ? Array.from(candidateSet)
+    ? candidateToArray(candidateSet)
       .map((id) => Number(id))
       .filter((id) => Number.isInteger(id))
     : [];
@@ -311,7 +340,7 @@ export async function rankLanceDb({
     }
     const filtered = !candidateCount || canPushdown
       ? hits
-      : hits.filter((hit) => candidateSet.has(hit.idx));
+      : hits.filter((hit) => candidateHas(candidateSet, hit.idx));
     if (filtered.length >= limitBase) {
       return filtered
         .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
@@ -333,7 +362,7 @@ export async function rankLanceDb({
   }
   const filtered = !candidateCount || canPushdown
     ? hits
-    : hits.filter((hit) => candidateSet.has(hit.idx));
+    : hits.filter((hit) => candidateHas(candidateSet, hit.idx));
   return filtered
     .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
     .slice(0, limitBase);

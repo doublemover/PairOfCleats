@@ -4,7 +4,19 @@ export const isEmbeddingReady = (embedding) => (
 );
 
 export const isCandidateSetEmpty = (candidateSet) => (
-  Boolean(candidateSet && typeof candidateSet.size === 'number' && candidateSet.size === 0)
+  Boolean(candidateSet && (() => {
+    if (Number.isFinite(Number(candidateSet.size))) return Number(candidateSet.size) === 0;
+    if (typeof candidateSet.size === 'function') {
+      const resolved = Number(candidateSet.size());
+      return Number.isFinite(resolved) && resolved === 0;
+    }
+    if (typeof candidateSet.getSize === 'function') {
+      const resolved = Number(candidateSet.getSize());
+      return Number.isFinite(resolved) && resolved === 0;
+    }
+    if (Array.isArray(candidateSet)) return candidateSet.length === 0;
+    return false;
+  })())
 );
 
 export const isAnnProviderAvailable = ({

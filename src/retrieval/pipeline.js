@@ -494,11 +494,11 @@ export function createSearchPipeline(context) {
           const now = Date.now();
           if (
             state
-            && state.preflight === true
+            && state.preflight != null
             && state.preflightCheckedAt
             && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
           ) {
-            return true;
+            return state.preflight === true;
           }
           try {
             const result = await provider.preflight({
@@ -524,16 +524,27 @@ export function createSearchPipeline(context) {
           }
         };
 
+        const normalizeAnnCandidateSet = (provider, candidateSet) => {
+          if (!candidateSet) return null;
+          if (candidateSet instanceof Set) return candidateSet;
+          const providerId = provider?.id;
+          if (providerId === ANN_PROVIDER_IDS.SQLITE_VECTOR || providerId === ANN_PROVIDER_IDS.LANCEDB) {
+            return bitmapToSet(candidateSet);
+          }
+          return candidateSet;
+        };
+
         const runAnnQuery = async (provider, candidateSet) => {
           if (!provider || typeof provider.query !== 'function') return [];
           if (isProviderCoolingDown(provider, mode)) return [];
+          const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
           try {
             const hits = await provider.query({
               idx,
               mode,
               embedding: queryEmbedding,
               topN: expandedTopN,
-              candidateSet,
+              candidateSet: normalizedCandidateSet,
               signal
             });
             recordProviderSuccess(provider, mode);
