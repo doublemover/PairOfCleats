@@ -275,7 +275,7 @@ Format:
 - Impact: Better I/O locality for symbol/chunk reads.
 - Risk: Complexity in mapping responses back to original order.
 
-18. Area: Index signature fanout
+18. [x] Area: Index signature fanout
 - Files: `src/retrieval/cli-index.js`
 - Opportunity: Use manifest-level stats/signature caching instead of per-part stat scans.
 - Impact: Faster repeated index signature computation.

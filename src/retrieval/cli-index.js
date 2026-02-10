@@ -17,6 +17,60 @@ import {
 } from '../shared/artifact-io.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 
+const PARTS_SIGNATURE_CACHE = new Map();
+const PARTS_SIGNATURE_CACHE_MAX = 256;
+
+const touchPartsSignatureCache = (partsDir) => {
+  const cached = PARTS_SIGNATURE_CACHE.get(partsDir);
+  if (!cached) return null;
+  PARTS_SIGNATURE_CACHE.delete(partsDir);
+  PARTS_SIGNATURE_CACHE.set(partsDir, cached);
+  return cached;
+};
+
+const setPartsSignatureCache = (partsDir, payload) => {
+  PARTS_SIGNATURE_CACHE.set(partsDir, payload);
+  while (PARTS_SIGNATURE_CACHE.size > PARTS_SIGNATURE_CACHE_MAX) {
+    const oldest = PARTS_SIGNATURE_CACHE.keys().next().value;
+    if (oldest === undefined) break;
+    PARTS_SIGNATURE_CACHE.delete(oldest);
+  }
+};
+
+const getPartsSignature = (partsDir, fileSignature) => {
+  let dirStat;
+  try {
+    dirStat = fsSync.statSync(partsDir);
+  } catch {
+    return null;
+  }
+  const cached = touchPartsSignatureCache(partsDir);
+  if (
+    cached
+    && cached.size === dirStat.size
+    && cached.mtimeMs === dirStat.mtimeMs
+  ) {
+    return cached.signature;
+  }
+  let signature = null;
+  try {
+    const entries = fsSync.readdirSync(partsDir).sort();
+    if (entries.length) {
+      signature = entries
+        .map((entry) => fileSignature(path.join(partsDir, entry)) || 'missing')
+        .join(',');
+    }
+  } catch {
+    signature = null;
+  }
+  setPartsSignatureCache(partsDir, {
+    size: dirStat.size,
+    mtimeMs: dirStat.mtimeMs,
+    signature
+  });
+  return signature;
+};
+
 /**
  * Load file-backed index artifacts from a directory.
  * @param {string} dir
@@ -345,15 +399,22 @@ export function getIndexSignature(options) {
     root,
     userConfig
   } = options;
+  const pathExistsCache = new Map();
+  const pathExists = (target) => {
+    if (pathExistsCache.has(target)) return pathExistsCache.get(target);
+    const exists = fsSync.existsSync(target);
+    pathExistsCache.set(target, exists);
+    return exists;
+  };
   const fileSignature = (filePath) => {
     try {
       let statPath = filePath;
-      if (!fsSync.existsSync(statPath) && filePath.endsWith('.json')) {
+      if (!pathExists(statPath) && filePath.endsWith('.json')) {
         const zstPath = `${filePath}.zst`;
         const gzPath = `${filePath}.gz`;
-        if (fsSync.existsSync(zstPath)) {
+        if (pathExists(zstPath)) {
           statPath = zstPath;
-        } else if (fsSync.existsSync(gzPath)) {
+        } else if (pathExists(gzPath)) {
           statPath = gzPath;
         }
       }
@@ -374,17 +435,7 @@ export function getIndexSignature(options) {
     const metaSig = fileSignature(metaPath);
     const partsDir = path.join(dirPath, `${baseName}.parts`);
     if (metaSig) return metaSig;
-    if (fsSync.existsSync(partsDir)) {
-      try {
-        const entries = fsSync.readdirSync(partsDir).sort();
-        if (!entries.length) return null;
-        return entries
-          .map((entry) => fileSignature(path.join(partsDir, entry)) || 'missing')
-          .join(',');
-      } catch {
-        return null;
-      }
-    }
+    if (pathExists(partsDir)) return getPartsSignature(partsDir, fileSignature);
     return null;
   };
 
