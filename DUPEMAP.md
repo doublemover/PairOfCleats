@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T03:50:51.6797683-05:00
+Last updated: 2026-02-10T04:12:21.1889601-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -286,6 +286,8 @@ Performance refinement evidence update (2026-02-10T03:31:25-05:00):
 - P2 boundedness enforcement covers cache-heavy modules via `tests/indexing/policy/module-cache-boundedness-contract.test.js`, with runtime eviction/peak metrics asserted in `tests/graph/graph-store-cache-eviction.test.js` and caps in `src/index/build/build-state.js`.
 - P3 concurrency/backpressure contracts remain explicit in `src/shared/concurrency.js` queue/scheduler defaults, `tests/indexing/lifecycle/shutdown-drain-contract.test.js` drain semantics, and subprocess timeout/cancel contracts in `tests/tooling/service/subprocess-buffer-bounds.test.js` and `tests/tooling/service/subprocess-cancellation-contract.test.js`.
 - P4 I/O amplification controls use streaming/coalesced artifact paths (validated by existing streaming artifact perf contracts), early max-byte enforcement plus read metrics in `src/shared/artifact-io/offsets.js` and `tests/shared/jsonl/read-row-max-bytes-enforced.test.js`, and write-byte accounting in `tools/service/subprocess-log.js` and `tests/tooling/logging/output-byte-accounting.test.js`.
+- P3/P4 follow-up (2026-02-10T04:06:37.6084824-05:00): batched stage3 embeddings execution in `src/integrations/core/build-index/stages.js` now collapses per-mode subprocess launches into a single `--mode all` invocation when modes share one build root. Measured against recent file-caps index logs (`.testLogs/run-1770676140923-r1dj8d/indexing_file-caps_file-size-guard.attempt-1.log` at 29s baseline), the post-change verification run of `tests/indexing/file-caps/file-size-guard.test.js` completed in 25s.
+- P3/P4 follow-up (2026-02-10T04:12:21.1889601-05:00): `tools/build/embeddings/runner.js` now skips expensive `validateIndexArtifacts` calls for zero-chunk modes, preserving validation for non-empty modes. Against recent baseline logs (`.testLogs/run-1770713620356-arfuvr/indexing_file-caps_file-size-guard.attempt-1.log` and `.testLogs/run-1770713620356-arfuvr/indexing_map_code-map-basic.attempt-1.log`, both 29s), targeted TTY reruns of `tests/indexing/file-caps/file-size-guard.test.js` and `tests/indexing/map/code-map-basic.test.js` each completed in 25s.
 
 ### Phase F0 — Findings manifest and ownership
 

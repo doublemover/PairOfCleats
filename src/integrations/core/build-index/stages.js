@@ -134,12 +134,10 @@ export const runEmbeddingsStage = async ({
         }
         return recordOk({ modes: embedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
       }
-      for (const modeItem of embedModes) {
-        throwIfAborted(abortSignal);
-        const modeIndexRoot = resolveModeIndexRoot(modeItem);
-        const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeItem];
-        if (modeIndexRoot) {
-          args.push('--index-root', modeIndexRoot);
+      const runInlineEmbeddings = async ({ modeArg, indexRootArg, progressModes }) => {
+        const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeArg];
+        if (indexRootArg) {
+          args.push('--index-root', indexRootArg);
         }
         if (Number.isFinite(Number(argv.dims))) {
           args.push('--dims', String(argv.dims));
@@ -177,6 +175,42 @@ export const runEmbeddingsStage = async ({
             logLine(line);
           }
         });
+        if (embedResult?.cancelled) return embedResult;
+        for (const modeName of progressModes) {
+          if (includeEmbeddings && overallProgressRef?.current?.advance) {
+            overallProgressRef.current.advance({ message: `${modeName} embeddings` });
+          }
+          if (embedTotal) {
+            embedIndex += 1;
+            showProgress('Embeddings', embedIndex, embedTotal, {
+              stage: 'embeddings',
+              message: modeName
+            });
+          }
+        }
+        return embedResult;
+      };
+
+      const standardModes = ['code', 'prose', 'extracted-prose', 'records'];
+      const allModesRequested = embedModes.length === standardModes.length
+        && standardModes.every((mode) => embedModes.includes(mode));
+      const uniqueIndexRoots = new Set(
+        embedModes
+          .map((modeItem) => resolveModeIndexRoot(modeItem))
+          .filter((value) => typeof value === 'string' && value.length > 0)
+      );
+      const canBatchAllModes = allModesRequested && uniqueIndexRoots.size <= 1;
+
+      if (canBatchAllModes) {
+        throwIfAborted(abortSignal);
+        const batchedRoot = uniqueIndexRoots.size === 1
+          ? Array.from(uniqueIndexRoots)[0]
+          : null;
+        const embedResult = await runInlineEmbeddings({
+          modeArg: 'all',
+          indexRootArg: batchedRoot,
+          progressModes: standardModes
+        });
         if (embedResult?.cancelled) {
           log('[embeddings] build-embeddings cancelled; skipping remaining modes.');
           return recordOk({
@@ -192,15 +226,30 @@ export const runEmbeddingsStage = async ({
             stage: 'stage3'
           });
         }
-        if (includeEmbeddings && overallProgressRef?.current?.advance) {
-          overallProgressRef.current.advance({ message: `${modeItem} embeddings` });
-        }
-        if (embedTotal) {
-          embedIndex += 1;
-          showProgress('Embeddings', embedIndex, embedTotal, {
-            stage: 'embeddings',
-            message: modeItem
+      } else {
+        for (const modeItem of embedModes) {
+          throwIfAborted(abortSignal);
+          const modeIndexRoot = resolveModeIndexRoot(modeItem);
+          const embedResult = await runInlineEmbeddings({
+            modeArg: modeItem,
+            indexRootArg: modeIndexRoot,
+            progressModes: [modeItem]
           });
+          if (embedResult?.cancelled) {
+            log('[embeddings] build-embeddings cancelled; skipping remaining modes.');
+            return recordOk({
+              modes: embedModes,
+              embeddings: {
+                queued: false,
+                inline: true,
+                cancelled: true,
+                code: embedResult.code ?? null,
+                signal: embedResult.signal ?? null
+              },
+              repo: root,
+              stage: 'stage3'
+            });
+          }
         }
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });

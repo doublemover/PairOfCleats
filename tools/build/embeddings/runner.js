@@ -1244,35 +1244,37 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore piece manifest write failures.
         }
 
-        const validation = await scheduleIo(() => validateIndexArtifacts({
-          root,
-          indexRoot,
-          modes: [mode],
-          userConfig,
-          sqliteEnabled: false
-        }));
-        if (!validation.ok) {
-          if (validation.issues?.length) {
-            error('Index validation issues (first 10):');
-            validation.issues.slice(0, 10).forEach((issue) => {
-              error(`- ${issue}`);
+        if (totalChunks > 0) {
+          const validation = await scheduleIo(() => validateIndexArtifacts({
+            root,
+            indexRoot,
+            modes: [mode],
+            userConfig,
+            sqliteEnabled: false
+          }));
+          if (!validation.ok) {
+            if (validation.issues?.length) {
+              error('Index validation issues (first 10):');
+              validation.issues.slice(0, 10).forEach((issue) => {
+                error(`- ${issue}`);
+              });
+            }
+            if (validation.warnings?.length) {
+              warn('Index validation warnings (first 10):');
+              validation.warnings.slice(0, 10).forEach((warning) => {
+                warn(`- ${warning}`);
+              });
+            }
+            crashLogger.logError({
+              phase: `embeddings:${mode}`,
+              stage: 'validation',
+              message: `[embeddings] ${mode} index validation failed`,
+              issues: validation.issues || [],
+              warnings: validation.warnings || [],
+              hints: validation.hints || []
             });
+            throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
           }
-          if (validation.warnings?.length) {
-            warn('Index validation warnings (first 10):');
-            validation.warnings.slice(0, 10).forEach((warning) => {
-              warn(`- ${warning}`);
-            });
-          }
-          crashLogger.logError({
-            phase: `embeddings:${mode}`,
-            stage: 'validation',
-            message: `[embeddings] ${mode} index validation failed`,
-            issues: validation.issues || [],
-            warnings: validation.warnings || [],
-            hints: validation.hints || []
-          });
-          throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
         }
 
         const cacheMetaNow = new Date().toISOString();
