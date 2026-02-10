@@ -314,7 +314,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         await removePerFileIndex();
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+          : rows;
         const payload = await buildSymbolOccurrencesColumnar(items);
         await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
         if (collected?.cleanup) await collected.cleanup();
@@ -338,7 +340,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         await fs.rm(columnarPath, { force: true });
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+          : rows;
         const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
         const trackedItems = trackRows(items, tracker?.recordRow);
         await writeJsonLinesFileAsync(occurrencesPath, trackedItems, {
@@ -428,7 +432,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       await removeJsonlVariants();
       await removePerFileIndex();
       await fs.rm(columnarPath, { force: true });
-      const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+        : rows;
       const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
       const trackedItems = trackRows(items, tracker?.recordRow);
       const result = runs

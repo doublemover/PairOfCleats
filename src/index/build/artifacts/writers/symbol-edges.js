@@ -293,7 +293,9 @@ export const enqueueSymbolEdgesArtifacts = async ({
         await removePerFileIndex();
         await fs.rm(edgesMetaPath, { force: true });
         await fs.rm(edgesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows, validateComparator: true })
+          : rows;
         const payload = await buildSymbolEdgesColumnar(items);
         await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
         if (collected?.cleanup) await collected.cleanup();
@@ -317,7 +319,9 @@ export const enqueueSymbolEdgesArtifacts = async ({
         await fs.rm(columnarPath, { force: true });
         await fs.rm(edgesMetaPath, { force: true });
         await fs.rm(edgesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows, validateComparator: true })
+          : rows;
         const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
         const trackedItems = trackRows(items, tracker?.recordRow);
         await writeJsonLinesFileAsync(edgesPath, trackedItems, {
@@ -407,7 +411,9 @@ export const enqueueSymbolEdgesArtifacts = async ({
       await removeJsonlVariants();
       await removePerFileIndex();
       await fs.rm(columnarPath, { force: true });
-      const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows }) : rows;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareSymbolEdgeRows, validateComparator: true })
+        : rows;
       const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
       const trackedItems = trackRows(items, tracker?.recordRow);
       const result = runs

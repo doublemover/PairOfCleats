@@ -793,7 +793,7 @@ export const enqueueChunkMetaArtifacts = async ({
           const result = bucket?.result;
           if (!result) continue;
           if (result.runs) {
-            yield* mergeSortedRuns(result.runs, { compare: compareChunkMetaIdOnly });
+            yield* mergeSortedRuns(result.runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
           } else if (Array.isArray(result.rows)) {
             for (const row of result.rows) yield row;
           }
@@ -801,7 +801,7 @@ export const enqueueChunkMetaArtifacts = async ({
       })();
     } else if (runs) {
       itemsAsync = true;
-      items = mergeSortedRuns(runs, { compare: compareChunkMetaIdOnly });
+      items = mergeSortedRuns(runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
     } else if (rows) {
       items = rows;
     }

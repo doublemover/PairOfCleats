@@ -1611,8 +1611,8 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Align build-truth-ledger hash input definition between runtime and docs.
 - [x] Hash emitted ordering lines directly in determinism validation.
 - [x] Align byte-budget default overflow behavior with docs.
-- [ ] Enforce comparator validation in all merge adopters.
-- [ ] Fail fast on comparator contract violations.
+- [x] Enforce comparator validation in all merge adopters.
+- [x] Fail fast on comparator contract violations.
 - [ ] Enforce Stage1 token-id collision policy.
 - [ ] Surface token-id collision failures in validation output.
 - [ ] Handle missing `effectiveLang` in filter-index generation.
@@ -1656,7 +1656,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/indexing/build-state/build-truth-ledger-hash-alignment.test.js` (perf lane) (new)
 - [x] `tests/indexing/validate/determinism-line-hash.test.js` (perf lane) (new)
 - [x] `tests/indexing/runtime/byte-budget-default-policy.test.js` (perf lane) (new)
-- [ ] `tests/shared/merge/merge-comparator-adopters.test.js` (perf lane) (new)
+- [x] `tests/shared/merge/merge-comparator-adopters.test.js` (perf lane) (new)
 - [ ] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
 - [ ] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
 - [ ] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)

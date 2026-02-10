@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { compareWithAntisymmetryInvariant } from '../../../shared/invariants.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { writeJsonlRunFile } from '../../../shared/merge.js';
 import { encodeVarintDeltas } from '../../../shared/artifact-io/varint.js';
@@ -147,7 +148,8 @@ export const createRowSpillCollector = ({
   let runIndex = 0;
   const runs = [];
   let dedupeBuckets = null;
-  const compareRows = typeof compare === 'function' ? compare : compareStrings;
+  const baseCompareRows = typeof compare === 'function' ? compare : compareStrings;
+  const compareRows = (left, right) => compareWithAntisymmetryInvariant(baseCompareRows, left, right);
   const wrapRow = typeof mapRow === 'function' ? mapRow : (row) => row;
   const serializeRow = typeof serialize === 'function' ? serialize : (row) => JSON.stringify(row);
   const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();

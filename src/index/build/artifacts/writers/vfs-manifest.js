@@ -151,7 +151,8 @@ const writeVfsIndexForJsonl = async ({
 
 const mergeVfsRuns = (runs) => mergeSortedRuns(runs, {
   compare: compareVfsManifestRows,
-  readRun: readJsonlRows
+  readRun: readJsonlRows,
+  validateComparator: true
 });
 
 const writeJsonLinesFileAsync = async (filePath, items, options = {}) => {

@@ -115,7 +115,7 @@ const iterateEdges = async function* (collection, { compare } = {}) {
     return;
   }
   if (Array.isArray(collection.runs) && collection.runs.length) {
-    for await (const row of mergeSortedRuns(collection.runs, { compare })) {
+    for await (const row of mergeSortedRuns(collection.runs, { compare, validateComparator: true })) {
       yield row;
     }
   }

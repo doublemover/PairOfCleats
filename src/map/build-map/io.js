@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { loadGraphRelationsSync, loadJsonArrayArtifactSync, readJsonFile } from '../../shared/artifact-io.js';
 import { mergeSortedRuns } from '../../shared/merge.js';
+import { compareWithAntisymmetryInvariant } from '../../shared/invariants.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
@@ -161,10 +162,12 @@ export const createSpillSorter = ({ label, compare, maxInMemory = 5000, tempDir 
   const runs = [];
   let total = 0;
   let runIndex = 0;
+  const baseCompare = typeof compare === 'function' ? compare : () => 0;
+  const compareRows = (left, right) => compareWithAntisymmetryInvariant(baseCompare, left, right);
   const resolvedMax = Number.isFinite(Number(maxInMemory)) ? Math.max(1, Math.floor(Number(maxInMemory))) : 5000;
   const flush = async () => {
     if (!buffer.length) return;
-    buffer.sort(compare);
+    buffer.sort(compareRows);
     const runPath = path.join(tempDir, `${label}-${runIndex += 1}.jsonl`);
     await writeJsonLinesFile(runPath, buffer);
     runs.push(runPath);
@@ -182,13 +185,13 @@ export const createSpillSorter = ({ label, compare, maxInMemory = 5000, tempDir 
       if (runs.length) {
         if (buffer.length) await flush();
         return {
-          items: mergeSortedRuns(runs, { compare }),
+          items: mergeSortedRuns(runs, { compare: compareRows, validateComparator: true }),
           total,
           spilled: true,
           runs
         };
       }
-      buffer.sort(compare);
+      buffer.sort(compareRows);
       return { items: buffer, total, spilled: false, runs: [] };
     },
     async cleanup() {

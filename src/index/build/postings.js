@@ -203,7 +203,12 @@ export async function buildPostings(input) {
   const mergeSpillRuns = async ({ runs, compare, label }) => {
     if (!runs || !runs.length) return { iterator: null, cleanup: null };
     if (!buildRoot || runs.length <= DEFAULT_MAX_OPEN_RUNS) {
-      return { iterator: mergeSortedRuns(runs, { compare }), cleanup: null, stats: null, plannerUsed: false };
+      return {
+        iterator: mergeSortedRuns(runs, { compare, validateComparator: true }),
+        cleanup: null,
+        stats: null,
+        plannerUsed: false
+      };
     }
     const mergeDir = path.join(buildRoot, `${label}.merge`);
     const mergedPath = path.join(mergeDir, `${label}.merged.jsonl`);
@@ -215,7 +220,8 @@ export async function buildPostings(input) {
       tempDir: mergeDir,
       runPrefix: label,
       checkpointPath,
-      maxOpenRuns: DEFAULT_MAX_OPEN_RUNS
+      maxOpenRuns: DEFAULT_MAX_OPEN_RUNS,
+      validateComparator: true
     });
     const cleanupAll = async () => {
       if (cleanup) await cleanup();
