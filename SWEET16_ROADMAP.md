@@ -1621,8 +1621,8 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Add postings-queue gauge telemetry.
 - [x] Replace heuristic postings-queue byte accounting with measured byte accounting.
 - [x] Enforce backpressure bounds from measured postings-queue bytes.
-- [ ] Stamp tree-sitter scheduler plans with per-file version signatures.
-- [ ] Reject stale tree-sitter scheduler plans when source signatures change.
+- [x] Stamp tree-sitter scheduler plans with per-file version signatures.
+- [x] Reject stale tree-sitter scheduler plans when source signatures change.
 - [ ] Emit VFS fast-path telemetry for bloom/vfsidx/scan paths.
 - [ ] Implement batched VFS row-load behavior from docs.
 - [ ] Validate batched VFS row-load behavior against docs.
@@ -1660,7 +1660,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
 - [x] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
 - [x] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
-- [ ] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
+- [x] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
 - [ ] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)
 - [ ] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)

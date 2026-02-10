@@ -25,6 +25,7 @@ import {
   resolveTreeSitterLanguageForSegment
 } from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
+import { createTreeSitterFileVersionSignature } from './file-signature.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -161,16 +162,19 @@ export const buildTreeSitterSchedulerPlan = async ({
 
     let text = null;
     let buffer = null;
+    let hash = null;
     const cached = fileTextCache?.get && relKey ? fileTextCache.get(relKey) : null;
     if (cached && typeof cached === 'object') {
       if (typeof cached.text === 'string') text = cached.text;
       if (Buffer.isBuffer(cached.buffer)) buffer = cached.buffer;
+      if (typeof cached.hash === 'string' && cached.hash) hash = cached.hash;
     }
     if (!text) {
       try {
         const decoded = await readTextFileWithHash(abs, { buffer, stat });
         text = decoded.text;
         buffer = decoded.buffer;
+        hash = decoded.hash;
         if (fileTextCache?.set && relKey) {
           fileTextCache.set(relKey, {
             text,
@@ -196,6 +200,17 @@ export const buildTreeSitterSchedulerPlan = async ({
         continue;
       }
     }
+    if (!hash) {
+      const decoded = await readTextFileWithHash(abs, { buffer, stat });
+      hash = decoded.hash;
+      if (!text) text = decoded.text;
+      if (!buffer) buffer = decoded.buffer;
+    }
+    const fileVersionSignature = createTreeSitterFileVersionSignature({
+      size: stat?.size,
+      mtimeMs: stat?.mtimeMs,
+      hash
+    });
 
     let segments = null;
     try {
@@ -270,6 +285,7 @@ export const buildTreeSitterSchedulerPlan = async ({
         effectiveExt: segmentExt,
         segmentStart: segment.start,
         segmentEnd: segment.end,
+        fileVersionSignature,
         segment: segment
       };
       if (!groups.has(grammarKey)) {

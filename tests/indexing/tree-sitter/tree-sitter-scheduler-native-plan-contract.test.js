@@ -74,6 +74,15 @@ assert.ok(
     && planResult.plan.requiredNativeLanguages.includes('javascript'),
   'expected required native language in plan'
 );
+for (const group of planResult.groups || []) {
+  for (const job of group.jobs || []) {
+    const signature = job?.fileVersionSignature;
+    assert.ok(signature && typeof signature === 'object', 'expected file version signature on scheduler jobs');
+    assert.equal(typeof signature.hash, 'string', 'expected file signature hash');
+    assert.equal(Number.isFinite(signature.size), true, 'expected file signature size');
+    assert.equal(Number.isFinite(signature.mtimeMs), true, 'expected file signature mtimeMs');
+  }
+}
 
 console.log('tree-sitter scheduler native plan contract ok');
 

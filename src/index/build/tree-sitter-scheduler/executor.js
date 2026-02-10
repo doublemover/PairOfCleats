@@ -5,10 +5,16 @@ import { toPosix } from '../../../shared/files.js';
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
 import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/streams.js';
-import { readTextFile } from '../../../shared/encoding.js';
+import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getNativeTreeSitterParser } from '../../../lang/tree-sitter/native-runtime.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
+import {
+  createTreeSitterFileVersionSignature,
+  formatTreeSitterFileVersionSignature,
+  normalizeTreeSitterFileVersionSignature,
+  treeSitterFileVersionSignaturesEqual
+} from './file-signature.js';
 
 const coercePosix = (value) => toPosix(String(value || ''));
 
@@ -116,6 +122,7 @@ export const executeTreeSitterSchedulerPlan = async ({
     let currentFile = null;
     let currentText = null;
     let currentLineIndex = null;
+    let currentFileVersionSignature = null;
 
     try {
       for (const job of jobs) {
@@ -142,10 +149,31 @@ export const executeTreeSitterSchedulerPlan = async ({
           currentFile = containerPath;
           currentText = null;
           currentLineIndex = null;
+          currentFileVersionSignature = null;
           const abs = path.join(runtime.root, containerPath);
-          const decoded = await readTextFile(abs);
+          const stat = await fs.stat(abs);
+          const decoded = await readTextFileWithHash(abs, { stat });
           currentText = decoded?.text || '';
           currentLineIndex = buildLineIndex(currentText);
+          currentFileVersionSignature = createTreeSitterFileVersionSignature({
+            size: stat?.size,
+            mtimeMs: stat?.mtimeMs,
+            hash: decoded?.hash
+          });
+        }
+
+        const expectedSignature = normalizeTreeSitterFileVersionSignature(job?.fileVersionSignature);
+        if (!expectedSignature || !expectedSignature.hash) {
+          throw new Error(
+            `[tree-sitter:schedule] stale-plan signature missing for ${containerPath}.`
+          );
+        }
+        if (!treeSitterFileVersionSignaturesEqual(expectedSignature, currentFileVersionSignature)) {
+          throw new Error(
+            `[tree-sitter:schedule] stale plan for ${containerPath}: expected ${
+              formatTreeSitterFileVersionSignature(expectedSignature)
+            } got ${formatTreeSitterFileVersionSignature(currentFileVersionSignature)}.`
+          );
         }
 
         const segmentText = currentText.slice(segmentStart, segmentEnd);
