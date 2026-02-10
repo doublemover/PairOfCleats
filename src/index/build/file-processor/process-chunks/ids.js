@@ -8,21 +8,43 @@ const assignSpanIndexes = (chunks) => {
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     if (!chunk) continue;
-    const key = `${chunk.segment?.segmentId || ''}|${chunk.start ?? ''}|${chunk.end ?? ''}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push({ chunk, index: i });
+    const segmentKey = chunk.segment?.segmentId || '';
+    const startKey = chunk.start ?? '';
+    const endKey = chunk.end ?? '';
+    let byStart = groups.get(segmentKey);
+    if (!byStart) {
+      byStart = new Map();
+      groups.set(segmentKey, byStart);
+    }
+    let byEnd = byStart.get(startKey);
+    if (!byEnd) {
+      byEnd = new Map();
+      byStart.set(startKey, byEnd);
+    }
+    let indexes = byEnd.get(endKey);
+    if (!indexes) {
+      indexes = [];
+      byEnd.set(endKey, indexes);
+    }
+    indexes.push(i);
   }
-  for (const group of groups.values()) {
-    if (group.length <= 1) continue;
-    group.sort((a, b) => {
-      const kindCmp = String(a.chunk.kind || '').localeCompare(String(b.chunk.kind || ''));
-      if (kindCmp) return kindCmp;
-      const nameCmp = String(a.chunk.name || '').localeCompare(String(b.chunk.name || ''));
-      if (nameCmp) return nameCmp;
-      return a.index - b.index;
-    });
-    for (let i = 0; i < group.length; i += 1) {
-      group[i].chunk.spanIndex = i + 1;
+  for (const byStart of groups.values()) {
+    for (const byEnd of byStart.values()) {
+      for (const indexes of byEnd.values()) {
+        if (indexes.length <= 1) continue;
+        indexes.sort((aIndex, bIndex) => {
+          const aChunk = chunks[aIndex];
+          const bChunk = chunks[bIndex];
+          const kindCmp = String(aChunk?.kind || '').localeCompare(String(bChunk?.kind || ''));
+          if (kindCmp) return kindCmp;
+          const nameCmp = String(aChunk?.name || '').localeCompare(String(bChunk?.name || ''));
+          if (nameCmp) return nameCmp;
+          return aIndex - bIndex;
+        });
+        for (let i = 0; i < indexes.length; i += 1) {
+          chunks[indexes[i]].spanIndex = i + 1;
+        }
+      }
     }
   }
 };

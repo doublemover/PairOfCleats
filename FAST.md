@@ -197,7 +197,7 @@ Format:
 - Impact: Lower hot-loop overhead.
 - Risk: None with file-local cache lifetime.
 
-5. Area: Span grouping key overhead
+5. [x] Area: Span grouping key overhead
 - Files: `src/index/build/file-processor/process-chunks/ids.js`
 - Opportunity: Avoid repeated key-array creation/join and eager array promotion.
 - Impact: Lower allocation pressure.
