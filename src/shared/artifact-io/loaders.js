@@ -1509,7 +1509,9 @@ export const loadMinhashSignatureRows = async function* (
         for (let i = 0; i < batchCount; i += 1) {
           const start = i * dims;
           const end = start + dims;
-          const sig = view.subarray(start, end);
+          // Copy each signature out of the reusable batch buffer so later reads
+          // cannot mutate previously yielded rows.
+          const sig = Uint32Array.from(view.subarray(start, end));
           yield { docId: docId + i, sig };
         }
         docId += batchCount;
