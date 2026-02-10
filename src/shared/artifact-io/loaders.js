@@ -64,6 +64,44 @@ const readJsonFileCached = (filePath, options) => {
   return value;
 };
 
+const parseJsonlShardIndex = (filePath) => {
+  const name = path.basename(filePath);
+  const match = name.match(/\.part-(\d+)\.jsonl(?:\.(?:gz|zst))?$/i);
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 10);
+  return Number.isFinite(value) ? value : null;
+};
+
+const assertNoShardIndexGaps = (paths, baseName) => {
+  if (!Array.isArray(paths) || paths.length < 2) return;
+  const indexes = [];
+  for (const target of paths) {
+    const parsed = parseJsonlShardIndex(target);
+    if (!Number.isInteger(parsed)) return;
+    indexes.push(parsed);
+  }
+  if (indexes.length !== paths.length) return;
+  indexes.sort((a, b) => a - b);
+  const missing = [];
+  let expected = 0;
+  for (const value of indexes) {
+    while (expected < value) {
+      missing.push(expected);
+      expected += 1;
+      if (missing.length >= 8) break;
+    }
+    if (missing.length >= 8) break;
+    expected = value + 1;
+  }
+  if (!missing.length) return;
+  const missingPaths = missing
+    .map((index) => `${baseName}.part-${String(index).padStart(6, '0')}.jsonl`)
+    .join(', ');
+  const err = new Error(`Missing manifest parts for ${baseName}: ${missingPaths}`);
+  err.code = 'ERR_ARTIFACT_PARTS_MISSING';
+  throw err;
+};
+
 const validatedOffsets = new Set();
 const ensureOffsetsValid = async (jsonlPath, offsetsPath) => {
   const key = `${jsonlPath}::${offsetsPath}`;
@@ -238,6 +276,7 @@ export const loadJsonArrayArtifact = async (
         if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
         return inflated;
       }
+      assertNoShardIndexGaps(sources.paths, baseName);
       return await readJsonLinesArray(sources.paths, {
         maxBytes,
         requiredKeys: resolvedKeys,
@@ -263,6 +302,7 @@ export const loadJsonArrayArtifact = async (
       err.code = 'ERR_ARTIFACT_PARTS_MISSING';
       throw err;
     }
+    assertNoShardIndexGaps(sources.paths, baseName);
     if (!manifestSources) warnNonStrictJsonFallback(dir, baseName);
     if (sources.format === 'json') {
       if (sources.paths.length > 1) {
@@ -279,6 +319,7 @@ export const loadJsonArrayArtifact = async (
       if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
       return inflated;
     }
+    assertNoShardIndexGaps(sources.paths, baseName);
     return await readJsonLinesArray(sources.paths, {
       maxBytes,
       requiredKeys: resolvedKeys,
@@ -321,6 +362,7 @@ export const loadJsonArrayArtifactRows = async function* (
       err.code = 'ERR_ARTIFACT_PARTS_MISSING';
       throw err;
     }
+    assertNoShardIndexGaps(sources.paths, label);
   };
   const yieldMaterialized = (payload, label) => {
     if (!materialize) {
@@ -403,6 +445,7 @@ export const loadJsonArrayArtifactRows = async function* (
       err.code = 'ERR_ARTIFACT_PARTS_MISSING';
       throw err;
     }
+    assertNoShardIndexGaps(sources.paths, baseName);
     if (!manifestSources) warnNonStrictJsonFallback(dir, baseName);
     if (sources.format === 'json') {
       if (sources.paths.length > 1) {
@@ -476,6 +519,7 @@ export const loadFileMetaRows = async function* (
       err.code = 'ERR_ARTIFACT_PARTS_MISSING';
       throw err;
     }
+    assertNoShardIndexGaps(sources.paths, label);
   };
   const streamRows = async function* (paths, offsetsPaths = null) {
     for (let i = 0; i < paths.length; i += 1) {
@@ -574,6 +618,7 @@ export const loadFileMetaRows = async function* (
       err.code = 'ERR_ARTIFACT_PARTS_MISSING';
       throw err;
     }
+    assertNoShardIndexGaps(sources.paths, 'file_meta');
     if (!manifestSources) warnNonStrictJsonFallback(dir, 'file_meta');
     if (sources.format === 'json') {
       if (sources.paths.length > 1) {

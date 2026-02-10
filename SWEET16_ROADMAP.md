@@ -428,8 +428,8 @@ Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`
     - [x] Task 16.2.4.b: Add hot parse cache for manifest + meta files.
   - [x] Task 16.2.4.c: Add bounded parallel artifact loads.
   - [x] Task 16.2.4.d: Add fallback to full scan when per-file index is invalid.
-- [ ] Task 16.2.4.e: Add missing-artifact detection for partial shards.
-- [ ] Task 16.2.4.f: Add JSONL reader fuzz tests for malformed/corrupt shards.
+- [x] Task 16.2.4.e: Add missing-artifact detection for partial shards.
+- [x] Task 16.2.4.f: Add JSONL reader fuzz tests for malformed/corrupt shards.
 
 Tests:
 - [ ] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
@@ -1590,9 +1590,9 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Add reusable packed-artifact checksum helpers in artifact IO.
 - [x] Route minhash packed checksum write path through reusable checksum helpers.
 - [x] Route minhash packed checksum load path through reusable checksum helpers.
-- [ ] Add malformed artifact corpus fixtures for loader hardening.
-- [ ] Add corrupt artifact corpus fixtures for loader hardening.
-- [ ] Add partial artifact corpus fixtures for loader hardening.
+- [x] Add malformed artifact corpus fixtures for loader hardening.
+- [x] Add corrupt artifact corpus fixtures for loader hardening.
+- [x] Add partial artifact corpus fixtures for loader hardening.
 - [ ] Add `tests/shared/concurrency/scheduler-contract.test.js`.
 - [ ] Add `tests/shared/concurrency/scheduler-config-parse.test.js`.
 - [ ] Add `tests/shared/artifact-io/artifact-io-spec-contract.test.js`.
@@ -1600,11 +1600,11 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [ ] Add `tests/shared/merge/spill-merge-contract.test.js`.
 - [ ] Add `tests/indexing/runtime/byte-budget-policy-contract.test.js`.
 - [ ] Add `tests/shared/order/deterministic-ordering-contract.test.js`.
-- [ ] Detect missing sibling artifacts for partial shards in loader paths.
-- [ ] Fail deterministically on partial shard detection.
-- [ ] Add malformed shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
-- [ ] Add corrupt shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
-- [ ] Add `tests/shared/artifact-io/loader-fallbacks.test.js`.
+- [x] Detect missing sibling artifacts for partial shards in loader paths.
+- [x] Fail deterministically on partial shard detection.
+- [x] Add malformed shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
+- [x] Add corrupt shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
+- [x] Add `tests/shared/artifact-io/loader-fallbacks.test.js`.
 - [ ] Update unified artifact-io docs for current loader behavior.
 - [ ] Implement runtime cache-root versioning in `src/shared/cache-roots.js`.
 - [ ] Align build-truth-ledger schema between runtime and docs.
@@ -1650,8 +1650,8 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [ ] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
 - [ ] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
 - [ ] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
 - [ ] `tests/shared/cache/cache-root-versioning.test.js` (perf lane) (new)
 - [ ] `tests/indexing/build-state/build-truth-ledger-hash-alignment.test.js` (perf lane) (new)
 - [ ] `tests/indexing/validate/determinism-line-hash.test.js` (perf lane) (new)
