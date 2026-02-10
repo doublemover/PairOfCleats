@@ -19,13 +19,39 @@ function resolvePatchPackageBin(cwd) {
   return path.join(cwd, 'node_modules', '.bin', binName);
 }
 
+function getEnvValue(name) {
+  const exact = process.env[name];
+  if (exact != null) return exact;
+  const lower = process.env[name.toLowerCase()];
+  if (lower != null) return lower;
+  return process.env[name.toUpperCase()];
+}
+
+function isDevDependenciesOmitted() {
+  const omitRaw = String(getEnvValue('npm_config_omit') || '').trim();
+  if (omitRaw) {
+    const omitted = omitRaw.toLowerCase().split(/[,\s]+/).filter(Boolean);
+    if (omitted.includes('dev')) return true;
+  }
+  const productionRaw = String(getEnvValue('npm_config_production') || '').trim().toLowerCase();
+  if (productionRaw === 'true' || productionRaw === '1') return true;
+  const nodeEnvRaw = String(getEnvValue('NODE_ENV') || '').trim().toLowerCase();
+  return nodeEnvRaw === 'production';
+}
+
 function run() {
   const cwd = process.cwd();
   const patchPackageBin = resolvePatchPackageBin(cwd);
   const patchFilesPresent = hasPatchFiles(cwd);
+  const devDependenciesOmitted = isDevDependenciesOmitted();
 
   if (!fs.existsSync(patchPackageBin)) {
     if (patchFilesPresent) {
+      if (devDependenciesOmitted) {
+        console.warn('[postinstall] patch-package is unavailable in an omitted-dev install; skipping patch application.');
+        console.warn('[postinstall] To apply patches, install with dev dependencies and rerun postinstall.');
+        process.exit(0);
+      }
       console.error('[postinstall] patch-package is required because patch files exist under patches/.');
       console.error('[postinstall] Install dev dependencies or run npm run patch before continuing.');
       process.exit(1);

@@ -32,6 +32,24 @@ try {
     /patch-package is required/i
   );
 
+  const missingPatchPkgWithPatchesOmittedDev = spawnSync(process.execPath, [scriptPath], {
+    cwd: withPatchDir,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      npm_config_omit: 'dev'
+    }
+  });
+  assert.equal(
+    missingPatchPkgWithPatchesOmittedDev.status,
+    0,
+    'postinstall should succeed when patches exist, patch-package is unavailable, and dev dependencies are omitted'
+  );
+  assert.match(
+    `${missingPatchPkgWithPatchesOmittedDev.stdout || ''}\n${missingPatchPkgWithPatchesOmittedDev.stderr || ''}`,
+    /omitted-dev install; skipping patch application/i
+  );
+
   const missingPatchPkgNoPatches = spawnSync(process.execPath, [scriptPath], {
     cwd: withoutPatchDir,
     encoding: 'utf8'

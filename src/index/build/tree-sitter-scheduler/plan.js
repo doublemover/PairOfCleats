@@ -96,6 +96,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
   const strict = treeSitterConfig?.strict === true;
+  const skipOnParseError = runtime?.languageOptions?.skipOnParseError === true;
 
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   await fs.mkdir(paths.baseDir, { recursive: true });
@@ -211,6 +212,12 @@ export const buildTreeSitterSchedulerPlan = async ({
       await assignSegmentUids({ text, segments, ext, mode: effectiveMode });
     } catch (err) {
       const message = err?.message || String(err);
+      if (skipOnParseError) {
+        if (log) {
+          log(`[tree-sitter:schedule] skip ${relKey}: parse-error (${message})`);
+        }
+        continue;
+      }
       throw new Error(`[tree-sitter:schedule] segment discovery failed for ${relKey}: ${message}`);
     }
 
