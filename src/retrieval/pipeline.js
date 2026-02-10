@@ -23,6 +23,9 @@ import { createTopKReducer } from './pipeline/topk.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
+const PROVIDER_RETRY_BASE_MS = 1000;
+const PROVIDER_RETRY_MAX_MS = 30000;
+const PREFLIGHT_CACHE_TTL_MS = 30000;
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -204,18 +207,62 @@ export function createSearchPipeline(context) {
       'Rebuild embeddings or enable a compatible ANN backend to restore vector search.'
     );
   };
-  const markProviderDisabled = (provider, mode, reason) => {
-    if (!provider) return;
-    if (!provider._disabledModes) provider._disabledModes = new Set();
-    if (provider._disabledModes.has(mode)) return;
-    provider._disabledModes.add(mode);
-    if (reason && !provider._disabledReason) {
-      provider._disabledReason = reason;
+
+  const providerRuntimeState = new WeakMap();
+  const getProviderModeState = (provider, mode) => {
+    if (!provider || !mode) return null;
+    let modeStates = providerRuntimeState.get(provider);
+    if (!modeStates) {
+      modeStates = new Map();
+      providerRuntimeState.set(provider, modeStates);
+    }
+    if (!modeStates.has(mode)) {
+      modeStates.set(mode, {
+        failures: 0,
+        disabledUntil: 0,
+        preflight: null,
+        preflightCheckedAt: 0,
+        lastError: null
+      });
+    }
+    return modeStates.get(mode);
+  };
+  const resolveProviderBackoffMs = (failures) => {
+    const count = Number.isFinite(Number(failures)) ? Math.max(0, Math.floor(Number(failures))) : 0;
+    if (!count) return 0;
+    return Math.min(PROVIDER_RETRY_MAX_MS, PROVIDER_RETRY_BASE_MS * (2 ** (count - 1)));
+  };
+  const isProviderCoolingDown = (provider, mode) => {
+    const state = getProviderModeState(provider, mode);
+    if (!state) return false;
+    return state.disabledUntil > Date.now();
+  };
+  const recordProviderFailure = (provider, mode, reason, { fromPreflight = false } = {}) => {
+    const state = getProviderModeState(provider, mode);
+    if (!state) return;
+    state.failures += 1;
+    const now = Date.now();
+    state.disabledUntil = now + resolveProviderBackoffMs(state.failures);
+    state.lastError = reason || state.lastError || null;
+    if (fromPreflight) {
+      state.preflight = false;
+      state.preflightCheckedAt = now;
+    } else {
+      state.preflight = null;
+      state.preflightCheckedAt = 0;
     }
   };
-  const isProviderDisabled = (provider, mode) => (
-    Boolean(provider?._disabledModes && provider._disabledModes.has(mode))
-  );
+  const recordProviderSuccess = (provider, mode) => {
+    const state = getProviderModeState(provider, mode);
+    if (!state) return;
+    state.failures = 0;
+    state.disabledUntil = 0;
+    state.lastError = null;
+  };
+  const resolveAnnType = (annSource) => {
+    if (!annSource) return null;
+    return annSource === 'minhash' ? 'minhash' : 'vector';
+  };
 
   /**
    * Execute the full search pipeline for a mode.
@@ -442,9 +489,16 @@ export function createSearchPipeline(context) {
 
         const ensureProviderPreflight = async (provider) => {
           if (!provider || typeof provider.preflight !== 'function') return true;
-          if (!provider._preflight) provider._preflight = new Map();
-          if (provider._preflight.has(mode)) {
-            return provider._preflight.get(mode);
+          if (isProviderCoolingDown(provider, mode)) return false;
+          const state = getProviderModeState(provider, mode);
+          const now = Date.now();
+          if (
+            state
+            && state.preflight === true
+            && state.preflightCheckedAt
+            && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
+          ) {
+            return true;
           }
           try {
             const result = await provider.preflight({
@@ -454,18 +508,25 @@ export function createSearchPipeline(context) {
               signal
             });
             const ok = result !== false;
-            provider._preflight.set(mode, ok);
-            if (!ok) markProviderDisabled(provider, mode, 'preflight failed');
+            if (state) {
+              state.preflight = ok;
+              state.preflightCheckedAt = now;
+            }
+            if (!ok) {
+              recordProviderFailure(provider, mode, 'preflight failed', { fromPreflight: true });
+              return false;
+            }
+            recordProviderSuccess(provider, mode);
             return ok;
           } catch (err) {
-            provider._preflight.set(mode, false);
-            markProviderDisabled(provider, mode, err?.message || 'preflight failed');
+            recordProviderFailure(provider, mode, err?.message || 'preflight failed', { fromPreflight: true });
             return false;
           }
         };
 
         const runAnnQuery = async (provider, candidateSet) => {
           if (!provider || typeof provider.query !== 'function') return [];
+          if (isProviderCoolingDown(provider, mode)) return [];
           try {
             const hits = await provider.query({
               idx,
@@ -475,9 +536,12 @@ export function createSearchPipeline(context) {
               candidateSet,
               signal
             });
+            if (hits.length) {
+              recordProviderSuccess(provider, mode);
+            }
             return normalizeAnnHits(hits);
           } catch (err) {
-            markProviderDisabled(provider, mode, err?.message || 'query failed');
+            recordProviderFailure(provider, mode, err?.message || 'query failed');
             return [];
           }
         };
@@ -496,7 +560,7 @@ export function createSearchPipeline(context) {
           for (const backend of annOrder) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
-            if (isProviderDisabled(provider, mode)) continue;
+            if (isProviderCoolingDown(provider, mode)) continue;
             if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) continue;
             const preflightOk = await ensureProviderPreflight(provider);
             if (!preflightOk) continue;
@@ -757,7 +821,7 @@ export function createSearchPipeline(context) {
             sparseType: entry.sparseType,
             annScore: entry.annScore,
             annSource: entry.annSource,
-            annType: entry.annSource,
+            annType: resolveAnnType(entry.annSource),
             ...(explain ? { scoreBreakdown: entry.scoreBreakdown } : {})
           }))
           .filter(Boolean);

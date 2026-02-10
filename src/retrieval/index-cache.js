@@ -6,6 +6,7 @@ import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
 export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
+const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const indexSignatureCache = new Map();
 
 const INDEX_FILES = [
@@ -33,23 +34,49 @@ const INDEX_FILES = [
   'index_state.json'
 ];
 
+const pruneIndexSignatureCache = (now = Date.now()) => {
+  for (const [key, value] of indexSignatureCache.entries()) {
+    if (!value || typeof value !== 'object') {
+      indexSignatureCache.delete(key);
+      continue;
+    }
+    if (value.expiresAt && value.expiresAt <= now) {
+      indexSignatureCache.delete(key);
+    }
+  }
+  if (indexSignatureCache.size <= INDEX_SIGNATURE_CACHE_MAX_ENTRIES) return;
+  const overflow = indexSignatureCache.size - INDEX_SIGNATURE_CACHE_MAX_ENTRIES;
+  const oldest = Array.from(indexSignatureCache.entries())
+    .sort((a, b) => (a[1]?.lastAccessAt || 0) - (b[1]?.lastAccessAt || 0))
+    .slice(0, overflow);
+  for (const [key] of oldest) {
+    indexSignatureCache.delete(key);
+  }
+};
+
 const getCachedSignature = (cacheKey) => {
   if (!cacheKey) return null;
+  const now = Date.now();
+  pruneIndexSignatureCache(now);
   const cached = indexSignatureCache.get(cacheKey);
   if (!cached) return null;
-  if (cached.expiresAt && cached.expiresAt <= Date.now()) {
+  if (cached.expiresAt && cached.expiresAt <= now) {
     indexSignatureCache.delete(cacheKey);
     return null;
   }
+  cached.lastAccessAt = now;
   return cached.signature || null;
 };
 
 const setCachedSignature = (cacheKey, signature) => {
   if (!cacheKey || !signature) return;
+  const now = Date.now();
   indexSignatureCache.set(cacheKey, {
     signature,
-    expiresAt: Date.now() + INDEX_SIGNATURE_TTL_MS
+    expiresAt: now + INDEX_SIGNATURE_TTL_MS,
+    lastAccessAt: now
   });
+  pruneIndexSignatureCache(now);
 };
 
 const safeStat = async (statPath, useBigInt) => {

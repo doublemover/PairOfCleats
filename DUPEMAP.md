@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T02:10:55.2019640-05:00
+Last updated: 2026-02-10T02:24:47.9337385-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -73,7 +73,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F1 | [x] | Build/runtime lifecycle correctness remediation |
 | F2 | [x] | Language/chunking/import correctness remediation |
 | F3 | [x] | Artifact/storage I/O correctness + crash-safety |
-| F4 | [ ] | Retrieval/ANN/embeddings correctness + boundedness |
+| F4 | [x] | Retrieval/ANN/embeddings correctness + boundedness |
 | F5 | [ ] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [ ] | Map/graph/context-pack correctness + cleanup safety |
 | F7 | [ ] | Security/path/input hardening across surfaces |
@@ -496,30 +496,33 @@ Touchpoints:
 - embeddings provider/cache initialization modules
 
 Subphase F4.1 — Provider lifecycle and fallback behavior:
-- [ ] Remove sticky-disable-once behavior for providers; add retry/backoff/reset semantics.
-- [ ] Resolve ONNX/transformer initialization poison-cache issues.
-- [ ] Close connection/table lifecycle gaps for ANN backends.
+- [x] Remove sticky-disable-once behavior for providers; add retry/backoff/reset semantics.
+- [x] Resolve ONNX/transformer initialization poison-cache issues.
+- [x] Close connection/table lifecycle gaps for ANN backends.
 
 Subphase F4.2 — Scoring/contract semantics:
-- [ ] Normalize ANN similarity semantics by metric/backend contract.
-- [ ] Correct `annType`/`annSource` semantics.
-- [ ] Resolve query negation/exclude semantics drift and stale signature cache behavior.
+- [x] Normalize ANN similarity semantics by metric/backend contract.
+- [x] Correct `annType`/`annSource` semantics.
+- [x] Resolve query negation/exclude semantics drift and stale signature cache behavior.
 
 Subphase F4.3 — Cache boundedness:
-- [ ] Enforce bounded query-plan/index signature/provider caches with TTL + capacity.
-- [ ] Validate cache invalidation on configuration/signature drift.
+- [x] Enforce bounded query-plan/index signature/provider caches with TTL + capacity.
+- [x] Validate cache invalidation on configuration/signature drift.
 
 Tests:
-- [ ] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (from D4)
-- [ ] `tests/retrieval/ann/similarity-metric-contract.test.js` (new)
-- [ ] `tests/retrieval/providers/provider-retry-reset-contract.test.js` (new)
-- [ ] `tests/retrieval/cache/query-plan-cache-bounds.test.js` (new)
-- [ ] `tests/retrieval/cache/index-signature-cache-bounds.test.js` (new)
-- [ ] `tests/indexing/embeddings/provider-init-retry-contract.test.js` (new)
+- [x] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (from D4)
+- [x] `tests/retrieval/ann/similarity-metric-contract.test.js` (new)
+- [x] `tests/retrieval/providers/provider-retry-reset-contract.test.js` (new)
+- [x] `tests/retrieval/cache/query-plan-cache-bounds.test.js` (new)
+- [x] `tests/retrieval/cache/index-signature-cache-bounds.test.js` (new)
+- [x] `tests/indexing/embeddings/provider-init-retry-contract.test.js` (new)
 
 Exit criteria:
-- [ ] Retrieval and ANN behavior are contract-tested and backend-consistent.
-- [ ] Provider/cache paths are bounded and recover from transient failures.
+- [x] Retrieval and ANN behavior are contract-tested and backend-consistent.
+- [x] Provider/cache paths are bounded and recover from transient failures.
+
+F4.DOC no-doc-change rationale (2026-02-10T02:24:47.9337385-05:00):
+- F4 changes were internal retrieval/provider/cache correctness hardening with contract-test additions; no user-facing command/config/schema docs changed.
 
 ### Phase F5 — Tooling/LSP/service resilience
 
@@ -762,7 +765,7 @@ Documents: `docs/language/*`, `docs/contracts/*` (language output contracts touc
 - [x] Task F3.DOC: Artifact/storage crash-safety docs.
 Documents: `docs/contracts/schemas/*` (artifact/storage schema docs touched), `docs/sqlite/*`, `docs/specs/*` (I/O safety behavior docs touched), `docs/testing/*`.
 
-- [ ] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
+- [x] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
 Documents: `docs/benchmarks/*`, `docs/specs/tooling-and-api-contract.md` (if retrieval contract changes), `docs/contracts/*` (retrieval/ANN contracts touched), `docs/perf/*`.
 
 - [ ] Task F5.DOC: Tooling/LSP/service resilience docs.
