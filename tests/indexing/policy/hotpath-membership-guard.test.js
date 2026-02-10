@@ -11,6 +11,8 @@ const root = repoRoot();
 const hotFiles = [
   'src/index/build/artifacts/file-meta.js',
   'src/index/build/artifacts/token-postings.js',
+  'src/index/build/file-processor/process-chunks/dedupe.js',
+  'src/index/build/file-processor/process-chunks/index.js',
   'src/index/build/vfs-manifest-collector.js',
   'src/retrieval/pipeline/candidates.js',
   'src/graph/neighborhood.js'
