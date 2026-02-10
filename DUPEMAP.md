@@ -1517,10 +1517,19 @@ D7.4 status update (2026-02-10T00:34:21.5068780-05:00):
 
 ### Subphase D7.5 — Bench script dedupe
 Tasks:
-- [ ] Task D7.5.a: Extract shared static server/wiring helper for map viewer benches.
+- [x] Task D7.5.a: Extract shared static server/wiring helper for map viewer benches.
 Details: Migrate `viewer-fps` and `viewer-lod-stress`.
-- [ ] Task D7.5.b: Extract shared map bench build options helper.
+- [x] Task D7.5.b: Extract shared map bench build options helper.
 Details: Migrate `build-map-memory` and `build-map-streaming`.
+
+D7.5 status update (2026-02-10T00:39:18.2797819-05:00):
+- resolved: added shared map bench helper module `tools/bench/map/shared.js` with `startMapViewerStaticServer` and migrated `viewer-fps` + `viewer-lod-stress` to shared static server/wiring.
+- resolved: added shared build option/input resolver in `tools/bench/map/shared.js` and migrated `build-map-memory` + `build-map-streaming` to shared map bench option handling.
+- resolved: normalized run-count parsing into shared helper for map build benches.
+- remaining: D7.6 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this bench-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "startMapViewerStaticServer|resolveMapBenchInputs|resolveRuns" tools/bench/map`.
 
 ### Tests
 - [ ] merged suites run individually and preserve scenario assertions

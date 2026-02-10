@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:34:21.5068780-05:00",
+  "updatedAt": "2026-02-10T00:39:18.2797819-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -324,7 +324,7 @@
       "clusterId": "A03",
       "title": "Map bench wiring duplication",
       "phase": "D7",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "tools/bench/map/viewer-fps.js",
         "tools/bench/map/viewer-lod-stress.js"
@@ -392,6 +392,17 @@
         "tests/storage/sqlite/sqlite-build-validate-auto-fast-path.test.js"
       ],
       "canonicalPath": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
+    },
+    {
+      "clusterId": "A09",
+      "title": "Map bench build options duplication",
+      "phase": "D7",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/bench/map/build-map-memory.js",
+        "tools/bench/map/build-map-streaming.js"
+      ],
+      "canonicalPath": "tools/bench/map/shared.js::resolveMapBenchInputs"
     }
   ],
   "migrations": [
@@ -424,7 +435,7 @@
     { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
-    { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
+    { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/{viewer-fps,viewer-lod-stress}.js inline static server/wiring", "newPathOrSymbol": "tools/bench/map/shared.js::startMapViewerStaticServer", "status": "completed" },
     { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::normalizeCacheConfig + policy defaults", "newPathOrSymbol": "tools/shared/repo-cache-config.js::{normalizeCacheConfig,createRepoCacheManager}", "status": "completed" },
     { "migrationId": "M032", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::findJjRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M033", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::findNearestConfig (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
@@ -518,7 +529,9 @@
     { "migrationId": "M121", "clusterId": "A05", "phase": "D7", "oldPathOrSymbol": "tests/retrieval/pipeline/{ann-optional-skip,ann-preflight}.test.js duplicated ANN pipeline fixture/context/index setup", "newPathOrSymbol": "tests/retrieval/pipeline/helpers/ann-scenarios.js::runAnnFallbackScenario", "status": "completed" },
     { "migrationId": "M122", "clusterId": "A06", "phase": "D7", "oldPathOrSymbol": "tests/indexing/risk/interprocedural/{flows-conservative,flows-max-total-flows,flows-timeout}.test.js duplicated source/sink/runtime setup", "newPathOrSymbol": "tests/indexing/risk/interprocedural/helpers/flow-cap-matrix.js + flows-cap-matrix.test.js", "status": "completed" },
     { "migrationId": "M123", "clusterId": "A07", "phase": "D7", "oldPathOrSymbol": "tests/{indexing/tooling}/vfs/*-manifest-streaming + tests/storage/sqlite/sqlite-jsonl-streaming-{gzip,zstd}.test.js duplicated fixture/build setup", "newPathOrSymbol": "tests/helpers/vfs-streaming-fixture.js::createVfsStreamingFixture + tests/storage/sqlite/helpers/jsonl-streaming-matrix.js::runSqliteJsonlStreamingCompressionCase", "status": "completed" },
-    { "migrationId": "M124", "clusterId": "A08", "phase": "D7", "oldPathOrSymbol": "tests/perf/graph-*.test.js + tests/indexing/artifacts/symbol-* + tests/storage/sqlite/sqlite-build-{rowcount,validate-auto-fast-path}.test.js duplicated fixture setup blocks", "newPathOrSymbol": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js", "status": "completed" }
+    { "migrationId": "M124", "clusterId": "A08", "phase": "D7", "oldPathOrSymbol": "tests/perf/graph-*.test.js + tests/indexing/artifacts/symbol-* + tests/storage/sqlite/sqlite-build-{rowcount,validate-auto-fast-path}.test.js duplicated fixture setup blocks", "newPathOrSymbol": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js", "status": "completed" },
+    { "migrationId": "M125", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js and viewer-lod-stress.js duplicated resolveRepo/getIndex/buildOptions setup", "newPathOrSymbol": "tools/bench/map/shared.js::resolveMapBenchInputs", "status": "completed" },
+    { "migrationId": "M126", "clusterId": "A09", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/build-map-{memory,streaming}.js duplicated resolveLimit/resolveRepo/getIndex/buildOptions and run-count parsing", "newPathOrSymbol": "tools/bench/map/shared.js::{resolveMapBenchInputs,resolveRuns}", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -765,6 +778,13 @@
       "scope": "tests/perf/**,tests/indexing/artifacts/**,tests/storage/sqlite/**",
       "pattern": "duplicated graph bench, symbol artifact, or sqlite build fixture setup blocks across paired contract tests",
       "replacement": "tests/perf/helpers/graph-bench-fixture.js + tests/indexing/artifacts/symbols/helpers/symbol-artifact-fixture.js + tests/storage/sqlite/helpers/build-fixture.js"
+    },
+    {
+      "banId": "B045",
+      "phase": "D7",
+      "scope": "tools/bench/map/**",
+      "pattern": "duplicated map bench static server wiring or map build option resolver blocks across viewer/build scripts",
+      "replacement": "tools/bench/map/shared.js::{startMapViewerStaticServer,resolveMapBenchInputs,resolveRuns}"
     }
   ],
   "exceptions": [],
