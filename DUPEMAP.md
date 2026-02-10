@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T02:37:19.0577276-05:00
+Last updated: 2026-02-10T02:46:07.7902373-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -75,7 +75,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F3 | [x] | Artifact/storage I/O correctness + crash-safety |
 | F4 | [x] | Retrieval/ANN/embeddings correctness + boundedness |
 | F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
-| F6 | [ ] | Map/graph/context-pack correctness + cleanup safety |
+| F6 | [x] | Map/graph/context-pack correctness + cleanup safety |
 | F7 | [ ] | Security/path/input hardening across surfaces |
 | F8 | [ ] | Contract-test expansion + `src/**` coverage lock |
 | F9 | [ ] | CI gating + burn-down closure for all findings |
@@ -590,22 +590,38 @@ Touchpoints:
 - `src/context-pack/**`
 
 Subphase F6.1 — Map correctness and cleanup:
-- [ ] Fix member-id zero handling in `src/map/isometric/client/map-data.js:28`.
-- [ ] Ensure cleanup in `src/map/build-map.js:365` always executes via `finally`.
-- [ ] Verify filter/collapse/escape semantics after D6 helper consolidation.
+- [x] Fix member-id zero handling in `src/map/isometric/client/map-data.js:28`.
+- [x] Ensure cleanup in `src/map/build-map.js:365` always executes via `finally`.
+- [x] Verify filter/collapse/escape semantics after D6 helper consolidation.
 
 Subphase F6.2 — Graph/context-pack contracts:
-- [ ] Validate graph artifact assembly contracts for ordering/edge consistency.
-- [ ] Validate context-pack assembly deterministic ordering and bound checks.
+- [x] Validate graph artifact assembly contracts for ordering/edge consistency.
+- [x] Validate context-pack assembly deterministic ordering and bound checks.
 
 Tests:
-- [ ] `tests/map/isometric/member-id-zero-contract.test.js` (new)
-- [ ] `tests/map/build-map/temp-cleanup-on-failure.test.js` (new)
-- [ ] `tests/graph/contracts/graph-artifact-ordering-contract.test.js` (new)
-- [ ] `tests/context-pack/contracts/context-pack-determinism.test.js` (new)
+- [x] `tests/map/isometric/member-id-zero-contract.test.js` (new)
+- [x] `tests/map/build-map/temp-cleanup-on-failure.test.js` (new)
+- [x] `tests/graph/contracts/graph-artifact-ordering-contract.test.js` (new)
+- [x] `tests/context-pack/contracts/context-pack-determinism.test.js` (new)
 
 Exit criteria:
-- [ ] Map/graph/context-pack findings are closed with deterministic contract tests.
+- [x] Map/graph/context-pack findings are closed with deterministic contract tests.
+
+F6 status update (2026-02-10T02:46:07.7902373-05:00):
+- resolved: fixed map isometric member-id handling so id `0` is indexed in `memberById` and `fileByMember`.
+- resolved: reworked `buildCodeMap` spill/temp lifecycle so sorter cleanup and temp-dir cleanup execute in `finally`, including error paths.
+- resolved: added explicit map/graph/context-pack contracts for member-id zero behavior, temp cleanup on failure, graph ordering determinism, and composite context-pack determinism.
+- resolved: verified map filter/collapse and HTML escape behavior contracts remain intact after D6 helper consolidation.
+- remaining: none (F6 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "hasMemberId|memberById\\.set|fileByMember\\.set" src/map/isometric/client/map-data.js`
+  - `rg --line-number "createTempDir|finally|cleanupTempDir|nodeSorter\\.cleanup|edgeSorter\\.cleanup" src/map/build-map.js`
+  - `rg --line-number "member-id-zero-contract|temp-cleanup-on-failure|graph-artifact-ordering-contract|context-pack-determinism" tests/map tests/graph tests/context-pack tests/retrieval/graph -g "*.test.js"`
+
+F6.DOC no-doc-change rationale (2026-02-10T02:46:07.7902373-05:00):
+- F6 changes were internal correctness and deterministic-contract updates for map/graph/context-pack internals; no user-facing command/config/schema docs required updates.
 
 ### Phase F7 — Security/path/input hardening
 
@@ -789,7 +805,7 @@ Documents: `docs/benchmarks/*`, `docs/specs/tooling-and-api-contract.md` (if ret
 - [x] Task F5.DOC: Tooling/LSP/service resilience docs.
 Documents: `docs/api/*`, `docs/specs/*` (tooling/service behavior docs touched), `docs/guides/commands.md`, `docs/testing/*`.
 
-- [ ] Task F6.DOC: Map/graph/context-pack correctness docs.
+- [x] Task F6.DOC: Map/graph/context-pack correctness docs.
 Documents: `docs/specs/*` (map/graph/context-pack behavior docs touched), `docs/testing/*`, `docs/benchmarks/*` (if perf-sensitive map/graph behavior changed).
 
 - [ ] Task F7.DOC: Security/path/input hardening docs.
