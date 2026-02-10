@@ -125,6 +125,7 @@ export async function runSearchSession({
     throw error;
   };
   throwIfAborted();
+  const annAdaptiveProviders = userConfig?.retrieval?.ann?.adaptiveProviders === true;
   const searchPipeline = createSearchPipeline({
     useSqlite,
     sqliteFtsRequested,
@@ -148,6 +149,7 @@ export async function runSearchSession({
     topN,
     annEnabled: annActive,
     annBackend,
+    annAdaptiveProviders,
     scoreBlend,
     rrf,
     graphRankingConfig,

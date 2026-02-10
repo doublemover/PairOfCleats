@@ -26,6 +26,9 @@ const MAX_POOL_ENTRIES = 50000;
 const PROVIDER_RETRY_BASE_MS = 1000;
 const PROVIDER_RETRY_MAX_MS = 30000;
 const PREFLIGHT_CACHE_TTL_MS = 30000;
+const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
+const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
+const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -56,6 +59,7 @@ export function createSearchPipeline(context) {
     maxCandidates,
     annEnabled,
     annBackend,
+    annAdaptiveProviders,
     scoreBlend,
     minhashMaxDocs,
     sparseBackend,
@@ -175,6 +179,7 @@ export function createSearchPipeline(context) {
   });
 
   const annOrder = resolveAnnOrder(annBackend);
+  const adaptiveProvidersEnabled = annAdaptiveProviders === true;
   const buildAnnProviders = typeof createAnnProvidersInput === 'function'
     ? createAnnProvidersInput
     : () => new Map([
@@ -222,7 +227,9 @@ export function createSearchPipeline(context) {
         disabledUntil: 0,
         preflight: null,
         preflightCheckedAt: 0,
-        lastError: null
+        lastError: null,
+        latencyEwmaMs: null,
+        latencySamples: 0
       });
     }
     return modeStates.get(mode);
@@ -252,12 +259,59 @@ export function createSearchPipeline(context) {
       state.preflightCheckedAt = 0;
     }
   };
-  const recordProviderSuccess = (provider, mode) => {
+  const recordProviderSuccess = (provider, mode, { latencyMs = null } = {}) => {
     const state = getProviderModeState(provider, mode);
     if (!state) return;
     state.failures = 0;
     state.disabledUntil = 0;
     state.lastError = null;
+    if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
+      const resolvedLatencyMs = Number(latencyMs);
+      const prev = Number.isFinite(Number(state.latencyEwmaMs))
+        ? Number(state.latencyEwmaMs)
+        : null;
+      state.latencyEwmaMs = prev == null
+        ? resolvedLatencyMs
+        : ((prev * (1 - ANN_ADAPTIVE_LATENCY_ALPHA)) + (resolvedLatencyMs * ANN_ADAPTIVE_LATENCY_ALPHA));
+      state.latencySamples = (Number.isFinite(Number(state.latencySamples)) ? Number(state.latencySamples) : 0) + 1;
+    }
+  };
+  const resolveAnnBackends = (providers, mode) => {
+    const base = annOrder.filter((backend) => providers.has(backend));
+    if (!adaptiveProvidersEnabled || base.length <= 1) return base;
+    const scored = base.map((backend, baseIndex) => {
+      const provider = providers.get(backend);
+      const state = getProviderModeState(provider, mode);
+      const hasLatency = Number.isFinite(Number(state?.latencyEwmaMs));
+      const latencyMs = hasLatency ? Number(state.latencyEwmaMs) : Number.POSITIVE_INFINITY;
+      const failures = Number.isFinite(Number(state?.failures))
+        ? Math.max(0, Math.floor(Number(state.failures)))
+        : 0;
+      const preflightPenalty = state?.preflight === false ? 1 : 0;
+      return {
+        backend,
+        provider,
+        baseIndex,
+        coolingDown: isProviderCoolingDown(provider, mode),
+        failures,
+        preflightPenalty,
+        latencyMs,
+        hasSignal: hasLatency || failures > 0 || preflightPenalty > 0
+      };
+    });
+    const hasSignals = scored.some((entry) => entry.hasSignal);
+    if (!hasSignals) return base;
+    scored.sort((a, b) => {
+      if (a.coolingDown !== b.coolingDown) return Number(a.coolingDown) - Number(b.coolingDown);
+      const aPenalty = (a.failures * ANN_ADAPTIVE_FAILURE_PENALTY_MS)
+        + (a.preflightPenalty * ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS);
+      const bPenalty = (b.failures * ANN_ADAPTIVE_FAILURE_PENALTY_MS)
+        + (b.preflightPenalty * ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS);
+      if (aPenalty !== bPenalty) return aPenalty - bPenalty;
+      if (a.latencyMs !== b.latencyMs) return a.latencyMs - b.latencyMs;
+      return a.baseIndex - b.baseIndex;
+    });
+    return scored.map((entry) => entry.backend);
   };
   const resolveAnnType = (annSource) => {
     if (!annSource) return null;
@@ -498,7 +552,12 @@ export function createSearchPipeline(context) {
             && state.preflightCheckedAt
             && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
           ) {
-            return state.preflight === true;
+            if (state.preflight === false && state.disabledUntil <= now) {
+              state.preflight = null;
+              state.preflightCheckedAt = 0;
+            } else {
+              return state.preflight === true;
+            }
           }
           try {
             const result = await provider.preflight({
@@ -538,6 +597,7 @@ export function createSearchPipeline(context) {
           if (!provider || typeof provider.query !== 'function') return [];
           if (isProviderCoolingDown(provider, mode)) return [];
           const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
+          const startedAtNs = process.hrtime.bigint();
           try {
             const hits = await provider.query({
               idx,
@@ -547,7 +607,8 @@ export function createSearchPipeline(context) {
               candidateSet: normalizedCandidateSet,
               signal
             });
-            recordProviderSuccess(provider, mode);
+            const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
+            recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
             return normalizeAnnHits(hits);
           } catch (err) {
             recordProviderFailure(provider, mode, err?.message || 'query failed');
@@ -566,7 +627,10 @@ export function createSearchPipeline(context) {
 
         if (annEnabled && vectorActive) {
           const providers = getAnnProviders();
-          for (const backend of annOrder) {
+          const orderedBackends = resolveAnnBackends(providers, mode);
+          annMetrics.providerOrder = orderedBackends;
+          annMetrics.providerAdaptive = adaptiveProvidersEnabled;
+          for (const backend of orderedBackends) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
             if (isProviderCoolingDown(provider, mode)) continue;

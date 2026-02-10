@@ -446,7 +446,7 @@ Implementation policy for Sweep 3:
 - Rollout: `sqliteVec.candidatePushdown=temp-table`.
 - Target: stable recall and predictable latency for large candidate sets.
 
-17. Area: Adaptive ANN provider orchestration
+17. [x] Area: Adaptive ANN provider orchestration
 - Files: `src/retrieval/pipeline.js`, `src/retrieval/ann/normalize-backend.js`, `src/shared/metrics.js`
 - Decision: Use bounded adaptive ordering from rolling latency/failure telemetry with stable session ordering guarantees.
 - Rollout: `retrieval.ann.adaptiveProviders=true`; strict deterministic guardrails.
