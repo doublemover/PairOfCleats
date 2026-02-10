@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { LRUCache } from 'lru-cache';
+import { createLruCache } from '../shared/cache.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
@@ -226,9 +226,24 @@ export function createIndexCache({
   ttlMs = DEFAULT_INDEX_CACHE_TTL_MS,
   onEvict = null
 } = {}) {
-  const resolvedMax = Number.isFinite(Number(maxEntries)) ? Math.floor(Number(maxEntries)) : DEFAULT_INDEX_CACHE_MAX_ENTRIES;
-  const resolvedTtlMs = Number.isFinite(Number(ttlMs)) ? Math.max(0, Number(ttlMs)) : DEFAULT_INDEX_CACHE_TTL_MS;
-  if (!resolvedMax || resolvedMax <= 0) {
+  const cacheHandle = createLruCache({
+    name: 'index',
+    maxEntries,
+    ttlMs,
+    onEvict: ({ key, value, reason }) => {
+      if (typeof onEvict === 'function') {
+        onEvict({ key, value, reason });
+      }
+      if (reason === 'evict' || reason === 'expire') {
+        incCacheEviction({ cache: 'index' });
+      }
+      setCacheSize({ cache: 'index', value: cacheHandle.size() });
+    },
+    onSizeChange: (size) => {
+      setCacheSize({ cache: 'index', value: size });
+    }
+  });
+  if (!cacheHandle.cache) {
     return {
       get() {
         return null;
@@ -240,40 +255,21 @@ export function createIndexCache({
       cache: null
     };
   }
-  const cache = new LRUCache({
-    max: resolvedMax,
-    ttl: resolvedTtlMs > 0 ? resolvedTtlMs : undefined,
-    allowStale: false,
-    updateAgeOnGet: true,
-    dispose: (value, key, reason) => {
-      if (typeof onEvict === 'function') {
-        onEvict({ key, value, reason });
-      }
-      if (reason === 'evict' || reason === 'expire') {
-        incCacheEviction({ cache: 'index' });
-      }
-      setCacheSize({ cache: 'index', value: cache.size });
-    }
-  });
   return {
     get(key) {
-      const value = cache.get(key);
-      return value ?? null;
+      return cacheHandle.get(key);
     },
     set(key, value) {
-      cache.set(key, value);
-      setCacheSize({ cache: 'index', value: cache.size });
+      cacheHandle.set(key, value);
     },
     delete(key) {
-      cache.delete(key);
-      setCacheSize({ cache: 'index', value: cache.size });
+      cacheHandle.delete(key);
     },
     clear() {
-      cache.clear();
-      setCacheSize({ cache: 'index', value: cache.size });
+      cacheHandle.clear();
     },
-    size: () => cache.size,
-    cache
+    size: cacheHandle.size,
+    cache: cacheHandle.cache
   };
 }
 

@@ -1,4 +1,5 @@
 import { compareStrings } from '../../../shared/sort.js';
+import { createLruCache } from '../../../shared/cache.js';
 import { readVfsManifestRowAtOffset } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
@@ -10,11 +11,6 @@ const coercePositiveInt = (value, fallback) => {
   return Math.max(1, Math.floor(parsed));
 };
 
-const touchLru = (map, key, value) => {
-  map.delete(key);
-  map.set(key, value);
-};
-
 export const createTreeSitterSchedulerLookup = ({
   outDir,
   index = new Map(),
@@ -23,24 +19,16 @@ export const createTreeSitterSchedulerLookup = ({
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveInt(maxCacheEntries, DEFAULT_ROW_CACHE_MAX);
-  const rowCache = new Map(); // virtualPath -> row
+  const rowCache = createLruCache({
+    name: 'tree-sitter-scheduler-row',
+    maxEntries: cacheMax
+  });
   const missCache = new Set();
-
-  const ensureCacheLimit = () => {
-    while (rowCache.size > cacheMax) {
-      const oldest = rowCache.keys().next().value;
-      if (oldest === undefined) break;
-      rowCache.delete(oldest);
-    }
-  };
 
   const loadRow = async (virtualPath) => {
     if (!virtualPath) return null;
-    if (rowCache.has(virtualPath)) {
-      const row = rowCache.get(virtualPath);
-      touchLru(rowCache, virtualPath, row);
-      return row;
-    }
+    const cached = rowCache.get(virtualPath);
+    if (cached) return cached;
     if (missCache.has(virtualPath)) return null;
     const entry = index.get(virtualPath) || null;
     if (!entry) {
@@ -63,7 +51,6 @@ export const createTreeSitterSchedulerLookup = ({
       return null;
     }
     rowCache.set(virtualPath, row);
-    ensureCacheLimit();
     return row;
   };
 
@@ -90,7 +77,7 @@ export const createTreeSitterSchedulerLookup = ({
     loadChunks,
     stats: () => ({
       indexEntries: index.size,
-      cacheEntries: rowCache.size,
+      cacheEntries: rowCache.size(),
       missEntries: missCache.size,
       grammarKeys: grammarKeys().length
     }),

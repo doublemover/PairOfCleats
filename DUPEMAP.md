@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:10:22.3605834-05:00
+Last updated: 2026-02-09T21:21:47.5908780-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -899,10 +899,17 @@ D1.1 status update (2026-02-09T21:10:22.3605834-05:00):
 
 ### Subphase D1.2 — Cache/LRU and logging primitives
 Tasks:
-- [ ] Task D1.2.a: Add shared warn-once API supporting keyed and unkeyed usage.
+- [x] Task D1.2.a: Add shared warn-once API supporting keyed and unkeyed usage.
 Details: Support logger injection and deterministic key formatting.
-- [ ] Task D1.2.b: Replace custom Map-LRU implementations with shared cache APIs.
+- [x] Task D1.2.b: Replace custom Map-LRU implementations with shared cache APIs.
 Details: Preserve eviction semantics where externally observable.
+
+D1.2 status update (2026-02-09T21:21:47.5908780-05:00):
+- resolved: shared `warn-once` primitive added and migrated in scm/retrieval/json-stream/tooling vector-extension callsites.
+- resolved: retrieval cache wrappers (`index`, `sqlite`, `query-plan`) and bounded VFS/scheduler LRU maps now use shared cache APIs.
+- remaining: D1.3–D1.5 tasks and additional cache policy/lifecycle contracts.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
 
 ### Subphase D1.3 — Bytes/size/minified/root normalization
 Tasks:
@@ -938,7 +945,7 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 ### Exhaustive sweeps
 - [ ] `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build`
 - [x] `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools`
-- [ ] `rg "warned = new Set|warnOnce" src tools`
+- [x] `rg "warned = new Set|warnOnce" src tools`
 - [ ] `rg "formatBytes\(|sizeOfPath\(" src tools`
 - [ ] `rg "escapeRegex\(|pickMinLimit\(" src tools`
 - [ ] `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`
@@ -948,8 +955,8 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 ### Tests
 - [x] `tests/shared/fs/find-upwards-contract.test.js` (new)
 - [x] `tests/shared/path-normalize/path-containment-contract.test.js` (new)
-- [ ] `tests/shared/logging/warn-once.test.js` (new)
-- [ ] `tests/shared/cache/lru-parity.test.js` (new)
+- [x] `tests/shared/logging/warn-once.test.js` (new)
+- [x] `tests/shared/cache/lru-parity.test.js` (new)
 - [ ] `tests/shared/disk-space/format-bytes-contract.test.js` (new)
 - [ ] `tests/shared/locks/file-lock-contract.test.js` (new)
 - [ ] `tests/indexing/watch/watch-root-normalization.test.js` (new)

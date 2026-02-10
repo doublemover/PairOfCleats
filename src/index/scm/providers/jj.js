@@ -5,18 +5,14 @@ import { runScmCommand } from '../runner.js';
 import { getScmRuntimeConfig } from '../runtime.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
+import { createWarnOnce } from '../../../shared/logging/warn-once.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
   parseJjJsonLines
 } from './jj-parse.js';
 
-const warned = new Set();
-const warnOnce = (key, message) => {
-  if (warned.has(key)) return;
-  warned.add(key);
-  console.warn(message);
-};
+const warnOnce = createWarnOnce();
 
 const logState = {
   provider: false,

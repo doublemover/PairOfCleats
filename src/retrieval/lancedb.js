@@ -1,27 +1,18 @@
 import fs from 'node:fs';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
+import { createWarnOnce } from '../shared/logging/warn-once.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
 
 let cachedModule = null;
-let warnedMissing = false;
-let warnedQuery = false;
-
-const warnOnce = (message) => {
-  if (warnedQuery) return;
-  warnedQuery = true;
-  console.warn(message);
-};
+const warnOnce = createWarnOnce();
 
 const loadLanceDb = async () => {
   if (cachedModule) return cachedModule;
   const result = await tryImport('@lancedb/lancedb');
   if (!result.ok) {
-    if (!warnedMissing) {
-      warnedMissing = true;
-      console.warn('[ann] LanceDB unavailable; falling back to other ANN backends.');
-    }
+    warnOnce('lancedb-missing', '[ann] LanceDB unavailable; falling back to other ANN backends.');
     return null;
   }
   cachedModule = result.mod?.default || result.mod;
@@ -132,7 +123,10 @@ export async function rankLanceDb({
   try {
     table = await getTable(dir, tableName);
   } catch (err) {
-    warnOnce(`[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`);
+    warnOnce(
+      'lancedb-table-load',
+      `[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`
+    );
     return [];
   }
   if (!table || typeof table.search !== 'function') return [];
@@ -194,7 +188,10 @@ export async function rankLanceDb({
     try {
       rows = await toArray(buildQuery(limit));
     } catch (err) {
-      warnOnce(`[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
+      warnOnce(
+        'lancedb-query',
+        `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`
+      );
       return [];
     }
     const hits = [];

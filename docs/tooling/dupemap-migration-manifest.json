@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T21:10:22.3605834-05:00",
+  "updatedAt": "2026-02-09T21:21:47.5908780-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -127,7 +127,7 @@
       "clusterId": "C12",
       "title": "Map-based LRU duplicates",
       "phase": "D1",
-      "status": "planned",
+      "status": "in_progress",
       "legacyPaths": [
         "src/shared/cache.js",
         "src/retrieval/cache/index-cache.js"
@@ -149,7 +149,7 @@
       "clusterId": "C14",
       "title": "warn-once variants",
       "phase": "D1",
-      "status": "planned",
+      "status": "in_progress",
       "legacyPaths": [
         "src/index/build/runtime/warnings.js",
         "src/index/build/tree-sitter-scheduler/lookup.js"
@@ -355,9 +355,9 @@
     { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "planned" },
     { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
     { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/git.js::findGitRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
-    { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/cache/index-cache.js::createCache", "newPathOrSymbol": "src/shared/cache.js::createCache", "status": "planned" },
+    { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/index-cache.js::createIndexCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
     { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "planned" },
-    { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/build/runtime/warnings.js::warnOnce", "newPathOrSymbol": "src/shared/logging/warn-once.js::warnOnce", "status": "planned" },
+    { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
     { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "planned" },
     { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "planned" },
     { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/indexer/lock.js::acquireIndexLock", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireLock", "status": "planned" },
@@ -379,7 +379,15 @@
     { "migrationId": "M033", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::findNearestConfig (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M034", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "tools/dict-utils/paths/repo.js::findConfigRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M035", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/core/status.js::isInside", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
-    { "migrationId": "M036", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "tools/shared/path-utils.js::isInside (inline relative check)", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" }
+    { "migrationId": "M036", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "tools/shared/path-utils.js::isInside (inline relative check)", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M037", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/retrieval/embedding.js::warnOnce (boolean guard)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M038", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/retrieval/lancedb.js::warnOnce (boolean guards)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M039", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "tools/sqlite/vector-extension.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M040", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/shared/json-stream/runtime.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
+    { "migrationId": "M041", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/sqlite-cache.js::createSqliteDbCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M042", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/query-plan-cache.js::createQueryPlanCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M043", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/vfs-segment-hash-cache.js::createVfsSegmentHashCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M044", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/tree-sitter-scheduler/lookup.js::rowCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -402,6 +410,20 @@
       "scope": "src/**,tools/**",
       "pattern": "manual upward directory walkups for repo/config root detection",
       "replacement": "src/shared/fs/find-upwards.js::findUpwards"
+    },
+    {
+      "banId": "B013",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local warnOnce state via ad-hoc booleans/Sets",
+      "replacement": "src/shared/logging/warn-once.js::createWarnOnce"
+    },
+    {
+      "banId": "B014",
+      "phase": "D1",
+      "scope": "src/retrieval/**,src/index/build/**",
+      "pattern": "direct ad-hoc bounded LRU wrappers around Map/LRUCache",
+      "replacement": "src/shared/cache.js::createLruCache"
     }
   ],
   "exceptions": [],
