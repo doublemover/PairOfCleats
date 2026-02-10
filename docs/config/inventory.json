@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T08:53:51.045Z",
+  "generatedAt": "2026-02-10T09:50:31.756Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -72,6 +72,8 @@
       "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -2098,12 +2100,14 @@
     {
       "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
       "files": [
+        "tools/config/inventory.js",
         "tools/service/subprocess-log.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "files": [
+        "tools/config/inventory.js",
         "tools/service/subprocess-log.js"
       ]
     },
@@ -2488,10 +2492,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
-    "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 298,
     "publicFlags": [
