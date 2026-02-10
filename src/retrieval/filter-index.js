@@ -41,6 +41,23 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
       bucket.add(id);
     }
   };
+  const normalizeLang = (value) => {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    return normalized || null;
+  };
+  const resolveEffectiveLang = (chunk) => {
+    const candidates = [
+      chunk?.metaV2?.lang,
+      chunk?.metaV2?.effective?.languageId,
+      chunk?.lang
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeLang(candidate);
+      if (normalized) return normalized;
+    }
+    return 'unknown';
+  };
 
   const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });
   const addFileChargrams = (fileId, fileValue) => {
@@ -74,14 +91,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     if (!Number.isFinite(id)) continue;
     addFile(chunk.file, id);
     add(index.byExt, chunk.ext, id);
-    const effectiveLang = chunk.metaV2?.lang
-      || chunk.metaV2?.effective?.languageId
-      || chunk.lang
-      || null;
-    if (!effectiveLang) {
-      const fileLabel = chunk.file ? ` (${chunk.file})` : '';
-      throw new Error(`[filter-index] missing effective language id for chunk ${id}${fileLabel}`);
-    }
+    const effectiveLang = resolveEffectiveLang(chunk);
     add(index.byLang, effectiveLang, id);
     add(index.byKind, chunk.kind, id);
     add(index.byAuthor, chunk.last_author, id);
