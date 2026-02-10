@@ -29,6 +29,14 @@ const resolveTargetShardSize = (shardTargetBytes, avgBytes, fallback) => {
   return Math.max(1, target);
 };
 
+const createArrayWindowIterable = (values, start, end) => ({
+  [Symbol.iterator]: function* iterateWindow() {
+    for (let index = start; index < end; index += 1) {
+      yield values[index];
+    }
+  }
+});
+
 export function resolveTokenPostingsPlan({
   artifactMode,
   tokenPostingsFormatConfig,
@@ -189,12 +197,15 @@ export async function enqueueTokenPostingsArtifacts({
         await fs.mkdir(tempDir, { recursive: true });
         for (const part of shardPlan) {
           const partPath = path.join(tempDir, part.partName);
+          const arrays = {
+            vocab: createArrayWindowIterable(postings.tokenVocab, part.start, part.end),
+            postings: createArrayWindowIterable(postings.tokenPostingsList, part.start, part.end)
+          };
+          if (vocabIds) {
+            arrays.vocabIds = createArrayWindowIterable(vocabIds, part.start, part.end);
+          }
           await writeJsonObjectFile(partPath, {
-            arrays: {
-              vocab: postings.tokenVocab.slice(part.start, part.end),
-              ...(vocabIds ? { vocabIds: vocabIds.slice(part.start, part.end) } : {}),
-              postings: postings.tokenPostingsList.slice(part.start, part.end)
-            },
+            arrays,
             compression: tokenPostingsCompression,
             atomic: true
           });

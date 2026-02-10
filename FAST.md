@@ -91,7 +91,7 @@ Format:
 - Impact: Fewer syscalls.
 - Risk: Ensure writer byte accounting is exact.
 
-14. Area: Token postings shard copies
+14. [x] Area: Token postings shard copies
 - Files: `src/index/build/artifacts/token-postings.js`
 - Opportunity: Use generators/ranges instead of per-shard array slices.
 - Impact: Lower peak memory.
