@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createLruCache } from '../shared/cache.js';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { createTempPath } from '../shared/json-stream/atomic.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,
@@ -14,6 +15,7 @@ const DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES = 128;
 const DEFAULT_QUERY_PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
 const QUERY_PLAN_DISK_CACHE_VERSION = 1;
 const DEFAULT_QUERY_PLAN_DISK_MAX_BYTES = 2 * 1024 * 1024;
+const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 
 const normalizeDiskLimit = (value, fallback) => {
   if (value === null || value === undefined) return fallback;
@@ -105,6 +107,30 @@ const readDiskCache = (cachePath) => {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+};
+
+const writeDiskCacheAtomic = (cachePath, payload) => {
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  const tempPath = createTempPath(cachePath);
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(payload, null, 2));
+    try {
+      fs.renameSync(tempPath, cachePath);
+    } catch (err) {
+      if (!RENAME_RETRY_CODES.has(err?.code)) {
+        throw err;
+      }
+      try {
+        fs.rmSync(cachePath, { force: true });
+      } catch {}
+      fs.renameSync(tempPath, cachePath);
+    }
+  } catch (err) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {}
+    throw err;
   }
 };
 
@@ -202,8 +228,7 @@ export function createQueryPlanDiskCache({
       entries: trimmed
     };
     try {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-      fs.writeFileSync(cachePath, JSON.stringify(payload, null, 2));
+      writeDiskCacheAtomic(cachePath, payload);
       dirty = false;
       return trimmed.length;
     } catch {

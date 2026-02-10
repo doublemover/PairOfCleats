@@ -17,7 +17,22 @@ export const normalizeJsonValue = (value) => {
   return value;
 };
 
-export const writeJsonValue = async (stream, value) => {
+const trackJsonTraversal = (value, seen) => {
+  if (!value || typeof value !== 'object') return false;
+  if (seen.has(value)) {
+    throw new TypeError('[json-stream] Circular JSON value.');
+  }
+  seen.add(value);
+  return true;
+};
+
+const untrackJsonTraversal = (value, seen, tracked) => {
+  if (tracked && value && typeof value === 'object') {
+    seen.delete(value);
+  }
+};
+
+const writeJsonValueInternal = async (stream, value, seen) => {
   const normalized = normalizeJsonValue(value);
   if (normalized === null || typeof normalized !== 'object') {
     if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
@@ -38,38 +53,48 @@ export const writeJsonValue = async (stream, value) => {
     await writeChunk(stream, ']');
     return;
   }
-  if (Array.isArray(normalized)) {
-    await writeChunk(stream, '[');
-    let first = true;
-    for (const item of normalized) {
-      if (!first) await writeChunk(stream, ',');
-      const itemValue = normalizeJsonValue(item);
-      if (itemValue === undefined || typeof itemValue === 'function' || typeof itemValue === 'symbol') {
-        await writeChunk(stream, 'null');
-      } else {
-        await writeJsonValue(stream, itemValue);
+
+  const tracked = trackJsonTraversal(normalized, seen);
+  try {
+    if (Array.isArray(normalized)) {
+      await writeChunk(stream, '[');
+      let first = true;
+      for (const item of normalized) {
+        if (!first) await writeChunk(stream, ',');
+        const itemValue = normalizeJsonValue(item);
+        if (itemValue === undefined || typeof itemValue === 'function' || typeof itemValue === 'symbol') {
+          await writeChunk(stream, 'null');
+        } else {
+          await writeJsonValueInternal(stream, itemValue, seen);
+        }
+        first = false;
       }
+      await writeChunk(stream, ']');
+      return;
+    }
+    await writeChunk(stream, '{');
+    let first = true;
+    for (const [key, entry] of Object.entries(normalized)) {
+      const entryValue = normalizeJsonValue(entry);
+      if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
+        continue;
+      }
+      if (!first) await writeChunk(stream, ',');
+      await writeChunk(stream, `${JSON.stringify(key)}:`);
+      await writeJsonValueInternal(stream, entryValue, seen);
       first = false;
     }
-    await writeChunk(stream, ']');
-    return;
+    await writeChunk(stream, '}');
+  } finally {
+    untrackJsonTraversal(normalized, seen, tracked);
   }
-  await writeChunk(stream, '{');
-  let first = true;
-  for (const [key, entry] of Object.entries(normalized)) {
-    const entryValue = normalizeJsonValue(entry);
-    if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
-      continue;
-    }
-    if (!first) await writeChunk(stream, ',');
-    await writeChunk(stream, `${JSON.stringify(key)}:`);
-    await writeJsonValue(stream, entryValue);
-    first = false;
-  }
-  await writeChunk(stream, '}');
 };
 
-export const stringifyJsonValue = (value) => {
+export const writeJsonValue = async (stream, value) => {
+  await writeJsonValueInternal(stream, value, new WeakSet());
+};
+
+const stringifyJsonValueInternal = (value, seen) => {
   const normalized = normalizeJsonValue(value);
   if (normalized === null || typeof normalized !== 'object') {
     if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
@@ -84,19 +109,29 @@ export const stringifyJsonValue = (value) => {
     }
     return `[${items.join(',')}]`;
   }
-  if (Array.isArray(normalized)) {
-    const items = normalized.map((item) => stringifyJsonValue(item));
-    return `[${items.join(',')}]`;
-  }
-  const entries = [];
-  for (const [key, entry] of Object.entries(normalized)) {
-    const entryValue = normalizeJsonValue(entry);
-    if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
-      continue;
+
+  const tracked = trackJsonTraversal(normalized, seen);
+  try {
+    if (Array.isArray(normalized)) {
+      const items = normalized.map((item) => stringifyJsonValueInternal(item, seen));
+      return `[${items.join(',')}]`;
     }
-    entries.push(`${JSON.stringify(key)}:${stringifyJsonValue(entryValue)}`);
+    const entries = [];
+    for (const [key, entry] of Object.entries(normalized)) {
+      const entryValue = normalizeJsonValue(entry);
+      if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
+        continue;
+      }
+      entries.push(`${JSON.stringify(key)}:${stringifyJsonValueInternal(entryValue, seen)}`);
+    }
+    return `{${entries.join(',')}}`;
+  } finally {
+    untrackJsonTraversal(normalized, seen, tracked);
   }
-  return `{${entries.join(',')}}`;
+};
+
+export const stringifyJsonValue = (value) => {
+  return stringifyJsonValueInternal(value, new WeakSet());
 };
 
 export const writeArrayItems = async (stream, items, signal = null) => {

@@ -105,12 +105,14 @@ export const restoreBuildPragmas = (db, state = null) => {
     applyPragma(db, `${label} = ${value}`, label);
   };
 
+  applyIfValue('journal_mode', restoreValue('journal_mode', null));
   applyIfValue('synchronous', restoreValue('synchronous', 'NORMAL'));
   applyIfValue('temp_store', restoreValue('temp_store', 'DEFAULT'));
   applyIfValue('cache_size', restoreValue('cache_size', null));
   applyIfValue('mmap_size', restoreValue('mmap_size', null));
   applyIfValue('wal_autocheckpoint', restoreValue('wal_autocheckpoint', null));
   applyIfValue('journal_size_limit', restoreValue('journal_size_limit', null));
+  applyIfValue('page_size', restoreValue('page_size', null));
   applyIfValue('locking_mode', restoreValue('locking_mode', 'NORMAL'));
 };
 

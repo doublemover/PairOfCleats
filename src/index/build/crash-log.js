@@ -2,15 +2,39 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { getRecentLogEvents } from '../../shared/progress.js';
+import { createTempPath } from '../../shared/json-stream/atomic.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
 const formatTimestamp = () => new Date().toISOString();
+const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 
 const safeStringify = (value) => {
   try {
     return JSON.stringify(value);
   } catch {
     return '"[unserializable]"';
+  }
+};
+
+const writeJsonAtomicSync = (filePath, value) => {
+  const tempPath = createTempPath(filePath);
+  try {
+    fsSync.writeFileSync(tempPath, JSON.stringify(value, null, 2));
+    try {
+      fsSync.renameSync(tempPath, filePath);
+    } catch (err) {
+      if (!RENAME_RETRY_CODES.has(err?.code)) throw err;
+      try {
+        fsSync.rmSync(filePath, { force: true });
+      } catch {}
+      fsSync.renameSync(tempPath, filePath);
+    }
+  } catch (err) {
+    try {
+      fsSync.rmSync(tempPath, { force: true });
+    } catch {}
+    throw err;
   }
 };
 
@@ -37,7 +61,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   const writeState = async (state) => {
     const payload = { ts: formatTimestamp(), ...state };
     try {
-      await fs.writeFile(statePath, JSON.stringify(payload, null, 2));
+      await atomicWriteJson(statePath, payload, { spaces: 2 });
     } catch {}
   };
 
@@ -51,7 +75,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   const writeStateSync = (state) => {
     const payload = { ts: formatTimestamp(), ...state };
     try {
-      fsSync.writeFileSync(statePath, JSON.stringify(payload, null, 2));
+      writeJsonAtomicSync(statePath, payload);
     } catch {}
   };
   const appendLineSync = (message, extra) => {
@@ -93,10 +117,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
       writeStateSync({ phase: 'error', error: event || null });
       if (recentEvents.length) {
         try {
-          fsSync.writeFileSync(
-            eventsPath,
-            JSON.stringify({ ts: formatTimestamp(), events: recentEvents }, null, 2)
-          );
+          writeJsonAtomicSync(eventsPath, { ts: formatTimestamp(), events: recentEvents });
         } catch {}
       }
     }

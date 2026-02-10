@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T01:56:44.3735295-05:00
+Last updated: 2026-02-10T02:10:55.2019640-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -72,7 +72,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [x] | Build/runtime lifecycle correctness remediation |
 | F2 | [x] | Language/chunking/import correctness remediation |
-| F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
+| F3 | [x] | Artifact/storage I/O correctness + crash-safety |
 | F4 | [ ] | Retrieval/ANN/embeddings correctness + boundedness |
 | F5 | [ ] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [ ] | Map/graph/context-pack correctness + cleanup safety |
@@ -451,33 +451,38 @@ Touchpoints:
 - `src/shared/io/**` (atomic write helpers)
 
 Subphase F3.1 — Atomic persistence enforcement:
-- [ ] Migrate manifest/cache/queue/pointer writes to shared atomic-write APIs.
-- [ ] Ban direct non-atomic writes for stateful files via targeted sweeps and regression tests.
-- [ ] Fix non-atomic persistence findings in incremental/cache/query-plan/tooling caches.
+- [x] Migrate manifest/cache/queue/pointer writes to shared atomic-write APIs.
+- [x] Ban direct non-atomic writes for stateful files via targeted sweeps and regression tests.
+- [x] Fix non-atomic persistence findings in incremental/cache/query-plan/tooling caches.
 
 Subphase F3.2 — Bounds/safety checks in readers/decoders:
-- [ ] Add cycle detection in `src/shared/json-stream/encode.js:20`.
-- [ ] Enforce vector-section bounds in `src/shared/embeddings-cache/format.js:85`.
-- [ ] Validate bloom payload length in `src/shared/bloom.js:102`.
-- [ ] Resolve FD guard and varint/read-bound findings in artifact readers.
+- [x] Add cycle detection in `src/shared/json-stream/encode.js:20`.
+- [x] Enforce vector-section bounds in `src/shared/embeddings-cache/format.js:85`.
+- [x] Validate bloom payload length in `src/shared/bloom.js:102`.
+- [x] Resolve FD guard and varint/read-bound findings in artifact readers.
 
 Subphase F3.3 — Storage lifecycle correctness:
-- [ ] Restore captured pragmas in `src/storage/sqlite/build/pragmas.js:95`.
-- [ ] Fix token posting shard-size NaN hazard in `src/index/build/artifacts/token-postings.js:29`.
-- [ ] Remove O(n²) artifact merge hotspots such as `file-meta` membership checks.
+- [x] Restore captured pragmas in `src/storage/sqlite/build/pragmas.js:95`.
+- [x] Fix token posting shard-size NaN hazard in `src/index/build/artifacts/token-postings.js:29`.
+- [x] Remove O(n²) artifact merge hotspots such as `file-meta` membership checks.
 
 Tests:
-- [ ] `tests/shared/io/atomic-write-contract.test.js` (from D1)
-- [ ] `tests/shared/json-stream/json-encode-cycle-guard.test.js` (new)
-- [ ] `tests/shared/embeddings-cache/decode-vector-bounds.test.js` (new)
-- [ ] `tests/shared/bloom/bloom-decode-length-contract.test.js` (new)
-- [ ] `tests/storage/sqlite/pragmas-restore-contract.test.js` (new)
-- [ ] `tests/indexing/artifacts/token-postings-shard-size-guard.test.js` (new)
-- [ ] `tests/indexing/artifacts/file-meta-membership-performance.test.js` (new)
+- [x] `tests/shared/io/atomic-write-contract.test.js` (from D1)
+- [x] `tests/shared/json-stream/json-encode-cycle-guard.test.js` (new)
+- [x] `tests/shared/embeddings-cache/decode-vector-bounds.test.js` (new)
+- [x] `tests/shared/bloom/bloom-decode-length-contract.test.js` (new)
+- [x] `tests/storage/sqlite/pragmas-restore-contract.test.js` (new)
+- [x] `tests/indexing/artifacts/token-postings-shard-size-guard.test.js` (new)
+- [x] `tests/indexing/artifacts/file-meta-membership-performance.test.js` (new)
+- [x] `tests/shared/artifact-io/varint-safe-bounds.test.js` (new)
+- [x] `tests/shared/files/read-file-range-fd-zero-guard.test.js` (new)
 
 Exit criteria:
-- [ ] No unbounded/corrupting reader-writer paths remain in artifact/storage hot paths.
-- [ ] Atomic-write-by-default gate passes in CI.
+- [x] No unbounded/corrupting reader-writer paths remain in artifact/storage hot paths.
+- [x] Atomic-write-by-default gate passes in CI.
+
+F3.DOC no-doc-change rationale (2026-02-10T02:10:55.2019640-05:00):
+- F3 changes were internal atomic-write and bounds-safety corrections with contract-test additions; no user-facing schema/config/doc behavior changed.
 
 ### Phase F4 — Retrieval/ANN/embeddings reliability
 
@@ -754,7 +759,7 @@ Documents: `docs/contracts/schemas/build-state.js` (and related contract docs in
 - [x] Task F2.DOC: Language/chunking/import correctness docs.
 Documents: `docs/language/*`, `docs/contracts/*` (language output contracts touched), `docs/testing/*` (new contract-test expectations).
 
-- [ ] Task F3.DOC: Artifact/storage crash-safety docs.
+- [x] Task F3.DOC: Artifact/storage crash-safety docs.
 Documents: `docs/contracts/schemas/*` (artifact/storage schema docs touched), `docs/sqlite/*`, `docs/specs/*` (I/O safety behavior docs touched), `docs/testing/*`.
 
 - [ ] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
