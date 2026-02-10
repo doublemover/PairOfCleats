@@ -1613,8 +1613,8 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Align byte-budget default overflow behavior with docs.
 - [x] Enforce comparator validation in all merge adopters.
 - [x] Fail fast on comparator contract violations.
-- [ ] Enforce Stage1 token-id collision policy.
-- [ ] Surface token-id collision failures in validation output.
+- [x] Enforce Stage1 token-id collision policy.
+- [x] Surface token-id collision failures in validation output.
 - [ ] Handle missing `effectiveLang` in filter-index generation.
 - [ ] Handle invalid `effectiveLang` in filter-index generation.
 - [ ] Add measured postings-queue byte metrics.
@@ -1657,7 +1657,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/indexing/validate/determinism-line-hash.test.js` (perf lane) (new)
 - [x] `tests/indexing/runtime/byte-budget-default-policy.test.js` (perf lane) (new)
 - [x] `tests/shared/merge/merge-comparator-adopters.test.js` (perf lane) (new)
-- [ ] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
+- [x] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
 - [ ] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
 - [ ] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
 - [ ] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)

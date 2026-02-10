@@ -5,6 +5,7 @@ import { registerTokenIdInvariant } from '../../shared/invariants.js';
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
 const POSTINGS_GUARD_SAMPLES = 5;
+const TOKEN_ID_COLLISION_SAMPLE_SIZE = 5;
 const POSTINGS_GUARDS = {
   phrase: { maxUnique: 1000000, maxPerChunk: 20000 },
   chargram: { maxUnique: 2000000, maxPerChunk: 50000 }
@@ -270,6 +271,47 @@ export function createIndexState() {
     }
   };
 }
+
+const normalizeTokenIdCollisionSample = (entry) => ({
+  id: entry?.id || null,
+  existing: entry?.existing || null,
+  token: entry?.token || null
+});
+
+export const getTokenIdCollisionSummary = (
+  state,
+  { sampleSize = TOKEN_ID_COLLISION_SAMPLE_SIZE } = {}
+) => {
+  const collisions = Array.isArray(state?.tokenIdCollisions) ? state.tokenIdCollisions : [];
+  const resolvedSampleSize = Number.isFinite(Number(sampleSize))
+    ? Math.max(0, Math.floor(Number(sampleSize)))
+    : TOKEN_ID_COLLISION_SAMPLE_SIZE;
+  const sample = collisions
+    .slice(0, resolvedSampleSize || 0)
+    .map((entry) => normalizeTokenIdCollisionSample(entry));
+  return {
+    policy: 'fail',
+    count: collisions.length,
+    sample
+  };
+};
+
+export const enforceTokenIdCollisionPolicy = (
+  state,
+  { sampleSize = TOKEN_ID_COLLISION_SAMPLE_SIZE } = {}
+) => {
+  const summary = getTokenIdCollisionSummary(state, { sampleSize });
+  if (!summary.count) return summary;
+  const sampleText = summary.sample
+    .map((entry) => `${entry.id}:${entry.existing}->${entry.token}`)
+    .join(', ');
+  const suffix = sampleText ? ` Samples: ${sampleText}` : '';
+  const err = new Error(`ERR_TOKEN_ID_COLLISION tokenId collisions detected (${summary.count}).${suffix}`);
+  err.code = 'ERR_TOKEN_ID_COLLISION';
+  err.count = summary.count;
+  err.collisions = summary.sample;
+  throw err;
+};
 
 /**
  * Append a processed chunk into global index structures.

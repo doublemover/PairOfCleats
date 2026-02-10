@@ -5,6 +5,7 @@ import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
 import { log } from '../../../../shared/progress.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
+import { getTokenIdCollisionSummary } from '../../state.js';
 
 export const writeIndexArtifactsForMode = async ({
   runtime,
@@ -48,6 +49,7 @@ export const writeIndexArtifactsForMode = async ({
   const riskInterproceduralEmitArtifacts = mode === 'code'
     ? (runtime.riskInterproceduralConfig?.emitArtifacts || null)
     : null;
+  const tokenIdCollisions = getTokenIdCollisionSummary(state);
   if (mode === 'code') {
     try {
       const result = computeInterproceduralRisk({
@@ -186,7 +188,10 @@ export const writeIndexArtifactsForMode = async ({
         summaryOnly: modeRiskInterproceduralSummaryOnly === true,
         emitArtifacts: riskInterproceduralEmitArtifacts
       },
-      riskRules: riskRules || null
+      riskRules: riskRules || null,
+      extensions: {
+        tokenIdCollisions
+      }
     }
   });
   return finalizedPerfProfile;

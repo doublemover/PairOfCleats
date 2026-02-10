@@ -460,6 +460,25 @@ export async function validateIndexArtifacts(input = {}) {
             'Rebuild index artifacts for this mode.'
           );
         }
+        const tokenCollisionSummary = indexState?.extensions?.tokenIdCollisions;
+        const tokenCollisionCount = Number.isFinite(Number(tokenCollisionSummary?.count))
+          ? Number(tokenCollisionSummary.count)
+          : 0;
+        if (tokenCollisionCount > 0) {
+          const sample = Array.isArray(tokenCollisionSummary?.sample) ? tokenCollisionSummary.sample : [];
+          const first = sample.length
+            ? sample[0]
+            : null;
+          const sampleText = first
+            ? ` (${first.id}:${first.existing}->${first.token})`
+            : '';
+          addIssue(
+            report,
+            mode,
+            `ERR_TOKEN_ID_COLLISION tokenId collisions recorded (${tokenCollisionCount})${sampleText}`,
+            'Rebuild index with canonical token IDs.'
+          );
+        }
       }
 
       const fileLists = readJsonArtifact('filelists', { required: strict });
