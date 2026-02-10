@@ -5,6 +5,7 @@ import {
   normalizeFilePath
 } from '../utils.js';
 import {
+  createUint8ClampStats,
   dequantizeUint8ToFloat32,
   isVectorEncodingCompatible,
   packUint32,
@@ -195,6 +196,15 @@ export async function buildDatabaseFromBundles({
     const vectorAnnEnabled = vectorConfig?.enabled === true;
     const encodeVector = vectorConfig?.encodeVector;
     const quantization = resolveQuantizationParams(vectorConfig?.quantization);
+    const denseClampStats = createUint8ClampStats();
+    const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
+    const emitDenseClampSummary = () => {
+      if (denseClampStats.totalValues <= 0) return;
+      warn(
+        `[sqlite] Uint8 vector values clamped while building ${mode}: ` +
+        `${denseClampStats.totalValues} value(s) across ${denseClampStats.totalVectors} vector(s).`
+      );
+    };
     let denseMetaSet = false;
     let denseDims = null;
     let vectorAnnWarned = false;
@@ -424,7 +434,7 @@ export async function buildDatabaseFromBundles({
               quantization.levels
             )
             : u8Embedding;
-          insertDense.run(mode, docId, packUint8(denseVector));
+          insertDense.run(mode, docId, packUint8(denseVector, { onClamp: recordDenseClamp }));
           validationStats.dense += 1;
           denseRows += 1;
           if (hasFloatEmbedding) denseFloatChunks += 1;
@@ -559,6 +569,7 @@ export async function buildDatabaseFromBundles({
         warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
       }
       rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
       return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
@@ -610,6 +621,7 @@ export async function buildDatabaseFromBundles({
       batchStats
     });
     succeeded = true;
+    emitDenseClampSummary();
     return { count, denseCount: validationStats.dense, embedStats, vectorAnn: vectorAnnState };
   } finally {
     rollbackSqliteBuildTransaction(db, batchStats);

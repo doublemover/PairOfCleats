@@ -62,17 +62,39 @@ export function packUint32(values) {
 }
 
 /**
+ * Create clamp statistics collector for bulk uint8 packing.
+ * @returns {{totalValues:number,totalVectors:number,record:(clamped:number)=>void}}
+ */
+export function createUint8ClampStats() {
+  return {
+    totalValues: 0,
+    totalVectors: 0,
+    record(clamped) {
+      if (!Number.isFinite(clamped) || clamped <= 0) return;
+      this.totalValues += clamped;
+      this.totalVectors += 1;
+    }
+  };
+}
+
+/**
  * Pack uint8 values into a Buffer.
  * @param {Iterable<number>} values
+ * @param {{onClamp?:(clamped:number)=>void}} [options]
  * @returns {Buffer}
  */
-export function packUint8(values) {
+export function packUint8(values, options = null) {
   const list = Array.isArray(values) || ArrayBuffer.isView(values)
     ? values
     : Array.from(values || []);
   const clamped = clampQuantizedVectorInPlace(list);
   if (clamped > 0) {
-    console.warn(`[sqlite] Uint8 vector values clamped (${clamped} value${clamped === 1 ? '' : 's'}).`);
+    const onClamp = typeof options?.onClamp === 'function' ? options.onClamp : null;
+    if (onClamp) {
+      onClamp(clamped);
+    } else {
+      console.warn(`[sqlite] Uint8 vector values clamped (${clamped} value${clamped === 1 ? '' : 's'}).`);
+    }
   }
   const arr = list instanceof Uint8Array ? list : Uint8Array.from(list);
   return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);

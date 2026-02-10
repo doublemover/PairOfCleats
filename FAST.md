@@ -13,25 +13,25 @@ Format:
 
 ## Sweep 1: Core hotspots (high-confidence wins)
 
-1. Area: Chunk-to-call detail matching
+1. [x] Area: Chunk-to-call detail matching
 - Files: `src/index/build/file-processor/process-chunks/dedupe.js`
 - Opportunity: Replace O(chunks * callDetails) containment scans with interval/binary-search or sweep structure.
 - Impact: Large CPU reduction on files with many call details.
 - Risk: Must preserve “smallest containing span” semantics.
 
-2. Area: Per-chunk lint filtering
+2. [x] Area: Per-chunk lint filtering
 - Files: `src/index/build/file-processor/process-chunks/index.js`
 - Opportunity: Replace per-chunk full `filter()` scans with pre-bucketed/sorted lint ranges.
 - Impact: Avoid O(chunks * lintEntries) behavior.
 - Risk: Maintain exact range inclusion behavior.
 
-3. Area: Repeated chunk text slicing
+3. [x] Area: Repeated chunk text slicing
 - Files: `src/index/build/file-processor/process-chunks/index.js`, `src/index/build/file-processor/process-chunks/enrichment.js`
 - Opportunity: Pass already-sliced chunk text into enrichment/type/risk steps.
 - Impact: Lower allocation and CPU in hot loops.
 - Risk: None if chunk boundaries are unchanged.
 
-4. Area: Byte-bound chunk splitting
+4. [x] Area: Byte-bound chunk splitting
 - Files: `src/index/chunking/limits.js`
 - Opportunity: Replace repeated `Buffer.byteLength(text.slice(...))` in binary-search loops with precomputed byte-offset tables.
 - Impact: Major speedup on large prose/text files.
@@ -55,13 +55,13 @@ Format:
 - Impact: Less parsing/scanning overhead.
 - Risk: Ensure metadata freshness and signature checks.
 
-8. Area: Sync I/O in import resolution
+8. [x] Area: Sync I/O in import resolution
 - Files: `src/index/build/import-resolution.js`
 - Opportunity: Replace frequent sync fs operations with async + memoized caches.
 - Impact: Better throughput and less event-loop blocking.
 - Risk: Cache invalidation (mtime/size) correctness.
 
-9. Area: VFS manifest collector serialization
+9. [x] Area: VFS manifest collector serialization
 - Files: `src/index/build/vfs-manifest-collector.js`
 - Opportunity: Cache serialized rows during append/spill to avoid double stringify.
 - Impact: Lower CPU in large manifest generation.
@@ -73,19 +73,19 @@ Format:
 - Impact: Better parallelism and less watch contention.
 - Risk: Need strict atomicity and promotion invariants.
 
-11. Area: Chunk meta multiple serializations
+11. [x] Area: Chunk meta multiple serializations
 - Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/shared/json-stream.js`
 - Opportunity: Single-pass scan+write or reuse cached JSONL lines.
 - Impact: Lower CPU and temp allocations.
 - Risk: Preserve ordering hash and metrics behavior.
 
-12. Area: Double-atomic shard writing
+12. [x] Area: Double-atomic shard writing
 - Files: `src/shared/json-stream.js`, `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts/token-postings.js`
 - Opportunity: Avoid per-part atomic writes when parent temp-dir rename is already atomic.
 - Impact: Fewer temp files/renames.
 - Risk: Keep crash safety guarantees.
 
-13. Area: Post-write `stat()` fanout
+13. [x] Area: Post-write `stat()` fanout
 - Files: `src/shared/json-stream.js`, `src/shared/json-stream/jsonl-batch.js`
 - Opportunity: Use known bytes-written counters instead of per-part `stat`.
 - Impact: Fewer syscalls.
@@ -103,19 +103,19 @@ Format:
 - Impact: Lower CPU on large arrays.
 - Risk: None if estimates are consistent.
 
-16. Area: Typed-array JSON encoding
+16. [x] Area: Typed-array JSON encoding
 - Files: `src/shared/json-stream/encode.js`
 - Opportunity: Batch numeric array writes into larger chunks (not per-element writes).
 - Impact: Lower write overhead for dense vectors/postings.
 - Risk: Ensure valid JSON output and memory bounds.
 
-17. Area: Cached JSONL line reuse
+17. [x] Area: Cached JSONL line reuse
 - Files: `src/index/build/artifacts/writers/chunk-meta.js`
 - Opportunity: Reuse `__jsonl` lines when already computed during spill paths.
 - Impact: Lower serialization work.
 - Risk: Must ensure line reflects final row content.
 
-18. Area: Manifest meta read cost
+18. [x] Area: Manifest meta read cost
 - Files: `src/shared/artifact-io/manifest.js`
 - Opportunity: Cache parsed meta JSON.
 - Impact: Faster repeated artifact resolution.
@@ -151,8 +151,8 @@ Format:
 - Impact: Large write-time reduction for partial rebuilds.
 - Risk: Requires reliable change tracking and consistency checks.
 
-24. Area: Per-vector clamp logging
-- Files: `src/storage/sqlite/vector.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/storage/sqlite/build/incremental-update.js`
+24. [x] Area: Per-vector clamp logging
+- Files: `src/storage/sqlite/vector.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/storage/sqlite/build/incremental-update.js`, `src/storage/sqlite/build/from-bundles.js`
 - Opportunity: Aggregate clamp warnings instead of per-vector logs.
 - Impact: Lower log overhead in large ingestion runs.
 - Risk: Slightly less granular diagnostics.
@@ -179,19 +179,19 @@ Format:
 - Impact: Better memory locality and fewer repeated full-text scans.
 - Risk: Keep exact heading/range behavior.
 
-2. Area: Markdown heading detection allocations
+2. [x] Area: Markdown heading detection allocations
 - Files: `src/index/chunking/formats/markdown.js`
 - Opportunity: Avoid materializing full `[...matchAll()]` arrays.
 - Impact: Reduced intermediate object retention.
 - Risk: None if iteration order preserved.
 
-3. Area: JSON chunk parsing allocations
+3. [x] Area: JSON chunk parsing allocations
 - Files: `src/index/chunking/formats/json.js`
 - Opportunity: Avoid repeated substring/search allocations in per-key loops.
 - Impact: Lower CPU/GC in large JSON files.
 - Risk: Must preserve parser correctness around escapes.
 
-4. Area: Per-chunk lookup reuse
+4. [x] Area: Per-chunk lookup reuse
 - Files: `src/index/build/file-processor/process-chunks/index.js`
 - Opportunity: Cache language + dictionary resolution per file/effective ext.
 - Impact: Lower hot-loop overhead.
@@ -239,19 +239,19 @@ Format:
 - Impact: Less wasted work on canceled builds.
 - Risk: Partial-output cleanup must stay safe.
 
-12. Area: Manifest piece-index rebuilds
+12. [x] Area: Manifest piece-index rebuilds
 - Files: `src/shared/artifact-io/manifest.js`
 - Opportunity: Cache `name -> entries` index per manifest object.
 - Impact: Faster repeated artifact lookups.
 - Risk: Must not cache across stale manifest objects.
 
-13. Area: Small-file JSONL read fast path
+13. [x] Area: Small-file JSONL read fast path
 - Files: `src/shared/artifact-io/json.js`
 - Opportunity: For small files, use buffered parse path instead of stream setup.
 - Impact: Lower overhead on frequent small artifact reads.
 - Risk: Need strict size threshold.
 
-14. Area: Small gzip buffered parse path
+14. [x] Area: Small gzip buffered parse path
 - Files: `src/shared/artifact-io/json.js`
 - Opportunity: Buffered decompress+parse for tiny gzip files.
 - Impact: Less stream overhead.
@@ -269,7 +269,7 @@ Format:
 - Impact: Fewer syscalls and lower latency.
 - Risk: FD lifecycle/leak management.
 
-17. Area: Coalesced row read batches
+17. [x] Area: Coalesced row read batches
 - Files: `src/shared/artifact-io/loaders.js`
 - Opportunity: Group sorted offsets and read contiguous spans.
 - Impact: Better I/O locality for symbol/chunk reads.

@@ -13,6 +13,7 @@ import {
   bumpSqliteBatchStat
 } from '../utils.js';
 import {
+  createUint8ClampStats,
   packUint32,
   packUint8,
   isVectorEncodingCompatible,
@@ -96,6 +97,8 @@ export async function incrementalUpdateDatabase({
     console.warn(message);
   };
   const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const denseClampStats = createUint8ClampStats();
+  const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   if (batchStats) {
@@ -621,7 +624,10 @@ export async function incrementalUpdateDatabase({
           insertDense.run(
             mode,
             docId,
-            packUint8(quantizeVec(chunk.embedding, quantization.minVal, quantization.maxVal, quantization.levels))
+            packUint8(
+              quantizeVec(chunk.embedding, quantization.minVal, quantization.maxVal, quantization.levels),
+              { onClamp: recordDenseClamp }
+            )
           );
           denseRows += 1;
           if (vectorAnn?.loaded) {
@@ -708,6 +714,12 @@ export async function incrementalUpdateDatabase({
     recordTable('dense_meta', denseMetaRows, 0);
     recordTable('file_manifest', fileManifestRows, applyDurationMs);
     recordTable('token_stats', tokenStatsRows, 0);
+    if (denseClampStats.totalValues > 0 && emitOutput) {
+      warn(
+        `[sqlite] Uint8 vector values clamped while updating ${mode}: ` +
+        `${denseClampStats.totalValues} value(s) across ${denseClampStats.totalVectors} vector(s).`
+      );
+    }
     if (batchStats) {
       batchStats.validationMs = validationMs;
       batchStats.transactionPhases = {

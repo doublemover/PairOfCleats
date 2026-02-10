@@ -15,6 +15,7 @@ import {
   loadSqliteIndexOptionalArtifacts
 } from '../utils.js';
 import {
+  createUint8ClampStats,
   packUint32,
   packUint8,
   dequantizeUint8ToFloat32,
@@ -348,6 +349,8 @@ export async function buildDatabaseFromArtifacts({
   const encodeVector = vectorConfig?.encodeVector;
   const quantization = resolveQuantizationParams(vectorConfig?.quantization);
   let vectorAnnInsertWarned = false;
+  const denseClampStats = createUint8ClampStats();
+  const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
 
   const resolvedInputBytes = Number(inputBytes);
   const hasInputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0;
@@ -1008,7 +1011,7 @@ export async function buildDatabaseFromArtifacts({
         for (let docId = start; docId < end; docId += 1) {
           const vec = dense.vectors[docId];
           if (!vec) continue;
-          insertDense.run(targetMode, docId, packUint8(vec));
+          insertDense.run(targetMode, docId, packUint8(vec, { onClamp: recordDenseClamp }));
           validationStats.dense += 1;
           denseRows += 1;
           if (vectorAnn?.insert && encodeVector) {
@@ -1516,6 +1519,12 @@ export async function buildDatabaseFromArtifacts({
     });
     succeeded = true;
   } finally {
+    if (denseClampStats.totalValues > 0) {
+      warn(
+        `[sqlite] Uint8 vector values clamped while building ${mode}: ` +
+        `${denseClampStats.totalValues} value(s) across ${denseClampStats.totalVectors} vector(s).`
+      );
+    }
     await closeSqliteBuildDatabase({
       db,
       succeeded,
