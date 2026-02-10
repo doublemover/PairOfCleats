@@ -14,7 +14,9 @@ const normalizeExtensions = (extensions) => {
 };
 
 export const resolveRelativeImportCandidates = (normalizedPath, extensions = []) => {
-  const trimmed = String(normalizedPath || '').replace(/\/+$/, '');
+  const rawPath = String(normalizedPath || '');
+  const hasTrailingSlash = /\/+$/.test(rawPath);
+  const trimmed = rawPath.replace(/\/+$/, '');
   if (!trimmed) return [];
   const ext = path.posix.extname(trimmed);
   if (ext) return [trimmed];
@@ -22,6 +24,10 @@ export const resolveRelativeImportCandidates = (normalizedPath, extensions = [])
   const resolvedExtensions = normalizeExtensions(extensions);
   const candidates = [];
   for (const candidateExt of resolvedExtensions) {
+    if (hasTrailingSlash) {
+      candidates.push(path.posix.join(trimmed, `index${candidateExt}`));
+      continue;
+    }
     candidates.push(`${trimmed}${candidateExt}`);
     candidates.push(path.posix.join(trimmed, `index${candidateExt}`));
   }
