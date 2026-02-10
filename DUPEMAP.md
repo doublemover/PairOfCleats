@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:25:58.0431998-05:00
+Last updated: 2026-02-09T23:35:24.4525105-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1263,12 +1263,21 @@ Clusters: 3, 4, 5, 6, 7.
 
 ### Subphase D3.1 — SQLite build core
 Tasks:
-- [ ] Task D3.1.a: Extract shared DB open/pragmas/schema/setup/insert pipeline core.
+- [x] Task D3.1.a: Extract shared DB open/pragmas/schema/setup/insert pipeline core.
 Details: Keep source enumeration in adapter modules.
-- [ ] Task D3.1.b: Refactor `from-artifacts` to adapter usage.
+- [x] Task D3.1.b: Refactor `from-artifacts` to adapter usage.
 Details: Remove shared logic duplicates after migration.
-- [ ] Task D3.1.c: Refactor `from-bundles` to adapter usage.
+- [x] Task D3.1.c: Refactor `from-bundles` to adapter usage.
 Details: Preserve bundle-specific buffering/vector insertion.
+
+D3.1 status update (2026-02-09T23:35:24.4525105-05:00):
+- resolved: added canonical sqlite build core helper module `src/storage/sqlite/build/core.js` for shared batch/stat normalization, DB open/pragmas/schema setup, multi-row inserter setup, transaction accounting, post-commit validation/optimization, and cleanup.
+- resolved: refactored `src/storage/sqlite/build/from-artifacts.js` to consume shared core helpers while preserving artifact-specific source enumeration/staging ingestion behavior.
+- resolved: refactored `src/storage/sqlite/build/from-bundles.js` to consume shared core helpers while preserving bundle loader, progress logging, embedding/vector-ann insertion, and failure fallback contract.
+- remaining: D3.2 completed previously; D3.3 quantization/vocab parity and D3.4 LMDB utility consolidation remain.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number 'createInsertStatements|createMultiRowInserter|applyBuildPragmas|restoreBuildPragmas|validateSqliteDatabase|resolveSqliteBatchSize|bumpSqliteBatchStat' src/storage/sqlite/build/from-artifacts.js src/storage/sqlite/build/from-bundles.js`; `rg --line-number 'createBuildExecutionContext|openSqliteBuildDatabase|createSqliteBuildInsertContext|runSqliteBuildPostCommit|closeSqliteBuildDatabase' src/storage/sqlite/build/from-artifacts.js src/storage/sqlite/build/from-bundles.js src/storage/sqlite/build/core.js`.
 
 ### Subphase D3.2 — src/tools SQLite helper unification
 Tasks:
@@ -1313,7 +1322,7 @@ Details: No duplicate `new Unpackr` helpers remain outside shared module.
 - [x] `rg "output-paths\.js|index-state\.js|createNoopTask" src tools/build/sqlite tools/shared`
 
 ### Tests
-- [ ] `tests/storage/sqlite/build/sqlite-build-core-contract.test.js` (new)
+- [x] `tests/storage/sqlite/build/sqlite-build-core-contract.test.js` (new)
 - [ ] `tests/storage/sqlite/quantization/quantization-parity.test.js` (new)
 - [ ] `tests/storage/sqlite/vocab/vocab-fetch-parity.test.js` (new)
 - [ ] `tests/storage/lmdb/lmdb-utils-contract.test.js` (new)

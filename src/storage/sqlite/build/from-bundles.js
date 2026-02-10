@@ -1,12 +1,8 @@
-import fsSync from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
-import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
+import { CREATE_INDEXES_SQL } from '../schema.js';
 import {
-  normalizeFilePath,
-  removeSqliteSidecars,
-  resolveSqliteBatchSize,
-  bumpSqliteBatchStat
+  normalizeFilePath
 } from '../utils.js';
 import {
   dequantizeUint8ToFloat32,
@@ -19,11 +15,17 @@ import {
   resolveVectorEncodingBytes,
   toSqliteRowId
 } from '../vector.js';
-import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
-import { validateSqliteDatabase } from './validate.js';
-import { createInsertStatements } from './statements.js';
-import { createMultiRowInserter } from './multi-row.js';
+import {
+  beginSqliteBuildTransaction,
+  closeSqliteBuildDatabase,
+  commitSqliteBuildTransaction,
+  createBuildExecutionContext,
+  createSqliteBuildInsertContext,
+  openSqliteBuildDatabase,
+  rollbackSqliteBuildTransaction,
+  runSqliteBuildPostCommit
+} from './core.js';
 import { createBundleLoader } from './bundle-loader.js';
 
 /**
@@ -92,36 +94,13 @@ export async function buildDatabaseFromBundles({
   if (!incrementalData?.manifest) {
     return { count: 0, denseCount: 0, reason: 'missing incremental manifest' };
   }
-  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
-  const batchStats = stats && typeof stats === 'object' ? stats : null;
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
-  if (batchStats) {
-    batchStats.batchSize = resolvedBatchSize;
-  }
-  const normalizedStatementStrategy = typeof statementStrategy === 'string'
-    ? statementStrategy.trim().toLowerCase()
-    : '';
-  const resolvedStatementStrategy = ['prepared', 'multi-row', 'prepare-per-shard'].includes(
-    normalizedStatementStrategy
-  )
-    ? normalizedStatementStrategy
-    : 'multi-row';
-  if (batchStats) {
-    batchStats.statementStrategy = resolvedStatementStrategy;
-  }
-  const tableStats = batchStats
-    ? (batchStats.tables || (batchStats.tables = {}))
-    : null;
-  const recordTable = (name, rows, durationMs) => {
-    if (!tableStats || !name) return;
-    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
-    entry.rows += rows;
-    entry.durationMs += durationMs;
-    entry.rowsPerSec = entry.durationMs > 0
-      ? Math.round((entry.rows / entry.durationMs) * 1000)
-      : null;
-    tableStats[name] = entry;
-  };
+  const {
+    resolvedBatchSize,
+    batchStats,
+    resolvedStatementStrategy,
+    recordBatch,
+    recordTable
+  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   const manifestEntries = manifestLookup.entries;
@@ -157,30 +136,17 @@ export async function buildDatabaseFromBundles({
     }
   }
 
-  const db = new Database(outPath);
-  if (batchStats) {
-    const prepareStats = batchStats.prepare || (batchStats.prepare = {});
-    if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
-    const originalPrepare = db.prepare.bind(db);
-    db.prepare = (sql) => {
-      prepareStats.total += 1;
-      return originalPrepare(sql);
-    };
-    const txStats = batchStats.transaction || (batchStats.transaction = {});
-    if (!Number.isFinite(txStats.begin)) txStats.begin = 0;
-    if (!Number.isFinite(txStats.commit)) txStats.commit = 0;
-    if (!Number.isFinite(txStats.rollback)) txStats.rollback = 0;
-    const resolvedInputBytes = Number(inputBytes);
-    batchStats.inputBytes = Number.isFinite(resolvedInputBytes) && resolvedInputBytes > 0 ? resolvedInputBytes : 0;
-  }
   const useBuildPragmas = buildPragmas !== false;
   const useOptimize = optimize !== false;
-  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
-  db.exec(CREATE_TABLES_BASE_SQL);
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  const { db, pragmaState } = openSqliteBuildDatabase({
+    Database,
+    outPath,
+    batchStats,
+    inputBytes,
+    useBuildPragmas
+  });
   let succeeded = false;
   try {
-    const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
     const {
       insertChunk,
       insertFts,
@@ -195,77 +161,17 @@ export async function buildDatabaseFromBundles({
       insertMinhash,
       insertDense,
       insertDenseMeta,
-      insertFileManifest
-    } = statements;
+      insertFileManifest,
+      insertTokenVocabMany,
+      insertTokenPostingMany,
+      insertDocLengthMany,
+      insertPhraseVocabMany,
+      insertPhrasePostingMany,
+      insertChargramVocabMany,
+      insertChargramPostingMany
+    } = createSqliteBuildInsertContext(db, { batchStats, resolvedStatementStrategy });
 
-    const insertClause = batchStats?.insertStatements?.insertClause || 'INSERT OR REPLACE';
-    const useMultiRow = resolvedStatementStrategy === 'multi-row';
-    const insertTokenVocabMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'token_vocab',
-        columns: ['mode', 'token_id', 'token'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-    const insertTokenPostingMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'token_postings',
-        columns: ['mode', 'token_id', 'doc_id', 'tf'],
-        insertClause,
-        maxRows: 200,
-        stats: batchStats
-      })
-      : null;
-    const insertDocLengthMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'doc_lengths',
-        columns: ['mode', 'doc_id', 'len'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-    const insertPhraseVocabMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'phrase_vocab',
-        columns: ['mode', 'phrase_id', 'ngram'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-    const insertPhrasePostingMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'phrase_postings',
-        columns: ['mode', 'phrase_id', 'doc_id'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-    const insertChargramVocabMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'chargram_vocab',
-        columns: ['mode', 'gram_id', 'gram'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-    const insertChargramPostingMany = useMultiRow
-      ? createMultiRowInserter(db, {
-        table: 'chargram_postings',
-        columns: ['mode', 'gram_id', 'doc_id'],
-        insertClause,
-        maxRows: 300,
-        stats: batchStats
-      })
-      : null;
-
-    db.exec('BEGIN');
-    if (batchStats?.transaction) batchStats.transaction.begin += 1;
+    beginSqliteBuildTransaction(db, batchStats);
 
     const tokenIdMap = new Map();
     const phraseIdMap = new Map();
@@ -652,12 +558,7 @@ export async function buildDatabaseFromBundles({
       if (emitOutput) {
         warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
       }
-      if (db.inTransaction) {
-        try {
-          db.exec('ROLLBACK');
-          if (batchStats?.transaction) batchStats.transaction.rollback += 1;
-        } catch {}
-      }
+      rollbackSqliteBuildTransaction(db, batchStats);
       return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
@@ -695,52 +596,30 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
-    db.exec('COMMIT');
-    if (batchStats?.transaction) batchStats.transaction.commit += 1;
-    if (useOptimize) {
-      optimizeFtsTable(db, 'chunks_fts', { stats: batchStats });
-      optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
-    }
-    const validationStart = performance.now();
-    validateSqliteDatabase(db, mode, {
+    commitSqliteBuildTransaction(db, batchStats);
+    runSqliteBuildPostCommit({
+      db,
+      mode,
       validateMode,
       expected: validationStats,
       emitOutput,
       logger,
-      dbPath: outPath
+      dbPath: outPath,
+      useOptimize,
+      inputBytes,
+      batchStats
     });
-    if (batchStats) {
-      batchStats.validationMs = performance.now() - validationStart;
-    }
-    try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
-    } catch {}
     succeeded = true;
     return { count, denseCount: validationStats.dense, embedStats, vectorAnn: vectorAnnState };
   } finally {
-    if (!succeeded && db.inTransaction) {
-      try {
-        db.exec('ROLLBACK');
-        if (batchStats?.transaction) batchStats.transaction.rollback += 1;
-      } catch {}
-    }
-    if (succeeded) {
-      try {
-        db.pragma('wal_checkpoint(TRUNCATE)');
-      } catch (err) {
-        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
-      }
-    }
-    if (pragmaState) {
-      restoreBuildPragmas(db, pragmaState);
-    }
-    db.close();
-    if (!succeeded) {
-      try {
-        fsSync.rmSync(outPath, { force: true });
-      } catch {}
-      await removeSqliteSidecars(outPath);
-    }
+    rollbackSqliteBuildTransaction(db, batchStats);
+    await closeSqliteBuildDatabase({
+      db,
+      succeeded,
+      pragmaState,
+      outPath,
+      warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
+    });
   }
 }
 

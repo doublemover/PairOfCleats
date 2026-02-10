@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:25:58.0431998-05:00",
+  "updatedAt": "2026-02-09T23:35:24.4525105-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -28,7 +28,7 @@
       "clusterId": "C03",
       "title": "SQLite build pipeline duplication",
       "phase": "D3",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/storage/sqlite/build/from-artifacts.js",
         "src/storage/sqlite/build/from-bundles.js"
@@ -346,7 +346,7 @@
   "migrations": [
     { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
     { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
-    { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::buildSqliteFromArtifacts", "newPathOrSymbol": "src/storage/sqlite/build/core.js::buildSqliteCore", "status": "planned" },
+    { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext}", "status": "completed" },
     { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveOutputPaths", "status": "completed" },
     { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "planned" },
     { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows", "newPathOrSymbol": "src/storage/sqlite/vocab.js::fetchVocabRows", "status": "planned" },
@@ -453,7 +453,9 @@
     { "migrationId": "M107", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/relations.js::resolveCalleeParts", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCalleeParts", "status": "completed" },
     { "migrationId": "M108", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/{javascript,typescript}/relations.js::normalize/truncate call text", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::{normalizeCallText,truncateCallText}", "status": "completed" },
     { "migrationId": "M109", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/index-state.js::updateSqliteState", "newPathOrSymbol": "src/storage/sqlite/build/index-state.js::updateSqliteState", "status": "completed" },
-    { "migrationId": "M110", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/runner.js::createNoopTask/resolveTaskFactory local implementations", "newPathOrSymbol": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}", "status": "completed" }
+    { "migrationId": "M110", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/runner.js::createNoopTask/resolveTaskFactory local implementations", "newPathOrSymbol": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}", "status": "completed" },
+    { "migrationId": "M111", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-bundles.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
+    { "migrationId": "M112", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-{artifacts,bundles}.js::manual BEGIN/COMMIT/ROLLBACK + validate/optimize/checkpoint/cleanup blocks", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{beginSqliteBuildTransaction,commitSqliteBuildTransaction,rollbackSqliteBuildTransaction,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -616,6 +618,13 @@
       "scope": "src/storage/sqlite/build/**,tools/shared/**",
       "pattern": "local createNoopTask/resolveTaskFactory helper bodies",
       "replacement": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}"
+    },
+    {
+      "banId": "B033",
+      "phase": "D3",
+      "scope": "src/storage/sqlite/build/from-{artifacts,bundles}.js",
+      "pattern": "duplicated sqlite build setup stacks (batch/statement normalization, pragmas/schema setup, multi-row inserter wiring, transaction bookkeeping, post-commit validate/cleanup)",
+      "replacement": "src/storage/sqlite/build/core.js shared helper API"
     }
   ],
   "exceptions": [],
