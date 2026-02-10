@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T00:00:00Z
+Last rewritten: 2026-02-10T02:00:00Z
 Branch: `LANGMANE`
 Document status: planning baseline (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.2).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.3).
 
 Primary shifts in this rewrite:
 
@@ -77,12 +77,16 @@ This roadmap is governed by these authoritative documents:
 - [ ] USR section 11.4 normalization mapping is table-driven and deterministic.
 - [ ] USR section 12.3 capability state machine transitions are validated.
 - [ ] USR section 16.4 determinism pass criteria are part of CI gates.
+- [ ] USR section 33 diagnostic and resolution reason-code taxonomy is fully implemented and strict-validated.
+- [ ] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
+- [ ] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
+- [ ] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
 
 ## 6) Phase Index (Implementation before Test Rollout)
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.2 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.3 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -105,7 +109,7 @@ This roadmap is governed by these authoritative documents:
 
 ### 0.1 USR traceability
 
-- [ ] Add a traceability matrix linking USR sections 5 through 29 to roadmap tasks.
+- [ ] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
 - [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
 - [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
 - [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
@@ -134,6 +138,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Create `tests/lang/matrix/usr-edge-kind-constraints.json`.
 - [ ] Create `tests/lang/matrix/usr-capability-matrix.json`.
 - [ ] Create `tests/lang/matrix/usr-conformance-levels.json`.
+- [ ] Create `tests/lang/matrix/usr-backcompat-matrix.json` (USR section 36.4).
 
 ### 1.2 Schema and validator package (USR section 24)
 
@@ -142,12 +147,16 @@ This roadmap is governed by these authoritative documents:
 - [ ] Export all required USR schema constants.
 - [ ] Enforce strict ID grammar validation.
 - [ ] Enforce strict edge endpoint constraints.
+- [ ] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
+- [ ] Enforce strict canonical example fixture validation rules (USR section 34.11).
 
 ### 1.3 Drift and completeness checks
 
 - [ ] Add registry drift test: language registry IDs vs `usr-language-profiles.json` exact-set equality.
 - [ ] Add framework profile referential integrity test.
 - [ ] Add unknown-key strictness test for all USR matrix files.
+- [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
+- [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 
 ### 1.4 Exit criteria
 
@@ -247,6 +256,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Complete Svelte/SvelteKit profile tasks (Appendix D).
 - [ ] Complete Angular profile tasks (Appendix D).
 - [ ] Complete Astro profile tasks (Appendix D).
+- [ ] Implement section 35 canonical edge attrs requirements (`route_maps_to`, `template_binds`, `style_scopes`) for each framework profile.
 
 ### 5.2 Framework applicability enforcement
 
@@ -271,6 +281,7 @@ This roadmap is governed by these authoritative documents:
 
 - [ ] Complete C3 requirements for risk-local and risk-interprocedural where required.
 - [ ] Implement capability state machine transitions and diagnostic semantics.
+- [ ] Implement remediation-class routing for diagnostics (USR section 33.4) in reporting outputs.
 
 ### 6.3 Query/filter semantics
 
@@ -290,6 +301,8 @@ This roadmap is governed by these authoritative documents:
 
 - [ ] Expand fixture inventories per language to include positive, negative, malformed, cap-triggering, and mixed cases.
 - [ ] Expand framework fixtures for all profile-specific edge cases.
+- [ ] Materialize canonical example bundles matching USR section 34 minimal/maximal entities with cross-entity coherence checks.
+- [ ] Materialize framework edge-case fixtures per USR section 35.11 checklist.
 
 ### 7.2 Golden generation and review
 
@@ -314,6 +327,7 @@ This roadmap is governed by these authoritative documents:
 
 - [ ] Enforce parser/node/edge/path caps per policy.
 - [ ] Emit truncation diagnostics and maintain schema validity under caps.
+- [ ] Enforce diagnostics taxonomy severity/code alignment under cap-triggered degradation.
 
 ### 8.3 Performance thresholds
 
@@ -335,6 +349,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Validate completion evidence for all B1-B7 task packs.
 - [ ] Validate framework profile completion evidence.
 - [ ] Validate conformance matrix readiness by language.
+- [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
 
 ### 9.2 Go/No-Go decision
 
@@ -357,12 +372,15 @@ This roadmap is governed by these authoritative documents:
 - [ ] Materialize ID grammar checks in harness.
 - [ ] Materialize edge endpoint constraint checks in harness.
 - [ ] Materialize capability state machine checks in harness.
+- [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
+- [ ] Materialize canonical example bundle validator lane for section 34 references.
 
 ### 10.2 Lane wiring
 
 - [ ] Add conformance lane(s) per C0-C4.
 - [ ] Add per-batch shards and deterministic order manifests.
 - [ ] Add diagnostics summary and transition reporting.
+- [ ] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.
 
 ### 10.3 Exit criteria
 
@@ -408,6 +426,7 @@ This roadmap is governed by these authoritative documents:
 ### 13.1 C4 execution
 
 - [ ] Execute C4 checks for React, Vue, Next, Nuxt, Svelte/SvelteKit, Angular, Astro.
+- [ ] Execute section 35 canonicalization checks for route/template/style edges and edge-case fixtures across all framework profiles.
 
 ### 13.2 Exit criteria
 
@@ -440,12 +459,14 @@ This roadmap is governed by these authoritative documents:
 
 - [ ] Enforce Gate A, B1-B8, and C gates in CI.
 - [ ] Enforce C0-C4 conformance lane required checks.
+- [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 
 ### 15.2 Reporting
 
 - [ ] Emit language-level conformance dashboards.
 - [ ] Emit framework-level conformance dashboards.
 - [ ] Emit capability transition and degradation reports.
+- [ ] Emit compatibility matrix rollups including required section 36.8 dimensions.
 
 ### 15.3 Maintenance
 
@@ -482,6 +503,10 @@ This roadmap is governed by these authoritative documents:
 | 27 | deprecation policy | 15 |
 | 28 | change-control policy | 15 |
 | 29 | extension policy | 15 |
+| 33 | diagnostic and reason-code taxonomy | 1, 6, 10, 15 |
+| 34 | canonical JSON examples | 7, 10 |
+| 35 | per-framework edge canonicalization examples | 5, 7, 13 |
+| 36 | backward-compatibility matrix | 1, 9, 10, 15 |
 
 ---
 
@@ -492,6 +517,8 @@ This roadmap is governed by these authoritative documents:
 - [ ] USR registry JSON files created and schema-validated.
 - [ ] USR schema/validator package implemented.
 - [ ] registry drift checks pass.
+- [ ] diagnostic/reason-code taxonomy validators implemented and passing.
+- [ ] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
 
 ### Gate B1-B7 (language batch gates)
 
@@ -499,17 +526,20 @@ This roadmap is governed by these authoritative documents:
 - [ ] C0/C1 checks pass for batch languages.
 - [ ] determinism checks pass for batch languages.
 - [ ] known degradations recorded with diagnostic codes.
+- [ ] diagnostic severity/code alignment checks pass for language batch fixtures.
 
 ### Gate B8 (cross-batch integration)
 
 - [ ] mixed-repo integration checks pass.
 - [ ] cross-batch regressions resolved.
+- [ ] cross-language canonical example bundle coherence checks pass.
 
 ### Gate C (test rollout)
 
 - [ ] all prior gates pass.
 - [ ] harness and lanes materialized.
 - [ ] conformance rollout authorized.
+- [ ] backward-compat matrix strict scenarios are green in CI.
 
 ---
 
@@ -895,6 +925,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement prop-flow linkage from JSX usage to component definitions where resolvable.
 - [ ] Implement risk sink coverage for `dangerouslySetInnerHTML` and unsafe DOM APIs.
 - [ ] Implement SSR/CSR marker capture for hybrid React environments.
+- [ ] Implement and validate all React-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for context providers, memo/forwardRef, suspense/lazy boundaries.
 - [ ] Add degradation fixtures for malformed JSX and mixed transpiler syntax.
 
@@ -906,6 +937,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement style scope linkage for scoped/module/global styles.
 - [ ] Implement risk sink coverage for `v-html` and template injection surfaces.
 - [ ] Implement script setup metadata capture in attrs.
+- [ ] Implement and validate all Vue-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for slots/scoped slots, teleport, suspense, and composition API patterns.
 - [ ] Add degradation fixtures for malformed SFC block boundaries.
 
@@ -916,6 +948,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement server/client boundary detection and hydration boundary edges.
 - [ ] Implement API route extraction and runtimeSide attribution.
 - [ ] Implement deterministic route pattern normalization for dynamic segments.
+- [ ] Implement and validate all Next-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for nested routes, route groups, server actions, and middleware adjacency.
 - [ ] Add degradation fixtures for ambiguous route files and mixed conventions.
 
@@ -925,6 +958,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement `server/api` and `server/routes` handler extraction.
 - [ ] Implement route/component/server linkage edges with deterministic ordering.
 - [ ] Implement server/client boundary metadata for universal code paths.
+- [ ] Implement and validate all Nuxt-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for layered Nuxt configs and module integration cases.
 - [ ] Add degradation fixtures for unresolved auto-import and alias scenarios.
 
@@ -934,6 +968,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement binding edges for `bind:`, `on:`, `let:` semantics.
 - [ ] Implement style scope linkage for component-local and global styles.
 - [ ] Implement component symbol extraction and template linkage.
+- [ ] Implement and validate all Svelte-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for stores/actions/transitions and slot forwarding.
 - [ ] Add degradation fixtures for malformed Svelte markup/script boundaries.
 
@@ -943,6 +978,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement route-to-component/handler linkage for `+page`, `+layout`, and server endpoints.
 - [ ] Implement server/client boundary metadata for load/actions.
 - [ ] Implement deterministic route pattern normalization.
+- [ ] Implement and validate all SvelteKit-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for nested layouts and endpoint adjacency.
 - [ ] Add degradation fixtures for partial route trees and malformed conventions.
 
@@ -953,6 +989,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement standalone and module-mode coverage.
 - [ ] Implement route extraction and route-to-component linkage.
 - [ ] Implement style/template URL linkage and inline equivalents.
+- [ ] Implement and validate all Angular-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for lazy modules, standalone routes, and signal-based patterns.
 - [ ] Add degradation fixtures for malformed decorators/templates.
 
@@ -962,6 +999,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Implement framework island component import/reference linkage.
 - [ ] Implement frontmatter symbol extraction and template binding bridge edges.
 - [ ] Implement route extraction for Astro file-based routing contexts.
+- [ ] Implement and validate all Astro-specific route/template/style edge-case canonicalization cases from USR section 35.11.
 - [ ] Add fixtures for mixed framework islands and content collections usage.
 - [ ] Add degradation fixtures for malformed frontmatter/template boundaries.
 
@@ -1041,6 +1079,13 @@ This roadmap is governed by these authoritative documents:
 - [ ] Enforce namespaced extension usage.
 - [ ] Disallow extension overrides of canonical required semantics.
 - [ ] Validate extension determinism in CI.
+
+### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)
+
+- [ ] Enforce section 33 diagnostic and reason-code taxonomy in strict validators and reporting.
+- [ ] Keep section 34 canonical JSON examples synchronized with executable fixture bundles.
+- [ ] Enforce section 35 route/template/style canonical attrs and framework edge-case checklist in C4 lanes.
+- [ ] Enforce section 36 compatibility matrix execution, pairwise expansion, and reporting dimensions in CI.
 
 ---
 
