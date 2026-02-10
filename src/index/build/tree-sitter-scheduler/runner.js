@@ -8,12 +8,15 @@ import { createTreeSitterSchedulerLookup } from './lookup.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 
-const loadIndexEntries = async ({ grammarKeys, paths }) => {
+const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
+  throwIfAborted(abortSignal);
   const index = new Map();
   for (const grammarKey of grammarKeys || []) {
+    throwIfAborted(abortSignal);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
     const text = await fs.readFile(indexPath, 'utf8');
     for (const line of text.split(/\r?\n/)) {
+      throwIfAborted(abortSignal);
       const trimmed = line.trim();
       if (!trimmed) continue;
       const row = JSON.parse(trimmed);
@@ -64,11 +67,14 @@ export const runTreeSitterScheduler = async ({
       killTree: true,
       rejectOnNonZeroExit: true
     });
+    throwIfAborted(abortSignal);
   }
 
+  throwIfAborted(abortSignal);
   const index = await loadIndexEntries({
     grammarKeys,
-    paths: planResult.paths
+    paths: planResult.paths,
+    abortSignal
   });
   const lookup = createTreeSitterSchedulerLookup({
     outDir,

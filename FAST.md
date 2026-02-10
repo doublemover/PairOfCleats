@@ -173,7 +173,7 @@ Format:
 
 ## Sweep 2: Additional non-overlapping opportunities
 
-1. Area: Line-based chunker architecture
+1. [x] Area: Line-based chunker architecture
 - Files: `src/index/chunking/dispatch.js`, `src/index/chunking/formats/yaml.js`, `src/index/chunking/formats/json.js`, `src/index/chunking/formats/markdown.js`
 - Opportunity: Shared streaming line iterator + shared line index.
 - Impact: Better memory locality and fewer repeated full-text scans.
@@ -233,7 +233,7 @@ Format:
 - Impact: Better tail latency and cancellation behavior.
 - Risk: Must not regress throughput defaults.
 
-11. Area: Scheduler cancellation gaps
+11. [x] Area: Scheduler cancellation gaps
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/subprocess-exec.js`
 - Opportunity: Add abort checks in index loading and child cleanup paths.
 - Impact: Less wasted work on canceled builds.
