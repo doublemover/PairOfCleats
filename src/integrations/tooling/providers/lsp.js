@@ -32,6 +32,62 @@ const normalizeTypeText = (value) => {
   return String(value).replace(/\s+/g, ' ').trim() || null;
 };
 
+const normalizeSignatureCacheText = (value) => (
+  String(value || '').replace(/\s+/g, ' ').trim()
+);
+
+const toFiniteInt = (value, min = null) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const normalized = Math.floor(parsed);
+  if (!Number.isFinite(min)) return normalized;
+  return Math.max(min, normalized);
+};
+
+const percentile = (values, ratio) => {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const target = Number(ratio);
+  if (!Number.isFinite(target) || target <= 0) return Math.min(...values);
+  if (target >= 1) return Math.max(...values);
+  const sorted = values.slice().sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(target * sorted.length) - 1));
+  return sorted[index];
+};
+
+const summarizeLatencies = (values) => {
+  if (!Array.isArray(values) || values.length === 0) {
+    return { count: 0, p50Ms: null, p95Ms: null };
+  }
+  return {
+    count: values.length,
+    p50Ms: percentile(values, 0.5),
+    p95Ms: percentile(values, 0.95)
+  };
+};
+
+const createHoverFileStats = () => ({
+  requested: 0,
+  succeeded: 0,
+  timedOut: 0,
+  skippedByBudget: 0,
+  skippedByKind: 0,
+  skippedByReturnSufficient: 0,
+  skippedByAdaptiveDisable: 0,
+  skippedByGlobalDisable: 0,
+  latencyMs: [],
+  disabledAdaptive: false
+});
+
+const normalizeHoverKinds = (kinds) => {
+  if (kinds == null) return null;
+  const source = Array.isArray(kinds) ? kinds : [kinds];
+  const normalized = source
+    .map((entry) => toFiniteInt(entry, 0))
+    .filter((entry) => Number.isFinite(entry));
+  if (!normalized.length) return null;
+  return new Set(normalized);
+};
+
 const normalizeParamTypes = (paramTypes) => {
   if (!paramTypes || typeof paramTypes !== 'object') return null;
   const output = {};
@@ -194,7 +250,11 @@ export async function collectLspTypes({
   vfsColdStartCache = null,
   cacheRoot = null,
   hoverTimeoutMs = null,
-  hoverEnabled = true
+  hoverEnabled = true,
+  hoverRequireMissingReturn = true,
+  hoverSymbolKinds = null,
+  hoverMaxPerFile = null,
+  hoverDisableAfterTimeouts = null
 }) {
   const resolvePositiveTimeout = (value) => {
     const parsed = Number(value);
@@ -202,10 +262,31 @@ export async function collectLspTypes({
     return Math.max(1000, Math.floor(parsed));
   };
   const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
+  const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
+  const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
+  const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   const resolvedRoot = vfsRoot || rootDir;
@@ -221,7 +302,25 @@ export async function collectLspTypes({
   }
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   let coldStartCache = null;
@@ -270,11 +369,43 @@ export async function collectLspTypes({
   } catch (err) {
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   const byChunkUid = {};
   let enriched = 0;
+  const signatureParseCache = new Map();
+  const hoverFileStats = new Map();
+  const hoverLatencyMs = [];
+  const hoverMetrics = {
+    requested: 0,
+    succeeded: 0,
+    timedOut: 0,
+    skippedByBudget: 0,
+    skippedByKind: 0,
+    skippedByReturnSufficient: 0,
+    skippedByAdaptiveDisable: 0,
+    skippedByGlobalDisable: 0
+  };
+  let hoverDisabledGlobal = false;
   const openDocs = new Map();
   const diskPathMap = resolvedScheme === 'file'
     ? await ensureVirtualFilesBatch({
@@ -285,6 +416,8 @@ export async function collectLspTypes({
     })
     : null;
   for (const doc of docsToOpen) {
+    const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
+    hoverFileStats.set(doc.virtualPath, fileHoverStats);
     const docTargets = targetsByPath.get(doc.virtualPath) || [];
     const uri = await resolveDocumentUri({
       rootDir: resolvedRoot,
@@ -370,25 +503,70 @@ export async function collectLspTypes({
       return merged;
     };
 
+    const parseSignatureCached = (detailText, symbolName) => {
+      if (typeof parseSignature !== 'function') return null;
+      const normalizedDetail = normalizeSignatureCacheText(detailText);
+      if (!normalizedDetail) return null;
+      const cacheKey = `${doc.languageId || ''}::${normalizedDetail}`;
+      if (signatureParseCache.has(cacheKey)) {
+        return signatureParseCache.get(cacheKey);
+      }
+      const parsed = parseSignature(normalizedDetail, doc.languageId, symbolName) || null;
+      signatureParseCache.set(cacheKey, parsed);
+      return parsed;
+    };
+
     for (const symbol of flattened) {
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
       const detailText = symbol.detail || symbol.name;
-      let info = parseSignature ? parseSignature(detailText, doc.languageId, symbol.name) : null;
-      const paramNames = Array.isArray(info?.paramNames) ? info.paramNames : [];
-      const paramTypes = info?.paramTypes && typeof info.paramTypes === 'object' ? info.paramTypes : null;
-      const hasAnyParamTypes = !!paramTypes && Object.keys(paramTypes).length > 0;
-      const hasCompleteParamTypes = paramNames.length
-        ? paramNames.every((name) => paramTypes?.[name])
-        : hasAnyParamTypes;
+      let info = parseSignatureCached(detailText, symbol.name);
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
-      const treatVoidAsMissing = info?.returnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      if (hoverEnabled && (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing)) {
+      const normalizedReturnType = normalizeTypeText(info?.returnType);
+      const treatVoidAsMissing = normalizedReturnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
+      const ambiguousReturn = !normalizedReturnType
+        || /^unknown$/i.test(normalizedReturnType)
+        || /^any\b/i.test(normalizedReturnType)
+        || treatVoidAsMissing;
+      const needsHover = hoverRequireMissingReturn === true
+        ? ambiguousReturn
+        : (!info || !info.returnType || ambiguousReturn);
+      if (!needsHover) {
+        fileHoverStats.skippedByReturnSufficient += 1;
+        hoverMetrics.skippedByReturnSufficient += 1;
+      }
+      const symbolKindAllowed = !resolvedHoverKinds
+        || (Number.isInteger(symbol?.kind) && resolvedHoverKinds.has(symbol.kind));
+      if (!symbolKindAllowed) {
+        fileHoverStats.skippedByKind += 1;
+        hoverMetrics.skippedByKind += 1;
+      }
+      const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
+        && resolvedHoverMaxPerFile >= 0
+        && fileHoverStats.requested >= resolvedHoverMaxPerFile;
+      if (fileOverBudget) {
+        fileHoverStats.skippedByBudget += 1;
+        hoverMetrics.skippedByBudget += 1;
+      }
+      const adaptiveDisabled = hoverDisabledGlobal || fileHoverStats.disabledAdaptive;
+      if (adaptiveDisabled) {
+        if (hoverDisabledGlobal) {
+          fileHoverStats.skippedByGlobalDisable += 1;
+          hoverMetrics.skippedByGlobalDisable += 1;
+        } else {
+          fileHoverStats.skippedByAdaptiveDisable += 1;
+          hoverMetrics.skippedByAdaptiveDisable += 1;
+        }
+      }
+      if (hoverEnabled && needsHover && symbolKindAllowed && !fileOverBudget && !adaptiveDisabled) {
         const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
           ? resolvedHoverTimeout
           : null;
+        fileHoverStats.requested += 1;
+        hoverMetrics.requested += 1;
+        const hoverStartMs = Date.now();
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
@@ -397,10 +575,31 @@ export async function collectLspTypes({
             }, { timeoutMs: guardTimeout }),
             { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
           );
+          const hoverDurationMs = Date.now() - hoverStartMs;
+          hoverLatencyMs.push(hoverDurationMs);
+          fileHoverStats.latencyMs.push(hoverDurationMs);
+          fileHoverStats.succeeded += 1;
+          hoverMetrics.succeeded += 1;
           const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = parseSignature ? parseSignature(hoverText, doc.languageId, symbol.name) : null;
+          const hoverInfo = parseSignatureCached(hoverText, symbol.name);
           if (hoverInfo) info = mergeSignatureInfo(info, hoverInfo);
-        } catch {}
+        } catch (err) {
+          const message = String(err?.message || err || '').toLowerCase();
+          const isTimeout = message.includes('timeout');
+          if (isTimeout) {
+            fileHoverStats.timedOut += 1;
+            hoverMetrics.timedOut += 1;
+            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
+              && !fileHoverStats.disabledAdaptive) {
+              fileHoverStats.disabledAdaptive = true;
+            }
+            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
+              hoverDisabledGlobal = true;
+            }
+          }
+        }
       }
       if (!info) continue;
 
@@ -479,5 +678,46 @@ export async function collectLspTypes({
 
   await client.shutdownAndExit();
   client.kill();
-  return { byChunkUid, diagnosticsByChunkUid, enriched, diagnosticsCount };
+  const hoverSummary = summarizeLatencies(hoverLatencyMs);
+  const hoverFiles = Array.from(hoverFileStats.entries())
+    .map(([virtualPath, stats]) => ({
+      virtualPath,
+      requested: stats.requested,
+      succeeded: stats.succeeded,
+      timedOut: stats.timedOut,
+      skippedByBudget: stats.skippedByBudget,
+      skippedByKind: stats.skippedByKind,
+      skippedByReturnSufficient: stats.skippedByReturnSufficient,
+      skippedByAdaptiveDisable: stats.skippedByAdaptiveDisable,
+      skippedByGlobalDisable: stats.skippedByGlobalDisable,
+      disabledAdaptive: stats.disabledAdaptive === true,
+      ...summarizeLatencies(stats.latencyMs)
+    }))
+    .sort((a, b) => {
+      const timeoutCmp = (b.timedOut || 0) - (a.timedOut || 0);
+      if (timeoutCmp) return timeoutCmp;
+      const p95A = Number.isFinite(a.p95Ms) ? a.p95Ms : -1;
+      const p95B = Number.isFinite(b.p95Ms) ? b.p95Ms : -1;
+      if (p95B !== p95A) return p95B - p95A;
+      return String(a.virtualPath || '').localeCompare(String(b.virtualPath || ''));
+    });
+  return {
+    byChunkUid,
+    diagnosticsByChunkUid,
+    enriched,
+    diagnosticsCount,
+    hoverMetrics: {
+      requested: hoverMetrics.requested,
+      succeeded: hoverMetrics.succeeded,
+      timedOut: hoverMetrics.timedOut,
+      skippedByBudget: hoverMetrics.skippedByBudget,
+      skippedByKind: hoverMetrics.skippedByKind,
+      skippedByReturnSufficient: hoverMetrics.skippedByReturnSufficient,
+      skippedByAdaptiveDisable: hoverMetrics.skippedByAdaptiveDisable,
+      skippedByGlobalDisable: hoverMetrics.skippedByGlobalDisable,
+      p50Ms: hoverSummary.p50Ms,
+      p95Ms: hoverSummary.p95Ms,
+      files: hoverFiles
+    }
+  };
 }
