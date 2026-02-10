@@ -13,6 +13,7 @@ const DEFAULT_TABLE = 'dense_vectors_ann';
 const DEFAULT_COLUMN = 'embedding';
 const DEFAULT_ENCODING = 'float32';
 const SQLITE_IN_LIMIT = 900;
+const SQLITE_TEMP_INSERT_BATCH = 512;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const OPTION_RE = /^([A-Za-z_][A-Za-z0-9_]*)(?:\s*=\s*([A-Za-z0-9_.-]+))?$/;
 
@@ -26,6 +27,7 @@ const PROVIDERS = {
 };
 
 const warnOnce = createWarnOnce();
+let tempCandidateTableCounter = 0;
 
 function isSafeIdentifier(value) {
   return IDENTIFIER_RE.test(String(value || ''));
@@ -394,6 +396,32 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     if (Array.isArray(value)) return value.length;
     return 0;
   };
+  const normalizeCandidateIds = (value) => candidateToArray(value)
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id));
+  const createCandidateTempTable = (ids) => {
+    if (!Array.isArray(ids) || !ids.length) return null;
+    const suffix = (tempCandidateTableCounter += 1);
+    const tempTable = `__poc_ann_candidates_${suffix}`;
+    db.exec(`CREATE TEMP TABLE IF NOT EXISTS ${tempTable}(id INTEGER PRIMARY KEY)`);
+    db.exec(`DELETE FROM ${tempTable}`);
+    const insertStmt = db.prepare(`INSERT OR IGNORE INTO ${tempTable}(id) VALUES (?)`);
+    const insertBatch = db.transaction((batch) => {
+      for (const id of batch) {
+        insertStmt.run(id);
+      }
+    });
+    for (let i = 0; i < ids.length; i += SQLITE_TEMP_INSERT_BATCH) {
+      insertBatch(ids.slice(i, i + SQLITE_TEMP_INSERT_BATCH));
+    }
+    return tempTable;
+  };
+  const dropCandidateTempTable = (tempTable) => {
+    if (!tempTable) return;
+    try {
+      db.exec(`DROP TABLE IF EXISTS ${tempTable}`);
+    } catch {}
+  };
   const candidateHas = (value, id) => {
     if (!value) return false;
     if (typeof value.has === 'function') return value.has(id);
@@ -410,19 +438,31 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     return [];
   };
   const candidateSize = getCandidateSize(candidateSet);
-  const canPushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
-  const candidates = canPushdown ? candidateToArray(candidateSet) : null;
-  const queryLimit = canPushdown ? limit : (candidateSize ? limit * 5 : limit);
+  const canInlinePushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
+  const candidateIds = candidateSize > 0 ? normalizeCandidateIds(candidateSet) : [];
+  let tempTable = null;
+  if (!canInlinePushdown && candidateIds.length) {
+    try {
+      tempTable = createCandidateTempTable(candidateIds);
+    } catch (err) {
+      warnOnce(
+        'vector-extension-temp-candidates',
+        `[sqlite] Vector extension temp candidate pushdown failed; using best-effort fallback. ${err?.message || err}`
+      );
+    }
+  }
+  const canTempPushdown = Boolean(tempTable);
+  const queryLimit = (canInlinePushdown || canTempPushdown) ? limit : (candidateSize ? limit * 5 : limit);
   const encoded = encodeVector(normalized.embedding, config);
   if (!encoded) return [];
   try {
-    const candidateClause = canPushdown
-      ? ` AND rowid IN (${candidates.map(() => '?').join(',')})`
-      : '';
-    const params = canPushdown
-      ? [encoded, ...candidates, queryLimit]
+    const candidateClause = canInlinePushdown
+      ? ` AND rowid IN (${candidateIds.map(() => '?').join(',')})`
+      : (canTempPushdown ? ` AND rowid IN (SELECT id FROM ${tempTable})` : '');
+    const params = canInlinePushdown
+      ? [encoded, ...candidateIds, queryLimit]
       : [encoded, queryLimit];
-    if (candidateSize && !canPushdown) {
+    if (candidateSize && !canInlinePushdown && !canTempPushdown) {
       warnOnce('vector-extension-candidates', '[sqlite] Vector extension candidate set too large; using best-effort fallback.');
       incFallback({ surface: 'search', reason: 'vector-candidates' });
     }
@@ -436,7 +476,7 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       const sim = row.distance !== undefined ? -raw : raw;
       return { idx: rowId, sim };
     });
-    if (candidateSize && !canPushdown) {
+    if (candidateSize && !canInlinePushdown && !canTempPushdown) {
       hits = hits.filter((hit) => candidateHas(candidateSet, hit.idx));
     }
     return hits
@@ -444,5 +484,9 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       .slice(0, limit);
   } catch {
     return [];
+  } finally {
+    if (canTempPushdown) {
+      dropCandidateTempTable(tempTable);
+    }
   }
 }

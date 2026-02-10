@@ -163,7 +163,7 @@ Format:
 - Impact: Lower RSS and improved stability on large indexes.
 - Risk: More complex error handling/recovery.
 
-26. Area: SQLite ANN candidate limit fallback
+26. [x] Area: SQLite ANN candidate limit fallback
 - Files: `tools/sqlite/vector-extension.js`
 - Opportunity: Replace `topN * 5` fallback with stronger candidate pushdown strategy.
 - Impact: Better recall and less wasted work for large candidate sets.
