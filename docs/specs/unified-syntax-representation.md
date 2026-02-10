@@ -526,6 +526,34 @@ The following constraints are REQUIRED for schema-valid USR payloads.
 - `code` MUST match `^USR-[EWI]-[A-Z0-9-]+$`
 - `severity` MUST align with code prefix (`E`->error, `W`->warning, `I`->info)
 
+### 7.12 Reference resolution envelope (normative)
+
+Any unresolved or ambiguous reference represented in USR edges MUST include a deterministic resolution envelope under `attrs.resolution`.
+
+Canonical shape:
+
+```ts
+type USRResolutionEnvelope = {
+  status: "resolved" | "ambiguous" | "unresolved";
+  targetName: string | null;
+  resolver: "language-native" | "tree-sitter" | "framework-compiler" | "tooling" | "heuristic";
+  reasonCode: string | null;
+  candidates: Array<{
+    uid: string;
+    entity: "document" | "segment" | "node" | "symbol";
+    confidence: number | null;
+    why: string | null;
+  }>;
+};
+```
+
+Rules:
+
+- `status` MUST match `USREdgeV1.status` for unresolved/ambiguous/resolved outcomes.
+- `candidates` MUST be deterministically sorted by confidence descending, then uid lexical.
+- unresolved edges MUST include non-null `reasonCode`.
+- ambiguous edges MUST include at least two candidates.
+
 ## 8. Canonical Taxonomies
 
 ### 8.1 Node categories
@@ -1029,6 +1057,26 @@ Sort by `kind`, `source.uid`, `target.uid`, `status`, `edgeUid`.
 
 All ID hashes MUST use stable algorithm/version tags and identical normalization inputs across runs.
 
+### 13.7 Canonical serialization profile
+
+When USR artifacts are persisted, canonical JSON serialization MUST satisfy all of the following:
+
+- encoding: UTF-8 without BOM
+- newline: `\\n`
+- object key ordering: lexical ascending
+- array ordering: as defined by deterministic ordering rules in this spec
+- numbers: finite only, no exponent normalization drift in stringified output
+- string escaping: JSON standard escaping only (no custom escape policies)
+
+Writers MUST NOT include non-deterministic fields in canonical payloads.
+
+Examples of forbidden nondeterministic payload values:
+
+- process IDs
+- hostnames
+- wall-clock timestamps except top-level provenance timestamps where required
+- randomized ordering in `attrs` maps
+
 ## 14. Storage Contract for Optional Persisted USR Artifacts
 
 When persisted, USR artifacts MUST use manifest-first discovery and sharded JSONL meta rules from existing artifact contracts.
@@ -1161,6 +1209,33 @@ USR implementations MUST:
 - avoid executing untrusted code during parse/analysis
 - bound regex and parser workloads
 - record degraded execution rather than silently skipping work
+
+### 18.1 Data sensitivity and redaction policy
+
+USR artifacts MUST avoid persisting secrets or high-risk sensitive values.
+
+Minimum required redaction behavior:
+
+- redact known secret-bearing token patterns in diagnostic messages and attrs values
+- never persist raw environment variable values when reported as risk sources
+- truncate raw source snippets in diagnostics to bounded safe excerpts
+- preserve structural context while replacing sensitive values with deterministic placeholders
+
+Canonical placeholder format:
+
+- `<redacted:<reason-code>>`
+
+Redaction actions MUST emit a diagnostic or provenance counter so downstream consumers can distinguish true-empty from redacted values.
+
+### 18.2 Supply-chain parser/runtime controls
+
+Parser/compiler/tooling runtimes used for USR extraction MUST be version-pinned by policy.
+
+Required behavior:
+
+- record runtime id and version in provenance
+- fail closed or degrade with explicit diagnostics when runtime identity is unknown
+- prevent silent runtime auto-upgrades from changing deterministic behavior in CI lanes
 
 ## 19. Versioning and Compatibility
 
@@ -1393,3 +1468,51 @@ Forbidden extension behavior:
 - mutating required enum values
 - bypassing endpoint constraints
 - suppressing required diagnostics for downgraded capability states
+
+## 30. Required audit artifacts and reports
+
+Every conformance run SHOULD produce machine-readable audit artifacts.
+
+Required report outputs:
+
+- `usr-conformance-summary.json`
+- `usr-capability-state-transitions.json`
+- `usr-diagnostic-distribution.json`
+- `usr-determinism-rerun-diff.json`
+- `usr-profile-coverage.json`
+
+Minimum required fields across all reports:
+
+- `schemaVersion`
+- `generatedAt`
+- `runId`
+- `lane`
+- `buildId` (or null for non-build harness runs)
+- `status`
+
+Audit reports MUST be deterministic for identical inputs except for required timestamp fields.
+
+## 31. Release readiness scorecard
+
+Before enabling USR-backed production path for a lane, the following scorecard MUST pass.
+
+- [ ] 100% registry language profile coverage
+- [ ] 100% required framework profile coverage
+- [ ] 0 unresolved schema drift findings
+- [ ] 0 ID grammar violations
+- [ ] 0 edge endpoint constraint violations
+- [ ] deterministic rerun diff is empty for required entities
+- [ ] capability downgrade diagnostics within approved threshold budget
+- [ ] no high-severity unresolved diagnostics in required conformance levels
+
+Any failed scorecard item blocks production-path promotion for that lane.
+
+## 32. Strategic hardening backlog (recommended next improvements)
+
+These items are not mandatory for `usr-1.0.0` but are high-value improvements.
+
+- add cross-language boundary confidence calibration reports
+- add per-profile false-positive tracking for risk and framework binding edges
+- add fuzz-based malformed input corpus generation for parser/segment stress testing
+- add long-horizon determinism checks across runtime version pins
+- add contract-drift bots that open automated PRs when profile/schema divergence is detected
