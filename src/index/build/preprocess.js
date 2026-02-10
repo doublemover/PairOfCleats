@@ -9,6 +9,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
+import { pickMinLimit } from './runtime/limits.js';
 
 const hasMaxLinesCaps = (fileCaps) => {
   const defaultMax = fileCaps?.default?.maxLines;
@@ -22,11 +23,6 @@ const hasMaxLinesCaps = (fileCaps) => {
     if (Number.isFinite(Number(entry?.maxLines)) && Number(entry.maxLines) > 0) return true;
   }
   return false;
-};
-
-const pickMinLimit = (...values) => {
-  const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
-  return candidates.length ? Math.min(...candidates) : null;
 };
 
 const resolveMaxLines = ({ ext, lang }, fileCaps) => {

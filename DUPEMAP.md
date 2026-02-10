@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:32:49.8741942-05:00
+Last updated: 2026-02-09T21:44:53.3841764-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -933,12 +933,21 @@ D1.3 status update (2026-02-09T21:32:49.8741942-05:00):
 
 ### Subphase D1.4 — Locking and misc primitive helpers
 Tasks:
-- [ ] Task D1.4.a: Implement shared file-lock primitive with stale detection + process-alive checks.
+- [x] Task D1.4.a: Implement shared file-lock primitive with stale detection + process-alive checks.
 Details: Support configurable lock wait/poll/stale thresholds.
-- [ ] Task D1.4.b: Migrate index lock, embeddings cache lock, and service queue lock.
+- [x] Task D1.4.b: Migrate index lock, embeddings cache lock, and service queue lock.
 Details: Preserve lock scope names and signal handling semantics.
-- [ ] Task D1.4.c: Add shared `escapeRegex` and `pickMinLimit` helpers; migrate all variants.
+- [x] Task D1.4.c: Add shared `escapeRegex` and `pickMinLimit` helpers; migrate all variants.
 Details: Remove duplicate helper bodies after migration.
+
+D1.4 status update (2026-02-09T21:44:53.3841764-05:00):
+- resolved: added canonical file locking primitive in `src/shared/locks/file-lock.js` with configurable wait/poll/stale behavior, stale-owner cleanup, and owner-safe release.
+- resolved: migrated index/build lock path, embeddings cache lock path, service queue lock path, and sourcekit host lock gating to shared locking.
+- resolved: added `src/shared/text/escape-regex.js` and `src/index/build/runtime/limits.js` then migrated duplicate `escapeRegex` and `pickMinLimit` implementations.
+- remaining: D1.5 atomic-write, cache-policy, and lifecycle primitives plus associated migrations.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "escapeRegex\(|pickMinLimit\(" src tools` and `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`.
 
 ### Subphase D1.5 — Atomic write + cache/process lifecycle primitives
 Tasks:
@@ -956,8 +965,8 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [x] `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools`
 - [x] `rg "warned = new Set|warnOnce" src tools`
 - [x] `rg "formatBytes\(|sizeOfPath\(" src tools`
-- [ ] `rg "escapeRegex\(|pickMinLimit\(" src tools`
-- [ ] `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`
+- [x] `rg "escapeRegex\(|pickMinLimit\(" src tools`
+- [x] `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`
 - [ ] `rg "writeFileSync\(|writeFile\(|appendFile\(" src tools | rg -v "atomic-write|tests/"`
 - [ ] `rg "new Map\(|new Set\(" src | rg "cache|memo|seen|warn" | rg -v "max|ttl|limit|capacity|tests/"`
 
@@ -967,7 +976,7 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [x] `tests/shared/logging/warn-once.test.js` (new)
 - [x] `tests/shared/cache/lru-parity.test.js` (new)
 - [x] `tests/shared/disk-space/format-bytes-contract.test.js` (new)
-- [ ] `tests/shared/locks/file-lock-contract.test.js` (new)
+- [x] `tests/shared/locks/file-lock-contract.test.js` (new)
 - [x] `tests/indexing/watch/watch-root-normalization.test.js` (new)
 - [ ] `tests/shared/io/atomic-write-contract.test.js` (new)
 - [ ] `tests/shared/cache/cache-policy-contract.test.js` (new)

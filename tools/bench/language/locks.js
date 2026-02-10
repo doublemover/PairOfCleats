@@ -2,26 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatDuration } from './metrics.js';
-
-const isProcessAlive = (pid) => {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
-};
-
-const readLockInfo = async (lockPath) => {
-  try {
-    const raw = await fsPromises.readFile(lockPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-};
+import { isProcessAlive, readLockInfo } from '../../../src/shared/locks/file-lock.js';
 
 const getLockAgeMs = async (lockPath, info) => {
   if (info?.startedAt) {

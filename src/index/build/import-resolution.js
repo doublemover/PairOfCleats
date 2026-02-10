@@ -6,6 +6,7 @@ import { readJsoncFile } from '../../shared/jsonc.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
+import { escapeRegex } from '../../shared/text/escape-regex.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -159,8 +160,6 @@ const resolveCandidate = (relPath, lookup) => {
   }
   return null;
 };
-
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const compileTsPattern = (pattern) => {
   if (!pattern) return null;

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T21:32:49.8741942-05:00",
+  "updatedAt": "2026-02-09T21:44:53.3841764-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -182,7 +182,7 @@
       "clusterId": "C17",
       "title": "File locking variants",
       "phase": "D1",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/build/indexer/lock.js",
         "src/index/build/runtime/queue-lock.js"
@@ -292,7 +292,7 @@
       "clusterId": "C27",
       "title": "Misc helper duplicates",
       "phase": "D1/D4/D8",
-      "status": "planned",
+      "status": "in_progress",
       "legacyPaths": [
         "src/shared/text/escape-regex.js",
         "tools/shared/search-request.js"
@@ -360,7 +360,7 @@
     { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
     { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
     { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
-    { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/indexer/lock.js::acquireIndexLock", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireLock", "status": "planned" },
+    { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/lock.js::acquireIndexLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
     { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/markdown.js::buildChunksFromLineHeadings", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "planned" },
     { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk-interprocedural/engine.js::SEVERITY_RANK", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "planned" },
     { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
@@ -370,7 +370,7 @@
     { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "planned" },
     { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
     { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
-    { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "planned" },
+    { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/index/build/import-resolution.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "planned" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "planned" },
     { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
@@ -398,7 +398,15 @@
     { "migrationId": "M052", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch.js::MINIFIED_NAME_REGEX (local copy)", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
     { "migrationId": "M053", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/discover.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
     { "migrationId": "M054", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/records.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
-    { "migrationId": "M055", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/guardrails.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" }
+    { "migrationId": "M055", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/guardrails.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M056", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/build/embeddings/cache.js::withCacheLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M057", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/service/queue.js::withLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M058", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/sourcekit-provider.js::acquireHostSourcekitLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
+    { "migrationId": "M059", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "tools/bench/language/locks.js::{readLockInfo,isProcessAlive}", "newPathOrSymbol": "src/shared/locks/file-lock.js::{readLockInfo,isProcessAlive}", "status": "completed" },
+    { "migrationId": "M060", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "tools/release/check.js::escapeRegex (local helper)", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "completed" },
+    { "migrationId": "M061", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/runtime/caps.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" },
+    { "migrationId": "M062", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/preprocess.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" },
+    { "migrationId": "M063", "clusterId": "C27", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-processor/read.js::pickMinLimit (local helper)", "newPathOrSymbol": "src/index/build/runtime/limits.js::pickMinLimit", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -449,6 +457,20 @@
       "scope": "src/**,tools/**",
       "pattern": "local formatBytes or sizeOfPath helper implementations",
       "replacement": "src/shared/disk-space.js::{formatBytes,sizeOfPath}"
+    },
+    {
+      "banId": "B017",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "ad-hoc lock helpers duplicating pid/stale checks around *.lock files",
+      "replacement": "src/shared/locks/file-lock.js::acquireFileLock"
+    },
+    {
+      "banId": "B018",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local escapeRegex/pickMinLimit helper bodies",
+      "replacement": "src/shared/text/escape-regex.js::escapeRegex and src/index/build/runtime/limits.js::pickMinLimit"
     }
   ],
   "exceptions": [],

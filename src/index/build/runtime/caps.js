@@ -1,4 +1,5 @@
 import { normalizeCapNullOnZero } from '../../../shared/limits.js';
+import { pickMinLimit } from './limits.js';
 
 /**
  * Normalize a numeric cap value to a non-negative integer.
@@ -9,16 +10,6 @@ import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 export const normalizeLimit = (value, fallback) => (
   normalizeCapNullOnZero(value, fallback)
 );
-
-/**
- * Select the smallest positive limit from a list of values.
- * @param {...number} values
- * @returns {number|null}
- */
-export const pickMinLimit = (...values) => {
-  const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
-  return candidates.length ? Math.min(...candidates) : null;
-};
 
 /**
  * Normalize a depth-like cap value.
