@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:50:33.7948359-05:00
+Last updated: 2026-02-09T23:56:14.0203598-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -66,7 +66,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
-| D6 | [ ] | Chunking + risk + import resolution + map consolidation |
+| D6 | [@] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
@@ -1369,12 +1369,21 @@ Clusters: 18, 19, 20, 25.
 
 ### Subphase D6.1 — Chunking helper extraction
 Tasks:
-- [ ] Task D6.1.a: Extract `buildChunksFromLineHeadings` into shared chunking helper module.
+- [x] Task D6.1.a: Extract `buildChunksFromLineHeadings` into shared chunking helper module.
 Details: Include identical heading/title transform behavior.
-- [ ] Task D6.1.b: Extract `buildChunksFromMatches` helper.
+- [x] Task D6.1.b: Extract `buildChunksFromMatches` helper.
 Details: Keep match regex definitions in format modules.
-- [ ] Task D6.1.c: Migrate ini-toml/yaml/rst-asciidoc/markdown modules and delete local copies.
+- [x] Task D6.1.c: Migrate ini-toml/yaml/rst-asciidoc/markdown modules and delete local copies.
 Details: No duplicate helper bodies remain.
+
+D6.1 status update (2026-02-09T23:56:14.0203598-05:00):
+- resolved: added canonical chunking helper module `src/index/chunking/helpers.js` with shared `buildChunksFromLineHeadings` and `buildChunksFromMatches`.
+- resolved: migrated `src/index/chunking/formats/ini-toml.js`, `src/index/chunking/formats/yaml.js`, `src/index/chunking/formats/rst-asciidoc.js`, and `src/index/chunking/formats/markdown.js` to canonical helpers and removed local helper bodies.
+- resolved: migrated `src/index/chunking/dispatch.js` to import shared `buildChunksFromLineHeadings` to keep one helper source for chunking line-heading segmentation.
+- remaining: D6.2 risk utility extraction and D6.3 import candidate/map cleanup.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "buildChunksFromLineHeadings|buildChunksFromMatches" src/index/chunking`.
 
 ### Subphase D6.2 — Risk utility extraction
 Tasks:
@@ -1397,13 +1406,13 @@ Details: one escape implementation.
 Details: Decide array merge semantics and document explicitly.
 
 ### Exhaustive sweeps
-- [ ] `rg "buildChunksFromLineHeadings|buildChunksFromMatches" src/index/chunking`
+- [x] `rg "buildChunksFromLineHeadings|buildChunksFromMatches" src/index/chunking`
 - [ ] `rg "SEVERITY_RANK|identifier.*boundary|rule.*match" src/index/risk*`
 - [ ] `rg "resolve-relative-import|import-resolution" src/index`
 - [ ] `rg "applyScopeFilter|applyCollapse|escapeHtml|mergeConfig" src/map src/shared`
 
 ### Tests
-- [ ] `tests/indexing/chunking/chunking-helper-parity.test.js` (new)
+- [x] `tests/indexing/chunking/chunking-helper-parity.test.js` (new)
 - [ ] `tests/indexing/risk/risk-shared-utils-parity.test.js` (new)
 - [ ] `tests/indexing/type-inference/import-candidates-parity.test.js` (new)
 - [ ] `tests/map/map-filter-api-contract.test.js` (new)

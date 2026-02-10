@@ -1,28 +1,7 @@
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { toPosix } from '../../../shared/files.js';
-import { buildLineIndex } from '../../../shared/lines.js';
+import { buildChunksFromLineHeadings } from '../helpers.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
-
-const buildChunksFromLineHeadings = (text, headings) => {
-  if (!headings.length) return null;
-  const lineIndex = buildLineIndex(text);
-  const chunks = [];
-  for (let i = 0; i < headings.length; ++i) {
-    const startLine = headings[i].line;
-    const endLine = i + 1 < headings.length ? headings[i + 1].line : lineIndex.length;
-    const start = lineIndex[startLine] || 0;
-    const end = endLine < lineIndex.length ? lineIndex[endLine] : text.length;
-    const title = headings[i].title || 'section';
-    chunks.push({
-      start,
-      end,
-      name: title,
-      kind: 'Section',
-      meta: { title }
-    });
-  }
-  return chunks;
-};
 
 const chunkGitHubActions = (text) => {
   const lines = text.split('\n');

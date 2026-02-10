@@ -47,36 +47,15 @@ import { buildGoChunks } from '../../lang/go.js';
 import { buildJavaChunks } from '../../lang/java.js';
 import { buildPerlChunks } from '../../lang/perl.js';
 import { buildShellChunks } from '../../lang/shell.js';
-import { buildLineIndex } from '../../shared/lines.js';
 import { chunkIniToml } from './formats/ini-toml.js';
 import { chunkJson } from './formats/json.js';
 import { chunkMarkdown } from './formats/markdown.js';
 import { chunkRst, chunkAsciiDoc } from './formats/rst-asciidoc.js';
 import { chunkXml } from './formats/xml.js';
 import { chunkYaml } from './formats/yaml.js';
+import { buildChunksFromLineHeadings } from './helpers.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
-
-const buildChunksFromLineHeadings = (text, headings) => {
-  if (!headings.length) return null;
-  const lineIndex = buildLineIndex(text);
-  const chunks = [];
-  for (let i = 0; i < headings.length; ++i) {
-    const startLine = headings[i].line;
-    const endLine = i + 1 < headings.length ? headings[i + 1].line : lineIndex.length;
-    const start = lineIndex[startLine] || 0;
-    const end = endLine < lineIndex.length ? lineIndex[endLine] : text.length;
-    const title = headings[i].title || 'section';
-    chunks.push({
-      start,
-      end,
-      name: title,
-      kind: 'Section',
-      meta: { title }
-    });
-  }
-  return chunks;
-};
 
 const applyFormatMeta = (chunks, format, kind) => {
   if (!chunks) return null;
