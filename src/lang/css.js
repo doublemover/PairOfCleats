@@ -222,9 +222,11 @@ function gatherRuleNodes(root, budget) {
 }
 
 export function collectCssImports(text) {
+  if (!text || !text.includes('@import')) return [];
   const imports = new Set();
-  const regex = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
-  for (const match of text.matchAll(regex)) {
+  const importRe = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
+  let match;
+  while ((match = importRe.exec(text)) !== null) {
     if (match[1]) imports.add(match[1]);
   }
   return Array.from(imports);

@@ -4,6 +4,9 @@
  * @returns {{imports:string[],usages:string[]}}
  */
 export function collectPythonImports(text) {
+  if (!text || !text.includes('import')) {
+    return { imports: [], usages: [] };
+  }
   const compareCaseAware = (a, b) => (
     String(a).toLowerCase().localeCompare(String(b).toLowerCase()) || String(a).localeCompare(String(b))
   );

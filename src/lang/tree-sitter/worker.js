@@ -2,13 +2,15 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { treeSitterState } from './state.js';
 
+const CPU_COUNT = os.cpus().length;
+
 const normalizeTreeSitterWorkerConfig = (raw) => {
   if (raw === false) return { enabled: false };
   if (raw === true) return { enabled: true };
   if (!raw || typeof raw !== 'object') return { enabled: false };
   const enabled = raw.enabled !== false;
   const maxWorkersRaw = Number(raw.maxWorkers);
-  const defaultMax = Math.max(1, Math.min(4, os.cpus().length));
+  const defaultMax = Math.max(1, Math.min(4, CPU_COUNT));
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
     ? Math.max(1, Math.floor(maxWorkersRaw))
     : defaultMax;

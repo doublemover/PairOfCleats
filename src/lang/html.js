@@ -250,6 +250,17 @@ function walkHtml(node, visitor) {
   for (const child of children) walkHtml(child, visitor);
 }
 
+function addKeywordEntries(content, keywords) {
+  let start = 0;
+  for (let i = 0; i <= content.length; i += 1) {
+    if (i === content.length || content[i] === ',') {
+      const entry = content.slice(start, i).trim();
+      if (entry) keywords.add(entry);
+      start = i + 1;
+    }
+  }
+}
+
 function extractHtmlMetadata(text) {
   let document = null;
   try {
@@ -271,24 +282,38 @@ function extractHtmlMetadata(text) {
       if (textNode?.value) title = textNode.value.trim();
     }
     if (!Array.isArray(node.attrs)) return;
-    const attrs = Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]));
+    let attrName = '';
+    let attrProperty = '';
+    let attrContent = '';
+    let attrSrc = '';
+    let attrHref = '';
+    for (const attr of node.attrs) {
+      const key = String(attr?.name || '').toLowerCase();
+      if (!key) continue;
+      const value = attr?.value || '';
+      if (key === 'name') attrName = value;
+      else if (key === 'property') attrProperty = value;
+      else if (key === 'content') attrContent = value;
+      else if (key === 'src') attrSrc = value;
+      else if (key === 'href') attrHref = value;
+    }
     if (tag === 'meta') {
-      const name = attrs.name || attrs.property || '';
-      const content = attrs.content || '';
+      const name = attrName || attrProperty || '';
+      const content = attrContent || '';
       if (name === 'description' && content) description = content;
       if (name === 'keywords' && content) {
-        content.split(',').map((entry) => entry.trim()).filter(Boolean).forEach((entry) => keywords.add(entry));
+        addKeywordEntries(content, keywords);
       }
     }
     if (tag === 'script') {
-      const src = attrs.src || '';
+      const src = attrSrc || '';
       if (src) {
         imports.add(src);
         scripts.push(src);
       }
     }
     if (tag === 'link') {
-      const href = attrs.href || '';
+      const href = attrHref || '';
       if (href) {
         imports.add(href);
         links.push(href);
@@ -363,6 +388,19 @@ function extractLangFromAttrs(attrs) {
     if (cls.startsWith('lang-')) return normalizeLang(cls.slice('lang-'.length));
   }
   return null;
+}
+
+function collectLangAttrs(attrs) {
+  const result = {};
+  if (!Array.isArray(attrs)) return result;
+  for (const attr of attrs) {
+    const key = String(attr?.name || '').toLowerCase();
+    if (!key) continue;
+    if (key === 'type' || key === 'lang' || key === 'data-lang' || key === 'class') {
+      result[key] = attr?.value || '';
+    }
+  }
+  return result;
 }
 
 const EMBEDDED_CHUNKERS = new Map([
@@ -488,9 +526,7 @@ export function buildHtmlChunks(text, options = {}) {
       const innerStart = loc?.startTag?.endOffset;
       const innerEnd = loc?.endTag?.startOffset;
       if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = Array.isArray(node.attrs)
-          ? Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]))
-          : {};
+        const attrs = collectLangAttrs(node.attrs);
         const language = tag === 'style' ? 'css' : (extractLangFromAttrs(attrs) || 'javascript');
         embeddedBlocks.push({
           start: innerStart,
@@ -506,9 +542,7 @@ export function buildHtmlChunks(text, options = {}) {
       const innerStart = loc?.startTag?.endOffset;
       const innerEnd = loc?.endTag?.startOffset;
       if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = Array.isArray(node.attrs)
-          ? Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]))
-          : {};
+        const attrs = collectLangAttrs(node.attrs);
         const language = extractLangFromAttrs(attrs);
         embeddedBlocks.push({
           start: innerStart,
