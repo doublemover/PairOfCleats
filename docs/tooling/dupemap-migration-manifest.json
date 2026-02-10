@@ -1,0 +1,394 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-02-09T20:44:28-05:00",
+  "clusters": [
+    {
+      "clusterId": "C01",
+      "title": "JSONL merge/spill helpers",
+      "phase": "D2",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/artifacts/helpers.js",
+        "src/map/build-map/io.js"
+      ],
+      "canonicalPath": "src/shared/merge.js"
+    },
+    {
+      "clusterId": "C02",
+      "title": "JSONL writer scaffolding + extension resolution",
+      "phase": "D2",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/artifacts/writers/symbols.js",
+        "src/index/build/artifacts/writers/chunk-meta.js"
+      ],
+      "canonicalPath": "src/index/build/artifacts/writers/_common.js"
+    },
+    {
+      "clusterId": "C03",
+      "title": "SQLite build pipeline duplication",
+      "phase": "D3",
+      "status": "planned",
+      "legacyPaths": [
+        "src/storage/sqlite/build/from-artifacts.js",
+        "src/storage/sqlite/build/from-bundles.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/build/core.js"
+    },
+    {
+      "clusterId": "C04",
+      "title": "SQLite src/tools duplicate helpers",
+      "phase": "D3",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/build/sqlite/output-paths.js",
+        "tools/build/sqlite/index-state.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/build/output-paths.js"
+    },
+    {
+      "clusterId": "C05",
+      "title": "Embedding quantization normalization",
+      "phase": "D3",
+      "status": "planned",
+      "legacyPaths": [
+        "src/storage/sqlite/vector.js",
+        "tools/build/embeddings/embed.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/quantization.js"
+    },
+    {
+      "clusterId": "C06",
+      "title": "SQLite vocab lookup + statement cache",
+      "phase": "D3",
+      "status": "planned",
+      "legacyPaths": [
+        "src/storage/sqlite/build/vocab.js",
+        "src/retrieval/sqlite-helpers.js"
+      ],
+      "canonicalPath": "src/storage/sqlite/vocab.js"
+    },
+    {
+      "clusterId": "C07",
+      "title": "LMDB codec/presence/meta validation",
+      "phase": "D3",
+      "status": "planned",
+      "legacyPaths": [
+        "src/retrieval/lmdb-helpers.js",
+        "src/index/validate/lmdb.js"
+      ],
+      "canonicalPath": "src/storage/lmdb/utils.js"
+    },
+    {
+      "clusterId": "C08",
+      "title": "ANN readiness + backend normalization",
+      "phase": "D4",
+      "status": "planned",
+      "legacyPaths": [
+        "src/retrieval/pipeline/ann-backends.js",
+        "src/retrieval/ann/providers/hnsw.js"
+      ],
+      "canonicalPath": "src/retrieval/ann/utils.js"
+    },
+    {
+      "clusterId": "C09",
+      "title": "API/MCP request mapping drift",
+      "phase": "D4",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/api/router/search.js",
+        "tools/mcp/tools/search-args.js"
+      ],
+      "canonicalPath": "tools/shared/search-request.js"
+    },
+    {
+      "clusterId": "C10",
+      "title": "Path normalization + containment",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/shared/path-normalize.js",
+        "src/index/build/watch/shared.js"
+      ],
+      "canonicalPath": "src/shared/path-normalize.js"
+    },
+    {
+      "clusterId": "C11",
+      "title": "Find-upwards logic",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/watch/shared.js",
+        "tests/helpers/root.js"
+      ],
+      "canonicalPath": "src/shared/fs/find-upwards.js"
+    },
+    {
+      "clusterId": "C12",
+      "title": "Map-based LRU duplicates",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/shared/cache.js",
+        "src/retrieval/cache/index-cache.js"
+      ],
+      "canonicalPath": "src/shared/cache.js"
+    },
+    {
+      "clusterId": "C13",
+      "title": "Bytes/size formatting + traversal",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/shared/disk-space.js",
+        "tools/analysis/map-iso-serve.js"
+      ],
+      "canonicalPath": "src/shared/disk-space.js"
+    },
+    {
+      "clusterId": "C14",
+      "title": "warn-once variants",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/runtime/warnings.js",
+        "src/index/build/tree-sitter-scheduler/lookup.js"
+      ],
+      "canonicalPath": "src/shared/logging/warn-once.js"
+    },
+    {
+      "clusterId": "C15",
+      "title": "Minified-file detection",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/file-scan.js",
+        "src/index/build/watch/watch.js"
+      ],
+      "canonicalPath": "src/index/build/watch/shared.js"
+    },
+    {
+      "clusterId": "C16",
+      "title": "Root normalization duplicates",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/watch/watch.js",
+        "src/index/build/discovery.js"
+      ],
+      "canonicalPath": "src/index/build/watch/shared.js"
+    },
+    {
+      "clusterId": "C17",
+      "title": "File locking variants",
+      "phase": "D1",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/build/indexer/lock.js",
+        "src/index/build/runtime/queue-lock.js"
+      ],
+      "canonicalPath": "src/shared/locks/file-lock.js"
+    },
+    {
+      "clusterId": "C18",
+      "title": "Chunking helper duplication",
+      "phase": "D6",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/chunking/formats/markdown.js",
+        "src/index/chunking/formats/rst-asciidoc.js"
+      ],
+      "canonicalPath": "src/index/chunking/helpers.js"
+    },
+    {
+      "clusterId": "C19",
+      "title": "Risk utility duplication",
+      "phase": "D6",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/risk.js",
+        "src/index/risk-interprocedural/engine.js"
+      ],
+      "canonicalPath": "src/index/risk/shared.js"
+    },
+    {
+      "clusterId": "C20",
+      "title": "Relative import resolution duplication",
+      "phase": "D6",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/type-inference-crossfile/resolve-relative-import.js",
+        "src/index/build/import-resolution.js"
+      ],
+      "canonicalPath": "src/index/shared/import-candidates.js"
+    },
+    {
+      "clusterId": "C21",
+      "title": "Binary discovery helper duplication",
+      "phase": "D5",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/tooling/doctor.js",
+        "src/index/tooling/pyright-provider.js"
+      ],
+      "canonicalPath": "src/index/tooling/binary-utils.js"
+    },
+    {
+      "clusterId": "C22",
+      "title": "TypeScript loader duplication",
+      "phase": "D5",
+      "status": "planned",
+      "legacyPaths": [
+        "src/index/tooling/typescript-provider.js",
+        "src/lang/typescript/parser.js"
+      ],
+      "canonicalPath": "src/index/tooling/typescript/load.js"
+    },
+    {
+      "clusterId": "C23",
+      "title": "Signature parsing/readSignatureLines duplication",
+      "phase": "D5",
+      "status": "planned",
+      "legacyPaths": [
+        "src/lang/clike.js",
+        "src/lang/typescript/signature.js"
+      ],
+      "canonicalPath": "src/index/tooling/signature-parse/shared.js"
+    },
+    {
+      "clusterId": "C24",
+      "title": "JS/TS relations duplication",
+      "phase": "D5",
+      "status": "planned",
+      "legacyPaths": [
+        "src/lang/javascript/relations.js",
+        "src/lang/typescript/relations.js"
+      ],
+      "canonicalPath": "src/lang/js-ts/relations-shared.js"
+    },
+    {
+      "clusterId": "C25",
+      "title": "Map filter/escape/config merge duplication",
+      "phase": "D6",
+      "status": "planned",
+      "legacyPaths": [
+        "src/map/build-map/filters.js",
+        "src/map/html-writer.js"
+      ],
+      "canonicalPath": "src/map/shared/escape-html.js"
+    },
+    {
+      "clusterId": "C26",
+      "title": "AJV validation scaffolding duplication",
+      "phase": "D8",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/api/validation.js",
+        "src/contracts/validators/build-state.js"
+      ],
+      "canonicalPath": "src/shared/validation/ajv-factory.js"
+    },
+    {
+      "clusterId": "C27",
+      "title": "Misc helper duplicates",
+      "phase": "D1/D4/D8",
+      "status": "planned",
+      "legacyPaths": [
+        "src/shared/text/escape-regex.js",
+        "tools/shared/search-request.js"
+      ],
+      "canonicalPath": "src/shared"
+    },
+    {
+      "clusterId": "A01",
+      "title": "Duplicate resolveJsonlExtension within src/shared/json-stream.js",
+      "phase": "D2",
+      "status": "planned",
+      "legacyPaths": [
+        "src/shared/json-stream.js"
+      ],
+      "canonicalPath": "src/shared/json-stream.js"
+    },
+    {
+      "clusterId": "A02",
+      "title": "Duplicate normalizeMetaFilters in API/MCP",
+      "phase": "D4",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/api/validation.js",
+        "tools/mcp/tools/helpers.js"
+      ],
+      "canonicalPath": "tools/shared/search-request.js"
+    },
+    {
+      "clusterId": "A03",
+      "title": "Map bench wiring duplication",
+      "phase": "D7",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/bench/map/viewer-fps.js",
+        "tools/bench/map/viewer-lod-stress.js"
+      ],
+      "canonicalPath": "tools/bench/map/shared.js"
+    },
+    {
+      "clusterId": "A04",
+      "title": "Repo cache default duplication",
+      "phase": "D4",
+      "status": "planned",
+      "legacyPaths": [
+        "tools/api/server-config.js",
+        "tools/mcp/server-config.js"
+      ],
+      "canonicalPath": "tools/shared/repo-cache-config.js"
+    }
+  ],
+  "migrations": [
+    { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "planned" },
+    { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "planned" },
+    { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::buildSqliteFromArtifacts", "newPathOrSymbol": "src/storage/sqlite/build/core.js::buildSqliteCore", "status": "planned" },
+    { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveSqliteOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveSqliteOutputPaths", "status": "planned" },
+    { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "planned" },
+    { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows", "newPathOrSymbol": "src/storage/sqlite/vocab.js::fetchVocabRows", "status": "planned" },
+    { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
+    { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "planned" },
+    { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "planned" },
+    { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/shared.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "planned" },
+    { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/shared.js::findGitRoot", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "planned" },
+    { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/cache/index-cache.js::createCache", "newPathOrSymbol": "src/shared/cache.js::createCache", "status": "planned" },
+    { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "planned" },
+    { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/build/runtime/warnings.js::warnOnce", "newPathOrSymbol": "src/shared/logging/warn-once.js::warnOnce", "status": "planned" },
+    { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "planned" },
+    { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "planned" },
+    { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/indexer/lock.js::acquireIndexLock", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireLock", "status": "planned" },
+    { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/markdown.js::buildChunksFromLineHeadings", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "planned" },
+    { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk-interprocedural/engine.js::SEVERITY_RANK", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "planned" },
+    { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
+    { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "planned" },
+    { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "planned" },
+    { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "planned" },
+    { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "planned" },
+    { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
+    { "migrationId": "M026", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "tools/api/validation.js::createAjv", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::createAjv", "status": "planned" },
+    { "migrationId": "M027", "clusterId": "C27", "phase": "D1/D4/D8", "oldPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "newPathOrSymbol": "src/shared/text/escape-regex.js::escapeRegex", "status": "planned" },
+    { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "planned" },
+    { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "planned" },
+    { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
+    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" }
+  ],
+  "banPatterns": [],
+  "exceptions": [],
+  "exceptionSemantics": {
+    "requiredFields": [
+      "exceptionId",
+      "phase",
+      "reason",
+      "owner",
+      "createdAt",
+      "expiresPhase",
+      "scope"
+    ],
+    "forbidPermanentExceptions": true,
+    "notes": "Each exception must include a concrete phase expiry and cannot be permanent."
+  }
+}

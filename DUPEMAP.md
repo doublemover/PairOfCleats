@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T20:44:28-05:00
+Last updated: 2026-02-09T20:54:16-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -60,7 +60,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 
 | Phase | Status | Scope |
 | --- | --- | --- |
-| D0 | [ ] | Baseline guardrails + manifest + usage scanner |
+| D0 | [@] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [ ] | Shared primitive consolidation |
 | D2 | [ ] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
@@ -69,7 +69,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
-| F0 | [ ] | Findings manifest + ownership + execution gates |
+| F0 | [ ] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [ ] | Build/runtime lifecycle correctness remediation |
 | F2 | [ ] | Language/chunking/import correctness remediation |
 | F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
@@ -87,8 +87,8 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 This roadmap is intentionally ordered to frontload highest-leverage, cross-cutting foundations first, while pairing dedupe and findings remediation in the same touchpoints to avoid rework.
 
 ### Wave U0 — Governance/control plane (must complete first)
-1. `D0` Migration manifest + duplicate-ban scanner + CI enforcement.
-2. `F0` Findings manifest + ownership + remediation audit gates.
+1. `D0` Migration manifest + execution kickoff.
+2. `F0` Findings mapping + ownership alignment.
 
 ### Wave U1 — Foundational primitives and invariants
 3. `D1` Shared primitives consolidation.
@@ -130,16 +130,16 @@ Rationale:
 
 | Phase | Hard dependencies | Why |
 | --- | --- | --- |
-| D0 | None | Defines migration/banning control plane used by all phases |
-| D1 | D0 | Primitive helper migration must be enforced by manifest/ban checks |
-| D2 | D0, D1 | JSONL/writer scaffolding depends on shared primitives and scanner gates |
-| D4 | D0, D1 | API/MCP/retrieval normalization requires canonical shared baseline |
-| D5 | D0, D1 | Tooling/language helper extraction depends on shared primitives and ban checks |
-| D3 | D0, D1, D2 | Storage migrations depend on shared primitive + JSONL foundation work |
-| D6 | D0, D1, D5 | Domain helper consolidation depends on language/tooling shared helper extraction |
-| D7 | D0, D1, D2, D3, D4, D5, D6 | Test dedupe should happen after production codepaths stabilize |
+| D0 | None | Captures baseline mapping and execution ordering |
+| D1 | D0 | Primitive helper migration follows established baseline mapping |
+| D2 | D1 | JSONL/writer scaffolding depends on shared primitives |
+| D4 | D1 | API/MCP/retrieval normalization requires canonical shared baseline |
+| D5 | D1 | Tooling/language helper extraction depends on shared primitives |
+| D3 | D1, D2 | Storage migrations depend on shared primitive + JSONL foundation work |
+| D6 | D1, D5 | Domain helper consolidation depends on language/tooling shared helper extraction |
+| D7 | D1, D2, D3, D4, D5, D6 | Test dedupe should happen after production codepaths stabilize |
 | D8 | All prior phases | Final hardening and CI lock-in only after full migration |
-| F0 | D0 | Findings control plane reuses migration guardrail foundations |
+| F0 | D0 | Findings mapping aligns to baseline phase ordering |
 | F1 | F0, D1, D2 | Lifecycle fixes depend on foundational helpers and normalized build plumbing |
 | F2 | F0, D5, D6 | Language correctness depends on consolidated language/chunking helpers |
 | F3 | F0, D1, D2, D3 | Crash-safe persistence depends on shared atomic I/O + storage consolidation |
@@ -162,12 +162,12 @@ Gate rule:
 
 | Class-level remediation | Coverage status | Implementation phases | Verification gates |
 | --- | --- | --- | --- |
-| 1. Mandatory shared utility policy | [ ] Planned | D0, D1, D8 | dupemap ban scanner + utility-import contract tests + closeout audit |
+| 1. Mandatory shared utility policy | [ ] Planned | D1, D8 | utility-import contract tests + closeout review sweep |
 | 2. Atomic write by default | [ ] Planned | D1, D2, D3, D4, D8 | atomic-write contract tests + non-atomic write ban checks |
 | 3. Standardized cache lifecycle contracts | [ ] Planned | D1, D3, D4, D5, D8 | cache-policy contract tests + boundedness/lifecycle assertions |
 | 4. Explicit process lifecycle and shutdown contracts | [ ] Planned | D1, D5, D8 | shutdown/drain contract tests for workers/services/watchers |
 | 5. Cross-surface contract tests | [ ] Planned | D2, D4, D7, D8 | parity suites for CLI/API/MCP, artifact strictness, ANN contract, stage progression |
-| 6. Regression guardrails for known bug classes | [ ] Planned | D0, D1, D8 | static scans + targeted regression suites + CI gating |
+| 6. Regression guardrails for known bug classes | [ ] Planned | D1, D8, F8, F9 | targeted regression suites + CI lane gating |
 
 Implementation note:
 - These six remediations are mandatory completion criteria for this roadmap.
@@ -188,8 +188,8 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 
 | Findings domain | Remediation phase(s) | Primary touchpoints |
 | --- | --- | --- |
-| A Entry points + command surfaces | F0, F5, F9 | `bin/**`, `tools/**`, CLI command routing, guardrails |
-| B Config/policy/runtime envelope | F0, F7, F9 | `src/shared/config/**`, env allowlists, budget checks |
+| A Entry points + command surfaces | F5, F9 | `bin/**`, `tools/**`, CLI command routing, guardrails |
+| B Config/policy/runtime envelope | F7, F9 | `src/shared/config/**`, env allowlists, budget checks |
 | C Build orchestration/lifecycle | F1, F3, F9 | `src/index/build/**`, stage/promotion/lock flows |
 | D Discovery/preprocess/incremental/watch | F1, F2, F3 | `src/index/build/file-scan.js`, watch/discovery helpers |
 | E Language frontends/chunking/imports | F2, F8 | `src/lang/**`, `src/index/chunking/**`, import resolution |
@@ -231,7 +231,7 @@ Execute a complete remediation program for every finding recorded in `All_Findin
 ### Execution order (mandatory)
 
 Wave F-A:
-1. `F0` Findings manifest + ownership + gates
+1. `F0` Findings mapping + ownership gates
 2. `F1` Build/runtime lifecycle correctness
 3. `F2` Language/chunking/import correctness
 
@@ -250,7 +250,7 @@ Wave F-C:
 
 | Primary phase | Must co-execute with | Shared touchpoints | Coupling intent |
 | --- | --- | --- | --- |
-| D0 | F0 | manifests, scanners, CI checks | one governance control plane for dedupe + findings |
+| D0 | F0 | manifests, phase mappings, ownership tables | one governance control plane for dedupe + findings |
 | D1 | F7, F1 (foundation subset) | shared path/cache/lock/io primitives | eliminate duplicate helpers while hardening safety/lifecycle contracts |
 | D2 | F3 | JSONL merge/writer scaffolding + artifact writes | ship atomic/bounded writer semantics with helper consolidation |
 | D3 | F3, F4 (storage subset) | sqlite/lmdb/quantization/vocab internals | align storage correctness, bounds, and retrieval contracts once |
@@ -278,7 +278,7 @@ P2. Hot-path complexity elimination first:
 
 P3. Bounded-memory-by-default enforcement:
 - [ ] Require explicit caps/eviction for module-level maps/sets/caches.
-- [ ] Add scanner checks for unbounded cache patterns in `src/**`.
+- [ ] Add explicit boundedness assertions in targeted tests for cache-heavy modules in `src/**`.
 - [ ] Add cache metrics in tests: entry count, eviction count, peak estimate.
 
 P4. Concurrency and backpressure contracts:
@@ -304,34 +304,33 @@ P7. Touchpoint-level profiling protocol:
 ### Phase F0 — Findings manifest and ownership
 
 Objective:
-Create a machine-readable execution source of truth for every finding and prevent drift.
+Create a direct execution source of truth for every finding without introducing new scanner/audit tooling.
 
 Touchpoints:
-- `docs/tooling/findings-remediation-manifest.json` (new)
-- `tools/findings/audit-remediation.js` (new)
-- `tests/tooling/findings/findings-manifest-completeness.test.js` (new)
+- `All_Findings.md`
+- `DUPEMAP.md`
+- phase status notes in roadmap updates
 
-Subphase F0.1 — Manifest model:
-- [ ] Add IDs for all findings (`A-*`, `B-*`, ..., `O-*`, `2A-*`, `2B-*`, `2C-*`, `ADD-*`, `P5-*`).
-- [ ] Include fields: `severity`, `status`, `owner`, `phase`, `touchpoints`, `tests`, `acceptedRisk`.
-- [ ] Require explicit `resolutionCommit` and `verifiedAt` ISO 8601 when status moves to resolved.
+Subphase F0.1 — Findings mapping baseline:
+- [ ] Ensure all findings families are mapped to phases in `DUPEMAP.md`.
+- [ ] Ensure each mapped finding family has explicit touchpoints and tests.
+- [ ] Keep consistent finding ID references (`A-*`, ..., `P5-*`) in planning notes.
 
-Subphase F0.2 — Audit tooling:
-- [ ] Build audit command that fails on missing IDs, duplicate IDs, or unresolved required fields.
-- [ ] Add status summary output grouped by phase and severity.
-- [ ] Add check that every resolved item references at least one test ID.
+Subphase F0.2 — Ownership and closure criteria:
+- [ ] Assign owner responsibility by phase (not by separate tooling artifact).
+- [ ] Define what evidence closes a finding (code path + test coverage + commit ref).
+- [ ] Require severity-first burn-down ordering inside each phase.
 
-Subphase F0.3 — CI gating:
-- [ ] Run findings audit before `ci-lite` and `ci-long`.
-- [ ] Block merges when high/critical findings are unresolved without accepted risk records.
+Subphase F0.3 — Execution discipline:
+- [ ] Require phase updates to include resolved/remaining findings summary.
+- [ ] Block phase closeout when high/critical mapped findings for that phase are unresolved unless explicitly accepted with expiry.
 
 Tests:
-- [ ] `tests/tooling/findings/findings-manifest-completeness.test.js`
-- [ ] `tests/tooling/findings/findings-audit-contract.test.js` (new)
+- [ ] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F9
 
 Exit criteria:
-- [ ] Every finding from `All_Findings.md` exists in the manifest.
-- [ ] CI fails on manifest drift or missing resolution evidence.
+- [ ] Every finding family from `All_Findings.md` is mapped to at least one execution phase.
+- [ ] No standalone scanner/audit tooling work remains in F0.
 
 ### Phase F1 — Build/runtime lifecycle correctness
 
@@ -427,7 +426,7 @@ Touchpoints:
 
 Subphase F3.1 — Atomic persistence enforcement:
 - [ ] Migrate manifest/cache/queue/pointer writes to shared atomic-write APIs.
-- [ ] Ban direct non-atomic writes for stateful files via scanner guards.
+- [ ] Ban direct non-atomic writes for stateful files via targeted sweeps and regression tests.
 - [ ] Fix non-atomic persistence findings in incremental/cache/query-plan/tooling caches.
 
 Subphase F3.2 — Bounds/safety checks in readers/decoders:
@@ -621,12 +620,12 @@ Close the entire findings burn-down with objective acceptance gates and no hidde
 
 Touchpoints:
 - `.github/workflows/**`
-- findings audit scripts/reports
+- findings status and lane reports
 - `All_Findings.md` status tables
 - `DUPEMAP.md` phase checklists
 
 Subphase F9.1 — CI gate integration:
-- [ ] Add `findings audit` and `findings unresolved summary` steps to CI workflows.
+- [ ] Add findings unresolved summary checks to CI workflows using existing phase status artifacts.
 - [ ] Require pass of relevant contract suites per touched domains.
 - [ ] Ensure shard/lane selection includes all findings-related suites in `ci-lite`/`ci`/`ci-long`.
 
@@ -636,7 +635,7 @@ Subphase F9.2 — Closure and documentation sync:
 - [ ] Produce final remediation report artifact with unresolved count = 0 (or accepted-risk ledger only).
 
 Tests:
-- [ ] CI smoke for findings audit integration
+- [ ] CI smoke for findings status gate integration
 - [ ] lane-level validation that all findings suites are discoverable
 
 Exit criteria:
@@ -694,7 +693,7 @@ Rules:
 Phase documentation tasks:
 
 - [ ] Task D0.DOC: Update migration and guardrail docs.
-Documents: `docs/tooling/dupemap-migration-manifest.json`, `docs/guides/commands.md`, `docs/tooling/script-inventory.json`, `docs/config/inventory.json`, `docs/config/inventory.md`.
+Documents: `docs/tooling/dupemap-migration-manifest.json`, `DUPEMAP.md`, `All_Findings.md`, `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`.
 
 - [ ] Task D1.DOC: Update shared primitive and lifecycle contract docs.
 Documents: `docs/specs/*` (shared primitive usage specs touched by migration), `docs/contracts/*` (shared runtime contract docs touched by helper changes), `docs/config/inventory.json`, `docs/config/inventory.md`.
@@ -721,7 +720,7 @@ Documents: `docs/testing/*`, `docs/benchmarks/*`, `docs/tooling/script-inventory
 Documents: `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`, `docs/contracts/*`, `docs/schemas/*`, `docs/tooling/script-inventory.json`.
 
 - [ ] Task F0.DOC: Findings program control-plane docs.
-Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/tooling/findings-remediation-manifest.json` (new), `docs/guides/commands.md`, `docs/tooling/script-inventory.json`.
+Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/guides/commands.md`.
 
 - [ ] Task F1.DOC: Build/runtime lifecycle findings docs.
 Documents: `docs/contracts/schemas/build-state.js` (and related contract docs in `docs/contracts/*`), `docs/sqlite/incremental-updates.md`, `docs/specs/*` (build/stage lifecycle docs touched).
@@ -748,7 +747,7 @@ Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` 
 Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`, `docs/tooling/src-review-unreviewed-batches-2026-02-10.md` (or successor file).
 
 - [ ] Task F9.DOC: Final findings closure docs.
-Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/tooling/findings-remediation-manifest.json`, `docs/worklogs/*`, `docs/guides/commands.md`.
+Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/worklogs/*`, `docs/guides/commands.md`.
 
 ---
 
@@ -759,15 +758,14 @@ Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/tooling/findings-remediation-m
 - [ ] Migrate all callsites.
 - [ ] Delete duplicate implementation(s).
 - [ ] Add/adjust tests validating canonical path behavior.
-- [ ] Add duplicate-ban patterns for removed symbols.
-- [ ] Run duplicate audit + targeted tests.
+- [ ] Run targeted sweep queries and targeted tests.
 - [ ] Update docs/contracts if behavior or options changed.
 
 Subphase ordering rule (applies to D1-D8):
 1. Foundation extraction: create/lock canonical helper API.
 2. Migration pass: move all consumers to canonical API.
 3. Deletion pass: remove duplicate bodies and dead exports.
-4. Enforcement pass: add ban patterns and run audit.
+4. Enforcement pass: run sweeps to verify no legacy callsites remain in touched scope.
 5. Validation pass: run targeted tests, then lane subset.
 
 ---
@@ -775,57 +773,45 @@ Subphase ordering rule (applies to D1-D8):
 ## Phase D0 — Baseline and migration guardrails
 
 ### Objective
-Create enforcement infrastructure so each subsequent phase can prove exhaustive duplicate removal.
+Freeze baseline mapping and move immediately into direct remediation work (no new scanner tooling).
 
 ### Files
 - `docs/tooling/dupemap-migration-manifest.json` (new)
-- `tools/dupemap/audit-legacy-usage.js` (new)
-- `tests/tooling/dupemap/dupemap-legacy-usage-ban.test.js` (new)
-- `tests/tooling/dupemap/dupemap-manifest-completeness.test.js` (new)
+- `DUPEMAP.md`
+- `All_Findings.md`
 - `docs/guides/commands.md` (update)
 
 ### Subphase D0.1 — Manifest and schema
 Tasks:
-- [ ] Task D0.1.a: Create manifest schema sections: `clusters`, `migrations`, `banPatterns`, `exceptions`.
+- [x] Task D0.1.a: Create manifest schema sections: `clusters`, `migrations`, `banPatterns`, `exceptions`.
 Details: Each migration entry must include `phase`, `oldPathOrSymbol`, `newPathOrSymbol`, `status`.
-- [ ] Task D0.1.b: Populate initial entries for all 27 clusters plus 4 additional verified clusters.
+- [x] Task D0.1.b: Populate initial entries for all 27 clusters plus 4 additional verified clusters.
 Details: No placeholder entries; every cluster must have concrete symbols/files.
-- [ ] Task D0.1.c: Add explicit exception semantics.
+- [x] Task D0.1.c: Add explicit exception semantics.
 Details: Exception entry requires reason + expiry phase; no permanent exceptions.
 
-### Subphase D0.2 — Scanner + fail-fast behavior
+### Subphase D0.2 — Fix-first execution sequencing
 Tasks:
-- [ ] Task D0.2.a: Implement scanner to parse manifest and run pattern checks over `src/**`, `tools/**`, `tests/**`.
-Details: Support regex and exact match modes.
-- [ ] Task D0.2.b: Emit actionable output.
-Details: Print file, line, matched legacy token, and replacement token.
-- [ ] Task D0.2.c: Add strict exit mode.
-Details: `--fail-on-hit` returns exit 1 when non-exempt matches are found.
+- [ ] Task D0.2.a: Convert D0 plan from tooling-build to direct-fix execution.
+Details: No additional scanner or audit tools are added in D0.
+- [ ] Task D0.2.b: Keep remediation slices small and touchpoint-coupled.
+Details: Prioritize high-severity and cross-cutting fixes first.
+- [ ] Task D0.2.c: Confirm each upcoming phase has concrete code/test/doc tasks before implementation.
+Details: Avoid generic “infra-first” work that does not fix findings directly.
 
-### Subphase D0.3 — CI and script-coverage integration
+### Subphase D0.3 — Existing-lane enforcement only
 Tasks:
-- [ ] Task D0.3.a: Wire scanner command into CI-lite and ci-long guardrails.
-Details: Run before broad test lanes.
-- [ ] Task D0.3.b: Add script-coverage action for dupemap tests.
-Details: Ensure dupemap tests appear in script inventory checks.
-
-### Subphase D0.4 — Class-level regression guardrails
-Tasks:
-- [ ] Task D0.4.a: Extend manifest to include `classRemediations` and `guardrails` sections.
-Details: Encode explicit checks for non-atomic writes, unbounded module caches, raw fd truthy checks, duplicated normalization helpers, and pre-promotion partial state writes.
-- [ ] Task D0.4.b: Add scanner rules for known bug classes.
-Details: Fail on direct state/cache/manifest writes outside approved atomic helper paths and on banned unbounded module-level cache patterns.
-- [ ] Task D0.4.c: Wire guardrail checks into CI-lite and ci-long before lane execution.
-Details: Guardrail failures must fail fast with actionable file/line output.
+- [ ] Task D0.3.a: Use existing lane and targeted-test workflow as enforcement.
+Details: Fixes are validated through phase tests and existing CI lanes.
+- [ ] Task D0.3.b: Do not add new scanner/audit scripts as D0 deliverables.
+Details: Keep momentum on direct remediation.
 
 ### Tests
-- [ ] `tests/tooling/dupemap/dupemap-legacy-usage-ban.test.js`
-- [ ] `tests/tooling/dupemap/dupemap-manifest-completeness.test.js`
-- [ ] `tests/tooling/dupemap/dupemap-guardrails-contract.test.js` (new)
+- [ ] no new D0-specific tooling tests required
 
 ### Exit criteria
 - [ ] Manifest exists and covers all known clusters.
-- [ ] Scanner is CI-enforced and fail-fast.
+- [ ] D0 is explicitly configured for fix-first execution with no new scanner/audit tooling tasks.
 
 ---
 
@@ -916,7 +902,6 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [ ] `tests/shared/io/atomic-write-contract.test.js` (new)
 - [ ] `tests/shared/cache/cache-policy-contract.test.js` (new)
 - [ ] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)
-- [ ] `tests/tooling/dupemap/dupemap-legacy-usage-ban.test.js` (update D1 bans)
 
 ### Exit criteria
 - [ ] No D1 duplicate helper bodies remain.
@@ -971,7 +956,6 @@ Details: Keep one implementation and one export path.
 - [ ] `tests/indexing/artifacts/resolution-strictness-parity.test.js` (new)
 - [ ] `tests/indexing/vfs/vfs-manifest-streaming.test.js` (update)
 - [ ] `tests/tooling/vfs/vfs-manifest-streaming.test.js` (update; merge plan in D7)
-- [ ] `tests/tooling/dupemap/dupemap-legacy-usage-ban.test.js` (update D2 bans)
 
 ### Exit criteria
 - [ ] Exactly one merge/read stack and one writer scaffolding stack remain.
@@ -1160,7 +1144,6 @@ Details: No duplicate `new Unpackr` helpers remain outside shared module.
 - [ ] `tests/storage/sqlite/vocab/vocab-fetch-parity.test.js` (new)
 - [ ] `tests/storage/lmdb/lmdb-utils-contract.test.js` (new)
 - [ ] existing SQLite/LMDB suites updated for canonical paths
-- [ ] `tests/tooling/dupemap/dupemap-legacy-usage-ban.test.js` (update D3 bans)
 
 ### Exit criteria
 - [ ] Build/retrieval storage paths share single quantization/vocab semantics.
@@ -1322,11 +1305,11 @@ Details: Preserve existing auth/env behavior.
 
 ### Subphase D8.3 — Final migration lock and docs sync
 Tasks:
-- [ ] Task D8.3.a: Expand ban manifest to include all migrated symbols/modules.
-Details: No unresolved temporary exceptions.
+- [ ] Task D8.3.a: Run final legacy-usage sweeps for all migrated symbols/modules.
+Details: Record sweep commands and results in phase notes.
 - [ ] Task D8.3.b: Run full docs/contracts/config command docs sync.
 Details: `docs/guides/commands.md`, config schema/inventory, relevant contracts.
-- [ ] Task D8.3.c: Ensure CI includes dupemap audit + representative lanes.
+- [ ] Task D8.3.c: Ensure CI includes representative lanes for touched domains.
 Details: include ci-lite and ci-long execution points.
 
 ### Subphase D8.4 — Class-level remediation closeout
@@ -1345,7 +1328,6 @@ Details: Map each remediation item to implemented helpers, migrated callsites, a
 - [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
 - [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 - [ ] tooling docs tests updated and passing
-- [ ] final `dupemap-legacy-usage-ban` suite passing
 
 ### Exit criteria
 - [ ] All roadmap clusters resolved or explicitly accepted with written rationale.
@@ -1359,11 +1341,10 @@ Details: Map each remediation item to implemented helpers, migrated callsites, a
 For each phase D0–D8 and F0–F9:
 - [ ] Run phase-targeted tests individually first.
 - [ ] Run affected lane subset (`ci-lite` minimum).
-- [ ] Run `node tools/dupemap/audit-legacy-usage.js --fail-on-hit`.
-- [ ] Run `node tools/findings/audit-remediation.js --fail-on-unresolved` for in-scope finding IDs.
+- [ ] Run phase-specific sweep checks listed in the phase and record results in phase notes.
 - [ ] Complete phase documentation task from the documentation update matrix (`Phase.DOC`) and check it off.
 - [ ] Capture perf baseline and post-change delta for mapped hot paths; record against `perf-budgets.json`.
-- [ ] Update migration manifest and ban patterns.
+- [ ] Update migration mapping tables and phase notes.
 - [ ] Update phase checkboxes only when code+tests are committed.
 
 ---
@@ -1378,7 +1359,7 @@ For each phase D0–D8 and F0–F9:
 - [ ] Docs/contracts/config references reflect canonical implementations.
 - [ ] All six class-level remediations from `All_Findings.md` Part 4 are implemented and verified with linked tests.
 - [ ] All findings from `All_Findings.md` Parts 1-5 are resolved or explicitly accepted with risk records and expiry phases.
-- [ ] `findings-remediation-manifest` audit passes with no unresolved high/critical findings.
+- [ ] No unresolved high/critical findings remain in phase status tables.
 - [ ] `src/**` review coverage lock is green in CI.
 - [ ] `perf-budgets.json` budgets are met or explicitly accepted with time-bound waivers.
 - [ ] CI publishes top-offender/trend artifact for performance-sensitive suites.
