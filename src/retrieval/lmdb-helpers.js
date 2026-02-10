@@ -1,10 +1,7 @@
-import { Unpackr } from 'msgpackr';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
-
-const unpackr = new Unpackr();
-const decode = (value) => (value == null ? null : unpackr.unpack(value));
+import { decodeLmdbValue } from '../storage/lmdb/utils.js';
 
 /**
  * Create LMDB helper functions for search.
@@ -27,7 +24,7 @@ export function createLmdbHelpers(options) {
   } = options;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
 
-  const getArtifact = (db, key) => decode(db.get(key));
+  const getArtifact = (db, key) => decodeLmdbValue(db.get(key));
 
   /**
    * Load index artifacts from LMDB into in-memory structures.

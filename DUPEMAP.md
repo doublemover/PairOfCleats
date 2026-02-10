@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:42:32.5534052-05:00
+Last updated: 2026-02-09T23:50:33.7948359-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -65,7 +65,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
-| D3 | [@] | SQLite/LMDB/quantization/vocab consolidation |
+| D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
@@ -1317,29 +1317,38 @@ D3.3 status update (2026-02-09T23:42:32.5534052-05:00):
 
 ### Subphase D3.4 — LMDB utils consolidation
 Tasks:
-- [ ] Task D3.4.a: Add shared LMDB presence checker and codec factory.
+- [x] Task D3.4.a: Add shared LMDB presence checker and codec factory.
 Details: Include `data.mdb` checks and decode behavior.
-- [ ] Task D3.4.b: Add shared LMDB meta/schema validation helpers.
+- [x] Task D3.4.b: Add shared LMDB meta/schema validation helpers.
 Details: Centralize required-key checks.
-- [ ] Task D3.4.c: Migrate retrieval/validate/status callsites and delete local variants.
+- [x] Task D3.4.c: Migrate retrieval/validate/status callsites and delete local variants.
 Details: No duplicate `new Unpackr` helpers remain outside shared module.
+
+D3.4 status update (2026-02-09T23:50:33.7948359-05:00):
+- resolved: added canonical LMDB utility module `src/storage/lmdb/utils.js` with shared presence check (`hasLmdbStore`), codec factory (`createLmdbCodec`), decode helper (`decodeLmdbValue`), schema/mode validation (`validateLmdbSchemaAndMode`), and required-artifact validation (`validateLmdbArtifactKeys`).
+- resolved: migrated retrieval callsites (`src/retrieval/cli-lmdb.js`, `src/retrieval/lmdb-helpers.js`, `src/retrieval/cli/index-loader.js`) and validation/status callsites (`src/index/validate/lmdb.js`, `src/index/validate/lmdb-report.js`, `src/integrations/core/status.js`) to canonical LMDB utilities.
+- resolved: removed local `Unpackr` decode and `data.mdb` presence helper variants from retrieval/validate/status paths in scope.
+- remaining: phase D3 complete.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number \"new Unpackr|data\\.mdb|hasLmdb|isLmdb\" src/retrieval src/index/validate src/integrations/core src/storage/lmdb`.
 
 ### Exhaustive sweeps
 - [x] `rg "resolveQuantizationParams|levels\s*\?|scale\s*=\s*\(" src/retrieval src/storage`
 - [x] `rg "fetchVocabRows\(" src/storage src/retrieval`
-- [ ] `rg "new Unpackr|data\.mdb|hasLmdb|isLmdb" src`
+- [x] `rg "new Unpackr|data\.mdb|hasLmdb|isLmdb" src`
 - [x] `rg "output-paths\.js|index-state\.js|createNoopTask" src tools/build/sqlite tools/shared`
 
 ### Tests
 - [x] `tests/storage/sqlite/build/sqlite-build-core-contract.test.js` (new)
 - [x] `tests/storage/sqlite/quantization/quantization-parity.test.js` (new)
 - [x] `tests/storage/sqlite/vocab/vocab-fetch-parity.test.js` (new)
-- [ ] `tests/storage/lmdb/lmdb-utils-contract.test.js` (new)
+- [x] `tests/storage/lmdb/lmdb-utils-contract.test.js` (new)
 - [x] existing SQLite/LMDB suites updated for canonical paths
 
 ### Exit criteria
 - [x] Build/retrieval storage paths share single quantization/vocab semantics.
-- [ ] LMDB presence/decode/validation logic is centralized.
+- [x] LMDB presence/decode/validation logic is centralized.
 
 ---
 

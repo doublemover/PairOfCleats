@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:42:32.5534052-05:00",
+  "updatedAt": "2026-02-09T23:50:33.7948359-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -72,7 +72,7 @@
       "clusterId": "C07",
       "title": "LMDB codec/presence/meta validation",
       "phase": "D3",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/retrieval/lmdb-helpers.js",
         "src/index/validate/lmdb.js"
@@ -350,7 +350,7 @@
     { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveOutputPaths", "status": "completed" },
     { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams + retrieval dense_meta manual levels/scale branches", "newPathOrSymbol": "src/storage/sqlite/quantization.js::{resolveQuantizationParams,resolveDenseMetaRecord}", "status": "completed" },
     { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows + src/storage/sqlite/build/vocab.js", "newPathOrSymbol": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds}", "status": "completed" },
-    { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
+    { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js + src/index/validate/lmdb.js local Unpackr/decode/data.mdb helpers", "newPathOrSymbol": "src/storage/lmdb/utils.js::{createLmdbCodec,decodeLmdbValue,hasLmdbStore}", "status": "completed" },
     { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "completed" },
     { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "completed" },
     { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
@@ -457,7 +457,9 @@
     { "migrationId": "M111", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-bundles.js::{resolveSqliteBatchSize,bumpSqliteBatchStat,applyBuildPragmas,createInsertStatements,createMultiRowInserter} local setup stack", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{createBuildExecutionContext,openSqliteBuildDatabase,createSqliteBuildInsertContext,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
     { "migrationId": "M112", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-{artifacts,bundles}.js::manual BEGIN/COMMIT/ROLLBACK + validate/optimize/checkpoint/cleanup blocks", "newPathOrSymbol": "src/storage/sqlite/build/core.js::{beginSqliteBuildTransaction,commitSqliteBuildTransaction,rollbackSqliteBuildTransaction,runSqliteBuildPostCommit,closeSqliteBuildDatabase}", "status": "completed" },
     { "migrationId": "M113", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "tools/build/{compact-sqlite-index,embeddings/*} + src/index/build/runtime/embeddings.js quantization imports from vector.js", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "completed" },
-    { "migrationId": "M114", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/incremental-update.js::ensureVocabIds from build-local module", "newPathOrSymbol": "src/storage/sqlite/vocab.js::ensureVocabIds", "status": "completed" }
+    { "migrationId": "M114", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/incremental-update.js::ensureVocabIds from build-local module", "newPathOrSymbol": "src/storage/sqlite/vocab.js::ensureVocabIds", "status": "completed" },
+    { "migrationId": "M115", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli-lmdb.js::validateStore/schema+mode checks + src/index/validate/lmdb-report.js required-artifact key checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::{validateLmdbSchemaAndMode,validateLmdbArtifactKeys}", "status": "completed" },
+    { "migrationId": "M116", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli/index-loader.js + src/integrations/core/status.js data.mdb direct checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbStore", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -641,6 +643,13 @@
       "scope": "src/retrieval/**,src/storage/sqlite/build/**",
       "pattern": "local sqlite vocab statement cache/fetch helper bodies",
       "replacement": "src/storage/sqlite/vocab.js::{fetchVocabRows,ensureVocabIds,getVocabCount}"
+    },
+    {
+      "banId": "B036",
+      "phase": "D3",
+      "scope": "src/retrieval/**,src/index/validate/**,src/integrations/core/status.js",
+      "pattern": "local LMDB decode/presence/schema-required-key helper bodies",
+      "replacement": "src/storage/lmdb/utils.js::{createLmdbCodec,decodeLmdbValue,hasLmdbStore,validateLmdbSchemaAndMode,validateLmdbArtifactKeys}"
     }
   ],
   "exceptions": [],

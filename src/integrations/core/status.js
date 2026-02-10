@@ -6,6 +6,7 @@ import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifa
 import { getEnvConfig } from '../../shared/env.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
+import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -72,7 +73,7 @@ export async function getStatus(input = {}) {
     { label: 'prose', path: lmdbPaths.prosePath }
   ];
   for (const target of lmdbTargets) {
-    const exists = fs.existsSync(path.join(target.path, 'data.mdb'));
+    const exists = hasLmdbStore(target.path);
     const size = exists ? await sizeOfPath(target.path) : 0;
     lmdbStats[target.label] = exists ? { path: target.path, bytes: size } : null;
     if (exists && !isPathUnderDir(path.resolve(cacheRoot), target.path)) {
@@ -152,10 +153,10 @@ export async function getStatus(input = {}) {
 
   const lmdbIssues = [];
   if (userConfig.lmdb?.use !== false) {
-    if (!fs.existsSync(path.join(lmdbPaths.codePath, 'data.mdb'))) {
+    if (!hasLmdbStore(lmdbPaths.codePath)) {
       lmdbIssues.push('lmdb code db missing');
     }
-    if (!fs.existsSync(path.join(lmdbPaths.prosePath, 'data.mdb'))) {
+    if (!hasLmdbStore(lmdbPaths.prosePath)) {
       lmdbIssues.push('lmdb prose db missing');
     }
   }
