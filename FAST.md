@@ -215,7 +215,7 @@ Format:
 - Impact: Better parser throughput.
 - Risk: Output order changes must remain deterministic.
 
-8. Area: Duplicate plan/executor file reads
+8. [x] Area: Duplicate plan/executor file reads
 - Files: `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/tree-sitter-scheduler/executor.js`
 - Opportunity: Share cached text/hash across phases or skip re-hash on unchanged signatures.
 - Impact: Reduced disk/hash cost.
