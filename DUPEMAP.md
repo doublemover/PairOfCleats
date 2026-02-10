@@ -63,7 +63,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [@] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
-| D4 | [ ] | ANN + API/MCP + search request normalization |
+| D4 | [@] | ANN + API/MCP + search request normalization |
 | D5 | [ ] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
@@ -1088,12 +1088,22 @@ Clusters: 8, 9, additional `normalizeMetaFilters` and repo cache defaults duplic
 
 ### Subphase D4.1 — ANN provider and backend normalization
 Tasks:
-- [ ] Task D4.1.a: Define canonical ANN readiness/gating helper API.
+- [x] Task D4.1.a: Define canonical ANN readiness/gating helper API.
 Details: Must encapsulate signal/config/index/candidate-set checks.
-- [ ] Task D4.1.b: Migrate ANN providers to canonical gating helper.
+- [x] Task D4.1.b: Migrate ANN providers to canonical gating helper.
 Details: Remove local gating branches in provider modules.
-- [ ] Task D4.1.c: Define canonical backend normalization and migrate CLI/pipeline callsites.
+- [x] Task D4.1.c: Define canonical backend normalization and migrate CLI/pipeline callsites.
 Details: Remove divergent backend alias behavior.
+
+D4.1 status update (2026-02-09T22:35:42.9880685-05:00):
+- resolved: added canonical ANN gating helpers in `src/retrieval/ann/utils.js` (`isEmbeddingReady`, `isCandidateSetEmpty`, `isAnnProviderAvailable`, `canRunAnnQuery`).
+- resolved: added canonical ANN backend normalization in `src/retrieval/ann/normalize-backend.js` and removed `src/retrieval/pipeline/ann-backends.js` shim.
+- resolved: migrated ANN providers (`dense`, `hnsw`, `lancedb`, `sqlite-vec`) to shared gating semantics and removed provider-local readiness duplicates.
+- resolved: migrated CLI and pipeline backend interpretation to canonical normalizer (`src/retrieval/cli/normalize-options.js`, `src/retrieval/pipeline.js`).
+- remaining: D4.2 request/filter normalization and D4.3 repo cache config parity.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "normalizeAnnBackend|ann-backends|annBackend" src/retrieval`.
 
 ### Subphase D4.2 — Search request and filter normalization
 Tasks:
@@ -1112,15 +1122,15 @@ Details: API and MCP read from same source.
 Details: Keep explicit override behavior consistent.
 
 ### Exhaustive sweeps
-- [ ] `rg "normalizeAnnBackend|ann-backends|annBackend" src/retrieval`
+- [x] `rg "normalizeAnnBackend|ann-backends|annBackend" src/retrieval`
 - [ ] `rg "normalizeMetaFilters\(" tools/api tools/mcp`
 - [ ] `rg "payload\.paths|payload\.path|payload\.filter" tools/api`
 - [ ] `rg "DEFAULT_CACHE|cacheConfig|normalizeCacheConfig" tools/api tools/mcp`
 
 ### Tests
-- [ ] `tests/retrieval/ann/ann-provider-gating-parity.test.js` (new)
-- [ ] `tests/retrieval/ann/ann-backend-normalization-parity.test.js` (new)
-- [ ] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (new)
+- [x] `tests/retrieval/ann/ann-provider-gating-parity.test.js` (new)
+- [x] `tests/retrieval/ann/ann-backend-normalization-parity.test.js` (new)
+- [x] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (new)
 - [ ] `tests/tooling/api-mcp/search-request-parity.test.js` (new)
 - [ ] `tests/tooling/api-mcp/meta-filter-normalization.test.js` (new)
 - [ ] `tests/tooling/api-mcp/repo-cache-config-parity.test.js` (new)
@@ -1128,7 +1138,7 @@ Details: Keep explicit override behavior consistent.
 
 ### Exit criteria
 - [ ] API and MCP normalize requests identically.
-- [ ] ANN providers share one gating + backend interpretation path.
+- [x] ANN providers share one gating + backend interpretation path.
 
 ---
 

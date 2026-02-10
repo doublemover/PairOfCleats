@@ -10,9 +10,10 @@ import { createHnswAnnProvider } from './ann/providers/hnsw.js';
 import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
 import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
 import { ANN_PROVIDER_IDS } from './ann/types.js';
+import { isEmbeddingReady } from './ann/utils.js';
+import { resolveAnnOrder } from './ann/normalize-backend.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { createCandidateSetBuilder } from './pipeline/candidates.js';
-import { resolveAnnOrder } from './pipeline/ann-backends.js';
 import { fuseRankedHits } from './pipeline/fusion.js';
 import { createQueryAstHelpers } from './pipeline/query-ast.js';
 import { applyGraphRanking } from './pipeline/graph-ranking.js';
@@ -22,11 +23,6 @@ import { createTopKReducer } from './pipeline/topk.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
-
-const isEmbeddingReady = (embedding) => (
-  (Array.isArray(embedding) || (ArrayBuffer.isView(embedding) && !(embedding instanceof DataView)))
-  && embedding.length > 0
-);
 
 /**
  * Create a search pipeline runner bound to a shared context.
