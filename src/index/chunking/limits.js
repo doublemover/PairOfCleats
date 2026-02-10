@@ -129,7 +129,7 @@ const resolveByteBoundary = (text, start, end, maxBytes, byteMetrics = null) => 
   return best;
 };
 
-export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes, byteMetrics = null) => {
+export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteMetrics = null) => {
   if (!maxBytes) return [chunk];
   const start = Number.isFinite(chunk.start) ? chunk.start : 0;
   const end = Number.isFinite(chunk.end) ? chunk.end : start;
@@ -138,10 +138,20 @@ export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes, byteMetrics 
   if (bytes <= maxBytes) return [chunk];
   const output = [];
   let cursor = start;
+  let lineIndex = null;
+  const ensureLineIndex = () => {
+    if (lineIndex) return lineIndex;
+    if (typeof resolveLineIndex === 'function') {
+      lineIndex = resolveLineIndex();
+    } else if (resolveLineIndex && Array.isArray(resolveLineIndex)) {
+      lineIndex = resolveLineIndex;
+    }
+    return lineIndex;
+  };
   while (cursor < end) {
     const next = resolveByteBoundary(text, cursor, end, maxBytes, byteMetrics);
     const safeNext = next > cursor ? next : Math.min(cursor + 1, end);
-    output.push(buildChunkWithRange(chunk, cursor, safeNext, lineIndex));
+    output.push(buildChunkWithRange(chunk, cursor, safeNext, ensureLineIndex()));
     if (safeNext <= cursor) break;
     cursor = safeNext;
   }
@@ -164,12 +174,17 @@ export const applyChunkingLimits = (chunks, text, context) => {
       : null
     : null;
   if (!maxBytes && !maxLines && !guardrailMaxBytes) return chunks;
-  const lineIndex = buildLineIndex(text);
+  let lineIndex = null;
+  const getLineIndex = () => {
+    if (!lineIndex) lineIndex = buildLineIndex(text);
+    return lineIndex;
+  };
   let output = chunks;
   if (maxLines) {
+    const resolvedLineIndex = getLineIndex();
     const nextOutput = [];
     for (const chunk of output) {
-      const split = splitChunkByLines(chunk, text, lineIndex, maxLines);
+      const split = splitChunkByLines(chunk, text, resolvedLineIndex, maxLines);
       for (const item of split) nextOutput.push(item);
     }
     output = nextOutput;
@@ -178,7 +193,7 @@ export const applyChunkingLimits = (chunks, text, context) => {
   if (effectiveMaxBytes) {
     const nextOutput = [];
     for (const chunk of output) {
-      const split = splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes, byteMetrics);
+      const split = splitChunkByBytes(chunk, text, getLineIndex, effectiveMaxBytes, byteMetrics);
       for (const item of split) nextOutput.push(item);
     }
     output = nextOutput;
