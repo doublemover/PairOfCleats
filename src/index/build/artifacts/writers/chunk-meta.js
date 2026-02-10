@@ -7,6 +7,10 @@ import { parseHash64 } from '../../../../shared/token-id.js';
 import { ensureDiskSpace, formatBytes } from '../../../../shared/disk-space.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
 import {
+  extractChunkMetaColdFields,
+  stripChunkMetaColdFields
+} from '../../../../shared/chunk-meta-cold.js';
+import {
   writeJsonLinesFile,
   writeJsonLinesFileAsync,
   writeJsonLinesSharded,
@@ -45,6 +49,23 @@ const attachCachedLine = (row, line) => {
   try {
     Object.defineProperty(row, '__jsonl', { value: line, enumerable: false });
   } catch {}
+};
+
+const mapRows = (rows, mapper) => {
+  if (rows && typeof rows[Symbol.asyncIterator] === 'function') {
+    return (async function* mappedRowsAsync() {
+      for await (const row of rows) {
+        const next = mapper(row);
+        if (next) yield next;
+      }
+    })();
+  }
+  return (function* mappedRowsSync() {
+    for (const row of rows || []) {
+      const next = mapper(row);
+      if (next) yield next;
+    }
+  })();
 };
 
 const serializeCachedRow = (row) => {
@@ -505,8 +526,16 @@ export const enqueueChunkMetaArtifacts = async ({
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
+  let enableHotColdSplit = true;
+  const projectHotEntry = (entry) => (
+    enableHotColdSplit ? stripChunkMetaColdFields(entry) : entry
+  );
+  const projectColdEntry = (entry) => (
+    enableHotColdSplit ? extractChunkMetaColdFields(entry) : null
+  );
   const scanChunkMeta = () => {
     let totalJsonlBytes = 0;
+    let coldJsonlBytes = 0;
     let total = 0;
     let maxRowBytes = 0;
     let ordered = true;
@@ -516,7 +545,8 @@ export const enqueueChunkMetaArtifacts = async ({
     const orderingHasher = createOrderingHasher();
     chunkMetaIterator.resetStats?.();
     for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
-      const line = JSON.stringify(entry);
+      const hotEntry = projectHotEntry(entry);
+      const line = JSON.stringify(hotEntry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
       orderingHasher.update(line);
       maxRowBytes = Math.max(maxRowBytes, lineBytes);
@@ -524,8 +554,16 @@ export const enqueueChunkMetaArtifacts = async ({
         throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
       }
       totalJsonlBytes += lineBytes + 1;
+      const coldEntry = projectColdEntry(entry);
+      if (coldEntry) {
+        const coldLineBytes = Buffer.byteLength(JSON.stringify(coldEntry), 'utf8');
+        if (resolvedMaxJsonBytes && (coldLineBytes + 1) > resolvedMaxJsonBytes) {
+          throw new Error(`chunk_meta_cold entry exceeds max JSON size (${coldLineBytes} bytes).`);
+        }
+        coldJsonlBytes += coldLineBytes + 1;
+      }
       total += 1;
-      const id = Number.isFinite(entry?.id) ? entry.id : null;
+      const id = Number.isFinite(hotEntry?.id) ? hotEntry.id : null;
       if (id == null || id !== (total - 1)) {
         if (!firstIdMismatch) {
           firstIdMismatch = { index: total - 1, id };
@@ -543,6 +581,7 @@ export const enqueueChunkMetaArtifacts = async ({
     const orderingResult = total ? orderingHasher.digest() : null;
     return {
       totalJsonlBytes,
+      coldJsonlBytes,
       total,
       maxRowBytes,
       ordered,
@@ -555,12 +594,14 @@ export const enqueueChunkMetaArtifacts = async ({
   const measureChunkMeta = () => {
     let totalJsonBytes = 2;
     let totalJsonlBytes = 0;
+    let coldJsonlBytes = 0;
     let total = 0;
     let maxRowBytes = 0;
     const orderingHasher = createOrderingHasher();
     chunkMetaIterator.resetStats?.();
     for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
-      const line = JSON.stringify(entry);
+      const hotEntry = projectHotEntry(entry);
+      const line = JSON.stringify(hotEntry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
       orderingHasher.update(line);
       maxRowBytes = Math.max(maxRowBytes, lineBytes);
@@ -569,12 +610,21 @@ export const enqueueChunkMetaArtifacts = async ({
       }
       totalJsonBytes += lineBytes + (total > 0 ? 1 : 0);
       totalJsonlBytes += lineBytes + 1;
+      const coldEntry = projectColdEntry(entry);
+      if (coldEntry) {
+        const coldLineBytes = Buffer.byteLength(JSON.stringify(coldEntry), 'utf8');
+        if (resolvedMaxJsonBytes && (coldLineBytes + 1) > resolvedMaxJsonBytes) {
+          throw new Error(`chunk_meta_cold entry exceeds max JSON size (${coldLineBytes} bytes).`);
+        }
+        coldJsonlBytes += coldLineBytes + 1;
+      }
       total += 1;
     }
     const orderingResult = total ? orderingHasher.digest() : null;
     return {
       totalJsonBytes,
       totalJsonlBytes,
+      coldJsonlBytes,
       total,
       maxRowBytes,
       orderingHash: orderingResult?.hash || null,
@@ -631,18 +681,23 @@ export const enqueueChunkMetaArtifacts = async ({
       }
     }
     if (outOfOrder) {
+      if (enableHotColdSplit) {
+        enableHotColdSplit = false;
+        jsonlScan = scanChunkMeta();
+      }
       const collector = createChunkMetaBucketCollector({
         outDir,
         maxJsonBytes: resolvedMaxJsonBytes,
         chunkMetaCount
       });
       for (const entry of chunkMetaIterator(0, chunkMetaCount, false)) {
-        const line = JSON.stringify(entry);
+        const hotEntry = projectHotEntry(entry);
+        const line = JSON.stringify(hotEntry);
         const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
         if (resolvedMaxJsonBytes && lineBytes > resolvedMaxJsonBytes) {
           throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
         }
-        await collector.append(entry, { line, lineBytes });
+        await collector.append(hotEntry, { line, lineBytes });
       }
       collected = await collector.finalize();
     }
@@ -690,6 +745,8 @@ export const enqueueChunkMetaArtifacts = async ({
       droppedRows: 0,
       extra: {
         format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
+        hotColdSplit: enableHotColdSplit,
+        coldBytes: jsonlScan.coldJsonlBytes || 0,
         trimmedMetaV2,
         trimmedFields: trimmedFieldsPayload,
         order: orderInfo,
@@ -714,6 +771,7 @@ export const enqueueChunkMetaArtifacts = async ({
       droppedRows: 0,
       extra: {
         format: 'json',
+        hotColdSplit: false,
         trimmedMetaV2,
         trimmedFields: trimmedFieldsPayload,
         budget: budgetInfo
@@ -724,7 +782,7 @@ export const enqueueChunkMetaArtifacts = async ({
   chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;
   chunkMetaPlan.chunkMetaUseColumnar = resolvedUseColumnar;
   const requiredBytes = resolvedUseJsonl
-    ? (jsonlScan?.totalJsonlBytes || 0)
+    ? ((jsonlScan?.totalJsonlBytes || 0) + (enableHotColdSplit ? (jsonlScan?.coldJsonlBytes || 0) : 0))
     : (measured?.totalJsonBytes || 0);
   const orderingHash = jsonlScan?.orderingHash || measured?.orderingHash || null;
   const orderingCount = jsonlScan?.orderingCount || measured?.orderingCount || 0;
@@ -739,9 +797,15 @@ export const enqueueChunkMetaArtifacts = async ({
   const jsonlPath = path.join(outDir, jsonlName);
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${jsonlPath}.${offsetsConfig.suffix}` : null;
+  const coldJsonlName = `chunk_meta_cold.${jsonlExtension}`;
+  const coldJsonlPath = path.join(outDir, coldJsonlName);
+  const coldOffsetsPath = offsetsConfig ? `${coldJsonlPath}.${offsetsConfig.suffix}` : null;
   const columnarPath = path.join(outDir, 'chunk_meta.columnar.json');
   const removeJsonlVariants = async () => removeArtifacts(
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
+  );
+  const removeColdJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta_cold', includeOffsets: true })
   );
 
   if (resolvedUseJsonl) {
@@ -752,16 +816,22 @@ export const enqueueChunkMetaArtifacts = async ({
     if (resolvedUseShards) {
       // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
       await removeJsonlVariants();
+      await removeColdJsonlVariants();
     } else {
       // When writing unsharded JSONL output, remove any stale shard artifacts.
       // The loader prefers chunk_meta.meta.json / chunk_meta.parts over chunk_meta.jsonl.
       await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
       await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+      await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
+      await removeArtifact(path.join(outDir, 'chunk_meta_cold.parts'));
     }
   } else {
     await removeJsonlVariants();
+    await removeColdJsonlVariants();
     await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+    await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
+    await removeArtifact(path.join(outDir, 'chunk_meta_cold.parts'));
     if (!resolvedUseColumnar) {
       await removeArtifact(columnarPath);
     }
@@ -772,6 +842,9 @@ export const enqueueChunkMetaArtifacts = async ({
       log(`[chunk_meta] writing sharded JSONL -> ${path.join(outDir, 'chunk_meta.parts')}`);
     } else {
       log(`[chunk_meta] writing JSONL -> ${jsonlPath}`);
+    }
+    if (enableHotColdSplit) {
+      log('[chunk_meta] hot/cold split enabled for JSONL artifacts.');
     }
   } else if (resolvedUseColumnar) {
     log(`[chunk_meta] writing columnar -> ${columnarPath}`);
@@ -784,32 +857,61 @@ export const enqueueChunkMetaArtifacts = async ({
     const runs = collected?.runs || null;
     const buckets = collected?.buckets || null;
     const bucketSize = collected?.bucketSize || null;
-    let items = chunkMetaIterator();
-    let itemsAsync = false;
-    if (buckets) {
-      itemsAsync = true;
-      items = (async function* bucketIterator() {
-        for (const bucket of buckets) {
-          const result = bucket?.result;
-          if (!result) continue;
-          if (result.runs) {
-            yield* mergeSortedRuns(result.runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
-          } else if (Array.isArray(result.rows)) {
-            for (const row of result.rows) yield row;
+    const createItemsSource = () => {
+      let items = chunkMetaIterator();
+      let itemsAsync = false;
+      if (buckets) {
+        itemsAsync = true;
+        items = (async function* bucketIterator() {
+          for (const bucket of buckets) {
+            const result = bucket?.result;
+            if (!result) continue;
+            if (result.runs) {
+              yield* mergeSortedRuns(result.runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
+            } else if (Array.isArray(result.rows)) {
+              for (const row of result.rows) yield row;
+            }
           }
-        }
-      })();
-    } else if (runs) {
-      itemsAsync = true;
-      items = mergeSortedRuns(runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
-    } else if (rows) {
-      items = rows;
+        })();
+      } else if (runs) {
+        itemsAsync = true;
+        items = mergeSortedRuns(runs, { compare: compareChunkMetaIdOnly, validateComparator: true });
+      } else if (rows) {
+        items = rows;
+      }
+      return { items, itemsAsync };
+    };
+    const createHotItemsSource = () => {
+      const source = createItemsSource();
+      return {
+        ...source,
+        items: mapRows(source.items, (entry) => projectHotEntry(entry))
+      };
+    };
+    const createColdItemsSource = () => {
+      const source = createItemsSource();
+      return {
+        ...source,
+        items: mapRows(source.items, (entry) => projectColdEntry(entry))
+      };
+    };
+    let collectedCleaned = false;
+    const cleanupCollected = async () => {
+      if (collectedCleaned) return;
+      collectedCleaned = true;
+      if (collected?.cleanup) await collected.cleanup();
+    };
+    if (!enableHotColdSplit) {
+      await removeColdJsonlVariants();
+      await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
+      await removeArtifact(path.join(outDir, 'chunk_meta_cold.parts'));
     }
     if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
         formatArtifactLabel(metaPath),
         async () => {
+          const { items, itemsAsync } = createHotItemsSource();
           const result = itemsAsync
             ? await writeJsonLinesShardedAsync({
               dir: outDir,
@@ -882,13 +984,90 @@ export const enqueueChunkMetaArtifacts = async ({
             }
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
-          if (collected?.cleanup) await collected.cleanup();
+          await cleanupCollected();
         }
       );
+      if (enableHotColdSplit) {
+        const coldMetaPath = path.join(outDir, 'chunk_meta_cold.meta.json');
+        enqueueWrite(
+          formatArtifactLabel(coldMetaPath),
+          async () => {
+            const { items, itemsAsync } = createColdItemsSource();
+            const result = itemsAsync
+              ? await writeJsonLinesShardedAsync({
+                dir: outDir,
+                partsDirName: 'chunk_meta_cold.parts',
+                partPrefix: 'chunk_meta_cold.part-',
+                items,
+                maxBytes: resolvedMaxJsonBytes,
+                maxItems: chunkMetaShardSize,
+                atomic: true,
+                compression,
+                gzipOptions,
+                offsets: offsetsConfig
+              })
+              : await writeJsonLinesSharded({
+                dir: outDir,
+                partsDirName: 'chunk_meta_cold.parts',
+                partPrefix: 'chunk_meta_cold.part-',
+                items,
+                maxBytes: resolvedMaxJsonBytes,
+                maxItems: chunkMetaShardSize,
+                atomic: true,
+                compression,
+                gzipOptions,
+                offsets: offsetsConfig
+              });
+            const parts = buildShardedPartEntries(result);
+            const offsetsMeta = createOffsetsMeta({
+              suffix: offsetsConfig?.suffix || null,
+              parts: result.offsets,
+              compression: 'none'
+            });
+            await writeShardedJsonlMeta({
+              metaPath: coldMetaPath,
+              artifact: 'chunk_meta_cold',
+              compression,
+              result,
+              parts,
+              extensions: {
+                ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+              }
+            });
+            for (let i = 0; i < result.parts.length; i += 1) {
+              const relPath = result.parts[i];
+              const absPath = path.join(outDir, fromPosix(relPath));
+              addPieceFile({
+                type: 'chunks',
+                name: 'chunk_meta_cold',
+                format: 'jsonl',
+                count: result.counts[i] || 0,
+                compression: compression || null
+              }, absPath);
+            }
+            if (Array.isArray(result.offsets)) {
+              for (let i = 0; i < result.offsets.length; i += 1) {
+                const relPath = result.offsets[i];
+                if (!relPath) continue;
+                const absPath = path.join(outDir, fromPosix(relPath));
+                addPieceFile({
+                  type: 'chunks',
+                  name: 'chunk_meta_cold_offsets',
+                  format: 'bin',
+                  count: result.counts[i] || 0
+                }, absPath);
+              }
+            }
+            addPieceFile({ type: 'chunks', name: 'chunk_meta_cold_meta', format: 'json' }, coldMetaPath);
+            await cleanupCollected();
+          }
+        );
+      }
     } else {
       enqueueWrite(
         formatArtifactLabel(jsonlPath),
         async () => {
+          const { items } = createHotItemsSource();
           await writeJsonLinesFileAsync(
             jsonlPath,
             items,
@@ -900,7 +1079,7 @@ export const enqueueChunkMetaArtifacts = async ({
               maxBytes: resolvedMaxJsonBytes
             }
           );
-          if (collected?.cleanup) await collected.cleanup();
+          await cleanupCollected();
         }
       );
       addPieceFile({
@@ -917,6 +1096,41 @@ export const enqueueChunkMetaArtifacts = async ({
           format: 'bin',
           count: chunkMetaCount
         }, offsetsPath);
+      }
+      if (enableHotColdSplit) {
+        enqueueWrite(
+          formatArtifactLabel(coldJsonlPath),
+          async () => {
+            const { items } = createColdItemsSource();
+            await writeJsonLinesFileAsync(
+              coldJsonlPath,
+              items,
+              {
+                atomic: true,
+                compression,
+                gzipOptions,
+                offsets: coldOffsetsPath ? { path: coldOffsetsPath, atomic: true } : null,
+                maxBytes: resolvedMaxJsonBytes
+              }
+            );
+            await cleanupCollected();
+          }
+        );
+        addPieceFile({
+          type: 'chunks',
+          name: 'chunk_meta_cold',
+          format: 'jsonl',
+          count: chunkMetaCount,
+          compression: compression || null
+        }, coldJsonlPath);
+        if (coldOffsetsPath) {
+          addPieceFile({
+            type: 'chunks',
+            name: 'chunk_meta_cold_offsets',
+            format: 'bin',
+            count: chunkMetaCount
+          }, coldOffsetsPath);
+        }
       }
     }
   } else if (resolvedUseColumnar) {

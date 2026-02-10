@@ -40,6 +40,7 @@ import {
 } from '../packed-postings.js';
 import { decodeVarint64List } from './varint.js';
 import { formatHash64 } from '../token-id.js';
+import { mergeChunkMetaColdFields } from '../chunk-meta-cold.js';
 
 const warnedNonStrictJsonFallback = new Set();
 const warnedMaterializeFallback = new Set();
@@ -1206,18 +1207,91 @@ const maybeInflatePackedTokenIds = (chunkMeta, materializeTokenIds) => (
   materializeTokenIds ? inflatePackedTokenIds(chunkMeta) : chunkMeta
 );
 
+const loadChunkMetaColdRows = async ({
+  dir,
+  maxBytes,
+  manifest,
+  strict,
+  validationMode
+}) => {
+  const requiredKeys = ['id'];
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest,
+    name: 'chunk_meta_cold',
+    strict: false,
+    maxBytes
+  }) || resolveJsonlArtifactSources(dir, 'chunk_meta_cold');
+  if (!sources?.paths?.length) return null;
+  if (sources.format === 'json') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for chunk_meta_cold');
+    }
+    const rows = readJsonFile(sources.paths[0], { maxBytes });
+    return Array.isArray(rows) ? rows : null;
+  }
+  if (sources.format === 'columnar') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous columnar sources for chunk_meta_cold');
+    }
+    const payload = readJsonFile(sources.paths[0], { maxBytes });
+    const inflated = inflateColumnarRows(payload);
+    if (!inflated) throw new Error('Invalid columnar chunk_meta_cold payload');
+    return inflated;
+  }
+  return await readJsonLinesArray(sources.paths, {
+    maxBytes,
+    requiredKeys,
+    validationMode
+  });
+};
+
+const mergeChunkMetaColdRows = (hotRows, coldRows) => {
+  if (!Array.isArray(hotRows) || !Array.isArray(coldRows) || !coldRows.length) {
+    return hotRows;
+  }
+  const coldById = new Map();
+  for (const row of coldRows) {
+    const id = Number(row?.id);
+    if (!Number.isFinite(id)) continue;
+    coldById.set(id, row);
+  }
+  if (!coldById.size) return hotRows;
+  for (let i = 0; i < hotRows.length; i += 1) {
+    const hot = hotRows[i];
+    const id = Number(hot?.id);
+    if (!Number.isFinite(id)) continue;
+    const cold = coldById.get(id);
+    if (!cold) continue;
+    hotRows[i] = mergeChunkMetaColdFields(hot, cold);
+  }
+  return hotRows;
+};
+
 export const loadChunkMeta = async (
   dir,
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
     strict = true,
-    materializeTokenIds = false
+    materializeTokenIds = false,
+    includeCold = true
   } = {}
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const maybeMergeCold = async (rows) => {
+    if (!includeCold) return rows;
+    const coldRows = await loadChunkMetaColdRows({
+      dir,
+      maxBytes,
+      manifest: resolvedManifest,
+      strict,
+      validationMode
+    });
+    return mergeChunkMetaColdRows(rows, coldRows);
+  };
   if (strict) {
     const sources = resolveManifestArtifactSources({
       dir,
@@ -1231,10 +1305,9 @@ export const loadChunkMeta = async (
         if (sources.paths.length > 1) {
           throw new Error('Ambiguous JSON sources for chunk_meta');
         }
-        return maybeInflatePackedTokenIds(
-          readJsonFile(sources.paths[0], { maxBytes }),
-          materializeTokenIds
-        );
+        const rows = readJsonFile(sources.paths[0], { maxBytes });
+        const merged = await maybeMergeCold(rows);
+        return maybeInflatePackedTokenIds(merged, materializeTokenIds);
       }
       if (sources.format === 'columnar') {
         if (sources.paths.length > 1) {
@@ -1243,14 +1316,16 @@ export const loadChunkMeta = async (
         const payload = readJsonFile(sources.paths[0], { maxBytes });
         const inflated = inflateColumnarRows(payload);
         if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-        return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
+        const merged = await maybeMergeCold(inflated);
+        return maybeInflatePackedTokenIds(merged, materializeTokenIds);
       }
       const rows = await readJsonLinesArray(sources.paths, {
         maxBytes,
         requiredKeys,
         validationMode
       });
-      return maybeInflatePackedTokenIds(rows, materializeTokenIds);
+      const merged = await maybeMergeCold(rows);
+      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
     }
     throw new Error('Missing manifest entry for chunk_meta');
   }
@@ -1267,10 +1342,9 @@ export const loadChunkMeta = async (
       if (sources.paths.length > 1) {
         throw new Error('Ambiguous JSON sources for chunk_meta');
       }
-      return maybeInflatePackedTokenIds(
-        readJsonFile(sources.paths[0], { maxBytes }),
-        materializeTokenIds
-      );
+      const rows = readJsonFile(sources.paths[0], { maxBytes });
+      const merged = await maybeMergeCold(rows);
+      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
     }
     if (sources.format === 'columnar') {
       if (sources.paths.length > 1) {
@@ -1279,14 +1353,16 @@ export const loadChunkMeta = async (
       const payload = readJsonFile(sources.paths[0], { maxBytes });
       const inflated = inflateColumnarRows(payload);
       if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-      return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
+      const merged = await maybeMergeCold(inflated);
+      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
     }
     const rows = await readJsonLinesArray(sources.paths, {
       maxBytes,
       requiredKeys,
       validationMode
     });
-    return maybeInflatePackedTokenIds(rows, materializeTokenIds);
+    const merged = await maybeMergeCold(rows);
+    return maybeInflatePackedTokenIds(merged, materializeTokenIds);
   }
 
   const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
@@ -1295,14 +1371,14 @@ export const loadChunkMeta = async (
     const payload = readJsonFile(columnarPath, { maxBytes });
     const inflated = inflateColumnarRows(payload);
     if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-    return maybeInflatePackedTokenIds(inflated, materializeTokenIds);
+    const merged = await maybeMergeCold(inflated);
+    return maybeInflatePackedTokenIds(merged, materializeTokenIds);
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
-    return maybeInflatePackedTokenIds(
-      readJsonFile(jsonPath, { maxBytes }),
-      materializeTokenIds
-    );
+    const rows = readJsonFile(jsonPath, { maxBytes });
+    const merged = await maybeMergeCold(rows);
+    return maybeInflatePackedTokenIds(merged, materializeTokenIds);
   }
   throw new Error('Missing index artifact: chunk_meta.json');
 };

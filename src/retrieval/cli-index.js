@@ -90,6 +90,7 @@ export async function loadIndex(dir, options) {
     includeFileRelations = true,
     includeRepoMap = true,
     includeTokenIndex = true,
+    includeChunkMetaCold = true,
     hnswConfig: rawHnswConfig,
     strict = true
   } = options || {};
@@ -148,7 +149,12 @@ export async function loadIndex(dir, options) {
       throw err;
     }
   })();
-  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict });
+  const chunkMeta = await loadChunkMeta(dir, {
+    maxBytes: MAX_JSON_BYTES,
+    manifest,
+    strict,
+    includeCold: includeChunkMetaCold !== false
+  });
   let fileMetaById = null;
   fileMetaById = new Map();
   let fileMetaLoaded = false;

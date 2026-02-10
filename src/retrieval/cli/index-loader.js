@@ -19,6 +19,7 @@ export async function loadIndexCached({
   includeFileRelations = true,
   includeRepoMap = true,
   includeTokenIndex = true,
+  includeChunkMetaCold = true,
   hnswConfig,
   denseVectorMode,
   loadIndex
@@ -36,6 +37,7 @@ export async function loadIndexCached({
       includeFileRelations,
       includeRepoMap,
       includeTokenIndex,
+      includeChunkMetaCold,
       hnswConfig,
       denseVectorMode
     },

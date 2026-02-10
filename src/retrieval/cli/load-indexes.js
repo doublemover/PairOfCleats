@@ -80,6 +80,13 @@ export async function loadSearchIndexes({
   const needsGraphRelations = hasRequirements
     ? requiredArtifacts.has('graphRelations')
     : (contextExpansionEnabled || graphRankingEnabled);
+  const needsChunkMetaCold = Boolean(
+    filtersActive
+    || contextExpansionEnabled
+    || graphRankingEnabled
+    || needsFilterIndex
+    || needsFileRelations
+  );
 
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
@@ -150,6 +157,7 @@ export async function loadSearchIndexes({
     includeFilterIndex: options.includeFilterIndex !== false,
     includeFileRelations: options.includeFileRelations !== false,
     includeRepoMap: options.includeRepoMap !== false,
+    includeChunkMetaCold: options.includeChunkMetaCold !== false,
     hnswConfig,
     denseVectorMode: resolvedDenseVectorMode,
     loadIndex: (targetDir, loadOptions) => loadIndex(targetDir, {
@@ -233,6 +241,7 @@ export async function loadSearchIndexes({
     includeFilterIndex: needsFilterIndex,
     includeFileRelations: needsFileRelations,
     includeRepoMap: needsRepoMap,
+    includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
   const idxProse = runProse

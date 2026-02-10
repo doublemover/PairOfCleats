@@ -875,6 +875,7 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'dense_vectors_code_lancedb',
   'call_sites_offsets',
   'chunk_meta_offsets',
+  'chunk_meta_cold_offsets',
   'graph_relations_offsets',
   'symbol_edges_offsets',
   'symbol_occurrences_offsets',
@@ -895,6 +896,20 @@ export const ARTIFACT_SCHEMA_DEFS = {
       { type: 'array', items: chunkMetaEntry },
       columnarEnvelope
     ]
+  },
+  chunk_meta_cold: {
+    type: 'array',
+    items: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: intId,
+        metaV2: {
+          anyOf: [METADATA_V2_SCHEMA, { type: 'null' }]
+        }
+      },
+      additionalProperties: true
+    }
   },
   chunk_uid_map: {
     type: 'array',
@@ -1260,6 +1275,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   },
   import_resolution_graph: importResolutionGraphSchema,
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
+  chunk_meta_cold_meta: buildShardedJsonlMeta('chunk_meta_cold'),
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   vfs_path_map_meta: buildShardedJsonlMeta('vfs_path_map'),

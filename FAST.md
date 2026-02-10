@@ -293,7 +293,7 @@ Format:
 - Impact: Less random I/O.
 - Risk: Maintain ordering guarantees.
 
-21. Area: Chunk meta hot/cold split
+21. [x] Area: Chunk meta hot/cold split
 - Files: `src/shared/artifact-io/loaders.js`, `src/index/build/artifacts.js`
 - Opportunity: Separate frequently used chunk fields from cold metadata.
 - Impact: Smaller read footprint for common retrieval paths.
