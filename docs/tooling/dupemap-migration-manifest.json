@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:52:39.1297429-05:00",
+  "updatedAt": "2026-02-09T22:58:09.6974883-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -226,7 +226,7 @@
       "clusterId": "C21",
       "title": "Binary discovery helper duplication",
       "phase": "D5",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/tooling/doctor.js",
         "src/index/tooling/pyright-provider.js"
@@ -237,7 +237,7 @@
       "clusterId": "C22",
       "title": "TypeScript loader duplication",
       "phase": "D5",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/tooling/typescript-provider.js",
         "src/lang/typescript/parser.js"
@@ -364,8 +364,8 @@
     { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/markdown.js::buildChunksFromLineHeadings", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "planned" },
     { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk-interprocedural/engine.js::SEVERITY_RANK", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "planned" },
     { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
-    { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "planned" },
-    { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "planned" },
+    { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "completed" },
+    { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
     { "migrationId": "M023", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/clike.js::readSignatureLines", "newPathOrSymbol": "src/index/tooling/signature-parse/shared.js::readSignatureLines", "status": "planned" },
     { "migrationId": "M024", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/javascript/relations.js::resolveCallLocation", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCallLocation", "status": "planned" },
     { "migrationId": "M025", "clusterId": "C25", "phase": "D6", "oldPathOrSymbol": "src/map/build-map/filters.js::applyCollapse", "newPathOrSymbol": "src/map/build-map/filters.js::createCollapseTransform", "status": "planned" },
@@ -438,7 +438,13 @@
     { "migrationId": "M092", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildMcpSearchArgs local argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
     { "migrationId": "M093", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/api/validation.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
     { "migrationId": "M094", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/mcp/repo.js::repo/index/sqlite cache policy defaults and manager lifecycle", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" },
-    { "migrationId": "M095", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::createRepoCacheManager", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" }
+    { "migrationId": "M095", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::createRepoCacheManager", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" },
+    { "migrationId": "M096", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M097", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/pyright-provider.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M098", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "tools/tooling/utils.js::candidateNames/findBinaryInDirs local helpers", "newPathOrSymbol": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}", "status": "completed" },
+    { "migrationId": "M099", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::resolveTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
+    { "migrationId": "M100", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/parser.js::loadTypeScriptModule", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScriptModule", "status": "completed" },
+    { "migrationId": "M101", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript local implementation", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -559,6 +565,20 @@
       "scope": "tools/api/**,tools/mcp/**",
       "pattern": "local repo cache policy defaults/manager lifecycle stacks for repo/index/sqlite caches",
       "replacement": "tools/shared/repo-cache-config.js::createRepoCacheManager"
+    },
+    {
+      "banId": "B027",
+      "phase": "D5",
+      "scope": "src/index/tooling/**,tools/tooling/**",
+      "pattern": "local candidateNames/findBinaryInDirs helper bodies for tooling binary lookup",
+      "replacement": "src/index/tooling/binary-utils.js::{candidateNames,findBinaryInDirs}"
+    },
+    {
+      "banId": "B028",
+      "phase": "D5",
+      "scope": "src/index/tooling/**,src/lang/typescript/**",
+      "pattern": "local async/sync TypeScript module loader helper bodies",
+      "replacement": "src/index/tooling/typescript/load.js::{loadTypeScript,loadTypeScriptModule}"
     }
   ],
   "exceptions": [],

@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T22:52:39.1297429-05:00
+Last updated: 2026-02-09T22:58:09.6974883-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -64,7 +64,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D1 | [@] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
-| D5 | [ ] | Tooling + language parser/extractor consolidation |
+| D5 | [@] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
@@ -1177,12 +1177,21 @@ Clusters: 21, 22, 23, 24.
 
 ### Subphase D5.1 — Tooling utility consolidation
 Tasks:
-- [ ] Task D5.1.a: Extract shared binary discovery helper from doctor/pyright/tools.
+- [x] Task D5.1.a: Extract shared binary discovery helper from doctor/pyright/tools.
 Details: Preserve Windows suffix/path search behavior.
-- [ ] Task D5.1.b: Extract shared TypeScript loader helper.
+- [x] Task D5.1.b: Extract shared TypeScript loader helper.
 Details: Preserve lookup order and fallback semantics.
-- [ ] Task D5.1.c: Migrate all callsites and delete local implementations.
+- [x] Task D5.1.c: Migrate all callsites and delete local implementations.
 Details: No duplicate copies remain.
+
+D5.1 status update (2026-02-09T22:58:09.6974883-05:00):
+- resolved: added canonical binary discovery helpers in `src/index/tooling/binary-utils.js` and migrated `doctor`, `pyright-provider`, and `tools/tooling/utils.js` callsites.
+- resolved: added canonical TypeScript loader helpers in `src/index/tooling/typescript/load.js` and migrated `src/index/tooling/doctor.js`, `src/index/tooling/typescript-provider.js`, and `src/lang/typescript/parser.js`.
+- resolved: removed duplicated local helper bodies (`candidateNames`, `findBinaryInDirs`, local async/sync TypeScript loader copies) from migrated modules.
+- remaining: D5.2 signature parsing primitives and D5.3 JS/TS relations shared core.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `git grep -n -E "findBinaryInDirs|candidateNames|resolveTypeScript|loadTypeScript" -- src tools`.
 
 ### Subphase D5.2 — Signature parsing primitives
 Tasks:
@@ -1201,13 +1210,13 @@ Details: Keep parser setup and syntax-specific exceptions in per-language files.
 Details: Preserve existing relation output contract.
 
 ### Exhaustive sweeps
-- [ ] `rg "findBinaryInDirs|candidateNames|resolveTypeScript|loadTypeScript" src tools`
+- [x] `rg "findBinaryInDirs|candidateNames|resolveTypeScript|loadTypeScript" src tools`
 - [ ] `rg "split.*Params|readSignatureLines" src/lang src/index/tooling/signature-parse`
 - [ ] `rg "resolveCalleeParts|resolveCallLocation" src/lang/javascript src/lang/typescript`
 
 ### Tests
-- [ ] `tests/tooling/binary-utils-parity.test.js` (new)
-- [ ] `tests/tooling/typescript-loader-parity.test.js` (new)
+- [x] `tests/tooling/binary-utils-parity.test.js` (new)
+- [x] `tests/tooling/typescript-loader-parity.test.js` (new)
 - [ ] `tests/tooling/signature-parse/shared-splitter.test.js` (new)
 - [ ] language signature/metadata tests updated
 - [ ] `tests/lang/contracts/javascript-relations-contract.test.js` (new)

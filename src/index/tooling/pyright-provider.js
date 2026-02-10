@@ -5,28 +5,11 @@ import { isTestingEnv } from '../../shared/env.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { findBinaryInDirs } from './binary-utils.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
-
-const candidateNames = (name) => {
-  if (process.platform === 'win32') {
-    return [`${name}.cmd`, `${name}.exe`, name];
-  }
-  return [name];
-};
-
-const findBinaryInDirs = (name, dirs) => {
-  const candidates = candidateNames(name);
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = path.join(dir, candidate);
-      if (fsSync.existsSync(full)) return full;
-    }
-  }
-  return null;
-};
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 const asFiniteNumber = (value) => {

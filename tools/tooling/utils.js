@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
+import { findBinaryInDirs } from '../../src/index/tooling/binary-utils.js';
 import { toPosix } from '../../src/shared/files.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
 
@@ -69,24 +70,6 @@ const TOOL_DOCS = {
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
   sqls: 'https://github.com/lighttiger2505/sqls'
 };
-
-const candidateNames = (name) => {
-  if (process.platform === 'win32') {
-    return [`${name}.cmd`, `${name}.exe`, name];
-  }
-  return [name];
-};
-
-function findBinaryInDirs(name, dirs) {
-  const candidates = candidateNames(name);
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = path.join(dir, candidate);
-      if (fs.existsSync(full)) return full;
-    }
-  }
-  return null;
-}
 
 function canRun(cmd, args = ['--version']) {
   return canRunCommand(cmd, args);

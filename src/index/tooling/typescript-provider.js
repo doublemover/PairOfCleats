@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
@@ -34,38 +34,6 @@ const formatDiagnostic = (ts, diagnostic) => {
   if (diagnostic?.file?.fileName) return `${diagnostic.file.fileName}: ${message}`;
   return message;
 };
-
-async function loadTypeScript(toolingConfig, repoRoot) {
-  if (toolingConfig?.typescript?.enabled === false) return null;
-  const toolingRoot = toolingConfig?.dir || '';
-  const resolveOrder = Array.isArray(toolingConfig?.typescript?.resolveOrder)
-    ? toolingConfig.typescript.resolveOrder
-    : ['repo', 'cache', 'global'];
-  const lookup = {
-    repo: path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
-    cache: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
-    tooling: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
-  };
-
-  for (const entry of resolveOrder) {
-    const key = String(entry || '').toLowerCase();
-    if (key === 'global') {
-      try {
-        const mod = await import('typescript');
-        return mod?.default || mod;
-      } catch {
-        continue;
-      }
-    }
-    const candidate = lookup[key];
-    if (!candidate || !fsSync.existsSync(candidate)) continue;
-    try {
-      const mod = await import(pathToFileURL(candidate).href);
-      return mod?.default || mod;
-    } catch {}
-  }
-  return null;
-}
 
 const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
   const override = toolingConfig?.typescript?.tsconfigPath;
