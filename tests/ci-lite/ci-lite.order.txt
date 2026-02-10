@@ -47,7 +47,6 @@ retrieval/ranking/graph-ranking-explain
 retrieval/ranking/rank-dense-dims
 shared/path-handling
 shared/runtime/runtime-envelope-node-options-merge
-ci/nightly-workflow-contract
 indexing/chunking/comment-boundary
 indexing/identity/join-precedence
 lang/ruby/ruby-end-comment
@@ -80,7 +79,6 @@ indexing/scm/jj-changed-files-normalization
 retrieval/context-expansion/context-expansion-no-candidate-explosion
 indexing/tree-sitter/tree-sitter-runtime
 shared/concurrency/concurrency-run-with-queue-error-propagation
-ci/ci-long-workflow-contract
 indexing/artifacts/file-meta
 indexing/embeddings/embeddings-identity
 indexing/risk/interprocedural/local-pointer-hash
