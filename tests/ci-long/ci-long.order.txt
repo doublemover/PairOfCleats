@@ -83,4 +83,3 @@ indexing/chunking/formats/format-fidelity
 shared/validation/ajv-factory-contract
 tooling/download/shared-fetch-contract
 tooling/script-coverage/script-coverage-indexing
-retrieval/parity/parity
