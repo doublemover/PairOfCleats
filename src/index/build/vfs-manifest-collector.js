@@ -22,11 +22,6 @@ const createStats = () => ({
   runsSpilled: 0
 });
 
-const resolveLineBytes = (value) => {
-  const line = stringifyJsonValue(value);
-  return Buffer.byteLength(line, 'utf8') + 1;
-};
-
 const ensureRunsDir = async (baseDir, current, collectorId) => {
   if (current) return current;
   const root = baseDir || process.cwd();
@@ -39,7 +34,10 @@ const writeRunFile = async (runPath, rows) => {
   const { stream, done } = createJsonWriteStream(runPath, { atomic: true });
   try {
     for (const row of rows) {
-      await writeChunk(stream, stringifyJsonValue(row));
+      const line = typeof row === 'string'
+        ? row
+        : (typeof row?.line === 'string' ? row.line : stringifyJsonValue(row));
+      await writeChunk(stream, line);
       await writeChunk(stream, '\n');
     }
     stream.end();
@@ -97,7 +95,7 @@ export const createVfsManifestCollector = ({
 
   const spill = async () => {
     if (!buffer.length) return;
-    buffer.sort(compareVfsManifestRows);
+    buffer.sort((a, b) => compareVfsManifestRows(a.row, b.row));
     runsDir = await ensureRunsDir(buildRoot, runsDir, collectorId);
     const runName = `vfs_manifest.run-${String(runIndex).padStart(5, '0')}.jsonl`;
     const runPath = path.join(runsDir, runName);
@@ -112,11 +110,12 @@ export const createVfsManifestCollector = ({
   const appendRow = async (row, rowLog) => {
     const trimmed = trimVfsManifestRow(row, { log: rowLog || log, stats });
     if (!trimmed) return;
-    const lineBytes = resolveLineBytes(trimmed);
+    const line = stringifyJsonValue(trimmed);
+    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
     stats.totalBytes += lineBytes;
     stats.maxLineBytes = Math.max(stats.maxLineBytes, lineBytes);
     stats.totalRecords += 1;
-    buffer.push(trimmed);
+    buffer.push({ row: trimmed, line, lineBytes });
     bufferBytes += lineBytes;
     const bufferOverflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
       || (maxBufferRows && buffer.length >= maxBufferRows);
@@ -143,11 +142,11 @@ export const createVfsManifestCollector = ({
       };
     }
     if (buffer.length) {
-      buffer.sort(compareVfsManifestRows);
+      buffer.sort((a, b) => compareVfsManifestRows(a.row, b.row));
     }
     return {
       kind: COLLECTOR_KIND,
-      rows: buffer,
+      rows: buffer.map((entry) => entry.row),
       stats,
       cleanup: cleanupRunsDir
     };
