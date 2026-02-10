@@ -536,9 +536,7 @@ export function createSearchPipeline(context) {
               candidateSet,
               signal
             });
-            if (hits.length) {
-              recordProviderSuccess(provider, mode);
-            }
+            recordProviderSuccess(provider, mode);
             return normalizeAnnHits(hits);
           } catch (err) {
             recordProviderFailure(provider, mode, err?.message || 'query failed');
