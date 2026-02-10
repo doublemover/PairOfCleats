@@ -1,7 +1,7 @@
 # Spec -- USR Resolution and Linking Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -72,7 +72,7 @@ Bounded limits:
 When cap is hit:
 
 - retain best N deterministically
-- emit `USR-W-CANONICALIZATION-FALLBACK` or profile-specific truncation diagnostics
+- emit canonical truncation diagnostics and include retained-candidate count metadata
 
 ## 4. Confidence normalization
 
@@ -95,7 +95,7 @@ Normalization rules:
 
 - profile-specific raw reasons MUST map into canonical `USR-R-*` values
 - unknown reasons are strict-mode errors
-- non-strict mode MAY preserve original in extension fields and emit compatibility diagnostics
+- non-strict mode MUST preserve original only in namespaced extension fields and MUST emit compatibility diagnostics
 
 ## 6. Linking behavior by edge kind
 
@@ -141,16 +141,20 @@ Minimum test categories:
 - strict rejection for unknown reason codes
 - non-strict compatibility adapter behavior
 - edge endpoint + resolution envelope coherence
+- candidate-cap truncation diagnostics and retained-order stability
+- suppression/derived-edge evidence coherence checks
 
 Required report outputs:
 
 - `usr-resolution-outcome-distribution.json`
 - `usr-resolution-reason-code-distribution.json`
 - `usr-resolution-ambiguity-budget.json`
+- `usr-resolution-candidate-cap-events.json`
 
 ## 11. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+
 

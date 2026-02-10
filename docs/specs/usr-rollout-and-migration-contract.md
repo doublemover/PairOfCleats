@@ -1,7 +1,7 @@
 # Spec -- USR Rollout and Migration Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -64,6 +64,11 @@ Shadow-read requirements:
 - fallback to legacy path on strict failures with explicit diagnostics
 - all fallbacks recorded in run reports
 
+Promotion entry criteria:
+
+- Phase B -> Phase C promotion requires at least one full determinism rerun with zero strict diffs
+- Phase C -> Phase D promotion requires compatibility strict scenario pass rate of 100% on release-candidate lane
+
 ## 3. Parity acceptance criteria
 
 Minimum parity checks:
@@ -99,6 +104,8 @@ Required evidence artifacts:
 - `usr-backcompat-matrix-results.json`
 - `usr-capability-state-transitions.json`
 - `usr-determinism-rerun-diff.json`
+- `usr-embedding-bridge-cases.json` validation report
+- `usr-generated-provenance-cases.json` validation report
 
 Cutover approval requires:
 
@@ -120,7 +127,7 @@ Required rollback artifacts:
 
 ## 7. Promotion window policy
 
-- production cutover SHOULD occur in controlled promotion windows
+- production cutover MUST occur in controlled promotion windows
 - no major schema contract changes may merge during active cutover windows
 - cutover windows MUST include compatibility matrix rerun on release candidates
 
@@ -129,4 +136,5 @@ Required rollback artifacts:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/migration-and-backcompat.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+
 

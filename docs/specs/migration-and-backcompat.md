@@ -1,8 +1,12 @@
 # Phase 9 Spec -- Migration and Backward Compatibility
 
-Last updated: 2026-02-10T02:00:00Z
+Last updated: 2026-02-10T06:20:00Z
 
-This document is aligned with `docs/specs/unified-syntax-representation.md` sections 19, 27, and 36.
+This document is aligned with:
+
+- `docs/specs/unified-syntax-representation.md` sections 19, 27, and 36
+- `docs/specs/unified-syntax-representation.md` sections 38 and 39
+- `docs/specs/usr-rollout-and-migration-contract.md`
 
 ## Why a migration spec is necessary
 Phase 9 replaces several legacy join assumptions:
@@ -62,6 +66,14 @@ Release-blocking strict scenarios:
 
 - `BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`
 
+Required migration evidence outputs:
+
+- `usr-backcompat-matrix-results.json`
+- `usr-conformance-summary.json` (for impacted lanes)
+- `usr-capability-state-transitions.json`
+- `usr-embedding-bridge-cases.json` validation report
+- `usr-generated-provenance-cases.json` validation report
+
 ## Deprecations
 After Phase 9, these patterns are deprecated:
 - `Map` keyed by `${file}::${name}` for anything cross-file.
@@ -73,4 +85,8 @@ After Phase 9, these patterns are deprecated:
 3. Add strict validation gates and enable in CI for fixtures.
 4. Add USR backward-compat matrix lane and make strict scenarios blocking.
 5. Flip default on once metrics show acceptable ambiguity/unresolved rates and matrix pass thresholds are met.
+
+Rollback requirement:
+
+- rollout MUST define one-step rollback to legacy read path with explicit rollback trigger thresholds.
 

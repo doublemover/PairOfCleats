@@ -1,7 +1,7 @@
 # USR Language Contracts Index
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 This index lists per-language USR contract documents.
 
@@ -13,15 +13,54 @@ Parent contracts:
 - docs/specs/usr-language-risk-contract.md
 - docs/specs/usr-conformance-and-fixture-contract.md
 
-Template requirements for each language file:
+Mandatory per-language completion requirements:
 
-- section 1 profile baseline with parser/conformance/fallback
-- explicit node and edge coverage requirements
-- capability baseline expectations
-- language-specific edge-case focus
-- resolution, risk, and fixture expectations
+- explicit dialect/version policy and feature-flag expectations
+- explicit embedded-language hosting/embedded behavior policy
+- explicit fixture minimum families and concrete fixture IDs
+- explicit generated/macro provenance expectations
+- explicit completion evidence artifact list
 
-## Languages
+## Baseline matrix
+
+| Language | Parser | Conformance | Frameworks |
+| --- | --- | --- | --- |
+| javascript | hybrid | C0,C1,C2,C3,C4 | react,next |
+| typescript | hybrid | C0,C1,C2,C3,C4 | react,next,angular |
+| python | hybrid | C0,C1,C2,C3 | none |
+| clike | hybrid | C0,C1,C2,C3 | none |
+| go | hybrid | C0,C1,C2,C3 | none |
+| java | hybrid | C0,C1,C2,C3 | none |
+| csharp | hybrid | C0,C1,C2,C3 | none |
+| kotlin | hybrid | C0,C1,C2,C3 | none |
+| ruby | tree-sitter | C0,C1,C2,C3 | none |
+| php | tree-sitter | C0,C1,C2,C3 | none |
+| html | tree-sitter | C0,C1,C4 | vue,nuxt,svelte,sveltekit,angular,astro |
+| css | tree-sitter | C0,C1,C4 | react,next,vue,nuxt,svelte,sveltekit,angular,astro |
+| lua | tree-sitter | C0,C1,C2,C3 | none |
+| sql | hybrid | C0,C1,C2,C3 | none |
+| perl | heuristic | C0,C1,C2,C3 | none |
+| shell | hybrid | C0,C1,C2,C3 | none |
+| rust | hybrid | C0,C1,C2,C3 | none |
+| swift | hybrid | C0,C1,C2,C3 | none |
+| cmake | tree-sitter | C0,C1,C2 | none |
+| starlark | tree-sitter | C0,C1,C2 | none |
+| nix | tree-sitter | C0,C1,C2 | none |
+| dart | hybrid | C0,C1,C2,C3 | none |
+| scala | tree-sitter | C0,C1,C2,C3 | none |
+| groovy | tree-sitter | C0,C1,C2,C3 | none |
+| r | tree-sitter | C0,C1,C2,C3 | none |
+| julia | tree-sitter | C0,C1,C2,C3 | none |
+| handlebars | tree-sitter | C0,C1,C4 | none |
+| mustache | heuristic | C0,C1,C4 | none |
+| jinja | tree-sitter | C0,C1,C4 | none |
+| razor | hybrid | C0,C1,C4 | none |
+| proto | tree-sitter | C0,C1,C2 | none |
+| makefile | tree-sitter | C0,C1,C2 | none |
+| dockerfile | tree-sitter | C0,C1,C2 | none |
+| graphql | tree-sitter | C0,C1,C2 | none |
+
+## Language files
 - docs/specs/usr/languages/javascript.md
 - docs/specs/usr/languages/typescript.md
 - docs/specs/usr/languages/python.md
@@ -56,4 +95,3 @@ Template requirements for each language file:
 - docs/specs/usr/languages/makefile.md
 - docs/specs/usr/languages/dockerfile.md
 - docs/specs/usr/languages/graphql.md
-

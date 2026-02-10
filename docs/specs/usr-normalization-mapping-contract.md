@@ -1,7 +1,7 @@
 # Spec -- USR Normalization Mapping Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T04:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T06:20:00Z
 
 ## 0. Purpose and scope
 
@@ -20,6 +20,8 @@ type USRNodeKindMappingRuleV1 = {
   category: string; // USRNodeCategory
   confidence: number; // 0..1
   priority: number; // lower is stronger precedence
+  provenance: "parser" | "compiler" | "adapter" | "manual-policy";
+  languageVersionSelector?: string | null; // optional dialect/version discriminator
   notes?: string;
 };
 ```
@@ -85,6 +87,12 @@ When no mapping is found:
 
 Unknown kinds MUST NOT be silently dropped.
 
+Unknown-kind budget policy:
+
+- per language and parser source, unknown-kind rate MUST be reported
+- if unknown-kind rate exceeds configured budget, strict conformance lanes MUST fail
+- unknown kinds MAY remain only when explicitly allowlisted by language contract and fixture IDs
+
 ## 6. Framework/compiler mapping overlays
 
 Framework compilers may emit AST kinds with no parser-equivalent names.
@@ -106,8 +114,10 @@ Required checks:
 
 Outputs:
 
-- `usr-node-kind-mapping-coverage.json` (recommended)
+- `usr-node-kind-mapping-coverage.json`
 - `usr-node-kind-mapping-conflicts.json` (on failure)
+- `usr-node-kind-mapping-unknown-budget.json`
+- `usr-generated-provenance-cases.json` linkage report for mapping rows with generated/macro provenance
 
 ## 8. Registry ordering and canonical serialization requirements
 
@@ -129,6 +139,7 @@ Strict validators MUST enforce:
 - `priority >= 0`
 - non-empty `rawKind`
 - `normalizedKind` and `category` from canonical enums
+- non-empty `provenance`
 - disallow unknown keys unless explicitly namespaced extension fields are enabled
 
 ## 10. References
@@ -136,4 +147,5 @@ Strict validators MUST enforce:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
+
 
