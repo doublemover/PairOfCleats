@@ -1581,12 +1581,12 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 9. Mark acceptance only after green tests and benchmark deltas are recorded.
 
 ### Tasks
-- [ ] Add shared invariant helpers for determinism rules.
-- [ ] Add shared invariant helpers for token-collision policy.
-- [ ] Add shared invariant helpers for comparator-contract enforcement.
-- [ ] Route Stage1 token-id collision handling through shared invariant helpers.
-- [ ] Route merge comparator validation through shared invariant helpers.
-- [ ] Route determinism validation through shared invariant helpers.
+- [x] Add shared invariant helpers for determinism rules.
+- [x] Add shared invariant helpers for token-collision policy.
+- [x] Add shared invariant helpers for comparator-contract enforcement.
+- [x] Route Stage1 token-id collision handling through shared invariant helpers.
+- [x] Route merge comparator validation through shared invariant helpers.
+- [x] Route determinism validation through shared invariant helpers.
 - [ ] Add reusable packed-artifact checksum helpers in artifact IO.
 - [ ] Route minhash packed checksum write path through reusable checksum helpers.
 - [ ] Route minhash packed checksum load path through reusable checksum helpers.
