@@ -231,6 +231,7 @@ const SCRIPT_TYPE_ALIASES = new Map([
 const HTML_IMPORT_TAG_HINT = /<(?:script|link)\b/i;
 const HTML_IMPORT_ATTR_HINT = /\b(?:src|href)\s*=/i;
 const HTML_IMPORT_COMMENT = /<!--[\s\S]*?-->/g;
+const HTML_SCRIPT_BODY = /(<script\b[^>]*>)[\s\S]*?(<\/script\s*>)/gi;
 const HTML_IMPORT_TAG = /<(script|link)\b[^>]*>/gi;
 const HTML_IMPORT_ATTR = /\b([A-Za-z_:][A-Za-z0-9_:\-\.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/g;
 
@@ -336,9 +337,12 @@ export function getHtmlMetadata(text) {
 
 function collectHtmlImportsFast(text) {
   if (!text || !HTML_IMPORT_TAG_HINT.test(text) || !HTML_IMPORT_ATTR_HINT.test(text)) return [];
-  const source = text.includes('<!--')
+  const sourceNoComments = text.includes('<!--')
     ? text.replace(HTML_IMPORT_COMMENT, ' ')
     : text;
+  const source = sourceNoComments.includes('<script')
+    ? sourceNoComments.replace(HTML_SCRIPT_BODY, '$1$2')
+    : sourceNoComments;
   const imports = new Set();
   HTML_IMPORT_TAG.lastIndex = 0;
   let tagMatch = HTML_IMPORT_TAG.exec(source);

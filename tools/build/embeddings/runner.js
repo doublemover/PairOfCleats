@@ -134,6 +134,38 @@ export async function runBuildEmbeddingsWithConfig(config) {
       return null;
     }
   };
+  const traceArtifactIo = isTestingEnv() || process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
+  const hasArtifactFile = (filePath) => (
+    fsSync.existsSync(filePath)
+    || fsSync.existsSync(`${filePath}.gz`)
+    || fsSync.existsSync(`${filePath}.zst`)
+    || fsSync.existsSync(`${filePath}.bak`)
+  );
+  const logArtifactLocation = (mode, label, filePath) => {
+    if (!traceArtifactIo) return;
+    const exists = hasArtifactFile(filePath);
+    log(`[embeddings] ${mode}: artifact ${label} path=${filePath} exists=${exists}`);
+  };
+  const logExpectedArtifacts = (mode, indexDir, stageLabel) => {
+    if (!traceArtifactIo) return;
+    const expected = [
+      { label: 'chunk_meta', path: path.join(indexDir, 'chunk_meta.json') },
+      { label: 'chunk_meta_stream', path: path.join(indexDir, 'chunk_meta.jsonl') },
+      { label: 'chunk_meta_meta', path: path.join(indexDir, 'chunk_meta.meta.json') },
+      { label: 'token_postings', path: path.join(indexDir, 'token_postings.json') },
+      { label: 'token_postings_stream', path: path.join(indexDir, 'token_postings.jsonl') },
+      { label: 'token_postings_meta', path: path.join(indexDir, 'token_postings.meta.json') },
+      { label: 'phrase_ngrams', path: path.join(indexDir, 'phrase_ngrams.json') },
+      { label: 'chargram_postings', path: path.join(indexDir, 'chargram_postings.json') },
+      { label: 'index_state', path: path.join(indexDir, 'index_state.json') },
+      { label: 'filelists', path: path.join(indexDir, '.filelists.json') },
+      { label: 'pieces_manifest', path: path.join(indexDir, 'pieces', 'manifest.json') }
+    ];
+    log(`[embeddings] ${mode}: expected artifact snapshot (${stageLabel})`);
+    for (const entry of expected) {
+      logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -273,6 +305,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheFastRejects = 0;
       const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
+      logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
       let indexState = loadIndexState(statePath);
       indexState.generatedAt = indexState.generatedAt || stateNow;
@@ -1023,6 +1056,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
         const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
         const codeVectorsPath = path.join(indexDir, 'dense_vectors_code_uint8.json');
+        if (traceArtifactIo) {
+          log(`[embeddings] ${mode}: writing vectors to ${mergedVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${docVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${codeVectorsPath}`);
+        }
         await scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
           fields: {
             model: modelId,
@@ -1059,6 +1097,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           arrays: { vectors: codeVectors },
           atomic: true
         }));
+        logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
 
         Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
           mode,
@@ -1143,7 +1184,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           } else {
             try {
+              if (traceArtifactIo) {
+                log(`[embeddings] ${mode}: deleting optional sqlite vec meta ${sqliteMetaPath}`);
+              }
               await scheduleIo(() => fs.rm(sqliteMetaPath, { force: true }));
+              logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
             } catch {}
           }
         }
@@ -1240,9 +1285,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         try {
           await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
+          logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
         } catch {
         // Ignore piece manifest write failures.
         }
+        logExpectedArtifacts(mode, indexDir, 'pre-validate');
 
         if (totalChunks > 0) {
           const validation = await scheduleIo(() => validateIndexArtifacts({
@@ -1309,6 +1356,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
         finishMode(`built ${mode}`);
       } catch (err) {
+        logExpectedArtifacts(mode, indexDir, 'failure');
         const now = new Date().toISOString();
         const failureState = loadIndexState(statePath);
         failureState.generatedAt = failureState.generatedAt || now;

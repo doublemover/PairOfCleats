@@ -55,6 +55,7 @@ assert.deepEqual(collectShellImports('source ./env.sh\n.\t./helpers.sh\n').sort(
 
 assert.deepEqual(collectCssImports('body { color: red; }\n'), []);
 assert.deepEqual(collectCssImports('@import \"base.css\";\n@import url(theme.css);\n').sort(), ['base.css', 'theme.css']);
+assert.deepEqual(collectCssImports('@IMPORT \"upper.css\";\n@ImPoRt url(mixed.css);\n').sort(), ['mixed.css', 'upper.css']);
 
 assert.deepEqual(collectPythonImports('x = 1\n'), { imports: [], usages: [] });
 assert.deepEqual(

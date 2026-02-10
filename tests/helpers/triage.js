@@ -9,12 +9,19 @@ export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
   const cacheRoot = path.join(ROOT, '.testCache', name);
+  const traceArtifactIo = process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
   const testLogRoot = process.env.PAIROFCLEATS_TEST_LOG_DIR
     || process.env.npm_config_test_log_dir
     || '';
   const resolvedTestLogRoot = testLogRoot ? path.resolve(testLogRoot) : '';
 
+  if (traceArtifactIo) {
+    console.log(`[triage-test] deleting cache root: ${cacheRoot}`);
+  }
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+  if (traceArtifactIo) {
+    console.log(`[triage-test] deleted cache root: ${cacheRoot}`);
+  }
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
   const env = {

@@ -818,16 +818,6 @@ Documents: `docs/contracts/*` (validation constraints touched), `docs/config/*` 
 - [x] Task F8.DOC: Contract-test expansion and coverage-lock docs.
 Documents: `docs/testing/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
-## Global checklist for every migration task
-
-- [ ] Define canonical target module and public API.
-- [ ] Add manifest entry with old symbol/path -> replacement.
-- [ ] Migrate all callsites.
-- [ ] Delete duplicate implementation(s).
-- [ ] Add/adjust tests validating canonical path behavior.
-- [ ] Run targeted sweep queries and targeted tests.
-- [ ] Update docs/contracts if behavior or options changed.
-
 Subphase ordering rule (applies to D1-D8):
 1. Foundation extraction: create/lock canonical helper API.
 2. Migration pass: move all consumers to canonical API.
@@ -1666,20 +1656,6 @@ D8.3 status update (2026-02-10T00:57:03.8919931-05:00):
 
 ---
 
-## Per-phase validation cadence
-
-For each phase D0–D8 and F0–F8:
-- [ ] Run phase-targeted tests individually first.
-- [ ] Run affected lane subset (`ci-lite` minimum).
-- [ ] Run phase-specific sweep checks listed in the phase and record results in phase notes.
-- [ ] Record findings status block (`resolved`, `remaining`, `severity snapshot`, `exceptions`) in phase notes.
-- [ ] Complete phase documentation task from the documentation update matrix (`Phase.DOC`) and check it off.
-- [ ] Capture perf baseline and post-change delta for mapped hot paths; record against `perf-budgets.json`.
-- [ ] Update migration mapping tables and phase notes.
-- [ ] Update phase checkboxes only when code+tests are committed.
-
----
-
 ## Final acceptance
 
 - [ ] All duplication clusters from `duplication_consolidation_report.md` are resolved or formally accepted with rationale.
@@ -1691,10 +1667,6 @@ For each phase D0–D8 and F0–F8:
 - [ ] All six class-level remediations from `All_Findings.md` Part 4 are implemented and verified with linked tests.
 - [ ] All findings from `All_Findings.md` Parts 1-5 are resolved or explicitly accepted with risk records and expiry phases.
 - [ ] No unresolved high/critical findings remain in phase status tables.
-- [ ] Findings-era coverage tooling/tests remain removed.
-- [ ] `perf-budgets.json` budgets are met or explicitly accepted with time-bound waivers.
-- [ ] CI publishes top-offender/trend artifact for performance-sensitive suites.
-- [ ] All phase documentation tasks (`D0.DOC`..`D8.DOC`, `F0.DOC`..`F8.DOC`) are completed or carry a timestamped `no-doc-change` rationale.
 
 ---
 

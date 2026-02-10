@@ -12,6 +12,7 @@ import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 let warnedMissing = false;
 const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
 const PAYLOAD_ENV = 'PAIROFCLEATS_LANCEDB_PAYLOAD';
+const TRACE_ARTIFACT_IO = isTestingEnv() || process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
 
 const loadLanceDb = async (logger) => {
   const result = await tryImport('@lancedb/lancedb');
@@ -123,6 +124,13 @@ export async function writeLanceDbIndex({
   const resolvedVectors = Array.isArray(vectors) && vectors.length
     ? vectors
     : resolveVectorsFromFile(vectorsPath);
+  if (TRACE_ARTIFACT_IO && vectorsPath) {
+    const exists = fsSync.existsSync(vectorsPath)
+      || fsSync.existsSync(`${vectorsPath}.gz`)
+      || fsSync.existsSync(`${vectorsPath}.zst`)
+      || fsSync.existsSync(`${vectorsPath}.bak`);
+    logger.log(`[embeddings] ${label || variant}: vectors source path=${vectorsPath} exists=${exists}`);
+  }
   if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
     return { skipped: true, reason: 'empty' };
   }
@@ -201,7 +209,13 @@ export async function writeLanceDbIndex({
 
   try {
     if (fsSync.existsSync(dir)) {
+      if (TRACE_ARTIFACT_IO) {
+        logger.log(`[embeddings] ${label || variant}: deleting existing LanceDB dir ${dir}`);
+      }
       await fs.rm(dir, { recursive: true, force: true });
+      if (TRACE_ARTIFACT_IO) {
+        logger.log(`[embeddings] ${label || variant}: deleted LanceDB dir ${dir}`);
+      }
     }
   } catch {}
 

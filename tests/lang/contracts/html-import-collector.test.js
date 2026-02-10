@@ -17,6 +17,7 @@ const html = [
   '<link href="/assets/also-ignored.css">',
   '-->',
   '<script type="module" src="/assets/module.js"></script>',
+  '<script>const tpl = "<script src=\\"/assets/fake.js\\"><link href=\\"/assets/fake.css\\">";</script>',
   '<script src=/assets/noquote.js defer></script>',
   '</head>',
   '</html>'
@@ -35,6 +36,8 @@ assert.ok(fastImports.includes('/assets/site.css'));
 assert.ok(fastImports.includes('/assets/module.js'));
 assert.ok(fastImports.includes('/assets/noquote.js'));
 assert.ok(!fastImports.includes('/assets/logo.png'));
+assert.ok(!fastImports.includes('/assets/fake.js'));
+assert.ok(!fastImports.includes('/assets/fake.css'));
 assert.ok(!fastImports.includes('/assets/ignored.js'));
 assert.ok(!fastImports.includes('/assets/also-ignored.css'));
 
