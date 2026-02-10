@@ -1,5 +1,6 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
+import { registerTokenIdInvariant } from '../../shared/invariants.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
@@ -379,15 +380,12 @@ export function appendChunk(
 
   if (useTokenIds && state.tokenIdMap) {
     for (let i = 0; i < tokenIds.length; i += 1) {
-      const id = tokenIds[i];
-      const token = tokens[i];
-      if (!id || token == null) continue;
-      const existing = state.tokenIdMap.get(id);
-      if (!existing) {
-        state.tokenIdMap.set(id, token);
-      } else if (existing !== token) {
-        state.tokenIdCollisions.push({ id, existing, token });
-      }
+      registerTokenIdInvariant({
+        tokenIdMap: state.tokenIdMap,
+        tokenIdCollisions: state.tokenIdCollisions,
+        id: tokenIds[i],
+        token: tokens[i]
+      });
     }
   }
 
