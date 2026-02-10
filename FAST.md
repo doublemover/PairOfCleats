@@ -392,7 +392,7 @@ Implementation policy for Sweep 3:
 - Rollout: `indexer.orderedBuckets=true`; enforce strict order assertions in tests.
 - Target: 50% lower pending buffer spikes and materially fewer stall warnings.
 
-8. Area: Shared-memory scheduler transport
+8. [x] Area: Shared-memory scheduler transport
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`
 - Decision: Defer until paged scheduler store is implemented and benchmarked; keep as optional backend only.
 - Rollout: `treeSitter.scheduler.transport=shm` experimental fallback to disk.
@@ -410,7 +410,7 @@ Implementation policy for Sweep 3:
 - Rollout: optional tuning first (`MAX_PARSER_CACHE_SIZE`, warmup list) before long-lived pool.
 - Target: lower startup churn without introducing lifecycle fragility.
 
-11. Area: Cross-process scheduler row cache
+11. [x] Area: Cross-process scheduler row cache
 - Files: `src/index/build/tree-sitter-scheduler/lookup.js`, `src/index/build/indexer/steps/process-files.js`
 - Decision: Defer until paged store lands; evaluate shared page cache design only after in-process page cache metrics plateau.
 - Rollout: optional `treeSitter.scheduler.sharedCache=true` after correctness soak.

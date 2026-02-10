@@ -70,6 +70,20 @@ export const runTreeSitterScheduler = async ({
   log = null
 }) => {
   throwIfAborted(abortSignal);
+  const schedulerConfig = runtime?.languageOptions?.treeSitter?.scheduler || {};
+  const requestedTransport = typeof schedulerConfig.transport === 'string'
+    ? schedulerConfig.transport.trim().toLowerCase()
+    : 'disk';
+  const requestedSharedCache = schedulerConfig.sharedCache === true;
+  if (requestedTransport === 'shm' && log) {
+    log('[tree-sitter:schedule] scheduler transport=shm requested; falling back to disk transport.');
+  }
+  if (requestedSharedCache && log) {
+    log(
+      '[tree-sitter:schedule] scheduler sharedCache requested; ' +
+      'paged cross-process cache is not enabled, using process-local cache.'
+    );
+  }
   const planResult = await buildTreeSitterSchedulerPlan({
     mode,
     runtime,

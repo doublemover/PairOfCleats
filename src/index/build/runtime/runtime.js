@@ -438,7 +438,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     treeSitterLanguagePasses,
     treeSitterDeferMissing,
     treeSitterDeferMissingMax,
-    treeSitterWorker
+    treeSitterWorker,
+    treeSitterScheduler
   } = resolveTreeSitterRuntime(indexingConfig);
   logInit('tree-sitter config', treeSitterStart);
   const applyTreeSitterJsCaps = (caps, maxBytes) => {
@@ -846,7 +847,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       languagePasses: treeSitterLanguagePasses,
       deferMissing: treeSitterDeferMissing,
       deferMissingMax: treeSitterDeferMissingMax,
-      worker: treeSitterWorker
+      worker: treeSitterWorker,
+      scheduler: treeSitterScheduler || { transport: 'disk', sharedCache: false }
     },
     resolveSqlDialect,
     yamlChunking: {

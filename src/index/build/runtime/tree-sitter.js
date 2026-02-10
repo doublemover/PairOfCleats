@@ -5,6 +5,12 @@ import {
 } from './caps.js';
 
 const DEFAULT_DEFER_MISSING_MAX = 2;
+const normalizeSchedulerTransport = (raw) => {
+  if (typeof raw !== 'string') return 'disk';
+  const value = raw.trim().toLowerCase();
+  if (value === 'disk' || value === 'shm') return value;
+  return 'disk';
+};
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
   if (raw === false || raw === undefined || raw === null) return 'none';
@@ -48,6 +54,10 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     ...treeSitterByLanguage
   };
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
+  const treeSitterSchedulerConfig = treeSitterConfig.scheduler
+    && typeof treeSitterConfig.scheduler === 'object'
+    ? treeSitterConfig.scheduler
+    : {};
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
   const treeSitterLanguagePasses = treeSitterConfig.languagePasses !== false;
@@ -83,7 +93,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterLanguagePasses,
     treeSitterDeferMissing,
     treeSitterDeferMissingMax,
-    treeSitterWorker: treeSitterConfig.worker || null
+    treeSitterWorker: treeSitterConfig.worker || null,
+    treeSitterScheduler: {
+      transport: normalizeSchedulerTransport(treeSitterSchedulerConfig.transport),
+      sharedCache: treeSitterSchedulerConfig.sharedCache === true
+    }
   };
 };
 
