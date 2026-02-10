@@ -317,7 +317,7 @@ Format:
 - Impact: Lower cold/misconfigured query cost.
 - Risk: Preflight must be cheap and deterministic.
 
-25. Area: Dims mismatch policy inconsistency
+25. [x] Area: Dims mismatch policy inconsistency
 - Files: `src/retrieval/rankers.js`, `src/retrieval/lancedb.js`, `tools/sqlite/vector-extension.js`
 - Opportunity: Standardize mismatch behavior across providers (reject/clip policy).
 - Impact: Predictable results and fewer surprise fallbacks.

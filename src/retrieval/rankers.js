@@ -1,6 +1,7 @@
 import { SimpleMinHash } from '../index/minhash.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
+import { normalizeEmbeddingDims } from './ann/dims.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -272,19 +273,20 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
  */
 export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const vectors = idx.denseVec?.vectors;
-  const isVectorLike = Array.isArray(queryEmbedding)
-    || (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView));
-  if (!isVectorLike || !Array.isArray(vectors) || !vectors.length) return [];
-  const queryDims = queryEmbedding.length || 0;
-  const reportedDims = Number.isFinite(idx.denseVec?.dims) ? idx.denseVec.dims : queryDims;
-  let dims = reportedDims;
-  if (queryDims && reportedDims && queryDims !== reportedDims) {
-    dims = Math.min(queryDims, reportedDims);
+  if (!Array.isArray(vectors) || !vectors.length) return [];
+  const rawQueryDims = Number(queryEmbedding?.length) || 0;
+  const reportedDims = Number.isFinite(idx.denseVec?.dims) ? idx.denseVec.dims : rawQueryDims;
+  const normalized = normalizeEmbeddingDims(queryEmbedding, reportedDims || null);
+  if (!normalized.embedding) return [];
+  const queryDims = normalized.queryDims;
+  let dims = normalized.expectedDims || queryDims;
+  const queryVector = normalized.embedding;
+  if (normalized.adjusted && queryDims && normalized.expectedDims) {
     if (!idx.denseVec?._dimMismatchWarned) {
       idx.denseVec._dimMismatchWarned = true;
       console.warn(
         `[search] dense embeddings dimension mismatch (query=${queryDims}, index=${reportedDims}); ` +
-        `using ${dims} dims.`
+        'clipping/padding query vector to index dims.'
       );
     }
   }
@@ -313,7 +315,7 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     let dot = 0;
     for (let i = 0; i < dims; i++) {
       const v = vec[i] * scale + minVal;
-      dot += v * queryEmbedding[i];
+      dot += v * queryVector[i];
     }
     reducer.pushRaw(dot, id, order);
     order += 1;

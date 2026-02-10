@@ -551,7 +551,13 @@ export function createSqliteHelpers(options) {
   function rankVectorAnnSqlite(mode, queryEmbedding, topN, candidateSet) {
     const db = getDb(mode);
     if (!db || !queryEmbedding || !vectorAnnState[mode]?.available) return [];
-    const config = resolveVectorAnnConfig(mode);
+    const baseConfig = resolveVectorAnnConfig(mode);
+    const expectedDims = Number.isFinite(Number(vectorAnnState?.[mode]?.dims))
+      ? Math.max(1, Math.floor(Number(vectorAnnState[mode].dims)))
+      : null;
+    const config = expectedDims && Number(baseConfig?.dims) !== expectedDims
+      ? { ...baseConfig, dims: expectedDims }
+      : baseConfig;
     return queryVectorAnn(db, config, queryEmbedding, topN, candidateSet);
   }
 

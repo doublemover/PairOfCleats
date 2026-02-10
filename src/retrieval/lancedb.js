@@ -3,6 +3,7 @@ import { distanceToSimilarity } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
+import { normalizeEmbeddingDims } from './ann/dims.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
 const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -206,12 +207,6 @@ export async function rankLanceDb({
   config
 }) {
   if (!lancedbInfo?.available) return [];
-  const embeddingArray = Array.isArray(queryEmbedding)
-    ? queryEmbedding
-    : (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView)
-      ? Array.from(queryEmbedding)
-      : null);
-  if (!embeddingArray || !embeddingArray.length) return [];
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return [];
 
@@ -221,7 +216,16 @@ export async function rankLanceDb({
   const embeddingColumn = meta.embeddingColumn || resolvedConfig.embeddingColumn;
   const metric = meta.metric || resolvedConfig.metric;
   const dims = Number.isFinite(Number(meta.dims)) ? Number(meta.dims) : null;
-  if (dims && embeddingArray.length !== dims) return [];
+  const normalized = normalizeEmbeddingDims(queryEmbedding, dims);
+  if (!normalized.embedding) return [];
+  const embeddingArray = normalized.embedding;
+  if (normalized.adjusted && normalized.expectedDims) {
+    warnOnce(
+      'lancedb-query-dims',
+      `[ann] LanceDB query dims mismatch (query=${normalized.queryDims}, index=${normalized.expectedDims}); ` +
+      'clipping/padding query vector to index dims.'
+    );
+  }
 
   const dir = lancedbInfo.dir;
   if (!dir || !fs.existsSync(dir)) return [];

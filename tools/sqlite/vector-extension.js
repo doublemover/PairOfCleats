@@ -5,6 +5,7 @@ import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
 import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
+import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -369,6 +370,15 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     warnOnce('vector-extension-unsafe', '[sqlite] Vector extension disabled: invalid identifiers');
     return [];
   }
+  const normalized = normalizeEmbeddingDims(embedding, config?.dims);
+  if (!normalized.embedding) return [];
+  if (normalized.adjusted && normalized.expectedDims) {
+    warnOnce(
+      'vector-extension-query-dims',
+      `[sqlite] ANN query dims mismatch (query=${normalized.queryDims}, index=${normalized.expectedDims}); ` +
+      'clipping/padding query vector to index dims.'
+    );
+  }
   const limit = Math.max(1, Number(topN) || 1);
   const getCandidateSize = (value) => {
     if (!value) return 0;
@@ -403,7 +413,7 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
   const canPushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
   const candidates = canPushdown ? candidateToArray(candidateSet) : null;
   const queryLimit = canPushdown ? limit : (candidateSize ? limit * 5 : limit);
-  const encoded = encodeVector(embedding, config);
+  const encoded = encodeVector(normalized.embedding, config);
   if (!encoded) return [];
   try {
     const candidateClause = canPushdown
