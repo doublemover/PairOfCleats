@@ -114,6 +114,39 @@ const normalizeParamTypes = (paramTypes) => {
   return Object.keys(output).length ? output : null;
 };
 
+const hasParamTypes = (paramTypes) => {
+  if (!paramTypes || typeof paramTypes !== 'object') return false;
+  for (const entries of Object.values(paramTypes)) {
+    if (Array.isArray(entries)) {
+      if (entries.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type))) {
+        return true;
+      }
+      continue;
+    }
+    if (normalizeTypeText(entries)) return true;
+  }
+  return false;
+};
+
+const buildSourceSignatureCandidate = (text, virtualRange) => {
+  if (typeof text !== 'string' || !text) return null;
+  const start = Number(virtualRange?.start);
+  const end = Number(virtualRange?.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const clampedStart = Math.max(0, Math.min(text.length, Math.floor(start)));
+  const clampedEnd = Math.max(clampedStart, Math.min(text.length, Math.ceil(end + 1)));
+  if (clampedEnd <= clampedStart) return null;
+  let candidate = text.slice(clampedStart, clampedEnd);
+  if (!candidate.includes('(') || !candidate.includes(')')) return null;
+  const terminators = [candidate.indexOf('{'), candidate.indexOf(';')].filter((idx) => idx >= 0);
+  if (terminators.length) {
+    candidate = candidate.slice(0, Math.min(...terminators));
+  }
+  const lastParen = candidate.lastIndexOf(')');
+  if (lastParen === -1) return null;
+  return normalizeSignatureCacheText(candidate.slice(0, lastParen + 1));
+};
+
 const findTargetForOffsets = (targets, offsets, nameHint = null) => {
   if (!offsets) return null;
   let best = null;
@@ -522,6 +555,18 @@ export async function collectLspTypes({
       if (!target) continue;
       const detailText = symbol.detail || symbol.name;
       let info = parseSignatureCached(detailText, symbol.name);
+      if (!hasParamTypes(info?.paramTypes)) {
+        const sourceSignature = buildSourceSignatureCandidate(
+          openEntry?.text || doc.text || '',
+          target?.virtualRange
+        );
+        if (sourceSignature) {
+          const sourceInfo = parseSignatureCached(sourceSignature, symbol.name);
+          if (hasParamTypes(sourceInfo?.paramTypes)) {
+            info = mergeSignatureInfo(info, sourceInfo);
+          }
+        }
+      }
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
       const normalizedReturnType = normalizeTypeText(info?.returnType);

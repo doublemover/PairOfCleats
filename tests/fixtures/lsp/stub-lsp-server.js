@@ -27,6 +27,11 @@ const symbolsByMode = {
     detail: 'int add(int a, int b)',
     kind: 12
   },
+  'clangd-compact': {
+    name: 'add',
+    detail: 'int (int, int)',
+    kind: 12
+  },
   sourcekit: {
     name: 'greet',
     detail: 'func greet(name: String, count: Int) -> String',
