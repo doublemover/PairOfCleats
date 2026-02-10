@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T20:44:28-05:00",
+  "updatedAt": "2026-02-09T21:10:22.3605834-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -105,7 +105,7 @@
       "clusterId": "C10",
       "title": "Path normalization + containment",
       "phase": "D1",
-      "status": "planned",
+      "status": "in_progress",
       "legacyPaths": [
         "src/shared/path-normalize.js",
         "src/index/build/watch/shared.js"
@@ -116,7 +116,7 @@
       "clusterId": "C11",
       "title": "Find-upwards logic",
       "phase": "D1",
-      "status": "planned",
+      "status": "in_progress",
       "legacyPaths": [
         "src/index/build/watch/shared.js",
         "tests/helpers/root.js"
@@ -353,8 +353,8 @@
     { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
     { "migrationId": "M008", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline/ann-backends.js::normalizeAnnBackend", "newPathOrSymbol": "src/retrieval/ann/normalize-backend.js::normalizeAnnBackend", "status": "planned" },
     { "migrationId": "M009", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildSearchArgs", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchArgs", "status": "planned" },
-    { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/shared.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "planned" },
-    { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/shared.js::findGitRoot", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "planned" },
+    { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/git.js::findGitRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/cache/index-cache.js::createCache", "newPathOrSymbol": "src/shared/cache.js::createCache", "status": "planned" },
     { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "planned" },
     { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/build/runtime/warnings.js::warnOnce", "newPathOrSymbol": "src/shared/logging/warn-once.js::warnOnce", "status": "planned" },
@@ -374,9 +374,36 @@
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "planned" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "planned" },
     { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
-    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" }
+    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" },
+    { "migrationId": "M032", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::findJjRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M033", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::findNearestConfig (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M034", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "tools/dict-utils/paths/repo.js::findConfigRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
+    { "migrationId": "M035", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/core/status.js::isInside", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
+    { "migrationId": "M036", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "tools/shared/path-utils.js::isInside (inline relative check)", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" }
   ],
-  "banPatterns": [],
+  "banPatterns": [
+    {
+      "banId": "B010",
+      "phase": "D1",
+      "scope": "src/**",
+      "pattern": "function isInside(parent, child)",
+      "replacement": "src/shared/path-normalize.js::isPathUnderDir"
+    },
+    {
+      "banId": "B011",
+      "phase": "D1",
+      "scope": "src/**",
+      "pattern": "const isPathUnderDir = (baseDir, targetPath) =>",
+      "replacement": "src/shared/path-normalize.js::isPathUnderDir"
+    },
+    {
+      "banId": "B012",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "manual upward directory walkups for repo/config root detection",
+      "replacement": "src/shared/fs/find-upwards.js::findUpwards"
+    }
+  ],
   "exceptions": [],
   "exceptionSemantics": {
     "requiredFields": [

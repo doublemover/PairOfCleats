@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:01:27.7761186-05:00
+Last updated: 2026-02-09T21:10:22.3605834-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -61,7 +61,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | Phase | Status | Scope |
 | --- | --- | --- |
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
-| D1 | [ ] | Shared primitive consolidation |
+| D1 | [@] | Shared primitive consolidation |
 | D2 | [ ] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
 | D5 | [ ] | Tooling + language parser/extractor consolidation |
@@ -883,12 +883,19 @@ Clusters: 10, 11, 12, 13, 14, 15, 16, 17 and `escapeRegex`/`pickMinLimit` from 2
 
 ### Subphase D1.1 — Path and find-upwards utilities
 Tasks:
-- [ ] Task D1.1.a: Add `findUpwards(startDir, predicate, stopDir)`.
+- [x] Task D1.1.a: Add `findUpwards(startDir, predicate, stopDir)`.
 Details: Must support deterministic stop condition and symlink-safe behavior.
-- [ ] Task D1.1.b: Migrate `findGitRoot`, `findJjRoot`, tsconfig search, and repo-root walkups.
+- [x] Task D1.1.b: Migrate `findGitRoot`, `findJjRoot`, tsconfig search, and repo-root walkups.
 Details: Preserve existing stop behavior via predicate wrappers.
-- [ ] Task D1.1.c: Consolidate path containment checks.
+- [x] Task D1.1.c: Consolidate path containment checks.
 Details: Replace `isInside`/`isPathUnderDir` variants with shared helper.
+
+D1.1 status update (2026-02-09T21:10:22.3605834-05:00):
+- resolved: D1.1 dedupe slice for upward walkups and path containment (`findUpwards`, `isPathUnderDir`) with migrated callsites in scm/tooling/repo-path helpers.
+- remaining: D1.2–D1.5 tasks and all associated shared primitive migrations.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools` and `rg "const isInside|function isInside|const isPathUnderDir|function isPathUnderDir" src tools`.
 
 ### Subphase D1.2 — Cache/LRU and logging primitives
 Tasks:
@@ -930,7 +937,7 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 
 ### Exhaustive sweeps
 - [ ] `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build`
-- [ ] `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools`
+- [x] `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools`
 - [ ] `rg "warned = new Set|warnOnce" src tools`
 - [ ] `rg "formatBytes\(|sizeOfPath\(" src tools`
 - [ ] `rg "escapeRegex\(|pickMinLimit\(" src tools`
@@ -939,8 +946,8 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [ ] `rg "new Map\(|new Set\(" src | rg "cache|memo|seen|warn" | rg -v "max|ttl|limit|capacity|tests/"`
 
 ### Tests
-- [ ] `tests/shared/fs/find-upwards-contract.test.js` (new)
-- [ ] `tests/shared/path-normalize/path-containment-contract.test.js` (new)
+- [x] `tests/shared/fs/find-upwards-contract.test.js` (new)
+- [x] `tests/shared/path-normalize/path-containment-contract.test.js` (new)
 - [ ] `tests/shared/logging/warn-once.test.js` (new)
 - [ ] `tests/shared/cache/lru-parity.test.js` (new)
 - [ ] `tests/shared/disk-space/format-bytes-contract.test.js` (new)

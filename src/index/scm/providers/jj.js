@@ -4,6 +4,7 @@ import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
 import { getScmRuntimeConfig } from '../runtime.js';
 import { toPosix } from '../../../shared/files.js';
+import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
@@ -391,13 +392,8 @@ export const jjProvider = {
 };
 
 const findJjRoot = (startPath) => {
-  let current = path.resolve(startPath || process.cwd());
-  while (true) {
-    const jjPath = path.join(current, '.jj');
-    if (fsSync.existsSync(jjPath)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return null;
+  return findUpwards(
+    startPath || process.cwd(),
+    (candidateDir) => fsSync.existsSync(path.join(candidateDir, '.jj'))
+  );
 };

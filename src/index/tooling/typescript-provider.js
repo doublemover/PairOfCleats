@@ -5,6 +5,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { findUpwards } from '../../shared/fs/find-upwards.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
@@ -79,31 +80,30 @@ const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
 
 const findNearestConfig = (startDir, repoRoot, cache, useCaseSensitive) => {
   if (!startDir) return null;
-  const rootKey = normalizePathKey(repoRoot || startDir, useCaseSensitive);
-  let current = startDir;
   const visited = [];
-  while (true) {
-    const currentKey = normalizePathKey(current, useCaseSensitive);
-    if (cache.has(currentKey)) {
-      const cached = cache.get(currentKey) || null;
-      for (const key of visited) cache.set(key, cached);
-      return cached;
-    }
-    visited.push(currentKey);
-    for (const filename of CONFIG_FILENAMES) {
-      const candidate = path.join(current, filename);
-      if (fsSync.existsSync(candidate)) {
-        for (const key of visited) cache.set(key, candidate);
-        return candidate;
+  let resolved = null;
+  findUpwards(
+    startDir,
+    (candidateDir) => {
+      const currentKey = normalizePathKey(candidateDir, useCaseSensitive);
+      if (cache.has(currentKey)) {
+        resolved = cache.get(currentKey) || null;
+        return true;
       }
-    }
-    if (currentKey === rootKey) break;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  for (const key of visited) cache.set(key, null);
-  return null;
+      visited.push(currentKey);
+      for (const filename of CONFIG_FILENAMES) {
+        const candidate = path.join(candidateDir, filename);
+        if (fsSync.existsSync(candidate)) {
+          resolved = candidate;
+          return true;
+        }
+      }
+      return false;
+    },
+    repoRoot || startDir
+  );
+  for (const key of visited) cache.set(key, resolved);
+  return resolved;
 };
 
 const parseTsConfig = (ts, configPath, log) => {
