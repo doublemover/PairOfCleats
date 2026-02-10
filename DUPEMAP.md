@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:56:14.0203598-05:00
+Last updated: 2026-02-09T23:59:07.3289697-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -1387,12 +1387,21 @@ D6.1 status update (2026-02-09T23:56:14.0203598-05:00):
 
 ### Subphase D6.2 — Risk utility extraction
 Tasks:
-- [ ] Task D6.2.a: Extract shared severity rank and identifier boundary logic.
+- [x] Task D6.2.a: Extract shared severity rank and identifier boundary logic.
 Details: Single-file and interprocedural engines import from one module.
-- [ ] Task D6.2.b: Extract shared rule pattern match helper.
+- [x] Task D6.2.b: Extract shared rule pattern match helper.
 Details: Preserve existing match semantics.
-- [ ] Task D6.2.c: Remove duplicate constants/functions in risk modules.
+- [x] Task D6.2.c: Remove duplicate constants/functions in risk modules.
 Details: ban duplicate symbols via manifest.
+
+D6.2 status update (2026-02-09T23:59:07.3289697-05:00):
+- resolved: added canonical risk utility module `src/index/risk/shared.js` with shared `SEVERITY_RANK`, identifier boundary matching (`containsIdentifier`), and rule pattern matcher (`matchRulePatterns`).
+- resolved: migrated `src/index/risk.js` to shared severity rank, identifier boundary checks, and pattern matching helper while preserving rule language/required-regex gating behavior.
+- resolved: migrated `src/index/risk-interprocedural/engine.js` to shared severity rank, identifier matching, and rule pattern matcher for arg-aware taint checks.
+- remaining: D6.3 import candidate and map helper consolidation.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "SEVERITY_RANK|identifier.*boundary|rule.*match" src/index/risk.js src/index/risk-interprocedural/engine.js src/index/risk/shared.js`.
 
 ### Subphase D6.3 — Import candidate and map cleanup
 Tasks:
@@ -1407,13 +1416,13 @@ Details: Decide array merge semantics and document explicitly.
 
 ### Exhaustive sweeps
 - [x] `rg "buildChunksFromLineHeadings|buildChunksFromMatches" src/index/chunking`
-- [ ] `rg "SEVERITY_RANK|identifier.*boundary|rule.*match" src/index/risk*`
+- [x] `rg "SEVERITY_RANK|identifier.*boundary|rule.*match" src/index/risk.js src/index/risk-interprocedural/engine.js src/index/risk/shared.js`
 - [ ] `rg "resolve-relative-import|import-resolution" src/index`
 - [ ] `rg "applyScopeFilter|applyCollapse|escapeHtml|mergeConfig" src/map src/shared`
 
 ### Tests
 - [x] `tests/indexing/chunking/chunking-helper-parity.test.js` (new)
-- [ ] `tests/indexing/risk/risk-shared-utils-parity.test.js` (new)
+- [x] `tests/indexing/risk/risk-shared-utils-parity.test.js` (new)
 - [ ] `tests/indexing/type-inference/import-candidates-parity.test.js` (new)
 - [ ] `tests/map/map-filter-api-contract.test.js` (new)
 - [ ] `tests/map/html-escape-contract.test.js` (new)

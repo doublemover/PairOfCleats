@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:56:14.0203598-05:00",
+  "updatedAt": "2026-02-09T23:59:07.3289697-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -204,7 +204,7 @@
       "clusterId": "C19",
       "title": "Risk utility duplication",
       "phase": "D6",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/risk.js",
         "src/index/risk-interprocedural/engine.js"
@@ -362,7 +362,7 @@
     { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
     { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/lock.js::acquireIndexLock (local lock helper stack)", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireFileLock", "status": "completed" },
     { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/dispatch.js + src/index/chunking/formats/{ini-toml,yaml,rst-asciidoc}.js::buildChunksFromLineHeadings local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "completed" },
-    { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk-interprocedural/engine.js::SEVERITY_RANK", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "planned" },
+    { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js + src/index/risk-interprocedural/engine.js::SEVERITY_RANK local constants", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "completed" },
     { "migrationId": "M020", "clusterId": "C20", "phase": "D6", "oldPathOrSymbol": "src/index/type-inference-crossfile/resolve-relative-import.js::resolveRelativeImportCandidates", "newPathOrSymbol": "src/index/shared/import-candidates.js::resolveRelativeImportCandidates", "status": "planned" },
     { "migrationId": "M021", "clusterId": "C21", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/doctor.js::findBinaryInDirs", "newPathOrSymbol": "src/index/tooling/binary-utils.js::findBinaryInDirs", "status": "completed" },
     { "migrationId": "M022", "clusterId": "C22", "phase": "D5", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::loadTypeScript", "newPathOrSymbol": "src/index/tooling/typescript/load.js::loadTypeScript", "status": "completed" },
@@ -460,7 +460,8 @@
     { "migrationId": "M114", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/incremental-update.js::ensureVocabIds from build-local module", "newPathOrSymbol": "src/storage/sqlite/vocab.js::ensureVocabIds", "status": "completed" },
     { "migrationId": "M115", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli-lmdb.js::validateStore/schema+mode checks + src/index/validate/lmdb-report.js required-artifact key checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::{validateLmdbSchemaAndMode,validateLmdbArtifactKeys}", "status": "completed" },
     { "migrationId": "M116", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/cli/index-loader.js + src/integrations/core/status.js data.mdb direct checks", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbStore", "status": "completed" },
-    { "migrationId": "M117", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/{markdown,rst-asciidoc}.js::buildChunksFromMatches local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromMatches", "status": "completed" }
+    { "migrationId": "M117", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/{markdown,rst-asciidoc}.js::buildChunksFromMatches local helper bodies", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromMatches", "status": "completed" },
+    { "migrationId": "M118", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk.js::isIdentCharCode/lineContainsVarRange pattern loop + src/index/risk-interprocedural/engine.js::containsIdentifier/matchesRulePatterns", "newPathOrSymbol": "src/index/risk/shared.js::{containsIdentifier,matchRulePatterns}", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -658,6 +659,13 @@
       "scope": "src/index/chunking/**",
       "pattern": "local buildChunksFromLineHeadings/buildChunksFromMatches helper bodies in chunking dispatch/format modules",
       "replacement": "src/index/chunking/helpers.js::{buildChunksFromLineHeadings,buildChunksFromMatches}"
+    },
+    {
+      "banId": "B038",
+      "phase": "D6",
+      "scope": "src/index/risk.js,src/index/risk-interprocedural/engine.js",
+      "pattern": "local severity rank / identifier boundary / rule pattern match helper bodies",
+      "replacement": "src/index/risk/shared.js::{SEVERITY_RANK,containsIdentifier,matchRulePatterns}"
     }
   ],
   "exceptions": [],
