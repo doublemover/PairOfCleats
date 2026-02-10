@@ -1,13 +1,8 @@
 import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';
 import { getEnvConfig } from '../shared/env.js';
+import { createWarnOnce } from '../shared/logging/warn-once.js';
 
-let warnedEmbedderFailure = false;
-
-const warnOnce = (message) => {
-  if (warnedEmbedderFailure) return;
-  warnedEmbedderFailure = true;
-  console.warn(message);
-};
+const warnOnce = createWarnOnce();
 
 const resolveEnvEmbeddingMode = (value) => {
   if (typeof value !== 'string') return null;

@@ -27,12 +27,16 @@ function extractTypeScriptHeritage(ts, node, sourceFile) {
   const extendsList = [];
   const implementsList = [];
   for (const clause of node?.heritageClauses || []) {
-    const list = clause?.types?.map((entry) => entry.getText(sourceFile).trim()).filter(Boolean) || [];
-    if (!list.length) continue;
+    let target = null;
     if (clause.token === ts.SyntaxKind.ExtendsKeyword) {
-      extendsList.push(...list);
+      target = extendsList;
     } else if (clause.token === ts.SyntaxKind.ImplementsKeyword) {
-      implementsList.push(...list);
+      target = implementsList;
+    }
+    if (!target || !Array.isArray(clause?.types) || !clause.types.length) continue;
+    for (const entry of clause.types) {
+      const value = entry?.getText ? entry.getText(sourceFile).trim() : '';
+      if (value) target.push(value);
     }
   }
   return { extendsList, implementsList };
@@ -40,19 +44,26 @@ function extractTypeScriptHeritage(ts, node, sourceFile) {
 
 function collectParamDetails(ts, node, sourceFile, signature) {
   const params = [];
+  const seen = new Set();
   const paramTypes = {};
   for (const param of node?.parameters || []) {
     if (!param?.name || !ts.isIdentifier(param.name)) continue;
     const name = param.name.text;
     if (!name) continue;
-    params.push(name);
+    if (!seen.has(name)) {
+      params.push(name);
+      seen.add(name);
+    }
     const typeText = param.type ? param.type.getText(sourceFile).trim() : '';
     if (typeText) paramTypes[name] = typeText;
   }
   const fallbackParams = extractTypeScriptParams(signature);
   const fallbackTypes = extractTypeScriptParamTypes(signature);
   for (const name of fallbackParams) {
-    if (!params.includes(name)) params.push(name);
+    if (!seen.has(name)) {
+      params.push(name);
+      seen.add(name);
+    }
   }
   return {
     params: params.length ? params : fallbackParams,
@@ -89,7 +100,7 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
 
   const buildMetaBase = (start, end, signature) => {
     const startLine = offsetToLine(lineIndex, start);
-    const endLine = offsetToLine(lineIndex, end);
+    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
     const modifiers = extractTypeScriptModifiers(signature);
     return {
       startLine,

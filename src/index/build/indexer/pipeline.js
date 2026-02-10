@@ -109,7 +109,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
   const crashLogger = await createCrashLogger({
     repoCacheRoot: runtime.repoCacheRoot,
-    enabled: true,
+    enabled: runtime.debugCrash === true,
     log
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });

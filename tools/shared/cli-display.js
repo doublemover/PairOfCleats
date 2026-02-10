@@ -1,4 +1,5 @@
 import { createDisplay } from '../../src/shared/cli/display.js';
+import { createNoopTask } from '../../src/shared/cli/noop-task.js';
 
 /**
  * Create a display instance using common CLI flags.
@@ -19,20 +20,6 @@ export function createToolDisplay({ argv, stream = process.stderr, progressMode,
 }
 
 /**
- * Build a no-op task object for display-less contexts.
- * @returns {object}
- */
-export function createNoopTask() {
-  return {
-    tick() {},
-    set() {},
-    done() {},
-    fail() {},
-    update() {}
-  };
-}
-
-/**
  * Create a task factory that falls back to no-op tasks.
  * @param {object|null} display
  * @returns {(label:string, options?:object) => object}
@@ -43,3 +30,5 @@ export function createTaskFactory(display) {
   }
   return () => createNoopTask();
 }
+
+export { createNoopTask };

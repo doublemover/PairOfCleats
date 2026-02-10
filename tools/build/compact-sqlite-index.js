@@ -13,10 +13,10 @@ import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../
 import { applyBuildPragmas, restoreBuildPragmas } from '../../src/storage/sqlite/build/pragmas.js';
 import {
   dequantizeUint8ToFloat32,
-  resolveQuantizationParams,
   toSqliteRowId
 } from '../../src/storage/sqlite/vector.js';
-import { updateSqliteState } from './sqlite/index-state.js';
+import { resolveQuantizationParams } from '../../src/storage/sqlite/quantization.js';
+import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
 
 let Database;
 try {

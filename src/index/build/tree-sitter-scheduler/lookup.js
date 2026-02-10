@@ -1,8 +1,10 @@
 import { compareStrings } from '../../../shared/sort.js';
+import { createLruCache } from '../../../shared/cache.js';
 import { readVfsManifestRowAtOffset } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
 const DEFAULT_ROW_CACHE_MAX = 50000;
+const DEFAULT_MISS_CACHE_MAX = 10000;
 
 const coercePositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -10,46 +12,38 @@ const coercePositiveInt = (value, fallback) => {
   return Math.max(1, Math.floor(parsed));
 };
 
-const touchLru = (map, key, value) => {
-  map.delete(key);
-  map.set(key, value);
-};
-
 export const createTreeSitterSchedulerLookup = ({
   outDir,
   index = new Map(),
   log = null,
-  maxCacheEntries = null
+  maxCacheEntries = null,
+  maxMissCacheEntries = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveInt(maxCacheEntries, DEFAULT_ROW_CACHE_MAX);
-  const rowCache = new Map(); // virtualPath -> row
-  const missCache = new Set();
-
-  const ensureCacheLimit = () => {
-    while (rowCache.size > cacheMax) {
-      const oldest = rowCache.keys().next().value;
-      if (oldest === undefined) break;
-      rowCache.delete(oldest);
-    }
-  };
+  const missCacheMax = coercePositiveInt(maxMissCacheEntries, DEFAULT_MISS_CACHE_MAX);
+  const rowCache = createLruCache({
+    name: 'tree-sitter-scheduler-row',
+    maxEntries: cacheMax
+  });
+  const missCache = createLruCache({
+    name: 'tree-sitter-scheduler-miss',
+    maxEntries: missCacheMax
+  });
 
   const loadRow = async (virtualPath) => {
     if (!virtualPath) return null;
-    if (rowCache.has(virtualPath)) {
-      const row = rowCache.get(virtualPath);
-      touchLru(rowCache, virtualPath, row);
-      return row;
-    }
-    if (missCache.has(virtualPath)) return null;
+    const cached = rowCache.get(virtualPath);
+    if (cached) return cached;
+    if (missCache.get(virtualPath)) return null;
     const entry = index.get(virtualPath) || null;
     if (!entry) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     const grammarKey = entry.grammarKey || null;
     if (!grammarKey) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
@@ -59,11 +53,10 @@ export const createTreeSitterSchedulerLookup = ({
       bytes: entry.bytes
     });
     if (!row) {
-      missCache.add(virtualPath);
+      missCache.set(virtualPath, true);
       return null;
     }
     rowCache.set(virtualPath, row);
-    ensureCacheLimit();
     return row;
   };
 
@@ -90,8 +83,8 @@ export const createTreeSitterSchedulerLookup = ({
     loadChunks,
     stats: () => ({
       indexEntries: index.size,
-      cacheEntries: rowCache.size,
-      missEntries: missCache.size,
+      cacheEntries: rowCache.size(),
+      missEntries: missCache.size(),
       grammarKeys: grammarKeys().length
     }),
     log

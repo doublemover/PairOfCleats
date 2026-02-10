@@ -100,7 +100,7 @@ for (const fixtureName of fixtures) {
     : path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 
   run([
-    path.join(root, 'tests', 'parity.js'),
+    path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
     '--no-ann',
     '--queries',
     queryFile,

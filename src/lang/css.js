@@ -84,6 +84,7 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedTraversalBudget = new Set();
 const loggedUnavailable = new Set();
+const CSS_IMPORT_HINT = /@import/i;
 
 // Guardrails: CSS can contain extremely large selector lists or nested at-rules.
 // Keep traversal and chunk extraction bounded to avoid pathological memory / CPU usage.
@@ -222,9 +223,11 @@ function gatherRuleNodes(root, budget) {
 }
 
 export function collectCssImports(text) {
+  if (!text || !CSS_IMPORT_HINT.test(text)) return [];
   const imports = new Set();
-  const regex = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
-  for (const match of text.matchAll(regex)) {
+  const importRe = /@import\s+(?:url\()?['"]?([^'")\s;]+)['"]?\)?/gi;
+  let match;
+  while ((match = importRe.exec(text)) !== null) {
     if (match[1]) imports.add(match[1]);
   }
   return Array.from(imports);

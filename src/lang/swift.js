@@ -112,6 +112,8 @@ const SWIFT_KIND_MAP = {
   extension: 'ExtensionDeclaration',
   actor: 'ActorDeclaration'
 };
+const SWIFT_IMPORT_HINT = /\bimport\b/;
+const SWIFT_DECL_HINT = /\b(?:class|struct|enum|protocol|extension|actor|func)\b/;
 
 function normalizeSwiftName(raw) {
   if (!raw) return '';
@@ -394,13 +396,14 @@ export function buildSwiftChunks(text, options = {}) {
     });
   };
 
-  for (const match of text.matchAll(typeRe)) {
+  let match;
+  while ((match = typeRe.exec(text)) !== null) {
     addDecl(match[1], match[2], match.index, true);
   }
-  for (const match of text.matchAll(funcRe)) {
+  while ((match = funcRe.exec(text)) !== null) {
     addDecl(match[1], match[2], match.index, false);
   }
-  for (const match of text.matchAll(initRe)) {
+  while ((match = initRe.exec(text)) !== null) {
     addDecl(match[1], match[1], match.index, false);
   }
 
@@ -461,6 +464,9 @@ export function buildSwiftChunks(text, options = {}) {
  * @returns {{imports:string[],usages:string[]}}
  */
 export function collectSwiftImports(text) {
+  if (!text || !text.includes('import') || !SWIFT_IMPORT_HINT.test(text)) {
+    return { imports: [], usages: [] };
+  }
   const imports = new Set();
   const usages = new Set();
   const lines = text.split('\n');
@@ -483,9 +489,27 @@ export function collectSwiftImports(text) {
  */
 export function buildSwiftRelations(text) {
   const { imports, usages } = collectSwiftImports(text);
+  const hasDeclHint = text && (
+    text.includes('class')
+    || text.includes('struct')
+    || text.includes('enum')
+    || text.includes('protocol')
+    || text.includes('extension')
+    || text.includes('actor')
+    || text.includes('func')
+  );
+  if (!hasDeclHint || !SWIFT_DECL_HINT.test(text)) {
+    return {
+      imports,
+      exports: [],
+      calls: [],
+      usages
+    };
+  }
   const exports = new Set();
   const declRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
-  for (const match of text.matchAll(declRe)) {
+  let match;
+  while ((match = declRe.exec(text)) !== null) {
     const indent = match[0].match(/^[ \t]*/)?.[0] ?? '';
     if (indent.length) continue;
     const name = normalizeSwiftName(match[2]);
@@ -595,13 +619,16 @@ export function computeSwiftFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+    const throwRe = /\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
+    let match;
+    while ((match = throwRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }
     out.throws = Array.from(throws);
     const awaits = new Set();
-    for (const match of cleaned.matchAll(/\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+    const awaitRe = /\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
+    while ((match = awaitRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) awaits.add(name);
     }

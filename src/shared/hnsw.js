@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { distanceToSimilarity } from './ann-similarity.js';
 
 const require = createRequire(import.meta.url);
 
@@ -194,7 +195,8 @@ export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateS
     const idx = neighbors[i];
     if (idx == null) continue;
     const distance = distances[i];
-    const sim = space === 'l2' ? -distance : 1 - distance;
+    const sim = distanceToSimilarity(distance, space);
+    if (!Number.isFinite(sim)) continue;
     hits.push({ idx, sim });
   }
   return hits.sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));

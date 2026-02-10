@@ -46,7 +46,6 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
-  const excludeNeedleSet = excludeNeedles.length ? new Set(excludeNeedles) : null;
   const normalizePhraseNeedle = (value) => {
     const normalized = caseTokens ? String(value || '') : normalize(value);
     return normalized.replace(/\s+/g, '_');

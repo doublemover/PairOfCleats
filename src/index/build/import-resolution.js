@@ -6,6 +6,8 @@ import { readJsoncFile } from '../../shared/jsonc.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
+import { escapeRegex } from '../../shared/text/escape-regex.js';
+import { resolveRelativeImportCandidate } from '../shared/import-candidates.js';
 
 const DEFAULT_IMPORT_EXTS = [
   '.ts',
@@ -19,11 +21,6 @@ const DEFAULT_IMPORT_EXTS = [
   '.json',
   '.d.ts'
 ];
-const DEFAULT_IMPORT_SUFFIXES = [
-  ...DEFAULT_IMPORT_EXTS,
-  ...DEFAULT_IMPORT_EXTS.map((ext) => `/index${ext}`)
-];
-
 const MAX_IMPORT_WARNINGS = 200;
 const MAX_GRAPH_EDGES = 200000;
 const MAX_GRAPH_NODES = 100000;
@@ -117,7 +114,9 @@ const createFileLookup = ({ entries, root }) => {
     fileSet.add(relPosix);
     const lower = relPosix.toLowerCase();
     if (lower.endsWith('tsconfig.json')) hasTsconfig = true;
-    if (!fileLower.has(lower)) fileLower.set(lower, relPosix);
+    if (!fileLower.has(lower) || sortStrings(relPosix, fileLower.get(lower)) < 0) {
+      fileLower.set(lower, relPosix);
+    }
     const basePath = stripImportExtension(relPosix);
     if (basePath) addPathToTrie(pathTrie, basePath);
     addPathToTrie(pathTrie, relPosix);
@@ -153,14 +152,11 @@ const resolveCandidate = (relPath, lookup) => {
   if (lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
     return null;
   }
-  for (const suffix of DEFAULT_IMPORT_SUFFIXES) {
-    const candidate = resolveFromLookup(`${trimmed}${suffix}`, lookup);
-    if (candidate) return candidate;
-  }
-  return null;
+  return resolveRelativeImportCandidate(trimmed, {
+    extensions: DEFAULT_IMPORT_EXTS,
+    resolve: (candidate) => resolveFromLookup(candidate, lookup)
+  });
 };
-
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const compileTsPattern = (pattern) => {
   if (!pattern) return null;

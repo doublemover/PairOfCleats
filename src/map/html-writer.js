@@ -1,8 +1,4 @@
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
+import { escapeHtml } from './shared/escape-html.js';
 
 export function renderSvgHtml({ svg, mapModel, title = 'Code Map' }) {
   const warnings = Array.isArray(mapModel?.warnings) ? mapModel.warnings : [];

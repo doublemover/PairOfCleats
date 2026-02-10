@@ -475,7 +475,27 @@ const SQL_DOC_OPTIONS = {
   blockEnd: '*/'
 };
 
+function firstNonEmptyLine(text) {
+  if (!text) return '';
+  let start = 0;
+  while (start < text.length) {
+    while (start < text.length && (text[start] === '\n' || text[start] === '\r' || text[start] === ' ' || text[start] === '\t')) {
+      start += 1;
+    }
+    if (start >= text.length) break;
+    let end = start;
+    while (end < text.length && text[end] !== '\n' && text[end] !== '\r') end += 1;
+    const line = text.slice(start, end).trim();
+    if (line) return line;
+    start = end + 1;
+  }
+  return '';
+}
+
 function extractSqlLeadingDoc(statementText) {
+  if (!statementText || (!statementText.includes('--') && !statementText.includes('/*'))) {
+    return { docstring: '', signature: firstNonEmptyLine(statementText) };
+  }
   const lines = statementText.split('\n');
   const docLines = [];
   let signature = '';
@@ -639,7 +659,9 @@ export function collectSqlImports() {
  */
 export function buildSqlChunks(text, options = {}) {
   const lineIndex = buildLineIndex(text);
-  const lines = text.split('\n');
+  const lines = text.includes('--') || text.includes('/*')
+    ? text.split('\n')
+    : null;
   const statements = splitSqlStatements(text);
   if (!statements.length) return null;
 
@@ -651,8 +673,8 @@ export function buildSqlChunks(text, options = {}) {
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
     const leading = extractSqlLeadingDoc(stmtText);
-    const docstring = extractDocComment(lines, startLine - 1, SQL_DOC_OPTIONS) || leading.docstring;
-    const signature = leading.signature || stmtText.trim().split('\n')[0].trim();
+    const docstring = (lines ? extractDocComment(lines, startLine - 1, SQL_DOC_OPTIONS) : '') || leading.docstring;
+    const signature = leading.signature || firstNonEmptyLine(stmtText);
     decls.push({
       start: stmt.start,
       end: stmt.end,
@@ -728,7 +750,9 @@ export function computeSqlFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\b(?:raise|signal)\b\s+([A-Za-z_][A-Za-z0-9_]*)/gi)) {
+    const raiseSignalRe = /\b(?:raise|signal)\b\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+    let match;
+    while ((match = raiseSignalRe.exec(cleaned)) !== null) {
       const name = match[1];
       if (name) throws.add(name);
     }

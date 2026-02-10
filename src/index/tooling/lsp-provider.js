@@ -1,5 +1,5 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { hashProviderConfig, normalizeProviderId } from './provider-contract.js';
+import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
@@ -121,9 +121,12 @@ const createConfiguredLspProvider = (server) => {
       return {
         provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
-        diagnostics: result.diagnosticsCount
-          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-          : null
+        diagnostics: appendDiagnosticChecks(
+          result.diagnosticsCount
+            ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+            : null,
+          Array.isArray(result.checks) ? result.checks : []
+        )
       };
     }
   };

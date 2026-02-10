@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
+import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
@@ -71,24 +72,6 @@ const SHELL_DOC_OPTIONS = {
   skipLine: (line) => line.startsWith('#!')
 };
 
-function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  return { signature, endLine, hasBody: hasBrace };
-}
-
 function stripShellComments(text) {
   return text.replace(/#.*$/gm, ' ');
 }
@@ -98,16 +81,20 @@ function collectShellCallsAndUsages(text) {
   const usages = new Set();
   const normalized = stripShellComments(text).replace(/\\\n/g, ' ');
   const callRe = /(?:^|[;&|]\s*|&&\s*|\|\|\s*)\s*([A-Za-z_][A-Za-z0-9_-]*)/gm;
-  for (const match of normalized.matchAll(callRe)) {
+  let match;
+  while ((match = callRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || SHELL_CALL_KEYWORDS.has(name)) continue;
     calls.add(name);
+    if (!match[0]) callRe.lastIndex += 1;
   }
-  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_-]*)\b/g)) {
+  const usageRe = /\b([A-Za-z_][A-Za-z0-9_-]*)\b/g;
+  while ((match = usageRe.exec(normalized)) !== null) {
     const name = match[1];
     if (!name || name.length < 2) continue;
     if (SHELL_USAGE_SKIP.has(name)) continue;
     usages.add(name);
+    if (!match[0]) usageRe.lastIndex += 1;
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -118,6 +105,7 @@ function collectShellCallsAndUsages(text) {
  * @returns {string[]}
  */
 export function collectShellImports(text) {
+  if (!text || (!text.includes('source') && !text.includes('. ') && !text.includes('.\t'))) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
@@ -155,7 +143,7 @@ export function buildShellChunks(text) {
     let match = trimmed.match(funcKwRe);
     if (!match) match = trimmed.match(funcParenRe);
     if (!match) continue;
-    const sigData = readSignatureLines(lines, i);
+    const sigData = readSignatureLines(lines, i, { stopOnSemicolon: false });
     const signature = sigData.signature;
     const endLine = sigData.endLine;
     const hasBody = sigData.hasBody;
@@ -281,9 +269,8 @@ export function computeShellFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bexit\b/g)) {
-      if (match) throws.add('exit');
-    }
+    const exitRe = /\bexit\b/g;
+    if (exitRe.test(cleaned)) throws.add('exit');
     out.throws = Array.from(throws);
   }
 

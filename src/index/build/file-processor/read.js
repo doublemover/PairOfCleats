@@ -1,16 +1,9 @@
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
 import { fileExt } from '../../../shared/files.js';
+import { pickMinLimit } from '../runtime/limits.js';
 
-/**
- * Select the smallest positive limit from a list of values.
- * @param {...number} values
- * @returns {number|null}
- */
-export const pickMinLimit = (...values) => {
-  const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
-  return candidates.length ? Math.min(...candidates) : null;
-};
+export { pickMinLimit };
 
 /**
  * Resolve file size/line caps for a file based on ext/language/mode.

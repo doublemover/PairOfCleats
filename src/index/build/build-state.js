@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { createTempPath, replaceFile } from '../../shared/json-stream/atomic.js';
+import { atomicWriteJson, atomicWriteText } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
+import { createLifecycleRegistry } from '../../shared/lifecycle/registry.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
@@ -21,12 +21,30 @@ const VERY_LONG_DEBOUNCE_MS = 1000;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_PATCH_BYTES = 64 * 1024;
+const STATE_MAP_MAX_ENTRIES = 64;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
 const stateCaches = new Map();
 const statePending = new Map();
-const stateTimers = new Map();
+const statePendingLifecycles = new Map();
+
+const isActiveStateKey = (key) => (
+  stateQueues.has(key)
+  || statePending.has(key)
+  || statePendingLifecycles.has(key)
+);
+
+const trimStateMap = (map, { maxEntries = STATE_MAP_MAX_ENTRIES, skipActive = false } = {}) => {
+  if (!(map instanceof Map)) return;
+  if (!Number.isFinite(maxEntries) || maxEntries <= 0) return;
+  if (map.size <= maxEntries) return;
+  for (const [key] of map.entries()) {
+    if (map.size <= maxEntries) break;
+    if (skipActive && isActiveStateKey(key)) continue;
+    map.delete(key);
+  }
+};
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
@@ -60,8 +78,28 @@ const getCacheEntry = (buildRoot) => {
       lastHash: null,
       lastComparableHash: null
     });
+    trimStateMap(stateCaches, { skipActive: true });
   }
   return stateCaches.get(key);
+};
+
+const getPendingLifecycle = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  if (!statePendingLifecycles.has(key)) {
+    statePendingLifecycles.set(
+      key,
+      createLifecycleRegistry({ name: `build-state-pending:${path.basename(key)}` })
+    );
+  }
+  return statePendingLifecycles.get(key);
+};
+
+const releasePendingLifecycle = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  const lifecycle = statePendingLifecycles.get(key);
+  if (!lifecycle) return;
+  statePendingLifecycles.delete(key);
+  void lifecycle.close().catch(() => {});
 };
 
 const fingerprintsMatch = (a, b) => (
@@ -294,6 +332,7 @@ const recordStateError = (buildRoot, err) => {
     message
   };
   stateErrors.set(key, next);
+  trimStateMap(stateErrors, { skipActive: true });
   // Surface the failure without crashing the build.
   console.warn(`[build_state] ${message}`);
 };
@@ -411,14 +450,6 @@ const hashJsonString = (value) => {
   return sha1(value);
 };
 
-const writeJsonStringAtomic = async (filePath, jsonString) => {
-  if (!filePath) return null;
-  const tempPath = createTempPath(filePath);
-  await fs.writeFile(tempPath, jsonString, 'utf8');
-  await replaceFile(tempPath, filePath);
-  return filePath;
-};
-
 const loadBuildState = async (buildRoot) => {
   const cache = getCacheEntry(buildRoot);
   const statePath = resolveStatePath(buildRoot);
@@ -489,7 +520,7 @@ const writeStateFile = async (buildRoot, state, cache, { comparableHash = null }
     return state;
   }
   try {
-    await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+    await atomicWriteJson(statePath, state, { spaces: 0 });
     const fingerprint = await readFingerprint(statePath);
     cache.state = state;
     cache.fingerprint = fingerprint;
@@ -523,7 +554,7 @@ const writeSidecarFile = async (buildRoot, type, payload, cache) => {
     return payload;
   }
   try {
-    await writeJsonStringAtomic(filePath, jsonString);
+    await atomicWriteText(filePath, jsonString);
     const fingerprint = await readFingerprint(filePath);
     if (type === 'progress') {
       cache.progress = payload;
@@ -604,6 +635,8 @@ const getPendingEntry = (buildRoot) => {
       patch: null,
       events: [],
       timer: null,
+      timerCancel: null,
+      lifecycle: getPendingLifecycle(buildRoot),
       resolves: [],
       rejects: []
     });
@@ -615,6 +648,11 @@ const flushPendingState = async (buildRoot) => {
   const key = path.resolve(buildRoot);
   const pending = statePending.get(key);
   if (!pending || !pending.patch) return null;
+  if (pending.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+    pending.timer = null;
+  }
   const patch = pending.patch;
   const events = pending.events;
   const resolves = pending.resolves;
@@ -626,12 +664,18 @@ const flushPendingState = async (buildRoot) => {
   try {
     const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
     resolves.forEach((resolve) => resolve(result));
-    if (!pending.patch && !pending.timer) statePending.delete(key);
+    if (!pending.patch && !pending.timer) {
+      statePending.delete(key);
+      releasePendingLifecycle(buildRoot);
+    }
     return result;
   } catch (err) {
     rejects.forEach((reject) => reject(err));
     recordStateError(buildRoot, err);
-    if (!pending.patch && !pending.timer) statePending.delete(key);
+    if (!pending.patch && !pending.timer) {
+      statePending.delete(key);
+      releasePendingLifecycle(buildRoot);
+    }
     return null;
   }
 };
@@ -645,8 +689,13 @@ const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {
     pending.resolves.push(resolve);
     pending.rejects.push(reject);
   });
-  if (pending.timer) {
+  if (pending.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+  } else if (pending.timer) {
     clearTimeout(pending.timer);
+  }
+  if (pending.timer) {
     pending.timer = null;
   }
   if (flushNow) {
@@ -655,8 +704,12 @@ const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {
     const delay = resolveDebounceMs(pending.patch);
     pending.timer = setTimeout(() => {
       pending.timer = null;
+      pending.timerCancel = null;
       void flushPendingState(buildRoot);
     }, delay);
+    pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
+      label: 'build-state-debounce'
+    });
   }
   return promise;
 };
@@ -698,7 +751,7 @@ export async function initBuildState({
     progress: {}
   };
   await fs.mkdir(buildRoot, { recursive: true });
-  await writeJsonObjectFile(statePath, { fields: payload, atomic: true });
+  await atomicWriteJson(statePath, payload, { spaces: 0 });
   return statePath;
 }
 
@@ -800,7 +853,7 @@ export function validateOrderingLedger(ledger) {
 export async function exportOrderingLedger(buildRoot, outputPath = null) {
   const ledger = await loadOrderingLedger(buildRoot);
   if (outputPath && ledger) {
-    await writeJsonObjectFile(outputPath, { fields: ledger, atomic: true });
+    await atomicWriteJson(outputPath, ledger, { spaces: 0 });
   }
   return ledger;
 }
@@ -809,11 +862,20 @@ export async function flushBuildState(buildRoot) {
   if (!buildRoot) return null;
   const key = path.resolve(buildRoot);
   const pending = statePending.get(key);
-  if (pending?.timer) {
+  if (pending?.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+    pending.timer = null;
+  } else if (pending?.timer) {
     clearTimeout(pending.timer);
     pending.timer = null;
   }
-  return flushPendingState(buildRoot);
+  const result = await flushPendingState(buildRoot);
+  if (pending && !pending.patch && !pending.timer) {
+    statePending.delete(key);
+    releasePendingLifecycle(buildRoot);
+  }
+  return result;
 }
 
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
@@ -852,11 +914,20 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
 
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   if (!buildRoot) return () => {};
+  const lifecycle = createLifecycleRegistry({
+    name: `build-state-heartbeat:${path.basename(path.resolve(buildRoot))}`
+  });
   let lastWrite = 0;
   let active = true;
+  let timer = null;
   const stop = () => {
+    if (!active) return;
     active = false;
-    clearInterval(timer);
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    void lifecycle.close().catch(() => {});
     void flushBuildState(buildRoot);
   };
   const tick = async () => {
@@ -869,17 +940,23 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
     const now = new Date().toISOString();
-    void updateBuildState(buildRoot, {
+    const writeTask = updateBuildState(buildRoot, {
       heartbeat: {
         stage: stage || null,
         lastHeartbeatAt: now
       }
     }).catch(() => {});
+    lifecycle.registerPromise(writeTask, { label: 'build-state-heartbeat-write' });
   };
-  void tick();
-  const timer = setInterval(() => {
-    void tick();
+  const queueTick = () => {
+    if (!active || lifecycle.isClosed()) return;
+    lifecycle.registerPromise(tick(), { label: 'build-state-heartbeat-tick' });
+  };
+  queueTick();
+  timer = setInterval(() => {
+    queueTick();
   }, intervalMs);
+  lifecycle.registerTimer(timer, { label: 'build-state-heartbeat-interval' });
   return stop;
 }
 

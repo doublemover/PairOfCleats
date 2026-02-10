@@ -1,9 +1,17 @@
 import { TS_MODIFIERS } from './constants.js';
+export { readSignatureLines } from '../shared/signature-lines.js';
 
 export function extractTypeScriptModifiers(signature) {
   const mods = [];
-  const tokens = signature.split(/\s+/).filter(Boolean);
-  for (const tok of tokens) {
+  if (!signature) return mods;
+  const text = String(signature);
+  let i = 0;
+  while (i < text.length) {
+    while (i < text.length && /\s/.test(text[i])) i += 1;
+    const start = i;
+    while (i < text.length && !/\s/.test(text[i])) i += 1;
+    if (start === i) continue;
+    const tok = text.slice(start, i);
     if (TS_MODIFIERS.has(tok)) mods.push(tok);
   }
   return mods;
@@ -217,44 +225,23 @@ export function parseTypeScriptSignature(signature) {
   return { name, returns };
 }
 
-export function readSignatureLines(lines, startLine) {
-  const parts = [];
-  let hasBrace = false;
-  let hasSemi = false;
-  let endLine = startLine;
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
-    parts.push(line.trim());
-    if (line.includes('{')) {
-      hasBrace = true;
-      endLine = i;
-      break;
-    }
-    if (line.includes(';')) {
-      hasSemi = true;
-      endLine = i;
-      break;
-    }
-    endLine = i;
-  }
-  const signature = parts.join(' ');
-  const braceIdx = signature.indexOf('{');
-  const semiIdx = signature.indexOf(';');
-  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
-  return { signature, endLine, hasBody };
-}
-
 export function extractTypeScriptInheritance(signature) {
   const extendsList = [];
   const implementsList = [];
   const extendsMatch = signature.match(/\bextends\s+([^\{]+)/);
   if (extendsMatch) {
     const raw = extendsMatch[1].split(/\bimplements\b/)[0];
-    raw.split(',').map((s) => s.trim()).filter(Boolean).forEach((s) => extendsList.push(s));
+    for (const part of raw.split(',')) {
+      const value = part.trim();
+      if (value) extendsList.push(value);
+    }
   }
   const implMatch = signature.match(/\bimplements\s+([^\{]+)/);
   if (implMatch) {
-    implMatch[1].split(',').map((s) => s.trim()).filter(Boolean).forEach((s) => implementsList.push(s));
+    for (const part of implMatch[1].split(',')) {
+      const value = part.trim();
+      if (value) implementsList.push(value);
+    }
   }
   return { extendsList, implementsList };
 }

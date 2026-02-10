@@ -2,10 +2,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { createCli } from '../../src/shared/cli.js';
-import { buildCodeMap } from '../../src/map/build-map.js';
-import { writeMapJsonStream } from '../../src/map/build-map/io.js';
-import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
+
+import { createCli } from '../../../src/shared/cli.js';
+import { buildCodeMap } from '../../../src/map/build-map.js';
+import { writeMapJsonStream } from '../../../src/map/build-map/io.js';
+import { resolveMapBenchInputs, resolveRuns } from './shared.js';
 
 const argv = createCli({
   scriptName: 'bench-map-streaming',
@@ -29,34 +30,12 @@ const argv = createCli({
 }).parse();
 
 const root = process.cwd();
-const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
-const mode = String(argv.mode || 'code').toLowerCase();
-const indexDir = getIndexDir(repoRoot, mode, userConfig, {
-  indexRoot: argv['index-root'] ? path.resolve(argv['index-root']) : null
-});
-
-const resolveLimit = (value) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
-};
-
-const buildOptions = {
-  mode,
-  scope: argv.scope,
-  focus: argv.focus || null,
-  include: argv.include,
-  onlyExported: argv['only-exported'] === true,
-  collapse: argv.collapse,
-  maxFiles: resolveLimit(argv['max-files']),
-  maxMembersPerFile: resolveLimit(argv['max-members-per-file']),
-  maxEdges: resolveLimit(argv['max-edges']),
-  topKByDegree: argv['top-k-by-degree'] === true
-};
+const { repoRoot, indexDir, buildOptions } = resolveMapBenchInputs(argv);
+const runs = resolveRuns(argv.runs, 3);
 
 const outDir = argv.out
   ? path.resolve(argv.out)
   : path.join(root, '.bench', 'map');
-
 await fs.mkdir(outDir, { recursive: true });
 
 const mapStart = performance.now();
@@ -83,7 +62,6 @@ const buildStats = (values) => {
 };
 
 const measure = async (label, writer) => {
-  const runs = Number.isFinite(Number(argv.runs)) ? Math.max(1, Number(argv.runs)) : 3;
   const timings = [];
   let peakHeap = 0;
   let peakRss = 0;
@@ -125,7 +103,7 @@ const summary = {
   generatedAt: new Date().toISOString(),
   repoRoot,
   indexDir,
-  runs: Number.isFinite(Number(argv.runs)) ? Math.max(1, Number(argv.runs)) : 3,
+  runs,
   buildElapsedMs: mapElapsedMs,
   counts: mapModel.summary?.counts || null,
   baseline,

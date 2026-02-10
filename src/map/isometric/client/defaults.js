@@ -146,3 +146,12 @@ export const flowTypeProfiles = {
   alias: { speed: 1.3, phase: 4.3 },
   other: { speed: 1.0, phase: 0.8 }
 };
+
+export const defaultEdgeWeights = {
+  import: 3,
+  export: 3,
+  call: 2.5,
+  usage: 2,
+  dataflow: 2,
+  alias: 1.5
+};

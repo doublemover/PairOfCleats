@@ -44,9 +44,25 @@ const warnUnsafePath = (dir, relPath, reason) => {
   console.warn(`[manifest] Non-strict mode: skipping unsafe path (${reason}): ${relPath}`);
 };
 
-const resolveManifestMaxBytes = (maxBytes) => {
-  const parsed = Number(maxBytes);
-  if (!Number.isFinite(parsed) || parsed <= 0) return maxBytes;
+const resolveManifestMaxBytes = (maxBytes, { strict = true } = {}) => {
+  if (maxBytes == null) return maxBytes;
+  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes)) {
+    if (strict) {
+      const err = new Error('manifest maxBytes must be a finite number.');
+      err.code = 'ERR_MANIFEST_MAX_BYTES';
+      throw err;
+    }
+    return undefined;
+  }
+  if (maxBytes <= 0) {
+    if (strict) {
+      const err = new Error('manifest maxBytes must be greater than zero.');
+      err.code = 'ERR_MANIFEST_MAX_BYTES';
+      throw err;
+    }
+    return undefined;
+  }
+  const parsed = Math.floor(maxBytes);
   return Math.max(Math.floor(parsed), MIN_MANIFEST_BYTES);
 };
 
@@ -93,7 +109,7 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     }
     return null;
   }
-  const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes);
+  const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cached = readCache(manifestPath);
   if (cached) return cached;
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });

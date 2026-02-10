@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { escapeRegex } from '../../src/shared/text/escape-regex.js';
 
 const args = process.argv.slice(2);
 const requireBreaking = args.includes('--breaking');
@@ -26,7 +27,6 @@ if (!version) {
 }
 
 const changelog = fs.readFileSync(changelogPath, 'utf8');
-const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const headerRe = new RegExp(`^##\\s+v?${escapeRegex(version)}(\\b|\\s)`, 'm');
 const match = headerRe.exec(changelog);
 if (!match) {

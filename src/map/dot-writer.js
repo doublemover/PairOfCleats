@@ -1,11 +1,6 @@
 import { FILE_CATEGORY_COLORS, DEFAULT_LEGEND } from './constants.js';
+import { escapeHtml } from './shared/escape-html.js';
 import { sortBy } from './utils.js';
-
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
 
 const escapeDot = (value) => String(value || '')
   .replace(/\\/g, '\\\\')

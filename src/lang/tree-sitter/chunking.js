@@ -677,12 +677,17 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
   const shouldTrackDensity = options?.treeSitter?.adaptive !== false;
-  const lineCount = (shouldRecordMetrics || shouldTrackDensity) ? countLines(text) : 0;
+  let lineCount = null;
+  const getLineCount = () => {
+    if (!shouldRecordMetrics && !shouldTrackDensity) return 0;
+    if (lineCount === null) lineCount = countLines(text);
+    return lineCount;
+  };
   const metricsStart = shouldRecordMetrics ? Date.now() : 0;
   const recordMetrics = () => {
     if (!shouldRecordMetrics) return;
     const durationMs = Date.now() - metricsStart;
-    metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
+    metricsCollector.add('treeSitter', resolvedId, getLineCount(), durationMs);
   };
   const cacheKey = resolveChunkCacheKey(options, resolvedId);
   const cacheRef = cacheKey ? ensureChunkCache(options) : null;
@@ -858,7 +863,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     try {
       traversalResult = gatherChunkNodes(rootNode, text, config, traversalBudget);
       if (shouldTrackDensity && traversalResult?.visited) {
-        recordNodeDensity(resolvedId, traversalResult.visited, lineCount);
+        recordNodeDensity(resolvedId, traversalResult.visited, getLineCount());
       }
       if (!traversalResult?.chunks) {
         recordMetrics();

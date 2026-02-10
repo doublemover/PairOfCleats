@@ -14,6 +14,31 @@ import {
   resolveVfsDiskPath
 } from '../../../index/tooling/vfs.js';
 
+const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
+const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
+const DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK = 100;
+
+const clampPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const diagnosticKey = (diag) => {
+  if (!diag || typeof diag !== 'object') return '';
+  const range = diag.range || {};
+  const start = range.start || {};
+  const end = range.end || {};
+  return [
+    String(diag.code || ''),
+    String(diag.severity || ''),
+    String(diag.source || ''),
+    String(diag.message || ''),
+    `${start.line ?? ''}:${start.character ?? ''}`,
+    `${end.line ?? ''}:${end.character ?? ''}`
+  ].join('|');
+};
+
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
   if (typeof contents === 'string') return contents;
@@ -112,6 +137,39 @@ const normalizeParamTypes = (paramTypes) => {
     }
   }
   return Object.keys(output).length ? output : null;
+};
+
+const hasParamTypes = (paramTypes) => {
+  if (!paramTypes || typeof paramTypes !== 'object') return false;
+  for (const entries of Object.values(paramTypes)) {
+    if (Array.isArray(entries)) {
+      if (entries.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type))) {
+        return true;
+      }
+      continue;
+    }
+    if (normalizeTypeText(entries)) return true;
+  }
+  return false;
+};
+
+const buildSourceSignatureCandidate = (text, virtualRange) => {
+  if (typeof text !== 'string' || !text) return null;
+  const start = Number(virtualRange?.start);
+  const end = Number(virtualRange?.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const clampedStart = Math.max(0, Math.min(text.length, Math.floor(start)));
+  const clampedEnd = Math.max(clampedStart, Math.min(text.length, Math.ceil(end + 1)));
+  if (clampedEnd <= clampedStart) return null;
+  let candidate = text.slice(clampedStart, clampedEnd);
+  if (!candidate.includes('(') || !candidate.includes(')')) return null;
+  const terminators = [candidate.indexOf('{'), candidate.indexOf(';')].filter((idx) => idx >= 0);
+  if (terminators.length) {
+    candidate = candidate.slice(0, Math.min(...terminators));
+  }
+  const lastParen = candidate.lastIndexOf(')');
+  if (lastParen === -1) return null;
+  return normalizeSignatureCacheText(candidate.slice(0, lastParen + 1));
 };
 
 const findTargetForOffsets = (targets, offsets, nameHint = null) => {
@@ -254,7 +312,10 @@ export async function collectLspTypes({
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
-  hoverDisableAfterTimeouts = null
+  hoverDisableAfterTimeouts = null,
+  maxDiagnosticUris = DEFAULT_MAX_DIAGNOSTIC_URIS,
+  maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
+  maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK
 }) {
   const resolvePositiveTimeout = (value) => {
     const parsed = Number(value);
@@ -265,6 +326,10 @@ export async function collectLspTypes({
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
   const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
+  const resolvedMaxDiagnosticUris = clampPositiveInt(maxDiagnosticUris, DEFAULT_MAX_DIAGNOSTIC_URIS);
+  const resolvedMaxDiagnosticsPerUri = clampPositiveInt(maxDiagnosticsPerUri, DEFAULT_MAX_DIAGNOSTICS_PER_URI);
+  const resolvedMaxDiagnosticsPerChunk = clampPositiveInt(maxDiagnosticsPerChunk, DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK);
+  const checks = [];
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
@@ -273,6 +338,7 @@ export async function collectLspTypes({
       diagnosticsByChunkUid: {},
       enriched: 0,
       diagnosticsCount: 0,
+      checks,
       hoverMetrics: {
         requested: 0,
         succeeded: 0,
@@ -307,6 +373,7 @@ export async function collectLspTypes({
       diagnosticsByChunkUid: {},
       enriched: 0,
       diagnosticsCount: 0,
+      checks,
       hoverMetrics: {
         requested: 0,
         succeeded: 0,
@@ -337,6 +404,45 @@ export async function collectLspTypes({
   }
 
   const diagnosticsByUri = new Map();
+  const checkFlags = {
+    diagnosticsPerUriTrimmed: false,
+    diagnosticsUriBufferTrimmed: false,
+    diagnosticsPerChunkTrimmed: false,
+    hoverTimedOut: false,
+    circuitOpened: false,
+    initializeFailed: false
+  };
+  const setDiagnosticsForUri = (uri, diagnostics) => {
+    const source = Array.isArray(diagnostics) ? diagnostics : [];
+    if (!uri) return;
+    const limited = source.length > resolvedMaxDiagnosticsPerUri
+      ? source.slice(0, resolvedMaxDiagnosticsPerUri)
+      : source;
+    if (source.length > resolvedMaxDiagnosticsPerUri && !checkFlags.diagnosticsPerUriTrimmed) {
+      checkFlags.diagnosticsPerUriTrimmed = true;
+      checks.push({
+        name: 'tooling_diagnostics_per_uri_capped',
+        status: 'warn',
+        message: `LSP diagnostics per URI capped at ${resolvedMaxDiagnosticsPerUri}.`,
+        count: source.length
+      });
+    }
+    if (diagnosticsByUri.has(uri)) diagnosticsByUri.delete(uri);
+    diagnosticsByUri.set(uri, limited);
+    while (diagnosticsByUri.size > resolvedMaxDiagnosticUris) {
+      const oldest = diagnosticsByUri.keys().next();
+      if (oldest.done) break;
+      diagnosticsByUri.delete(oldest.value);
+      if (!checkFlags.diagnosticsUriBufferTrimmed) {
+        checkFlags.diagnosticsUriBufferTrimmed = true;
+        checks.push({
+          name: 'tooling_diagnostics_uri_buffer_capped',
+          status: 'warn',
+          message: `LSP diagnostics URI buffer capped at ${resolvedMaxDiagnosticUris}.`
+        });
+      }
+    }
+  };
   const client = createLspClient({
     cmd,
     args,
@@ -348,7 +454,7 @@ export async function collectLspTypes({
       const uri = msg?.params?.uri;
       const diagnostics = msg?.params?.diagnostics;
       if (!uri || !Array.isArray(diagnostics)) return;
-      diagnosticsByUri.set(uri, diagnostics);
+      setDiagnosticsForUri(uri, diagnostics);
     }
   });
   const guard = createToolingGuard({
@@ -367,6 +473,12 @@ export async function collectLspTypes({
       timeoutMs: guardTimeout
     }), { label: 'initialize' });
   } catch (err) {
+    checkFlags.initializeFailed = true;
+    checks.push({
+      name: 'tooling_initialize_failed',
+      status: 'warn',
+      message: `${cmd} initialize failed: ${err?.message || err}`
+    });
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
     return {
@@ -374,6 +486,7 @@ export async function collectLspTypes({
       diagnosticsByChunkUid: {},
       enriched: 0,
       diagnosticsCount: 0,
+      checks,
       hoverMetrics: {
         requested: 0,
         succeeded: 0,
@@ -457,6 +570,16 @@ export async function collectLspTypes({
       );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
+      if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+        checkFlags.circuitOpened = true;
+        const state = guard.getState?.() || null;
+        checks.push({
+          name: 'tooling_circuit_open',
+          status: 'warn',
+          message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+          count: state?.tripCount ?? 1
+        });
+      }
       client.notify('textDocument/didClose', { textDocument: { uri } });
       if (guard.isOpen()) break;
       continue;
@@ -522,6 +645,18 @@ export async function collectLspTypes({
       if (!target) continue;
       const detailText = symbol.detail || symbol.name;
       let info = parseSignatureCached(detailText, symbol.name);
+      if (!hasParamTypes(info?.paramTypes)) {
+        const sourceSignature = buildSourceSignatureCandidate(
+          openEntry?.text || doc.text || '',
+          target?.virtualRange
+        );
+        if (sourceSignature) {
+          const sourceInfo = parseSignatureCached(sourceSignature, symbol.name);
+          if (hasParamTypes(sourceInfo?.paramTypes)) {
+            info = mergeSignatureInfo(info, sourceInfo);
+          }
+        }
+      }
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
       const normalizedReturnType = normalizeTypeText(info?.returnType);
@@ -586,9 +721,27 @@ export async function collectLspTypes({
         } catch (err) {
           const message = String(err?.message || err || '').toLowerCase();
           const isTimeout = message.includes('timeout');
+          if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+            checkFlags.circuitOpened = true;
+            const state = guard.getState?.() || null;
+            checks.push({
+              name: 'tooling_circuit_open',
+              status: 'warn',
+              message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+              count: state?.tripCount ?? 1
+            });
+          }
           if (isTimeout) {
             fileHoverStats.timedOut += 1;
             hoverMetrics.timedOut += 1;
+            if (!checkFlags.hoverTimedOut) {
+              checkFlags.hoverTimedOut = true;
+              checks.push({
+                name: 'tooling_hover_timeout',
+                status: 'warn',
+                message: `${cmd} hover requests timed out; adaptive suppression may be enabled.`
+              });
+            }
             if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
               && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
               && !fileHoverStats.disabledAdaptive) {
@@ -637,6 +790,7 @@ export async function collectLspTypes({
   }
 
   const diagnosticsByChunkUid = {};
+  const diagnosticsSeenByChunkUid = new Map();
   let diagnosticsCount = 0;
   if (captureDiagnostics && diagnosticsByUri.size) {
     for (const doc of docs) {
@@ -661,6 +815,24 @@ export async function collectLspTypes({
         if (!target?.chunkRef?.chunkUid) continue;
         const chunkUid = target.chunkRef.chunkUid;
         const existing = diagnosticsByChunkUid[chunkUid] || [];
+        if (existing.length >= resolvedMaxDiagnosticsPerChunk) {
+          if (!checkFlags.diagnosticsPerChunkTrimmed) {
+            checkFlags.diagnosticsPerChunkTrimmed = true;
+            checks.push({
+              name: 'tooling_diagnostics_per_chunk_capped',
+              status: 'warn',
+              message: `LSP diagnostics per chunk capped at ${resolvedMaxDiagnosticsPerChunk}.`
+            });
+          }
+          continue;
+        }
+        const seen = diagnosticsSeenByChunkUid.get(chunkUid) || new Set();
+        const key = diagnosticKey(diag);
+        if (key && seen.has(key)) continue;
+        if (key) {
+          seen.add(key);
+          diagnosticsSeenByChunkUid.set(chunkUid, seen);
+        }
         existing.push(diag);
         diagnosticsByChunkUid[chunkUid] = existing;
         diagnosticsCount += 1;
@@ -706,6 +878,7 @@ export async function collectLspTypes({
     diagnosticsByChunkUid,
     enriched,
     diagnosticsCount,
+    checks,
     hoverMetrics: {
       requested: hoverMetrics.requested,
       succeeded: hoverMetrics.succeeded,

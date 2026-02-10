@@ -7,8 +7,16 @@ import {
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { createOrderingHasher, stableOrderMapEntries } from '../../../../shared/order.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildJsonlVariantPaths,
+  buildJsonVariantPaths,
+  buildShardedPartEntries,
+  removeArtifacts,
+  resolveJsonExtension,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 export const createFileRelationsIterator = (relations) => function* fileRelationsIterator() {
   if (!relations || typeof relations.entries !== 'function') return;
@@ -67,32 +75,18 @@ export const enqueueFileRelationsArtifacts = ({
     stageCheckpoints,
     logger: log
   });
-  const resolveJsonExtension = (value) => {
-    if (value === 'gzip') return 'json.gz';
-    if (value === 'zstd') return 'json.zst';
-    return 'json';
-  };
   const jsonExtension = resolveJsonExtension(compression);
   const relationsPath = path.join(outDir, `file_relations.${jsonExtension}`);
-  const resolveJsonlExtension = (value) => {
-    if (value === 'gzip') return 'jsonl.gz';
-    if (value === 'zstd') return 'jsonl.zst';
-    return 'jsonl';
-  };
   const jsonlExtension = resolveJsonlExtension(compression);
   const relationsJsonlPath = path.join(outDir, `file_relations.${jsonlExtension}`);
   const relationsMetaPath = path.join(outDir, 'file_relations.meta.json');
   const relationsPartsDir = path.join(outDir, 'file_relations.parts');
-  const removeJsonlVariants = async () => {
-    await fs.rm(path.join(outDir, 'file_relations.jsonl'), { force: true });
-    await fs.rm(path.join(outDir, 'file_relations.jsonl.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'file_relations.jsonl.zst'), { force: true });
-  };
-  const removeJsonVariants = async () => {
-    await fs.rm(path.join(outDir, 'file_relations.json'), { force: true });
-    await fs.rm(path.join(outDir, 'file_relations.json.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'file_relations.json.zst'), { force: true });
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'file_relations' })
+  );
+  const removeJsonVariants = async () => removeArtifacts(
+    buildJsonVariantPaths({ outDir, baseName: 'file_relations' })
+  );
 
   if (!useJsonl) {
     enqueueWrite(
@@ -137,26 +131,13 @@ export const enqueueFileRelationsArtifacts = ({
         compression,
         gzipOptions
       });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
-      await writeJsonObjectFile(relationsMetaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: 'file_relations',
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          parts
-        },
-        atomic: true
+      const parts = buildShardedPartEntries(result);
+      await writeShardedJsonlMeta({
+        metaPath: relationsMetaPath,
+        artifact: 'file_relations',
+        compression,
+        result,
+        parts
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];

@@ -5,7 +5,7 @@ import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.j
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
-import { resolveQuantizationParams } from '../../../storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
 
 export const resolveEmbeddingRuntime = async ({
   rootDir,

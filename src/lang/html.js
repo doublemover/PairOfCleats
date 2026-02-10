@@ -228,6 +228,13 @@ const SCRIPT_TYPE_ALIASES = new Map([
   ['module', 'javascript']
 ]);
 
+const HTML_IMPORT_TAG_HINT = /<(?:script|link)\b/i;
+const HTML_IMPORT_ATTR_HINT = /\b(?:src|href)\s*=/i;
+const HTML_IMPORT_COMMENT = /<!--[\s\S]*?-->/g;
+const HTML_SCRIPT_BODY = /(<script\b[^>]*>)[\s\S]*?(<\/script\s*>)/gi;
+const HTML_IMPORT_TAG = /<(script|link)\b[^>]*>/gi;
+const HTML_IMPORT_ATTR = /\b([A-Za-z_:][A-Za-z0-9_:\-\.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/g;
+
 function extractTagSignature(text, start, end) {
   const limit = Math.min(end, start + 400);
   const slice = text.slice(start, limit);
@@ -242,6 +249,17 @@ function walkHtml(node, visitor) {
   const children = node.childNodes || node.content?.childNodes || [];
   if (!Array.isArray(children)) return;
   for (const child of children) walkHtml(child, visitor);
+}
+
+function addKeywordEntries(content, keywords) {
+  let start = 0;
+  for (let i = 0; i <= content.length; i += 1) {
+    if (i === content.length || content[i] === ',') {
+      const entry = content.slice(start, i).trim();
+      if (entry) keywords.add(entry);
+      start = i + 1;
+    }
+  }
 }
 
 function extractHtmlMetadata(text) {
@@ -265,24 +283,38 @@ function extractHtmlMetadata(text) {
       if (textNode?.value) title = textNode.value.trim();
     }
     if (!Array.isArray(node.attrs)) return;
-    const attrs = Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]));
+    let attrName = '';
+    let attrProperty = '';
+    let attrContent = '';
+    let attrSrc = '';
+    let attrHref = '';
+    for (const attr of node.attrs) {
+      const key = String(attr?.name || '').toLowerCase();
+      if (!key) continue;
+      const value = attr?.value || '';
+      if (key === 'name') attrName = value;
+      else if (key === 'property') attrProperty = value;
+      else if (key === 'content') attrContent = value;
+      else if (key === 'src') attrSrc = value;
+      else if (key === 'href') attrHref = value;
+    }
     if (tag === 'meta') {
-      const name = attrs.name || attrs.property || '';
-      const content = attrs.content || '';
+      const name = attrName || attrProperty || '';
+      const content = attrContent || '';
       if (name === 'description' && content) description = content;
       if (name === 'keywords' && content) {
-        content.split(',').map((entry) => entry.trim()).filter(Boolean).forEach((entry) => keywords.add(entry));
+        addKeywordEntries(content, keywords);
       }
     }
     if (tag === 'script') {
-      const src = attrs.src || '';
+      const src = attrSrc || '';
       if (src) {
         imports.add(src);
         scripts.push(src);
       }
     }
     if (tag === 'link') {
-      const href = attrs.href || '';
+      const href = attrHref || '';
       if (href) {
         imports.add(href);
         links.push(href);
@@ -303,8 +335,40 @@ export function getHtmlMetadata(text) {
   return extractHtmlMetadata(text);
 }
 
+function collectHtmlImportsFast(text) {
+  if (!text || !HTML_IMPORT_TAG_HINT.test(text) || !HTML_IMPORT_ATTR_HINT.test(text)) return [];
+  const sourceNoComments = text.includes('<!--')
+    ? text.replace(HTML_IMPORT_COMMENT, ' ')
+    : text;
+  const source = sourceNoComments.includes('<script')
+    ? sourceNoComments.replace(HTML_SCRIPT_BODY, '$1$2')
+    : sourceNoComments;
+  const imports = new Set();
+  HTML_IMPORT_TAG.lastIndex = 0;
+  let tagMatch = HTML_IMPORT_TAG.exec(source);
+  while (tagMatch) {
+    const tag = String(tagMatch[1] || '').toLowerCase();
+    const wantedAttr = tag === 'script' ? 'src' : 'href';
+    const fragment = tagMatch[0];
+    HTML_IMPORT_ATTR.lastIndex = 0;
+    let attrMatch = HTML_IMPORT_ATTR.exec(fragment);
+    while (attrMatch) {
+      const attr = String(attrMatch[1] || '').toLowerCase();
+      if (attr === wantedAttr) {
+        const raw = attrMatch[2] || attrMatch[3] || attrMatch[4] || '';
+        const value = raw.trim();
+        if (value) imports.add(value);
+        break;
+      }
+      attrMatch = HTML_IMPORT_ATTR.exec(fragment);
+    }
+    tagMatch = HTML_IMPORT_TAG.exec(source);
+  }
+  return Array.from(imports);
+}
+
 export function collectHtmlImports(text) {
-  return extractHtmlMetadata(text).imports;
+  return collectHtmlImportsFast(text);
 }
 
 function normalizeLang(raw) {
@@ -328,6 +392,19 @@ function extractLangFromAttrs(attrs) {
     if (cls.startsWith('lang-')) return normalizeLang(cls.slice('lang-'.length));
   }
   return null;
+}
+
+function collectLangAttrs(attrs) {
+  const result = {};
+  if (!Array.isArray(attrs)) return result;
+  for (const attr of attrs) {
+    const key = String(attr?.name || '').toLowerCase();
+    if (!key) continue;
+    if (key === 'type' || key === 'lang' || key === 'data-lang' || key === 'class') {
+      result[key] = attr?.value || '';
+    }
+  }
+  return result;
 }
 
 const EMBEDDED_CHUNKERS = new Map([
@@ -405,9 +482,21 @@ export function buildHtmlChunks(text, options = {}) {
     : null;
   let document = null;
   try {
+    if (options?.html?.forceParseError === true) {
+      throw new Error('forced parse5 error');
+    }
     document = parseHtml(text, { sourceCodeLocationInfo: true });
   } catch {
-    return null;
+    if (filteredTree && filteredTree.length) return filteredTree;
+    if (Array.isArray(treeChunks) && treeChunks.length) return treeChunks;
+    if (!text) return null;
+    return [{
+      start: 0,
+      end: text.length,
+      name: 'html',
+      kind: 'Document',
+      meta: { fallback: 'parse5-error' }
+    }];
   }
   const lineIndex = buildLineIndex(text);
   const chunks = [];
@@ -441,9 +530,7 @@ export function buildHtmlChunks(text, options = {}) {
       const innerStart = loc?.startTag?.endOffset;
       const innerEnd = loc?.endTag?.startOffset;
       if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = Array.isArray(node.attrs)
-          ? Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]))
-          : {};
+        const attrs = collectLangAttrs(node.attrs);
         const language = tag === 'style' ? 'css' : (extractLangFromAttrs(attrs) || 'javascript');
         embeddedBlocks.push({
           start: innerStart,
@@ -459,9 +546,7 @@ export function buildHtmlChunks(text, options = {}) {
       const innerStart = loc?.startTag?.endOffset;
       const innerEnd = loc?.endTag?.startOffset;
       if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = Array.isArray(node.attrs)
-          ? Object.fromEntries(node.attrs.map((attr) => [attr.name.toLowerCase(), attr.value]))
-          : {};
+        const attrs = collectLangAttrs(node.attrs);
         const language = extractLangFromAttrs(attrs);
         embeddedBlocks.push({
           start: innerStart,

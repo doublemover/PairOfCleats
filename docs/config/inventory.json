@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-09T23:50:22.287Z",
+  "generatedAt": "2026-02-10T12:29:56.304Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -72,6 +72,8 @@
       "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_INDEX",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
@@ -96,6 +98,7 @@
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
       "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "PAIROFCLEATS_VERBOSE",
@@ -1717,6 +1720,7 @@
         "tests/tooling/reports/metrics-dashboard.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/ci/run-suite.js",
@@ -2096,6 +2100,20 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
+      "files": [
+        "tools/config/inventory.js",
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
         "tests/runner/all.js",
@@ -2338,8 +2356,6 @@
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
-        "tests/retrieval/pipeline/ann-optional-skip.test.js",
-        "tests/retrieval/pipeline/ann-preflight.test.js",
         "tests/retrieval/pipeline/artifact-gating-deps.test.js",
         "tests/retrieval/pipeline/artifact-gating.test.js",
         "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
@@ -2405,6 +2421,15 @@
         "tests/perf/bench/run.test.js",
         "tests/run.js",
         "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
+      "files": [
+        "src/shared/env.js",
+        "tests/helpers/triage.js",
+        "tests/tooling/triage/records-index-and-search.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2480,7 +2505,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 297,
+    "totalFlags": 298,
     "publicFlags": [
       "backend",
       "host",
@@ -2640,6 +2665,7 @@
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
+      "maxNodeBytes",
       "maxNodes",
       "maxPaths",
       "maxPerHit",
@@ -3019,6 +3045,12 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/map/build-map/temp-cleanup-on-failure.test.js",
+        "flags": [
+          "maxNodeBytes"
         ]
       },
       {
@@ -5488,6 +5520,7 @@
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
       "tools/config/inventory/scan.js",
