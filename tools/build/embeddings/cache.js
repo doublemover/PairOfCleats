@@ -535,9 +535,9 @@ const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
 
   merged.createdAt = resolveEarliestIso(existing.createdAt, incoming.createdAt) || merged.createdAt || null;
   merged.lastAccessAt = resolveLatestIso(existing.lastAccessAt, incoming.lastAccessAt) || merged.lastAccessAt || null;
-  merged.hits = (
-    (Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0)
-    + (Number.isFinite(Number(incoming.hits)) ? Number(incoming.hits) : 0)
+  merged.hits = Math.max(
+    Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0,
+    Number.isFinite(Number(incoming.hits)) ? Number(incoming.hits) : 0
   );
 
   return merged;

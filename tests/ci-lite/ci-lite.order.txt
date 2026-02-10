@@ -82,6 +82,7 @@ indexing/tree-sitter/tree-sitter-runtime
 shared/concurrency/concurrency-run-with-queue-error-propagation
 indexing/artifacts/file-meta
 indexing/embeddings/embeddings-identity
+indexing/embeddings/cache-index-flush-contract
 indexing/risk/interprocedural/local-pointer-hash
 indexing/type-inference/crossfile/extract
 retrieval/context-expansion/context-expansion-reason-precedence

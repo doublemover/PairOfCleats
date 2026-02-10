@@ -40,7 +40,6 @@ import {
   buildCacheIdentity,
   buildCacheKey,
   isCacheValid,
-  flushCacheIndex,
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
@@ -52,6 +51,7 @@ import {
   writeCacheEntry,
   writeCacheMeta
 } from './cache.js';
+import { flushCacheIndexIfNeeded } from './cache-flush.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
   assertVectorArrays,
@@ -1028,18 +1028,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         await writerQueue.onIdle();
 
-        if (cacheIndex && cacheEligible && (cacheIndexDirty || cacheMaxBytes || cacheMaxAgeMs)) {
-          try {
-            await scheduleIo(() => flushCacheIndex(cacheDir, cacheIndex, {
-              identityKey: cacheIdentityKey,
-              maxBytes: cacheMaxBytes,
-              maxAgeMs: cacheMaxAgeMs
-            }));
-            cacheIndexDirty = false;
-          } catch {
-            // Ignore cache index flush failures.
-          }
-        }
+        ({ cacheIndexDirty } = await flushCacheIndexIfNeeded({
+          cacheDir,
+          cacheIndex,
+          cacheEligible,
+          cacheIndexDirty,
+          cacheIdentityKey,
+          cacheMaxBytes,
+          cacheMaxAgeMs,
+          scheduleIo
+        }));
 
         stageCheckpoints.record({
           stage: 'stage3',
