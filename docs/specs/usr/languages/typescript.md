@@ -1,7 +1,7 @@
 # USR Language Contract -- typescript
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: typescript
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the typescript-specific USR contract as a child profile of
 - Required conformance levels: C0,C1,C2,C3,C4
 - Applicable framework overlays: react,next,angular
 - Required fallback chain: native-parser,tree-sitter,tooling,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `TS4.9`
+- maxVersion: `null`
+- dialects: `ts,tsx,mts,cts,dts`
+- featureFlags: `experimentalDecorators,emitDecoratorMetadata`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `html,css,sql,graphql`
 
 ## 2. Required syntax and node coverage
 

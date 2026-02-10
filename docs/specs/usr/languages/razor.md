@@ -1,7 +1,7 @@
 # USR Language Contract -- razor
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: razor
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the razor-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C4
 - Applicable framework overlays: none
 - Required fallback chain: native-parser,tree-sitter,heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `aspnetcore-8`
+- maxVersion: `null`
+- dialects: `razor`
+- featureFlags: `tag-helpers,components`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `html,csharp,css,javascript`
 
 ## 2. Required syntax and node coverage
 

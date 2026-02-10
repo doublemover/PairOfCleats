@@ -1,7 +1,7 @@
 # USR Language Contracts Index
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 
 This index lists per-language USR contract documents.
 
@@ -22,6 +22,7 @@ Mandatory per-language completion requirements:
 - explicit fixture minimum families and concrete fixture IDs
 - explicit generated/macro provenance expectations
 - explicit completion evidence artifact list
+- explicit synchronization with language version/embedding policy matrices
 
 ## Baseline matrix
 

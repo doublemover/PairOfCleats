@@ -1,7 +1,7 @@
 # Spec -- USR Language Profile Catalog
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 
 ## 0. Purpose and scope
 
@@ -116,6 +116,24 @@ The table below is the mandatory baseline for every registry language.
 | `dockerfile` | `tree-sitter` | `C0,C1,C2` | none |
 | `graphql` | `tree-sitter` | `C0,C1,C2` | none |
 
+### 3.1 Version and embedding policy classes (normative baseline)
+
+Language profiles MUST classify version and embedding policy into one of the classes below and encode exact values in:
+
+- `usr-language-version-policy.json`
+- `usr-language-embedding-policy.json`
+
+| Policy class | Applies to | Required baseline |
+| --- | --- | --- |
+| `VM-typed-script` | `javascript,typescript` | explicit runtime/ecma or compiler version baseline; host and embedded both enabled |
+| `VM-managed` | `java,csharp,kotlin,scala,groovy,dart` | explicit compiler/runtime baseline; embedded disabled unless profile explicitly opts in |
+| `Native-systems` | `clike,go,rust,swift` | explicit toolchain baseline; host and embedded disabled |
+| `Dynamic-runtime` | `python,ruby,php,lua,perl,shell,r,julia` | explicit runtime baseline; embedding policy explicit per language |
+| `Markup-template` | `html,handlebars,mustache,jinja,razor` | explicit template/markup baseline; host enabled with allowlist |
+| `Style` | `css` | explicit css baseline; embedded enabled, host disabled |
+| `Data-interface` | `sql,proto,graphql` | explicit spec version baseline; embedded explicit per language |
+| `Build-dsl` | `cmake,starlark,nix,makefile,dockerfile` | explicit tool/dialect baseline; host and embedded disabled |
+
 ## 4. Required node/edge minimums by language family
 
 This section defines non-exhaustive, mandatory minimums used to populate `requiredNodeKinds` and `requiredEdgeKinds`.
@@ -151,6 +169,8 @@ Additional rules:
 Implementations MUST maintain:
 
 - `tests/lang/matrix/usr-language-profiles.json` (authoritative machine-readable catalog)
+- `tests/lang/matrix/usr-language-version-policy.json` (language version and dialect policy matrix)
+- `tests/lang/matrix/usr-language-embedding-policy.json` (language embedding policy matrix)
 - `tests/lang/matrix/usr-generated-provenance-cases.json` (language provenance coverage matrix)
 - `docs/specs/usr/languages/<language-id>.md` for each registry language
 
@@ -188,12 +208,15 @@ Child contracts MUST NOT conflict with this catalog. Conflicts are Tier 3 blocke
 - `languageVersionPolicy.minVersion` and `languageVersionPolicy.dialects` are non-empty
 - `embeddingPolicy.embeddedLanguageAllowlist` values are valid registry language IDs
 - every language ID in the registry has exactly one row
+- every language ID in the registry has exactly one row in both version and embedding policy matrices
 
 Required report outputs:
 
 - `usr-language-profile-coverage.json`
 - `usr-language-profile-drift.json`
 - `usr-language-profile-capability-gaps.json`
+- `usr-language-version-policy-drift.json`
+- `usr-language-embedding-policy-drift.json`
 
 ## 10. References
 

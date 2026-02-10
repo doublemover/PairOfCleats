@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T07:05:00Z
+Last rewritten: 2026-02-10T07:40:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v0.6 (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v0.7 (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.6).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.7).
 
 Primary shifts in this rewrite:
 
@@ -115,7 +115,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.6 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.7 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -163,6 +163,8 @@ If contradictions are found:
 ### 1.1 Machine-readable registries (USR section 23)
 
 - [ ] Create `tests/lang/matrix/usr-language-profiles.json`.
+- [ ] Create `tests/lang/matrix/usr-language-version-policy.json`.
+- [ ] Create `tests/lang/matrix/usr-language-embedding-policy.json`.
 - [ ] Create `tests/lang/matrix/usr-framework-profiles.json`.
 - [ ] Create `tests/lang/matrix/usr-node-kind-mapping.json`.
 - [ ] Create `tests/lang/matrix/usr-edge-kind-constraints.json`.
@@ -188,6 +190,7 @@ If contradictions are found:
 ### 1.3 Drift and completeness checks
 
 - [ ] Add registry drift test: language registry IDs vs `usr-language-profiles.json` exact-set equality.
+- [ ] Add version/embedding policy drift test: language IDs vs `usr-language-version-policy.json` and `usr-language-embedding-policy.json` exact-set equality.
 - [ ] Add framework profile referential integrity test.
 - [ ] Add unknown-key strictness test for all USR matrix files.
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
@@ -585,6 +588,7 @@ If contradictions are found:
 - [ ] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
 - [ ] framework edge-case and language risk matrix registries exist and validate.
 - [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
+- [ ] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
 - [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
@@ -1199,7 +1203,9 @@ If contradictions are found:
 A language profile is implementation-complete only when all items below are true:
 
 - [ ] Language contract file defines exact node/edge/capability/fallback requirements (no remaining seed placeholders).
+- [ ] Language contract file defines explicit version/dialect and embedding policy baselines.
 - [ ] Language profile row in `usr-language-profiles.json` matches the contract exactly.
+- [ ] Language version and embedding policy rows match the contract exactly.
 - [ ] Required fixture families are present with concrete fixture IDs and deterministic goldens.
 - [ ] Required conformance levels for the language are green in strict mode.
 - [ ] Risk expectations (where C3 applies) are implemented and validated with required diagnostics.

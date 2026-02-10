@@ -1,7 +1,7 @@
 # USR Language Contract -- mustache
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T07:40:00Z
 Language ID: mustache
 
 ## 0. Scope
@@ -21,6 +21,19 @@ This document defines the mustache-specific USR contract as a child profile of:
 - Required conformance levels: C0,C1,C4
 - Applicable framework overlays: none
 - Required fallback chain: heuristic
+
+## 1.1 Language version policy baseline
+
+- minVersion: `1.x`
+- maxVersion: `null`
+- dialects: `mustache`
+- featureFlags: `partials,inverted-sections`
+
+## 1.2 Embedding policy baseline
+
+- canHostEmbedded: `true`
+- canBeEmbedded: `true`
+- embeddedLanguageAllowlist: `html,javascript,css`
 
 ## 2. Required syntax and node coverage
 
