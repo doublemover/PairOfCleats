@@ -134,6 +134,7 @@ export const processChunks = async (context) => {
   const chunks = [];
   const tokenBuffers = createTokenizationBuffers();
   const dictWordsCache = new Map();
+  const effectiveLangCache = new Map();
   const codeTexts = embeddingEnabled ? [] : null;
   const docTexts = embeddingEnabled ? [] : null;
   const wantsFieldTokens = postingsConfig?.fielded !== false
@@ -265,7 +266,12 @@ export const processChunks = async (context) => {
     const segmentTokenMode = c.segment ? resolveSegmentTokenMode(c.segment) : tokenMode;
     const chunkMode = segmentTokenMode || tokenMode;
     const effectiveExt = c.segment?.ext || containerExt;
-    const effectiveLang = getLanguageForFile(effectiveExt, relKey);
+    const langCacheKey = effectiveExt || '';
+    let effectiveLang = effectiveLangCache.get(langCacheKey);
+    if (effectiveLang === undefined) {
+      effectiveLang = getLanguageForFile(effectiveExt, relKey) || null;
+      effectiveLangCache.set(langCacheKey, effectiveLang);
+    }
     const effectiveLanguageId = effectiveLang?.id || c.segment?.languageId || containerLanguageId || 'unknown';
     const chunkLanguageId = effectiveLanguageId;
     const dictCacheKey = `${chunkMode}:${chunkLanguageId || ''}`;
