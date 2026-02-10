@@ -445,7 +445,7 @@ Touchpoints: `src/shared/artifact-io/loaders.js (anchor: loadJsonArrayArtifact)`
     - [x] Task 16.2.5.b: Add strict validation mode for CI/validation flows.
   - [x] Task 16.2.5.c: Add `artifact-io-read` benchmark baseline/current.
   - [x] Task 16.2.5.d: Add `jsonl-offset-index` benchmark on real index.
-- [ ] Task 16.2.5.e: Add docs update referencing the unified pipeline.
+- [x] Task 16.2.5.e: Add docs update referencing the unified pipeline.
 
 Tests:
 - [ ] `tests/shared/artifact-io/validation-fastpath.test.js` (perf lane) (new)
@@ -1605,7 +1605,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Add malformed shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
 - [x] Add corrupt shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
 - [x] Add `tests/shared/artifact-io/loader-fallbacks.test.js`.
-- [ ] Update unified artifact-io docs for current loader behavior.
+- [x] Update unified artifact-io docs for current loader behavior.
 - [ ] Implement runtime cache-root versioning in `src/shared/cache-roots.js`.
 - [ ] Align build-truth-ledger schema between runtime and docs.
 - [ ] Align build-truth-ledger hash input definition between runtime and docs.

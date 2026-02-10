@@ -51,8 +51,10 @@
 
 ## Failure Handling
 - Any missing shard or invalid offsets is a hard error in strict mode.
+- Non-strict readers still fail when shard sequences are detectably partial (for example, missing `part-000001` between present shard files).
 - If offsets missing or invalid, reader falls back to full JSONL scan.
 - If JSON/columnar payloads exceed max bytes, non-strict readers may fall back to JSONL shards when available.
+- Packed binary artifacts may include checksums in sidecar metadata; when present, readers must verify checksum before accepting the payload.
 - All failures are logged with artifact name and shard path.
 
 ## Telemetry
