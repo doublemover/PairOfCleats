@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:51:56.5012142-05:00",
+  "updatedAt": "2026-02-10T00:57:03.8919931-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -296,7 +296,7 @@
       "clusterId": "C27",
       "title": "Misc helper duplicates",
       "phase": "D1/D4/D8",
-      "status": "in_progress",
+      "status": "completed",
       "legacyPaths": [
         "src/shared/text/escape-regex.js",
         "tools/shared/search-request.js"
@@ -418,6 +418,17 @@
         "tools/download/extensions.js"
       ],
       "canonicalPath": "tools/download/shared-fetch.js::fetchDownloadUrl"
+    },
+    {
+      "clusterId": "A11",
+      "title": "CI lane order drift for dedupe contract coverage",
+      "phase": "D8",
+      "status": "completed",
+      "legacyPaths": [
+        "tests/ci-lite/ci-lite.order.txt",
+        "tests/ci-long/ci-long.order.txt"
+      ],
+      "canonicalPath": "tests/ci-{lite,long}/ci-*.order.txt"
     }
   ],
   "migrations": [
@@ -553,7 +564,9 @@
     { "migrationId": "M130", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/analysis.js::local Ajv bootstrap + repeated cloneSchema compile chain", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
     { "migrationId": "M131", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/index/build/failure-taxonomy.js::local Ajv bootstrap", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
     { "migrationId": "M132", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/dicts.js::requestUrl redirect/request loop", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (stream mode)", "status": "completed" },
-    { "migrationId": "M133", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/extensions.js::requestUrl redirect/request loop + maxBytes body aggregation", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (buffer mode)", "status": "completed" }
+    { "migrationId": "M133", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/extensions.js::requestUrl redirect/request loop + maxBytes body aggregation", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (buffer mode)", "status": "completed" },
+    { "migrationId": "M134", "clusterId": "A11", "phase": "D8", "oldPathOrSymbol": "tests/ci-lite/ci-lite.order.txt::stale D7 flow-cap IDs + missing D8 contract tests", "newPathOrSymbol": "tests/ci-lite/ci-lite.order.txt::flows-cap-matrix + D8 contract test IDs", "status": "completed" },
+    { "migrationId": "M135", "clusterId": "A11", "phase": "D8", "oldPathOrSymbol": "tests/ci-long/ci-long.order.txt::missing D8 contract test IDs", "newPathOrSymbol": "tests/ci-long/ci-long.order.txt::includes D8 contract test IDs", "status": "completed" }
   ],
   "banPatterns": [
     {

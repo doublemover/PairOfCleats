@@ -82,3 +82,5 @@ retrieval/filters/file-and-token/token-case
 retrieval/filters/query-syntax/negative-terms
 retrieval/filters/git-metadata/chunk-author
 indexing/chunking/formats/format-fidelity
+shared/validation/ajv-factory-contract
+tooling/download/shared-fetch-contract

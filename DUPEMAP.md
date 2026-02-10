@@ -751,7 +751,7 @@ Documents: `docs/language/*`, `docs/specs/*` (chunking/risk/import/map behavior 
 - [ ] Task D7.DOC: Update test/bench harness and script coverage docs.
 Documents: `docs/testing/*`, `docs/benchmarks/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
-- [ ] Task D8.DOC: Final dedupe docs/contracts/config sync.
+- [x] Task D8.DOC: Final dedupe docs/contracts/config sync.
 Documents: `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`, `docs/contracts/*`, `docs/schemas/*`, `docs/tooling/script-inventory.json`.
 
 - [ ] Task F0.DOC: Findings program control-plane docs.
@@ -1590,12 +1590,33 @@ D8.2 status update (2026-02-10T00:51:56.5012142-05:00):
 
 ### Subphase D8.3 — Final migration lock and docs sync
 Tasks:
-- [ ] Task D8.3.a: Run final legacy-usage sweeps for all migrated symbols/modules.
+- [x] Task D8.3.a: Run final legacy-usage sweeps for all migrated symbols/modules.
 Details: Record sweep commands and results in phase notes.
-- [ ] Task D8.3.b: Run full docs/contracts/config command docs sync.
+- [x] Task D8.3.b: Run full docs/contracts/config command docs sync.
 Details: `docs/guides/commands.md`, config schema/inventory, relevant contracts.
-- [ ] Task D8.3.c: Ensure CI includes representative lanes for touched domains.
+- [x] Task D8.3.c: Ensure CI includes representative lanes for touched domains.
 Details: include ci-lite and ci-long execution points.
+
+D8.3 status update (2026-02-10T00:57:03.8919931-05:00):
+- resolved: executed final legacy-usage sweeps for D8 migrations and verified no residual local implementations remained in migrated surfaces.
+- resolved: sweep commands/results:
+  - `rg --line-number "new Ajv|ajv/dist/2020\\.js|cloneSchema\\s*=\\s*\\(" src/config/validate.js tools/api/validation.js src/contracts/validators/build-state.js src/contracts/validators/artifacts.js src/contracts/validators/analysis.js src/index/build/failure-taxonomy.js` -> no matches.
+  - `rg --line-number "function requestUrl\\(" tools/download` -> no matches.
+  - `rg --line-number "fetchDownloadUrl\\(" tools/download/dicts.js tools/download/extensions.js` -> both callsites present.
+- resolved: ran docs/contracts/config sync commands:
+  - `node tools/docs/script-inventory.js`
+  - `node tools/config/inventory.js`
+  - `node tools/config/contract-doc.js`
+- resolved: validated docs/contracts/config sync and script surface with tests:
+  - `node tests/indexing/policy/script-surface-policy.test.js` (pass)
+  - `node tests/tooling/docs/config-inventory-sync.test.js` (pass)
+  - `node tests/tooling/docs/config-contract-doc.test.js` (pass)
+  - `node tests/ci/npm-script-targets.test.js` (pass)
+- resolved: hardened CI lane coverage for touched D8 domains by adding `shared/validation/ajv-factory-contract` and `tooling/download/shared-fetch-contract` to `tests/ci-lite/ci-lite.order.txt` and `tests/ci-long/ci-long.order.txt`, and replacing stale D7 flow-cap IDs with `indexing/risk/interprocedural/flows-cap-matrix`.
+- resolved: verified lane manifests: `node tests/run.js --lane ci-lite --list --json` and `node tests/run.js --lane ci-long --list --json` both pass.
+- remaining: D8.4 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this migration-lock/docs subphase.
+- exceptions: none.
 
 ### Subphase D8.4 — Class-level remediation closeout
 Tasks:
@@ -1612,7 +1633,7 @@ Details: Map each remediation item to implemented helpers, migrated callsites, a
 - [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
 - [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
 - [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
-- [ ] tooling docs tests updated and passing
+- [x] tooling docs tests updated and passing
 
 ---
 

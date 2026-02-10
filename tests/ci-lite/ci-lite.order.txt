@@ -39,7 +39,7 @@ lang/python/python-fallback
 retrieval/filters/ext-filter
 shared/fs/atomic-replace-cleans-bak
 tooling/architecture/report-is-bounded
-indexing/risk/interprocedural/flows-max-total-flows
+indexing/risk/interprocedural/flows-cap-matrix
 indexing/runtime/caps-policy-merge
 indexing/type-inference/crossfile/resolve-relative-import
 indexer/signatures/signatures
@@ -88,7 +88,6 @@ shared/json-stream/abort-closes-stream
 indexing/risk/interprocedural/summaries-schema
 indexing/contracts/loader-matrix-parity
 indexing/ignore/ignore-matcher
-indexing/risk/interprocedural/flows-conservative
 indexing/signatures/signature-canonicalization
 shared/json-stream/maxbytes-enforced
 shared/safe-regex/flags-normalization
@@ -155,7 +154,6 @@ indexing/relations/graph-call-sites-fallback
 shared/runtime/runtime-envelope-node-options-merge
 tooling/test-selection/suggest-tests-bounded
 indexing/artifacts/symbol-artifacts-smoke
-indexing/risk/interprocedural/flows-timeout
 shared/async/runwithqueue-failfast
 tooling/vfs/vfs-virtualpath-deterministic
 tooling/vfs/vfs-hash-routing-roundtrip
@@ -260,6 +258,7 @@ lang/javascript/js-chunking
 tooling/lsp/tooling-lsp
 indexing/artifacts/artifact-bak-recovery
 shared/config/validate-object-without-properties
+shared/validation/ajv-factory-contract
 ci/markdown-link-check
 shared/concurrency/pending-limit-enforced
 shared/json-stream/json-stream
@@ -386,6 +385,7 @@ runner/harness/timings-ledger
 indexing/validate/index-validate-unknown-mode
 tooling/doctor/doctor-detects-missing-typescript
 tooling/install/download-dicts
+tooling/download/shared-fetch-contract
 tooling/structural/structural-search
 tooling/reports/metrics-dashboard
 indexing/workers/worker-pool

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-09T23:50:22.287Z",
+  "generatedAt": "2026-02-10T05:55:07.731Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2338,8 +2338,6 @@
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
-        "tests/retrieval/pipeline/ann-optional-skip.test.js",
-        "tests/retrieval/pipeline/ann-preflight.test.js",
         "tests/retrieval/pipeline/artifact-gating-deps.test.js",
         "tests/retrieval/pipeline/artifact-gating.test.js",
         "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
@@ -5488,6 +5486,7 @@
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
       "tools/config/inventory/scan.js",
