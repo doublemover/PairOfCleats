@@ -1595,6 +1595,19 @@ Localization preference order:
 
 Producers MUST choose the highest-fidelity localization available at emission time.
 
+### 33.4 Remediation class taxonomy
+
+Each diagnostic code family MUST map to one remediation class so CI and operational tooling can route ownership deterministically.
+
+| Remediation class | Applicable codes | Blocking behavior | Owner role |
+| --- | --- | --- | --- |
+| `parser-runtime` | `USR-E-PARSER-UNAVAILABLE`, `USR-E-PARSER-FAILED`, `USR-W-PARTIAL-PARSE` | blocking for strict lanes if capability requirement is `supported` | parser/integration owner |
+| `schema-contract` | `USR-E-SCHEMA-VIOLATION`, `USR-E-ID-GRAMMAR-VIOLATION`, `USR-E-SERIALIZATION-NONCANONICAL` | always blocking in strict mode | contracts owner |
+| `graph-integrity` | `USR-E-EDGE-ENDPOINT-INVALID`, `USR-W-REFERENCE-AMBIGUOUS`, `USR-W-HEURISTIC-BINDING` | blocking when conformance target requires resolved relations | indexing/graph owner |
+| `framework-overlay` | `USR-E-PROFILE-CONFLICT`, `USR-W-FRAMEWORK-PROFILE-INCOMPLETE`, framework resolution reason codes | blocking for C4-required lanes | framework profile owner |
+| `capability-state` | `USR-E-CAPABILITY-LOST`, `USR-W-CAPABILITY-DOWNGRADED` | blocking if transition violates declared lane policy | conformance owner |
+| `analysis-caps` | `USR-W-TRUNCATED-FLOW`, `USR-W-CANONICALIZATION-FALLBACK`, `USR-I-FALLBACK-HEURISTIC` | non-blocking by default; tracked against budget | analysis owner |
+
 ## 34. Canonical JSON examples (normative reference)
 
 The examples in this section are canonical references for schema shape, deterministic ordering, and minimum required field sets.
@@ -2321,6 +2334,25 @@ When example entities are emitted as one bundle (single test fixture or artifact
 
 A canonical example fixture SHOULD include one fully linked bundle covering all entity families to validate end-to-end coherence.
 
+### 34.11 Canonical example validation checklist
+
+Every canonical example bundle used in tests/docs MUST pass all checks below:
+
+- JSON parses without lossy transforms (no comments, no duplicate keys).
+- All IDs satisfy section 6.7 grammar for their entity class.
+- `schemaVersion` is exactly `usr-1.0.0`.
+- Array ordering is deterministic and repeatable (section 13 tie-breakers).
+- `confidence` values are normalized numeric values in `[0,1]` or null where allowed.
+- Required reference fields resolve under section 34.10 constraints.
+- Diagnostic code/severity pairs satisfy section 33 rules.
+- Canonical serialization output hash is stable across two reruns in the same fixture harness.
+
+Validation evidence for each canonical example update MUST include:
+
+- validator run artifact
+- deterministic rerun diff artifact
+- explicit list of changed example IDs and fields
+
 ## 35. Per-framework edge canonicalization examples (normative)
 
 This section defines canonical edge construction patterns for framework route/template/style semantics.
@@ -2572,6 +2604,21 @@ Canonical attrs key requirements by edge family:
 - Style scoping MUST canonicalize to `attrs.scopeType` values: `global`, `module`, `scoped`, `shadow`, or `unknown`.
 - If canonical route/template/style mapping cannot be completed, producer MUST emit unresolved/ambiguous edges and include section 33 reason codes.
 
+### 35.11 Framework-specific edge-case canonicalization checklist
+
+The following edge cases are mandatory for profile conformance and MUST be represented in fixtures and expected outputs.
+
+| Framework | Route edge edge cases | Template edge edge cases | Style edge edge cases |
+| --- | --- | --- | --- |
+| `react` | nested route trees, lazy route elements, wildcard fallback routes | prop spread, hook-returned state binding, callback prop/event passthrough | CSS modules aliasing, CSS-in-JS class token synthesis, global stylesheet fallback |
+| `vue` | named routes with aliases/redirects, dynamic param + optional param routes | `v-model` modifiers, slot prop forwarding, `v-for` alias shadowing | scoped + deep selectors, module + scoped coexistence, `:global` escapes |
+| `next` | app router segment groups, parallel routes, route handlers by HTTP verb | server/client component boundary props, async server data bindings, dynamic params in layouts | module css per segment, global css from app root, styled-jsx fallbacks |
+| `nuxt` | file-system route conflicts, route rules/middleware overlays, optional/catch-all params | `useAsyncData` and `useRoute` bindings, auto-imported composables, slot forwarding | scoped SFC styles, module imports in SFC, global app style injection |
+| `svelte` | custom router integrations, fallback route resolution, dynamic segment params | `bind:` directives, store auto-subscription `$store`, slot prop forwarding | compiled scoped selectors, global escapes, style directives from preprocessors |
+| `sveltekit` | `+page`/`+layout` precedence, endpoint + page collisions, catch-all routing | `load` data propagation, form actions, page data shadowing in nested layouts | scoped style compilation across nested layouts, global stylesheet leakage checks |
+| `angular` | nested `Route[]` with lazy modules, guards/redirects, outlet-named routes | structural directives (`*ngIf`, `*ngFor`), banana-in-a-box bindings, signal/computed bindings | emulated vs shadow encapsulation, component styleUrls arrays, global stylesheet overrides |
+| `astro` | static + dynamic route mixing, rest parameter routes, content-collection route generation | frontmatter to template data, framework island prop bridges, slot passthrough | scoped default css, `:global` usage, island framework style boundary crossing |
+
 ## 36. Mandatory backward-compatibility test matrix (normative)
 
 Backward compatibility for USR is release-blocking. The matrix below is the minimum mandatory scenario set.
@@ -2648,6 +2695,43 @@ At least one fixture in each scenario class MUST include all entity families bel
 - For strict scenarios, pass rate MUST be 100% for blocking lanes.
 - For non-strict scenarios, pass rate MUST be >= 99% with any failures triaged and linked to explicit issue IDs.
 - Compatibility matrix execution time MUST remain within documented lane budget; overruns require explicit waiver metadata in run reports.
+
+### 36.7 Pairwise scenario expansion rules
+
+`BC-001` through `BC-012` are baseline scenario classes. Test generators MUST expand them into concrete pairwise cases by:
+
+1. producer implementation variant:
+   - canonical writer
+   - writer with extension fields enabled
+2. reader implementation variant:
+   - strict validator reader
+   - non-strict adapter reader
+3. fixture profile:
+   - language-only fixture
+   - framework fixture
+   - degraded/partial capability fixture
+
+Expanded scenario IDs MUST follow this format:
+
+`<baseId>-<producerVariant>-<readerVariant>-<fixtureProfile>`
+
+Example:
+
+- `BC-007-ext-nonstrict-framework`
+
+### 36.8 Mandatory reporting dimensions
+
+Compatibility reports MUST include rollups by:
+
+- `baseScenarioId`
+- `producerVersion`
+- `readerVersion`
+- `readerMode`
+- `languageId`
+- `frameworkProfile` (nullable)
+- `entityType`
+
+Missing any reporting dimension is a contract failure for matrix reporting.
 
 
 
