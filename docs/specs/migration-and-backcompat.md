@@ -1,5 +1,9 @@
 # Phase 9 Spec -- Migration and Backward Compatibility
 
+Last updated: 2026-02-10T02:00:00Z
+
+This document is aligned with `docs/specs/unified-syntax-representation.md` sections 19, 27, and 36.
+
 ## Why a migration spec is necessary
 Phase 9 replaces several legacy join assumptions:
 - graph nodes keyed by `file::name`
@@ -12,6 +16,7 @@ These changes must ship with explicit back-compat rules so older artifacts (or p
 ### Contract versions
 - Public symbol artifacts are versioned (schema version in their meta sidecars if sharded; otherwise in manifest entries).
 - Readers must support N-1 schema major, with adapters.
+- For USR payloads, compatibility is governed by `schemaVersion` and section 36 scenario classes (`BC-001` through `BC-012`).
 
 ### Legacy fields retained (display-only)
 Phase 9 will preserve the legacy fields **only as evidence/display**:
@@ -31,6 +36,31 @@ If symbol artifacts are missing:
 Strict mode requires:
 - symbol artifacts present
 - no legacy name-only joins for cross-file edges
+- no unknown USR fields, unknown diagnostic codes, or unknown reason codes
+- canonical serialization and ID grammar compliance
+
+### Non-strict mode
+Non-strict mode allows:
+- additive namespaced fields through compatibility adapters
+- unknown minor-version additive fields with explicit compatibility diagnostics
+
+Non-strict mode does not allow:
+- major-version semantic mismatches
+- invalid ID grammar
+- broken endpoint constraints
+
+## Mandatory compatibility matrix linkage
+
+Phase 9 migration is not complete until the USR matrix artifact is present and green for required scenarios:
+
+- Matrix source: `tests/lang/matrix/usr-backcompat-matrix.json`
+- Result artifact: `usr-backcompat-matrix-results.json`
+- Baseline classes: `BC-001` through `BC-012`
+- Expansion rules: producer/reader variant and fixture-profile pairwise expansion (USR section 36.7)
+
+Release-blocking strict scenarios:
+
+- `BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`
 
 ## Deprecations
 After Phase 9, these patterns are deprecated:
@@ -41,5 +71,6 @@ After Phase 9, these patterns are deprecated:
 1. Land identity module + symbol artifacts behind a feature flag (`indexing.symbolIdentity=on`).
 2. Update graphs and cross-file linking to prefer symbol identity when present.
 3. Add strict validation gates and enable in CI for fixtures.
-4. Flip default on once metrics show acceptable ambiguity/unresolved rates.
+4. Add USR backward-compat matrix lane and make strict scenarios blocking.
+5. Flip default on once metrics show acceptable ambiguity/unresolved rates and matrix pass thresholds are met.
 
