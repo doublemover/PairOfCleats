@@ -1,14 +1,27 @@
 import { buildLineIndex } from '../../shared/lines.js';
 
-export const buildChunksFromLineHeadings = (text, headings) => {
+export const buildLineIndexFromLines = (lines) => {
+  if (!Array.isArray(lines) || !lines.length) return [0];
+  const lineIndex = new Array(lines.length);
+  let offset = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    lineIndex[i] = offset;
+    offset += lines[i].length + 1;
+  }
+  return lineIndex;
+};
+
+export const buildChunksFromLineHeadings = (text, headings, lineIndex = null) => {
   if (!headings.length) return null;
-  const lineIndex = buildLineIndex(text);
+  const resolvedLineIndex = Array.isArray(lineIndex) && lineIndex.length
+    ? lineIndex
+    : buildLineIndex(text);
   const chunks = [];
   for (let i = 0; i < headings.length; ++i) {
     const startLine = headings[i].line;
-    const endLine = i + 1 < headings.length ? headings[i + 1].line : lineIndex.length;
-    const start = lineIndex[startLine] || 0;
-    const end = endLine < lineIndex.length ? lineIndex[endLine] : text.length;
+    const endLine = i + 1 < headings.length ? headings[i + 1].line : resolvedLineIndex.length;
+    const start = resolvedLineIndex[startLine] || 0;
+    const end = endLine < resolvedLineIndex.length ? resolvedLineIndex[endLine] : text.length;
     const title = headings[i].title || 'section';
     chunks.push({
       start,

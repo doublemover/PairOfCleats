@@ -37,7 +37,7 @@ Format:
 - Impact: Major speedup on large prose/text files.
 - Risk: Must preserve UTF-8 boundary correctness.
 
-5. Area: Repeated line splitting/scanning
+5. [x] Area: Repeated line splitting/scanning
 - Files: `src/index/chunking/dispatch.js`, `src/index/chunking/formats/*.js`
 - Opportunity: Share line index/splits across format chunkers instead of repeated `split('\n')`.
 - Impact: Lower memory churn and parsing CPU.

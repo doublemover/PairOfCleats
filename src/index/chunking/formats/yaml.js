@@ -1,10 +1,11 @@
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { toPosix } from '../../../shared/files.js';
-import { buildChunksFromLineHeadings } from '../helpers.js';
+import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
 
 const chunkGitHubActions = (text) => {
   const lines = text.split('\n');
+  const lineIndex = buildLineIndexFromLines(lines);
   const headings = [];
   let jobsLine = -1;
   for (let i = 0; i < lines.length; ++i) {
@@ -19,7 +20,7 @@ const chunkGitHubActions = (text) => {
       if (match) headings.push({ line: i, title: match[1] });
     }
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   return chunks || [{ start: 0, end: text.length, name: 'workflow', kind: 'ConfigSection', meta: { format: 'github-actions' } }];
 };
 
@@ -33,6 +34,7 @@ const parseYamlTopLevelKey = (line) => {
 
 const chunkYamlTopLevel = (text) => {
   const lines = text.split('\n');
+  const lineIndex = buildLineIndexFromLines(lines);
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
@@ -44,7 +46,7 @@ const chunkYamlTopLevel = (text) => {
     const key = parseYamlTopLevelKey(line);
     if (key) headings.push({ line: i, title: key });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   return chunks && chunks.length
     ? chunks.map((chunk) => ({
       ...chunk,

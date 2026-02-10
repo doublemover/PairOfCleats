@@ -53,7 +53,7 @@ import { chunkMarkdown } from './formats/markdown.js';
 import { chunkRst, chunkAsciiDoc } from './formats/rst-asciidoc.js';
 import { chunkXml } from './formats/xml.js';
 import { chunkYaml } from './formats/yaml.js';
-import { buildChunksFromLineHeadings } from './helpers.js';
+import { buildChunksFromLineHeadings, buildLineIndexFromLines } from './helpers.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
 
@@ -68,8 +68,16 @@ const applyFormatMeta = (chunks, format, kind) => {
 
 const MAX_REGEX_LINE = 8192;
 
-const chunkByLineRegex = (text, matcher, options = {}) => {
+const splitLinesWithIndex = (text) => {
   const lines = text.split('\n');
+  return {
+    lines,
+    lineIndex: buildLineIndexFromLines(lines)
+  };
+};
+
+const chunkByLineRegex = (text, matcher, options = {}) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const maxLineLength = Number.isFinite(Number(options.maxLineLength))
     ? Math.max(0, Math.floor(Number(options.maxLineLength)))
@@ -88,7 +96,7 @@ const chunkByLineRegex = (text, matcher, options = {}) => {
     if (!title) continue;
     headings.push({ line: i, title });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
     return applyFormatMeta(chunks, options.format || null, options.kind || null);
   }
@@ -102,7 +110,7 @@ const chunkByLineRegex = (text, matcher, options = {}) => {
 };
 
 const chunkDockerfile = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^\s*([A-Z][A-Z0-9_-]+)\b/;
   for (let i = 0; i < lines.length; ++i) {
@@ -112,7 +120,7 @@ const chunkDockerfile = (text) => {
     const match = line.match(rx);
     if (match) headings.push({ line: i, title: match[1] });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
     return applyFormatMeta(chunks, 'dockerfile', 'ConfigSection');
   }
@@ -120,7 +128,7 @@ const chunkDockerfile = (text) => {
 };
 
 const chunkMakefile = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^([A-Za-z0-9_./-]+)\s*:/;
   for (let i = 0; i < lines.length; ++i) {
@@ -131,7 +139,7 @@ const chunkMakefile = (text) => {
     const match = line.match(rx);
     if (match) headings.push({ line: i, title: match[1] });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
     return applyFormatMeta(chunks, 'makefile', 'ConfigSection');
   }
@@ -139,7 +147,7 @@ const chunkMakefile = (text) => {
 };
 
 const chunkProto = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   for (let i = 0; i < lines.length; ++i) {
@@ -159,13 +167,13 @@ const chunkProto = (text) => {
       headings.push({ line: i, title: `${kind} ${name}`.trim() });
     }
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'proto', 'Section');
   return [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
 };
 
 const chunkGraphql = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
   for (let i = 0; i < lines.length; ++i) {
@@ -190,7 +198,7 @@ const chunkGraphql = (text) => {
       headings.push({ line: i, title });
     }
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'graphql', 'Section');
   return [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
 };
@@ -204,7 +212,7 @@ const chunkCmake = (text) => chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*
 });
 
 const chunkStarlark = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const defRx = /^\s*(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)\b/;
   const callRx = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
@@ -223,7 +231,7 @@ const chunkStarlark = (text) => {
     const callMatch = line.match(callRx);
     if (callMatch) headings.push({ line: i, title: callMatch[1] });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'starlark', 'Section');
   return [{
     start: 0,
@@ -249,7 +257,7 @@ const chunkNix = (text) => {
 };
 
 const chunkDart = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const typeRx = /^\s*(class|mixin|enum|extension|typedef)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRx = /^\s*(?:[A-Za-z_][A-Za-z0-9_<>]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
@@ -276,7 +284,7 @@ const chunkDart = (text) => {
       headings.push({ line: i, title: funcMatch[1] });
     }
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'dart', 'Section');
   return [{
     start: 0,
@@ -288,7 +296,7 @@ const chunkDart = (text) => {
 };
 
 const chunkScala = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const typeRx = /^\s*(?:case\s+class|class|object|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
@@ -311,7 +319,7 @@ const chunkScala = (text) => {
     const defMatch = line.match(defRx);
     if (defMatch) headings.push({ line: i, title: defMatch[1] });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'scala', 'Section');
   return [{
     start: 0,
@@ -323,7 +331,7 @@ const chunkScala = (text) => {
 };
 
 const chunkGroovy = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const typeRx = /^\s*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
@@ -346,7 +354,7 @@ const chunkGroovy = (text) => {
     const defMatch = line.match(defRx);
     if (defMatch) headings.push({ line: i, title: defMatch[1] });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'groovy', 'Section');
   return [{
     start: 0,
@@ -365,7 +373,7 @@ const chunkR = (text) => chunkByLineRegex(text, /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s
 });
 
 const chunkJulia = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^\s*(module|function|macro)\s+([A-Za-z_][A-Za-z0-9_!.]*)/;
   for (let i = 0; i < lines.length; ++i) {
@@ -380,7 +388,7 @@ const chunkJulia = (text) => {
       headings.push({ line: i, title: match[2] });
     }
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'julia', 'Section');
   return [{
     start: 0,
@@ -417,7 +425,7 @@ const chunkJinja = (text) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|se
 });
 
 const chunkRazor = (text) => {
-  const lines = text.split('\n');
+  const { lines, lineIndex } = splitLinesWithIndex(text);
   const headings = [];
   const rx = /^\s*@\s*(page|model|inherits|functions|code|section)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/i;
   for (let i = 0; i < lines.length; ++i) {
@@ -429,7 +437,7 @@ const chunkRazor = (text) => {
     const name = match[2] ? `${match[1]} ${match[2]}` : match[1];
     headings.push({ line: i, title: name });
   }
-  const chunks = buildChunksFromLineHeadings(text, headings);
+  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) return applyFormatMeta(chunks, 'razor', 'Section');
   return [{
     start: 0,
