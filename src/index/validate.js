@@ -22,8 +22,7 @@ import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versi
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
 import {
-  hashDeterministicIterable,
-  hashDeterministicJsonRows,
+  hashDeterministicLines,
   hashDeterministicValues
 } from '../shared/invariants.js';
 import {
@@ -57,16 +56,24 @@ import {
 
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
 
-const hashJsonRows = (rows) => {
-  return hashDeterministicJsonRows(rows);
+const hashOrderingRows = (
+  rows,
+  { encodeLine = (row) => JSON.stringify(row) } = {}
+) => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  // Validate against the exact ordering-line representation emitted by writers.
+  const lines = rows.map((row) => encodeLine(row));
+  return hashDeterministicLines(lines, { encodeLine: (line) => line });
 };
 
 const hashGraphRelationsRows = (relations) => {
   if (!relations || typeof relations !== 'object') return null;
   const iterator = createGraphRelationsIterator(relations)();
-  return hashDeterministicIterable(iterator, {
-    encodeLine: (row) => JSON.stringify(row)
-  });
+  const lines = [];
+  for (const row of iterator) {
+    lines.push(JSON.stringify(row));
+  }
+  return hashDeterministicLines(lines, { encodeLine: (line) => line });
 };
 
 const hashVocabList = (vocab) => {
@@ -487,9 +494,9 @@ export async function validateIndexArtifacts(input = {}) {
           }
         } else {
           const actualHashes = {
-            chunk_meta: hashJsonRows(chunkMeta),
-            file_relations: relations ? hashJsonRows(relations) : null,
-            repo_map: repoMap ? hashJsonRows(repoMap) : null,
+            chunk_meta: hashOrderingRows(chunkMeta),
+            file_relations: relations ? hashOrderingRows(relations) : null,
+            repo_map: repoMap ? hashOrderingRows(repoMap) : null,
             graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null,
             token_vocab: tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null,
             phrase_ngrams: phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null,
