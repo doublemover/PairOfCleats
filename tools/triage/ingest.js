@@ -138,6 +138,7 @@ async function loadInputEntries(filePath) {
     const parsed = JSON.parse(trimmed);
     if (Array.isArray(parsed)) return parsed;
     if (Array.isArray(parsed.alerts)) return parsed.alerts;
+    if (Array.isArray(parsed.findings)) return parsed.findings;
     if (Array.isArray(parsed.records)) return parsed.records;
     if (Array.isArray(parsed.items)) return parsed.items;
     if (parsed && typeof parsed === 'object') {
