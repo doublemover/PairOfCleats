@@ -990,27 +990,44 @@ export async function buildDatabaseFromArtifacts({
       recordTable('minhash_signatures', minhashRows, performance.now() - start);
     };
 
-    function ingestDense(dense, targetMode) {
-      if (!dense?.vectors || !dense.vectors.length) return;
-      const denseDims = Number.isFinite(dense?.dims)
+    async function ingestDense(dense, targetMode) {
+      const hasDenseArray = Array.isArray(dense?.vectors) && dense.vectors.length > 0;
+      const hasDenseRows = typeof dense?.rows?.[Symbol.asyncIterator] === 'function';
+      if (!hasDenseArray && !hasDenseRows) return;
+      let denseDims = Number.isFinite(dense?.dims)
         ? Number(dense.dims)
-        : (dense.vectors.find((vec) => vec && vec.length)?.length || 0);
-      insertDenseMeta.run(
-        targetMode,
-        denseDims || null,
-        typeof dense.scale === 'number' ? dense.scale : 1.0,
-        dense.model || modelConfig.id || null,
-        quantization.minVal,
-        quantization.maxVal,
-        quantization.levels
-      );
-      recordTable('dense_meta', 1, 0);
+        : (hasDenseArray ? (dense.vectors.find((vec) => vec && vec.length)?.length || 0) : 0);
+      const denseScale = typeof dense?.scale === 'number' ? dense.scale : 1.0;
+      let denseMetaWritten = false;
+      const ensureDenseMeta = (sampleVec = null) => {
+        if (denseMetaWritten) return;
+        if ((!denseDims || denseDims <= 0) && sampleVec && typeof sampleVec.length === 'number') {
+          denseDims = sampleVec.length || 0;
+        }
+        insertDenseMeta.run(
+          targetMode,
+          denseDims || null,
+          denseScale,
+          dense?.model || modelConfig.id || null,
+          quantization.minVal,
+          quantization.maxVal,
+          quantization.levels
+        );
+        denseMetaWritten = true;
+        recordTable('dense_meta', 1, 0);
+      };
+      if (denseDims > 0) {
+        ensureDenseMeta();
+      }
       const start = performance.now();
       let denseRows = 0;
-      const insertTx = db.transaction((start, end) => {
-        for (let docId = start; docId < end; docId += 1) {
-          const vec = dense.vectors[docId];
-          if (!vec) continue;
+      const denseBatch = [];
+      const flushDenseBatch = db.transaction((batch) => {
+        for (const item of batch) {
+          const docId = item?.docId;
+          const vec = item?.vec;
+          if (!Number.isFinite(docId) || !vec) continue;
+          ensureDenseMeta(vec);
           insertDense.run(targetMode, docId, packUint8(vec, { onClamp: recordDenseClamp }));
           validationStats.dense += 1;
           denseRows += 1;
@@ -1046,9 +1063,35 @@ export async function buildDatabaseFromArtifacts({
           }
         }
       });
-      for (let start = 0; start < dense.vectors.length; start += resolvedBatchSize) {
-        insertTx(start, Math.min(start + resolvedBatchSize, dense.vectors.length));
+      const flush = () => {
+        if (!denseBatch.length) return;
+        flushDenseBatch(denseBatch);
+        denseBatch.length = 0;
         recordBatch('denseBatches');
+      };
+      if (hasDenseArray) {
+        for (let docId = 0; docId < dense.vectors.length; docId += 1) {
+          const vec = dense.vectors[docId];
+          if (!vec) continue;
+          denseBatch.push({ docId, vec });
+          if (denseBatch.length >= resolvedBatchSize) flush();
+        }
+      } else if (hasDenseRows) {
+        let docId = 0;
+        for await (const entry of dense.rows) {
+          const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
+            ? (entry.vector ?? entry.values ?? null)
+            : entry;
+          if (vec) {
+            denseBatch.push({ docId, vec });
+            if (denseBatch.length >= resolvedBatchSize) flush();
+          }
+          docId += 1;
+        }
+      }
+      flush();
+      if (!denseMetaWritten && hasDenseArray) {
+        ensureDenseMeta();
       }
       recordTable('dense_vectors', denseRows, performance.now() - start);
       dense.vectors = null;
@@ -1478,7 +1521,7 @@ export async function buildDatabaseFromArtifacts({
         }
       );
       await ingestMinhash(indexData?.minhash, targetMode);
-      ingestDense(indexData?.denseVec, targetMode);
+      await ingestDense(indexData?.denseVec, targetMode);
       ingestFileManifestFromChunks(targetMode);
       db.exec('DELETE FROM file_meta_stage;');
 

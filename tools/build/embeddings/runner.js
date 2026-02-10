@@ -16,7 +16,7 @@ import {
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
@@ -123,6 +123,61 @@ export async function runBuildEmbeddingsWithConfig(config) {
       if (vec && typeof vec.length === 'number' && vec.length > 0) count += 1;
     }
     return count;
+  };
+  const writeDenseVectorArtifacts = async ({
+    indexDir,
+    baseName,
+    vectorFields,
+    vectors,
+    shardMaxBytes = 8 * 1024 * 1024
+  }) => {
+    const jsonPath = path.join(indexDir, `${baseName}.json`);
+    await writeJsonObjectFile(jsonPath, {
+      fields: vectorFields,
+      arrays: { vectors },
+      atomic: true
+    });
+    const rowIterable = {
+      [Symbol.iterator]: function* iterateRows() {
+        for (let i = 0; i < vectors.length; i += 1) {
+          yield { vector: vectors[i] };
+        }
+      }
+    };
+    const sharded = await writeJsonLinesSharded({
+      dir: indexDir,
+      partsDirName: `${baseName}.parts`,
+      partPrefix: `${baseName}.part-`,
+      items: rowIterable,
+      maxBytes: shardMaxBytes,
+      atomic: true,
+      offsets: { suffix: 'offsets.bin' }
+    });
+    const parts = sharded.parts.map((part, index) => ({
+      path: part,
+      records: sharded.counts[index] || 0,
+      bytes: sharded.bytes[index] || 0
+    }));
+    const metaPath = path.join(indexDir, `${baseName}.meta.json`);
+    await writeJsonObjectFile(metaPath, {
+      fields: {
+        schemaVersion: '1.0.0',
+        artifact: baseName,
+        format: 'jsonl-sharded',
+        generatedAt: new Date().toISOString(),
+        compression: 'none',
+        totalRecords: sharded.total,
+        totalBytes: sharded.totalBytes,
+        maxPartRecords: sharded.maxPartRecords,
+        maxPartBytes: sharded.maxPartBytes,
+        targetMaxBytes: sharded.targetMaxBytes,
+        parts,
+        offsets: sharded.offsets || [],
+        ...vectorFields
+      },
+      atomic: true
+    });
+    return { jsonPath, metaPath };
   };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
   const normalizeDenseVectorMode = (value) => {
@@ -1111,20 +1166,23 @@ export async function runBuildEmbeddingsWithConfig(config) {
           levels: quantization.levels
         };
         await Promise.all([
-          scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
-            fields: vectorFields,
-            arrays: { vectors: mergedVectors },
-            atomic: true
+          scheduleIo(() => writeDenseVectorArtifacts({
+            indexDir,
+            baseName: 'dense_vectors_uint8',
+            vectorFields,
+            vectors: mergedVectors
           })),
-          scheduleIo(() => writeJsonObjectFile(docVectorsPath, {
-            fields: vectorFields,
-            arrays: { vectors: docVectors },
-            atomic: true
+          scheduleIo(() => writeDenseVectorArtifacts({
+            indexDir,
+            baseName: 'dense_vectors_doc_uint8',
+            vectorFields,
+            vectors: docVectors
           })),
-          scheduleIo(() => writeJsonObjectFile(codeVectorsPath, {
-            fields: vectorFields,
-            arrays: { vectors: codeVectors },
-            atomic: true
+          scheduleIo(() => writeDenseVectorArtifacts({
+            indexDir,
+            baseName: 'dense_vectors_code_uint8',
+            vectorFields,
+            vectors: codeVectors
           }))
         ]);
         logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);

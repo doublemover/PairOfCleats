@@ -228,8 +228,24 @@ export function loadOptionalMinhashRows(dir, { materialize = false } = {}) {
 }
 
 export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
-  const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
-  if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  const denseMeta = loadOptional(dir, 'dense_vectors_uint8.meta.json');
+  let denseVec = null;
+  if (denseMeta && typeof denseMeta === 'object') {
+    const totalRecords = Number.isFinite(Number(denseMeta.totalRecords))
+      ? Math.max(0, Math.floor(Number(denseMeta.totalRecords)))
+      : 0;
+    const hasParts = Array.isArray(denseMeta.parts) && denseMeta.parts.length > 0;
+    denseVec = {
+      ...denseMeta,
+      model: denseMeta.model || modelId || null,
+      ...(totalRecords > 0 && hasParts
+        ? { rows: loadOptionalArrayArtifactRows(dir, 'dense_vectors_uint8', { materialize: true }) }
+        : { vectors: [] })
+    };
+  } else {
+    denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
+    if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  }
   return {
     fileMeta: loadOptionalFileMetaRows(dir),
     minhash: loadOptionalMinhashRows(dir),

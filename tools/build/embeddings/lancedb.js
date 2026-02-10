@@ -1,11 +1,12 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
-import { readJsonFile } from '../../../src/shared/artifact-io.js';
+import { loadJsonArrayArtifactRows, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { getEnvConfig, getLanceDbEnv, isTestingEnv } from '../../../src/shared/env.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 
@@ -26,13 +27,36 @@ const loadLanceDb = async (logger) => {
   return result.mod?.default || result.mod;
 };
 
-const resolveVectorsFromFile = (vectorsPath) => {
+const resolveVectorsSource = (vectorsPath) => {
   if (!vectorsPath) return null;
+  const dir = path.dirname(vectorsPath);
+  const base = path.basename(vectorsPath, path.extname(vectorsPath));
+  const metaPath = path.join(dir, `${base}.meta.json`);
+  const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
+  if (hasShardedMeta) {
+    try {
+      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
+      const count = Number.isFinite(Number(meta?.totalRecords))
+        ? Math.max(0, Math.floor(Number(meta.totalRecords)))
+        : 0;
+      return {
+        count,
+        vectors: null,
+        rows: loadJsonArrayArtifactRows(dir, base, {
+          maxBytes: Number.POSITIVE_INFINITY,
+          strict: false,
+          materialize: true
+        })
+      };
+    } catch {}
+  }
   const data = readJsonFile(vectorsPath);
   if (!data) return null;
-  if (Array.isArray(data?.arrays?.vectors)) return data.arrays.vectors;
-  if (Array.isArray(data?.vectors)) return data.vectors;
-  return null;
+  const vectors = Array.isArray(data?.arrays?.vectors)
+    ? data.arrays.vectors
+    : (Array.isArray(data?.vectors) ? data.vectors : null);
+  if (!Array.isArray(vectors) || !vectors.length) return null;
+  return { count: vectors.length, vectors, rows: null };
 };
 
 const shouldIsolateLanceDb = (config, env) => {
@@ -121,9 +145,9 @@ export async function writeLanceDbIndex({
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
   const lanceEnv = getLanceDbEnv();
-  const resolvedVectors = Array.isArray(vectors) && vectors.length
-    ? vectors
-    : resolveVectorsFromFile(vectorsPath);
+  const vectorsSource = Array.isArray(vectors) && vectors.length
+    ? { count: vectors.length, vectors, rows: null }
+    : resolveVectorsSource(vectorsPath);
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)
@@ -131,7 +155,7 @@ export async function writeLanceDbIndex({
       || fsSync.existsSync(`${vectorsPath}.bak`);
     logger.log(`[embeddings] ${label || variant}: vectors source path=${vectorsPath} exists=${exists}`);
   }
-  if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
+  if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };
   }
   if (shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
@@ -232,32 +256,85 @@ export async function writeLanceDbIndex({
 
   let table = null;
   try {
-    const firstBatch = buildBatch(
-      resolvedVectors,
-      0,
-      Math.min(batchSize, resolvedVectors.length),
-      idColumn,
-      embeddingColumn,
-      quantization,
-      normalize
-    );
-    table = await createTable(db, tableName, firstBatch);
-    if (!table && typeof db.openTable === 'function') {
-      table = await db.openTable(tableName);
-      if (firstBatch.length) await addRows(table, firstBatch);
-    }
-    for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
-      const rows = buildBatch(
+    if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
+      let docId = 0;
+      let firstBatch = [];
+      let batch = [];
+      for await (const entry of vectorsSource.rows) {
+        const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
+          ? (entry.vector ?? entry.values ?? null)
+          : entry;
+        if (vec && typeof vec.length === 'number') {
+          const floatVec = dequantizeUint8ToFloat32(
+            vec,
+            quantization?.minVal,
+            quantization?.maxVal,
+            quantization?.levels
+          );
+          if (floatVec) {
+            if (normalize !== false) {
+              normalizeEmbeddingVectorInPlace(floatVec);
+            }
+            batch.push({
+              [idColumn]: docId,
+              [embeddingColumn]: Array.from(floatVec)
+            });
+          }
+        }
+        docId += 1;
+        if (batch.length >= batchSize) {
+          if (!table) {
+            firstBatch = batch;
+            table = await createTable(db, tableName, firstBatch);
+            if (!table && typeof db.openTable === 'function') {
+              table = await db.openTable(tableName);
+              if (firstBatch.length) await addRows(table, firstBatch);
+            }
+          } else if (batch.length) {
+            await addRows(table, batch);
+          }
+          batch = [];
+        }
+      }
+      if (!table) {
+        firstBatch = batch;
+        table = await createTable(db, tableName, firstBatch);
+        if (!table && typeof db.openTable === 'function') {
+          table = await db.openTable(tableName);
+          if (firstBatch.length) await addRows(table, firstBatch);
+        }
+      } else if (batch.length) {
+        await addRows(table, batch);
+      }
+    } else {
+      const resolvedVectors = vectorsSource.vectors;
+      const firstBatch = buildBatch(
         resolvedVectors,
-        start,
-        Math.min(start + batchSize, resolvedVectors.length),
+        0,
+        Math.min(batchSize, resolvedVectors.length),
         idColumn,
         embeddingColumn,
         quantization,
         normalize
       );
-      if (rows.length) {
-        await addRows(table, rows);
+      table = await createTable(db, tableName, firstBatch);
+      if (!table && typeof db.openTable === 'function') {
+        table = await db.openTable(tableName);
+        if (firstBatch.length) await addRows(table, firstBatch);
+      }
+      for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
+        const rows = buildBatch(
+          resolvedVectors,
+          start,
+          Math.min(start + batchSize, resolvedVectors.length),
+          idColumn,
+          embeddingColumn,
+          quantization,
+          normalize
+        );
+        if (rows.length) {
+          await addRows(table, rows);
+        }
       }
     }
   } finally {
@@ -271,7 +348,7 @@ export async function writeLanceDbIndex({
     generatedAt: new Date().toISOString(),
     model: modelId || null,
     dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
-    count: resolvedVectors.length,
+    count: vectorsSource.count,
     metric: resolvedConfig.metric,
     table: tableName,
     embeddingColumn,
@@ -285,7 +362,7 @@ export async function writeLanceDbIndex({
 
   if (emitOutput) {
     const targetLabel = label || variant;
-    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${resolvedVectors.length} vectors).`);
+    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectorsSource.count} vectors).`);
   }
-  return { skipped: false, count: resolvedVectors.length };
+  return { skipped: false, count: vectorsSource.count };
 }

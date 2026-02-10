@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
-import { readJsonFile } from '../../../src/shared/artifact-io.js';
+import { loadJsonArrayArtifactRows, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
@@ -26,12 +28,36 @@ const loadHnswLib = () => {
   return { lib: hnswLib, error: hnswLoadError };
 };
 
-const resolveVectorsFromFile = (vectorsPath) => {
+const resolveVectorsSource = (vectorsPath) => {
   if (!vectorsPath) return null;
+  const dir = path.dirname(vectorsPath);
+  const base = path.basename(vectorsPath, path.extname(vectorsPath));
+  const metaPath = path.join(dir, `${base}.meta.json`);
+  const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
+  if (hasShardedMeta) {
+    try {
+      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
+      const count = Number.isFinite(Number(meta?.totalRecords))
+        ? Math.max(0, Math.floor(Number(meta.totalRecords)))
+        : 0;
+      return {
+        count,
+        vectors: null,
+        rows: loadJsonArrayArtifactRows(dir, base, {
+          maxBytes: Number.POSITIVE_INFINITY,
+          strict: false,
+          materialize: true
+        })
+      };
+    } catch {}
+  }
   try {
     const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
-    if (Array.isArray(data?.arrays?.vectors)) return data.arrays.vectors;
-    if (Array.isArray(data?.vectors)) return data.vectors;
+    const vectors = Array.isArray(data?.arrays?.vectors)
+      ? data.arrays.vectors
+      : (Array.isArray(data?.vectors) ? data.vectors : null);
+    if (!Array.isArray(vectors) || !vectors.length) return null;
+    return { count: vectors.length, vectors, rows: null };
   } catch {}
   return null;
 };
@@ -81,7 +107,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
 
   const addVector = (chunkIndex, vector) => {
     if (!enabled || !isVectorLike(vector) || !vector.length) return;
-    const data = vector;
+    const data = Array.isArray(vector) ? vector : Array.from(vector);
     initHnsw(data);
     if (!index) return;
     expected += 1;
@@ -177,10 +203,10 @@ const writeHnswIndexInProcess = async ({
   config,
   logger
 }) => {
-  const resolvedVectors = Array.isArray(vectors) && vectors.length
-    ? vectors
-    : resolveVectorsFromFile(vectorsPath);
-  if (!Array.isArray(resolvedVectors) || !resolvedVectors.length) {
+  const vectorsSource = Array.isArray(vectors) && vectors.length
+    ? { count: vectors.length, vectors, rows: null }
+    : resolveVectorsSource(vectorsPath);
+  if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };
   }
   const resolvedConfig = normalizeHnswConfig(config);
@@ -188,24 +214,48 @@ const writeHnswIndexInProcess = async ({
   const builder = createHnswBuilder({
     enabled: resolvedConfig.enabled,
     config: resolvedConfig,
-    totalChunks: resolvedVectors.length,
+    totalChunks: vectorsSource.count,
     mode: 'embeddings',
     logger
   });
-  for (let i = 0; i < resolvedVectors.length; i += 1) {
-    const vec = resolvedVectors[i];
-    if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
-    const floatVec = dequantizeUint8ToFloat32(
-      vec,
-      quantization?.minVal,
-      quantization?.maxVal,
-      quantization?.levels
-    );
-    if (!floatVec) continue;
-    if (normalize !== false) {
-      normalizeEmbeddingVectorInPlace(floatVec);
+  if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
+    let i = 0;
+    for await (const entry of vectorsSource.rows) {
+      const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
+        ? (entry.vector ?? entry.values ?? null)
+        : entry;
+      if (vec && typeof vec.length === 'number' && vec.length) {
+        const floatVec = dequantizeUint8ToFloat32(
+          vec,
+          quantization?.minVal,
+          quantization?.maxVal,
+          quantization?.levels
+        );
+        if (floatVec) {
+          if (normalize !== false) {
+            normalizeEmbeddingVectorInPlace(floatVec);
+          }
+          builder.addVector(i, floatVec);
+        }
+      }
+      i += 1;
     }
-    builder.addVector(i, floatVec);
+  } else {
+    for (let i = 0; i < vectorsSource.vectors.length; i += 1) {
+      const vec = vectorsSource.vectors[i];
+      if (!vec || typeof vec.length !== 'number' || !vec.length) continue;
+      const floatVec = dequantizeUint8ToFloat32(
+        vec,
+        quantization?.minVal,
+        quantization?.maxVal,
+        quantization?.levels
+      );
+      if (!floatVec) continue;
+      if (normalize !== false) {
+        normalizeEmbeddingVectorInPlace(floatVec);
+      }
+      builder.addVector(i, floatVec);
+    }
   }
   return builder.writeIndex({
     indexPath,

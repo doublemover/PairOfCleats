@@ -139,7 +139,7 @@ Format:
 - Impact: Lower peak RSS and earlier failure detection.
 - Risk: Must preserve deterministic insertion order.
 
-22. Area: Full JSON vector loads in isolate paths
+22. [x] Area: Full JSON vector loads in isolate paths
 - Files: `tools/build/embeddings/hnsw.js`, `tools/build/embeddings/lancedb.js`
 - Opportunity: Stream vectors instead of loading full JSON artifacts.
 - Impact: Avoid OOM and reduce GC pressure.
@@ -157,7 +157,7 @@ Format:
 - Impact: Lower log overhead in large ingestion runs.
 - Risk: Slightly less granular diagnostics.
 
-25. Area: SQLite artifact ingestion memory spikes
+25. [x] Area: SQLite artifact ingestion memory spikes
 - Files: `src/storage/sqlite/build/from-artifacts.js`, `src/storage/sqlite/utils.js`
 - Opportunity: Stream token postings and dense vectors by default.
 - Impact: Lower RSS and improved stability on large indexes.
