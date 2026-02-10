@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.7
-Last updated: 2026-02-10T07:40:00Z
+Status: Draft v0.8
+Last updated: 2026-02-10T08:15:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1337,6 +1337,8 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1361,6 +1363,7 @@ Required files:
 - `tests/lang/matrix/usr-backcompat-matrix.json`
 - `tests/lang/matrix/usr-embedding-bridge-cases.json`
 - `tests/lang/matrix/usr-generated-provenance-cases.json`
+- `tests/lang/matrix/usr-parser-runtime-lock.json`
 
 Registry drift policy:
 
@@ -1368,6 +1371,7 @@ Registry drift policy:
 - registry language IDs and `usr-language-version-policy.json` entries MUST be exact-set equal
 - registry language IDs and `usr-language-embedding-policy.json` entries MUST be exact-set equal
 - framework profile IDs referenced by language profiles MUST exist in `usr-framework-profiles.json`
+- parser/runtime lock rows MUST cover all parser sources used by language/framework profiles
 - unknown keys in registry JSON MUST fail strict schema validation
 - every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`
 - schema key changes in machine-readable registries MUST be accompanied by synchronized updates in decomposed contract docs
@@ -2867,6 +2871,23 @@ Each case entry MUST include:
 - `mappingExpectation`
 - `requiredDiagnostics`
 - `blocking`
+
+## 40. Implementation readiness contract (normative)
+
+Decomposed contracts:
+
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
+
+Before implementation rollout phases may proceed, teams MUST satisfy readiness requirements across:
+
+- contract/schema validation
+- parser/runtime reproducibility
+- fixture/conformance readiness
+- operational rollback/readiness
+- ownership/escalation readiness
+
+Phase promotion blockers and required evidence artifacts are defined by the implementation-readiness contract.
 
 
 

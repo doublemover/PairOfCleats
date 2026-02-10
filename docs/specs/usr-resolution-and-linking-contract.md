@@ -1,7 +1,7 @@
 # Spec -- USR Resolution and Linking Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 

@@ -1,7 +1,7 @@
 # Spec -- USR Rollout and Migration Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -16,6 +16,7 @@ It decomposes `docs/specs/unified-syntax-representation.md` sections 26, 27, 36,
 - schema/validators and profile registries implemented
 - drift checks active in CI
 - diagnostics and reason-code taxonomy enforced
+- implementation-readiness evidence set is complete for phase promotion
 
 Gate A:
 
@@ -138,5 +139,7 @@ Required rollback artifacts:
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
 
 

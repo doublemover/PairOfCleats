@@ -1,7 +1,7 @@
 # Spec -- USR Language Risk Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.5
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -144,5 +144,6 @@ Required report outputs:
 - `docs/specs/usr-resolution-and-linking-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
 
 
