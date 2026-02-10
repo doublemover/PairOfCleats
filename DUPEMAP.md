@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:01:05.9621588-05:00
+Last updated: 2026-02-09T21:01:27.7761186-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -69,7 +69,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
-| F0 | [@] | Findings phase mapping + ownership (no new audit tooling) |
+| F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [ ] | Build/runtime lifecycle correctness remediation |
 | F2 | [ ] | Language/chunking/import correctness remediation |
 | F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
@@ -347,15 +347,25 @@ F0.2 closure evidence standard:
 - Burn-down order is severity-first inside each phase: `critical` then `high` then remaining severities, unless dependency constraints are explicitly documented.
 
 Subphase F0.3 — Execution discipline:
-- [ ] Require phase updates to include resolved/remaining findings summary.
-- [ ] Block phase closeout when high/critical mapped findings for that phase are unresolved unless explicitly accepted with expiry.
+- [x] Require phase updates to include resolved/remaining findings summary.
+- [x] Block phase closeout when high/critical mapped findings for that phase are unresolved unless explicitly accepted with expiry.
+
+F0.3 required phase findings update block:
+- `resolved`: finding IDs closed in the phase (with commit refs and tests).
+- `remaining`: finding IDs still open in phase scope.
+- `severity snapshot`: count by severity (`critical/high/medium/low`) at phase start and phase end.
+- `exceptions`: accepted deferrals with owner, reason, risk, and explicit expiry phase.
+
+F0.3 closeout gate:
+- A phase cannot be marked complete while any mapped `critical` or `high` finding remains unresolved unless an exception entry is recorded with expiry and owner.
+- Exception records must be explicit, time-bound, and reviewed in the next dependent phase before additional scope expansion.
 
 Tests:
-- [ ] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F9
+- [x] no new tooling tests required in F0; enforce through phase-level remediation tests in F1-F9
 
 Exit criteria:
-- [ ] Every finding family from `All_Findings.md` is mapped to at least one execution phase.
-- [ ] No standalone scanner/audit tooling work remains in F0.
+- [x] Every finding family from `All_Findings.md` is mapped to at least one execution phase.
+- [x] No standalone scanner/audit tooling work remains in F0.
 
 ### Phase F1 — Build/runtime lifecycle correctness
 
@@ -1379,6 +1389,7 @@ For each phase D0–D8 and F0–F9:
 - [ ] Run phase-targeted tests individually first.
 - [ ] Run affected lane subset (`ci-lite` minimum).
 - [ ] Run phase-specific sweep checks listed in the phase and record results in phase notes.
+- [ ] Record findings status block (`resolved`, `remaining`, `severity snapshot`, `exceptions`) in phase notes.
 - [ ] Complete phase documentation task from the documentation update matrix (`Phase.DOC`) and check it off.
 - [ ] Capture perf baseline and post-change delta for mapped hot paths; record against `perf-budgets.json`.
 - [ ] Update migration mapping tables and phase notes.
