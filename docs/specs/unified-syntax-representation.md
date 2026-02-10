@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.8
-Last updated: 2026-02-10T08:15:00Z
+Status: Draft v0.9
+Last updated: 2026-02-10T08:35:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1274,6 +1274,10 @@ Required behavior:
 - fail closed or degrade with explicit diagnostics when runtime identity is unknown
 - prevent silent runtime auto-upgrades from changing deterministic behavior in CI lanes
 
+Normative decomposition:
+
+- `docs/specs/usr-security-and-data-governance-contract.md`
+
 ## 19. Versioning and Compatibility
 
 ### 19.1 USR schema version
@@ -1339,6 +1343,8 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-generated-provenance-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
 - `docs/specs/usr-implementation-readiness-contract.md`
+- `docs/specs/usr-observability-and-slo-contract.md`
+- `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1364,6 +1370,10 @@ Required files:
 - `tests/lang/matrix/usr-embedding-bridge-cases.json`
 - `tests/lang/matrix/usr-generated-provenance-cases.json`
 - `tests/lang/matrix/usr-parser-runtime-lock.json`
+- `tests/lang/matrix/usr-slo-budgets.json`
+- `tests/lang/matrix/usr-alert-policies.json`
+- `tests/lang/matrix/usr-redaction-rules.json`
+- `tests/lang/matrix/usr-security-gates.json`
 
 Registry drift policy:
 
@@ -2888,6 +2898,30 @@ Before implementation rollout phases may proceed, teams MUST satisfy readiness r
 - ownership/escalation readiness
 
 Phase promotion blockers and required evidence artifacts are defined by the implementation-readiness contract.
+
+## 41. Observability and SLO contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-observability-and-slo-contract.md`
+
+Required behavior:
+
+- blocking and non-blocking SLO budgets MUST be defined by lane/profile scope.
+- budget and alert policy evaluations MUST be emitted for every required lane run.
+- repeated warning-level budget breaches MUST escalate by policy.
+
+## 42. Security and data governance contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-security-and-data-governance-contract.md`
+
+Required behavior:
+
+- redaction and security gate policies MUST be machine-readable and validated in CI.
+- strict security gate failures MUST fail closed and block promotion.
+- security audit artifacts MUST be generated and linked from release readiness evidence.
 
 
 
