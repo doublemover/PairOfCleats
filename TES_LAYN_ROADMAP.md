@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T07:40:00Z
+Last rewritten: 2026-02-10T08:15:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v0.7 (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v0.8 (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.7).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.8).
 
 Primary shifts in this rewrite:
 
@@ -42,6 +42,8 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-embedding-bridge-contract.md`
 - `docs/specs/usr-generated-provenance-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -107,6 +109,8 @@ If contradictions are found:
 - [ ] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
 - [ ] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
 - [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
+- [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
+- [ ] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
@@ -115,7 +119,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.7 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.8 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -141,6 +145,7 @@ If contradictions are found:
 - [ ] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
 - [ ] Add decomposition traceability matrix mapping each `docs/specs/usr*.md` contract to roadmap phases and CI gates.
 - [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
+- [ ] Define ownership matrix artifact (`usr-ownership-matrix.json`) and escalation artifact (`usr-escalation-policy.json`) requirements.
 - [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
 - [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
 
@@ -175,12 +180,15 @@ If contradictions are found:
 - [ ] Create `tests/lang/matrix/usr-language-risk-profiles.json`.
 - [ ] Create `tests/lang/matrix/usr-embedding-bridge-cases.json`.
 - [ ] Create `tests/lang/matrix/usr-generated-provenance-cases.json`.
+- [ ] Create `tests/lang/matrix/usr-parser-runtime-lock.json`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
 
 - [ ] Add `src/contracts/schemas/usr.js`.
+- [ ] Add `src/contracts/schemas/usr-matrix.js`.
 - [ ] Add `src/contracts/validators/usr.js`.
+- [ ] Add `src/contracts/validators/usr-matrix.js`.
 - [ ] Export all required USR schema constants.
 - [ ] Enforce strict ID grammar validation.
 - [ ] Enforce strict edge endpoint constraints.
@@ -193,6 +201,7 @@ If contradictions are found:
 - [ ] Add version/embedding policy drift test: language IDs vs `usr-language-version-policy.json` and `usr-language-embedding-policy.json` exact-set equality.
 - [ ] Add framework profile referential integrity test.
 - [ ] Add unknown-key strictness test for all USR matrix files.
+- [ ] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 - [ ] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
@@ -389,6 +398,7 @@ If contradictions are found:
 
 - [ ] Define per-batch runtime/memory thresholds.
 - [ ] Add per-batch profiling and hotspot reporting.
+- [ ] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
 
 ### 8.4 Exit criteria
 
@@ -407,6 +417,7 @@ If contradictions are found:
 - [ ] Validate conformance matrix readiness by language.
 - [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
 - [ ] Validate per-language contract approval checklists are complete for target rollout set.
+- [ ] Validate implementation-readiness contract evidence set is complete for promotion target phase.
 
 ### 9.2 Go/No-Go decision
 
@@ -431,9 +442,10 @@ If contradictions are found:
 - [ ] Materialize capability state machine checks in harness.
 - [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
 - [ ] Materialize canonical example bundle validator lane for section 34 references.
-- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance contracts).
+- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness contracts).
 - [ ] Materialize section 38 embedded-language bridge validators.
 - [ ] Materialize section 39 generated/macro provenance validators.
+- [ ] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
 
 ### 10.2 Lane wiring
 
@@ -529,6 +541,7 @@ If contradictions are found:
 - [ ] Emit compatibility matrix rollups including required section 36.8 dimensions.
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
+- [ ] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 
 ### 15.3 Maintenance
 
@@ -536,6 +549,7 @@ If contradictions are found:
 - [ ] Enforce registry drift checks for language/framework profile files.
 - [ ] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
 - [ ] Enforce per-language contract freshness checks and ownership rotation policy.
+- [ ] Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.
 
 ### 15.4 Exit criteria
 
@@ -574,6 +588,7 @@ If contradictions are found:
 | 37 | decomposed contract governance | 0, 1, 15 |
 | 38 | embedded-language bridge contract | 1, 3, 5, 6, 7, 10, 13, 14 |
 | 39 | generated/macro provenance contract | 1, 3, 4, 6, 7, 10, 12, 14 |
+| 40 | implementation readiness contract | 0, 1, 9, 10, 15 |
 
 ---
 
@@ -583,12 +598,14 @@ If contradictions are found:
 
 - [ ] USR registry JSON files created and schema-validated.
 - [ ] USR schema/validator package implemented.
+- [ ] USR matrix schema/validator package implemented and enforced.
 - [ ] registry drift checks pass.
 - [ ] diagnostic/reason-code taxonomy validators implemented and passing.
 - [ ] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
 - [ ] framework edge-case and language risk matrix registries exist and validate.
 - [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
 - [ ] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
+- [ ] parser/runtime lock registry exists, validates, and covers parser sources referenced by language/framework profiles.
 - [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
@@ -612,6 +629,7 @@ If contradictions are found:
 - [ ] conformance rollout authorized.
 - [ ] backward-compat matrix strict scenarios are green in CI.
 - [ ] decomposed contract drift checks are green in CI.
+- [ ] implementation-readiness evidence validators are green for promotion target phase.
 
 ---
 
@@ -1164,6 +1182,7 @@ If contradictions are found:
 - [ ] Keep umbrella USR spec and decomposed contract suite synchronized on every Tier 2/Tier 3 change.
 - [ ] Keep per-language contracts synchronized with language/profile matrix rows.
 - [ ] Keep framework and risk contracts synchronized with fixture and conformance lane implementations.
+- [ ] Keep registry schema and implementation-readiness contracts synchronized with CI validators and promotion policies.
 
 ---
 
@@ -1194,6 +1213,8 @@ If contradictions are found:
 | `docs/specs/usr-rollout-and-migration-contract.md` | rollout/cutover/deprecation policy | 9, 15 |
 | `docs/specs/usr-embedding-bridge-contract.md` | multi-surface segment bridging and bridge attrs | 1, 3, 5, 6, 7, 10, 13, 14 |
 | `docs/specs/usr-generated-provenance-contract.md` | generated/macro/transpile provenance semantics | 1, 3, 4, 6, 7, 10, 12, 14 |
+| `docs/specs/usr-registry-schema-contract.md` | machine-readable matrix schemas and cross-registry invariants | 1, 10, 15 |
+| `docs/specs/usr-implementation-readiness-contract.md` | promotion readiness domains, evidence, and blockers | 0, 9, 10, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---

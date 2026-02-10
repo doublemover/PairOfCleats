@@ -1,7 +1,7 @@
 # Spec -- USR Generated and Macro Provenance Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.2
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -106,3 +106,4 @@ For languages requiring C2/C3/C4 provenance-aware behavior, provenance conforman
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`

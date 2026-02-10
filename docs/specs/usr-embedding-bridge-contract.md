@@ -1,7 +1,7 @@
 # Spec -- USR Embedding and Bridge Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T07:05:00Z
+Status: Draft v0.2
+Last updated: 2026-02-10T08:15:00Z
 
 ## 0. Purpose and scope
 
@@ -130,3 +130,4 @@ Bridge conformance failures are blocking for framework profiles requiring C4.
 - `docs/specs/usr-framework-profile-catalog.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-registry-schema-contract.md`
