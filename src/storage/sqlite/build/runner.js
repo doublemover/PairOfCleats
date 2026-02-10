@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createTempPath } from '../../../shared/json-stream.js';
+import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
@@ -53,18 +54,6 @@ const normalizeModeArg = (value) => {
   }
   return 'all';
 };
-
-const createNoopTask = () => ({
-  tick() {},
-  set() {},
-  done() {},
-  fail() {},
-  update() {}
-});
-
-const resolveTaskFactory = (taskFactory) => (
-  typeof taskFactory === 'function' ? taskFactory : (() => createNoopTask())
-);
 
 /**
  * Build sqlite indexes without CLI parsing.

@@ -16,7 +16,7 @@ import {
   resolveQuantizationParams,
   toSqliteRowId
 } from '../../src/storage/sqlite/vector.js';
-import { updateSqliteState } from './sqlite/index-state.js';
+import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
 
 let Database;
 try {

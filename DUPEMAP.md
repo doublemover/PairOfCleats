@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T23:15:49.7166137-05:00
+Last updated: 2026-02-09T23:25:58.0431998-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -65,7 +65,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
-| D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
+| D3 | [@] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
@@ -1272,12 +1272,21 @@ Details: Preserve bundle-specific buffering/vector insertion.
 
 ### Subphase D3.2 — src/tools SQLite helper unification
 Tasks:
-- [ ] Task D3.2.a: Remove duplicate `tools/build/sqlite/output-paths.js`.
+- [x] Task D3.2.a: Remove duplicate `tools/build/sqlite/output-paths.js`.
 Details: Update tool imports to canonical source module.
-- [ ] Task D3.2.b: Consolidate index-state helper implementation.
+- [x] Task D3.2.b: Consolidate index-state helper implementation.
 Details: Keep one module and remove duplicate.
-- [ ] Task D3.2.c: Remove duplicate no-op task factories where shared utility exists.
+- [x] Task D3.2.c: Remove duplicate no-op task factories where shared utility exists.
 Details: Ensure runner and tools use one task-factory source.
+
+D3.2 status update (2026-02-09T23:25:58.0431998-05:00):
+- resolved: removed duplicate `tools/build/sqlite/output-paths.js` and migrated all callsites/tests to canonical `src/storage/sqlite/build/output-paths.js`.
+- resolved: removed duplicate `tools/build/sqlite/index-state.js`; `compact-sqlite-index` now imports canonical `src/storage/sqlite/build/index-state.js`.
+- resolved: centralized no-op task helper in `src/shared/cli/noop-task.js` and migrated sqlite runner/tool display task-factory fallback to shared helper.
+- remaining: D3.1 sqlite build core extraction, D3.3 quantization/vocab parity, D3.4 LMDB utilities.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg --line-number --glob '*.js' 'tools/build/sqlite/output-paths\\.js|tools/build/sqlite/index-state\\.js' src tools tests`; `rg --line-number --glob '*.js' 'function createNoopTask\\(|const createNoopTask\\s*=|resolveTaskFactory\\s*=\\s*\\(' src tools tests`; `rg --line-number 'output-paths\\.js|index-state\\.js|createNoopTask' src tools/build/sqlite tools/shared tests`.
 
 ### Subphase D3.3 — Quantization and vocab parity
 Tasks:
@@ -1301,7 +1310,7 @@ Details: No duplicate `new Unpackr` helpers remain outside shared module.
 - [ ] `rg "resolveQuantizationParams|levels\s*\?|scale\s*=\s*\(" src/retrieval src/storage`
 - [ ] `rg "fetchVocabRows\(" src/storage src/retrieval`
 - [ ] `rg "new Unpackr|data\.mdb|hasLmdb|isLmdb" src`
-- [ ] `rg "output-paths\.js|index-state\.js|createNoopTask" src tools/build/sqlite tools/shared`
+- [x] `rg "output-paths\.js|index-state\.js|createNoopTask" src tools/build/sqlite tools/shared`
 
 ### Tests
 - [ ] `tests/storage/sqlite/build/sqlite-build-core-contract.test.js` (new)
@@ -1535,6 +1544,4 @@ For each phase D0–D8 and F0–F9:
 
 ## Post-close follow-ups
 
-- [ ] Add clone-diff trend report artifact in CI.
 - [ ] Add ownership metadata for shared helpers.
-- [ ] Add PR checklist item for duplicate-helper prevention.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T23:15:49.7166137-05:00",
+  "updatedAt": "2026-02-09T23:25:58.0431998-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -39,7 +39,7 @@
       "clusterId": "C04",
       "title": "SQLite src/tools duplicate helpers",
       "phase": "D3",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "tools/build/sqlite/output-paths.js",
         "tools/build/sqlite/index-state.js"
@@ -347,7 +347,7 @@
     { "migrationId": "M001", "clusterId": "C01", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::mergeSortedRuns", "newPathOrSymbol": "src/shared/merge.js::mergeSortedRuns", "status": "completed" },
     { "migrationId": "M002", "clusterId": "C02", "phase": "D2", "oldPathOrSymbol": "src/index/build/artifacts/writers/symbols.js::resolveJsonlExtension", "newPathOrSymbol": "src/index/build/artifacts/writers/_common.js::resolveJsonlExtension", "status": "completed" },
     { "migrationId": "M003", "clusterId": "C03", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/from-artifacts.js::buildSqliteFromArtifacts", "newPathOrSymbol": "src/storage/sqlite/build/core.js::buildSqliteCore", "status": "planned" },
-    { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveSqliteOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveSqliteOutputPaths", "status": "planned" },
+    { "migrationId": "M004", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/output-paths.js::resolveOutputPaths", "newPathOrSymbol": "src/storage/sqlite/build/output-paths.js::resolveOutputPaths", "status": "completed" },
     { "migrationId": "M005", "clusterId": "C05", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/vector.js::resolveQuantizationParams", "newPathOrSymbol": "src/storage/sqlite/quantization.js::resolveQuantizationParams", "status": "planned" },
     { "migrationId": "M006", "clusterId": "C06", "phase": "D3", "oldPathOrSymbol": "src/retrieval/sqlite-helpers.js::fetchVocabRows", "newPathOrSymbol": "src/storage/sqlite/vocab.js::fetchVocabRows", "status": "planned" },
     { "migrationId": "M007", "clusterId": "C07", "phase": "D3", "oldPathOrSymbol": "src/retrieval/lmdb-helpers.js::hasLmdbArtifacts", "newPathOrSymbol": "src/storage/lmdb/utils.js::hasLmdbArtifacts", "status": "planned" },
@@ -451,7 +451,9 @@
     { "migrationId": "M105", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/signature.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" },
     { "migrationId": "M106", "clusterId": "C23", "phase": "D5", "oldPathOrSymbol": "src/lang/{clike,csharp,go,java,kotlin,perl,php,rust,shell}.js::readSignatureLines", "newPathOrSymbol": "src/lang/shared/signature-lines.js::readSignatureLines", "status": "completed" },
     { "migrationId": "M107", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/typescript/relations.js::resolveCalleeParts", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::resolveCalleeParts", "status": "completed" },
-    { "migrationId": "M108", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/{javascript,typescript}/relations.js::normalize/truncate call text", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::{normalizeCallText,truncateCallText}", "status": "completed" }
+    { "migrationId": "M108", "clusterId": "C24", "phase": "D5", "oldPathOrSymbol": "src/lang/{javascript,typescript}/relations.js::normalize/truncate call text", "newPathOrSymbol": "src/lang/js-ts/relations-shared.js::{normalizeCallText,truncateCallText}", "status": "completed" },
+    { "migrationId": "M109", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "tools/build/sqlite/index-state.js::updateSqliteState", "newPathOrSymbol": "src/storage/sqlite/build/index-state.js::updateSqliteState", "status": "completed" },
+    { "migrationId": "M110", "clusterId": "C04", "phase": "D3", "oldPathOrSymbol": "src/storage/sqlite/build/runner.js::createNoopTask/resolveTaskFactory local implementations", "newPathOrSymbol": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -600,6 +602,20 @@
       "scope": "src/lang/javascript/**,src/lang/typescript/**",
       "pattern": "local resolveCalleeParts/resolveCallLocation/call-text normalization helper bodies",
       "replacement": "src/lang/js-ts/relations-shared.js"
+    },
+    {
+      "banId": "B031",
+      "phase": "D3",
+      "scope": "tools/build/sqlite/**",
+      "pattern": "tool-local sqlite output-path/index-state helper modules",
+      "replacement": "src/storage/sqlite/build/{output-paths.js,index-state.js}"
+    },
+    {
+      "banId": "B032",
+      "phase": "D3",
+      "scope": "src/storage/sqlite/build/**,tools/shared/**",
+      "pattern": "local createNoopTask/resolveTaskFactory helper bodies",
+      "replacement": "src/shared/cli/noop-task.js::{createNoopTask,resolveTaskFactory}"
     }
   ],
   "exceptions": [],
