@@ -397,8 +397,8 @@ Subphase F1.3 — Watch/scheduler/runtime hot-path issues:
 - [ ] Fix delta-disable behavior in `src/index/build/artifacts/repo-map.js:60`.
 
 Tests:
-- [ ] `tests/indexing/build/stage-progression-contract.test.js` (from D8)
-- [ ] `tests/indexing/build/promotion-timing-contract.test.js` (from D8)
+- [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
+- [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
 - [ ] `tests/indexing/watch/watch-stability-checks.test.js` (new)
 - [ ] `tests/indexing/tree-sitter/scheduler-miss-cache-bounded.test.js` (new)
 - [ ] `tests/indexing/vfs/vfs-manifest-collector-isolation.test.js` (new)
@@ -557,7 +557,7 @@ Tests:
 - [ ] `tests/tooling/logging/output-byte-accounting.test.js` (new)
 - [ ] `tests/tooling/service/subprocess-buffer-bounds.test.js` (new)
 - [ ] `tests/tooling/api-mcp/search-request-parity.test.js` (from D4)
-- [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (from D8)
+- [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 
 Exit criteria:
 - [ ] Tooling and service failure modes are bounded, recoverable, and test-covered.
@@ -1565,7 +1565,7 @@ D8.1 status update (2026-02-10T00:47:01.2399605-05:00):
 - resolved: implemented shared Ajv factory module `src/shared/validation/ajv-factory.js` with dialect selection, schema cloning helper, and guarded compile helper.
 - resolved: migrated validator callsites in `src/config/validate.js`, `tools/api/validation.js`, `src/contracts/validators/{build-state,artifacts,analysis}.js`, and `src/index/build/failure-taxonomy.js` to use shared factory helpers while preserving caller option sets and error formatting behavior.
 - resolved: added `tests/shared/validation/ajv-factory-contract.test.js` with `applyTestEnv()` bootstrap and contract assertions for dialect selection, clone semantics, and compile guard behavior.
-- remaining: D8.2-D8.4 pending.
+- remaining: D8.2-D8.3 pending.
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this validation-dedupe subphase.
 - exceptions: none.
 - sweep results: `rg --line-number "new Ajv|ajv/dist/2020\\.js|cloneSchema|createAjv|compileSchema" src/config/validate.js tools/api/validation.js src/contracts/validators src/index/build/failure-taxonomy.js src/shared/validation/ajv-factory.js`.
@@ -1583,7 +1583,7 @@ D8.2 status update (2026-02-10T00:51:56.5012142-05:00):
 - resolved: migrated `tools/download/dicts.js` and `tools/download/extensions.js` to use shared `fetchDownloadUrl` with existing caller headers/size behavior preserved and per-script policy passthrough.
 - resolved: extended shared download policy normalization in `tools/shared/download-utils.js` to include optional `timeoutMs` and `maxRedirects` inputs for download callsites.
 - resolved: added `tests/tooling/download/shared-fetch-contract.test.js` with `applyTestEnv()` and contract assertions for redirect follow, stream/buffer modes, maxBytes, missing redirect location, redirect loops, and timeout failures.
-- remaining: D8.3-D8.4 pending.
+- remaining: D8.3 pending.
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this download-dedupe subphase.
 - exceptions: none.
 - sweep results: `rg --line-number "function requestUrl\\(|fetchDownloadUrl|shared-fetch" tools/download`.
@@ -1614,25 +1614,13 @@ D8.3 status update (2026-02-10T00:57:03.8919931-05:00):
   - `node tests/ci/npm-script-targets.test.js` (pass)
 - resolved: hardened CI lane coverage for touched D8 domains by adding `shared/validation/ajv-factory-contract` and `tooling/download/shared-fetch-contract` to `tests/ci-lite/ci-lite.order.txt` and `tests/ci-long/ci-long.order.txt`, and replacing stale D7 flow-cap IDs with `indexing/risk/interprocedural/flows-cap-matrix`.
 - resolved: verified lane manifests: `node tests/run.js --lane ci-lite --list --json` and `node tests/run.js --lane ci-long --list --json` both pass.
-- remaining: D8.4 pending.
+- remaining: none (D8 subphases complete).
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this migration-lock/docs subphase.
 - exceptions: none.
-
-### Subphase D8.4 — Class-level remediation closeout
-Tasks:
-- [ ] Task D8.4.a: Add cross-surface parity suites for stage progression/promotion timing contracts.
-Details: Cover stage start/completion/error/promotion ordering and fail-closed behavior.
-- [ ] Task D8.4.b: Enforce lifecycle drain/close tests for long-lived services/watchers/tooling providers.
-Details: Assert no pending workers/timers/promises after shutdown hooks complete.
-- [ ] Task D8.4.c: Produce class-remediation completion matrix in docs/tooling outputs.
-Details: Map each remediation item to implemented helpers, migrated callsites, and test evidence.
 
 ### Tests
 - [x] `tests/shared/validation/ajv-factory-contract.test.js` (new)
 - [x] `tests/tooling/download/shared-fetch-contract.test.js` (new)
-- [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
-- [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
-- [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 - [x] tooling docs tests updated and passing
 
 ---
