@@ -58,6 +58,7 @@ retrieval/backend/retrieval-auto-sqlite-thresholds
 retrieval/ranking/graph-ranking-membership-invariant
 retrieval/ranking/graph-ranking-toggle
 shared/subprocess/spawn-error-propagates
+shared/subprocess/shell-metachar-quoting
 smoke/tantivy-smoke
 indexing/embeddings/embedding-batch-throughput
 indexing/identity/identity-symbolkey-scopedid
