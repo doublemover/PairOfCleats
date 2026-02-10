@@ -29,6 +29,7 @@ import {
   finalizeGraphRelations,
   normalizeGraphRelationsCsr
 } from './graph.js';
+import { createPackedChecksumValidator } from './checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
 import { decodeVarint64List } from './varint.js';
@@ -1441,7 +1442,12 @@ export const loadMinhashSignatures = async (
     if (!dims || !count) {
       throw new Error('Invalid packed minhash meta');
     }
+    const checksumValidator = createPackedChecksumValidator(meta, {
+      label: 'Packed minhash signatures'
+    });
     const buffer = fs.readFileSync(packedPath);
+    checksumValidator?.update(buffer);
+    checksumValidator?.verify();
     const total = dims * count;
     const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
     if (view.length < total) {
@@ -1486,6 +1492,9 @@ export const loadMinhashSignatureRows = async function* (
     if (!dims || !count) {
       throw new Error('Invalid packed minhash meta');
     }
+    const checksumValidator = createPackedChecksumValidator(meta, {
+      label: 'Packed minhash signatures'
+    });
     const bytesPerSig = dims * 4;
     const totalBytes = bytesPerSig * count;
     const stat = await fsPromises.stat(packedPath);
@@ -1505,6 +1514,7 @@ export const loadMinhashSignatureRows = async function* (
         if (bytesRead < bytesToRead) {
           throw new Error('Packed minhash signatures truncated');
         }
+        checksumValidator?.update(buffer, 0, bytesRead);
         const view = new Uint32Array(buffer.buffer, buffer.byteOffset, bytesRead / 4);
         for (let i = 0; i < batchCount; i += 1) {
           const start = i * dims;
@@ -1516,6 +1526,7 @@ export const loadMinhashSignatureRows = async function* (
         }
         docId += batchCount;
       }
+      checksumValidator?.verify();
     } finally {
       await handle.close();
     }

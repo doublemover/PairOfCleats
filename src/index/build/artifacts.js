@@ -49,6 +49,7 @@ import { recordOrderingHash, updateBuildState } from './build-state.js';
 import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
+import { computePackedChecksum } from '../../shared/artifact-io/checksum.js';
 
 /**
  * Write index artifacts and metrics.
@@ -1029,6 +1030,7 @@ export async function writeIndexArtifacts(input) {
     chunks: minhashStream ? state.chunks : null
   });
   if (packedMinhash) {
+    const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
     const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
     enqueueWrite(
@@ -1040,7 +1042,8 @@ export async function writeIndexArtifacts(input) {
             format: 'u32',
             endian: 'le',
             dims: packedMinhash.dims,
-            count: packedMinhash.count
+            count: packedMinhash.count,
+            checksum: packedChecksum.hash
           },
           atomic: true
         });

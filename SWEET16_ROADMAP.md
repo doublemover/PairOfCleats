@@ -1587,9 +1587,9 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Route Stage1 token-id collision handling through shared invariant helpers.
 - [x] Route merge comparator validation through shared invariant helpers.
 - [x] Route determinism validation through shared invariant helpers.
-- [ ] Add reusable packed-artifact checksum helpers in artifact IO.
-- [ ] Route minhash packed checksum write path through reusable checksum helpers.
-- [ ] Route minhash packed checksum load path through reusable checksum helpers.
+- [x] Add reusable packed-artifact checksum helpers in artifact IO.
+- [x] Route minhash packed checksum write path through reusable checksum helpers.
+- [x] Route minhash packed checksum load path through reusable checksum helpers.
 - [ ] Add malformed artifact corpus fixtures for loader hardening.
 - [ ] Add corrupt artifact corpus fixtures for loader hardening.
 - [ ] Add partial artifact corpus fixtures for loader hardening.
@@ -1661,7 +1661,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [ ] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
 - [ ] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
 - [ ] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
-- [ ] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
+- [x] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
 - [ ] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)
 - [ ] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
 - [ ] `tests/retrieval/graph/context-pack-seed-indexing.test.js` (perf lane) (new)
