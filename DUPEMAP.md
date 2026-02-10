@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T20:54:16-05:00
+Last updated: 2026-02-09T21:00:03.2679797-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -792,12 +792,18 @@ Details: Exception entry requires reason + expiry phase; no permanent exceptions
 
 ### Subphase D0.2 — Fix-first execution sequencing
 Tasks:
-- [ ] Task D0.2.a: Convert D0 plan from tooling-build to direct-fix execution.
+- [x] Task D0.2.a: Convert D0 plan from tooling-build to direct-fix execution.
 Details: No additional scanner or audit tools are added in D0.
-- [ ] Task D0.2.b: Keep remediation slices small and touchpoint-coupled.
+- [x] Task D0.2.b: Keep remediation slices small and touchpoint-coupled.
 Details: Prioritize high-severity and cross-cutting fixes first.
-- [ ] Task D0.2.c: Confirm each upcoming phase has concrete code/test/doc tasks before implementation.
+- [x] Task D0.2.c: Confirm each upcoming phase has concrete code/test/doc tasks before implementation.
 Details: Avoid generic “infra-first” work that does not fix findings directly.
+
+Execution directives (D0.2 lock-in):
+- No new scanner/audit script deliverables are allowed in D0, F0, or as prerequisites for D1+ phase starts.
+- Every phase kickoff must name concrete code touchpoints, concrete tests, and concrete docs/contracts updates in the phase body.
+- Subphase commits must remain small and touchpoint-coupled: one module family + linked tests + linked docs/contracts updates.
+- Within each phase, execute highest-severity and highest-fanout findings first unless an explicit dependency blocks them.
 
 ### Subphase D0.3 — Existing-lane enforcement only
 Tasks:
