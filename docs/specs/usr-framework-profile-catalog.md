@@ -1,13 +1,13 @@
 # Spec -- USR Framework Profile Catalog
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
 This document defines framework profile contracts for USR overlays.
 
-It is a decomposition of `docs/specs/unified-syntax-representation.md` sections 10 and 35.
+It is a decomposition of `docs/specs/unified-syntax-representation.md` sections 10, 35, and 38.
 
 Covered framework profiles:
 
@@ -273,5 +273,6 @@ Required report outputs:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
 
 

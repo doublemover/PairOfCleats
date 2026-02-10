@@ -1,7 +1,7 @@
 # USR Language Contract -- clike
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 Language ID: clike
 
 ## 0. Scope
@@ -12,7 +12,8 @@ This document defines the clike-specific USR contract as a child profile of:
 - docs/specs/usr-normalization-mapping-contract.md
 - docs/specs/usr-resolution-and-linking-contract.md
 - docs/specs/usr-language-risk-contract.md
-- docs/specs/usr-conformance-and-fixture-contract.md
+- docs/specs/usr-embedding-bridge-contract.md
+- docs/specs/usr-generated-provenance-contract.md
 
 ## 1. Profile baseline
 

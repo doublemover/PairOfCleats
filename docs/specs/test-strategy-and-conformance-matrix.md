@@ -13,6 +13,8 @@ USR decomposition linkage:
 - `docs/specs/usr-conformance-and-fixture-contract.md` is authoritative for C0-C4 fixture and conformance semantics.
 - `docs/specs/usr-rollout-and-migration-contract.md` is authoritative for compatibility rollout and cutover gates.
 - `docs/specs/unified-syntax-representation.md` sections 38 and 39 are authoritative for embedded-language bridge and generated-provenance coverage.
+- `docs/specs/usr-embedding-bridge-contract.md` is authoritative for bridge evidence and multi-surface segment invariants.
+- `docs/specs/usr-generated-provenance-contract.md` is authoritative for provenance attrs and mapping quality semantics.
 
 Bench harness note:
 - Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.

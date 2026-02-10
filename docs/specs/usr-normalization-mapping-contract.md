@@ -1,13 +1,13 @@
 # Spec -- USR Normalization Mapping Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-10T06:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-10T07:05:00Z
 
 ## 0. Purpose and scope
 
 This document defines deterministic mapping of raw parser/compiler syntax kinds into USR normalized node kinds.
 
-It decomposes `docs/specs/unified-syntax-representation.md` sections 8.2, 11.4, and determinism requirements in section 13.
+It decomposes `docs/specs/unified-syntax-representation.md` sections 8.2, 11.4, 13, and provenance-related requirements in section 39.
 
 ## 1. Canonical mapping schema
 
@@ -147,5 +147,6 @@ Strict validators MUST enforce:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-framework-profile-catalog.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 
 

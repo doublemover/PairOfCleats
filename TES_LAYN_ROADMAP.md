@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T06:20:00Z
+Last rewritten: 2026-02-10T07:05:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v0.5 (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v0.6 (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.5).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.6).
 
 Primary shifts in this rewrite:
 
@@ -40,6 +40,8 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-language-risk-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-embedding-bridge-contract.md`
+- `docs/specs/usr-generated-provenance-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -113,7 +115,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.5 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.6 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -273,6 +275,7 @@ If contradictions are found:
 - [ ] Complete language-specific task packs in Appendix C for each language in batch.
 - [ ] Complete per-language fixture inventories and edge-case fixtures.
 - [ ] Complete per-language C0/C1 conformance evidence.
+- [ ] Complete per-language embedding/provenance policy declarations and artifact mappings.
 - [ ] Record known degradations with diagnostic code mapping.
 
 ### 4.3 Exit criteria
@@ -328,10 +331,17 @@ If contradictions are found:
 - [ ] Align query/filter behavior with framework and language profile semantics.
 - [ ] Validate deterministic ranking and tie-break behavior.
 
-### 6.4 Exit criteria
+### 6.4 Embedded/provenance semantics
+
+- [ ] Implement embedded bridge evidence attrs and deterministic bridge confidence behavior.
+- [ ] Implement generated/macro provenance attrs and mapping quality downgrade semantics.
+- [ ] Validate provenance diagnostics for exact/approximate/missing mapping classes.
+
+### 6.5 Exit criteria
 
 - [ ] C2/C3 requirements pass for required profiles.
 - [ ] Capability transition diagnostics are correct and complete.
+- [ ] Embedded/provenance semantics are validated for required language/framework profiles.
 
 ---
 
@@ -418,7 +428,7 @@ If contradictions are found:
 - [ ] Materialize capability state machine checks in harness.
 - [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
 - [ ] Materialize canonical example bundle validator lane for section 34 references.
-- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout contracts).
+- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance contracts).
 - [ ] Materialize section 38 embedded-language bridge validators.
 - [ ] Materialize section 39 generated/macro provenance validators.
 
@@ -559,8 +569,8 @@ If contradictions are found:
 | 35 | per-framework edge canonicalization examples | 5, 7, 13 |
 | 36 | backward-compatibility matrix | 1, 9, 10, 15 |
 | 37 | decomposed contract governance | 0, 1, 15 |
-| 38 | embedded-language bridge contract | 1, 3, 5, 7, 10, 13, 14 |
-| 39 | generated/macro provenance contract | 1, 3, 4, 7, 10, 12, 14 |
+| 38 | embedded-language bridge contract | 1, 3, 5, 6, 7, 10, 13, 14 |
+| 39 | generated/macro provenance contract | 1, 3, 4, 6, 7, 10, 12, 14 |
 
 ---
 
@@ -1178,6 +1188,8 @@ If contradictions are found:
 | `docs/specs/usr-language-risk-contract.md` | language/framework risk taxonomy and gating | 1, 6, 10, 12, 14 |
 | `docs/specs/usr-conformance-and-fixture-contract.md` | C0-C4 assertions and fixture policy | 7, 8, 10, 11, 12, 13, 14 |
 | `docs/specs/usr-rollout-and-migration-contract.md` | rollout/cutover/deprecation policy | 9, 15 |
+| `docs/specs/usr-embedding-bridge-contract.md` | multi-surface segment bridging and bridge attrs | 1, 3, 5, 6, 7, 10, 13, 14 |
+| `docs/specs/usr-generated-provenance-contract.md` | generated/macro/transpile provenance semantics | 1, 3, 4, 6, 7, 10, 12, 14 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---
