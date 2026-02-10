@@ -345,124 +345,130 @@ Format:
 
 ## Sweep 3: Expert/tricky opportunities (high complexity, high payoff)
 
+Implementation policy for Sweep 3:
+- Every change ships behind an explicit flag, with legacy path fallback.
+- Every binary/storage contract change is dual-read before dual-write, then default-flip.
+- Every step must include deterministic parity tests and benchmark deltas.
+
 1. Area: Binary columnar core artifacts
 - Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/postings.js`, `src/shared/artifact-io/loaders.js`, `src/storage/sqlite/build/from-artifacts.js`
-- Opportunity: Introduce binary columnar artifact formats (string tables + varints) for chunk/postings and direct SQLite ingestion.
-- Impact: Large reductions in parse CPU, IO, and RSS.
-- Risk: Significant schema/versioning and dual-reader migration work.
+- Decision: Add `binary-columnar` artifact mode for `chunk_meta` and postings with varint lengths, offsets, and string tables; keep packed postings as baseline.
+- Rollout: `artifacts.binaryColumnar=true`; dual-write with ordering hash/checksum parity; reader preference flipped only after parity soak.
+- Target: 2x+ load speedup and 40%+ lower load RSS.
 
 2. Area: Streaming chunk lifecycle
 - Files: `src/index/build/indexer/steps/process-files.js`, `src/index/build/state.js`, `src/index/build/postings.js`
-- Opportunity: Emit chunk artifacts incrementally instead of retaining full chunk payload graph in memory.
-- Impact: Lower peak memory and better scalability.
-- Risk: Requires reworking stage dependencies and deterministic ordering guarantees.
+- Decision: Stream `chunk_meta` writes during processing and retain only minimal per-chunk stats needed by postings and quality signals.
+- Rollout: `indexer.streamingChunks=true`; compare counts/hashes against legacy path before default enablement.
+- Target: 40-70% lower peak heap on large builds.
 
 3. Area: File-level token stream reuse
 - Files: `src/index/build/file-processor/process-chunks/index.js`, `src/index/build/tokenization.js`
-- Opportunity: Tokenize once per file with range-based chunk views.
-- Impact: Major CPU/allocation win for highly chunked files.
-- Risk: Must preserve token semantics and postings parity.
+- Decision: Build one per-file token stream plus offsets, then map chunk ranges into it when token text is semantically identical to per-chunk tokenization.
+- Rollout: `tokenization.fileStream=true` gated by safe mode checks; fallback to per-chunk path.
+- Target: 30%+ tokenization CPU reduction on high-chunk files.
 
 4. Area: Typed-array postings hash structures
 - Files: `src/shared/token-id.js`, `src/index/build/state.js`, `src/index/build/postings.js`
-- Opportunity: Replace string-keyed postings maps with numeric typed-array/open-addressed structures.
-- Impact: Better memory density and update throughput.
-- Risk: Encoding/version migration complexity.
+- Decision: Move postings internals to typed-array/open-addressed structures keyed by token ids; preserve external artifact compatibility until contract flip.
+- Rollout: `postings.typed=true`; dual-build parity with current postings writer.
+- Target: 40%+ postings memory reduction.
 
 5. Area: Persistent tree-sitter chunk cache
 - Files: `src/lang/tree-sitter/chunking.js`, `src/lang/tree-sitter/state.js`
-- Opportunity: Cache parse/chunk results by file hash + grammar/options signature.
-- Impact: Strong incremental build speedups.
-- Risk: Invalidation bugs can corrupt chunk identity determinism.
+- Decision: Persist chunk outputs keyed by `{contentHash, grammarKey, optionsSignature}` with strict invalidation and determinism checks.
+- Rollout: `treeSitter.cachePersistent=true`; reuse only when signature + hash match.
+- Target: 2-5x faster incremental tree-sitter stage for unchanged files.
 
 6. Area: Phrase n-gram rolling hashes
 - Files: `src/index/build/state.js`, `src/index/build/postings.js`
-- Opportunity: Replace phrase-string concatenation with rolling token-id hash windows.
-- Impact: Lower memory and less string churn.
-- Risk: Collision handling and compatibility strategy required.
+- Decision: Replace phrase string concatenation with rolling token-id hash windows, with collision fallback checks.
+- Rollout: `postings.phraseHash=true`; dual-write phrase strings + hashes until collision telemetry stays clean.
+- Target: 20%+ phrase build CPU reduction and lower phrase memory.
 
 7. Area: Ordered appender bucketed-watermark scheduler
 - Files: `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/indexer/steps/process-files.js`
-- Opportunity: Bucketed deterministic merge to reduce stalls when far-ahead work arrives.
-- Impact: Better concurrency utilization.
-- Risk: Any order drift impacts deterministic IDs/hashes.
+- Decision: Add deterministic bucketed watermark flush policy to reduce long-tail stalls while preserving exact global order.
+- Rollout: `indexer.orderedBuckets=true`; enforce strict order assertions in tests.
+- Target: 50% lower pending buffer spikes and materially fewer stall warnings.
 
 8. Area: Shared-memory scheduler transport
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`
-- Opportunity: Replace disk JSONL roundtrip with shared-memory ring/pages.
-- Impact: Large latency drop for scheduler result handoff.
-- Risk: Cross-platform shm complexity and fallback needs.
+- Decision: Defer until paged scheduler store is implemented and benchmarked; keep as optional backend only.
+- Rollout: `treeSitter.scheduler.transport=shm` experimental fallback to disk.
+- Target: Pursue only if disk handoff remains dominant after items 9 and 12.
 
 9. Area: Binary scheduler row encoding
 - Files: `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`, `src/index/tooling/vfs.js`
-- Opportunity: Binary row format with compact offsets and checksums.
-- Impact: Lower parse CPU and index size.
-- Risk: Contract and tooling migration burden.
+- Decision: Implement binary row pages with stable schema/versioning and checksums.
+- Rollout: `treeSitter.scheduler.format=binary-v1`; dual-read with JSONL/page-json fallback.
+- Target: Lower scheduler lookup parse CPU and reduce artifact bytes.
 
 10. Area: Parser pool / persistent grammar workers
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/lang/tree-sitter/native-runtime.js`
-- Opportunity: Reuse warmed parser/grammar workers across grammar keys.
-- Impact: Lower startup overhead and better throughput.
-- Risk: Memory growth management and failure isolation.
+- Decision: Keep single-process parser caching as default; defer daemonized persistent worker pool until measured need.
+- Rollout: optional tuning first (`MAX_PARSER_CACHE_SIZE`, warmup list) before long-lived pool.
+- Target: lower startup churn without introducing lifecycle fragility.
 
 11. Area: Cross-process scheduler row cache
 - Files: `src/index/build/tree-sitter-scheduler/lookup.js`, `src/index/build/indexer/steps/process-files.js`
-- Opportunity: Shared cache keyed by virtualPath+signature for multi-process reuse.
-- Impact: Reduced repeated row I/O.
-- Risk: Cache coherence and eviction correctness.
+- Decision: Defer until paged store lands; evaluate shared page cache design only after in-process page cache metrics plateau.
+- Rollout: optional `treeSitter.scheduler.sharedCache=true` after correctness soak.
+- Target: only pursue if multi-process repeated lookup is a proven bottleneck.
 
 12. Area: Compressed result pages + 2-level index
 - Files: `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`
-- Opportunity: Page-based result storage with intra-page row index.
-- Impact: Better read locality and smaller index metadata.
-- Risk: Random-access complexity and corruption handling.
+- Decision: Introduce page store first (JSON rows in pages + page index), then add compression per-page.
+- Rollout: `treeSitter.scheduler.store=paged-json`; add `codec` metadata and checksum verification.
+- Target: lower random I/O and faster lookup tail latency.
 
 13. Area: Zero-copy dense vector artifacts
 - Files: `tools/build/embeddings/runner.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/storage/sqlite/utils.js`, `src/retrieval/rankers.js`
-- Opportunity: Add binary `dense_vectors_uint8.bin` artifacts with direct typed-array views.
-- Impact: Remove JSON parse/materialization overhead for vectors.
-- Risk: New artifact contract and back-compat readers.
+- Decision: Add `dense_vectors_uint8.bin` plus meta describing dims/count/quantization; use direct typed-array views.
+- Rollout: `embeddings.binaryDenseVectors=true`; dual-read with current JSON artifacts.
+- Target: materially lower vector load time and startup RSS.
 
 14. Area: Quantized sqlite-vec ingestion path
 - Files: `tools/sqlite/vector-extension.js`, `tools/build/embeddings/sqlite-dense.js`, `src/storage/sqlite/quantization.js`
-- Opportunity: Ingest uint8/float16 directly when backend supports it; avoid dequantize->float32 duplication.
-- Impact: Lower CPU/memory during stage3/stage4.
-- Risk: Backend compatibility and quality drift validation.
+- Decision: Ingest quantized data directly when backend capability advertises support; fallback to float32 path.
+- Rollout: `sqliteVec.ingestEncoding=auto`; strict capability gating.
+- Target: reduce stage3/4 CPU and memory overhead.
 
 15. Area: On-demand dense vector materialization at query time
 - Files: `src/retrieval/sqlite-helpers.js`, `src/retrieval/ann/providers/dense.js`, `src/retrieval/cli/load-indexes.js`
-- Opportunity: Load dense vectors by needed candidate IDs/topK only.
-- Impact: Lower startup memory for large indexes.
-- Risk: Higher per-query I/O unless well-batched.
+- Decision: Load vectors lazily for candidate/topK windows with bounded LRU cache.
+- Rollout: `retrieval.dense.lazyLoad=true`; keep eager mode fallback.
+- Target: lower index load RSS and startup latency for large repos.
 
-16. Area: Candidate pushdown via temp tables/CTEs
+16. [x] Area: Candidate pushdown via temp tables/CTEs
 - Files: `tools/sqlite/vector-extension.js`, `src/retrieval/cli-sqlite.js`
-- Opportunity: Replace IN-limit fallback with temp-table join pushdown for large candidate sets.
-- Impact: Better recall consistency and predictable latency.
-- Risk: Temp-table management and contention.
+- Decision: Standardize temp-table candidate pushdown as primary large-set strategy, with explicit telemetry for fallback modes.
+- Rollout: `sqliteVec.candidatePushdown=temp-table`.
+- Target: stable recall and predictable latency for large candidate sets.
 
 17. Area: Adaptive ANN provider orchestration
 - Files: `src/retrieval/pipeline.js`, `src/retrieval/ann/normalize-backend.js`, `src/shared/metrics.js`
-- Opportunity: Dynamic provider ordering from live latency/failure telemetry.
-- Impact: Better median/tail ANN performance.
-- Risk: Potential nondeterminism without strict policy constraints.
+- Decision: Use bounded adaptive ordering from rolling latency/failure telemetry with stable session ordering guarantees.
+- Rollout: `retrieval.ann.adaptiveProviders=true`; strict deterministic guardrails.
+- Target: improve p95 ANN latency without destabilizing result quality.
 
 18. Area: Background ANN maintenance/compaction
 - Files: `tools/build/embeddings/runner.js`, `tools/build/compact-sqlite-index.js`, `src/retrieval/lancedb.js`
-- Opportunity: Async compaction/rebuild triggers when drift/fragmentation thresholds are hit.
-- Impact: Stabilizes long-run performance.
-- Risk: Operational complexity and atomic swap requirements.
+- Decision: Add threshold-triggered background maintenance with atomic artifact swap.
+- Rollout: `embeddings.maintenance.background=true`; explicit thresholds for WAL growth, fragmentation, and drift.
+- Target: stabilize long-run ANN throughput and tail latency.
 
-19. Area: Strict load-time embedding identity gating
+19. [x] Area: Strict load-time embedding identity gating
 - Files: `src/retrieval/cli/load-indexes.js`, `src/storage/sqlite/quantization.js`, `src/index/validate.js`
-- Opportunity: Enforce quantization/identity compatibility on load to avoid mixed-vector states.
-- Impact: Prevents subtle correctness and perf regressions from stale artifacts.
-- Risk: May force rebuilds for previously tolerated states.
+- Decision: Enforce strict identity and quantization compatibility across dense/hnsw/sqlite artifacts at load time.
+- Rollout: default strict; non-strict mode warns but never mixes incompatible providers in one run.
+- Target: eliminate subtle stale-artifact correctness/perf regressions.
 
 ---
 
-## Suggested execution order (if implementing)
+## Refined Sweep 3 execution waves
 
-1. Quick wins first: Sweep-1 items 1-5, 11-17, 23-26.
-2. Medium refactors: Sweep-2 items 6-20, 23-28.
-3. Heavy redesigns behind flags: Sweep-3 items (binary formats, streaming pipeline, adaptive orchestration).
+1. Wave A (lowest risk, immediate wins): 7, 12, 13, 16, 19.
+2. Wave B (medium risk, major throughput): 2, 3, 5, 6, 14, 15, 17.
+3. Wave C (high complexity/core format): 1, 4, 9.
+4. Wave D (only if proven needed): 8, 10, 11, 18.

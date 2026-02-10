@@ -35,6 +35,39 @@ const EMPTY_INDEX = {
   repoMap: null
 };
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+const normalizeModel = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+const normalizeIdentityNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const numbersEqual = (left, right) => Math.abs(left - right) <= 1e-9;
+
+const extractEmbeddingIdentity = (meta) => {
+  if (!meta || typeof meta !== 'object') return null;
+  const identity = {};
+  const dims = normalizeIdentityNumber(meta.dims);
+  if (dims != null) identity.dims = dims;
+  const model = normalizeModel(meta.model);
+  if (model != null) identity.model = model;
+  const scale = normalizeIdentityNumber(meta.scale);
+  if (scale != null) identity.scale = scale;
+  const minVal = normalizeIdentityNumber(meta.minVal);
+  if (minVal != null) identity.minVal = minVal;
+  const maxVal = normalizeIdentityNumber(meta.maxVal);
+  if (maxVal != null) identity.maxVal = maxVal;
+  const levels = normalizeIdentityNumber(meta.levels);
+  if (levels != null) identity.levels = levels;
+  return identity;
+};
+
 export async function loadSearchIndexes({
   rootDir,
   userConfig,
@@ -291,19 +324,6 @@ export async function loadSearchIndexes({
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
-  const hnswAnnState = {
-    code: { available: Boolean(idxCode?.hnsw?.available) },
-    prose: { available: Boolean(idxProse?.hnsw?.available) },
-    records: { available: Boolean(idxRecords?.hnsw?.available) },
-    'extracted-prose': { available: Boolean(idxExtractedProse?.hnsw?.available) }
-  };
-  const hnswAnnUsed = {
-    code: false,
-    prose: false,
-    records: false,
-    'extracted-prose': false
-  };
-
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
     idxCode.indexDir = codeIndexDir;
@@ -466,6 +486,127 @@ export async function loadSearchIndexes({
     await Promise.all(Array.from({ length: Math.min(limit, attachTasks.length) }, runTask));
   }
 
+  const validateEmbeddingIdentityForMode = (mode, idx) => {
+    if (!idx) return [];
+    const sources = [];
+    const denseIdentity = extractEmbeddingIdentity(idx.denseVec);
+    if (denseIdentity) {
+      sources.push({ name: 'dense_vectors', identity: denseIdentity, disable: null });
+    }
+    const hnswIdentity = extractEmbeddingIdentity(idx.hnsw?.meta);
+    if (hnswIdentity) {
+      sources.push({
+        name: 'hnsw',
+        identity: hnswIdentity,
+        disable: () => {
+          if (!idx.hnsw || typeof idx.hnsw !== 'object') return;
+          idx.hnsw.available = false;
+          idx.hnsw.index = null;
+        }
+      });
+    }
+    const lanceIdentity = extractEmbeddingIdentity(idx.lancedb?.meta);
+    if (lanceIdentity) {
+      sources.push({
+        name: 'lancedb',
+        identity: lanceIdentity,
+        disable: () => {
+          if (!idx.lancedb || typeof idx.lancedb !== 'object') return;
+          idx.lancedb.available = false;
+        }
+      });
+    }
+    const sqliteVecIdentity = extractEmbeddingIdentity(idx.sqliteVecMeta);
+    if (sqliteVecIdentity) {
+      sources.push({ name: 'sqlite-vec-meta', identity: sqliteVecIdentity, disable: null });
+    }
+    if (sources.length <= 1) return [];
+
+    const reference = sources[0];
+    const mismatches = [];
+    const quantFields = ['scale', 'minVal', 'maxVal', 'levels'];
+    for (const source of sources.slice(1)) {
+      const beforeCount = mismatches.length;
+      const leftDims = normalizeIdentityNumber(reference.identity?.dims);
+      const rightDims = normalizeIdentityNumber(source.identity?.dims);
+      if (leftDims == null || rightDims == null || !numbersEqual(leftDims, rightDims)) {
+        mismatches.push({
+          mode,
+          source: source.name,
+          field: 'dims',
+          expected: leftDims,
+          actual: rightDims
+        });
+      }
+
+      const leftModel = normalizeModel(reference.identity?.model);
+      const rightModel = normalizeModel(source.identity?.model);
+      if (leftModel && rightModel && leftModel !== rightModel) {
+        mismatches.push({
+          mode,
+          source: source.name,
+          field: 'model',
+          expected: leftModel,
+          actual: rightModel
+        });
+      }
+
+      for (const field of quantFields) {
+        const leftHas = hasOwn(reference.identity, field);
+        const rightHas = hasOwn(source.identity, field);
+        if (leftHas !== rightHas) {
+          mismatches.push({
+            mode,
+            source: source.name,
+            field,
+            expected: leftHas ? reference.identity[field] : null,
+            actual: rightHas ? source.identity[field] : null
+          });
+          continue;
+        }
+        if (!leftHas || !rightHas) continue;
+        const leftValue = normalizeIdentityNumber(reference.identity[field]);
+        const rightValue = normalizeIdentityNumber(source.identity[field]);
+        if (leftValue == null || rightValue == null || !numbersEqual(leftValue, rightValue)) {
+          mismatches.push({
+            mode,
+            source: source.name,
+            field,
+            expected: leftValue,
+            actual: rightValue
+          });
+        }
+      }
+      if (mismatches.length > beforeCount && !strict && typeof source.disable === 'function') {
+        source.disable();
+      }
+    }
+    return mismatches;
+  };
+
+  if (needsAnnArtifacts) {
+    const identityMismatches = [];
+    if (runCode) identityMismatches.push(...validateEmbeddingIdentityForMode('code', idxCode));
+    if (runProse) identityMismatches.push(...validateEmbeddingIdentityForMode('prose', idxProse));
+    if (resolvedLoadExtractedProse) {
+      identityMismatches.push(...validateEmbeddingIdentityForMode('extracted-prose', idxExtractedProse));
+    }
+    if (runRecords) identityMismatches.push(...validateEmbeddingIdentityForMode('records', idxRecords));
+    if (identityMismatches.length) {
+      const details = identityMismatches
+        .map((entry) => (
+          `- ${entry.mode}/${entry.source}: ${entry.field} expected=${entry.expected ?? 'null'} actual=${entry.actual ?? 'null'}`
+        ))
+        .join('\n');
+      if (strict) {
+        throw new Error(`Embedding identity mismatch detected:\n${details}`);
+      }
+      if (emitOutput) {
+        console.warn(`[search] Embedding identity mismatch detected; disabling incompatible ANN backends.\n${details}`);
+      }
+    }
+  }
+
   const attachTantivy = (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;
     const availability = ensureTantivyIndex(mode, dir);
@@ -495,6 +636,19 @@ export async function loadSearchIndexes({
       throw new Error(`Tantivy index missing for mode(s): ${missingModes.join(', ')}.`);
     }
   }
+
+  const hnswAnnState = {
+    code: { available: Boolean(idxCode?.hnsw?.available) },
+    prose: { available: Boolean(idxProse?.hnsw?.available) },
+    records: { available: Boolean(idxRecords?.hnsw?.available) },
+    'extracted-prose': { available: Boolean(idxExtractedProse?.hnsw?.available) }
+  };
+  const hnswAnnUsed = {
+    code: false,
+    prose: false,
+    records: false,
+    'extracted-prose': false
+  };
 
   const lanceAnnState = {
     code: {

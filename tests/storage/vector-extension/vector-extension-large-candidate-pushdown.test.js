@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { queryVectorAnn } from '../../../tools/sqlite/vector-extension.js';
+import { getMetricsText } from '../../../src/shared/metrics.js';
 
 const sqlStatements = [];
 const inserted = [];
@@ -57,5 +58,11 @@ assert.ok(
 assert.equal(inserted.length, candidateSet.size, 'expected all candidate ids inserted into temp table');
 assert.ok(Array.isArray(queryParams) && queryParams.length === 2, 'expected encoded vector + limit params');
 assert.equal(queryParams[1], 7, 'expected exact topN limit when pushdown is active');
+const metrics = await getMetricsText();
+assert.match(
+  metrics,
+  /pairofcleats_ann_candidate_pushdown_total\{backend="sqlite-vector",strategy="temp-table",size_bucket="1025\+"\} 1/,
+  'expected temp-table pushdown metric increment'
+);
 
 console.log('vector extension large candidate pushdown test passed');

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
-import { incFallback } from '../../src/shared/metrics.js';
+import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
 import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
@@ -28,6 +28,15 @@ const PROVIDERS = {
 
 const warnOnce = createWarnOnce();
 let tempCandidateTableCounter = 0;
+
+const candidateSizeBucket = (size) => {
+  const resolved = Number(size);
+  if (!Number.isFinite(resolved) || resolved <= 0) return 'none';
+  if (resolved <= 32) return '1-32';
+  if (resolved <= 256) return '33-256';
+  if (resolved <= 1024) return '257-1024';
+  return '1025+';
+};
 
 function isSafeIdentifier(value) {
   return IDENTIFIER_RE.test(String(value || ''));
@@ -452,6 +461,14 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
     }
   }
   const canTempPushdown = Boolean(tempTable);
+  const pushdownStrategy = candidateSize <= 0
+    ? 'none'
+    : (canInlinePushdown ? 'inline' : (canTempPushdown ? 'temp-table' : 'fallback'));
+  incAnnCandidatePushdown({
+    backend: 'sqlite-vector',
+    strategy: pushdownStrategy,
+    sizeBucket: candidateSizeBucket(candidateSize)
+  });
   const queryLimit = (canInlinePushdown || canTempPushdown) ? limit : (candidateSize ? limit * 5 : limit);
   const encoded = encodeVector(normalized.embedding, config);
   if (!encoded) return [];

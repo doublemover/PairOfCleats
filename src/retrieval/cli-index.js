@@ -220,6 +220,9 @@ export async function loadIndex(dir, options) {
   const denseVecCode = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
     : null;
+  const sqliteVecMeta = embeddingsReady && includeDense
+    ? await loadOptionalObject('dense_vectors_sqlite_vec_meta', path.join(dir, 'dense_vectors_sqlite_vec.meta.json'))
+    : null;
   const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
   const hnswArtifact = hnswTarget === 'doc'
     ? 'dense_vectors_doc_hnsw'
@@ -270,6 +273,7 @@ export async function loadIndex(dir, options) {
     denseVec,
     denseVecDoc,
     denseVecCode,
+    sqliteVecMeta,
     hnsw: hnswMeta ? {
       available: hnswAvailable,
       index: hnswIndex,

@@ -30,6 +30,9 @@ const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
 const TIMEOUTS = new Set(['tool', 'search', 'index', 'unknown']);
+const ANN_BACKENDS = new Set(['sqlite-vector', 'lancedb', 'hnsw', 'js', 'unknown']);
+const PUSHDOWN_STRATEGIES = new Set(['none', 'inline', 'temp-table', 'fallback', 'unknown']);
+const CANDIDATE_SIZE_BUCKETS = new Set(['none', '1-32', '33-256', '257-1024', '1025+', 'unknown']);
 
 const normalizeStage = (value) => normalizeLabel(value, STAGES);
 const normalizeMode = (value) => normalizeLabel(value, MODES);
@@ -44,6 +47,9 @@ const normalizeCacheResult = (value) => normalizeLabel(value, CACHE_RESULTS);
 const normalizeSurface = (value) => normalizeLabel(value, SURFACES);
 const normalizeFallback = (value) => normalizeLabel(value, FALLBACKS);
 const normalizeTimeout = (value) => normalizeLabel(value, TIMEOUTS);
+const normalizeAnnBackend = (value) => normalizeLabel(value, ANN_BACKENDS);
+const normalizePushdownStrategy = (value) => normalizeLabel(value, PUSHDOWN_STRATEGIES);
+const normalizeCandidateSizeBucket = (value) => normalizeLabel(value, CANDIDATE_SIZE_BUCKETS);
 const normalizeAnn = (value) => {
   if (value === true || value === 'on') return 'on';
   if (value === false || value === 'off') return 'off';
@@ -182,6 +188,12 @@ const ensureMetrics = () => {
       name: 'pairofcleats_timeouts_total',
       help: 'Timeout events by surface.',
       labelNames: ['surface', 'operation'],
+      registers: [registry]
+    }),
+    annCandidatePushdown: new Counter({
+      name: 'pairofcleats_ann_candidate_pushdown_total',
+      help: 'ANN candidate pushdown strategy selection.',
+      labelNames: ['backend', 'strategy', 'size_bucket'],
       registers: [registry]
     })
   };
@@ -367,6 +379,19 @@ export function incTimeout({ surface, operation }) {
   metrics.timeouts.inc({
     surface: normalizeSurface(surface),
     operation: normalizeTimeout(operation)
+  });
+}
+
+/**
+ * Increment ANN candidate pushdown strategy counter.
+ * @param {{ backend: string, strategy: string, sizeBucket: string }} input
+ */
+export function incAnnCandidatePushdown({ backend, strategy, sizeBucket }) {
+  ensureMetrics();
+  metrics.annCandidatePushdown.inc({
+    backend: normalizeAnnBackend(backend),
+    strategy: normalizePushdownStrategy(strategy),
+    size_bucket: normalizeCandidateSizeBucket(sizeBucket)
   });
 }
 

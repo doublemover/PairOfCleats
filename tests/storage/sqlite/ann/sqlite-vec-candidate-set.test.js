@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
+import { getMetricsText } from '../../../../src/shared/metrics.js';
 
 const config = {
   enabled: true,
@@ -78,5 +79,16 @@ lastParams = null;
 const badHits = queryVectorAnn(db, badConfig, [0, 1], 2, smallCandidates);
 assert.equal(badHits.length, 0, 'expected invalid column to return no results');
 assert.equal(lastSql, null, 'expected invalid column to skip query execution');
+const metrics = await getMetricsText();
+assert.match(
+  metrics,
+  /pairofcleats_ann_candidate_pushdown_total\{backend="sqlite-vector",strategy="inline",size_bucket="1-32"\} 2/,
+  'expected inline pushdown metric for small candidate sets'
+);
+assert.match(
+  metrics,
+  /pairofcleats_ann_candidate_pushdown_total\{backend="sqlite-vector",strategy="fallback",size_bucket="257-1024"\} 1/,
+  'expected fallback pushdown metric for oversized candidate sets without temp table support'
+);
 
 console.log('sqlite vec candidate set test passed');
