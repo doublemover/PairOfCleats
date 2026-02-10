@@ -1,7 +1,7 @@
 # Spec -- USR Rollout and Migration Contract
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -105,8 +105,28 @@ Cutover approval requires:
 - architecture + contracts owner sign-off
 - explicit unresolved risk acceptance for non-blocking known issues
 
-## 6. References
+## 6. Rollback protocol
+
+Rollback MUST be predefined before cutover:
+
+- cutover feature flags must support one-step rollback to legacy read path
+- rollback trigger thresholds MUST be documented (for example: determinism drift, compatibility regressions, unresolved-budget breaches)
+- rollback events MUST emit incident artifacts and affected lane summary
+
+Required rollback artifacts:
+
+- `usr-rollout-rollback-event.json`
+- `usr-rollout-postmortem.md` (or equivalent linked incident record)
+
+## 7. Promotion window policy
+
+- production cutover SHOULD occur in controlled promotion windows
+- no major schema contract changes may merge during active cutover windows
+- cutover windows MUST include compatibility matrix rerun on release candidates
+
+## 8. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/migration-and-backcompat.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+

@@ -1,7 +1,7 @@
 # USR Language Contract -- kotlin
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 Language ID: kotlin
 
 ## 0. Scope
@@ -58,3 +58,36 @@ Conformance checks MUST align with C0,C1,C2,C3.
 ## 10. Open implementation notes
 
 Follow-up revisions SHOULD add exact parser-kind mapping rows, risk taxonomy row entries, and concrete fixture IDs and owning test lanes.
+
+## 11. Required profile deltas before implementation-complete
+
+The following MUST be explicitly filled for this language before declaring profile completion:
+
+- exact requiredNodeKinds set
+- exact requiredEdgeKinds set
+- exact requiredCapabilities map
+- exact fallback downgrade behavior by stage
+- exact framework applicability overrides (if any)
+
+## 12. Required fixture ID mapping
+
+This language contract MUST map concrete fixture IDs to conformance assertions.
+
+Minimum required fixture ID groups:
+
+- kotlin::positive::*
+- kotlin::fallback::*
+- kotlin::resolution::*
+- kotlin::determinism::*
+- kotlin::risk::* (when C3 applies)
+
+## 13. Approval checklist
+
+- [ ] Node kind mapping rows are defined and validated.
+- [ ] Edge extraction assertions are covered by fixtures.
+- [ ] Capability baseline and downgrade behavior are validated.
+- [ ] Resolution reason-code expectations are validated.
+- [ ] Risk expectations (if applicable) are validated.
+- [ ] Deterministic rerun checks are green.
+
+

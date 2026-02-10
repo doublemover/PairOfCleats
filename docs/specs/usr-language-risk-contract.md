@@ -1,7 +1,7 @@
 # Spec -- USR Language Risk Contract
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -99,13 +99,34 @@ Minimum gating policy:
 - if call-link confidence is below threshold, downgrade `riskInterprocedural` to `partial`
 - if no call-link artifacts exist, set `riskInterprocedural=unsupported` unless profile explicitly allows heuristic propagation
 
-## 7. Required artifacts and files
+## 7. Risk taxonomy row requirements
+
+Each taxonomy row in machine-readable risk profiles SHOULD include:
+
+- `id` (stable risk signal ID)
+- `class` (taxonomy class from section 2)
+- `kind` (`source|sink|sanitizer`)
+- `languageId`
+- `frameworkProfile` (nullable)
+- `evidenceKinds` (minimum evidence required)
+- `defaultSeverity`
+
+Signal IDs MUST be stable across minor versions.
+
+## 8. Required artifacts and files
 
 - `tests/lang/matrix/usr-language-risk-profiles.json` (recommended)
 - risk fixtures under `tests/fixtures/usr/risk/<language-id>/`
 
-## 8. References
+Recommended report outputs:
+
+- `usr-risk-coverage-summary.json`
+- `usr-risk-signal-distribution.json`
+- `usr-risk-gating-downgrades.json`
+
+## 9. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+

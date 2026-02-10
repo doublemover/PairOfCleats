@@ -1,7 +1,7 @@
 # Spec -- USR Framework Profile Catalog
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -226,14 +226,42 @@ A framework profile passes `C4` only if:
 - profile-specific edge-case families pass
 - diagnostics for degraded/incomplete cases are explicit and deterministic
 
-## 7. Required artifacts and files
+## 7. Framework detection conflict resolution policy
+
+When multiple framework candidates are detected for one document or segment:
+
+1. apply explicit config override if present
+2. apply strongest file-convention match
+3. apply compiler/runtime signature match
+4. if still tied, choose lexical framework ID winner and emit conflict diagnostics
+
+Conflict outcomes MUST emit:
+
+- `USR-E-PROFILE-CONFLICT` when constraints conflict
+- `USR-W-FRAMEWORK-PROFILE-INCOMPLETE` when fallback tie-break selection is used
+
+## 8. Required artifacts and files
 
 - `tests/lang/matrix/usr-framework-profiles.json`
 - `tests/lang/matrix/usr-framework-edge-cases.json` (recommended)
 - fixture families under `tests/fixtures/usr/frameworks/<framework-id>/`
 
-## 8. References
+Additional validation rules:
+
+- profile IDs are unique and sorted
+- `appliesToLanguages` entries are valid registry language IDs
+- required attrs maps for edge families include at least required keys from this spec
+- segmentation ordering arrays match canonical extraction phases
+
+Recommended report outputs:
+
+- `usr-framework-profile-coverage.json`
+- `usr-framework-detection-conflicts.json`
+- `usr-framework-canonicalization-gaps.json`
+
+## 9. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-language-profile-catalog.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+
