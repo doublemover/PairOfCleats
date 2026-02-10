@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T05:55:07.731Z",
+  "generatedAt": "2026-02-10T08:53:51.045Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2096,6 +2096,18 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+      "files": [
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
+      "files": [
+        "tools/service/subprocess-log.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
         "tests/runner/all.js",
@@ -2476,9 +2488,12 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
+    "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS"
+  ],
   "cliFlags": {
-    "totalFlags": 297,
+    "totalFlags": 298,
     "publicFlags": [
       "backend",
       "host",
@@ -2638,6 +2653,7 @@
       "maxEdges",
       "maxEdgesExamined",
       "maxFanoutPerNode",
+      "maxNodeBytes",
       "maxNodes",
       "maxPaths",
       "maxPerHit",
@@ -3017,6 +3033,12 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/map/build-map/temp-cleanup-on-failure.test.js",
+        "flags": [
+          "maxNodeBytes"
         ]
       },
       {
