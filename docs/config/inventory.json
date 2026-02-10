@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T12:15:26.875Z",
+  "generatedAt": "2026-02-10T12:29:56.304Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2427,11 +2427,9 @@
     {
       "name": "PAIROFCLEATS_TRACE_ARTIFACT_IO",
       "files": [
+        "src/shared/env.js",
         "tests/helpers/triage.js",
         "tests/tooling/triage/records-index-and-search.test.js",
-        "tools/build/embeddings/hnsw.js",
-        "tools/build/embeddings/lancedb.js",
-        "tools/build/embeddings/runner.js",
         "tools/config/inventory.js"
       ]
     },
