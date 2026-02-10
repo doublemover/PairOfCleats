@@ -16,7 +16,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 | --- | --- | --- |
 | 16.0 | [@] | Specs drafted; tests pending |
 | 16.1 | [x] | Scheduler core + stage wiring + embeddings integration + tests/bench complete |
-| 16.2 | [x] | Shared artifact IO pipeline complete |
+| 16.2 | [@] | Core pipeline complete; loader hardening + contract/fuzz gaps tracked in 16.16 |
 | 16.3 | [@] | Cache key schema/helpers in progress |
 | 16.4 | [ ] |  |
 | 16.5 | [ ] |  |
@@ -29,7 +29,8 @@ Completed Phases: `COMPLETED_PHASES.md`
 | 16.10 | [x] |  |
 | 16.11 | [x] |  |
 | 16.12 | [x] |  |
-| 16.15 | [x] | Bench harness + bench output contracts + usage checklist complete |
+| 16.15 | [@] | Bench harness delivered; acceptance/coverage remediations tracked in 16.16 |
+| 16.16 | [@] | SWEETREPORT remediation and acceptance closeout started |
 
 ### Source-of-truth hierarchy (when specs disagree)
 When a document/spec conflicts with the running code, follow this order:
@@ -95,6 +96,7 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 - Phase 16.13: 16.13.1 and 16.13.2 can run in parallel; 16.13.3 then 16.13.4.
 - Phase 16.14: 16.14.1, 16.14.2, and 16.14.3 can run in parallel; 16.14.4 then 16.14.5.
 - Phase 16.15: 16.15.1 can run in parallel with 16.15.2/16.15.3; ensure bench harness exists before validating outputs.
+- Phase 16.16: Execute missing work in order: contract/fuzz coverage, correctness/spec fixes, runtime hardening, then bench/acceptance closure.
 
 ## Roadmap Table of Contents
 - Phase 16.0 -- Cross-cutting Spec Foundations (Subphases: 16.0.1 Build Scheduler Spec; 16.0.2 Artifact IO Spec; 16.0.3 Cache Key Spec; 16.0.4 Build Truth Ledger Spec; 16.0.5 Spill/Merge Spec; 16.0.6 Byte Budget Spec; 16.0.7 Deterministic Ordering Spec)
@@ -113,6 +115,7 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 - Phase 16.11 -- Tree-sitter Throughput (Subphases: 16.11.1 Grammar/Parser Caching; 16.11.2 Parse Scheduling; 16.11.3 Tests + Bench)
 - Phase 16.12 -- Graph + Context Pack Throughput (Subphases: 16.12.1 Graph Store; 16.12.2 Traversal + Filtering; 16.12.3 Tests + Bench)
 - Phase 16.15 -- Usage Verification + Cross-Phase Bench Coverage (Subphases: 16.15.1 Usage Checklist; 16.15.2 Bench Harness; 16.15.3 Bench Output Contracts)
+- Phase 16.16 -- SWEETREPORT Missing Work Execution
 ---
 
 ## Phase 16.0 -- Cross-cutting Spec Foundations
@@ -215,9 +218,6 @@ Details: Specify warn vs error behavior, and when to trigger rebuilds.
 - [x] Task 16.0.4.e: Define integration with contracts and validators.
 Details: Document how ledger validation integrates with `index-validate`.
 Notes: Include examples of ledger entries for each stage.
-
-Tests:
-- [ ] `tests/indexing/build-state/build-truth-ledger-contract.test.js` (perf lane) (new)
 
 ### Subphase 16.0.5 -- Spill/Merge Framework Spec
 Parallel: Can run alongside 16.0.1–16.0.4 and 16.0.6–16.0.7; reconcile glossary/terms at end of Phase 16.0.
@@ -1561,6 +1561,112 @@ Tasks:
 
 Tests:
 - [x] `tests/perf/tooling/bench/bench-output-schema.test.js` (perf lane) (new)
+
+---
+
+## Phase 16.16 -- SWEETREPORT Missing Work Execution
+
+### Objective
+Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md`.
+
+### Execution Order (Mandatory)
+1. Build shared invariant helpers before per-feature fixes.
+2. Build reusable artifact-integrity helpers before minhash-specific checksum wiring.
+3. Build malformed/corrupt/partial artifact corpora before expanding fuzz and fallback coverage.
+4. Add measured queue/IO telemetry before backpressure and throughput tuning.
+5. Land correctness remediations for determinism, collisions, filter-index language handling, and stale-plan handling.
+6. Land throughput remediations for Stage4 streaming/materialization and context-pack seed indexing.
+7. Prefer parameterized/metamorphic tests for paired behaviors before adding narrow single-case tests.
+8. Run baseline/current benchmarks in the same controlled pass with warm/cold splits and variance guards.
+9. Mark acceptance only after green tests and benchmark deltas are recorded.
+
+### Tasks
+- [ ] Add shared invariant helpers for determinism rules.
+- [ ] Add shared invariant helpers for token-collision policy.
+- [ ] Add shared invariant helpers for comparator-contract enforcement.
+- [ ] Route Stage1 token-id collision handling through shared invariant helpers.
+- [ ] Route merge comparator validation through shared invariant helpers.
+- [ ] Route determinism validation through shared invariant helpers.
+- [ ] Add reusable packed-artifact checksum helpers in artifact IO.
+- [ ] Route minhash packed checksum write path through reusable checksum helpers.
+- [ ] Route minhash packed checksum load path through reusable checksum helpers.
+- [ ] Add malformed artifact corpus fixtures for loader hardening.
+- [ ] Add corrupt artifact corpus fixtures for loader hardening.
+- [ ] Add partial artifact corpus fixtures for loader hardening.
+- [ ] Add `tests/shared/concurrency/scheduler-contract.test.js`.
+- [ ] Add `tests/shared/concurrency/scheduler-config-parse.test.js`.
+- [ ] Add `tests/shared/artifact-io/artifact-io-spec-contract.test.js`.
+- [ ] Add `tests/shared/cache/cache-key-schema.test.js`.
+- [ ] Add `tests/shared/merge/spill-merge-contract.test.js`.
+- [ ] Add `tests/indexing/runtime/byte-budget-policy-contract.test.js`.
+- [ ] Add `tests/shared/order/deterministic-ordering-contract.test.js`.
+- [ ] Detect missing sibling artifacts for partial shards in loader paths.
+- [ ] Fail deterministically on partial shard detection.
+- [ ] Add malformed shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
+- [ ] Add corrupt shard coverage in `tests/shared/artifact-io/jsonl-fuzz.test.js`.
+- [ ] Add `tests/shared/artifact-io/loader-fallbacks.test.js`.
+- [ ] Update unified artifact-io docs for current loader behavior.
+- [ ] Implement runtime cache-root versioning in `src/shared/cache-roots.js`.
+- [ ] Align build-truth-ledger schema between runtime and docs.
+- [ ] Align build-truth-ledger hash input definition between runtime and docs.
+- [ ] Hash emitted ordering lines directly in determinism validation.
+- [ ] Align byte-budget default overflow behavior with docs.
+- [ ] Enforce comparator validation in all merge adopters.
+- [ ] Fail fast on comparator contract violations.
+- [ ] Enforce Stage1 token-id collision policy.
+- [ ] Surface token-id collision failures in validation output.
+- [ ] Handle missing `effectiveLang` in filter-index generation.
+- [ ] Handle invalid `effectiveLang` in filter-index generation.
+- [ ] Add measured postings-queue byte metrics.
+- [ ] Add postings-queue gauge telemetry.
+- [ ] Replace heuristic postings-queue byte accounting with measured byte accounting.
+- [ ] Enforce backpressure bounds from measured postings-queue bytes.
+- [ ] Stamp tree-sitter scheduler plans with per-file version signatures.
+- [ ] Reject stale tree-sitter scheduler plans when source signatures change.
+- [ ] Emit VFS fast-path telemetry for bloom/vfsidx/scan paths.
+- [ ] Implement batched VFS row-load behavior from docs.
+- [ ] Validate batched VFS row-load behavior against docs.
+- [ ] Consolidate Stage4 chunk_meta streaming + token-text skip changes into one measured pass.
+- [ ] Stream `chunk_meta` in Stage4 where supported.
+- [ ] Skip unnecessary token-text materialization in Stage4.
+- [ ] Replace linear seed-resolution scans with indexed lookup in context-pack assembly.
+- [ ] Convert paired behavior tests to parameterized coverage.
+- [ ] Convert paired behavior tests to metamorphic coverage.
+- [ ] Add per-bench JSON output schema contracts.
+- [ ] Strengthen phase-usage checklist assertions with explicit phase signals.
+- [ ] Run benchmarks with warm/cold splits in one controlled pass.
+- [ ] Enforce benchmark variance guards for recorded deltas.
+- [ ] Run baseline benchmarks for affected phases.
+- [ ] Run current benchmarks for affected phases.
+- [ ] Record benchmark deltas in roadmap notes.
+- [ ] Mark acceptance items only after all required tests are green.
+- [ ] Mark acceptance items only after required benchmark evidence is present.
+
+### Tests
+- [ ] `tests/shared/concurrency/scheduler-contract.test.js` (perf lane) (new)
+- [ ] `tests/shared/concurrency/scheduler-config-parse.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/artifact-io-spec-contract.test.js` (perf lane) (new)
+- [ ] `tests/shared/cache/cache-key-schema.test.js` (perf lane) (new)
+- [ ] `tests/shared/merge/spill-merge-contract.test.js` (perf lane) (new)
+- [ ] `tests/indexing/runtime/byte-budget-policy-contract.test.js` (perf lane) (new)
+- [ ] `tests/shared/order/deterministic-ordering-contract.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/loader-fallbacks.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/jsonl-fuzz.test.js` (perf lane) (new)
+- [ ] `tests/shared/cache/cache-root-versioning.test.js` (perf lane) (new)
+- [ ] `tests/indexing/build-state/build-truth-ledger-hash-alignment.test.js` (perf lane) (new)
+- [ ] `tests/indexing/validate/determinism-line-hash.test.js` (perf lane) (new)
+- [ ] `tests/indexing/runtime/byte-budget-default-policy.test.js` (perf lane) (new)
+- [ ] `tests/shared/merge/merge-comparator-adopters.test.js` (perf lane) (new)
+- [ ] `tests/indexing/stage1/token-id-collision-policy.test.js` (perf lane) (new)
+- [ ] `tests/retrieval/filter-index/effective-lang-fallback.test.js` (perf lane) (new)
+- [ ] `tests/indexing/stage1/postings-queue-byte-accounting.test.js` (perf lane) (new)
+- [ ] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
+- [ ] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
+- [ ] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)
+- [ ] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
+- [ ] `tests/retrieval/graph/context-pack-seed-indexing.test.js` (perf lane) (new)
+- [ ] `tests/perf/tooling/bench/per-bench-output-schema.test.js` (perf lane) (new)
+- [ ] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (update)
 
 ---
 
