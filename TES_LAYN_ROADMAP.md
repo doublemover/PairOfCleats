@@ -1,2919 +1,1057 @@
-# TES_LAYN_ROADMAP — Full‑Coverage Language Lane Overhaul (Ultra‑Expanded)
+# TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Purpose: build a **comprehensive, deterministic** test lane that validates full indexing coverage **per supported language**, including AST, control/data flow, relations/graphs, risk pack, and API boundary behavior. This is a long‑term contract: adding or changing a language should immediately surface test gaps.
+Last rewritten: 2026-02-10T00:00:00Z
+Branch: `LANGMANE`
+Document status: planning baseline (all checkboxes intentionally unchecked)
 
-Supported language IDs (from `src/index/language-registry/registry-data.js`):
-`javascript`, `typescript`, `python`, `clike`, `go`, `java`, `csharp`, `kotlin`, `ruby`, `php`, `html`, `css`, `lua`, `sql`, `perl`, `shell`, `rust`, `swift`, `cmake`, `starlark`, `nix`, `dart`, `scala`, `groovy`, `r`, `julia`, `handlebars`, `mustache`, `jinja`, `razor`, `proto`, `makefile`, `dockerfile`, `graphql`.
+## 0) Scope Reset
 
-Framework variants explicitly covered:
-- **React** (JSX/TSX) under `javascript`/`typescript` fixtures.
-- **Vue** (SFC `.vue`) under `javascript`/`typescript` fixtures with segment extraction.
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.2).
 
-How to use this roadmap:
-- **Phases 0–9** describe implementation order and cross‑cutting work.
-- **Inline per‑language tables** under each phase list the work required for each language in that phase.
-- **Appendix B**: per‑language unique constructs and fixture semantics.
-- **Appendix C**: per‑language per‑artifact sub‑checks (deep, field‑level expectations).
-- **Appendix D**: per‑language minimum counts (authoritative thresholds).
-- **Appendix D2**: per‑language presence/absence matrix (authoritative for artifact existence).
-- **Appendix E**: subsystem matrix (goals, edge cases, tests).
-- **Appendices F–O**: execution aids (fixtures, schema versions, negatives, goldens, perf, mixed repo, ordering, toggles).
+Primary shifts in this rewrite:
 
-Appendix D2 is encoded in `tests/lang/matrix/lang-artifact-presence.json` and must remain in sync with this document.
+- Implementation-first sequencing remains mandatory.
+- Test rollout starts only after USR conformance prerequisites are implemented.
+- Language work is split into explicit execution batches.
+- Every registry language has language-specific granular tasks that include unique features, edge cases, and likely failure modes.
+- Framework profiles are first-class overlays and have dedicated execution and conformance phases.
+- Phase gates explicitly track USR C0-C4 conformance and USR deterministic guarantees.
 
-Conventions:
-- If an artifact is optional for a language, tests must assert **absent/empty** per Appendix D2.
-- Counts in Appendix D are **minimums**; update them alongside fixtures.
-- Language order in tables follows `registry-data.js` for stable diffs.
+## 1) Program Objective
 
----
+Deliver full, deterministic, and auditable support for all registry languages and required frameworks under the USR model so that:
 
-## Execution policy (budgets, sharding, skips, triage)
+- parsing and normalization are contract-stable
+- node/symbol/edge identities satisfy USR ID grammar and stability rules
+- language and framework-specific semantics are represented without silent degradation
+- conformance levels C0-C4 are measurable and enforceable
+- all unsupported/partial capabilities are explicit and diagnosable
 
-### Runtime budgets (per lane)
-- `lang-full` lane target: <= 30 minutes on CI, <= 15 minutes locally on a modern dev laptop.
-- Per-shard target: <= 10 minutes on CI, <= 5 minutes locally.
-- Per-test target: <= 30 seconds (aligns with repo test policy; auto-cancel beyond 30s).
+## 2) Authoritative Inputs
 
-### Sharding strategy
-- Deterministic sharding by language ID list in `registry-data.js`.
-- Shard manifest files (checked in) define the exact ordered test list per shard.
-- Shard count is configurable via env (`LANG_FULL_SHARD_COUNT`), and shards are selected by index (`LANG_FULL_SHARD_INDEX`).
-- Sharding must preserve per-language ordering within a shard to keep diffs stable.
+This roadmap is governed by these authoritative documents:
 
-### Fixture generation strategy
-- Fixtures are curated and checked in; avoid network dependencies in tests.
-- Any auto-generated fixtures must have a committed generator script and a fixed seed.
-- Fixture updates must include a changelog entry in `tests/fixtures/README.md` describing intent.
-
-### Skip rules
-- Missing optional tools (clangd, sourcekit-lsp, gtags, ctags, lsif/scip) may skip only the tool-specific subset, not the entire lane.
-- Skips must include a reason code and the missing tool/version in test output.
-- Skips are not allowed for core indexing artifacts (chunks, imports, relations, risk summaries).
-
-### Failure triage checklist
-- Classify failures as: fixture regression, tool/runtime dependency, schema drift, performance regression.
-- Capture: failing test name, shard id, tool versions, and the affected artifacts list.
-- Provide a minimal reproduction command in the test log.
-
----
-
-## Phase 0 — Foundations: matrix + contracts (single source of truth)
-
-**References**: Appendix B (constructs), Appendix F (fixture inventories), Appendix G (schema versions)
-
-### 0.1 Matrix definition and guardrails
-
-**Goals**
-- Single authoritative capability matrix.
-- Deterministic fixture mapping per language.
-
-**Non‑goals**
-- Implementing new language features.
-
-**Specs to add/update**
-- `docs/contracts/indexing.md` add a “Language capability matrix” section pointing to matrix JSON.
-- `docs/specs/language-registry.md` (new) to define matrix semantics.
-
-**Tasks**
-- [ ] Create `tests/lang/matrix/lang-capabilities.json` with per‑language flags:
-  - `imports`, `relations`, `docmeta`, `treeSitter`, `ast`, `controlFlow`, `dataFlow`, `graphRelations`, `riskLocal`, `riskInterprocedural`, `symbolGraph`.
-  - Add `frameworks` array (e.g., `react`, `vue`) for JS/TS.
-- [ ] Create `tests/lang/matrix/lang-fixtures.json` mapping language → fixture directory + main files.
-- [ ] Create `tests/lang/matrix/lang-expectations.json` for expected minimum counts (chunks/imports/relations) per language.
-- [ ] Create `tests/lang/matrix/lang-artifact-presence.json` to encode Appendix D2 (required/optional/absent artifacts per language).
-- [ ] Add `tests/lang/matrix/lang-matrix-completeness.test.js`:
-  - verify every registry language ID appears in all 4 JSON files.
-  - verify JSON schema (required keys, no unknown keys).
-
-**Per-language tasks**: see Section 0.A (per‑language subphases). Apply Appendix B/F for language‑unique fixture + expectation details.
-
-**Touchpoints**
+- `docs/specs/unified-syntax-representation.md`
+- `docs/specs/metadata-schema-v2.md`
+- `docs/specs/identity-contract.md`
+- `docs/specs/identity-and-symbol-contracts.md`
+- `docs/specs/tooling-vfs-and-segment-routing.md`
+- `docs/contracts/public-artifact-surface.md`
+- `docs/contracts/artifact-schemas.md`
+- `docs/contracts/analysis-schemas.md`
 - `src/index/language-registry/registry-data.js`
-- `tests/lang/matrix/**`
-- `docs/contracts/indexing.md`
 
-**Tests**
-- `tests/lang/matrix/lang-matrix-completeness.test.js`
+## 3) Supported Coverage Surface
+
+### 3.1 Registry Language IDs (authoritative)
+
+`javascript`, `typescript`, `python`, `clike`, `go`, `java`, `csharp`, `kotlin`, `ruby`, `php`, `html`, `css`, `lua`, `sql`, `perl`, `shell`, `rust`, `swift`, `cmake`, `starlark`, `nix`, `dart`, `scala`, `groovy`, `r`, `julia`, `handlebars`, `mustache`, `jinja`, `razor`, `proto`, `makefile`, `dockerfile`, `graphql`
+
+### 3.2 Required framework profiles
+
+`react`, `vue`, `next`, `nuxt`, `svelte`, `sveltekit`, `angular`, `astro`
+
+## 4) Batch Model (Mandatory Execution Partitioning)
+
+| Batch | Name | Scope | Primary Risk Profile | Required Gate |
+| --- | --- | --- | --- | --- |
+| B0 | Contracts and Registries | USR schemas, matrices, drift checks | Contract drift, schema mismatch | Gate A |
+| B1 | JS/TS and Framework Core | javascript, typescript + all framework overlays | High parser and framework segmentation complexity | Gate B1 |
+| B2 | Systems Languages | clike, go, rust, swift | AST/flow fidelity and macro/build semantics | Gate B2 |
+| B3 | Managed OO Languages | java, csharp, kotlin, scala, groovy, dart | type and modifier normalization drift | Gate B3 |
+| B4 | Dynamic and Scripting | python, ruby, php, lua, perl, shell, r, julia | dynamic semantics and heuristic fallback risk | Gate B4 |
+| B5 | Markup, Style, and Templates | html, css, handlebars, mustache, jinja, razor | template binding and segmentation risk | Gate B5 |
+| B6 | Data and Interface DSLs | sql, proto, graphql | statement/schema coverage drift | Gate B6 |
+| B7 | Build and Infra DSLs | cmake, starlark, nix, makefile, dockerfile | rule/instruction graph incompleteness | Gate B7 |
+| B8 | Cross-Batch Integration | all batches together | mixed-repo and regression interaction risk | Gate C |
+
+## 5) Global Non-Negotiable Gates
+
+- [ ] USR section 5.4 path normalization rules are implemented and validated.
+- [ ] USR section 5.5 null/empty/omission semantics are encoded in writers and validators.
+- [ ] USR section 5.6 numeric normalization is enforced for persisted payloads.
+- [ ] USR section 6.7 canonical ID grammar is validated in strict mode.
+- [ ] USR section 7.11 entity integrity constraints are enforced.
+- [ ] USR section 8.5 edge endpoint constraints are enforced.
+- [ ] USR section 11.3 parser precedence matrix is implemented deterministically.
+- [ ] USR section 11.4 normalization mapping is table-driven and deterministic.
+- [ ] USR section 12.3 capability state machine transitions are validated.
+- [ ] USR section 16.4 determinism pass criteria are part of CI gates.
+
+## 6) Phase Index (Implementation before Test Rollout)
+
+| Phase | Name | Track | Output |
+| --- | --- | --- | --- |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.2 sections |
+| 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
+| 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
+| 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
+| 4 | Batch Execution B1-B7 (Language Core) | Implementation | per-language support completion by batch |
+| 5 | Framework Overlay Completion | Implementation | framework profile completeness |
+| 6 | Flow, Risk, and Query Semantics | Implementation | C2/C3 semantic coverage |
+| 7 | Fixture and Golden Corpus Expansion | Implementation | exhaustive fixture inventories and goldens |
+| 8 | Determinism, Caps, and Performance Hardening | Implementation | stable and bounded outputs |
+| 9 | Pre-Test Readiness and Batch Sign-Off | Implementation | go/no-go for test rollout |
+| 10 | Harness and Lane Materialization | Test Infra | matrix-driven conformance harness |
+| 11 | Baseline Conformance C0/C1 | Testing | language baseline enforcement |
+| 12 | Deep Conformance C2/C3 | Testing | AST/flow/risk enforcement |
+| 13 | Framework Conformance C4 | Testing | framework profile enforcement |
+| 14 | Integration and Failure-Mode Enforcement | Testing | mixed-repo and recovery confidence |
+| 15 | CI Gates, Reporting, and Maintenance Operations | Ops | sustainable enforcement and change-control |
 
 ---
 
-### 0.2 Registry/Matrix drift checks
+## Phase 0 - Program Governance and Contract Lock
 
-**Goals**
-- Prevent silent drift between registry and matrix.
+### 0.1 USR traceability
 
-**Tasks**
-- [ ] Add `tests/lang/matrix/lang-matrix-drift.test.js`:
-  - diff registry list vs matrix list.
-  - fails if registry adds language without matrix entry.
-- [ ] Add `tools/lang/matrix-audit.js` to emit a report of missing/extra entries.
+- [ ] Add a traceability matrix linking USR sections 5 through 29 to roadmap tasks.
+- [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
+- [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
+- [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
 
-**Per-language tasks**: see Section 0.A; confirm drift checks enumerate every language entry.
+### 0.2 Planning guardrails
 
-**Tests**
-- `tests/lang/matrix/lang-matrix-drift.test.js`
+- [ ] Disallow advancing any batch without Gate criteria evidence.
+- [ ] Require deterministic rerun evidence for any phase marked complete.
+- [ ] Require explicit partial/unsupported capability declarations before test phase promotion.
 
-### 0.A Per-language subphases (inline)
+### 0.3 Exit criteria
 
-| Language | Tasks |
+- [ ] USR traceability matrix drafted and approved.
+- [ ] Batch ownership map complete.
+- [ ] Gate definition and evidence templates ready.
+
+---
+
+## Phase 1 - USR Registries and Schema Package
+
+### 1.1 Machine-readable registries (USR section 23)
+
+- [ ] Create `tests/lang/matrix/usr-language-profiles.json`.
+- [ ] Create `tests/lang/matrix/usr-framework-profiles.json`.
+- [ ] Create `tests/lang/matrix/usr-node-kind-mapping.json`.
+- [ ] Create `tests/lang/matrix/usr-edge-kind-constraints.json`.
+- [ ] Create `tests/lang/matrix/usr-capability-matrix.json`.
+- [ ] Create `tests/lang/matrix/usr-conformance-levels.json`.
+
+### 1.2 Schema and validator package (USR section 24)
+
+- [ ] Add `src/contracts/schemas/usr.js`.
+- [ ] Add `src/contracts/validators/usr.js`.
+- [ ] Export all required USR schema constants.
+- [ ] Enforce strict ID grammar validation.
+- [ ] Enforce strict edge endpoint constraints.
+
+### 1.3 Drift and completeness checks
+
+- [ ] Add registry drift test: language registry IDs vs `usr-language-profiles.json` exact-set equality.
+- [ ] Add framework profile referential integrity test.
+- [ ] Add unknown-key strictness test for all USR matrix files.
+
+### 1.4 Exit criteria
+
+- [ ] USR registry files exist and validate.
+- [ ] USR schema package exists and validates.
+- [ ] Drift tests pass in CI.
+
+---
+
+## Phase 2 - Identity, Coordinates, and Integrity Enforcement
+
+### 2.1 Coordinate enforcement (USR section 5)
+
+- [ ] Enforce path normalization rules.
+- [ ] Enforce dual coordinate-space range preservation.
+- [ ] Enforce null/empty/omission semantics consistently.
+- [ ] Enforce numeric normalization for confidence fields.
+
+### 2.2 Identity enforcement (USR section 6)
+
+- [ ] Enforce canonical ID grammar for all USR IDs.
+- [ ] Enforce deterministic collision handling for node identities.
+- [ ] Preserve original external IDs in attrs when adaptation is required.
+
+### 2.3 Integrity constraints (USR section 7.11)
+
+- [ ] Enforce all required entity uniqueness constraints.
+- [ ] Enforce range containment and parent linkage constraints.
+- [ ] Enforce symbol declaration linkage constraints.
+- [ ] Enforce edge source/target resolution constraints.
+
+### 2.4 Exit criteria
+
+- [ ] Strict validation rejects intentionally malformed identity/range payloads.
+- [ ] Deterministic reruns preserve ID sets and integrity outcomes.
+
+---
+
+## Phase 3 - Parser and Normalization Core
+
+### 3.1 Deterministic parser precedence (USR section 11.3)
+
+- [ ] Implement deterministic parser source precedence matrix.
+- [ ] Implement deterministic tie-break rules for same-level parser candidates.
+- [ ] Record parser source and version metadata in USR entities.
+
+### 3.2 Normalization mapping (USR section 11.4)
+
+- [ ] Implement table-driven rawKind to normKind mapping.
+- [ ] Preserve raw parser/compiler kind in `rawKind`.
+- [ ] Map unknown kinds deterministically to `unknown`.
+- [ ] Validate family-specific synonym mappings.
+
+### 3.3 Framework extraction ordering (USR section 11.5)
+
+- [ ] Enforce step ordering from segmentation through enrichment.
+- [ ] Preserve partial outputs and emit diagnostics on late-stage failures.
+
+### 3.4 Exit criteria
+
+- [ ] Parser precedence tests pass across representative languages.
+- [ ] Normalization mapping tests pass with deterministic snapshots.
+- [ ] Framework extraction ordering invariants pass for `.vue`, `.svelte`, `.astro`, Angular template surfaces.
+
+---
+
+## Phase 4 - Batch Execution B1-B7 (Language Core)
+
+### 4.1 Batch sequencing requirements
+
+- [ ] Execute B1 first to stabilize framework and segmentation baseline.
+- [ ] Execute B2 through B7 in parallel where dependencies permit.
+- [ ] Require per-batch Gate checklist completion before advancing.
+
+### 4.2 Mandatory batch deliverables
+
+- [ ] Complete language-specific task packs in Appendix C for each language in batch.
+- [ ] Complete per-language fixture inventories and edge-case fixtures.
+- [ ] Complete per-language C0/C1 conformance evidence.
+- [ ] Record known degradations with diagnostic code mapping.
+
+### 4.3 Exit criteria
+
+- [ ] B1-B7 each have signed Gate evidence.
+- [ ] No language is missing a completed task pack.
+
+---
+
+## Phase 5 - Framework Overlay Completion
+
+### 5.1 Framework profile implementation
+
+- [ ] Complete React profile tasks (Appendix D).
+- [ ] Complete Vue profile tasks (Appendix D).
+- [ ] Complete Next profile tasks (Appendix D).
+- [ ] Complete Nuxt profile tasks (Appendix D).
+- [ ] Complete Svelte/SvelteKit profile tasks (Appendix D).
+- [ ] Complete Angular profile tasks (Appendix D).
+- [ ] Complete Astro profile tasks (Appendix D).
+
+### 5.2 Framework applicability enforcement
+
+- [ ] Enforce framework applicability matrix constraints from USR section 25.
+- [ ] Emit `USR-W-FRAMEWORK-PROFILE-INCOMPLETE` for out-of-applicability inference attempts.
+
+### 5.3 Exit criteria
+
+- [ ] All framework profiles produce required entities/edges.
+- [ ] Framework diagnostics are deterministic and complete.
+
+---
+
+## Phase 6 - Flow, Risk, and Query Semantics
+
+### 6.1 Flow and semantic coverage
+
+- [ ] Complete C2 requirements for languages requiring AST/control/data flow.
+- [ ] Validate AST normalization and edge endpoint constraints.
+
+### 6.2 Risk model coverage
+
+- [ ] Complete C3 requirements for risk-local and risk-interprocedural where required.
+- [ ] Implement capability state machine transitions and diagnostic semantics.
+
+### 6.3 Query/filter semantics
+
+- [ ] Align query/filter behavior with framework and language profile semantics.
+- [ ] Validate deterministic ranking and tie-break behavior.
+
+### 6.4 Exit criteria
+
+- [ ] C2/C3 requirements pass for required profiles.
+- [ ] Capability transition diagnostics are correct and complete.
+
+---
+
+## Phase 7 - Fixture and Golden Corpus Expansion
+
+### 7.1 Fixture completeness
+
+- [ ] Expand fixture inventories per language to include positive, negative, malformed, cap-triggering, and mixed cases.
+- [ ] Expand framework fixtures for all profile-specific edge cases.
+
+### 7.2 Golden generation and review
+
+- [ ] Regenerate deterministic goldens for USR entities and mapped artifacts.
+- [ ] Add fixture-to-roadmap linkage tags for every language and framework task pack.
+
+### 7.3 Exit criteria
+
+- [ ] Every language and framework has exhaustive fixture coverage evidence.
+- [ ] Golden diffs are deterministic on rerun.
+
+---
+
+## Phase 8 - Determinism, Caps, and Performance Hardening
+
+### 8.1 Deterministic outputs
+
+- [ ] Enforce deterministic ordering rules for all USR entities.
+- [ ] Enforce deterministic serialization for persisted USR artifacts.
+
+### 8.2 Caps and truncation behavior
+
+- [ ] Enforce parser/node/edge/path caps per policy.
+- [ ] Emit truncation diagnostics and maintain schema validity under caps.
+
+### 8.3 Performance thresholds
+
+- [ ] Define per-batch runtime/memory thresholds.
+- [ ] Add per-batch profiling and hotspot reporting.
+
+### 8.4 Exit criteria
+
+- [ ] Determinism checks pass under repeated runs.
+- [ ] Cap-trigger tests pass with expected diagnostics.
+- [ ] Runtime thresholds meet target envelopes.
+
+---
+
+## Phase 9 - Pre-Test Readiness and Batch Sign-Off
+
+### 9.1 Readiness audit
+
+- [ ] Validate completion evidence for all B1-B7 task packs.
+- [ ] Validate framework profile completion evidence.
+- [ ] Validate conformance matrix readiness by language.
+
+### 9.2 Go/No-Go decision
+
+- [ ] Block test rollout if any language lacks C0/C1 readiness.
+- [ ] Block deep conformance if C2/C3 prerequisites are missing.
+- [ ] Block framework conformance if C4 profile prerequisites are missing.
+
+### 9.3 Exit criteria
+
+- [ ] Readiness report approved.
+- [ ] Test rollout authorized.
+
+---
+
+## Phase 10 - Harness and Lane Materialization
+
+### 10.1 Harness capabilities
+
+- [ ] Materialize USR entity validators in harness.
+- [ ] Materialize ID grammar checks in harness.
+- [ ] Materialize edge endpoint constraint checks in harness.
+- [ ] Materialize capability state machine checks in harness.
+
+### 10.2 Lane wiring
+
+- [ ] Add conformance lane(s) per C0-C4.
+- [ ] Add per-batch shards and deterministic order manifests.
+- [ ] Add diagnostics summary and transition reporting.
+
+### 10.3 Exit criteria
+
+- [ ] Harness can execute matrix-driven checks for all languages/frameworks.
+- [ ] Lane ordering and sharding are deterministic.
+
+---
+
+## Phase 11 - Baseline Conformance C0/C1
+
+### 11.1 C0 baseline
+
+- [ ] Execute C0 checks for all language profiles.
+
+### 11.2 C1 baseline
+
+- [ ] Execute C1 checks for all language profiles.
+
+### 11.3 Exit criteria
+
+- [ ] All languages pass required C0/C1 checks.
+
+---
+
+## Phase 12 - Deep Conformance C2/C3
+
+### 12.1 C2 deep semantics
+
+- [ ] Execute C2 checks for languages requiring AST/flow.
+
+### 12.2 C3 risk semantics
+
+- [ ] Execute C3 checks for languages requiring risk coverage.
+
+### 12.3 Exit criteria
+
+- [ ] Required C2/C3 profile checks pass.
+
+---
+
+## Phase 13 - Framework Conformance C4
+
+### 13.1 C4 execution
+
+- [ ] Execute C4 checks for React, Vue, Next, Nuxt, Svelte/SvelteKit, Angular, Astro.
+
+### 13.2 Exit criteria
+
+- [ ] All required framework profiles pass C4 checks.
+
+---
+
+## Phase 14 - Integration and Failure-Mode Enforcement
+
+### 14.1 Mixed-repo integration
+
+- [ ] Validate cross-language and cross-framework relation coherence.
+- [ ] Validate route/template/API/data boundary flows.
+
+### 14.2 Failure-mode validation
+
+- [ ] Validate parser failure recovery paths.
+- [ ] Validate schema mismatch behavior.
+- [ ] Validate partial extraction behavior with diagnostics.
+
+### 14.3 Exit criteria
+
+- [ ] Integration and failure-mode suites pass.
+
+---
+
+## Phase 15 - CI Gates, Reporting, and Maintenance Operations
+
+### 15.1 CI gates
+
+- [ ] Enforce Gate A, B1-B8, and C gates in CI.
+- [ ] Enforce C0-C4 conformance lane required checks.
+
+### 15.2 Reporting
+
+- [ ] Emit language-level conformance dashboards.
+- [ ] Emit framework-level conformance dashboards.
+- [ ] Emit capability transition and degradation reports.
+
+### 15.3 Maintenance
+
+- [ ] Enforce USR spec change-control policy linkage in PR templates.
+- [ ] Enforce registry drift checks for language/framework profile files.
+
+### 15.4 Exit criteria
+
+- [ ] CI and maintenance controls are stable for ongoing development.
+
+---
+
+## Appendix A - USR Spec to Roadmap Traceability
+
+| USR Section | Requirement | Roadmap Phase |
+| --- | --- | --- |
+| 5.4 | path normalization | 2 |
+| 5.5 | null/empty/omission semantics | 2 |
+| 5.6 | numeric normalization | 2 |
+| 6.7 | ID grammar | 2, 10 |
+| 7.11 | entity integrity constraints | 2, 10 |
+| 8.5 | edge endpoint constraints | 2, 10 |
+| 11.3 | parser precedence matrix | 3 |
+| 11.4 | normalization mapping | 3 |
+| 11.5 | framework extraction ordering | 3, 5 |
+| 12.3 | capability state machine | 6, 10 |
+| 12.4 | diagnostic severity mapping | 6, 10 |
+| 16.3 | level pass criteria | 11, 12, 13 |
+| 16.4 | determinism pass criteria | 8, 11, 12, 13 |
+| 23 | machine-readable registries | 1 |
+| 24 | schema package and validators | 1 |
+| 25 | framework applicability matrix | 5 |
+| 26 | rollout and migration gates | 9, 15 |
+| 27 | deprecation policy | 15 |
+| 28 | change-control policy | 15 |
+| 29 | extension policy | 15 |
+
+---
+
+## Appendix B - Batch Gate Checklists
+
+### Gate A (B0 contracts/registries)
+
+- [ ] USR registry JSON files created and schema-validated.
+- [ ] USR schema/validator package implemented.
+- [ ] registry drift checks pass.
+
+### Gate B1-B7 (language batch gates)
+
+- [ ] all language task packs in batch completed.
+- [ ] C0/C1 checks pass for batch languages.
+- [ ] determinism checks pass for batch languages.
+- [ ] known degradations recorded with diagnostic codes.
+
+### Gate B8 (cross-batch integration)
+
+- [ ] mixed-repo integration checks pass.
+- [ ] cross-batch regressions resolved.
+
+### Gate C (test rollout)
+
+- [ ] all prior gates pass.
+- [ ] harness and lanes materialized.
+- [ ] conformance rollout authorized.
+
+---
+
+## Appendix C - Exhaustive Per-Language Task Packs by Batch
+
+### Batch B1 - JS/TS and Framework Core
+
+#### javascript
+
+- [ ] Implement full JS syntax handling for ESM, CJS, dynamic import, top-level await, decorators (when parser supports), and JSX mode transitions.
+- [ ] Normalize JS-specific symbol semantics for function declarations, function expressions, class fields, private fields, computed properties, and export forms.
+- [ ] Implement relation handling for `import`, `require`, re-exports, dynamic import placeholders, and unresolved specifier diagnostics.
+- [ ] Implement control/data flow for closures, async/await chains, generator/yield paths, optional chaining/nullish paths, and try/catch/finally.
+- [ ] Implement risk coverage for `eval`, `Function`, dynamic import execution paths, DOM sink usage, and command/process APIs where applicable.
+- [ ] Add fixtures for mixed ESM/CJS repos, transpiled output adjacency, ambiguous extension resolution, circular imports, and minified-but-parseable files.
+- [ ] Add negative fixtures for parser fallback, malformed module syntax, unresolved path aliases, and unsupported proposal syntax.
+- [ ] Require conformance levels C0, C1, C2, C3, and C4 (through framework overlays).
+
+#### typescript
+
+- [ ] Implement TS syntax handling for interfaces, type aliases, generics, conditional/mapped types, enums, namespaces, overloads, and decorators where enabled.
+- [ ] Normalize type-level constructs into USR symbol and `uses_type` edge surfaces without collapsing value-space symbols.
+- [ ] Implement relation handling for `import type`, type-only re-exports, declaration merging cases, project reference boundaries, and tsconfig path alias expansion.
+- [ ] Implement flow handling for async/await, control branches, discriminated unions where inferable, and overload call-site linkage.
+- [ ] Implement risk coverage for JS runtime sinks in TS code, unsafe `any` propagation markers, and dynamic execution APIs.
+- [ ] Add fixtures for `.ts`, `.tsx`, `.mts`, `.cts`, declaration files, declaration merging, and mixed JS/TS projects.
+- [ ] Add edge-case fixtures for isolatedModules behavior, unresolved type-only imports, path mapping collisions, and compiler API fallback to parser fallback.
+- [ ] Require conformance levels C0, C1, C2, C3, and C4 (through framework overlays).
+
+### Batch B2 - Systems Languages
+
+#### clike
+
+- [ ] Implement C/C++/ObjC preprocessing-aware extraction for includes, macros, conditional compilation regions, and header/source symbol pairing.
+- [ ] Normalize symbol semantics for structs/classes/templates/functions/operators while preserving raw-kind distinctions.
+- [ ] Implement relation handling for local/system includes, include guards, and unresolved include path diagnostics.
+- [ ] Implement flow extraction for pointer-heavy control paths, early returns, and exception-style flows where language dialect supports.
+- [ ] Implement risk coverage for unsafe memory and process execution primitives (`strcpy`, `system`, unsafe buffer patterns).
+- [ ] Add fixtures for macro-generated declarations, template specializations, overloaded operators, and mixed C/C++ translation units.
+- [ ] Add failure fixtures for missing include roots, macro expansion ambiguity, and parser degradation under complex preprocessor paths.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### go
+
+- [ ] Implement package/module semantics for `go.mod`, package clauses, import aliases, and vendor boundaries.
+- [ ] Normalize symbol semantics for methods with receivers, interfaces, embedded fields, and generic type parameters.
+- [ ] Implement relation handling for module-local and external imports, dot imports, and blank imports.
+- [ ] Implement flow extraction for goroutines, channels/select, defer/panic/recover, and error-return branching.
+- [ ] Implement risk coverage for `os/exec`, unsafe package usage, and network/file sink patterns.
+- [ ] Add fixtures for multi-package modules, internal package visibility patterns, build tags, and cgo-adjacent files.
+- [ ] Add failure fixtures for unresolved module replace directives and partial parse fallback behavior.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### rust
+
+- [ ] Implement crate/module semantics for `mod`, `use`, extern crates, and workspace boundaries.
+- [ ] Normalize symbols for traits, impl blocks, generics, lifetimes, associated types, and macro-generated declarations where representable.
+- [ ] Implement relation handling for use trees, glob imports, alias imports, and unresolved path segments.
+- [ ] Implement flow extraction for match branching, async futures, iterator chains where inferable, and error propagation (`?`).
+- [ ] Implement risk coverage for `unsafe` blocks, FFI boundaries, process execution, and deserialization sink patterns.
+- [ ] Add fixtures for trait implementations across modules, macro-heavy files, workspace crates, and feature-flagged code.
+- [ ] Add degradation fixtures for macro expansion limitations and parser fallback scenarios.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### swift
+
+- [ ] Implement module and import semantics for framework imports, extensions, and protocol-oriented constructs.
+- [ ] Normalize symbols for structs/classes/enums/protocols/extensions/property wrappers and generic constraints.
+- [ ] Implement relation handling for import graphs and type/protocol conformance edges.
+- [ ] Implement flow extraction for optional chaining, guard/defer patterns, async/await/task constructs, and throwing functions.
+- [ ] Implement risk coverage for process/network/file sinks where available in standard or common runtime APIs.
+- [ ] Add fixtures for protocol extensions, actor/concurrency patterns, and mixed UIKit/SwiftUI style files.
+- [ ] Add degradation fixtures for parser tooling unavailability and partial extraction paths.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+### Batch B3 - Managed OO Languages
+
+#### java
+
+- [ ] Implement package/import semantics including static imports and nested class imports.
+- [ ] Normalize symbols for classes/interfaces/enums/records/sealed hierarchies, methods, constructors, annotations, and generics.
+- [ ] Implement relation handling for inheritance, interface implementation, method override chains, and type usage edges.
+- [ ] Implement flow extraction for try-with-resources, switch expression forms, lambda/method reference call paths.
+- [ ] Implement risk coverage for process execution, reflection-based dynamic loading, deserialization, and SQL/API sink patterns.
+- [ ] Add fixtures for multi-module projects, overloaded methods, Lombok-like generated patterns, and annotation-heavy code.
+- [ ] Add degradation fixtures for incomplete classpath and parser/tooling fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### csharp
+
+- [ ] Implement namespace/import semantics including alias `using`, global using, and file-scoped namespace forms.
+- [ ] Normalize symbols for classes/records/interfaces/structs/enums, partial classes, properties, events, attributes, and generics.
+- [ ] Implement relation handling for inheritance, interface implementation, extension methods, and delegate/event usage.
+- [ ] Implement flow extraction for async/await tasks, LINQ chains where inferable, and exception/filter control paths.
+- [ ] Implement risk coverage for process execution, reflection, serialization, and dynamic invocation sinks.
+- [ ] Add fixtures for partial classes across files, source-generated style artifacts, and top-level statements.
+- [ ] Add degradation fixtures for missing project context and parser fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### kotlin
+
+- [ ] Implement package/import semantics including alias imports and file-level declarations.
+- [ ] Normalize symbols for data/sealed classes, objects/companions, extension functions, and nullability-aware signatures.
+- [ ] Implement relation handling for inheritance/interface conformance, extension receiver usage, and type usage edges.
+- [ ] Implement flow extraction for coroutines/suspend flows, when-expressions, and safe-call/elvis branches.
+- [ ] Implement risk coverage for process/network/file sinks and reflective dynamic loading patterns where detectable.
+- [ ] Add fixtures for multi-file extension-heavy projects, delegated properties, and annotation processing adjacency.
+- [ ] Add degradation fixtures for parser/tooling fallback under large-file caps.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### scala
+
+- [ ] Implement package/import semantics for objects/packages, wildcard imports, and renamed imports.
+- [ ] Normalize symbols for classes/case classes/traits/objects, implicits/givens, and type parameterization.
+- [ ] Implement relation handling for inheritance/mixins and implicit/given resolution traces where representable.
+- [ ] Implement flow extraction for match/case control, for-comprehension expansion where inferable, and functional call chains.
+- [ ] Implement risk coverage for process execution and serialization/deserialization sinks.
+- [ ] Add fixtures for mixed Scala 2/3 style syntax, companion object patterns, and macro-like constructs.
+- [ ] Add degradation fixtures for parser ambiguities and fallback paths.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### groovy
+
+- [ ] Implement package/import semantics including static imports and script-mode defaults.
+- [ ] Normalize symbols for classes/traits/interfaces/scripts/closures and dynamic method/property patterns.
+- [ ] Implement relation handling for imports, dynamic invocation hints, and DSL-style symbol usage.
+- [ ] Implement flow extraction for closure-heavy control paths and exception branches.
+- [ ] Implement risk coverage for `evaluate`, dynamic class loading, process execution, and SQL APIs.
+- [ ] Add fixtures for Gradle-like DSL files, script/class hybrids, and metaprogramming idioms.
+- [ ] Add degradation fixtures for dynamic resolution ambiguity and parser fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### dart
+
+- [ ] Implement library/import semantics including `part` and `part of` boundaries.
+- [ ] Normalize symbols for classes/mixins/extensions, null-safety types, and async stream/future constructs.
+- [ ] Implement relation handling for package imports, relative imports, and export combinators.
+- [ ] Implement flow extraction for async/await, stream transformations where inferable, and control branches.
+- [ ] Implement risk coverage for process/network/file sink APIs.
+- [ ] Add fixtures for Flutter-style widget classes, mixin usage, and multi-library package layouts.
+- [ ] Add degradation fixtures for partial analysis under missing package context.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+### Batch B4 - Dynamic and Scripting Languages
+
+#### python
+
+- [ ] Implement module/package semantics for absolute and relative imports, namespace packages, and `__all__` export filtering.
+- [ ] Normalize symbols for functions/classes/methods, decorators, dataclasses, async defs, and pattern matching constructs.
+- [ ] Implement relation handling for import variants, deferred imports, and module alias usage.
+- [ ] Implement flow extraction for async/await, generator/yield, exception paths, and context manager control transitions.
+- [ ] Implement risk coverage for `eval`, `exec`, subprocess/process APIs, unsafe deserialization, and SQL sinks.
+- [ ] Add fixtures for packaging layouts, type-hint-heavy modules, metaclass usage, and dynamic attribute patterns.
+- [ ] Add degradation fixtures for syntax-version mismatches and partial AST fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### ruby
+
+- [ ] Implement file/module semantics for `require`, `require_relative`, autoload-like patterns, and monkey patch boundaries.
+- [ ] Normalize symbols for modules/classes/methods, singleton methods, mixins, and block/proc/lambda declarations.
+- [ ] Implement relation handling for require edges and constant resolution hints.
+- [ ] Implement flow extraction for block-heavy control, rescue/ensure paths, and dynamic dispatch hints.
+- [ ] Implement risk coverage for `eval`, command execution, unsafe YAML/Marshal deserialization, and SQL sinks.
+- [ ] Add fixtures for Rails-like conventions, module mixins, and metaprogramming (`define_method`, `class_eval`).
+- [ ] Add degradation fixtures for highly dynamic constructs and fallback behavior.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### php
+
+- [ ] Implement namespace/import semantics for `use`, aliasing, traits, and mixed PHP/HTML contexts.
+- [ ] Normalize symbols for classes/interfaces/traits/functions/methods and magic methods.
+- [ ] Implement relation handling for autoload style references, include/require edges, and namespace resolution.
+- [ ] Implement flow extraction for exception paths, async-like library patterns where inferable, and branch control.
+- [ ] Implement risk coverage for `eval`, command execution, deserialization sinks, and SQL injection surfaces.
+- [ ] Add fixtures for Composer-style layout, trait-heavy code, and templated PHP files.
+- [ ] Add degradation fixtures for mixed template parsing and partial extraction fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### lua
+
+- [ ] Implement module semantics for `require`, local module tables, and global environment interactions.
+- [ ] Normalize symbols for local/global functions, table methods, metamethod-related declarations.
+- [ ] Implement relation handling for require edges and unresolved module diagnostics.
+- [ ] Implement flow extraction for coroutine usage, table mutation paths, and branch/loop control.
+- [ ] Implement risk coverage for dynamic loading and command/process execution patterns.
+- [ ] Add fixtures for metatable-driven APIs, colon method syntax, and multi-file module setups.
+- [ ] Add degradation fixtures for dynamic global lookups and heuristic fallback.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### perl
+
+- [ ] Implement package/use semantics and module import forms.
+- [ ] Normalize symbols for subs/packages and lexical/global variable contexts.
+- [ ] Implement relation handling for `use`, `require`, and dynamic module loading hints.
+- [ ] Implement flow extraction for regex-heavy control, eval blocks, and exception-like patterns.
+- [ ] Implement risk coverage for eval/system/backticks and unsafe deserialization/file patterns.
+- [ ] Add fixtures for package-heavy code, regex-centric scripts, and legacy syntax variants.
+- [ ] Add degradation fixtures for ambiguous parse outcomes and fallback extraction.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### shell
+
+- [ ] Implement script semantics for shebang variants, function declarations, and sourced file boundaries.
+- [ ] Normalize symbols for shell functions, environment assignments, and command aliases where representable.
+- [ ] Implement relation handling for `source` and `.` includes, script call edges, and unresolved include diagnostics.
+- [ ] Implement flow extraction for pipeline/subshell branching, conditional expressions, and trap/error paths.
+- [ ] Implement risk coverage for command injection surfaces, unsafe expansion patterns, and file/process sinks.
+- [ ] Add fixtures for bash/zsh/ksh style differences, here-doc usage, and pipeline-heavy scripts.
+- [ ] Add degradation fixtures for non-portable syntax and partial parser support.
+- [ ] Require conformance levels C0, C1, C2, C3.
+
+#### r
+
+- [ ] Implement package/load semantics (`library`, `require`, `source`) and script-level scope handling.
+- [ ] Normalize symbols for functions, S3/S4-style declarations where inferable, and assignment patterns.
+- [ ] Implement relation handling for package imports and sourced script edges.
+- [ ] Implement flow extraction for vectorized control forms and function call chains where inferable.
+- [ ] Implement risk coverage for system/process calls, unsafe evaluation, and file/network sinks.
+- [ ] Add fixtures for package scripts, formula-heavy code, and non-standard evaluation idioms.
+- [ ] Add degradation fixtures for NSE ambiguity and parser fallback.
+- [ ] Require conformance levels C0, C1, C2, C3 (risk may be partial where unsupported).
+
+#### julia
+
+- [ ] Implement module/import semantics (`using`, `import`, relative modules) and multiple dispatch surfaces.
+- [ ] Normalize symbols for functions, macros, types/structs, and module-scoped declarations.
+- [ ] Implement relation handling for module imports and exported symbol references.
+- [ ] Implement flow extraction for control and exception paths where representable.
+- [ ] Implement risk coverage for process execution, dynamic evaluation, and file/network sinks.
+- [ ] Add fixtures for package/module layout, macro usage, and multiple-dispatch overload sets.
+- [ ] Add degradation fixtures for macro expansion limitations and fallback paths.
+- [ ] Require conformance levels C0, C1, C2, C3 (risk may be partial where unsupported).
+
+### Batch B5 - Markup, Style, and Templates
+
+#### html
+
+- [ ] Implement markup node normalization for nested DOM structures, attributes, and inline script/style boundaries.
+- [ ] Implement relation extraction for linked assets, module scripts, and embedded segment references.
+- [ ] Implement template binding surfaces when HTML is used in framework contexts.
+- [ ] Implement diagnostics for malformed DOM and partial parse recovery.
+- [ ] Add fixtures for custom elements, slots, inline event handlers, and malformed tags.
+- [ ] Add degradation fixtures for deeply nested malformed markup and segmented fallback.
+- [ ] Require conformance levels C0, C1, C4 when framework overlays apply.
+
+#### css
+
+- [ ] Implement style node normalization for selectors, at-rules, declarations, and nested constructs where supported.
+- [ ] Implement relation extraction for `@import` and linked style dependencies.
+- [ ] Implement style scope modeling for framework-bound styles (scoped/module/global).
+- [ ] Implement diagnostics for malformed CSS and partial parse recovery.
+- [ ] Add fixtures for media queries, keyframes, custom properties, and CSS module naming patterns.
+- [ ] Add degradation fixtures for vendor-specific syntax and parser fallback.
+- [ ] Require conformance levels C0, C1, and C4 where framework overlays apply.
+
+#### handlebars
+
+- [ ] Implement template symbol/binding extraction for partials, helpers, blocks, and context paths.
+- [ ] Implement relation extraction for partial/include references.
+- [ ] Implement diagnostics for malformed block structure and unresolved helpers.
+- [ ] Add fixtures for nested helpers, partial recursion, and escaped/unescaped output forms.
+- [ ] Add degradation fixtures for malformed delimiters and fallback behavior.
+- [ ] Require conformance levels C0, C1, C4 where template semantics are used.
+
+#### mustache
+
+- [ ] Implement section/inverted-section/partial extraction and variable binding edges.
+- [ ] Implement relation extraction for partial references.
+- [ ] Implement diagnostics for malformed sections and unresolved partials.
+- [ ] Add fixtures for nested sections, lambdas where representable, and escaping variants.
+- [ ] Add degradation fixtures for malformed delimiters and parse fallback.
+- [ ] Require conformance levels C0, C1, C4 where template semantics are used.
+
+#### jinja
+
+- [ ] Implement template extraction for blocks, includes, extends, macros, and filter applications.
+- [ ] Implement relation extraction for include/extends/import macro edges.
+- [ ] Implement binding extraction for variable contexts and template inheritance references.
+- [ ] Implement diagnostics for malformed template control structures.
+- [ ] Add fixtures for inheritance chains, macro libraries, and custom filter usage.
+- [ ] Add degradation fixtures for partial templates and unresolved include paths.
+- [ ] Require conformance levels C0, C1, C4 where template semantics are used.
+
+#### razor
+
+- [ ] Implement mixed markup/code segmentation for directives, code blocks, inline expressions, and tag helper forms.
+- [ ] Implement symbol and binding extraction bridging template and code regions.
+- [ ] Implement relation extraction for layout/partial references where available.
+- [ ] Implement diagnostics for malformed directive/code transition boundaries.
+- [ ] Add fixtures for directive-heavy views, partial layouts, and inline code expressions.
+- [ ] Add degradation fixtures for malformed transitions and fallback behavior.
+- [ ] Require conformance levels C0, C1, C4 where template semantics are used.
+
+### Batch B6 - Data and Interface DSLs
+
+#### sql
+
+- [ ] Implement statement-level normalization for DDL, DML, CTEs, window functions, and dialect-sensitive constructs.
+- [ ] Implement symbol extraction for tables/views/functions where representable.
+- [ ] Implement relation extraction for table/view/procedure references and cross-file SQL include patterns where used.
+- [ ] Implement diagnostics for dialect ambiguity and parse fallback.
+- [ ] Implement risk coverage for dangerous SQL execution patterns where available from calling context.
+- [ ] Add fixtures across SQLite/PostgreSQL/MySQL style syntax variations.
+- [ ] Add degradation fixtures for mixed dialect files and unsupported grammar fragments.
+- [ ] Require conformance levels C0, C1, C2 (and C3 when risk links are enabled).
+
+#### proto
+
+- [ ] Implement schema normalization for messages, enums, services, RPC methods, options, and package declarations.
+- [ ] Implement symbol extraction for message/service/type declarations.
+- [ ] Implement relation extraction for imports and type references.
+- [ ] Implement diagnostics for schema version mismatches and unresolved imports.
+- [ ] Add fixtures for multi-file proto packages, nested messages, and service options.
+- [ ] Add degradation fixtures for malformed proto syntax and partial extraction.
+- [ ] Require conformance levels C0, C1, C2 where AST support exists.
+
+#### graphql
+
+- [ ] Implement normalization for SDL and operation documents (types, fields, directives, fragments, operations).
+- [ ] Implement symbol extraction for type and field declarations where representable.
+- [ ] Implement relation extraction for fragment spreads, type references, and schema-extension links.
+- [ ] Implement diagnostics for schema-operation mismatch and unresolved fragments.
+- [ ] Add fixtures for schema stitching patterns, fragment-heavy operations, and directive usage.
+- [ ] Add degradation fixtures for malformed SDL/operation combinations.
+- [ ] Require conformance levels C0, C1, C2 where AST support exists.
+
+### Batch B7 - Build and Infra DSLs
+
+#### cmake
+
+- [ ] Implement normalization for targets, macros/functions, include directives, and generator expression usage where representable.
+- [ ] Implement relation extraction for include/find_package and target dependency hints.
+- [ ] Implement diagnostics for unresolved includes and malformed target declarations.
+- [ ] Add fixtures for multi-file CMake projects with subdirectories and imported targets.
+- [ ] Add degradation fixtures for complex generator expressions and parser fallback.
+- [ ] Require conformance levels C0, C1 (C2 only where AST support is available).
+
+#### starlark
+
+- [ ] Implement normalization for `load`, rule definitions, macro calls, and attribute declarations.
+- [ ] Implement relation extraction for load edges and rule dependency references.
+- [ ] Implement diagnostics for unresolved loads and malformed macro/rule syntax.
+- [ ] Add fixtures for Bazel-style repo structures with shared `.bzl` files.
+- [ ] Add degradation fixtures for dynamic macro patterns and fallback behavior.
+- [ ] Require conformance levels C0, C1 (C2 where AST support exists).
+
+#### nix
+
+- [ ] Implement normalization for let/in expressions, attrsets, functions, and import semantics.
+- [ ] Implement relation extraction for imports and package reference edges where inferable.
+- [ ] Implement diagnostics for unresolved import paths and malformed expressions.
+- [ ] Add fixtures for flake and non-flake style layouts, overlays, and package outputs.
+- [ ] Add degradation fixtures for lazy/dynamic evaluation ambiguities.
+- [ ] Require conformance levels C0, C1 (C2 where AST support exists).
+
+#### makefile
+
+- [ ] Implement normalization for target declarations, pattern rules, variable assignments, and include directives.
+- [ ] Implement relation extraction for include edges and target dependency graphs.
+- [ ] Implement diagnostics for unresolved includes and malformed target syntax.
+- [ ] Add fixtures for recursive make patterns, phony targets, and pattern substitution.
+- [ ] Add degradation fixtures for shell-embedded complexity and parser fallback.
+- [ ] Require conformance levels C0, C1 (C2 where AST support exists).
+
+#### dockerfile
+
+- [ ] Implement normalization for instructions, stage boundaries, ARG/ENV scopes, and `COPY --from` relations.
+- [ ] Implement relation extraction for stage dependency edges and base image references.
+- [ ] Implement diagnostics for malformed instruction sequences and ambiguous stage references.
+- [ ] Add fixtures for multi-stage builds, build args, and cross-stage copy patterns.
+- [ ] Add degradation fixtures for unsupported experimental syntax.
+- [ ] Require conformance levels C0, C1 (C2 where AST support exists).
+
+---
+
+## Appendix D - Exhaustive Framework Profile Task Packs (C4)
+
+### react
+
+- [ ] Implement component detection for function/class components and export variants.
+- [ ] Implement hook detection for built-in and user-defined `use*` patterns with confidence tags.
+- [ ] Implement JSX element/component binding edges with deterministic ordering.
+- [ ] Implement prop-flow linkage from JSX usage to component definitions where resolvable.
+- [ ] Implement risk sink coverage for `dangerouslySetInnerHTML` and unsafe DOM APIs.
+- [ ] Implement SSR/CSR marker capture for hybrid React environments.
+- [ ] Add fixtures for context providers, memo/forwardRef, suspense/lazy boundaries.
+- [ ] Add degradation fixtures for malformed JSX and mixed transpiler syntax.
+
+### vue
+
+- [ ] Implement SFC segmentation for template/script/script setup/style/custom blocks.
+- [ ] Implement template directive binding edges for `v-bind`, `v-on`, `v-model`, `v-if`, `v-for`.
+- [ ] Implement emits/props extraction including declared and inferred emit surfaces.
+- [ ] Implement style scope linkage for scoped/module/global styles.
+- [ ] Implement risk sink coverage for `v-html` and template injection surfaces.
+- [ ] Implement script setup metadata capture in attrs.
+- [ ] Add fixtures for slots/scoped slots, teleport, suspense, and composition API patterns.
+- [ ] Add degradation fixtures for malformed SFC block boundaries.
+
+### next
+
+- [ ] Implement app-router and pages-router route extraction.
+- [ ] Implement route-to-component and route-to-handler linkage edges.
+- [ ] Implement server/client boundary detection and hydration boundary edges.
+- [ ] Implement API route extraction and runtimeSide attribution.
+- [ ] Implement deterministic route pattern normalization for dynamic segments.
+- [ ] Add fixtures for nested routes, route groups, server actions, and middleware adjacency.
+- [ ] Add degradation fixtures for ambiguous route files and mixed conventions.
+
+### nuxt
+
+- [ ] Implement pages route extraction and composable discovery.
+- [ ] Implement `server/api` and `server/routes` handler extraction.
+- [ ] Implement route/component/server linkage edges with deterministic ordering.
+- [ ] Implement server/client boundary metadata for universal code paths.
+- [ ] Add fixtures for layered Nuxt configs and module integration cases.
+- [ ] Add degradation fixtures for unresolved auto-import and alias scenarios.
+
+### svelte
+
+- [ ] Implement `.svelte` segmentation for module script, instance script, template, and style.
+- [ ] Implement binding edges for `bind:`, `on:`, `let:` semantics.
+- [ ] Implement style scope linkage for component-local and global styles.
+- [ ] Implement component symbol extraction and template linkage.
+- [ ] Add fixtures for stores/actions/transitions and slot forwarding.
+- [ ] Add degradation fixtures for malformed Svelte markup/script boundaries.
+
+### sveltekit
+
+- [ ] Implement route extraction from filesystem conventions.
+- [ ] Implement route-to-component/handler linkage for `+page`, `+layout`, and server endpoints.
+- [ ] Implement server/client boundary metadata for load/actions.
+- [ ] Implement deterministic route pattern normalization.
+- [ ] Add fixtures for nested layouts and endpoint adjacency.
+- [ ] Add degradation fixtures for partial route trees and malformed conventions.
+
+### angular
+
+- [ ] Implement decorator-based symbol extraction for components/directives/services/modules.
+- [ ] Implement template binding edges for inputs/outputs and structural directives.
+- [ ] Implement standalone and module-mode coverage.
+- [ ] Implement route extraction and route-to-component linkage.
+- [ ] Implement style/template URL linkage and inline equivalents.
+- [ ] Add fixtures for lazy modules, standalone routes, and signal-based patterns.
+- [ ] Add degradation fixtures for malformed decorators/templates.
+
+### astro
+
+- [ ] Implement frontmatter/template/style segmentation for `.astro` files.
+- [ ] Implement framework island component import/reference linkage.
+- [ ] Implement frontmatter symbol extraction and template binding bridge edges.
+- [ ] Implement route extraction for Astro file-based routing contexts.
+- [ ] Add fixtures for mixed framework islands and content collections usage.
+- [ ] Add degradation fixtures for malformed frontmatter/template boundaries.
+
+---
+
+## Appendix E - Conformance Matrix by Language/Framework
+
+| Profile | Required Conformance |
 | --- | --- |
-| javascript | Matrix flags + fixtures + expectations (Appendix B.1) |
-| typescript | Matrix flags + fixtures + expectations (Appendix B.2) |
-| python | Matrix flags + fixtures + expectations (Appendix B.3) |
-| clike | Matrix flags + fixtures + expectations (Appendix B.4) |
-| go | Matrix flags + fixtures + expectations (Appendix B.5) |
-| java | Matrix flags + fixtures + expectations (Appendix B.6) |
-| csharp | Matrix flags + fixtures + expectations (Appendix B.7) |
-| kotlin | Matrix flags + fixtures + expectations (Appendix B.8) |
-| ruby | Matrix flags + fixtures + expectations (Appendix B.9) |
-| php | Matrix flags + fixtures + expectations (Appendix B.10) |
-| html | Matrix flags + fixtures + expectations (Appendix B.11) |
-| css | Matrix flags + fixtures + expectations (Appendix B.12) |
-| lua | Matrix flags + fixtures + expectations (Appendix B.13) |
-| sql | Matrix flags + fixtures + expectations (Appendix B.14) |
-| perl | Matrix flags + fixtures + expectations (Appendix B.15) |
-| shell | Matrix flags + fixtures + expectations (Appendix B.16) |
-| rust | Matrix flags + fixtures + expectations (Appendix B.17) |
-| swift | Matrix flags + fixtures + expectations (Appendix B.18) |
-| cmake | Matrix flags + fixtures + expectations (Appendix B.19) |
-| starlark | Matrix flags + fixtures + expectations (Appendix B.20) |
-| nix | Matrix flags + fixtures + expectations (Appendix B.21) |
-| dart | Matrix flags + fixtures + expectations (Appendix B.22) |
-| scala | Matrix flags + fixtures + expectations (Appendix B.23) |
-| groovy | Matrix flags + fixtures + expectations (Appendix B.24) |
-| r | Matrix flags + fixtures + expectations (Appendix B.25) |
-| julia | Matrix flags + fixtures + expectations (Appendix B.26) |
-| handlebars | Matrix flags + fixtures + expectations (Appendix B.27) |
-| mustache | Matrix flags + fixtures + expectations (Appendix B.28) |
-| jinja | Matrix flags + fixtures + expectations (Appendix B.29) |
-| razor | Matrix flags + fixtures + expectations (Appendix B.30) |
-| proto | Matrix flags + fixtures + expectations (Appendix B.31) |
-| makefile | Matrix flags + fixtures + expectations (Appendix B.32) |
-| dockerfile | Matrix flags + fixtures + expectations (Appendix B.33) |
-| graphql | Matrix flags + fixtures + expectations (Appendix B.34) |
+| javascript | C0, C1, C2, C3, C4 |
+| typescript | C0, C1, C2, C3, C4 |
+| python | C0, C1, C2, C3 |
+| clike | C0, C1, C2, C3 |
+| go | C0, C1, C2, C3 |
+| java | C0, C1, C2, C3 |
+| csharp | C0, C1, C2, C3 |
+| kotlin | C0, C1, C2, C3 |
+| ruby | C0, C1, C2, C3 |
+| php | C0, C1, C2, C3 |
+| html | C0, C1, C4 when framework overlay applies |
+| css | C0, C1, C4 when framework overlay applies |
+| lua | C0, C1, C2, C3 |
+| sql | C0, C1, C2, C3 when risk-linked |
+| perl | C0, C1, C2, C3 |
+| shell | C0, C1, C2, C3 |
+| rust | C0, C1, C2, C3 |
+| swift | C0, C1, C2, C3 |
+| cmake | C0, C1, C2 where supported |
+| starlark | C0, C1, C2 where supported |
+| nix | C0, C1, C2 where supported |
+| dart | C0, C1, C2, C3 |
+| scala | C0, C1, C2, C3 |
+| groovy | C0, C1, C2, C3 |
+| r | C0, C1, C2, C3 where supported |
+| julia | C0, C1, C2, C3 where supported |
+| handlebars | C0, C1, C4 where template semantics apply |
+| mustache | C0, C1, C4 where template semantics apply |
+| jinja | C0, C1, C4 where template semantics apply |
+| razor | C0, C1, C4 where template semantics apply |
+| proto | C0, C1, C2 where supported |
+| makefile | C0, C1, C2 where supported |
+| dockerfile | C0, C1, C2 where supported |
+| graphql | C0, C1, C2 where supported |
+| react | C4 |
+| vue | C4 |
+| next | C4 |
+| nuxt | C4 |
+| svelte | C4 |
+| sveltekit | C4 |
+| angular | C4 |
+| astro | C4 |
 
 ---
 
-## Phase 1 — Lane creation + deterministic ordering
+## Appendix F - Rollout and Change-Control Tasks
 
-**References**: Appendix N (ordering contracts), Appendix P (per‑language tables)
+### F.1 Rollout gates (USR section 26)
 
-### 1.1 Lane definition and ordering
+- [ ] Complete Phase A schema and registry readiness.
+- [ ] Complete Phase B dual-write parity validation.
+- [ ] Complete Phase C USR-backed production path validation.
+- [ ] Complete Phase D full conformance enforcement.
 
-**Goals**
-- Dedicated `lang-full` lane with stable order.
+### F.2 Backward compatibility and deprecation (USR section 27)
 
-**Tasks**
-- [ ] Add lane to `tests/run.js`, `tests/run.rules.jsonc`, `tests/run.config.jsonc`.
-- [ ] Create `tests/lang-full/lang-full.order.txt` ordered by language and by capability.
-- [ ] Add sharding support using `LANG_FULL_SHARD_INDEX`/`LANG_FULL_SHARD_COUNT` and shard manifests derived from `lang-full.order.txt`.
-- [ ] Add lane description to `docs/guides/commands.md`.
+- [ ] Keep legacy artifact outputs until parity and migration evidence are approved.
+- [ ] For any deprecation, create archive doc entry with canonical replacement and reason.
 
-**Touchpoints**
-- `tests/run.js` (~L1-L487)
-- `tests/run.rules.jsonc` (~L1-L139)
-- `tests/run.config.jsonc` (~L1-L14)
-- `tests/lang-full/lang-full.order.txt` (new)
-- `tests/lang-full/lang-full.order.json` (new)
-- `tests/lang-full/shards/*.txt` (new)
-- `docs/guides/commands.md` (~L1-L165)
+### F.3 Change-control (USR section 28)
 
-**Per-language tasks**: see Section 1.A; ensure ordering entry exists for every language.
+- [ ] Add Tier 1/Tier 2/Tier 3 change classification checklist to PR workflow.
+- [ ] Enforce required reviewer thresholds by tier.
+- [ ] Enforce required updates to registries/schemas/tests for Tier 2 and Tier 3 changes.
 
-**Tests**
-- `tests/runner/lane-ordering-lang-full.test.js`
+### F.4 Extension policy (USR section 29)
+
+- [ ] Enforce namespaced extension usage.
+- [ ] Disallow extension overrides of canonical required semantics.
+- [ ] Validate extension determinism in CI.
 
 ---
 
-### 1.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | Add lang-full ordering entry; ensure JS block ordering |
-| typescript | Add lang-full ordering entry; ensure TS block ordering |
-| python | Add lang-full ordering entry; ensure Python block ordering |
-| clike | Add lang-full ordering entry; ensure C/C++ block ordering |
-| go | Add lang-full ordering entry; ensure Go block ordering |
-| java | Add lang-full ordering entry; ensure Java block ordering |
-| csharp | Add lang-full ordering entry; ensure CSharp block ordering |
-| kotlin | Add lang-full ordering entry; ensure Kotlin block ordering |
-| ruby | Add lang-full ordering entry; ensure Ruby block ordering |
-| php | Add lang-full ordering entry; ensure PHP block ordering |
-| html | Add lang-full ordering entry; ensure HTML block ordering |
-| css | Add lang-full ordering entry; ensure CSS block ordering |
-| lua | Add lang-full ordering entry; ensure Lua block ordering |
-| sql | Add lang-full ordering entry; ensure SQL block ordering |
-| perl | Add lang-full ordering entry; ensure Perl block ordering |
-| shell | Add lang-full ordering entry; ensure Shell block ordering |
-| rust | Add lang-full ordering entry; ensure Rust block ordering |
-| swift | Add lang-full ordering entry; ensure Swift block ordering |
-| cmake | Add lang-full ordering entry; ensure CMake block ordering |
-| starlark | Add lang-full ordering entry; ensure Starlark block ordering |
-| nix | Add lang-full ordering entry; ensure Nix block ordering |
-| dart | Add lang-full ordering entry; ensure Dart block ordering |
-| scala | Add lang-full ordering entry; ensure Scala block ordering |
-| groovy | Add lang-full ordering entry; ensure Groovy block ordering |
-| r | Add lang-full ordering entry; ensure R block ordering |
-| julia | Add lang-full ordering entry; ensure Julia block ordering |
-| handlebars | Add lang-full ordering entry; ensure Handlebars block ordering |
-| mustache | Add lang-full ordering entry; ensure Mustache block ordering |
-| jinja | Add lang-full ordering entry; ensure Jinja block ordering |
-| razor | Add lang-full ordering entry; ensure Razor block ordering |
-| proto | Add lang-full ordering entry; ensure Proto block ordering |
-| makefile | Add lang-full ordering entry; ensure Makefile block ordering |
-| dockerfile | Add lang-full ordering entry; ensure Dockerfile block ordering |
-| graphql | Add lang-full ordering entry; ensure GraphQL block ordering |
-
----
-
-## Phase 2 — Fixtures + indexing contract per language
-
-**References**: Appendix B (constructs), Appendix F (fixture inventories), Appendix D (minimum counts), Appendix D2 (artifact presence)
-
-### 2.1 Fixture baseline per language
-
-**Tasks**
-- [ ] Ensure a fixture exists under `tests/fixtures/languages/<id>/` with:
-  - ≥2 files
-  - ≥1 import
-  - ≥1 symbol definition + usage
-  - language‑specific constructs (see per‑language checklists below)
-
-**Per-language tasks**: see Section 2.A for fixture requirements per language.
-
-### 2.2 Fixture sanity tests (data‑driven)
-
-**Tasks**
-- [ ] Implement `tests/lang/<id>/fixture-sanity.test.js` via harness.
-
-**Touchpoints**
-- `tests/fixtures/languages/<id>/**` (new/expanded)
-- `tests/fixtures/README.md` (new)
-- `tests/lang/<id>/fixture-sanity.test.js` (new)
-- `tests/lang/fixtures/<id>/fixture-inventory.json` (new)
-- `tests/lang/harness/fixtures.js` (new)
-- `tests/lang/harness/expectations.js` (new)
-- `tests/lang/matrix/lang-fixtures.json` (new)
-
-**Per-language tasks**: see Section 2.A; add fixture‑sanity test per language and bind to fixture inventory (Appendix F).
-
-### 2.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | Fixtures with ESM + CJS + React JSX (Appendix B.1) |
-| typescript | Fixtures with TSX + generics + types (Appendix B.2) |
-| python | Fixtures with decorators + async (Appendix B.3) |
-| clike | Fixtures with includes + macros (Appendix B.4) |
-| go | Fixtures with goroutines + interfaces (Appendix B.5) |
-| java | Fixtures with classes + lambdas (Appendix B.6) |
-| csharp | Fixtures with attributes + async (Appendix B.7) |
-| kotlin | Fixtures with data class + extensions (Appendix B.8) |
-| ruby | Fixtures with modules + blocks (Appendix B.9) |
-| php | Fixtures with traits + namespaces (Appendix B.10) |
-| html | Fixtures with DOM + script/style tags (Appendix B.11) |
-| css | Fixtures with selectors + @media (Appendix B.12) |
-| lua | Fixtures with tables + require (Appendix B.13) |
-| sql | Fixtures with DDL + CTE (Appendix B.14) |
-| perl | Fixtures with packages + regex (Appendix B.15) |
-| shell | Fixtures with source + pipes (Appendix B.16) |
-| rust | Fixtures with traits + lifetimes (Appendix B.17) |
-| swift | Fixtures with protocols + extensions (Appendix B.18) |
-| cmake | Fixtures with include + add_executable (Appendix B.19) |
-| starlark | Fixtures with load + rule (Appendix B.20) |
-| nix | Fixtures with import + let/in (Appendix B.21) |
-| dart | Fixtures with async + class (Appendix B.22) |
-| scala | Fixtures with object + trait (Appendix B.23) |
-| groovy | Fixtures with closures + class (Appendix B.24) |
-| r | Fixtures with library + function (Appendix B.25) |
-| julia | Fixtures with using + module (Appendix B.26) |
-| handlebars | Fixtures with partials + helpers (Appendix B.27) |
-| mustache | Fixtures with sections + vars (Appendix B.28) |
-| jinja | Fixtures with blocks + include (Appendix B.29) |
-| razor | Fixtures with directives + inline code (Appendix B.30) |
-| proto | Fixtures with messages + services (Appendix B.31) |
-| makefile | Fixtures with include + target (Appendix B.32) |
-| dockerfile | Fixtures with FROM + RUN + COPY (Appendix B.33) |
-| graphql | Fixtures with types + queries (Appendix B.34) |
-
----
-
-## Phase 3 — AST + control/data flow coverage
-
-**References**: Appendix C (per‑artifact sub‑checks), Appendix E (subsystem matrix)
-
-**Touchpoints**
-- `tests/lang/<id>/ast-flow.test.js` (new)
-- `tests/lang/harness/expectations.js` (new)
-- `tests/lang/goldens/<id>/<artifact>.json` (new)
-- `tests/lang/determinism-matrix.test.js` (new)
-
-### 3.1 AST extraction validation
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/ast-flow.test.js` for `ast` languages.
-
-**Per-language tasks**: see Section 3.A; assert AST nodes per language and handle non‑AST languages via negative checks.
-
-### 3.2 Control/data flow validation
-
-**Tasks**
-- [ ] Extend flow assertions for control‑flow and data‑flow.
-
-**Per-language tasks**: see Section 3.A; validate control/data flow per language where supported.
-
-### 3.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | AST/flow for JSX + generators; assert counts |
-| typescript | AST/flow for TSX + types; assert counts |
-| python | AST/flow for decorators + async |
-| clike | AST/flow for structs + templates |
-| go | AST/flow for goroutines |
-| java | AST/flow for lambdas |
-| csharp | AST/flow for attributes + async |
-| kotlin | AST/flow for data classes |
-| ruby | AST/flow for blocks |
-| php | AST/flow for traits |
-| html | Assert no AST; negative checks |
-| css | Assert no AST; negative checks |
-| lua | AST/flow for functions |
-| sql | AST/flow for statements if supported; else negative |
-| perl | AST/flow for subs |
-| shell | AST/flow for functions |
-| rust | AST/flow for traits + impls |
-| swift | AST/flow for protocols |
-| cmake | AST minimal; chunking stable |
-| starlark | AST for load/rule if supported |
-| nix | AST for let/in if supported |
-| dart | AST/flow for async |
-| scala | AST/flow for trait/object |
-| groovy | AST/flow for closure |
-| r | AST minimal; chunking |
-| julia | AST minimal; chunking |
-| handlebars | no AST; template chunking |
-| mustache | no AST; template chunking |
-| jinja | no AST; template chunking |
-| razor | no AST; template chunking |
-| proto | AST for message/service if supported |
-| makefile | AST minimal; chunking |
-| dockerfile | AST minimal; chunking |
-| graphql | AST for schema if supported |
-
----
-
-## Phase 4 — Relations + graph artifacts
-
-**References**: Appendix C (per‑artifact sub‑checks), Appendix D2 (artifact presence)
-
-**Touchpoints**
-- `tests/lang/<id>/relations.test.js` (new)
-- `tests/lang/<id>/symbol-graph.test.js` (new)
-- `tests/lang/goldens/<id>/graph_relations*.json` (new)
-- `tests/lang/harness/expectations.js` (new)
-
-### 4.1 Relations coverage
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/relations.test.js` for languages with relations.
-
-**Per-language tasks**: see Section 4.A; validate relations presence or absence per language.
-
-### 4.2 Symbol graph artifacts
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/symbol-graph.test.js`.
-
-**Per-language tasks**: see Section 4.A; ensure symbol graph present for symbol‑supported languages.
-
-### 4.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | import/require edges + symbol graph |
-| typescript | import type edges + symbol graph |
-| python | import/from edges |
-| clike | include edges |
-| go | import edges |
-| java | import edges |
-| csharp | using edges |
-| kotlin | import edges |
-| ruby | require edges |
-| php | use edges |
-| html | assert absent relations |
-| css | assert absent relations |
-| lua | require edges |
-| sql | optional relations; validate empties |
-| perl | use edges |
-| shell | source edges |
-| rust | use edges + symbol graph |
-| swift | import edges |
-| cmake | include edges |
-| starlark | load edges |
-| nix | import edges |
-| dart | import edges |
-| scala | import edges |
-| groovy | import edges |
-| r | library edges optional |
-| julia | using/import edges |
-| handlebars | assert absent relations |
-| mustache | assert absent relations |
-| jinja | assert absent relations |
-| razor | assert absent relations |
-| proto | import edges |
-| makefile | include edges |
-| dockerfile | assert absent relations |
-| graphql | assert absent relations |
-
----
-
-## Phase 5 — Risk pack + interprocedural gating
-
-**References**: Appendix C (risk sub‑checks), Appendix D2 (artifact presence)
-
-**Touchpoints**
-- `tests/lang/<id>/risk-local.test.js` (new)
-- `tests/lang/risk-interprocedural-matrix.test.js` (new)
-- `tests/lang/goldens/<id>/risk_*.json` (new)
-- `tests/lang/harness/expectations.js` (new)
-
-### 5.1 Local risk
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/risk-local.test.js`.
-
-**Per-language tasks**: see Section 5.A; assert local risk outputs or explicit absence.
-
-### 5.2 Interprocedural risk matrix
-
-**Tasks**
-- [ ] Add `tests/lang/risk-interprocedural-matrix.test.js`.
-
-**Per-language tasks**: see Section 5.A; assert interprocedural stats when enabled.
-
-### 5.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | local risk eval/dynamic import; interproc if enabled |
-| typescript | local risk eval/dynamic import; interproc if enabled |
-| python | local risk eval/exec/subprocess |
-| clike | local risk system/strcpy |
-| go | local risk os/exec |
-| java | local risk Runtime.exec |
-| csharp | local risk Process.Start |
-| kotlin | local risk if supported; else absent |
-| ruby | local risk if supported; else absent |
-| php | local risk if supported; else absent |
-| html | assert risk artifacts absent |
-| css | assert risk artifacts absent |
-| lua | local risk if supported; else absent |
-| sql | assert risk artifacts absent |
-| perl | local risk if supported; else absent |
-| shell | local risk exec patterns |
-| rust | local risk unsafe/exec |
-| swift | local risk if supported; else absent |
-| cmake | assert risk artifacts absent |
-| starlark | assert risk artifacts absent |
-| nix | assert risk artifacts absent |
-| dart | local risk if supported; else absent |
-| scala | local risk if supported; else absent |
-| groovy | local risk if supported; else absent |
-| r | assert risk artifacts absent |
-| julia | assert risk artifacts absent |
-| handlebars | assert risk artifacts absent |
-| mustache | assert risk artifacts absent |
-| jinja | assert risk artifacts absent |
-| razor | assert risk artifacts absent |
-| proto | assert risk artifacts absent |
-| makefile | assert risk artifacts absent |
-| dockerfile | assert risk artifacts absent |
-| graphql | assert risk artifacts absent |
-
----
-
-## Phase 6 — API boundary + search/filters
-
-**References**: Appendix E (API boundary), Appendix B (language constructs)
-
-**Touchpoints**
-- `tests/lang/<id>/search-filters.test.js` (new)
-- `tests/lang/api/search-language.test.js` (new)
-- `src/retrieval/filters.js` (~L1-L294)
-- `src/retrieval/cli-args.js` (~L1-L193)
-
-### 6.1 CLI search filters per language
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/search-filters.test.js`.
-
-**Per-language tasks**: see Section 6.A; validate search filters per language.
-
-### 6.2 API search parity
-
-**Tasks**
-- [ ] Add `tests/lang/api/search-language.test.js`.
-
-**Per-language tasks**: see Section 6.A; validate API parity per language.
-
-### 6.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | search filters for JSX/React; API parity |
-| typescript | search filters for TSX/types; API parity |
-| python | search filters for defs/imports |
-| clike | search filters for includes/symbols |
-| go | search filters for funcs/types |
-| java | search filters for classes/methods |
-| csharp | search filters for classes/attributes |
-| kotlin | search filters for classes/functions |
-| ruby | search filters for modules/methods |
-| php | search filters for classes/functions |
-| html | search filters for tags/attrs |
-| css | search filters for selectors |
-| lua | search filters for functions |
-| sql | search filters for tables/queries |
-| perl | search filters for subs |
-| shell | search filters for scripts |
-| rust | search filters for traits/impls |
-| swift | search filters for types/functions |
-| cmake | search filters for targets |
-| starlark | search filters for rules |
-| nix | search filters for attrs |
-| dart | search filters for classes/functions |
-| scala | search filters for traits/objects |
-| groovy | search filters for classes/closures |
-| r | search filters for functions |
-| julia | search filters for functions |
-| handlebars | search filters for templates |
-| mustache | search filters for templates |
-| jinja | search filters for templates |
-| razor | search filters for templates |
-| proto | search filters for messages/services |
-| makefile | search filters for targets |
-| dockerfile | search filters for instructions |
-| graphql | search filters for types/queries |
-
----
-
-## Phase 7 — Determinism + regression suite
-
-**References**: Appendix D (minimum counts), Appendix D2 (artifact presence)
-
-**Touchpoints**
-- `tests/lang/<id>/determinism.test.js` (new)
-- `tests/lang/determinism-matrix.test.js` (new)
-- `tests/lang/goldens/<id>/**` (new)
-- `tests/lang/harness/expectations.js` (new)
-
-### 7.1 Determinism per language
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/determinism.test.js`.
-
-**Per-language tasks**: see Section 7.A; ensure deterministic outputs per language.
-
-### 7.2 Matrix determinism validation
-
-**Tasks**
-- [ ] Add `tests/lang/determinism-matrix.test.js`.
-
-**Per-language tasks**: see Section 7.A; validate matrix determinism per language.
-
-### 7.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | determinism test for JSX/React artifacts |
-| typescript | determinism test for TSX/type artifacts |
-| python | determinism test for imports/symbols |
-| clike | determinism test for includes/symbols |
-| go | determinism test for imports/symbols |
-| java | determinism test for imports/symbols |
-| csharp | determinism test for imports/symbols |
-| kotlin | determinism test for imports/symbols |
-| ruby | determinism test for relations |
-| php | determinism test for relations |
-| html | determinism test for docmeta |
-| css | determinism test for docmeta |
-| lua | determinism test for relations |
-| sql | determinism test for docmeta |
-| perl | determinism test for relations |
-| shell | determinism test for relations |
-| rust | determinism test for symbols |
-| swift | determinism test for relations |
-| cmake | determinism test for includes |
-| starlark | determinism test for load edges |
-| nix | determinism test for imports |
-| dart | determinism test for relations |
-| scala | determinism test for relations |
-| groovy | determinism test for relations |
-| r | determinism test for docmeta |
-| julia | determinism test for docmeta |
-| handlebars | determinism test for templates |
-| mustache | determinism test for templates |
-| jinja | determinism test for templates |
-| razor | determinism test for templates |
-| proto | determinism test for messages |
-| makefile | determinism test for includes |
-| dockerfile | determinism test for instructions |
-| graphql | determinism test for schema |
-
----
-
-## Phase 8 — CI wiring + reporting
-
-**References**: Appendix M (roadmap tags), Appendix N (ordering)
-
-**Touchpoints**
-- `.github/workflows/ci.yml` (new lane wiring)
-- `tests/run.js` (~L1-L487)
-- `tests/run.rules.jsonc` (~L1-L139)
-- `docs/tooling/lang-matrix-report.json` (new)
-- `docs/guides/commands.md` (~L1-L165)
-- `docs/contracts/indexing.md` (~L1-L90)
-
-### 8.1 CI integration
-
-**Tasks**
-- [ ] Add `lang-full` lane to CI workflows.
-- [ ] Add CI output artifact: `docs/tooling/lang-matrix-report.json`.
-
-**Per-language tasks**: see Section 8.A; ensure each language appears in CI report outputs.
-
-### 8.2 Documentation updates
-
-**Tasks**
-- [ ] Add `lang-full` lane to `docs/guides/commands.md`.
-- [ ] Add matrix reference to `docs/contracts/indexing.md`.
-
-**Per-language tasks**: see Section 8.A; confirm docs mention per-language coverage in summary.
-
-### 8.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | include in CI report + coverage tags |
-| typescript | include in CI report + coverage tags |
-| python | include in CI report + coverage tags |
-| clike | include in CI report + coverage tags |
-| go | include in CI report + coverage tags |
-| java | include in CI report + coverage tags |
-| csharp | include in CI report + coverage tags |
-| kotlin | include in CI report + coverage tags |
-| ruby | include in CI report + coverage tags |
-| php | include in CI report + coverage tags |
-| html | include in CI report + coverage tags |
-| css | include in CI report + coverage tags |
-| lua | include in CI report + coverage tags |
-| sql | include in CI report + coverage tags |
-| perl | include in CI report + coverage tags |
-| shell | include in CI report + coverage tags |
-| rust | include in CI report + coverage tags |
-| swift | include in CI report + coverage tags |
-| cmake | include in CI report + coverage tags |
-| starlark | include in CI report + coverage tags |
-| nix | include in CI report + coverage tags |
-| dart | include in CI report + coverage tags |
-| scala | include in CI report + coverage tags |
-| groovy | include in CI report + coverage tags |
-| r | include in CI report + coverage tags |
-| julia | include in CI report + coverage tags |
-| handlebars | include in CI report + coverage tags |
-| mustache | include in CI report + coverage tags |
-| jinja | include in CI report + coverage tags |
-| razor | include in CI report + coverage tags |
-| proto | include in CI report + coverage tags |
-| makefile | include in CI report + coverage tags |
-| dockerfile | include in CI report + coverage tags |
-| graphql | include in CI report + coverage tags |
-
----
-
-## Phase 9 — Cleanup + dedupe
-
-**References**: Appendix P (per‑phase tables)
-
-**Touchpoints**
-- `tests/lang/harness/expectations.js` (new)
-- `tests/lang/harness/fixtures.js` (new)
-- `tests/lang/<id>/*.test.js` (refactor to shared harness)
-- `tests/lang/<id>/fixture-sanity.test.js` (refactor to shared harness)
-
-### 9.1 Harness consolidation
-
-**Tasks**
-- [ ] Extract shared expectations to `tests/lang/harness/expectations.js`.
-- [ ] Extract fixture loading to `tests/lang/harness/fixtures.js`.
-- [ ] Ensure no per‑language test hardcodes registry values.
-
-**Per-language tasks**: see Section 9.A; migrate each language test to shared harness helpers.
-
-### 9.A Per-language subphases (inline)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | dedupe via shared harness + expectations helper |
-| typescript | dedupe via shared harness + expectations helper |
-| python | dedupe via shared harness + expectations helper |
-| clike | dedupe via shared harness + expectations helper |
-| go | dedupe via shared harness + expectations helper |
-| java | dedupe via shared harness + expectations helper |
-| csharp | dedupe via shared harness + expectations helper |
-| kotlin | dedupe via shared harness + expectations helper |
-| ruby | dedupe via shared harness + expectations helper |
-| php | dedupe via shared harness + expectations helper |
-| html | dedupe via shared harness + expectations helper |
-| css | dedupe via shared harness + expectations helper |
-| lua | dedupe via shared harness + expectations helper |
-| sql | dedupe via shared harness + expectations helper |
-| perl | dedupe via shared harness + expectations helper |
-| shell | dedupe via shared harness + expectations helper |
-| rust | dedupe via shared harness + expectations helper |
-| swift | dedupe via shared harness + expectations helper |
-| cmake | dedupe via shared harness + expectations helper |
-| starlark | dedupe via shared harness + expectations helper |
-| nix | dedupe via shared harness + expectations helper |
-| dart | dedupe via shared harness + expectations helper |
-| scala | dedupe via shared harness + expectations helper |
-| groovy | dedupe via shared harness + expectations helper |
-| r | dedupe via shared harness + expectations helper |
-| julia | dedupe via shared harness + expectations helper |
-| handlebars | dedupe via shared harness + expectations helper |
-| mustache | dedupe via shared harness + expectations helper |
-| jinja | dedupe via shared harness + expectations helper |
-| razor | dedupe via shared harness + expectations helper |
-| proto | dedupe via shared harness + expectations helper |
-| makefile | dedupe via shared harness + expectations helper |
-| dockerfile | dedupe via shared harness + expectations helper |
-| graphql | dedupe via shared harness + expectations helper |
-
----
-
-## Phase 10 — Per‑language, per‑artifact checklists (expanded)
-
-**References**: Appendix C (field‑level sub‑checks), Appendix D (minimum counts), Appendix D2 (presence/absence)
-
-> Each language gets a full artifact checklist section. Each artifact includes **sub‑checks** for schema, counts, and deterministic ordering.
-
-### 10.1 JavaScript checklist (expanded)
-- **chunk_meta**
-  - [ ] schemaVersion valid
-  - [ ] required keys: id,start,end,metaV2 present
-  - [ ] determinism: stable ordering by chunkUid
-- **file_meta**
-  - [ ] fileId indirection correct
-  - [ ] file paths normalized
-- **file_relations**
-  - [ ] imports/calls/usages arrays present
-  - [ ] deterministic ordering
-- **graph_relations**
-  - [ ] nodeCount/edgeCount correct
-  - [ ] stable node ordering
-- **import_resolution_graph**
-  - [ ] nodes + edges present
-  - [ ] resolved paths stable
-- **symbols/symbol_occurrences/symbol_edges**
-  - [ ] symbolId/scopedId present
-  - [ ] edges reference valid symbols
-- **risk_summaries**
-  - [ ] schemaVersion + signals present
-- **risk_interprocedural_stats + risk_flows**
-  - [ ] stats schema valid
-  - [ ] flows have valid flowId + path
-- **call_sites**
-  - [ ] callSiteId + range fields present
-- **vfs_manifest**
-  - [ ] segments for JSX/Vue
-- **index_state/build_state**
-  - [ ] schemaVersion + mode entries
-
-### 10.2 TypeScript checklist (expanded)
-- Same as JS + ensure type signatures in docmeta and symbol signatures.
-
-### 10.3 Python checklist (expanded)
-- chunk_meta, file_meta, file_relations, risk_summaries where supported.
-- imports recorded in relations.
-- determinism across runs.
-
-### 10.4 CLike checklist (expanded)
-- includes recorded in imports.
-- file_relations calls present.
-- graph relations stable.
-
-### 10.5 Go checklist (expanded)
-- imports present, relations calls present.
-- docmeta includes receiver names.
-
-### 10.6 Java checklist (expanded)
-- imports, relations calls/usages.
-- symbol graph stable.
-
-### 10.7 CSharp checklist (expanded)
-- imports and relations.
-- call_sites present if enabled.
-
-### 10.8 Kotlin checklist (expanded)
-- imports and relations.
-
-### 10.9 Ruby checklist (expanded)
-- relations for method calls.
-
-### 10.10 PHP checklist (expanded)
-- imports and relations.
-
-### 10.11 HTML checklist (expanded)
-- chunk_meta + docmeta tags.
-
-### 10.12 CSS checklist (expanded)
-- chunk_meta + docmeta selectors.
-
-### 10.13 Lua checklist (expanded)
-- imports + relations.
-
-### 10.14 SQL checklist (expanded)
-- docmeta table names.
-
-### 10.15 Perl checklist (expanded)
-- imports + relations.
-
-### 10.16 Shell checklist (expanded)
-- source/includes recorded.
-
-### 10.17 Rust checklist (expanded)
-- imports + relations + symbol graph.
-
-### 10.18 Swift checklist (expanded)
-- imports + relations.
-
-### 10.19 CMake checklist (expanded)
-- include() recorded in imports.
-
-### 10.20 Starlark checklist (expanded)
-- load() recorded in imports.
-
-### 10.21 Nix checklist (expanded)
-- imports or references recorded if supported.
-
-### 10.22 Dart checklist (expanded)
-- imports + relations.
-
-### 10.23 Scala checklist (expanded)
-- imports + relations.
-
-### 10.24 Groovy checklist (expanded)
-- imports + relations.
-
-### 10.25 R checklist (expanded)
-- library() recorded if supported.
-
-### 10.26 Julia checklist (expanded)
-- imports + relations.
-
-### 10.27 Handlebars checklist (expanded)
-- template nodes present.
-
-### 10.28 Mustache checklist (expanded)
-- template nodes present.
-
-### 10.29 Jinja checklist (expanded)
-- template nodes present.
-
-### 10.30 Razor checklist (expanded)
-- template nodes present.
-
-### 10.31 Proto checklist (expanded)
-- message/service docmeta + imports.
-
-### 10.32 Makefile checklist (expanded)
-- include paths recorded.
-
-### 10.33 Dockerfile checklist (expanded)
-- instructions docmeta present.
-
-### 10.34 GraphQL checklist (expanded)
-- schema/type docmeta present.
-
----
-
-## Acceptance criteria
-
-Global (roadmap‑wide):
-- `lang-full` lane runs for all supported languages.
-- Any registry language without matrix entries fails tests.
-- Per language:
-  - indexing outputs present (chunk_meta, relations, docmeta)
-  - AST/flow validated where supported
-  - graph + symbol artifacts validated where supported
-  - risk outputs validated where supported
-  - search/API boundary filters validated
-  - determinism validated
-
-Phase completion checklists:
-- **Phase 0**: matrix JSONs exist; drift tests pass; registry coverage = 100%.
-- **Phase 1**: lang-full lane defined; order file locked; ordering test passes.
-- **Phase 2**: fixtures exist for every language; fixture‑sanity tests pass.
-- **Phase 3**: AST/flow tests pass for all AST‑capable languages; negative AST tests pass.
-- **Phase 4**: relations + symbol graph tests pass; absence checks pass.
-- **Phase 5**: risk local/interproc tests pass; absence checks pass.
-- **Phase 6**: search filters + API parity tests pass for every language.
-- **Phase 7**: determinism tests pass for all languages.
-- **Phase 8**: CI reporting artifacts generated; docs updated; lane visible in commands doc.
-- **Phase 9**: shared harness used by all language tests; no per‑language duplication.
-- **Phase 10**: per‑language artifact checklists validated (Appendix C/D/D2 complete).
-
----
-
-## Appendix A — Common artifact checklist template (apply to every language)
-
-> Use this template verbatim for each language, then add language-specific expectations in Appendix B.
-
-### A.1 Core artifacts (always present)
-
-- **file_meta.json**
-  - [ ] fileId unique per file
-  - [ ] path is repo-relative, normalized (posix), no traversal
-  - [ ] byteLength, lineCount, encoding populated
-  - [ ] deterministic ordering by fileId (or path if specified)
-- **chunk_meta.json / sharded chunk_meta**
-  - [ ] chunkUid stable across runs
-  - [ ] start/end byte offsets and startLine/endLine consistent
-  - [ ] metaV2 object present and schema-valid
-  - [ ] tokens/chargrams counts non-negative
-  - [ ] deterministic ordering by chunkUid
-- **pieces manifest**
-  - [ ] all artifacts listed with correct counts
-  - [ ] counts match actual JSONL/JSON row counts
-  - [ ] shard counts sum correctly
-- **index_state.json**
-  - [ ] buildId, schemaVersion, mode set
-  - [ ] deterministic fields only (non-deterministic fields documented)
-- **build_state.json**
-  - [ ] repo provenance present (provider, head)
-  - [ ] schemaVersion, buildId, mode
-
-### A.2 Relations + graphs (if supported)
-
-- **file_relations.jsonl**
-  - [ ] call/usages/imports edges present when applicable
-  - [ ] edge ordering deterministic
-  - [ ] edges reference valid fileIds/chunkUids
-- **graph_relations.json**
-  - [ ] node + edge counts stable
-  - [ ] stable ordering by node id/edge id
-  - [ ] generatedAt excluded from determinism checks if configured
-- **import_resolution_graph.json**
-  - [ ] nodes include every import source
-  - [ ] edges link to resolved targets
-  - [ ] unresolved edges labeled correctly
-
-### A.3 Symbol graph (if supported)
-
-- **symbols.jsonl**
-  - [ ] symbolId + scopedId present
-  - [ ] name + kind + range fields present
-- **symbol_occurrences.jsonl**
-  - [ ] symbolId references valid symbols
-  - [ ] range + fileId valid
-- **symbol_edges.jsonl**
-  - [ ] edges reference valid symbolIds
-  - [ ] relation kinds are valid
-
-### A.4 Risk pack (if enabled)
-
-- **risk_summaries.jsonl**
-  - [ ] schemaVersion + signal entries present
-  - [ ] stable ordering of summaries
-- **risk_interprocedural_stats.json**
-  - [ ] mode + callSiteSampling fields present
-  - [ ] timingMs includes io
-  - [ ] status ok/disabled consistent with config
-- **risk_flows.jsonl**
-  - [ ] flowId stable
-  - [ ] path nodes valid
-
-### A.5 Call sites (if enabled)
-
-- **call_sites.jsonl**
-  - [ ] callSiteId stable
-  - [ ] range/start/end present
-  - [ ] callee/caller info populated when possible
-
-### A.6 VFS + segments (if supported)
-
-- **vfs_manifest.json**
-  - [ ] segments include file ranges for embedded content
-  - [ ] segments ordered by file/start
-
-### A.7 Embeddings (if enabled)
-
-- **embeddings artifacts**
-  - [ ] vector dims match config
-  - [ ] counts match chunk counts
-  - [ ] index + table artifacts present for backend
-
----
-
-## Appendix B — Per-language deep checklist (expanded)
-
-> Each language gets a dedicated list of **fixture requirements**, **expected relations**, **artifact expectations**, and **tests**. Every item should be validated in the lang-full lane.
-
-### B.1 JavaScript
-
-**Fixture requirements**
-- [ ] ES modules + CommonJS mixed
-- [ ] Default export + named exports
-- [ ] Class + function + arrow function + generator
-- [ ] React JSX component (hooks + props)
-- [ ] Dynamic import + require
-
-**Expected relations**
-- [ ] import graph edges for ES imports
-- [ ] require() edges recorded
-- [ ] call_sites include React component calls
-
-**Artifacts (apply Appendix A)**
-- [ ] chunk_meta includes JSX ranges
-- [ ] vfs_manifest includes JSX segments if extracted
-
-**Tests**
-- `tests/lang/javascript/fixture-sanity.test.js`
-- `tests/lang/javascript/relations.test.js`
-- `tests/lang/javascript/ast-flow.test.js`
-- `tests/lang/javascript/symbol-graph.test.js`
-- `tests/lang/javascript/risk-local.test.js`
-
-### B.2 TypeScript
-
-**Fixture requirements**
-- [ ] TS interface + type alias
-- [ ] generics, overloads, namespaces
-- [ ] React TSX component
-- [ ] enums + decorators (if supported)
-- [ ] path alias import (tsconfig paths)
-
-**Expected relations**
-- [ ] import graph edges for TS imports
-- [ ] symbol graph includes type symbols
-
-**Artifacts**
-- [ ] metaV2 includes type signatures
-
-**Tests**
-- `tests/lang/typescript/fixture-sanity.test.js`
-- `tests/lang/typescript/relations.test.js`
-- `tests/lang/typescript/ast-flow.test.js`
-- `tests/lang/typescript/symbol-graph.test.js`
-
-### B.3 Python
-
-**Fixture requirements**
-- [ ] module import + from import
-- [ ] class with method + decorator
-- [ ] async function + await
-- [ ] type hints (PEP484)
-
-**Expected relations**
-- [ ] import graph edges from import/from
-- [ ] call_sites include method calls
-
-**Tests**
-- `tests/lang/python/fixture-sanity.test.js`
-- `tests/lang/python/relations.test.js`
-
-### B.4 CLike (C/C++)
-
-**Fixture requirements**
-- [ ] #include local + system
-- [ ] struct + class + namespace
-- [ ] function pointer usage
-- [ ] template or macro usage
-
-**Expected relations**
-- [ ] include edges recorded
-- [ ] call_sites include function calls
-
-**Tests**
-- `tests/lang/clike/fixture-sanity.test.js`
-- `tests/lang/clike/relations.test.js`
-
-### B.5 Go
-
-**Fixture requirements**
-- [ ] package + import
-- [ ] interface + struct + method
-- [ ] goroutine + channel usage
-
-**Expected relations**
-- [ ] import edges recorded
-- [ ] call_sites include method calls
-
-**Tests**
-- `tests/lang/go/fixture-sanity.test.js`
-- `tests/lang/go/relations.test.js`
-
-### B.6 Java
-
-**Fixture requirements**
-- [ ] package + import
-- [ ] class + interface + enum
-- [ ] lambda + anonymous class
-
-**Expected relations**
-- [ ] import edges
-- [ ] call_sites include method calls
-
-**Tests**
-- `tests/lang/java/fixture-sanity.test.js`
-- `tests/lang/java/relations.test.js`
-
-### B.7 CSharp
-
-**Fixture requirements**
-- [ ] namespace + using
-- [ ] class + interface + attribute
-- [ ] async/await
-
-**Expected relations**
-- [ ] import edges
-- [ ] call_sites include method calls
-
-**Tests**
-- `tests/lang/csharp/fixture-sanity.test.js`
-
-### B.8 Kotlin
-
-**Fixture requirements**
-- [ ] package + import
-- [ ] data class + sealed class
-- [ ] extension function
-
-**Tests**
-- `tests/lang/kotlin/fixture-sanity.test.js`
-
-### B.9 Ruby
-
-**Fixture requirements**
-- [ ] require + module
-- [ ] class + method
-- [ ] block/yield
-
-**Tests**
-- `tests/lang/ruby/fixture-sanity.test.js`
-
-### B.10 PHP
-
-**Fixture requirements**
-- [ ] namespace + use
-- [ ] class + trait + interface
-- [ ] composer autoload example
-
-**Tests**
-- `tests/lang/php/fixture-sanity.test.js`
-
-### B.11 HTML
-
-**Fixture requirements**
-- [ ] nested DOM + script/style tags
-- [ ] data-* attributes
-
-**Tests**
-- `tests/lang/html/fixture-sanity.test.js`
-
-### B.12 CSS
-
-**Fixture requirements**
-- [ ] selectors: class/id/attribute
-- [ ] @media + @keyframes
-
-**Tests**
-- `tests/lang/css/fixture-sanity.test.js`
-
-### B.13 Lua
-
-**Fixture requirements**
-- [ ] require + module
-- [ ] table + metatable
-
-**Tests**
-- `tests/lang/lua/fixture-sanity.test.js`
-
-### B.14 SQL
-
-**Fixture requirements**
-- [ ] create table + index
-- [ ] select join + CTE
-
-**Tests**
-- `tests/lang/sql/fixture-sanity.test.js`
-
-### B.15 Perl
-
-**Fixture requirements**
-- [ ] use + package
-- [ ] sub + regex
-
-**Tests**
-- `tests/lang/perl/fixture-sanity.test.js`
-
-### B.16 Shell
-
-**Fixture requirements**
-- [ ] source + export
-- [ ] function + pipe
-
-**Tests**
-- `tests/lang/shell/fixture-sanity.test.js`
-
-### B.17 Rust
-
-**Fixture requirements**
-- [ ] mod + use
-- [ ] struct + trait + impl
-- [ ] generic + lifetime
-
-**Tests**
-- `tests/lang/rust/fixture-sanity.test.js`
-
-### B.18 Swift
-
-**Fixture requirements**
-- [ ] import + class
-- [ ] protocol + extension
-
-**Tests**
-- `tests/lang/swift/fixture-sanity.test.js`
-
-### B.19 CMake
-
-**Fixture requirements**
-- [ ] include + add_executable
-
-**Tests**
-- `tests/lang/cmake/fixture-sanity.test.js`
-
-### B.20 Starlark
-
-**Fixture requirements**
-- [ ] load + rule
-
-**Tests**
-- `tests/lang/starlark/fixture-sanity.test.js`
-
-### B.21 Nix
-
-**Fixture requirements**
-- [ ] import + let/in
-
-**Tests**
-- `tests/lang/nix/fixture-sanity.test.js`
-
-### B.22 Dart
-
-**Fixture requirements**
-- [ ] import + class
-- [ ] async
-
-**Tests**
-- `tests/lang/dart/fixture-sanity.test.js`
-
-### B.23 Scala
-
-**Fixture requirements**
-- [ ] import + class
-- [ ] object + trait
-
-**Tests**
-- `tests/lang/scala/fixture-sanity.test.js`
-
-### B.24 Groovy
-
-**Fixture requirements**
-- [ ] import + class
-- [ ] closure
-
-**Tests**
-- `tests/lang/groovy/fixture-sanity.test.js`
-
-### B.25 R
-
-**Fixture requirements**
-- [ ] library + function
-
-**Tests**
-- `tests/lang/r/fixture-sanity.test.js`
-
-### B.26 Julia
-
-**Fixture requirements**
-- [ ] using + module
-
-**Tests**
-- `tests/lang/julia/fixture-sanity.test.js`
-
-### B.27 Handlebars
-
-**Fixture requirements**
-- [ ] partial + helper
-
-**Tests**
-- `tests/lang/handlebars/fixture-sanity.test.js`
-
-### B.28 Mustache
-
-**Fixture requirements**
-- [ ] section + variable
-
-**Tests**
-- `tests/lang/mustache/fixture-sanity.test.js`
-
-### B.29 Jinja
-
-**Fixture requirements**
-- [ ] block + include
-
-**Tests**
-- `tests/lang/jinja/fixture-sanity.test.js`
-
-### B.30 Razor
-
-**Fixture requirements**
-- [ ] directive + inline code
-
-**Tests**
-- `tests/lang/razor/fixture-sanity.test.js`
-
-### B.31 Proto
-
-**Fixture requirements**
-- [ ] message + service
-
-**Tests**
-- `tests/lang/proto/fixture-sanity.test.js`
-
-### B.32 Makefile
-
-**Fixture requirements**
-- [ ] include + target
-
-**Tests**
-- `tests/lang/makefile/fixture-sanity.test.js`
-
-### B.33 Dockerfile
-
-**Fixture requirements**
-- [ ] FROM + RUN + COPY
-
-**Tests**
-- `tests/lang/dockerfile/fixture-sanity.test.js`
-
-### B.34 GraphQL
-
-**Fixture requirements**
-- [ ] type + query
-
-**Tests**
-- `tests/lang/graphql/fixture-sanity.test.js`
-
----
-
-## Appendix C — Per‑language per‑artifact sub‑checks (full detail)
-
-> For each language, validate **every artifact** from Appendix A, plus the language‑specific expectations below. If an artifact is not supported for a language, the test should assert it is **absent** or **empty by contract**.
-
-### C.1 JavaScript (ESM + CJS + React)
-
-- **file_meta.json**
-  - [ ] paths include `.js`, `.mjs`, `.cjs`, `.jsx`
-  - [ ] encoding detected for UTF‑8 + latin1 fixtures
-- **chunk_meta.json**
-  - [ ] JSX chunks include `metaV2.kind="code"` with `language="javascript"`
-  - [ ] chunk boundaries align to JSX tags and function blocks
-- **file_relations.jsonl**
-  - [ ] ES `import` edges recorded
-  - [ ] `require()` edges recorded
-  - [ ] dynamic import edges recorded
-- **import_resolution_graph.json**
-  - [ ] resolves relative + bare module imports
-  - [ ] unresolved modules tracked with reason
-- **graph_relations.json**
-  - [ ] call edges for functions + class methods
-- **symbols.jsonl / symbol_edges.jsonl**
-  - [ ] functions, classes, variables, exports
-  - [ ] edges for `export`/`import` symbol relations
-- **risk_* artifacts**
-  - [ ] local risk signals for `eval`, dynamic import, exec‑like patterns
-- **call_sites.jsonl**
-  - [ ] call sites for hooks + class methods
-- **vfs_manifest.json**
-  - [ ] JSX embedded segments listed when extracted‑prose enabled
-- **embeddings**
-  - [ ] vectors emitted for JS chunks when enabled
-
-### C.2 TypeScript (TS + TSX)
-
-- **file_meta.json**
-  - [ ] `.ts`, `.tsx` entries with correct language
-- **chunk_meta.json**
-  - [ ] metaV2 includes `signature` for functions + types
-- **file_relations.jsonl**
-  - [ ] `import type` edges recorded
-- **import_resolution_graph.json**
-  - [ ] tsconfig path alias resolution recorded
-- **symbols.jsonl**
-  - [ ] interfaces, type aliases, enums, namespaces
-- **symbol_edges.jsonl**
-  - [ ] implements/extends edges
-- **call_sites.jsonl**
-  - [ ] class method invocations + generic calls
-- **vfs_manifest.json**
-  - [ ] TSX segment extraction listed
-
-### C.3 Python
-
-- **file_meta.json**
-  - [ ] `.py` entries
-- **chunk_meta.json**
-  - [ ] class + def blocks become chunks
-- **file_relations.jsonl**
-  - [ ] `import` + `from x import y` edges
-- **symbols.jsonl**
-  - [ ] classes, functions, decorators
-- **call_sites.jsonl**
-  - [ ] function + method calls
-- **risk_* artifacts**
-  - [ ] local risk signals for `eval`, `exec`, `subprocess`
-
-### C.4 C/C++ (clike)
-
-- **file_meta.json**
-  - [ ] `.c`, `.h`, `.cpp`, `.hpp` entries
-- **chunk_meta.json**
-  - [ ] function blocks, class/struct blocks
-- **file_relations.jsonl**
-  - [ ] `#include` edges (local + system)
-- **symbols.jsonl**
-  - [ ] functions, structs, classes, namespaces
-- **call_sites.jsonl**
-  - [ ] function calls
-- **risk_* artifacts**
-  - [ ] local risk signals for `system`, `strcpy`
-
-### C.5 Go
-
-- **file_meta.json**
-  - [ ] `.go` entries
-- **chunk_meta.json**
-  - [ ] package‑level funcs + methods
-- **file_relations.jsonl**
-  - [ ] `import` edges
-- **symbols.jsonl**
-  - [ ] types, funcs, methods
-- **call_sites.jsonl**
-  - [ ] method calls and interface usage
-
-### C.6 Java
-
-- **file_meta.json**
-  - [ ] `.java` entries
-- **chunk_meta.json**
-  - [ ] class + method blocks
-- **file_relations.jsonl**
-  - [ ] `import` edges
-- **symbols.jsonl**
-  - [ ] classes, interfaces, enums
-- **call_sites.jsonl**
-  - [ ] method calls
-
-### C.7 CSharp
-
-- **file_meta.json**
-  - [ ] `.cs` entries
-- **chunk_meta.json**
-  - [ ] class + method blocks
-- **file_relations.jsonl**
-  - [ ] `using` edges
-- **symbols.jsonl**
-  - [ ] classes, interfaces, attributes
-
-### C.8 Kotlin
-
-- **file_meta.json**: `.kt`
-- **chunk_meta.json**: class + function blocks
-- **file_relations.jsonl**: `import` edges
-- **symbols.jsonl**: classes, data classes, extension functions
-
-### C.9 Ruby
-
-- **file_meta.json**: `.rb`
-- **chunk_meta.json**: class/module/def blocks
-- **file_relations.jsonl**: `require` edges
-- **symbols.jsonl**: classes, modules, methods
-
-### C.10 PHP
-
-- **file_meta.json**: `.php`
-- **chunk_meta.json**: class/trait/function blocks
-- **file_relations.jsonl**: `use` edges
-- **symbols.jsonl**: classes, traits, functions
-
-### C.11 HTML
-
-- **file_meta.json**: `.html`, `.htm`
-- **chunk_meta.json**: chunk per document or per section
-- **docmeta**: tags + attributes extracted
-- **symbols.jsonl**: none (assert absent)
-
-### C.12 CSS
-
-- **file_meta.json**: `.css`
-- **chunk_meta.json**: rulesets
-- **docmeta**: selectors, at‑rules
-
-### C.13 Lua
-
-- **file_meta.json**: `.lua`
-- **chunk_meta.json**: functions
-- **file_relations.jsonl**: `require` edges
-
-### C.14 SQL
-
-- **file_meta.json**: `.sql`
-- **chunk_meta.json**: statements
-- **docmeta**: table + column references
-
-### C.15 Perl
-
-- **file_meta.json**: `.pl`, `.pm`
-- **chunk_meta.json**: sub blocks
-- **file_relations.jsonl**: `use` edges
-
-### C.16 Shell
-
-- **file_meta.json**: `.sh`, `.bash`
-- **chunk_meta.json**: function blocks
-- **file_relations.jsonl**: `source` edges
-
-### C.17 Rust
-
-- **file_meta.json**: `.rs`
-- **chunk_meta.json**: mod/impl/trait blocks
-- **file_relations.jsonl**: `use` edges
-- **symbols.jsonl**: structs, traits, impls
-
-### C.18 Swift
-
-- **file_meta.json**: `.swift`
-- **chunk_meta.json**: class/struct/func blocks
-- **file_relations.jsonl**: `import` edges
-
-### C.19 CMake
-
-- **file_meta.json**: `CMakeLists.txt`, `.cmake`
-- **file_relations.jsonl**: `include()` edges
-
-### C.20 Starlark
-
-- **file_meta.json**: `.bzl`, `BUILD`
-- **file_relations.jsonl**: `load()` edges
-
-### C.21 Nix
-
-- **file_meta.json**: `.nix`
-- **file_relations.jsonl**: `import` edges
-
-### C.22 Dart
-
-- **file_meta.json**: `.dart`
-- **file_relations.jsonl**: `import` edges
-
-### C.23 Scala
-
-- **file_meta.json**: `.scala`
-- **file_relations.jsonl**: `import` edges
-
-### C.24 Groovy
-
-- **file_meta.json**: `.groovy`
-- **file_relations.jsonl**: `import` edges
-
-### C.25 R
-
-- **file_meta.json**: `.r`, `.R`
-- **file_relations.jsonl**: `library()` edges if supported
-
-### C.26 Julia
-
-- **file_meta.json**: `.jl`
-- **file_relations.jsonl**: `using/import` edges
-
-### C.27 Handlebars
-
-- **file_meta.json**: `.hbs`
-- **chunk_meta.json**: template blocks
-
-### C.28 Mustache
-
-- **file_meta.json**: `.mustache`
-- **chunk_meta.json**: template blocks
-
-### C.29 Jinja
-
-- **file_meta.json**: `.j2`, `.jinja`
-- **chunk_meta.json**: template blocks
-
-### C.30 Razor
-
-- **file_meta.json**: `.cshtml`
-- **chunk_meta.json**: template blocks
-
-### C.31 Proto
-
-- **file_meta.json**: `.proto`
-- **docmeta**: messages/services
-- **file_relations.jsonl**: `import` edges
-
-### C.32 Makefile
-
-- **file_meta.json**: `Makefile`, `.mk`
-- **file_relations.jsonl**: `include` edges
-
-### C.33 Dockerfile
-
-- **file_meta.json**: `Dockerfile`
-- **docmeta**: instruction list
-
-### C.34 GraphQL
-
-- **file_meta.json**: `.graphql`, `.gql`
-- **docmeta**: type + query defs
-
----
-
-## Appendix D — Per‑language per‑artifact sub‑checklists (expanded with minimum counts)
-
-> This section **repeats Appendix A per language** and adds concrete, language‑specific minimum counts. These are the authoritative per‑language expectations.
-
-### D.1 JavaScript (ESM + CJS + React)
-
-**file_meta.json**
-- [ ] ≥4 files (.js/.jsx) with unique fileIds
-- [ ] paths include at least one .jsx
-
-**chunk_meta.json**
-- [ ] ≥6 chunks
-- [ ] JSX chunk present with metaV2.kind="code"
-
-**file_relations.jsonl**
-- [ ] ≥3 import edges (ES + require)
-
-**symbols.jsonl**
-- [ ] ≥8 symbols (class, function, const, export)
-
-**call_sites.jsonl**
-- [ ] ≥5 call sites (including React hook call)
-
-**risk_summaries.jsonl**
-- [ ] ≥1 local risk signal (eval/dynamic import fixture)
-
-### D.2 TypeScript (TS + TSX)
-
-**file_meta.json**
-- [ ] ≥4 files (.ts/.tsx)
-
-**chunk_meta.json**
-- [ ] ≥6 chunks with signatures
-
-**file_relations.jsonl**
-- [ ] ≥3 import edges
-
-**symbols.jsonl**
-- [ ] ≥10 symbols (interface, type alias, enum)
-
-**call_sites.jsonl**
-- [ ] ≥4 call sites
-
-### D.3 Python
-
-**file_meta.json**
-- [ ] ≥3 .py files
-
-**chunk_meta.json**
-- [ ] ≥5 chunks (class + def)
-
-**file_relations.jsonl**
-- [ ] ≥2 import edges
-
-**symbols.jsonl**
-- [ ] ≥6 symbols (class, functions)
-
-### D.4 C/C++
-
-**file_meta.json**
-- [ ] ≥3 files (.c/.h)
-
-**chunk_meta.json**
-- [ ] ≥4 chunks (functions/structs)
-
-**file_relations.jsonl**
-- [ ] ≥2 include edges
-
-### D.5 Go
-
-**file_meta.json**
-- [ ] ≥3 .go files
-
-**chunk_meta.json**
-- [ ] ≥5 chunks
-
-**file_relations.jsonl**
-- [ ] ≥2 import edges
-
-### D.6 Java
-
-**file_meta.json**
-- [ ] ≥3 .java files
-
-**chunk_meta.json**
-- [ ] ≥5 chunks
-
-**file_relations.jsonl**
-- [ ] ≥2 import edges
-
-### D.7 CSharp
-
-**file_meta.json**
-- [ ] ≥3 .cs files
-
-**chunk_meta.json**
-- [ ] ≥5 chunks
-
-**file_relations.jsonl**
-- [ ] ≥2 using edges
-
-### D.8 Kotlin
-
-**file_meta.json**
-- [ ] ≥2 .kt files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-**file_relations.jsonl**
-- [ ] ≥1 import edge
-
-### D.9 Ruby
-
-**file_meta.json**
-- [ ] ≥2 .rb files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-**file_relations.jsonl**
-- [ ] ≥1 require edge
-
-### D.10 PHP
-
-**file_meta.json**
-- [ ] ≥2 .php files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-### D.11 HTML
-
-**file_meta.json**
-- [ ] ≥2 .html files
-
-**chunk_meta.json**
-- [ ] ≥2 chunks
-
-**docmeta**
-- [ ] ≥1 tag extraction
-
-### D.12 CSS
-
-**file_meta.json**
-- [ ] ≥2 .css files
-
-**chunk_meta.json**
-- [ ] ≥2 chunks
-
-**docmeta**
-- [ ] ≥1 selector extraction
-
-### D.13 Lua
-
-**file_meta.json**
-- [ ] ≥2 .lua files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-### D.14 SQL
-
-**file_meta.json**
-- [ ] ≥2 .sql files
-
-**chunk_meta.json**
-- [ ] ≥2 chunks
-
-### D.15 Perl
-
-**file_meta.json**
-- [ ] ≥2 .pl/.pm files
-
-**chunk_meta.json**
-- [ ] ≥2 chunks
-
-### D.16 Shell
-
-**file_meta.json**
-- [ ] ≥2 .sh files
-
-**chunk_meta.json**
-- [ ] ≥2 chunks
-
-### D.17 Rust
-
-**file_meta.json**
-- [ ] ≥2 .rs files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-**symbols.jsonl**
-- [ ] ≥4 symbols
-
-### D.18 Swift
-
-**file_meta.json**
-- [ ] ≥2 .swift files
-
-**chunk_meta.json**
-- [ ] ≥3 chunks
-
-### D.19 CMake
-
-**file_meta.json**
-- [ ] ≥1 CMakeLists.txt
-
-### D.20 Starlark
-
-**file_meta.json**
-- [ ] ≥2 .bzl/BUILD files
-
-### D.21 Nix
-
-**file_meta.json**
-- [ ] ≥1 .nix file
-
-### D.22 Dart
-
-**file_meta.json**
-- [ ] ≥2 .dart files
-
-### D.23 Scala
-
-**file_meta.json**
-- [ ] ≥2 .scala files
-
-### D.24 Groovy
-
-**file_meta.json**
-- [ ] ≥2 .groovy files
-
-### D.25 R
-
-**file_meta.json**
-- [ ] ≥1 .R file
-
-### D.26 Julia
-
-**file_meta.json**
-- [ ] ≥1 .jl file
-
-### D.27 Handlebars
-
-**file_meta.json**
-- [ ] ≥1 .hbs file
-
-### D.28 Mustache
-
-**file_meta.json**
-- [ ] ≥1 .mustache file
-
-### D.29 Jinja
-
-**file_meta.json**
-- [ ] ≥1 .j2 file
-
-### D.30 Razor
-
-**file_meta.json**
-- [ ] ≥1 .cshtml file
-
-### D.31 Proto
-
-**file_meta.json**
-- [ ] ≥1 .proto file
-
-### D.32 Makefile
-
-**file_meta.json**
-- [ ] ≥1 Makefile
-
-### D.33 Dockerfile
-
-**file_meta.json**
-- [ ] ≥1 Dockerfile
-
-### D.34 GraphQL
-
-**file_meta.json**
-- [ ] ≥1 .graphql file
-
----
-
-## Appendix D2 — Full artifact coverage matrix per language (presence/absence)
-
-> For every language, explicitly assert whether each artifact should be **present** or **absent/empty**. Use this to avoid silent gaps.
-
-Legend: **P** = present with content, **E** = empty allowed, **A** = absent expected.
-
-**Artifacts:**
-- file_meta, chunk_meta, pieces_manifest, index_state, build_state
-- file_relations, graph_relations, import_resolution_graph
-- symbols, symbol_occurrences, symbol_edges
-- risk_summaries, risk_interprocedural_stats, risk_flows
-- call_sites
-- vfs_manifest
-- embeddings (vectors + index)
-
-### D2.1 JavaScript
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P
-- call_sites: P
-- vfs_manifest (JSX/React): P
-- embeddings: P (when enabled)
-
-### D2.2 TypeScript
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P
-- call_sites: P
-- vfs_manifest (TSX/Vue): P
-- embeddings: P
-
-### D2.3 Python
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.4 C/C++
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.5 Go
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.6 Java
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.7 CSharp
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.8 Kotlin
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E (if not supported)
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.9 Ruby
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.10 PHP
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.11 HTML
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P (if extracted‑prose enabled)
-- embeddings: P (if enabled)
-
-### D2.12 CSS
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P (if extracted)
-- embeddings: P (if enabled)
-
-### D2.13 Lua
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.14 SQL
-- core: P
-- relations/graphs: E
-- symbols: E
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.15 Perl
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.16 Shell
-- core: P
-- relations/graphs: P
-- symbols: E
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.17 Rust
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: P (local); interprocedural optional → E
-- call_sites: P
-- vfs_manifest: A
-- embeddings: P
-
-### D2.18 Swift
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.19 CMake
-- core: P
-- relations/graphs: E
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.20 Starlark
-- core: P
-- relations/graphs: E
-- symbols: E
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.21 Nix
-- core: P
-- relations/graphs: E
-- symbols: E
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.22 Dart
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.23 Scala
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.24 Groovy
-- core: P
-- relations/graphs: P
-- symbols: P
-- risk: E
-- call_sites: E
-- vfs_manifest: A
-- embeddings: P
-
-### D2.25 R
-- core: P
-- relations/graphs: E
-- symbols: E
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.26 Julia
-- core: P
-- relations/graphs: E
-- symbols: E
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.27 Handlebars
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P (templating segments)
-- embeddings: P
-
-### D2.28 Mustache
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P
-- embeddings: P
-
-### D2.29 Jinja
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P
-- embeddings: P
-
-### D2.30 Razor
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: P
-- embeddings: P
-
-### D2.31 Proto
-- core: P
-- relations/graphs: E (imports)
-- symbols: P (messages/services)
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.32 Makefile
-- core: P
-- relations/graphs: E
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.33 Dockerfile
-- core: P
-- relations/graphs: A
-- symbols: A
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
-### D2.34 GraphQL
-- core: P
-- relations/graphs: A
-- symbols: P (types/fields)
-- risk: A
-- call_sites: A
-- vfs_manifest: A
-- embeddings: P
-
----
-
-## Appendix E — Per‑subsystem matrix (language × subsystem)
-
-> Each subsystem must define **goal**, **edge cases**, **tests**, and **pass/fail criteria**. Use this matrix to ensure no subsystem is under‑tested.
-
-### D.1 Indexing core (all languages)
-
-**Goal**: stable chunking, file discovery, deterministic artifacts.
-
-**Edge cases**
-- [ ] empty files
-- [ ] large files beyond caps
-- [ ] encoding fallback
-
-**Tests**
-- `tests/lang/<id>/fixture-sanity.test.js`
-- `tests/lang/<id>/determinism.test.js`
-
-**Pass criteria**
-- all artifacts schema‑valid + deterministic ordering
-
-### D.2 AST extraction (languages with AST)
-
-**Goal**: AST nodes emitted, range coverage.
-
-**Edge cases**
-- [ ] nested generics, decorators
-- [ ] JSX/TSX templates
-
-**Tests**
-- `tests/lang/<id>/ast-flow.test.js`
-
-**Pass criteria**
-- AST nodes >= expected counts
-
-### D.3 Control flow (supported languages)
-
-**Goal**: control flow graph nodes + edges.
-
-**Edge cases**
-- [ ] loops + breaks
-- [ ] exceptions/throws
-
-**Tests**
-- `tests/lang/<id>/ast-flow.test.js`
-
-### D.4 Data flow (supported languages)
-
-**Goal**: variable def/use links.
-
-**Edge cases**
-- [ ] closures + captures
-
-### D.5 Symbol graph (supported languages)
-
-**Goal**: symbol edges + occurrences stable.
-
-**Tests**
-- `tests/lang/<id>/symbol-graph.test.js`
-
-### D.6 Risk pack (supported languages)
-
-**Goal**: local + interprocedural risk artifacts present or explicitly disabled.
-
-**Tests**
-- `tests/lang/<id>/risk-local.test.js`
-- `tests/lang/risk-interprocedural-matrix.test.js`
-
-### D.7 API boundary / CLI search
-
-**Goal**: search filters operate per language.
-
-**Tests**
-- `tests/lang/<id>/search-filters.test.js`
-- `tests/lang/api/search-language.test.js`
-
-### D.8 Graph artifacts
-
-**Goal**: graph_relations + import_resolution_graph stable.
-
-**Tests**
-- `tests/lang/<id>/relations.test.js`
-
-### D.9 Embeddings (when enabled)
-
-**Goal**: embedding counts match chunks.
-
-**Tests**
-- `tests/lang/<id>/embeddings.test.js`
-
-### D.10 VFS / segments (embedded languages)
-
-**Goal**: vfs_manifest contains extracted segments.
-
-**Tests**
-- `tests/lang/<id>/vfs.test.js`
-
----
-
-## Appendix F — Fixture file lists per language (deterministic assertions)
-
-> For each language, add an explicit fixture inventory: file paths, canonical symbols, and expected ranges. This upgrades “minimum counts” into deterministic checks.
-
-**Tasks**
-- [ ] Add `tests/lang/fixtures/<id>/fixture-inventory.json` with:
-  - file list (relative path)
-  - symbols expected (name, kind, file, line range)
-  - expected import edges (source → target)
-- [ ] Add `tests/lang/<id>/fixture-inventory.test.js` to validate:
-  - all files exist
-  - symbol ranges match chunk ranges
-  - expected imports present
-
----
-
-## Appendix G — Schema version expectations (per artifact)
-
-> Lock expected schemaVersion per artifact to prevent silent contract drift.
-
-**Tasks**
-- [ ] Add `tests/lang/matrix/schema-versions.json` mapping artifact → allowed versions.
-- [ ] Add `tests/lang/schema/schema-version.test.js`:
-  - assert each artifact’s schemaVersion is in allowed list
-- [ ] Document allowable versions in `docs/contracts/indexing.md`.
-
----
-
-## Appendix H — Negative assertions per language
-
-> Explicitly assert *absent* artifacts for languages that don’t support them.
-
-**Tasks**
-- [ ] Add `tests/lang/<id>/negative-artifacts.test.js`:
-  - assert symbols absent for HTML/CSS
-  - assert call_sites absent for template languages
-  - assert risk artifacts absent when disabled by policy
-
----
-
-## Appendix I — Golden snapshot artifacts
-
-> Provide stable “golden” JSON/JSONL snapshots for each language artifact.
-
-**Tasks**
-- [ ] Add `tests/lang/goldens/<id>/<artifact>.json` for core artifacts.
-- [ ] Add `tests/lang/<id>/golden-artifacts.test.js`:
-  - compare normalized outputs to golden
-  - ignore documented nondeterministic fields
-
----
-
-## Appendix J — Failure‑mode checklist
-
-> For each subsystem, validate error paths with explicit cases.
-
-**Tasks**
-- [ ] Add `tests/lang/failures/encoding-fallback.test.js`.
-- [ ] Add `tests/lang/failures/malformed-import.test.js`.
-- [ ] Add `tests/lang/failures/missing-deps.test.js`.
-- [ ] Ensure error codes + hints match `docs/contracts/indexing.md`.
-
----
-
-## Appendix K — Performance bounds per language
-
-> Add upper bounds to prevent slow regressions on fixtures.
-
-**Tasks**
-- [ ] Add `tests/lang/perf/lang-perf-budget.json` (per language):
-  - max indexing time, max memory, max artifact bytes
-- [ ] Add `tests/lang/perf/lang-perf-budget.test.js`.
-
----
-
-## Appendix L — Mixed‑language integration fixture
-
-> Add a shared repo fixture spanning multiple languages.
-
-**Tasks**
-- [ ] Create `tests/fixtures/languages/mixed/` with JS+TS+Py+SQL.
-- [ ] Add `tests/lang/mixed/mixed-relations.test.js`:
-  - cross‑language import edges
-  - graph relations consistency
-
----
-
-## Appendix M — Roadmap linkage tags
-
-> Link each test to roadmap items for reporting coverage.
-
-**Tasks**
-- [ ] Add `tests/lang/matrix/roadmap-tags.json` mapping test → roadmap item.
-- [ ] Add `tests/lang/matrix/roadmap-tags.test.js`.
-- [ ] Emit report in CI: `docs/tooling/lang-roadmap-coverage.json`.
-
----
-
-## Appendix N — Test ordering contracts
-
-> Ensure stable per‑language test ordering for lang‑full.
-
-**Tasks**
-- [ ] Add `tests/lang-full/lang-full.order.json` with per‑language ordering:
-  - fixture‑sanity → relations → ast‑flow → risk → api → determinism
-- [ ] Enforce order in runner for lang‑full lane only.
-
----
-
-## Appendix O — Feature‑toggle matrix (per language)
-
-> Validate behavior under toggles (tree‑sitter, embeddings, risk).
-
-**Tasks**
-- [ ] Add `tests/lang/matrix/feature-toggles.json`.
-- [ ] Add `tests/lang/<id>/toggle-matrix.test.js`:
-  - tree‑sitter on/off
-  - embeddings on/off
-  - interprocedural on/off
-- [ ] Document toggle effects in `docs/contracts/indexing.md`.
-
----
-
-## Appendix P — Phase ownership + estimates
-
-> Assign ownership and rough effort to avoid bottlenecks.
-
-**Tasks**
-- [ ] Add owner + effort columns to Appendix P tables:
-  - Owner role: language SME / indexing SME / tooling SME
-  - Effort: S/M/L
-- [ ] Define “SME roster” in `docs/guides/commands.md` or internal doc.
-
----
-
-## Appendix Q — Change‑control / update protocol
-
-> When fixtures or expectations change, follow this exact protocol to avoid drift.
-
-**Steps**
-1. Run `node tests/run.js --lane lang-full`.
-2. Update `tests/lang/fixtures/<id>/fixture-inventory.json` for touched languages.
-3. Regenerate golden artifacts (Appendix I) and review diffs.
-4. Update minimum counts in Appendix D if required.
-5. Re‑run `lang-full` and confirm determinism.
-6. Update schema versions (Appendix G) if any artifact schema changed.
-7. Commit: include fixture + golden + matrix updates in one commit.
-
----
-
-## Appendix R — Per‑phase acceptance gates (implementation)
-
-> Enforce phase completion in CI or by explicit checklist steps.
-
-**Tasks**
-- [ ] Add `tools/lang/phase-gates.json` listing phase → required tests.
-- [ ] Add `tests/lang/phase-gates.test.js` to validate gates list covers all tests.
-- [ ] Add CI doc note describing how to verify phase completion.
-
----
-
-## Appendix P — Per-phase per-language task tables
-
-> Each phase includes a full per-language task table. Use these to assign parallel work with no ambiguity.
-
-### P.1 Phase 0 — Foundations (matrix + contracts)
-
-| Language | Tasks |
-| --- | --- |
-| javascript | Add matrix flags; map fixtures; expectations per Appendix B.1 |
-| typescript | Add matrix flags; map fixtures; expectations per Appendix B.2 |
-| python | Add matrix flags; map fixtures; expectations per Appendix B.3 |
-| clike | Add matrix flags; map fixtures; expectations per Appendix B.4 |
-| go | Add matrix flags; map fixtures; expectations per Appendix B.5 |
-| java | Add matrix flags; map fixtures; expectations per Appendix B.6 |
-| csharp | Add matrix flags; map fixtures; expectations per Appendix B.7 |
-| kotlin | Add matrix flags; map fixtures; expectations per Appendix B.8 |
-| ruby | Add matrix flags; map fixtures; expectations per Appendix B.9 |
-| php | Add matrix flags; map fixtures; expectations per Appendix B.10 |
-| html | Add matrix flags; map fixtures; expectations per Appendix B.11 |
-| css | Add matrix flags; map fixtures; expectations per Appendix B.12 |
-| lua | Add matrix flags; map fixtures; expectations per Appendix B.13 |
-| sql | Add matrix flags; map fixtures; expectations per Appendix B.14 |
-| perl | Add matrix flags; map fixtures; expectations per Appendix B.15 |
-| shell | Add matrix flags; map fixtures; expectations per Appendix B.16 |
-| rust | Add matrix flags; map fixtures; expectations per Appendix B.17 |
-| swift | Add matrix flags; map fixtures; expectations per Appendix B.18 |
-| cmake | Add matrix flags; map fixtures; expectations per Appendix B.19 |
-| starlark | Add matrix flags; map fixtures; expectations per Appendix B.20 |
-| nix | Add matrix flags; map fixtures; expectations per Appendix B.21 |
-| dart | Add matrix flags; map fixtures; expectations per Appendix B.22 |
-| scala | Add matrix flags; map fixtures; expectations per Appendix B.23 |
-| groovy | Add matrix flags; map fixtures; expectations per Appendix B.24 |
-| r | Add matrix flags; map fixtures; expectations per Appendix B.25 |
-| julia | Add matrix flags; map fixtures; expectations per Appendix B.26 |
-| handlebars | Add matrix flags; map fixtures; expectations per Appendix B.27 |
-| mustache | Add matrix flags; map fixtures; expectations per Appendix B.28 |
-| jinja | Add matrix flags; map fixtures; expectations per Appendix B.29 |
-| razor | Add matrix flags; map fixtures; expectations per Appendix B.30 |
-| proto | Add matrix flags; map fixtures; expectations per Appendix B.31 |
-| makefile | Add matrix flags; map fixtures; expectations per Appendix B.32 |
-| dockerfile | Add matrix flags; map fixtures; expectations per Appendix B.33 |
-| graphql | Add matrix flags; map fixtures; expectations per Appendix B.34 |
-
-### P.2 Phase 1 — Lane definition + ordering
-
-| Language | Tasks |
-| --- | --- |
-| javascript | Add lang-full ordering entry; ensure JS block ordering |
-| typescript | Add lang-full ordering entry; ensure TS block ordering |
-| python | Add lang-full ordering entry; ensure Python block ordering |
-| clike | Add lang-full ordering entry; ensure C/C++ block ordering |
-| go | Add lang-full ordering entry; ensure Go block ordering |
-| java | Add lang-full ordering entry; ensure Java block ordering |
-| csharp | Add lang-full ordering entry; ensure CSharp block ordering |
-| kotlin | Add lang-full ordering entry; ensure Kotlin block ordering |
-| ruby | Add lang-full ordering entry; ensure Ruby block ordering |
-| php | Add lang-full ordering entry; ensure PHP block ordering |
-| html | Add lang-full ordering entry; ensure HTML block ordering |
-| css | Add lang-full ordering entry; ensure CSS block ordering |
-| lua | Add lang-full ordering entry; ensure Lua block ordering |
-| sql | Add lang-full ordering entry; ensure SQL block ordering |
-| perl | Add lang-full ordering entry; ensure Perl block ordering |
-| shell | Add lang-full ordering entry; ensure Shell block ordering |
-| rust | Add lang-full ordering entry; ensure Rust block ordering |
-| swift | Add lang-full ordering entry; ensure Swift block ordering |
-| cmake | Add lang-full ordering entry; ensure CMake block ordering |
-| starlark | Add lang-full ordering entry; ensure Starlark block ordering |
-| nix | Add lang-full ordering entry; ensure Nix block ordering |
-| dart | Add lang-full ordering entry; ensure Dart block ordering |
-| scala | Add lang-full ordering entry; ensure Scala block ordering |
-| groovy | Add lang-full ordering entry; ensure Groovy block ordering |
-| r | Add lang-full ordering entry; ensure R block ordering |
-| julia | Add lang-full ordering entry; ensure Julia block ordering |
-| handlebars | Add lang-full ordering entry; ensure Handlebars block ordering |
-| mustache | Add lang-full ordering entry; ensure Mustache block ordering |
-| jinja | Add lang-full ordering entry; ensure Jinja block ordering |
-| razor | Add lang-full ordering entry; ensure Razor block ordering |
-| proto | Add lang-full ordering entry; ensure Proto block ordering |
-| makefile | Add lang-full ordering entry; ensure Makefile block ordering |
-| dockerfile | Add lang-full ordering entry; ensure Dockerfile block ordering |
-| graphql | Add lang-full ordering entry; ensure GraphQL block ordering |
-
-### P.3 Phase 2 — Fixtures + indexing contract per language
-
-| Language | Tasks |
-| --- | --- |
-| javascript | Build fixtures with ESM + CJS + React JSX (Appendix B.1) |
-| typescript | Build fixtures with TSX + generics + types (Appendix B.2) |
-| python | Build fixtures with decorators + async (Appendix B.3) |
-| clike | Build fixtures with includes + macros (Appendix B.4) |
-| go | Build fixtures with goroutines + interfaces (Appendix B.5) |
-| java | Build fixtures with classes + lambdas (Appendix B.6) |
-| csharp | Build fixtures with attributes + async (Appendix B.7) |
-| kotlin | Build fixtures with data class + extensions (Appendix B.8) |
-| ruby | Build fixtures with modules + blocks (Appendix B.9) |
-| php | Build fixtures with traits + namespaces (Appendix B.10) |
-| html | Build fixtures with DOM + script/style tags (Appendix B.11) |
-| css | Build fixtures with selectors + @media (Appendix B.12) |
-| lua | Build fixtures with tables + require (Appendix B.13) |
-| sql | Build fixtures with DDL + CTE (Appendix B.14) |
-| perl | Build fixtures with packages + regex (Appendix B.15) |
-| shell | Build fixtures with source + pipes (Appendix B.16) |
-| rust | Build fixtures with traits + lifetimes (Appendix B.17) |
-| swift | Build fixtures with protocols + extensions (Appendix B.18) |
-| cmake | Build fixtures with include + add_executable (Appendix B.19) |
-| starlark | Build fixtures with load + rule (Appendix B.20) |
-| nix | Build fixtures with import + let/in (Appendix B.21) |
-| dart | Build fixtures with async + class (Appendix B.22) |
-| scala | Build fixtures with object + trait (Appendix B.23) |
-| groovy | Build fixtures with closures + class (Appendix B.24) |
-| r | Build fixtures with library + function (Appendix B.25) |
-| julia | Build fixtures with using + module (Appendix B.26) |
-| handlebars | Build fixtures with partials + helpers (Appendix B.27) |
-| mustache | Build fixtures with sections + vars (Appendix B.28) |
-| jinja | Build fixtures with blocks + include (Appendix B.29) |
-| razor | Build fixtures with directives + inline code (Appendix B.30) |
-| proto | Build fixtures with messages + services (Appendix B.31) |
-| makefile | Build fixtures with include + target (Appendix B.32) |
-| dockerfile | Build fixtures with FROM + RUN + COPY (Appendix B.33) |
-| graphql | Build fixtures with types + queries (Appendix B.34) |
-
-### P.4 Phase 3 — AST + control/data flow
-
-| Language | Tasks |
-| --- | --- |
-| javascript | AST/flow for JSX + generators; assert counts (Appendix C.1) |
-| typescript | AST/flow for TSX + types; assert counts (Appendix C.2) |
-| python | AST/flow for decorators + async (Appendix C.3) |
-| clike | AST/flow for structs + templates (Appendix C.4) |
-| go | AST/flow for goroutines (Appendix C.5) |
-| java | AST/flow for lambdas (Appendix C.6) |
-| csharp | AST/flow for attributes + async (Appendix C.7) |
-| kotlin | AST/flow for data classes (Appendix C.8) |
-| ruby | AST/flow for blocks (Appendix C.9) |
-| php | AST/flow for traits (Appendix C.10) |
-| html | Assert no AST; negative checks (Appendix H) |
-| css | Assert no AST; negative checks (Appendix H) |
-| lua | AST/flow for functions (Appendix C.13) |
-| sql | AST/flow for statements if supported; else negative (Appendix H) |
-| perl | AST/flow for subs (Appendix C.15) |
-| shell | AST/flow for functions (Appendix C.16) |
-| rust | AST/flow for traits + impls (Appendix C.17) |
-| swift | AST/flow for protocols (Appendix C.18) |
-| cmake | AST minimal; ensure chunking stable (Appendix C.19) |
-| starlark | AST for load/rule if supported (Appendix C.20) |
-| nix | AST for let/in if supported (Appendix C.21) |
-| dart | AST/flow for async (Appendix C.22) |
-| scala | AST/flow for trait/object (Appendix C.23) |
-| groovy | AST/flow for closure (Appendix C.24) |
-| r | AST minimal; assert chunking (Appendix C.25) |
-| julia | AST minimal; assert chunking (Appendix C.26) |
-| handlebars | no AST; template chunking (Appendix C.27) |
-| mustache | no AST; template chunking (Appendix C.28) |
-| jinja | no AST; template chunking (Appendix C.29) |
-| razor | no AST; template chunking (Appendix C.30) |
-| proto | AST for message/service if supported (Appendix C.31) |
-| makefile | AST minimal; chunking (Appendix C.32) |
-| dockerfile | AST minimal; chunking (Appendix C.33) |
-| graphql | AST for schema if supported (Appendix C.34) |
-
-### P.5 Phase 4 — Relations + graph artifacts
-
-| Language | Tasks |
-| --- | --- |
-| javascript | import/require edges + symbol graph (Appendix C.1) |
-| typescript | import type + symbol graph (Appendix C.2) |
-| python | import/from edges (Appendix C.3) |
-| clike | include edges (Appendix C.4) |
-| go | import edges (Appendix C.5) |
-| java | import edges (Appendix C.6) |
-| csharp | using edges (Appendix C.7) |
-| kotlin | import edges (Appendix C.8) |
-| ruby | require edges (Appendix C.9) |
-| php | use edges (Appendix C.10) |
-| html | assert absent relations (Appendix H) |
-| css | assert absent relations (Appendix H) |
-| lua | require edges (Appendix C.13) |
-| sql | relation edges optional; validate empties (Appendix H) |
-| perl | use edges (Appendix C.15) |
-| shell | source edges (Appendix C.16) |
-| rust | use edges + symbol graph (Appendix C.17) |
-| swift | import edges (Appendix C.18) |
-| cmake | include edges (Appendix C.19) |
-| starlark | load edges (Appendix C.20) |
-| nix | import edges (Appendix C.21) |
-| dart | import edges (Appendix C.22) |
-| scala | import edges (Appendix C.23) |
-| groovy | import edges (Appendix C.24) |
-| r | library edges optional (Appendix C.25) |
-| julia | using/import edges (Appendix C.26) |
-| handlebars | assert absent relations (Appendix H) |
-| mustache | assert absent relations (Appendix H) |
-| jinja | assert absent relations (Appendix H) |
-| razor | assert absent relations (Appendix H) |
-| proto | import edges (Appendix C.31) |
-| makefile | include edges (Appendix C.32) |
-| dockerfile | assert absent relations (Appendix H) |
-| graphql | assert absent relations (Appendix H) |
-
-### P.6 Phase 5 — Risk pack + interprocedural gating
-
-| Language | Tasks |
-| --- | --- |
-| javascript | local risk for eval/dynamic import; interproc if enabled |
-| typescript | local risk for eval/dynamic import; interproc if enabled |
-| python | local risk for eval/exec/subprocess |
-| clike | local risk for system/strcpy |
-| go | local risk for os/exec patterns |
-| java | local risk for Runtime.exec |
-| csharp | local risk for Process.Start |
-| kotlin | local risk if supported; else assert absent |
-| ruby | local risk if supported; else assert absent |
-| php | local risk if supported; else assert absent |
-| html | assert risk artifacts absent |
-| css | assert risk artifacts absent |
-| lua | local risk if supported; else assert absent |
-| sql | assert risk artifacts absent |
-| perl | local risk if supported; else assert absent |
-| shell | local risk for exec patterns |
-| rust | local risk for unsafe/exec patterns |
-| swift | local risk if supported; else assert absent |
-| cmake | assert risk artifacts absent |
-| starlark | assert risk artifacts absent |
-| nix | assert risk artifacts absent |
-| dart | local risk if supported; else assert absent |
-| scala | local risk if supported; else assert absent |
-| groovy | local risk if supported; else assert absent |
-| r | assert risk artifacts absent |
-| julia | assert risk artifacts absent |
-| handlebars | assert risk artifacts absent |
-| mustache | assert risk artifacts absent |
-| jinja | assert risk artifacts absent |
-| razor | assert risk artifacts absent |
-| proto | assert risk artifacts absent |
-| makefile | assert risk artifacts absent |
-| dockerfile | assert risk artifacts absent |
-| graphql | assert risk artifacts absent |
-
-### P.7 Phase 6 — API boundary + search filters
-
-| Language | Tasks |
-| --- | --- |
-| javascript | search filters for JSX/React; API parity |
-| typescript | search filters for TSX/types; API parity |
-| python | search filters for defs/imports |
-| clike | search filters for includes/symbols |
-| go | search filters for funcs/types |
-| java | search filters for classes/methods |
-| csharp | search filters for classes/attributes |
-| kotlin | search filters for classes/functions |
-| ruby | search filters for modules/methods |
-| php | search filters for classes/functions |
-| html | search filters for tags/attrs |
-| css | search filters for selectors |
-| lua | search filters for functions |
-| sql | search filters for tables/queries |
-| perl | search filters for subs |
-| shell | search filters for scripts |
-| rust | search filters for traits/impls |
-| swift | search filters for types/functions |
-| cmake | search filters for targets |
-| starlark | search filters for rules |
-| nix | search filters for attrs |
-| dart | search filters for classes/functions |
-| scala | search filters for traits/objects |
-| groovy | search filters for classes/closures |
-| r | search filters for functions |
-| julia | search filters for functions |
-| handlebars | search filters for templates |
-| mustache | search filters for templates |
-| jinja | search filters for templates |
-| razor | search filters for templates |
-| proto | search filters for messages/services |
-| makefile | search filters for targets |
-| dockerfile | search filters for instructions |
-| graphql | search filters for types/queries |
-
-### P.8 Phase 7 — Determinism
-
-| Language | Tasks |
-| --- | --- |
-| javascript | determinism test for JSX/React artifacts |
-| typescript | determinism test for TSX/type artifacts |
-| python | determinism test for imports/symbols |
-| clike | determinism test for includes/symbols |
-| go | determinism test for imports/symbols |
-| java | determinism test for imports/symbols |
-| csharp | determinism test for imports/symbols |
-| kotlin | determinism test for imports/symbols |
-| ruby | determinism test for relations |
-| php | determinism test for relations |
-| html | determinism test for docmeta |
-| css | determinism test for docmeta |
-| lua | determinism test for relations |
-| sql | determinism test for docmeta |
-| perl | determinism test for relations |
-| shell | determinism test for relations |
-| rust | determinism test for symbols |
-| swift | determinism test for relations |
-| cmake | determinism test for includes |
-| starlark | determinism test for load edges |
-| nix | determinism test for imports |
-| dart | determinism test for relations |
-| scala | determinism test for relations |
-| groovy | determinism test for relations |
-| r | determinism test for docmeta |
-| julia | determinism test for docmeta |
-| handlebars | determinism test for templates |
-| mustache | determinism test for templates |
-| jinja | determinism test for templates |
-| razor | determinism test for templates |
-| proto | determinism test for messages |
-| makefile | determinism test for includes |
-| dockerfile | determinism test for instructions |
-| graphql | determinism test for schema |
-
-### P.9 Phase 8 — CI wiring + reporting
-
-| Language | Tasks |
-| --- | --- |
-| javascript | include in CI report + coverage tags |
-| typescript | include in CI report + coverage tags |
-| python | include in CI report + coverage tags |
-| clike | include in CI report + coverage tags |
-| go | include in CI report + coverage tags |
-| java | include in CI report + coverage tags |
-| csharp | include in CI report + coverage tags |
-| kotlin | include in CI report + coverage tags |
-| ruby | include in CI report + coverage tags |
-| php | include in CI report + coverage tags |
-| html | include in CI report + coverage tags |
-| css | include in CI report + coverage tags |
-| lua | include in CI report + coverage tags |
-| sql | include in CI report + coverage tags |
-| perl | include in CI report + coverage tags |
-| shell | include in CI report + coverage tags |
-| rust | include in CI report + coverage tags |
-| swift | include in CI report + coverage tags |
-| cmake | include in CI report + coverage tags |
-| starlark | include in CI report + coverage tags |
-| nix | include in CI report + coverage tags |
-| dart | include in CI report + coverage tags |
-| scala | include in CI report + coverage tags |
-| groovy | include in CI report + coverage tags |
-| r | include in CI report + coverage tags |
-| julia | include in CI report + coverage tags |
-| handlebars | include in CI report + coverage tags |
-| mustache | include in CI report + coverage tags |
-| jinja | include in CI report + coverage tags |
-| razor | include in CI report + coverage tags |
-| proto | include in CI report + coverage tags |
-| makefile | include in CI report + coverage tags |
-| dockerfile | include in CI report + coverage tags |
-| graphql | include in CI report + coverage tags |
-
-### P.10 Phase 9 — Dedup + shared harness
-
-| Language | Tasks |
-| --- | --- |
-| javascript | use shared harness + expectations helper |
-| typescript | use shared harness + expectations helper |
-| python | use shared harness + expectations helper |
-| clike | use shared harness + expectations helper |
-| go | use shared harness + expectations helper |
-| java | use shared harness + expectations helper |
-| csharp | use shared harness + expectations helper |
-| kotlin | use shared harness + expectations helper |
-| ruby | use shared harness + expectations helper |
-| php | use shared harness + expectations helper |
-| html | use shared harness + expectations helper |
-| css | use shared harness + expectations helper |
-| lua | use shared harness + expectations helper |
-| sql | use shared harness + expectations helper |
-| perl | use shared harness + expectations helper |
-| shell | use shared harness + expectations helper |
-| rust | use shared harness + expectations helper |
-| swift | use shared harness + expectations helper |
-| cmake | use shared harness + expectations helper |
-| starlark | use shared harness + expectations helper |
-| nix | use shared harness + expectations helper |
-| dart | use shared harness + expectations helper |
-| scala | use shared harness + expectations helper |
-| groovy | use shared harness + expectations helper |
-| r | use shared harness + expectations helper |
-| julia | use shared harness + expectations helper |
-| handlebars | use shared harness + expectations helper |
-| mustache | use shared harness + expectations helper |
-| jinja | use shared harness + expectations helper |
-| razor | use shared harness + expectations helper |
-| proto | use shared harness + expectations helper |
-| makefile | use shared harness + expectations helper |
-| dockerfile | use shared harness + expectations helper |
-| graphql | use shared harness + expectations helper |
-
----
-
+## Appendix G - Immediate Execution Milestones
+
+1. Complete Phase 0 traceability and governance lock.
+2. Complete Phase 1 machine-readable registries and schema package.
+3. Complete Phase 2 identity/coordinate/integrity enforcement.
+4. Complete Phase 3 parser/normalization core.
+5. Execute B1 in full before starting B2-B7 parallel execution.
+6. Complete framework overlays (Phase 5) after B1 baseline stability.
+7. Complete Phase 6 through Phase 9 implementation gates.
+8. Start phased conformance rollout (Phase 10 through Phase 14).
+9. Finalize CI and change-control operations (Phase 15).
