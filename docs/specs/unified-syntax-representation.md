@@ -1574,6 +1574,27 @@ Reason-code governance rules:
 - Producers MUST NOT emit free-form reason codes in strict mode.
 - Readers in non-strict mode MAY preserve unknown reason codes only under compatibility adapters and MUST emit `USR-I-COMPAT-MINOR-IGNORED`.
 
+### 33.3 Field-level diagnostic contract requirements
+
+To keep diagnostics machine-actionable across languages/frameworks, the following field requirements are mandatory.
+
+| Field | Requirement | Validation rule |
+| --- | --- | --- |
+| `code` | MUST be listed in section 33.1. | strict readers reject unknown values with `USR-E-SCHEMA-VIOLATION`. |
+| `severity` | MUST match code family prefix (`E`, `W`, `I`). | mismatch is a schema violation. |
+| `phase` | MUST be one of the allowed phase enum values from section 7.9. | unknown phase is a schema violation. |
+| `message` | MUST be non-empty, deterministic for same root cause class, and SHOULD include parser/framework identifier when relevant. | empty messages are rejected in strict mode. |
+| `capabilityImpact` | MUST be non-empty for downgrade/loss and parser/schema failures. | empty list invalid for codes in families `USR-E-CAPABILITY-*`, `USR-W-CAPABILITY-*`, parser failure classes. |
+| `docUid` / `segmentUid` / `nodeUid` | MUST include the narrowest available scope for localization. | if narrower scope exists but omitted, emit `USR-W-CANONICALIZATION-FALLBACK` on producer side. |
+
+Localization preference order:
+
+1. `nodeUid` + `range`
+2. `segmentUid` + `range`
+3. `docUid` only
+
+Producers MUST choose the highest-fidelity localization available at emission time.
+
 ## 34. Canonical JSON examples (normative reference)
 
 The examples in this section are canonical references for schema shape, deterministic ordering, and minimum required field sets.
@@ -2278,6 +2299,28 @@ Maximal typical:
 }
 ```
 
+### 34.10 Cross-entity coherence requirements for canonical example bundles
+
+When example entities are emitted as one bundle (single test fixture or artifact unit), the following references MUST resolve:
+
+| Source entity field | Target entity type | Constraint |
+| --- | --- | --- |
+| `USRSegmentV1.docUid` | `USRDocumentV1` | MUST resolve to an existing `docUid` in bundle scope. |
+| `USRNodeV1.docUid` | `USRDocumentV1` | MUST resolve to existing `docUid`. |
+| `USRNodeV1.segmentUid` | `USRSegmentV1` | if non-null, MUST resolve to existing `segmentUid`. |
+| `USRSymbolV1.declarationNodeUid` | `USRNodeV1` | if non-null, MUST resolve to existing `nodeUid`. |
+| `USRSymbolV1.declarationDocUid` | `USRDocumentV1` | MUST resolve to existing `docUid`. |
+| `USREdgeV1.source`/`target` | Entity by `USRRef.entity` | MUST resolve and satisfy endpoint constraints from section 8.5. |
+| `USRFlowPathV1.nodeRefs` | `USRNodeV1` or `USRSymbolV1` | each ref MUST resolve; order MUST be deterministic path order. |
+| `USRFlowPathV1.edgeRefs` | `USREdgeV1` | each edge UID MUST resolve. |
+| `USRRouteV1.segmentUid` | `USRSegmentV1` | if non-null, MUST resolve to route-owning segment. |
+| `USRRouteV1.symbolUid` | `USRSymbolV1` | if non-null, MUST resolve to route handler/page/layout symbol. |
+| `USRStyleScopeV1.segmentUid` | `USRSegmentV1` | if non-null, MUST resolve to style-bearing segment. |
+| `USRStyleScopeV1.ownerSymbolUid` | `USRSymbolV1` | if non-null, MUST resolve to style owner symbol. |
+| `USRDiagnosticV1.segmentUid` / `nodeUid` | `USRSegmentV1` / `USRNodeV1` | if present, both MUST resolve. |
+
+A canonical example fixture SHOULD include one fully linked bundle covering all entity families to validate end-to-end coherence.
+
 ## 35. Per-framework edge canonicalization examples (normative)
 
 This section defines canonical edge construction patterns for framework route/template/style semantics.
@@ -2288,6 +2331,15 @@ This section defines canonical edge construction patterns for framework route/te
 - `template_binds` MUST represent data/prop/event binding relationships across template and script surfaces.
 - `style_scopes` MUST represent style ownership/scope attachment from style/template segments or nodes to owning symbols.
 - All examples below are normative in structure, field naming, and edge kind selection.
+- Example payloads are canonical edge snippets. Full edge objects MUST still satisfy `USREdgeV1` fields and constraints from sections 7.5, 7.11, and 8.5.
+
+Canonical attrs key requirements by edge family:
+
+| Edge kind | Required attrs keys | Optional attrs keys (common) | Forbidden canonicalization behavior |
+| --- | --- | --- | --- |
+| `route_maps_to` | `routePattern`, `router` | `routeName`, `routeSource`, `segmentType`, `routeFileKind`, `runtimeSide`, `priority` | Emitting framework-native route token only without canonical `routePattern`. |
+| `template_binds` | `bindingKind`, `bindingName` | `directive`, `eventSyntax`, `expressionKind`, `origin`, `runtimeSide`, `islandBoundary` | Folding template binding into generic `references` edge. |
+| `style_scopes` | `scopeType`, `styleSystem` | `scopeToken`, `encapsulation`, `token`, `file`, `globalEscape`, `deepSelectorMode` | Omitting scope edge when style block exists but owner is known. |
 
 ### 35.2 React (`frameworkProfile=react`)
 
@@ -2578,6 +2630,24 @@ Each scenario entry MUST include:
 - `expectedOutcome`
 - `requiredDiagnostics`
 - `blocking`
+
+### 36.5 Mandatory entity coverage per scenario class
+
+At least one fixture in each scenario class MUST include all entity families below unless explicitly marked not-applicable.
+
+| Scenario class | Required entities |
+| --- | --- |
+| strict accept (`BC-001`, `BC-002`, `BC-005`) | document, segment, node, symbol, edge, flow path, route, style scope, diagnostic |
+| strict reject (`BC-003`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`) | minimum failing entity + dependency chain proving rejection path |
+| non-strict accept-with-adapter (`BC-004`, `BC-007`, `BC-011`) | document, segment, node, symbol, edge, diagnostic |
+
+`not-applicable` cases are allowed only for framework-specific entities (`route`, `style scope`) in pure non-framework fixtures and MUST be explicitly tagged in matrix artifacts.
+
+### 36.6 Release gate thresholds for matrix stability
+
+- For strict scenarios, pass rate MUST be 100% for blocking lanes.
+- For non-strict scenarios, pass rate MUST be >= 99% with any failures triaged and linked to explicit issue IDs.
+- Compatibility matrix execution time MUST remain within documented lane budget; overruns require explicit waiver metadata in run reports.
 
 
 
