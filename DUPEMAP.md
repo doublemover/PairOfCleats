@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T03:03:53.9305408-05:00
+Last updated: 2026-02-10T03:50:51.6797683-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -61,14 +61,14 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | Phase | Status | Scope |
 | --- | --- | --- |
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
-| D1 | [@] | Shared primitive consolidation |
+| D1 | [x] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
 | D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [x] | Chunking + risk + import resolution + map consolidation |
-| D7 | [@] | Test/bench dedupe and harness consolidation |
-| D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
+| D7 | [x] | Test/bench dedupe and harness consolidation |
+| D8 | [x] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [x] | Build/runtime lifecycle correctness remediation |
 | F2 | [x] | Language/chunking/import correctness remediation |
@@ -760,34 +760,34 @@ Rules:
 
 Phase documentation tasks:
 
-- [ ] Task D0.DOC: Update migration and guardrail docs.
+- [x] Task D0.DOC: Update migration and guardrail docs.
 Documents: `docs/tooling/dupemap-migration-manifest.json`, `DUPEMAP.md`, `All_Findings.md`, `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`.
 
-- [ ] Task D1.DOC: Update shared primitive and lifecycle contract docs.
+- [x] Task D1.DOC: Update shared primitive and lifecycle contract docs.
 Documents: `docs/specs/*` (shared primitive usage specs touched by migration), `docs/contracts/*` (shared runtime contract docs touched by helper changes), `docs/config/inventory.json`, `docs/config/inventory.md`.
 
-- [ ] Task D2.DOC: Update artifact/JSONL streaming and writer docs.
+- [x] Task D2.DOC: Update artifact/JSONL streaming and writer docs.
 Documents: `docs/contracts/schemas/*` (artifact schemas touched), `docs/specs/*` (artifact writer behavior docs touched), `docs/sqlite/incremental-updates.md`, `docs/tooling/script-inventory.json`.
 
-- [ ] Task D3.DOC: Update SQLite/LMDB/quantization/vocab docs.
+- [x] Task D3.DOC: Update SQLite/LMDB/quantization/vocab docs.
 Documents: `docs/sqlite/*`, `docs/contracts/schemas/*` (storage/index schemas touched), `docs/specs/*` (storage behavior docs touched), `docs/config/inventory.json`.
 
-- [ ] Task D4.DOC: Update ANN/API/MCP/search normalization docs.
+- [x] Task D4.DOC: Update ANN/API/MCP/search normalization docs.
 Documents: `docs/api/mcp-server.md`, `docs/contracts/mcp-tools.schema.json`, `docs/specs/tooling-and-api-contract.md`, `docs/guides/commands.md`, `docs/benchmarks/*` (if query/ann behavior or defaults changed).
 
-- [ ] Task D5.DOC: Update tooling and language parser/extractor docs.
+- [x] Task D5.DOC: Update tooling and language parser/extractor docs.
 Documents: `docs/language/*`, `docs/testing/*` (if test harness/expectation changed), `docs/specs/*` (tooling behavior docs touched), `docs/guides/commands.md`.
 
-- [ ] Task D6.DOC: Update chunking/risk/import/map behavior docs.
+- [x] Task D6.DOC: Update chunking/risk/import/map behavior docs.
 Documents: `docs/language/*`, `docs/specs/*` (chunking/risk/import/map behavior docs touched), `docs/contracts/*` (if output contracts changed), `docs/testing/*`.
 
-- [ ] Task D7.DOC: Update test/bench harness and script coverage docs.
+- [x] Task D7.DOC: Update test/bench harness and script coverage docs.
 Documents: `docs/testing/*`, `docs/benchmarks/*`, `docs/tooling/script-inventory.json`, `docs/guides/commands.md`.
 
 - [x] Task D8.DOC: Final dedupe docs/contracts/config sync.
 Documents: `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`, `docs/contracts/*`, `docs/schemas/*`, `docs/tooling/script-inventory.json`.
 
-- [ ] Task F0.DOC: Findings program control-plane docs.
+- [x] Task F0.DOC: Findings program control-plane docs.
 Documents: `All_Findings.md`, `DUPEMAP.md`, `docs/guides/commands.md`.
 
 - [x] Task F1.DOC: Build/runtime lifecycle findings docs.
@@ -1022,8 +1022,8 @@ D1.5 status update (2026-02-09T22:03:59.5825755-05:00):
 - [x] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)
 
 ### Exit criteria
-- [ ] No D1 duplicate helper bodies remain.
-- [ ] Ban patterns catch reintroduction of old primitives.
+- [x] No D1 duplicate helper bodies remain.
+- [x] Ban patterns catch reintroduction of old primitives.
 
 ---
 
@@ -1554,18 +1554,27 @@ D7.5 status update (2026-02-10T00:39:18.2797819-05:00):
 - resolved: added shared map bench helper module `tools/bench/map/shared.js` with `startMapViewerStaticServer` and migrated `viewer-fps` + `viewer-lod-stress` to shared static server/wiring.
 - resolved: added shared build option/input resolver in `tools/bench/map/shared.js` and migrated `build-map-memory` + `build-map-streaming` to shared map bench option handling.
 - resolved: normalized run-count parsing into shared helper for map build benches.
-- remaining: D7.6 pending.
+- remaining: none.
 - severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this bench-dedupe subphase.
 - exceptions: none.
 - sweep results: `rg --line-number "startMapViewerStaticServer|resolveMapBenchInputs|resolveRuns" tools/bench/map`.
 
+D7 completion status update (2026-02-10T03:50:51.6797683-05:00):
+- resolved: validated merged suites individually with scenario assertions preserved for ANN pipeline, flow-cap matrix, VFS streaming, SQLite JSONL streaming, graph bench contracts, symbol artifacts, and sqlite build rowcount/validate-auto tests.
+- resolved: validated script-coverage suite wiring and benchmark coverage (`tests/tooling/script-coverage/wiring.test.js`, `tests/tooling/script-coverage/script-coverage-core.test.js`, `tests/tooling/script-coverage/script-coverage-benchmarks.test.js`).
+- resolved: no additional D7 work remains.
+- remaining: none.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for D7 closeout.
+- exceptions: none.
+- no-doc-change rationale (2026-02-10T03:50:51.6797683-05:00): D7 touched tests/bench harness internals only; existing docs remained accurate.
+
 ### Tests
-- [ ] merged suites run individually and preserve scenario assertions
-- [ ] script-coverage suites updated for new helper locations
+- [x] merged suites run individually and preserve scenario assertions
+- [x] script-coverage suites updated for new helper locations
 
 ### Exit criteria
-- [ ] Duplicate test/bench setup blocks moved into shared helpers.
-- [ ] Scenario coverage matrix is unchanged or improved.
+- [x] Duplicate test/bench setup blocks moved into shared helpers.
+- [x] Scenario coverage matrix is unchanged or improved.
 
 ---
 
