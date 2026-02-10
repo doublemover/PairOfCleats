@@ -6,13 +6,13 @@ import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-u
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
 import { readJsonFile } from '../../../src/shared/artifact-io.js';
-import { getLanceDbEnv, isTestingEnv } from '../../../src/shared/env.js';
+import { getEnvConfig, getLanceDbEnv, isTestingEnv } from '../../../src/shared/env.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 
 let warnedMissing = false;
 const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
 const PAYLOAD_ENV = 'PAIROFCLEATS_LANCEDB_PAYLOAD';
-const TRACE_ARTIFACT_IO = isTestingEnv() || process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
+const TRACE_ARTIFACT_IO = isTestingEnv() || getEnvConfig().traceArtifactIo;
 
 const loadLanceDb = async (logger) => {
   const result = await tryImport('@lancedb/lancedb');

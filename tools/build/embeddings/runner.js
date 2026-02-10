@@ -134,7 +134,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       return null;
     }
   };
-  const traceArtifactIo = isTestingEnv() || process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
+  const traceArtifactIo = isTestingEnv() || (configEnv || getEnvConfig()).traceArtifactIo;
   const hasArtifactFile = (filePath) => (
     fsSync.existsSync(filePath)
     || fsSync.existsSync(`${filePath}.gz`)
