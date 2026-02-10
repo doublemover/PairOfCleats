@@ -1,3 +1,6 @@
+import { buildCacheKey } from '../../shared/cache-key.js';
+import { createLruCache } from '../../shared/cache.js';
+
 /** Schema version for the VFS segment hash cache. */
 export const VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
 
@@ -23,7 +26,19 @@ export const buildVfsSegmentHashCacheKey = ({
   const lang = normalizeField(languageId, 'unknown');
   const ext = normalizeField(effectiveExt);
   const range = `${Number.isFinite(Number(segmentStart)) ? Number(segmentStart) : 0}-${Number.isFinite(Number(segmentEnd)) ? Number(segmentEnd) : 0}`;
-  return `${algo}:${fileHash}::${path}::${lang}::${ext}::${range}`;
+  const keyInfo = buildCacheKey({
+    repoHash: `${algo}:${fileHash}`,
+    buildConfigHash: null,
+    mode: 'vfs',
+    schemaVersion: VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION,
+    featureFlags: [`lang:${lang}`, `ext:${ext}`],
+    pathPolicy: 'posix',
+    extra: {
+      containerPath: path,
+      range
+    }
+  });
+  return keyInfo.key;
 };
 
 /** Alias for buildVfsSegmentHashCacheKey. */
@@ -36,33 +51,24 @@ export const buildDocHashCacheKey = buildVfsSegmentHashCacheKey;
  */
 export const createVfsSegmentHashCache = ({ maxEntries = 50000 } = {}) => {
   const limit = Number.isFinite(Number(maxEntries)) ? Math.max(1, Math.floor(Number(maxEntries))) : 50000;
-  const store = new Map();
+  const store = createLruCache({
+    name: 'vfs-segment-hash',
+    maxEntries: limit
+  });
   return {
     get(key) {
       if (!key) return null;
-      const value = store.get(key) || null;
-      if (!value) return null;
-      store.delete(key);
-      store.set(key, value);
-      return value;
+      return store.get(key);
     },
     set(key, value) {
       if (!key) return;
-      if (store.has(key)) {
-        store.delete(key);
-      }
       store.set(key, value);
-      while (store.size > limit) {
-        const oldest = store.keys().next().value;
-        if (oldest == null) break;
-        store.delete(oldest);
-      }
     },
     clear() {
       store.clear();
     },
     get size() {
-      return store.size;
+      return store.size();
     }
   };
 };

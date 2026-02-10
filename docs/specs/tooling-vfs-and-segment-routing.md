@@ -218,7 +218,12 @@ The VFS builder MUST assert:
 
 - `0 <= virtualStart <= virtualEnd <= virtualDoc.text.length`
 
-If violated, this is a bug in segmentation/chunk offset adjustment; fail in strict mode.
+Guardrails:
+- For segmented chunks, prefer segment-relative mapping (`virtual = container - segmentStart`).
+- If a caller accidentally provides already-relative offsets, consumers MAY accept a direct mapping
+  when it is provably in-range (and SHOULD log that a fallback was used).
+- If neither mapping is valid, this indicates a segmentation/chunk offset bug. Consumers SHOULD
+  surface it explicitly (log/telemetry) and avoid silently dropping work.
 
 ---
 

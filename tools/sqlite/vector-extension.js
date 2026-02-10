@@ -1,8 +1,10 @@
 import fs from 'node:fs';
+import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -22,13 +24,7 @@ const PROVIDERS = {
   }
 };
 
-const warningCache = new Set();
-
-function warnOnce(key, message) {
-  if (warningCache.has(key)) return;
-  warningCache.add(key);
-  console.warn(message);
-}
+const warnOnce = createWarnOnce();
 
 function isSafeIdentifier(value) {
   return IDENTIFIER_RE.test(String(value || ''));
@@ -220,15 +216,18 @@ const getLoadCache = (db) => {
 
 const getLoadCacheKey = (config) => {
   const extPath = resolveVectorExtensionPath(config) || '';
-  return [
-    config?.provider || '',
-    config?.module || '',
-    config?.table || '',
-    config?.column || '',
-    config?.encoding || '',
-    config?.options || '',
-    extPath
-  ].join('|');
+  return buildLocalCacheKey({
+    namespace: 'sqlite-vector-ext',
+    payload: {
+      provider: config?.provider || null,
+      module: config?.module || null,
+      table: config?.table || null,
+      column: config?.column || null,
+      encoding: config?.encoding || null,
+      options: config?.options || null,
+      extPath
+    }
+  }).key;
 };
 
 /**

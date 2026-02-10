@@ -97,7 +97,9 @@ if (!argv['skip-build']) {
 if (!argv['skip-sqlite']) {
   const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
   const args = [
-    path.join(scriptRoot, 'tools', 'build', 'sqlite-index.js'),
+    path.join(scriptRoot, 'build_index.js'),
+    '--stage',
+    '4',
     '--repo',
     root,
     '--progress',

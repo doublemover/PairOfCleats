@@ -2,16 +2,28 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
+const cacheSuffix = 'smoke-sqlite';
 const cacheRoots = [
-  path.join(root, '.testCache', 'sqlite-incremental'),
-  path.join(root, '.testCache', 'sqlite-ann-fallback')
+  path.join(root, '.testCache', 'sqlite-incremental', `file-manifest-updates-${cacheSuffix}`),
+  path.join(root, '.testCache', `sqlite-ann-fallback-${cacheSuffix}`)
 ];
 
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('sqlite-incremental-manifest', path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js'));
-  runNode('sqlite-ann-fallback', path.join(root, 'tests', 'sqlite-ann-fallback.js'));
+  const env = { ...process.env, PAIROFCLEATS_TEST_CACHE_SUFFIX: cacheSuffix };
+  runNode(
+    'sqlite-incremental-manifest',
+    path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js'),
+    [],
+    { env }
+  );
+  runNode(
+    'sqlite-ann-fallback',
+    path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-ann-fallback.test.js'),
+    [],
+    { env }
+  );
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

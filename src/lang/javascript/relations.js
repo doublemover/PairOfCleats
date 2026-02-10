@@ -7,6 +7,21 @@ import {
   visibilityFor
 } from './ast-utils.js';
 import { parseJavaScriptAst } from './parse.js';
+import { resolveCalleeParts, resolveCallLocation, truncateCallText } from '../js-ts/relations-shared.js';
+
+const WALK_SKIP_KEYS = new Set([
+  'loc',
+  'start',
+  'end',
+  'tokens',
+  'comments',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+  'extra',
+  'parent'
+]);
+const OWN_HAS = Object.prototype.hasOwnProperty;
 
 /**
  * Build import/export/call/usage relations for JS chunks.
@@ -366,57 +381,6 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const MAX_CALL_ARG_LEN = 80;
   const MAX_CALL_ARG_DEPTH = 2;
 
-  const normalizeCallText = (value) => {
-    if (value === null || value === undefined) return '';
-    return String(value).replace(/\s+/g, ' ').trim();
-  };
-
-  const truncateCallText = (value, maxLen = MAX_CALL_ARG_LEN) => {
-    const normalized = normalizeCallText(value);
-    if (!normalized) return '';
-    if (normalized.length <= maxLen) return normalized;
-    return `${normalized.slice(0, Math.max(0, maxLen - 3))}...`;
-  };
-
-  const resolveCalleeParts = (calleeName) => {
-    if (!calleeName) return { calleeRaw: null, calleeNormalized: null, receiver: null };
-    const raw = String(calleeName);
-    const parts = raw.split('.').filter(Boolean);
-    if (!parts.length) return { calleeRaw: raw, calleeNormalized: raw, receiver: null };
-    if (parts.length === 1) {
-      return { calleeRaw: raw, calleeNormalized: parts[0], receiver: null };
-    }
-    return {
-      calleeRaw: raw,
-      calleeNormalized: parts[parts.length - 1],
-      receiver: parts.slice(0, -1).join('.')
-    };
-  };
-
-  const resolveCallLocation = (node) => {
-    if (!node || typeof node !== 'object') return null;
-    const start = Number.isFinite(node.start)
-      ? node.start
-      : (Array.isArray(node.range) ? node.range[0] : null);
-    const end = Number.isFinite(node.end)
-      ? node.end
-      : (Array.isArray(node.range) ? node.range[1] : null);
-    const loc = node.loc || null;
-    const startLine = Number.isFinite(loc?.start?.line) ? loc.start.line : null;
-    const startCol = Number.isFinite(loc?.start?.column) ? loc.start.column + 1 : null;
-    const endLine = Number.isFinite(loc?.end?.line) ? loc.end.line : null;
-    const endCol = Number.isFinite(loc?.end?.column) ? loc.end.column + 1 : null;
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-    return {
-      start,
-      end,
-      startLine,
-      startCol,
-      endLine,
-      endCol
-    };
-  };
-
   const formatCallArg = (arg, depth = 0) => {
     if (!arg || depth > MAX_CALL_ARG_DEPTH) return '...';
     if (arg.type === 'Identifier') return arg.name;
@@ -442,19 +406,6 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return '...';
   };
 
-  const WALK_SKIP_KEYS = new Set([
-    'loc',
-    'start',
-    'end',
-    'tokens',
-    'comments',
-    'leadingComments',
-    'trailingComments',
-    'innerComments',
-    'extra',
-    'parent'
-  ]);
-
   const walk = (root) => {
     const stack = [{ node: root, parent: null, phase: 0, exitType: null }];
     while (stack.length) {
@@ -478,26 +429,24 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (node.source?.value) imports.add(node.source.value);
         const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
         if (sourceValue && Array.isArray(node.specifiers)) {
-          node.specifiers.forEach((specifier) => {
+          for (const specifier of node.specifiers) {
             const localName = specifier?.local?.name;
-            if (!localName) return;
+            if (!localName) continue;
+            usages.add(localName);
             if (specifier.type === 'ImportSpecifier') {
               const importedName = specifier.imported?.name || null;
               importBindings[localName] = { imported: importedName || null, module: sourceValue };
-              return;
+              continue;
             }
             if (specifier.type === 'ImportDefaultSpecifier') {
               importBindings[localName] = { imported: 'default', module: sourceValue };
-              return;
+              continue;
             }
             if (specifier.type === 'ImportNamespaceSpecifier') {
               importBindings[localName] = { imported: '*', module: sourceValue };
             }
-          });
+          }
         }
-        node.specifiers?.forEach((s) => {
-          if (s.local?.name) usages.add(s.local.name);
-        });
       }
 
       if (node.type === 'ImportExpression' && node.source) {
@@ -557,9 +506,13 @@ export function buildCodeRelations(text, relPath, options = {}) {
         const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
         if (calleeName) {
           calls.push([callerName, calleeName]);
-          const args = Array.isArray(node.arguments)
-            ? node.arguments.map((arg) => truncateCallText(formatCallArg(arg))).filter(Boolean).slice(0, MAX_CALL_ARGS)
-            : [];
+          const args = [];
+          if (Array.isArray(node.arguments)) {
+            for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
+              const value = truncateCallText(formatCallArg(node.arguments[i]), MAX_CALL_ARG_LEN);
+              if (value) args.push(value);
+            }
+          }
           const location = resolveCallLocation(node);
           const calleeParts = resolveCalleeParts(calleeName);
           const detail = {
@@ -701,9 +654,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
         continue;
       }
 
-      const keys = Object.keys(node);
-      for (let i = keys.length - 1; i >= 0; i -= 1) {
-        const key = keys[i];
+      for (const key in node) {
+        if (!OWN_HAS.call(node, key)) continue;
         if (WALK_SKIP_KEYS.has(key)) continue;
         const child = node[key];
         if (child && typeof child === 'object') {

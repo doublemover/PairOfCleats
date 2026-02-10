@@ -69,5 +69,5 @@ export const writePiecesManifest = async ({
     },
     atomic: true
   });
-  log(`→ Wrote pieces manifest (${normalizedEntries.length} entries).`);
+  log(`→ Wrote pieces manifest (${normalizedEntries.length} entries) at ${manifestPath}.`);
 };

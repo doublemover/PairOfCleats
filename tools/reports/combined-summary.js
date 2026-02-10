@@ -119,7 +119,7 @@ function ensureParityIndexes() {
       console.error('SQLite index missing for parity. Re-run with --build.');
       process.exit(1);
     }
-    const args = [path.join(scriptRoot, 'tools', 'build', 'sqlite-index.js'), '--repo', root];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--stage', '4', '--repo', root];
     if (argv.incremental) args.push('--incremental');
     runNode(args, 'build sqlite index');
   }
@@ -161,7 +161,7 @@ function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
  */
 function buildParityArgs({ backend, outPath }) {
   const args = [
-    path.join(scriptRoot, 'tests', 'parity.js'),
+    path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity.test.js'),
     '--search',
     path.join(scriptRoot, 'search.js'),
     '--sqlite-backend',

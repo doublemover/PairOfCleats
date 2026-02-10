@@ -8,6 +8,11 @@ import {
 } from '../../../src/lang/tree-sitter.js';
 import { repoRoot } from '../../helpers/root.js';
 
+const isCi = process.env.CI === '1' || process.env.CI === 'true';
+const runReducedOnCiLinux = isCi && process.platform === 'linux';
+const runReducedOnCiMac = isCi && process.platform === 'darwin';
+const runReduced = runReducedOnCiLinux || runReducedOnCiMac;
+
 const root = path.join(repoRoot(), 'tests', 'fixtures', 'tree-sitter');
 const fixtures = [
   { id: 'swift', file: 'swift.swift', languageId: 'swift', expect: ['Widget', 'Widget.greet'] },
@@ -28,22 +33,22 @@ const fixtures = [
   }
 ];
 
-// NOTE: We've seen occasional SIGTRAP aborts on GitHub Ubuntu runners with
-// Node 24 when exercising a large multi-language sequence in a single process.
-// This test is a smoke/integration check for the tree-sitter chunker, not a
-// comprehensive per-grammar conformance suite.
+// NOTE: We've seen occasional native OOM/SIGTRAP aborts when exercising a large
+// multi-language sequence in a single process. This test is a smoke/integration
+// check for the tree-sitter chunker, not a comprehensive per-grammar suite.
 //
-// On CI/Linux and CI/macOS, run a reduced fixture set by default to keep the lane stable.
-// To force the full suite on CI, set POC_TREE_SITTER_CHUNKS_FULL=1.
-const isCiLinux = Boolean(process.env.CI) && process.platform === 'linux';
-const isCiDarwin = Boolean(process.env.CI) && process.platform === 'darwin';
-const nodeMajor = Number.parseInt(String(process.versions?.node || '0').split('.', 1)[0], 10) || 0;
-const runReducedOnCiLinux = isCiLinux && nodeMajor >= 24 && process.env.POC_TREE_SITTER_CHUNKS_FULL !== '1';
-const runReducedOnCiDarwin = isCiDarwin && process.env.POC_TREE_SITTER_CHUNKS_FULL !== '1';
-
-const runReduced = runReducedOnCiLinux || runReducedOnCiDarwin;
+// By default, run a single fixture. To force the full suite, set
+// POC_TREE_SITTER_CHUNKS_FULL=1. To target a specific fixture, set
+// POC_TREE_SITTER_CHUNKS_FIXTURE=<fixture id>.
+const forceFull = process.env.POC_TREE_SITTER_CHUNKS_FULL === '1';
+const requestedFixture = typeof process.env.POC_TREE_SITTER_CHUNKS_FIXTURE === 'string'
+  ? process.env.POC_TREE_SITTER_CHUNKS_FIXTURE.trim()
+  : '';
 const reducedFixture = fixtures.find((f) => f.id === 'javascript') || fixtures[0];
-const fixturesToRun = runReduced ? [reducedFixture] : fixtures;
+const selectedFixture = requestedFixture
+  ? fixtures.find((f) => f.id === requestedFixture) || reducedFixture
+  : reducedFixture;
+const fixturesToRun = forceFull ? fixtures : [selectedFixture];
 
 const resolvePreloadId = (fixture) => (
   fixture.languageId
@@ -53,7 +58,7 @@ const resolvePreloadId = (fixture) => (
 );
 
 const cleanup = async () => {
-  // Cleanup of WASM tree-sitter language objects has proven flaky on some CI runners
+  // Cleanup of grammar runtime tree-sitter language objects has proven flaky on some CI runners
   // (native abort / SIGTRAP in node 24 builds). These tests run in an isolated process
   // and primarily validate chunk extraction output, so avoid the most aggressive
   // teardown paths to keep CI stable.
@@ -65,29 +70,32 @@ const run = async () => {
   if (runReduced) {
     const reason = runReducedOnCiLinux ? 'CI/Linux' : 'CI/macOS';
     console.log(
-      `[tree-sitter] ${reason} detected; running reduced fixture set: ${fixturesToRun.map((f) => f.id).join(', ')}`
+      `[tree-sitter] ${reason} detected; skipping cleanup for CI stability. Fixtures: ${fixturesToRun.map((f) => f.id).join(', ')}`
     );
   }
+
+  const enabledLanguages = Object.fromEntries(
+    fixturesToRun
+      .map((fixture) => resolvePreloadId(fixture) || fixture.languageId)
+      .filter((id) => typeof id === 'string' && id)
+      .map((id) => [id, true])
+  );
 
   const options = {
     treeSitter: {
       enabled: true,
-      // Avoid eviction during this test run; eviction + delete paths are covered elsewhere
-      // and have shown to be sensitive to runner/node build combinations.
-      maxLoadedLanguages: fixturesToRun.length
+      languages: enabledLanguages
     },
     log: () => {}
   };
-
-  const preloadIds = fixturesToRun
-    .map(resolvePreloadId)
-    .filter((id) => typeof id === 'string' && id);
-
-  await preloadTreeSitterLanguages(preloadIds, {
-    maxLoadedLanguages: options.treeSitter.maxLoadedLanguages
-  });
+  const preloadLanguage = async (fixture) => {
+    const resolvedId = resolvePreloadId(fixture) || fixture.languageId;
+    if (!resolvedId) return;
+    await preloadTreeSitterLanguages([resolvedId]);
+  };
 
   const first = fixturesToRun[0];
+  await preloadLanguage(first);
   const firstText = fs.readFileSync(path.join(root, first.file), 'utf8');
   const firstChunks = buildTreeSitterChunks({
     text: firstText,
@@ -142,6 +150,9 @@ const run = async () => {
   };
 
   for (const fixture of fixturesToRun) {
+    if (fixture !== first) {
+      await preloadLanguage(fixture);
+    }
     const isFirst = fixture === first;
     const text = isFirst ? firstText : fs.readFileSync(path.join(root, fixture.file), 'utf8');
     const chunks = (isFirst
@@ -169,10 +180,11 @@ const run = async () => {
 try {
   await run();
 } finally {
-  // On CI/Linux, we intentionally avoid the extra teardown work because we've
-  // observed sporadic native aborts during WASM object cleanup on some runners.
+  // On CI/Linux/macOS, we intentionally avoid the extra teardown work because we've
+  // observed sporadic native aborts during grammar runtime object cleanup on some runners.
   // The test runs in an isolated process; skipping cleanup here is safe.
   if (!runReduced) {
     await cleanup();
   }
 }
+

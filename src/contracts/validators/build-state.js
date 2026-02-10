@@ -1,20 +1,13 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { BUILD_STATE_SCHEMA } from '../schemas/build-state.js';
 
-const ajv = new Ajv({
+const ajv = createAjv({
   allErrors: true,
   allowUnionTypes: true,
   strict: true
 });
 
-const cloneSchema = (schema) => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(schema);
-  }
-  return JSON.parse(JSON.stringify(schema));
-};
-
-const BUILD_STATE_VALIDATOR = ajv.compile(cloneSchema(BUILD_STATE_SCHEMA));
+const BUILD_STATE_VALIDATOR = compileSchema(ajv, BUILD_STATE_SCHEMA);
 
 const formatError = (error) => {
   const path = error.instancePath || '/';

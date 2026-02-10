@@ -57,7 +57,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       const { extendsList, implementsList } = extractTypeScriptInheritance(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
         signature,
         modifiers,
         visibility: extractVisibility(modifiers),
@@ -83,7 +83,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       const parsed = parseTypeScriptSignature(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
         signature,
         params: extractTypeScriptParams(signature),
         paramTypes: extractTypeScriptParamTypes(signature),
@@ -106,7 +106,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       const parsed = parseTypeScriptSignature(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
         signature,
         params: extractTypeScriptParams(signature),
         paramTypes: extractTypeScriptParamTypes(signature),
@@ -130,7 +130,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       const parsed = parseTypeScriptSignature(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
         signature,
         params: extractTypeScriptParams(signature),
         paramTypes: extractTypeScriptParamTypes(signature),
@@ -167,7 +167,7 @@ export function buildTypeScriptChunksHeuristic(text) {
       const modifiers = extractTypeScriptModifiers(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
         signature,
         params: extractTypeScriptParams(signature),
         paramTypes: extractTypeScriptParamTypes(signature),

@@ -7,11 +7,16 @@ This document defines the on-disk index artifact contracts. Schema validation is
 ## General expectations
 
 - Strict readers resolve artifacts via `pieces/manifest.json` (manifest-first).
-- Non-strict readers may fall back to file-system discovery with warnings when manifest entries are missing.
+- Strict readers fail fast when manifest parts are missing on disk (no silent partial loads).
+- Non-strict readers may fall back to file-system discovery with warnings when manifest entries are missing, but must still fail on detectably partial shard sets.
 - Paths are relative and POSIX-normalized; `..` and absolute paths are invalid.
 - Unknown top-level fields are errors when a schema sets `additionalProperties: false`.
 - Most artifact schemas allow `additionalProperties`; use `extensions` for namespaced data but it is not the only permitted location.
 - Columnar artifacts use `{ format: "columnar", columns, arrays, length, tables? }` and inflate to the same row schema as JSON/JSONL.
+- JSONL readers may process shards in parallel but must preserve shard order when concatenating results.
+- JSONL readers use buffer scanning (not line interfaces) and may use small-file fast paths.
+- Packed binary readers validate checksum metadata when provided by sidecar meta files.
+- JSONL writers should pass `maxBytes` to unsharded `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast.
 
 ## Sharded JSONL meta schema
 
@@ -21,6 +26,13 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
 Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
+
+Offsets metadata (when present) is stored under `extensions.offsets`:
+- `version` (int, currently 1)
+- `format` (`u64-le`)
+- `compression` (`none`)
+- `suffix` (e.g. `offsets.bin`)
+- `parts` (array of offsets shard paths)
 
 ## Artifact registry
 
@@ -36,6 +48,10 @@ Machine-readable index:
 - `vfs_manifest_index` (array): entries require `schemaVersion`, `virtualPath`, `offset`, `bytes`.
 - `file_meta` (array): entries require `id`, `file` (string). Optional: `ext`, `encoding`, `encodingFallback`, `encodingConfidence`.
 - `repo_map` (array): entries require `file`, `name`. Optional: `kind`, `signature`, `exported`.
+  - Optional (future): `repo_map.meta.json` MAY include `fields.extensions.delta` to describe a delta/dictionary encoding.
+    - `schemaVersion` (int), `format` (string, e.g. `repo_map.delta.v1`)
+    - `tables` (e.g. `kind[]`, `signature[]`) and an optional `ratio` for telemetry.
+    - Writers MUST NOT emit delta-encoded row variants unless consumers can decode them, and MUST fall back to legacy row emission when delta support is unavailable.
 - `file_relations` (array): entries require `file`, `relations` (object). Optional: `importBindings` (object).
 - `symbols` (array/JSONL): entries require `v`, `symbolId`, `scopedId`, `symbolKey`, `qualifiedName`, `kindGroup`, `file`, `virtualPath`, `chunkUid`. Optional: `scheme`, `signatureKey`, `segmentUid`, `lang`, `kind`, `name`, `signature`, `extensions`.
 - `symbol_occurrences` (array/JSONL/columnar): entries require `v`, `host` (`file`, `chunkUid`), `role`, `ref`. Optional: `range`.
@@ -50,6 +66,7 @@ Machine-readable index:
 - `risk_flows` (array/JSONL): entries require `schemaVersion`, `flowId`, `source`, `sink`, `path`, `confidence`, `notes`.
 - `risk_interprocedural_stats` (object): requires `schemaVersion`, `generatedAt`, `mode`, `status`, `effectiveConfig`, `counts`, `callSiteSampling`, `capsHit`, `timingMs`. Optional: `reason`, `artifacts`, `droppedRecords`.
 - `token_postings` (object): requires `vocab`, `postings`, `docLengths`. Optional: `avgDocLen`, `totalDocs`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `token_postings_meta` (object): requires `format`, `shardSize`, `vocabCount`, `parts`. Optional: `avgDocLen`, `totalDocs`, `compression`, `docLengths`, `extensions`.
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.
 - `field_tokens` (array): entries may include `name`, `signature`, `doc`, `comment`, `body` token arrays.
@@ -59,8 +76,12 @@ Machine-readable index:
 - `dense_vectors_lancedb_meta`, `dense_vectors_doc_lancedb_meta`, `dense_vectors_code_lancedb_meta` (object): requires `dims`, `count`, `metric`, `table`, `embeddingColumn`, `idColumn`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_sqlite_vec_meta` (object): requires `dims`, `count`, `table`. Optional: `embeddingColumn`, `idColumn`, `scale`, `minVal`, `maxVal`, `levels`.
 - `phrase_ngrams` (object): requires `vocab`, `postings`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `chargram_postings` (object): requires `vocab`, `postings`.
+  - Contract: `vocab` MUST be unique within the artifact, and `postings.length` MUST match `vocab.length` (id-aligned).
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.
+  - Serialized sets are sparse arrays of chunk ids; query-time hydration may build dense bitmap sidecars (RoaringBitmap when available) for large sets without changing the serialized artifact format.
+  - Any bitmap acceleration is runtime-only and MUST NOT affect ordering hashes or schema compatibility. Serialized versioning is tracked via `filter_index.schemaVersion`.
 - `filelists` (object): requires `generatedAt`, `scanned`, `skipped` (each has `count`, `sample`).
 - `pieces_manifest` (object): requires `version`, `artifactSurfaceVersion`, `pieces`. Optional: `compatibilityKey`, `generatedAt`, `updatedAt`, `mode`, `stage`, `repoId`, `buildId`, `extensions`.
 - `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `compatibilityKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.
@@ -104,3 +125,4 @@ Canonical contract for the report surface:
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
+- SQLite FTS (`chunks_fts`) is contentless (ranking-only) and does not store chunk text or `mode`; UIs should render from `chunk_meta`/artifact sources rather than reading FTS columns.

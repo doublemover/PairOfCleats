@@ -48,6 +48,8 @@ import {
 import { buildAnalysisPolicy } from './policy.js';
 import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
+import { createBuildScheduler } from '../../../shared/concurrency.js';
+import { resolveSchedulerConfig } from './scheduler.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
@@ -55,12 +57,59 @@ import {
   createRuntimeWorkerPools
 } from './workers.js';
 
+const coercePositiveInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
+const coerceFraction = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.min(1, parsed);
+};
+
+const resolveStage1Queues = (indexingConfig = {}) => {
+  const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
+    ? indexingConfig.stage1
+    : {};
+  const tokenize = stage1?.tokenize && typeof stage1.tokenize === 'object'
+    ? stage1.tokenize
+    : {};
+  const postings = stage1?.postings && typeof stage1.postings === 'object'
+    ? stage1.postings
+    : {};
+
+  const tokenizeConcurrency = coercePositiveInt(tokenize.concurrency);
+  const tokenizeMaxPending = coercePositiveInt(tokenize.maxPending);
+
+  const postingsMaxPending = coercePositiveInt(
+    postings.maxPending ?? postings.concurrency
+  );
+  const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
+  const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
+  const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+
+  return {
+    tokenize: {
+      concurrency: tokenizeConcurrency,
+      maxPending: tokenizeMaxPending
+    },
+    postings: {
+      maxPending: postingsMaxPending,
+      maxPendingRows: postingsMaxPendingRows,
+      maxPendingBytes: postingsMaxPendingBytes,
+      maxHeapFraction: postingsMaxHeapFraction
+    }
+  };
+};
+
 /**
  * Create runtime configuration for build_index.
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
+export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoot: indexRootOverride = null } = {}) {
   const initStartedAt = Date.now();
   const logInit = (label, startedAt) => {
     const elapsed = Math.max(0, Date.now() - startedAt);
@@ -186,6 +235,24 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       log(`[warn] ${warning.message}`);
     }
   }
+  const schedulerConfig = resolveSchedulerConfig({
+    argv,
+    rawArgv,
+    envConfig,
+    indexingConfig,
+    runtimeConfig: userConfig.runtime || null,
+    envelope
+  });
+  const scheduler = createBuildScheduler({
+    enabled: schedulerConfig.enabled,
+    lowResourceMode: schedulerConfig.lowResourceMode,
+    cpuTokens: schedulerConfig.cpuTokens,
+    ioTokens: schedulerConfig.ioTokens,
+    memoryTokens: schedulerConfig.memoryTokens,
+    starvationMs: schedulerConfig.starvationMs,
+    queues: schedulerConfig.queues
+  });
+  const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
@@ -245,8 +312,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     || null;
   const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const buildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
-  const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
+  const computedBuildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
+  const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
+  const buildRoot = resolvedIndexRoot || path.join(getBuildsRoot(root, userConfig), computedBuildId);
+  const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
+  if (buildRoot) {
+    const suffix = resolvedIndexRoot ? ' (override)' : '';
+    log(`[init] build root: ${buildRoot}${suffix}`);
+  }
+  if (currentIndexRoot) {
+    log(`[init] current index root: ${currentIndexRoot}`);
+  }
   const loggingConfig = userConfig.logging || {};
   configureRuntimeLogger({
     envConfig,
@@ -357,7 +433,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     treeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
-    treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
     treeSitterLanguagePasses,
@@ -443,14 +518,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     getChunkEmbedding,
     getChunkEmbeddings
   } = embeddingRuntime;
-  const queueConfig = createRuntimeQueues({
-    ioConcurrency,
-    cpuConcurrency,
-    fileConcurrency,
-    embeddingConcurrency,
-    pendingLimits: envelope.queues
-  });
-  const { queues } = queueConfig;
   const pythonAstRuntimeConfig = {
     ...pythonAstConfig,
     defaultMaxWorkers: Math.min(4, fileConcurrency),
@@ -462,6 +529,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     cpuConcurrency,
     fileConcurrency
   });
+  const procConcurrency = workerPoolConfig?.enabled !== false && Number.isFinite(workerPoolConfig?.maxWorkers)
+    ? Math.max(1, Math.min(cpuConcurrency, Math.floor(workerPoolConfig.maxWorkers)))
+    : null;
+  const queueConfig = createRuntimeQueues({
+    ioConcurrency,
+    cpuConcurrency,
+    fileConcurrency,
+    embeddingConcurrency,
+    pendingLimits: envelope.queues,
+    scheduler,
+    stage1Queues,
+    procConcurrency
+  });
+  const { queues } = queueConfig;
 
   const incrementalEnabled = argv.incremental === true;
   const incrementalBundlesConfig = indexingConfig.incrementalBundles || {};
@@ -646,14 +727,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       treeSitterLanguages,
       treeSitterPreload,
       treeSitterPreloadConcurrency,
-      treeSitterMaxLoadedLanguages,
       observedLanguages: null,
       log
     });
     if (preloadCount > 0) {
       logInit('tree-sitter preload', preloadStart);
-    } else if (treeSitterPreload !== 'none') {
-      log('Tree-sitter preload deferred until discovery.');
     }
   }
   if (typeInferenceEnabled) {
@@ -701,8 +779,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       maxLines: treeSitterMaxLines,
       maxParseMs: treeSitterMaxParseMs,
       byLanguage: treeSitterByLanguage,
-      deferMissing: treeSitterDeferMissing,
-      maxLoadedLanguages: treeSitterMaxLoadedLanguages
+      deferMissing: treeSitterDeferMissing
     },
     debugCrash,
     log
@@ -764,7 +841,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       byLanguage: treeSitterByLanguage,
       preload: treeSitterPreload,
       preloadConcurrency: treeSitterPreloadConcurrency,
-      maxLoadedLanguages: treeSitterMaxLoadedLanguages,
       batchByLanguage: treeSitterBatchByLanguage,
       batchEmbeddedLanguages: treeSitterBatchEmbeddedLanguages,
       languagePasses: treeSitterLanguagePasses,
@@ -856,6 +932,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ioConcurrency,
     cpuConcurrency,
     queues,
+    scheduler,
+    schedulerConfig,
+    stage1Queues,
+    procConcurrency,
     incrementalEnabled,
     incrementalBundleFormat,
     debugCrash,

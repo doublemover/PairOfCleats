@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getGitMetaForFile, getRepoProvenance as getLegacyRepoProvenance } from '../../git.js';
 import { toPosix } from '../../../shared/files.js';
+import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
 
@@ -129,15 +130,10 @@ export const gitProvider = {
 };
 
 const findGitRoot = (startPath) => {
-  let current = path.resolve(startPath || process.cwd());
-  while (true) {
-    const gitPath = path.join(current, '.git');
-    if (fsExists(gitPath)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return null;
+  return findUpwards(
+    startPath || process.cwd(),
+    (candidateDir) => fsExists(path.join(candidateDir, '.git'))
+  );
 };
 
 const fsExists = (value) => {

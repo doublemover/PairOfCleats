@@ -8,6 +8,7 @@ import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
 import { syncProcessEnv } from './test-env.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
+import { runSqliteBuild } from './sqlite-builder.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -171,11 +172,7 @@ export const ensureFixtureIndex = async ({
 export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
   const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
-    run(
-      [path.join(ROOT, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot],
-      'build sqlite index',
-      { cwd: fixtureRoot, env, stdio: 'inherit' }
-    );
+    await runSqliteBuild(fixtureRoot, { emitOutput: true });
   }
   return sqlitePaths;
 };

@@ -8,6 +8,8 @@ const fail = (message) => {
 
 const fileSet = new Set([
   'src/lib.js',
+  'src/dupe.ts',
+  'src/dupe/index.ts',
   'src/util/index.tsx',
   'src/helpers.mjs'
 ]);
@@ -25,6 +27,11 @@ if (indexResolved !== 'src/util/index.tsx') {
 const withExt = resolveRelativeImport('src/app.js', './helpers.mjs', fileSet);
 if (withExt !== 'src/helpers.mjs') {
   fail(`Expected ./helpers.mjs to resolve to src/helpers.mjs, got ${withExt}`);
+}
+
+const trailingSlash = resolveRelativeImport('src/app.js', './dupe/', fileSet);
+if (trailingSlash !== 'src/dupe/index.ts') {
+  fail(`Expected ./dupe/ to resolve to src/dupe/index.ts, got ${trailingSlash}`);
 }
 
 const nonRelative = resolveRelativeImport('src/app.js', 'react', fileSet);

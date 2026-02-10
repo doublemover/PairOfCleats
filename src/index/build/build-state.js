@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { createTempPath, replaceFile } from '../../shared/json-stream/atomic.js';
+import { atomicWriteJson, atomicWriteText } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
+import { createLifecycleRegistry } from '../../shared/lifecycle/registry.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
@@ -13,6 +13,7 @@ const STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
 const STATE_EVENTS_FILE = 'build_state.events.jsonl';
 const STATE_DELTAS_FILE = 'build_state.deltas.jsonl';
 const STATE_SCHEMA_VERSION = 1;
+export const ORDERING_LEDGER_SCHEMA_VERSION = 1;
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -20,12 +21,30 @@ const VERY_LONG_DEBOUNCE_MS = 1000;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_PATCH_BYTES = 64 * 1024;
+const STATE_MAP_MAX_ENTRIES = 64;
 
 const stateQueues = new Map();
 const stateErrors = new Map();
 const stateCaches = new Map();
 const statePending = new Map();
-const stateTimers = new Map();
+const statePendingLifecycles = new Map();
+
+const isActiveStateKey = (key) => (
+  stateQueues.has(key)
+  || statePending.has(key)
+  || statePendingLifecycles.has(key)
+);
+
+const trimStateMap = (map, { maxEntries = STATE_MAP_MAX_ENTRIES, skipActive = false } = {}) => {
+  if (!(map instanceof Map)) return;
+  if (!Number.isFinite(maxEntries) || maxEntries <= 0) return;
+  if (map.size <= maxEntries) return;
+  for (const [key] of map.entries()) {
+    if (map.size <= maxEntries) break;
+    if (skipActive && isActiveStateKey(key)) continue;
+    map.delete(key);
+  }
+};
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
@@ -59,8 +78,28 @@ const getCacheEntry = (buildRoot) => {
       lastHash: null,
       lastComparableHash: null
     });
+    trimStateMap(stateCaches, { skipActive: true });
   }
   return stateCaches.get(key);
+};
+
+const getPendingLifecycle = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  if (!statePendingLifecycles.has(key)) {
+    statePendingLifecycles.set(
+      key,
+      createLifecycleRegistry({ name: `build-state-pending:${path.basename(key)}` })
+    );
+  }
+  return statePendingLifecycles.get(key);
+};
+
+const releasePendingLifecycle = (buildRoot) => {
+  const key = path.resolve(buildRoot);
+  const lifecycle = statePendingLifecycles.get(key);
+  if (!lifecycle) return;
+  statePendingLifecycles.delete(key);
+  void lifecycle.close().catch(() => {});
 };
 
 const fingerprintsMatch = (a, b) => (
@@ -145,6 +184,12 @@ const mergeState = (base, patch) => {
     }
     merged.stageCheckpoints = next;
   }
+  if (patch.orderingLedger) {
+    merged.orderingLedger = mergeOrderingLedger(base?.orderingLedger || null, patch.orderingLedger);
+  }
+  if (patch.byteBudgets) {
+    merged.byteBudgets = patch.byteBudgets;
+  }
   if (patch.ignore) {
     merged.ignore = { ...(base?.ignore || {}), ...patch.ignore };
   }
@@ -173,6 +218,72 @@ const mergeStageCheckpoints = (base, patch) => {
     } else {
       next[mode] = value;
     }
+  }
+  return next;
+};
+
+const normalizeOrderingLedger = (ledger) => {
+  if (!ledger || typeof ledger !== 'object') return null;
+  const version = Number.isFinite(Number(ledger.schemaVersion))
+    ? Number(ledger.schemaVersion)
+    : 0;
+  let next = {
+    schemaVersion: version || ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: ledger.seeds && typeof ledger.seeds === 'object' ? { ...ledger.seeds } : {},
+    stages: ledger.stages && typeof ledger.stages === 'object' ? { ...ledger.stages } : {}
+  };
+  if (version && version > ORDERING_LEDGER_SCHEMA_VERSION) {
+    return { ...next, schemaVersion: version };
+  }
+  if (version && version !== ORDERING_LEDGER_SCHEMA_VERSION) {
+    next = {
+      ...next,
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION
+    };
+  }
+  return next;
+};
+
+const mergeOrderingLedger = (base, patch) => {
+  if (!patch) return base || null;
+  const normalizedBase = normalizeOrderingLedger(base) || {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: {},
+    stages: {}
+  };
+  const normalizedPatch = normalizeOrderingLedger(patch) || {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: {},
+    stages: {}
+  };
+  const next = {
+    schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+    seeds: { ...(normalizedBase.seeds || {}), ...(normalizedPatch.seeds || {}) },
+    stages: { ...(normalizedBase.stages || {}) }
+  };
+  for (const [stage, value] of Object.entries(normalizedPatch.stages || {})) {
+    if (!value || typeof value !== 'object') {
+      next.stages[stage] = value;
+      continue;
+    }
+    const baseStage = normalizedBase.stages?.[stage];
+    const mergedStage = {
+      ...(baseStage && typeof baseStage === 'object' ? baseStage : {}),
+      ...value
+    };
+    if (value.seeds && typeof value.seeds === 'object') {
+      mergedStage.seeds = {
+        ...(baseStage?.seeds && typeof baseStage.seeds === 'object' ? baseStage.seeds : {}),
+        ...value.seeds
+      };
+    }
+    if (value.artifacts && typeof value.artifacts === 'object') {
+      mergedStage.artifacts = {
+        ...(baseStage?.artifacts && typeof baseStage.artifacts === 'object' ? baseStage.artifacts : {}),
+        ...value.artifacts
+      };
+    }
+    next.stages[stage] = mergedStage;
   }
   return next;
 };
@@ -221,6 +332,7 @@ const recordStateError = (buildRoot, err) => {
     message
   };
   stateErrors.set(key, next);
+  trimStateMap(stateErrors, { skipActive: true });
   // Surface the failure without crashing the build.
   console.warn(`[build_state] ${message}`);
 };
@@ -338,14 +450,6 @@ const hashJsonString = (value) => {
   return sha1(value);
 };
 
-const writeJsonStringAtomic = async (filePath, jsonString) => {
-  if (!filePath) return null;
-  const tempPath = createTempPath(filePath);
-  await fs.writeFile(tempPath, jsonString, 'utf8');
-  await replaceFile(tempPath, filePath);
-  return filePath;
-};
-
 const loadBuildState = async (buildRoot) => {
   const cache = getCacheEntry(buildRoot);
   const statePath = resolveStatePath(buildRoot);
@@ -397,10 +501,12 @@ const ensureStateVersions = (state, buildRoot, loaded) => {
   if (loaded && (schemaVersion == null || signatureVersion == null)) {
     recordStateError(buildRoot, new Error('build_state missing schemaVersion/signatureVersion'));
   }
+  const orderingLedger = normalizeOrderingLedger(state?.orderingLedger);
   return {
     ...state,
     schemaVersion: schemaVersion ?? STATE_SCHEMA_VERSION,
-    signatureVersion
+    signatureVersion,
+    ...(orderingLedger ? { orderingLedger } : {})
   };
 };
 
@@ -414,7 +520,7 @@ const writeStateFile = async (buildRoot, state, cache, { comparableHash = null }
     return state;
   }
   try {
-    await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+    await atomicWriteJson(statePath, state, { spaces: 0 });
     const fingerprint = await readFingerprint(statePath);
     cache.state = state;
     cache.fingerprint = fingerprint;
@@ -448,7 +554,7 @@ const writeSidecarFile = async (buildRoot, type, payload, cache) => {
     return payload;
   }
   try {
-    await writeJsonStringAtomic(filePath, jsonString);
+    await atomicWriteText(filePath, jsonString);
     const fingerprint = await readFingerprint(filePath);
     if (type === 'progress') {
       cache.progress = payload;
@@ -529,6 +635,8 @@ const getPendingEntry = (buildRoot) => {
       patch: null,
       events: [],
       timer: null,
+      timerCancel: null,
+      lifecycle: getPendingLifecycle(buildRoot),
       resolves: [],
       rejects: []
     });
@@ -540,6 +648,11 @@ const flushPendingState = async (buildRoot) => {
   const key = path.resolve(buildRoot);
   const pending = statePending.get(key);
   if (!pending || !pending.patch) return null;
+  if (pending.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+    pending.timer = null;
+  }
   const patch = pending.patch;
   const events = pending.events;
   const resolves = pending.resolves;
@@ -551,12 +664,18 @@ const flushPendingState = async (buildRoot) => {
   try {
     const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
     resolves.forEach((resolve) => resolve(result));
-    if (!pending.patch && !pending.timer) statePending.delete(key);
+    if (!pending.patch && !pending.timer) {
+      statePending.delete(key);
+      releasePendingLifecycle(buildRoot);
+    }
     return result;
   } catch (err) {
     rejects.forEach((reject) => reject(err));
     recordStateError(buildRoot, err);
-    if (!pending.patch && !pending.timer) statePending.delete(key);
+    if (!pending.patch && !pending.timer) {
+      statePending.delete(key);
+      releasePendingLifecycle(buildRoot);
+    }
     return null;
   }
 };
@@ -570,8 +689,13 @@ const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {
     pending.resolves.push(resolve);
     pending.rejects.push(reject);
   });
-  if (pending.timer) {
+  if (pending.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+  } else if (pending.timer) {
     clearTimeout(pending.timer);
+  }
+  if (pending.timer) {
     pending.timer = null;
   }
   if (flushNow) {
@@ -580,8 +704,12 @@ const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {
     const delay = resolveDebounceMs(pending.patch);
     pending.timer = setTimeout(() => {
       pending.timer = null;
+      pending.timerCancel = null;
       void flushPendingState(buildRoot);
     }, delay);
+    pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
+      label: 'build-state-debounce'
+    });
   }
   return promise;
 };
@@ -623,7 +751,7 @@ export async function initBuildState({
     progress: {}
   };
   await fs.mkdir(buildRoot, { recursive: true });
-  await writeJsonObjectFile(statePath, { fields: payload, atomic: true });
+  await atomicWriteJson(statePath, payload, { spaces: 0 });
   return statePath;
 }
 
@@ -633,15 +761,121 @@ export async function updateBuildState(buildRoot, patch) {
   return queueStatePatch(buildRoot, patch, events);
 }
 
+const normalizeSeedInputs = (inputs = {}) => ({
+  discoveryHash: typeof inputs.discoveryHash === 'string' ? inputs.discoveryHash : null,
+  fileListHash: typeof inputs.fileListHash === 'string' ? inputs.fileListHash : null,
+  fileCount: Number.isFinite(inputs.fileCount) ? inputs.fileCount : null,
+  mode: typeof inputs.mode === 'string' ? inputs.mode : null
+});
+
+const resolveStageKey = (stage, mode) => {
+  if (!stage) return null;
+  const stageKey = String(stage);
+  return mode ? `${stageKey}:${mode}` : stageKey;
+};
+
+export async function recordOrderingSeedInputs(buildRoot, inputs = {}, { stage = null, mode = null } = {}) {
+  if (!buildRoot) return null;
+  const seeds = normalizeSeedInputs({ ...inputs, mode });
+  const stageKey = resolveStageKey(stage, mode);
+  const now = new Date().toISOString();
+  const patch = {
+    orderingLedger: {
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+      seeds,
+      ...(stageKey ? { stages: { [stageKey]: { seeds } } } : {})
+    }
+  };
+  return updateBuildState(buildRoot, patch);
+}
+
+export async function recordOrderingHash(buildRoot, {
+  stage,
+  mode = null,
+  artifact,
+  hash,
+  rule = null,
+  count = null
+} = {}) {
+  if (!buildRoot || !stage || !artifact || !hash) return null;
+  const stageKey = resolveStageKey(stage, mode);
+  if (!stageKey) return null;
+  const loaded = await loadBuildState(buildRoot);
+  const currentLedger = normalizeOrderingLedger(loaded?.state?.orderingLedger);
+  const currentEntry = currentLedger?.stages?.[stageKey]?.artifacts?.[artifact];
+  const entry = {
+    hash,
+    rule,
+    count: Number.isFinite(count) ? count : null,
+    mode
+  };
+  if (currentEntry
+    && currentEntry.hash === entry.hash
+    && currentEntry.rule === entry.rule
+    && currentEntry.count === entry.count
+    && currentEntry.mode === entry.mode) {
+    return currentLedger;
+  }
+  const patch = {
+    orderingLedger: {
+      schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
+      stages: {
+        [stageKey]: {
+          artifacts: {
+            [artifact]: entry
+          }
+        }
+      }
+    }
+  };
+  return updateBuildState(buildRoot, patch);
+}
+
+export async function loadOrderingLedger(buildRoot) {
+  if (!buildRoot) return null;
+  const loaded = await loadBuildState(buildRoot);
+  return normalizeOrderingLedger(loaded?.state?.orderingLedger);
+}
+
+export function validateOrderingLedger(ledger) {
+  const normalized = normalizeOrderingLedger(ledger);
+  if (!normalized) return { ok: false, errors: ['orderingLedger missing'] };
+  const errors = [];
+  if (!Number.isFinite(Number(normalized.schemaVersion))) {
+    errors.push('orderingLedger.schemaVersion missing');
+  }
+  if (!normalized.stages || typeof normalized.stages !== 'object') {
+    errors.push('orderingLedger.stages missing');
+  }
+  return { ok: errors.length === 0, errors, value: normalized };
+}
+
+export async function exportOrderingLedger(buildRoot, outputPath = null) {
+  const ledger = await loadOrderingLedger(buildRoot);
+  if (outputPath && ledger) {
+    await atomicWriteJson(outputPath, ledger, { spaces: 0 });
+  }
+  return ledger;
+}
+
 export async function flushBuildState(buildRoot) {
   if (!buildRoot) return null;
   const key = path.resolve(buildRoot);
   const pending = statePending.get(key);
-  if (pending?.timer) {
+  if (pending?.timerCancel) {
+    pending.timerCancel();
+    pending.timerCancel = null;
+    pending.timer = null;
+  } else if (pending?.timer) {
     clearTimeout(pending.timer);
     pending.timer = null;
   }
-  return flushPendingState(buildRoot);
+  const result = await flushPendingState(buildRoot);
+  if (pending && !pending.patch && !pending.timer) {
+    statePending.delete(key);
+    releasePendingLifecycle(buildRoot);
+  }
+  return result;
 }
 
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
@@ -680,11 +914,20 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
 
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   if (!buildRoot) return () => {};
+  const lifecycle = createLifecycleRegistry({
+    name: `build-state-heartbeat:${path.basename(path.resolve(buildRoot))}`
+  });
   let lastWrite = 0;
   let active = true;
+  let timer = null;
   const stop = () => {
+    if (!active) return;
     active = false;
-    clearInterval(timer);
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    void lifecycle.close().catch(() => {});
     void flushBuildState(buildRoot);
   };
   const tick = async () => {
@@ -697,17 +940,23 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
     const now = new Date().toISOString();
-    void updateBuildState(buildRoot, {
+    const writeTask = updateBuildState(buildRoot, {
       heartbeat: {
         stage: stage || null,
         lastHeartbeatAt: now
       }
     }).catch(() => {});
+    lifecycle.registerPromise(writeTask, { label: 'build-state-heartbeat-write' });
   };
-  void tick();
-  const timer = setInterval(() => {
-    void tick();
+  const queueTick = () => {
+    if (!active || lifecycle.isClosed()) return;
+    lifecycle.registerPromise(tick(), { label: 'build-state-heartbeat-tick' });
+  };
+  queueTick();
+  timer = setInterval(() => {
+    queueTick();
   }, intervalMs);
+  lifecycle.registerTimer(timer, { label: 'build-state-heartbeat-interval' });
   return stop;
 }
 

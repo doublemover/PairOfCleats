@@ -68,13 +68,15 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],providerOrder:string[],vfs:{strict?:boolean,maxVirtualFileBytes?:number,hashRouting?:boolean,coalesceSegments?:boolean,tokenMode?:string},lsp:{enabled:boolean,servers:object[]},typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string,allowJs:boolean,checkJs:boolean,includeJsx:boolean,maxFiles:number|null,maxFileBytes:number|null,maxProgramFiles:number|null},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string},pyright:object,sourcekit:object}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const tooling = cfg.tooling || {};
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
+  const pyright = tooling.pyright && typeof tooling.pyright === 'object' ? tooling.pyright : {};
+  const sourcekit = tooling.sourcekit && typeof tooling.sourcekit === 'object' ? tooling.sourcekit : {};
   const toolingCache = tooling.cache || {};
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
@@ -118,13 +120,23 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const maxFiles = Number(typescript.maxFiles);
   const maxFileBytes = Number(typescript.maxFileBytes);
   const maxProgramFiles = Number(typescript.maxProgramFiles);
+  const toolingCacheMaxBytesRaw = Number(toolingCache.maxBytes);
+  const toolingCacheMaxEntriesRaw = Number(toolingCache.maxEntries);
+  const toolingCacheMaxBytes = Number.isFinite(toolingCacheMaxBytesRaw)
+    ? Math.max(0, Math.floor(toolingCacheMaxBytesRaw))
+    : null;
+  const toolingCacheMaxEntries = Number.isFinite(toolingCacheMaxEntriesRaw)
+    ? Math.max(0, Math.floor(toolingCacheMaxEntriesRaw))
+    : null;
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
     autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
     strict: tooling.strict !== false,
     cache: {
       enabled: toolingCache.enabled !== false,
-      dir: typeof toolingCache.dir === 'string' ? toolingCache.dir : ''
+      dir: typeof toolingCache.dir === 'string' ? toolingCache.dir : '',
+      ...(Number.isFinite(toolingCacheMaxBytes) ? { maxBytes: toolingCacheMaxBytes } : {}),
+      ...(Number.isFinite(toolingCacheMaxEntries) ? { maxEntries: toolingCacheMaxEntries } : {})
     },
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     maxRetries: Number.isFinite(maxRetries) ? Math.max(0, Math.floor(maxRetries)) : null,
@@ -163,7 +175,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     clangd: {
       requireCompilationDatabase: clangd.requireCompilationDatabase === true,
       compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
-    }
+    },
+    pyright,
+    sourcekit
   };
 }
 
@@ -182,7 +196,10 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;
   if (sqliteVector.dir) return sqliteVector.dir;
-  const cacheRoot = isTestingEnv() ? getDefaultCacheRoot() : getCacheRoot();
+  // Extensions are shared assets and should not live under repo-scoped cache data.
+  const cacheRoot = isTestingEnv()
+    ? getDefaultCacheRoot()
+    : (envConfig.cacheRoot || envConfig.homeRoot || getDefaultCacheRoot());
   return path.join(cacheRoot, 'extensions');
 }
 

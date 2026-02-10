@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { sha1 } from '../../../src/shared/hash.js';
+import { buildCacheKey as buildUnifiedCacheKey } from '../../../src/shared/cache-key.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
 import {
   decodeEmbeddingsCache,
@@ -13,11 +13,49 @@ import {
   resolveEmbeddingsCacheRoot
 } from '../../../src/shared/embeddings-cache/index.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
 const CACHE_INDEX_VERSION = 1;
+const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
+const DEFAULT_LOCK_WAIT_MS = 5000;
+const DEFAULT_LOCK_POLL_MS = 100;
+const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
+
+const resolveCacheLockPath = (cacheDir) => (
+  cacheDir ? path.join(cacheDir, 'cache.lock') : null
+);
+
+const withCacheLock = async (cacheDir, worker, options = {}) => {
+  const lockPath = resolveCacheLockPath(cacheDir);
+  if (!lockPath) return null;
+  const waitMs = Number.isFinite(Number(options.waitMs)) ? Math.max(0, Number(options.waitMs)) : DEFAULT_LOCK_WAIT_MS;
+  const pollMs = Number.isFinite(Number(options.pollMs)) ? Math.max(1, Number(options.pollMs)) : DEFAULT_LOCK_POLL_MS;
+  const staleMs = Number.isFinite(Number(options.staleMs)) ? Math.max(1, Number(options.staleMs)) : DEFAULT_LOCK_STALE_MS;
+  const log = typeof options.log === 'function' ? options.log : null;
+
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs,
+    pollMs,
+    staleMs,
+    metadata: { scope: 'embeddings-cache' },
+    onStale: () => {
+      if (log) log(`[embeddings-cache] Removed stale cache lock: ${lockPath}`);
+    },
+    onBusy: () => {
+      if (log) log(`[embeddings-cache] Cache lock timeout: ${lockPath}`);
+    }
+  });
+  if (!lock) return null;
+  try {
+    return await worker();
+  } finally {
+    await lock.release();
+  }
+};
 
 /**
  * Build an embeddings cache identity payload and key.
@@ -296,7 +334,7 @@ const selectShardForWrite = (cacheIndex, payloadBytes, maxShardBytes) => {
   return currentName;
 };
 
-const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => {
+const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = {}) => {
   const shardDir = resolveCacheShardDir(cacheDir);
   if (!shardDir) return null;
   await fs.mkdir(shardDir, { recursive: true });
@@ -308,17 +346,26 @@ const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => {
     const offset = stat.size;
     const prefix = Buffer.allocUnsafe(CACHE_ENTRY_PREFIX_BYTES);
     prefix.writeUInt32LE(buffer.length, 0);
-    await handle.write(prefix, 0, CACHE_ENTRY_PREFIX_BYTES, offset);
-    await handle.write(buffer, 0, buffer.length, offset + CACHE_ENTRY_PREFIX_BYTES);
-    const totalBytes = CACHE_ENTRY_PREFIX_BYTES + buffer.length;
+    const payload = Buffer.concat([prefix, buffer]);
+    await handle.write(payload, 0, payload.length, offset);
+    const totalBytes = payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
     shardMeta.sizeBytes = offset + totalBytes;
     cacheIndex.shards[shardName] = shardMeta;
-    return { shard: shardName, offset: offset + CACHE_ENTRY_PREFIX_BYTES, length: buffer.length, sizeBytes: totalBytes };
+    return {
+      shard: shardName,
+      offset: offset + CACHE_ENTRY_PREFIX_BYTES,
+      length: buffer.length,
+      sizeBytes: totalBytes
+    };
   } finally {
     await handle.close();
   }
 };
+
+const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => (
+  withCacheLock(cacheDir, () => appendShardEntryUnlocked(cacheDir, cacheIndex, buffer, options), options.lock)
+);
 
 /**
  * Write a cache entry, optionally appending to a shard.
@@ -394,6 +441,7 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   if (!cacheDir || !cacheIndex) return { removedKeys: [], removedShards: [], changed: false };
   const maxBytes = Number.isFinite(Number(options.maxBytes)) ? Math.max(0, Number(options.maxBytes)) : 0;
   const maxAgeMs = Number.isFinite(Number(options.maxAgeMs)) ? Math.max(0, Number(options.maxAgeMs)) : 0;
+  const deleteShards = options.deleteShards !== false;
   if (!maxBytes && !maxAgeMs) return { removedKeys: [], removedShards: [], changed: false };
   const plan = planEmbeddingsCachePrune({
     entries: cacheIndex.entries || {},
@@ -421,7 +469,7 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   for (const shardName of Object.keys(cacheIndex.shards || {})) {
     if (shardUsage[shardName]) continue;
     const shardPath = resolveCacheShardPath(cacheDir, shardName);
-    if (shardPath) {
+    if (deleteShards && shardPath) {
       try {
         await fs.rm(shardPath, { force: true });
       } catch {}
@@ -436,14 +484,180 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   return { removedKeys: plan.removeKeys, removedShards, changed: true };
 };
 
+const parseIsoMillis = (value) => {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const resolveLatestIso = (a, b) => {
+  const aMs = parseIsoMillis(a);
+  const bMs = parseIsoMillis(b);
+  if (aMs && bMs) return aMs >= bMs ? a : b;
+  if (aMs) return a;
+  if (bMs) return b;
+  return a || b || null;
+};
+
+const resolveEarliestIso = (a, b) => {
+  const aMs = parseIsoMillis(a);
+  const bMs = parseIsoMillis(b);
+  if (aMs && bMs) return aMs <= bMs ? a : b;
+  if (aMs) return a;
+  if (bMs) return b;
+  return a || b || null;
+};
+
+const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value == null) continue;
+    merged[key] = value;
+  }
+
+  merged.key = incoming.key || existing.key || merged.key || null;
+  merged.file = incoming.file || existing.file || merged.file || null;
+  merged.hash = incoming.hash || existing.hash || merged.hash || null;
+  merged.chunkSignature = incoming.chunkSignature || existing.chunkSignature || merged.chunkSignature || null;
+  merged.shard = incoming.shard || existing.shard || merged.shard || null;
+  merged.offset = Number.isFinite(Number(incoming.offset))
+    ? Number(incoming.offset)
+    : (Number.isFinite(Number(existing.offset)) ? Number(existing.offset) : merged.offset || null);
+  merged.length = Number.isFinite(Number(incoming.length))
+    ? Number(incoming.length)
+    : (Number.isFinite(Number(existing.length)) ? Number(existing.length) : merged.length || null);
+  merged.sizeBytes = Number.isFinite(Number(incoming.sizeBytes))
+    ? Number(incoming.sizeBytes)
+    : (Number.isFinite(Number(existing.sizeBytes)) ? Number(existing.sizeBytes) : merged.sizeBytes || null);
+  merged.chunkCount = Number.isFinite(Number(incoming.chunkCount))
+    ? Number(incoming.chunkCount)
+    : (Number.isFinite(Number(existing.chunkCount)) ? Number(existing.chunkCount) : merged.chunkCount || null);
+
+  merged.createdAt = resolveEarliestIso(existing.createdAt, incoming.createdAt) || merged.createdAt || null;
+  merged.lastAccessAt = resolveLatestIso(existing.lastAccessAt, incoming.lastAccessAt) || merged.lastAccessAt || null;
+  merged.hits = Math.max(
+    Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0,
+    Number.isFinite(Number(incoming.hits)) ? Number(incoming.hits) : 0
+  );
+
+  return merged;
+};
+
+const mergeCacheIndex = (base, incoming) => {
+  if (!base || typeof base !== 'object') return base;
+  if (!incoming || typeof incoming !== 'object') return base;
+
+  base.entries = { ...(base.entries || {}) };
+  base.files = { ...(base.files || {}) };
+  base.shards = { ...(base.shards || {}) };
+
+  for (const [key, entry] of Object.entries(incoming.entries || {})) {
+    const existing = base.entries[key] || null;
+    base.entries[key] = existing ? mergeCacheIndexEntry(existing, entry) : entry;
+  }
+
+  for (const [file, key] of Object.entries(incoming.files || {})) {
+    if (!file || !key) continue;
+    base.files[file] = key;
+  }
+
+  for (const [shardName, shardMeta] of Object.entries(incoming.shards || {})) {
+    const existing = base.shards[shardName] || null;
+    if (!existing) {
+      base.shards[shardName] = shardMeta;
+      continue;
+    }
+    const createdAt = resolveEarliestIso(existing.createdAt, shardMeta?.createdAt);
+    const sizeBytes = Math.max(
+      Number.isFinite(Number(existing.sizeBytes)) ? Number(existing.sizeBytes) : 0,
+      Number.isFinite(Number(shardMeta?.sizeBytes)) ? Number(shardMeta.sizeBytes) : 0
+    );
+    base.shards[shardName] = { ...existing, ...shardMeta, createdAt, sizeBytes };
+  }
+
+  const baseNext = Number.isFinite(Number(base.nextShardId)) ? Number(base.nextShardId) : 0;
+  const incomingNext = Number.isFinite(Number(incoming.nextShardId)) ? Number(incoming.nextShardId) : 0;
+  base.nextShardId = Math.max(baseNext, incomingNext);
+
+  if (incoming.currentShard) {
+    base.currentShard = incoming.currentShard;
+  }
+
+  base.updatedAt = resolveLatestIso(base.updatedAt, incoming.updatedAt) || new Date().toISOString();
+  if (!base.createdAt) base.createdAt = incoming.createdAt || base.updatedAt;
+  if (!base.identityKey) base.identityKey = incoming.identityKey || null;
+
+  return base;
+};
+
+/**
+ * Flush cache index changes to disk safely under concurrent builds.
+ *
+ * We merge the in-memory cache index into the on-disk index under a lock,
+ * then optionally prune and persist atomically.
+ *
+ * @param {string|null} cacheDir
+ * @param {object|null} cacheIndex
+ * @param {{identityKey?:string|null,maxBytes?:number,maxAgeMs?:number,deleteShards?:boolean,lock?:object}} [options]
+ * @returns {Promise<{removedKeys:string[],removedShards:string[],changed:boolean,locked:boolean}>}
+ */
+export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
+  if (!cacheDir || !cacheIndex) {
+    return { removedKeys: [], removedShards: [], changed: false, locked: false };
+  }
+  const identityKey = options.identityKey || cacheIndex.identityKey || null;
+  const lockResult = await withCacheLock(cacheDir, async () => {
+    const onDisk = await readCacheIndex(cacheDir, identityKey);
+    mergeCacheIndex(onDisk, cacheIndex);
+    const pruneResult = await pruneCacheIndex(cacheDir, onDisk, {
+      maxBytes: options.maxBytes,
+      maxAgeMs: options.maxAgeMs,
+      deleteShards: options.deleteShards
+    });
+    await writeCacheIndex(cacheDir, onDisk);
+    for (const key of Object.keys(cacheIndex)) {
+      delete cacheIndex[key];
+    }
+    Object.assign(cacheIndex, onDisk);
+    return pruneResult;
+  }, options.lock);
+
+  if (!lockResult) {
+    return { removedKeys: [], removedShards: [], changed: false, locked: false };
+  }
+
+  return { ...lockResult, locked: true };
+};
 /**
  * Build a stable cache key for an embedding payload.
  * @param {{file?:string,hash?:string,signature?:string,identityKey?:string}} input
  * @returns {string|null}
  */
-export const buildCacheKey = ({ file, hash, signature, identityKey }) => {
+export const buildCacheKey = ({
+  file,
+  hash,
+  signature,
+  identityKey,
+  repoId,
+  mode,
+  featureFlags,
+  pathPolicy
+}) => {
   if (!hash) return null;
-  return sha1(`${file}:${hash}:${signature}:${identityKey}`);
+  const keyInfo = buildUnifiedCacheKey({
+    repoHash: repoId || null,
+    buildConfigHash: identityKey || null,
+    mode: mode || null,
+    schemaVersion: CACHE_KEY_SCHEMA_VERSION,
+    featureFlags: featureFlags || null,
+    pathPolicy: pathPolicy || 'posix',
+    extra: {
+      file: file || null,
+      hash,
+      signature: signature || null
+    }
+  });
+  return keyInfo.key;
 };
 
 /**
@@ -488,4 +702,40 @@ export const writeCacheMeta = async (cacheRoot, identity, mode, meta) => {
   if (!metaPath) return;
   await fs.mkdir(path.dirname(metaPath), { recursive: true });
   await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
+};
+
+/**
+ * Decide whether a cache lookup can be rejected using only cache.index.json metadata.
+ * This avoids reading shard payloads or standalone cache entry files for known mismatches.
+ *
+ * Note: when no index entry exists we must not fast-reject, because legacy standalone cache
+ * entries may exist without an index entry.
+ *
+ * @param {{
+ *  cacheIndex?:object|null,
+ *  cacheKey?:string|null,
+ *  identityKey?:string|null,
+ *  fileHash?:string|null,
+ *  chunkSignature?:string|null
+ * }} input
+ * @returns {boolean}
+ */
+export const shouldFastRejectCacheLookup = ({
+  cacheIndex,
+  cacheKey,
+  identityKey,
+  fileHash,
+  chunkSignature
+} = {}) => {
+  if (!cacheIndex || typeof cacheIndex !== 'object') return false;
+  if (!cacheKey) return false;
+  const indexEntry = cacheIndex?.entries?.[cacheKey] || null;
+  if (!indexEntry) return false;
+
+  const indexIdentityKey = cacheIndex?.identityKey || null;
+  if (identityKey && indexIdentityKey && indexIdentityKey !== identityKey) return true;
+  if (fileHash && indexEntry?.hash && indexEntry.hash !== fileHash) return true;
+  if (chunkSignature && indexEntry?.chunkSignature && indexEntry.chunkSignature !== chunkSignature) return true;
+
+  return false;
 };

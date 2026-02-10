@@ -1,6 +1,7 @@
-import Ajv from 'ajv/dist/2020.js';
+import { cloneJsonSchema, compileSchema, createAjv } from '../shared/validation/ajv-factory.js';
 
-const ajv = new Ajv({
+const ajv = createAjv({
+  dialect: '2020',
   allErrors: true,
   strict: false,
   allowUnionTypes: true
@@ -82,9 +83,9 @@ export function validateConfig(schema, config) {
   const cacheKey = schema && typeof schema === 'object' ? schema : null;
   let validate = cacheKey ? validatorCache.get(cacheKey) : null;
   if (!validate) {
-    const normalizedSchema = structuredClone(schema);
+    const normalizedSchema = cloneJsonSchema(schema);
     ensureRequiredProperties(normalizedSchema);
-    validate = ajv.compile(normalizedSchema);
+    validate = compileSchema(ajv, normalizedSchema, { clone: false });
     if (cacheKey) validatorCache.set(cacheKey, validate);
   }
   const ok = validate(config);

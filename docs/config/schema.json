@@ -134,7 +134,9 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "dir": { "type": "string" }
+            "dir": { "type": "string" },
+            "maxBytes": { "type": "number" },
+            "maxEntries": { "type": "number" }
           }
         },
         "typescript": {
@@ -201,6 +203,29 @@
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
         "ioConcurrencyCap": { "type": "number" },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "cpuTokens": { "type": "number" },
+            "ioTokens": { "type": "number" },
+            "memoryTokens": { "type": "number" },
+            "lowResourceMode": { "type": "boolean" },
+            "starvationMs": { "type": "number" },
+            "queues": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "priority": { "type": "number" },
+                  "maxPending": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
         "maxFileBytes": { "type": "number" },
         "maxFileLines": { "type": "number" },
         "artifacts": {

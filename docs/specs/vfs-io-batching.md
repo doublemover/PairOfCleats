@@ -63,6 +63,22 @@ Rules:
 - The final on-disk content MUST match the result of sequential `ensureVfsDiskDocument` calls.
 - Coalescing MUST be deterministic (last write in order wins).
 
+### 3.1 Per-language batching expectations (notes)
+
+VFS IO batching is typically paired with per-language tooling batching:
+
+- Work SHOULD be bucketed by `languageId`/`effectiveExt` on the *virtual document* (not container file extension).
+- Scheduling MUST preserve deterministic output ordering for any artifacts derived from VFS routing
+  (stable `virtualPath` ordering independent of concurrency).
+
+### 3.2 `virtualRange` guardrails (notes)
+
+Tooling targets include a `virtualRange` mapping into virtual document text. Implementations SHOULD:
+
+- Prefer segment-relative offset mapping (`virtual = container - segmentStart`) when segments exist.
+- If a caller accidentally supplies already-relative offsets, allow a bounded fallback when it is provably in-range.
+- If the mapping is invalid, surface it explicitly (log/telemetry) and avoid silently dropping work.
+
 ---
 
 ## 4) Failure handling
@@ -78,6 +94,30 @@ Emit counters:
 - `vfs_io_batches`
 - `vfs_io_bytes`
 - `vfs_io_coalesced`
+
+---
+
+## 5.1) Spill/Merge Integration
+
+When VFS artifacts spill or require merge/compaction, use the shared merge core (`src/shared/merge.js`)
+so ordering and cleanup are consistent with other artifact pipelines. This includes merging
+`vfs_manifest` spill runs during artifact writes.
+
+Comparator/serializer contract:
+- Ordering uses `compareVfsManifestRows` (virtualPath, segment info, hash routing tie-breaks).
+- Serialization is JSONL via `stringifyJsonValue` to preserve stable ordering and size checks.
+
+---
+
+## 5.2) Benchmarks + Tests
+
+Benchmarks:
+- `tools/bench/merge/merge-core-throughput.js`
+- `tools/bench/merge/spill-merge-compare.js`
+
+Tests:
+- `tests/indexing/vfs/merge-core-integration.test.js`
+- `tests/shared/merge/merge-cleanup-regression.test.js`
 
 ---
 

@@ -121,6 +121,9 @@ export const writeIndexMetrics = async ({
         enabled: Boolean(documentExtractionEnabled)
       }
     },
+    queues: {
+      postings: timing?.postingsQueue || state?.postingsQueueStats || null
+    },
     timings: timing
   };
   try {

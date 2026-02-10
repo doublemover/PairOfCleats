@@ -72,6 +72,7 @@ export const runDiscovery = async ({
     }));
     state.discoveredFiles = entries.map((entry) => entry.rel);
     state.discoveryHash = sha1(stableStringifyForSignature(discoveryList));
+    state.fileListHash = sha1(stableStringifyForSignature(state.discoveredFiles));
   }
   log(`→ Found ${entries.length} files.`);
   if (timing) timing.discoverMs = Date.now() - discoverStart;

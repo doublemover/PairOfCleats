@@ -8,23 +8,26 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix, toPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareSymbolOccurrenceRows,
+  createOffsetsIndexMeta,
+  createOffsetsMeta,
   createRowSpillCollector,
   createTrimStats,
-  mergeSortedRuns,
   recordArtifactTelemetry,
   writePerFileVarintIndex
 } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
 
 const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
@@ -228,6 +231,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   chunkUidToFileId = null,
   outDir,
   maxJsonBytes = null,
+  byteBudget = null,
   log = null,
   format = null,
   compression = null,
@@ -255,6 +259,13 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   }
   const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
   const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
+  const budgetInfo = applyByteBudget({
+    budget: byteBudget,
+    totalBytes,
+    label: 'symbol_occurrences',
+    stageCheckpoints,
+    logger: log
+  });
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'symbol_occurrences',
@@ -263,17 +274,22 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
     maxRowBytes,
     trimmedRows: stats?.trimmedRows || 0,
     droppedRows: stats?.droppedRows || 0,
-    extra: { format: formatLabel }
+    extra: {
+      format: formatLabel,
+      budget: budgetInfo,
+      runsSpilled: stats?.runsSpilled || 0,
+      spillBytes: stats?.spillBytes || 0
+    }
   });
   if (!totalRows) {
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_occurrences.meta.json'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbol_occurrences.parts'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileMetaPath, { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileDataPath, { recursive: true, force: true }).catch(() => {});
-    await fs.rm(perFileOffsetsPath, { recursive: true, force: true }).catch(() => {});
+    await removeArtifacts([
+      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_occurrences' }),
+      path.join(outDir, 'symbol_occurrences.meta.json'),
+      path.join(outDir, 'symbol_occurrences.parts'),
+      perFileMetaPath,
+      perFileDataPath,
+      perFileOffsetsPath
+    ]);
     if (collected?.cleanup) await collected.cleanup();
     return;
   }
@@ -285,17 +301,10 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${occurrencesPath}.${offsetsConfig.suffix}` : null;
 
-  const removeJsonlVariants = async () => {
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.zst'), { force: true });
-    await fs.rm(path.join(outDir, 'symbol_occurrences.jsonl.offsets.bin'), { force: true });
-  };
-  const removePerFileIndex = async () => {
-    await fs.rm(perFileMetaPath, { force: true });
-    await fs.rm(perFileDataPath, { force: true });
-    await fs.rm(perFileOffsetsPath, { force: true });
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'symbol_occurrences', includeOffsets: true })
+  );
+  const removePerFileIndex = async () => removeArtifacts([perFileMetaPath, perFileDataPath, perFileOffsetsPath]);
 
   if (useColumnar) {
     enqueueWrite(
@@ -305,7 +314,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         await removePerFileIndex();
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+          : rows;
         const payload = await buildSymbolOccurrencesColumnar(items);
         await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
         if (collected?.cleanup) await collected.cleanup();
@@ -329,14 +340,17 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         await fs.rm(columnarPath, { force: true });
         await fs.rm(occurrencesMetaPath, { force: true });
         await fs.rm(occurrencesPartsDir, { recursive: true, force: true });
-        const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+        const items = runs
+          ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+          : rows;
         const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
         const trackedItems = trackRows(items, tracker?.recordRow);
         await writeJsonLinesFileAsync(occurrencesPath, trackedItems, {
           atomic: true,
           compression,
           gzipOptions,
-          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
+          maxBytes: maxJsonBytes
         });
         if (tracker?.perFileRows && offsetsPath) {
           const perFileIndex = await writePerFileVarintIndex({
@@ -356,11 +370,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
               fileCount,
               rows: totalRows,
               data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
-              offsets: {
-                format: 'u64-le',
+              offsets: createOffsetsIndexMeta({
                 path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
-                count: fileCount + 1
-              },
+                count: fileCount + 1,
+                compression: 'none'
+              }),
               jsonl: {
                 format: 'jsonl',
                 parts: [relativeJsonl],
@@ -418,7 +432,9 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       await removeJsonlVariants();
       await removePerFileIndex();
       await fs.rm(columnarPath, { force: true });
-      const items = runs ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows }) : rows;
+      const items = runs
+        ? mergeSortedRuns(runs, { compare: compareSymbolOccurrenceRows, validateComparator: true })
+        : rows;
       const tracker = createPerFileTracker({ fileIdByPath, chunkUidToFileId, fileCount });
       const trackedItems = trackRows(items, tracker?.recordRow);
       const result = runs
@@ -444,41 +460,26 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
           gzipOptions,
           offsets: offsetsConfig
         });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
-      const offsetsMeta = result.offsets?.length
-        ? {
-          format: 'u64-le',
-          suffix: offsetsConfig?.suffix || null,
-          parts: result.offsets
-        }
-        : null;
-      await writeJsonObjectFile(occurrencesMetaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: 'symbol_occurrences',
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          extensions: {
-            trim: {
-              trimmedRows: stats?.trimmedRows || 0,
-              droppedRows: stats?.droppedRows || 0,
-              maxRowBytes: stats?.maxRowBytes || 0
-            },
-            ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+      const parts = buildShardedPartEntries(result);
+      const offsetsMeta = createOffsetsMeta({
+        suffix: offsetsConfig?.suffix || null,
+        parts: result.offsets,
+        compression: 'none'
+      });
+      await writeShardedJsonlMeta({
+        metaPath: occurrencesMetaPath,
+        artifact: 'symbol_occurrences',
+        compression,
+        result,
+        parts,
+        extensions: {
+          trim: {
+            trimmedRows: stats?.trimmedRows || 0,
+            droppedRows: stats?.droppedRows || 0,
+            maxRowBytes: stats?.maxRowBytes || 0
           },
-          parts
-        },
-        atomic: true
+          ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+        }
       });
       if (tracker?.perFileRows && Array.isArray(result.offsets) && result.offsets.length) {
         const perFileIndex = await writePerFileVarintIndex({
@@ -499,11 +500,11 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
             fileCount,
             rows: totalRows,
             data: toPosix(path.relative(outDir, perFileIndex.dataPath)),
-            offsets: {
-              format: 'u64-le',
+            offsets: createOffsetsIndexMeta({
               path: toPosix(path.relative(outDir, perFileIndex.offsetsPath)),
-              count: fileCount + 1
-            },
+              count: fileCount + 1,
+              compression: 'none'
+            }),
             jsonl: {
               format: 'jsonl-sharded',
               parts,

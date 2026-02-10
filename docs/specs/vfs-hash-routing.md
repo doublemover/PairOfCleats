@@ -70,13 +70,21 @@ Future versions MAY add a routing token and prefix fanout (e.g., `xxh64(routingK
 
 ---
 
-## 6) Observability
+## 6) Cache keys (notes)
+
+Any in-process caches for VFS doc hashes or routing lookups MUST use the unified
+cache-key schema (`docs/specs/cache-key-invalidation.md`). Use schema tag
+`vfs-doc-hash-cache-v1` for doc-hash caches.
+
+---
+
+## 7) Observability
 
 No dedicated counters are emitted today; use existing VFS logs and metrics.
 
 ---
 
-## 7) Related specs
+## 8) Related specs
 
 - `docs/specs/vfs-token-uris.md`
 - `docs/specs/vfs-cold-start-cache.md`

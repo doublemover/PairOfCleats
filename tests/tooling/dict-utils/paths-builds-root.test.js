@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getBuildsRoot, getRepoId } from '../../../tools/dict-utils/paths.js';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'dict-utils-builds');
@@ -26,7 +27,7 @@ const repoRoot = path.join(tempRoot, 'repo');
 await fs.mkdir(repoRoot, { recursive: true });
 
 const expected = path.join(
-  process.env.PAIROFCLEATS_CACHE_ROOT,
+  resolveVersionedCacheRoot(process.env.PAIROFCLEATS_CACHE_ROOT),
   'repos',
   getRepoId(repoRoot),
   'builds'

@@ -405,8 +405,11 @@ class Collector(ast.NodeVisitor):
             if alias.asname:
                 self.usages.add(alias.asname)
     def visit_ImportFrom(self, node):
-        if node.module:
-            self.imports.add(node.module)
+        module_name = node.module or ""
+        if getattr(node, "level", 0):
+            module_name = ("." * int(node.level)) + module_name
+        if module_name:
+            self.imports.add(module_name)
         for alias in node.names:
             if alias.name:
                 self.usages.add(alias.name)

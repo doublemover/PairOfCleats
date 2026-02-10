@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 const suffix = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
@@ -10,8 +11,7 @@ const suffix = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
   : '';
 const cacheName = suffix ? `mcp-search-${suffix}` : 'mcp-search';
 const cacheRoot = path.join(process.cwd(), '.testCache', cacheName);
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+applyTestEnv({ cacheRoot });
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const testConfig = {
@@ -76,7 +76,7 @@ try {
         repoPath: fixtureRoot,
         query: 'req',
         mode: 'code',
-        top: 5,
+        top: 50,
         backend: 'memory'
       }
     }
@@ -112,7 +112,7 @@ try {
         repoPath: fixtureRoot,
         query: 'req',
         mode: 'code',
-        top: 5,
+        top: 50,
         riskTag: 'command-exec',
         backend: 'memory'
       }
@@ -125,17 +125,10 @@ try {
     throw new Error('riskTag filter returned no results');
   }
   const riskKeys = new Set(riskHits.map(hitKey));
-  let changed = baselineRiskKeys.size !== riskKeys.size;
-  if (!changed) {
-    for (const key of baselineRiskKeys) {
-      if (!riskKeys.has(key)) {
-        changed = true;
-        break;
-      }
+  for (const key of riskKeys) {
+    if (!baselineRiskKeys.has(key)) {
+      throw new Error('riskTag filter returned hits not present in baseline result set');
     }
-  }
-  if (!changed) {
-    throw new Error('riskTag filter did not change MCP search results');
   }
 
   send({

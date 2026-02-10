@@ -3,10 +3,13 @@ import { createRequire } from 'node:module';
 import { readJsonFile } from '../../../src/shared/artifact-io.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
+import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
+
+const TRACE_ARTIFACT_IO = isTestingEnv() || getEnvConfig().traceArtifactIo;
 
 const require = createRequire(import.meta.url);
 let hnswLib = null;
@@ -34,6 +37,14 @@ const resolveVectorsFromFile = (vectorsPath) => {
 };
 
 export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }) => {
+  const traceLog = (message) => {
+    if (!TRACE_ARTIFACT_IO) return;
+    if (typeof logger?.log === 'function') {
+      logger.log(message);
+      return;
+    }
+    console.log(message);
+  };
   const { lib, error } = loadHnswLib();
   const HierarchicalNSW = lib?.default?.HierarchicalNSW || lib?.HierarchicalNSW || null;
   if (enabled && error && !hnswWarned) {
@@ -119,11 +130,14 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     try {
       index.writeIndexSync(tempHnswPath);
       try {
+        traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
         await fs.rm(`${indexPath}.bak`, { force: true });
       } catch {}
+      traceLog(`[embeddings] ${mode}/hnsw: moving ${tempHnswPath} -> ${indexPath}`);
       await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
     } catch (err) {
       try {
+        traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);
         await fs.rm(tempHnswPath, { force: true });
       } catch {}
       throw err;

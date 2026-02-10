@@ -12,10 +12,17 @@ Non-goals:
 
 ## 1) Cache key (normative)
 
-Cache entries are keyed by immutable container identity + segment range:
+Cache entries use the unified cache-key schema:
 
 ```
-key = `${fileHashAlgo || 'sha1'}:${fileHash}::${languageId || 'unknown'}::${effectiveExt || ''}::${segmentStart}-${segmentEnd}`
+key = buildCacheKey({
+  repoHash: `${fileHashAlgo || 'sha1'}:${fileHash}`,
+  mode: 'vfs',
+  schemaVersion: '1.0.0',
+  featureFlags: [`lang:${languageId || 'unknown'}`, `ext:${effectiveExt || ''}`],
+  pathPolicy: 'posix',
+  extra: { containerPath, range: `${segmentStart}-${segmentEnd}` }
+})
 ```
 
 Requirements:
@@ -36,6 +43,10 @@ Requirements:
 - On lookup:
   - If `key` is present, reuse `docHash`.
   - If not present, compute `docHash` from the segment text and store it.
+
+Notes:
+- The cap is the primary guardrail against unbounded growth under repeated tooling/indexing runs.
+- Consumers SHOULD treat cache size/evictions as a perf knob, not as correctness-critical state.
 
 ---
 

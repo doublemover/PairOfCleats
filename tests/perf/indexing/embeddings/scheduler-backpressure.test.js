@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
+import { runBuildEmbeddingsWithConfig } from '../../../../tools/build/embeddings/runner.js';
+import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/scheduler.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
+
+const root = process.cwd();
+const tempRoot = path.join(root, '.testCache', 'embeddings-scheduler-backpressure');
+const repoRoot = path.join(tempRoot, 'repo');
+
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(repoRoot, { recursive: true });
+await fsPromises.writeFile(path.join(repoRoot, 'index.js'), 'export const answer = 42;\n');
+
+applyTestEnv({
+  cacheRoot: tempRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scheduler: {
+        enabled: true,
+        lowResourceMode: false,
+        cpuTokens: 1,
+        ioTokens: 1,
+        memoryTokens: 1,
+        queues: {
+          [SCHEDULER_QUEUE_NAMES.embeddingsCompute]: { maxPending: 4 },
+          [SCHEDULER_QUEUE_NAMES.embeddingsIo]: { maxPending: 4 }
+        }
+      },
+      scm: { provider: 'none' },
+      embeddings: {
+        enabled: true,
+        mode: 'stub',
+        hnsw: { enabled: false },
+        lancedb: { enabled: false }
+      },
+      treeSitter: { enabled: false },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_SCHEDULER: '1',
+    PAIROFCLEATS_SCHEDULER_CPU: '1',
+    PAIROFCLEATS_SCHEDULER_IO: '1',
+    PAIROFCLEATS_SCHEDULER_MEM: '1'
+  }
+});
+
+const buildResult = spawnSync(
+  process.execPath,
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+  { cwd: repoRoot, env: process.env, stdio: 'inherit' }
+);
+if (buildResult.status !== 0) {
+  console.error('embeddings scheduler backpressure test failed: build_index failed');
+  process.exit(buildResult.status ?? 1);
+}
+
+await fsPromises.rm(path.join(tempRoot, 'embeddings'), { recursive: true, force: true });
+
+const config = parseBuildEmbeddingsArgs([
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+]);
+const result = await runBuildEmbeddingsWithConfig(config);
+const stats = result?.scheduler;
+if (!stats || !stats.queues) {
+  console.error('embeddings scheduler backpressure test failed: scheduler stats missing');
+  process.exit(1);
+}
+const computeQueue = stats.queues[SCHEDULER_QUEUE_NAMES.embeddingsCompute];
+const ioQueue = stats.queues[SCHEDULER_QUEUE_NAMES.embeddingsIo];
+if (!computeQueue || computeQueue.scheduled <= 0) {
+  console.error('embeddings scheduler backpressure test failed: compute queue missing scheduled work');
+  process.exit(1);
+}
+if (!ioQueue || ioQueue.scheduled <= 0) {
+  console.error('embeddings scheduler backpressure test failed: IO queue missing scheduled work');
+  process.exit(1);
+}
+
+console.log('embeddings scheduler backpressure test passed');

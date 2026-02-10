@@ -9,6 +9,7 @@ import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
+import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
@@ -20,6 +21,7 @@ import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import { SCHEDULER_QUEUE_NAMES } from './runtime/scheduler.js';
 import {
   enqueueTokenPostingsArtifacts,
   resolveTokenPostingsPlan
@@ -43,6 +45,11 @@ import {
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
+import { recordOrderingHash, updateBuildState } from './build-state.js';
+import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
+import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
+import { createOrderingHasher } from '../../shared/order.js';
+import { computePackedChecksum } from '../../shared/artifact-io/checksum.js';
 
 /**
  * Write index artifacts and metrics.
@@ -50,7 +57,9 @@ import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js
  */
 export async function writeIndexArtifacts(input) {
   const {
+    scheduler = null,
     outDir,
+    buildRoot,
     mode,
     state,
     postings,
@@ -70,6 +79,32 @@ export async function writeIndexArtifacts(input) {
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
+  const orderingStage = indexState?.stage || 'stage2';
+  const recordOrdering = async (artifact, ordering, rule) => {
+    if (!buildRoot || !ordering?.orderingHash) return;
+    await recordOrderingHash(buildRoot, {
+      stage: orderingStage,
+      mode,
+      artifact,
+      hash: ordering.orderingHash,
+      rule,
+      count: ordering.orderingCount
+    });
+  };
+  const measureVocabOrdering = (vocab = []) => {
+    if (!Array.isArray(vocab) || !vocab.length) {
+      return { orderingHash: null, orderingCount: 0 };
+    }
+    const orderingHasher = createOrderingHasher();
+    for (const entry of vocab) {
+      orderingHasher.update(entry);
+    }
+    const result = orderingHasher.digest();
+    return {
+      orderingHash: result?.hash || null,
+      orderingCount: result?.count || 0
+    };
+  };
   const indexingConfig = userConfig?.indexing || {};
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
   const {
@@ -129,11 +164,53 @@ export async function writeIndexArtifacts(input) {
     : 200000;
 
   const maxJsonBytes = MAX_JSON_BYTES;
+  const byteBudgetState = resolveByteBudgetMap({ indexingConfig, maxJsonBytes });
+  const byteBudgetPolicies = byteBudgetState.policies || {};
+  const resolveBudget = (name) => byteBudgetPolicies?.[name] || null;
+  const resolveBudgetMaxBytes = (name, fallback) => {
+    const budget = resolveBudget(name);
+    return Number.isFinite(budget?.maxBytes) ? budget.maxBytes : fallback;
+  };
+  const byteBudgetSnapshot = {
+    generatedAt: new Date().toISOString(),
+    maxJsonBytes,
+    strict: !!byteBudgetState.strict,
+    policies: byteBudgetPolicies
+  };
+  if (buildRoot) {
+    await updateBuildState(buildRoot, { byteBudgets: byteBudgetSnapshot });
+  }
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;
+  const fileMetaBudget = resolveBudget('file_meta');
+  const chunkMetaBudget = resolveBudget('chunk_meta');
+  const tokenPostingsBudget = resolveBudget('token_postings');
+  const repoMapBudget = resolveBudget('repo_map');
+  const fileRelationsBudget = resolveBudget('file_relations');
+  const vfsBudget = resolveBudget('vfs_manifest');
+  const symbolEdgesBudget = resolveBudget('symbol_edges');
+  const symbolOccurrencesBudget = resolveBudget('symbol_occurrences');
+  const callSitesBudget = resolveBudget('call_sites');
+  const chunkUidMapBudget = resolveBudget('chunk_uid_map');
+  const graphRelationsBudget = resolveBudget('graph_relations');
+  const fileMetaMaxBytes = resolveBudgetMaxBytes('file_meta', maxJsonBytes);
+  const chunkMetaMaxBytes = resolveBudgetMaxBytes('chunk_meta', maxJsonBytes);
+  const tokenPostingsMaxBytes = resolveBudgetMaxBytes('token_postings', maxJsonBytes);
+  const repoMapMaxBytes = resolveBudgetMaxBytes('repo_map', maxJsonBytes);
+  const fileRelationsMaxBytes = resolveBudgetMaxBytes('file_relations', maxJsonBytes);
+  const vfsMaxBytes = resolveBudgetMaxBytes('vfs_manifest', maxJsonBytes);
+  const symbolEdgesMaxBytes = resolveBudgetMaxBytes('symbol_edges', maxJsonBytes);
+  const symbolOccurrencesMaxBytes = resolveBudgetMaxBytes('symbol_occurrences', maxJsonBytes);
+  const callSitesMaxBytes = resolveBudgetMaxBytes('call_sites', maxJsonBytes);
+  const chunkUidMapMaxBytes = resolveBudgetMaxBytes('chunk_uid_map', maxJsonBytes);
+  const graphRelationsMaxBytes = resolveBudgetMaxBytes('graph_relations', maxJsonBytes);
+  const tokenPostingsMaxBytesSoft = Number.isFinite(tokenPostingsMaxBytes) ? tokenPostingsMaxBytes * 0.9 : maxJsonBytesSoft;
+  const tokenPostingsShardTargetBytes = Number.isFinite(tokenPostingsMaxBytes)
+    ? tokenPostingsMaxBytes * 0.75
+    : shardTargetBytes;
   const fileMetaColumnarThreshold = Number.isFinite(Number(artifactConfig.fileMetaColumnarThresholdBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaColumnarThresholdBytes)))
-    : maxJsonBytes;
+    : fileMetaMaxBytes;
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   const resolveFileMetaFiles = () => {
@@ -149,6 +226,20 @@ export async function writeIndexArtifacts(input) {
   let fileMetaFingerprint = fileMetaFiles.length
     ? computeFileMetaFingerprint({ files: fileMetaFiles, fileInfoByPath: state?.fileInfoByPath })
     : null;
+  const fileMetaCacheFlags = [
+    `format:${fileMetaFormatConfig || 'auto'}`,
+    `columnarThreshold:${fileMetaColumnarThreshold}`
+  ];
+  const fileMetaCacheKey = fileMetaFingerprint
+    ? buildCacheKey({
+      repoHash: indexState?.repoId || null,
+      buildConfigHash: fileMetaFingerprint,
+      mode,
+      schemaVersion: 'file-meta-cache-v1',
+      featureFlags: fileMetaCacheFlags,
+      pathPolicy: 'posix'
+    }).key
+    : null;
   let fileMeta = null;
   let fileIdByPath = new Map();
   let fileMetaFromCache = false;
@@ -157,12 +248,18 @@ export async function writeIndexArtifacts(input) {
     const metaPath = path.join(outDir, 'file_meta.meta.json');
     try {
       if (fsSync.existsSync(metaPath)) {
-        const metaRaw = readJsonFile(metaPath, { maxBytes: maxJsonBytes });
+        const metaRaw = readJsonFile(metaPath, { maxBytes: fileMetaMaxBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
-        if (cachedFingerprint === fileMetaFingerprint) {
+        const cachedCacheKey = meta?.cacheKey ?? meta?.extensions?.cacheKey ?? null;
+        const cacheKeyMatches = !!(cachedCacheKey && fileMetaCacheKey && cachedCacheKey === fileMetaCacheKey);
+        const fingerprintMatches = !!(cachedFingerprint && fileMetaFingerprint && cachedFingerprint === fileMetaFingerprint);
+        if (cacheKeyMatches || (!cachedCacheKey && fingerprintMatches)) {
           fileMetaMeta = meta;
-          const cached = await loadJsonArrayArtifact(outDir, 'file_meta', { maxBytes, strict: false });
+          const cached = await loadJsonArrayArtifact(outDir, 'file_meta', {
+            maxBytes: fileMetaMaxBytes,
+            strict: false
+          });
           if (Array.isArray(cached)) {
             fileMeta = cached;
             fileMetaFromCache = true;
@@ -231,18 +328,124 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
-  const filterIndex = buildSerializedFilterIndex({
-    chunks: state.chunks,
-    resolvedConfig,
-    userConfig,
-    root
-  });
-  const filterIndexStats = summarizeFilterIndex(filterIndex);
-  if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
-    log(
-      `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
-      'large filter indexes increase memory usage (consider sqlite for large repos).'
-    );
+  const resolveExistingOrBakPath = (targetPath) => {
+    if (!targetPath) return null;
+    if (fsSync.existsSync(targetPath)) return targetPath;
+    const bakPath = `${targetPath}.bak`;
+    if (fsSync.existsSync(bakPath)) return bakPath;
+    return null;
+  };
+  const previousPiecesManifestPath = path.join(outDir, 'pieces', 'manifest.json');
+  let previousPiecesManifest = null;
+  try {
+    const source = resolveExistingOrBakPath(previousPiecesManifestPath);
+    if (source) {
+      previousPiecesManifest = readJsonFile(source, { maxBytes: maxJsonBytes });
+    }
+  } catch {}
+  const previousPieces = Array.isArray(previousPiecesManifest?.pieces) ? previousPiecesManifest.pieces : [];
+  const previousFilterIndexPiece = previousPieces.find((piece) => piece?.name === 'filter_index' && piece?.path);
+  const previousFilterIndexPath = previousFilterIndexPiece?.path
+    ? path.join(outDir, ...String(previousFilterIndexPiece.path).split('/'))
+    : null;
+  const previousFilterIndexSource = resolveExistingOrBakPath(previousFilterIndexPath);
+  let filterIndex = null;
+  let filterIndexStats = null;
+  let filterIndexReused = false;
+  let filterIndexFallback = null;
+  const reusePreviousFilterIndex = (reason) => {
+    if (!previousFilterIndexSource) return false;
+    const note = reason ? ` (${reason})` : '';
+    log(`[warn] [filter_index] build skipped; reusing previous artifact.${note}`);
+    let previousRaw = null;
+    try {
+      previousRaw = readJsonFile(previousFilterIndexSource, { maxBytes: maxJsonBytes });
+      validateSerializedFilterIndex(previousRaw);
+    } catch (err) {
+      const message = err?.message || String(err);
+      log(`[warn] [filter_index] failed to reuse previous artifact; validation failed. (${message})`);
+      return false;
+    }
+    filterIndexReused = true;
+    filterIndexFallback = {
+      piece: {
+        type: previousFilterIndexPiece?.type || 'chunks',
+        name: 'filter_index',
+        format: previousFilterIndexPiece?.format || 'json'
+      },
+      path: previousFilterIndexSource
+    };
+    try {
+      filterIndexStats = summarizeFilterIndex(previousRaw);
+    } catch {
+      filterIndexStats = { reused: true };
+    }
+    if (filterIndexStats && typeof filterIndexStats === 'object') {
+      filterIndexStats.reused = true;
+    }
+    return true;
+  };
+  const validateSerializedFilterIndex = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error('expected object');
+    }
+    if (!Number.isFinite(Number(candidate.schemaVersion))) {
+      throw new Error('missing schemaVersion');
+    }
+    if (!Number.isFinite(Number(candidate.fileChargramN))) {
+      throw new Error('missing fileChargramN');
+    }
+    if (!Array.isArray(candidate.fileById)) {
+      throw new Error('missing fileById');
+    }
+    if (!Array.isArray(candidate.fileChunksById)) {
+      throw new Error('missing fileChunksById');
+    }
+    if (candidate.fileById.length !== candidate.fileChunksById.length) {
+      throw new Error('fileById/fileChunksById length mismatch');
+    }
+    if (candidate.byLang == null || typeof candidate.byLang !== 'object') {
+      throw new Error('missing byLang');
+    }
+    return true;
+  };
+  try {
+    filterIndex = buildSerializedFilterIndex({
+      chunks: state.chunks,
+      resolvedConfig,
+      userConfig,
+      root
+    });
+    validateSerializedFilterIndex(filterIndex);
+    filterIndexStats = summarizeFilterIndex(filterIndex);
+    if (filterIndexStats && typeof filterIndexStats === 'object' && Number.isFinite(filterIndexStats.jsonBytes)) {
+      // filter_index is currently written uncompressed (compressible=false); keep a stable estimate
+      // in case later phases make it compressible.
+      filterIndexStats.diskBytesEstimate = filterIndexStats.jsonBytes;
+      filterIndexStats.compressionRatioEstimate = 1;
+    }
+    if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
+      log(
+        `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
+        'large filter indexes increase memory usage (consider sqlite for large repos).'
+      );
+    }
+  } catch (err) {
+    const message = err?.message || String(err);
+    log(`[warn] [filter_index] build failed; skipping. (${message})`);
+    filterIndex = null;
+    filterIndexStats = null;
+    reusePreviousFilterIndex(message);
+  }
+  if (indexState && typeof indexState === 'object') {
+    const filterIndexState = indexState.filterIndex && typeof indexState.filterIndex === 'object'
+      && !Array.isArray(indexState.filterIndex)
+      ? indexState.filterIndex
+      : {};
+    filterIndexState.ready = Boolean(filterIndex) || filterIndexReused;
+    filterIndexState.reused = Boolean(filterIndexStats?.reused);
+    filterIndexState.stats = filterIndexStats || null;
+    indexState.filterIndex = filterIndexState;
   }
   const denseScale = 2 / 255;
   const chunkMetaHasIds = Array.isArray(state.chunks)
@@ -256,7 +459,7 @@ export async function writeIndexArtifacts(input) {
     fileIdByPath,
     resolvedTokenMode,
     tokenSampleSize,
-    maxJsonBytes,
+    maxJsonBytes: chunkMetaMaxBytes,
     order: chunkMetaOrder
   });
   const chunkMetaPlan = resolveChunkMetaPlan({
@@ -266,7 +469,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaFormatConfig,
     chunkMetaJsonlThreshold,
     chunkMetaShardSize,
-    maxJsonBytes
+    maxJsonBytes: chunkMetaMaxBytes
   });
   const {
     tokenPostingsFormat,
@@ -279,11 +482,20 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsShardSize,
     tokenPostingsShardThreshold,
     postings,
-    maxJsonBytes,
-    maxJsonBytesSoft,
-    shardTargetBytes,
+    maxJsonBytes: tokenPostingsMaxBytes,
+    maxJsonBytesSoft: tokenPostingsMaxBytesSoft,
+    shardTargetBytes: tokenPostingsShardTargetBytes,
     log
   });
+  if (tokenPostingsEstimate?.estimatedBytes) {
+    applyByteBudget({
+      budget: tokenPostingsBudget,
+      totalBytes: tokenPostingsEstimate.estimatedBytes,
+      label: 'token_postings',
+      stageCheckpoints,
+      logger: log
+    });
+  }
   tokenPostingsShardSize = resolvedTokenPostingsShardSize;
   await ensureDiskSpace({
     targetPath: outDir,
@@ -292,6 +504,9 @@ export async function writeIndexArtifacts(input) {
   });
   const removeArtifact = async (targetPath) => {
     try {
+      if (fsSync.existsSync(targetPath)) {
+        logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
+      }
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
@@ -509,13 +724,23 @@ export async function writeIndexArtifacts(input) {
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
   const fileMetaFormat = fileMetaFormatConfig || 'auto';
-  const fileMetaExceedsMax = fileMetaEstimatedBytes > maxJsonBytes;
+  const fileMetaExceedsMax = Number.isFinite(fileMetaMaxBytes)
+    ? fileMetaEstimatedBytes > fileMetaMaxBytes
+    : false;
   const fileMetaUseColumnar = !fileMetaExceedsMax
     && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
     && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
   const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
     || fileMetaExceedsMax
-    || (!fileMetaUseColumnar && fileMetaEstimatedBytes > maxJsonBytes);
+    || (!fileMetaUseColumnar && Number.isFinite(fileMetaMaxBytes)
+      && fileMetaEstimatedBytes > fileMetaMaxBytes);
+  applyByteBudget({
+    budget: fileMetaBudget,
+    totalBytes: fileMetaEstimatedBytes,
+    label: 'file_meta',
+    stageCheckpoints,
+    logger: log
+  });
   const fileMetaMetaPath = path.join(outDir, 'file_meta.meta.json');
   if (!fileMetaFromCache) {
     if (fileMetaUseColumnar) {
@@ -541,8 +766,10 @@ export async function writeIndexArtifacts(input) {
               maxPartBytes: fileMetaEstimatedBytes,
               targetMaxBytes: null,
               parts: [{ path: 'file_meta.columnar.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              cacheKey: fileMetaCacheKey || null,
               extensions: {
-                fingerprint: fileMetaFingerprint || null
+                fingerprint: fileMetaFingerprint || null,
+                cacheKey: fileMetaCacheKey || null
               }
             },
             atomic: true
@@ -560,11 +787,12 @@ export async function writeIndexArtifacts(input) {
         }
       );
       enqueueJsonArraySharded('file_meta', fileMeta, {
-        maxBytes: maxJsonBytes,
+        maxBytes: fileMetaMaxBytes,
         piece: { type: 'chunks', name: 'file_meta' },
-        metaExtensions: { fingerprint: fileMetaFingerprint || null },
+        metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },
         compression: null,
-        gzipOptions: null
+        gzipOptions: null,
+        offsets: true
       });
     } else {
       enqueueJsonArray('file_meta', fileMeta, {
@@ -587,8 +815,10 @@ export async function writeIndexArtifacts(input) {
               maxPartBytes: fileMetaEstimatedBytes,
               targetMaxBytes: null,
               parts: [{ path: 'file_meta.json', records: fileMeta.length, bytes: fileMetaEstimatedBytes }],
+              cacheKey: fileMetaCacheKey || null,
               extensions: {
-                fingerprint: fileMetaFingerprint || null
+                fingerprint: fileMetaFingerprint || null,
+                cacheKey: fileMetaCacheKey || null
               }
             },
             atomic: true
@@ -657,13 +887,14 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const chunkMetaCompression = resolveShardCompression('chunk_meta');
-  await enqueueChunkMetaArtifacts({
+  const chunkMetaOrdering = await enqueueChunkMetaArtifacts({
     state,
     outDir,
     mode,
     chunkMetaIterator,
     chunkMetaPlan,
-    maxJsonBytes,
+    maxJsonBytes: chunkMetaMaxBytes,
+    byteBudget: chunkMetaBudget,
     compression: chunkMetaCompression,
     gzipOptions: chunkMetaCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueJsonArray,
@@ -672,35 +903,40 @@ export async function writeIndexArtifacts(input) {
     formatArtifactLabel,
     stageCheckpoints
   });
+  await recordOrdering('chunk_meta', chunkMetaOrdering, 'chunk_meta:compareChunkMetaRows');
   const chunkUidMapCompression = resolveShardCompression('chunk_uid_map');
   await enqueueChunkUidMapArtifacts({
     outDir,
     mode,
     chunks: state.chunks,
-    maxJsonBytes,
+    maxJsonBytes: chunkUidMapMaxBytes,
+    byteBudget: chunkUidMapBudget,
     compression: chunkUidMapCompression,
     gzipOptions: chunkUidMapCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
   const vfsManifestCompression = resolveShardCompression('vfs_manifest');
   await enqueueVfsManifestArtifacts({
     outDir,
     mode,
     rows: state.vfsManifestCollector || state.vfsManifestRows,
-    maxJsonBytes,
+    maxJsonBytes: vfsMaxBytes,
+    byteBudget: vfsBudget,
     compression: vfsManifestCompression,
     gzipOptions: vfsManifestCompression === 'gzip' ? compressionGzipOptions : null,
     hashRouting: vfsHashRouting,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
-  const repoMapMeasurement = measureRepoMap({ repoMapIterator, maxJsonBytes });
+  const repoMapMeasurement = measureRepoMap({ repoMapIterator, maxJsonBytes: repoMapMaxBytes });
   const useRepoMapJsonl = repoMapMeasurement.totalEntries
-    && maxJsonBytes
-    && repoMapMeasurement.totalBytes > maxJsonBytes;
+    && repoMapMaxBytes
+    && repoMapMeasurement.totalBytes > repoMapMaxBytes;
   await ensureDiskSpace({
     targetPath: outDir,
     requiredBytes: useRepoMapJsonl ? repoMapMeasurement.totalJsonlBytes : repoMapMeasurement.totalBytes,
@@ -712,20 +948,25 @@ export async function writeIndexArtifacts(input) {
     repoMapIterator,
     repoMapMeasurement,
     useRepoMapJsonl,
-    maxJsonBytes,
+    maxJsonBytes: repoMapMaxBytes,
+    byteBudget: repoMapBudget,
     repoMapCompression,
     compressionGzipOptions,
     log,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
-    removeArtifact
+    removeArtifact,
+    stageCheckpoints
   });
+  await recordOrdering('repo_map', repoMapMeasurement, 'repo_map:file,name,kind,signature,startLine');
   if (filterIndex) {
     enqueueJsonObject('filter_index', { fields: filterIndex }, {
       compressible: false,
       piece: { type: 'chunks', name: 'filter_index' }
     });
+  } else if (filterIndexFallback?.path) {
+    addPieceFile(filterIndexFallback.piece, filterIndexFallback.path);
   }
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs
@@ -789,6 +1030,7 @@ export async function writeIndexArtifacts(input) {
     chunks: minhashStream ? state.chunks : null
   });
   if (packedMinhash) {
+    const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
     const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
     enqueueWrite(
@@ -800,7 +1042,8 @@ export async function writeIndexArtifacts(input) {
             format: 'u32',
             endian: 'le',
             dims: packedMinhash.dims,
-            count: packedMinhash.count
+            count: packedMinhash.count,
+            checksum: packedChecksum.hash
           },
           atomic: true
         });
@@ -830,6 +1073,15 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
+  const vocabOrder = {};
+  const tokenOrdering = measureVocabOrdering(postings.tokenVocab);
+  await recordOrdering('token_vocab', tokenOrdering, 'token_vocab:token');
+  if (tokenOrdering.orderingHash) {
+    vocabOrder.token = {
+      hash: tokenOrdering.orderingHash,
+      count: tokenOrdering.orderingCount
+    };
+  }
   if (postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
       piece: { type: 'postings', name: 'field_postings' }
@@ -841,17 +1093,20 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const fileRelationsCompression = resolveShardCompression('file_relations');
-  enqueueFileRelationsArtifacts({
+  const fileRelationsOrdering = enqueueFileRelationsArtifacts({
     state,
     outDir,
-    maxJsonBytes,
+    maxJsonBytes: fileRelationsMaxBytes,
+    byteBudget: fileRelationsBudget,
     log,
     compression: fileRelationsCompression,
     gzipOptions: fileRelationsCompression === 'gzip' ? compressionGzipOptions : null,
     enqueueWrite,
     addPieceFile,
-    formatArtifactLabel
+    formatArtifactLabel,
+    stageCheckpoints
   });
+  await recordOrdering('file_relations', fileRelationsOrdering, 'file_relations:file');
   const callSitesCompression = resolveShardCompression('call_sites');
   const riskStats = state?.riskInterproceduralStats || null;
   const riskConfig = riskStats?.effectiveConfig || null;
@@ -868,14 +1123,16 @@ export async function writeIndexArtifacts(input) {
     ? enqueueCallSitesArtifacts({
       state,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: callSitesMaxBytes,
+      byteBudget: callSitesBudget,
       log,
       forceEmpty: callSitesRequired,
       compression: callSitesCompression,
       gzipOptions: callSitesCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     })
     : null;
   const riskSummariesCompression = resolveShardCompression('risk_summaries');
@@ -915,7 +1172,8 @@ export async function writeIndexArtifacts(input) {
       fileIdByPath,
       chunkUidToFileId,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: symbolOccurrencesMaxBytes,
+      byteBudget: symbolOccurrencesBudget,
       log,
       format: symbolArtifactsFormatConfig,
       compression: symbolOccurrencesCompression,
@@ -931,7 +1189,8 @@ export async function writeIndexArtifacts(input) {
       fileIdByPath,
       chunkUidToFileId,
       outDir,
-      maxJsonBytes,
+      maxJsonBytes: symbolEdgesMaxBytes,
+      byteBudget: symbolEdgesBudget,
       log,
       format: symbolArtifactsFormatConfig,
       compression: symbolEdgesCompression,
@@ -942,28 +1201,72 @@ export async function writeIndexArtifacts(input) {
       stageCheckpoints
     });
   }
-  await enqueueGraphRelationsArtifacts({
+  const scheduleRelations = scheduler?.schedule
+    ? (fn) => scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1, mem: 1 },
+      fn
+    )
+    : (fn) => fn();
+  const scheduleRelationsIo = scheduler?.schedule
+    ? (fn) => scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2RelationsIo, { io: 1 }, fn)
+    : (fn) => fn();
+  const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
+    chunks: state?.chunks || [],
+    fileRelations: state?.fileRelations || null,
+    caps: indexingConfig?.graph?.caps || null,
     outDir,
-    maxJsonBytes,
+    maxJsonBytes: graphRelationsMaxBytes,
+    byteBudget: graphRelationsBudget,
     log,
+    scheduleIo: scheduleRelationsIo,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel,
     removeArtifact
-  });
+  }));
+  await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
     }, {
       piece: { type: 'postings', name: 'phrase_ngrams', count: postings.phraseVocab.length }
     });
+    const phraseOrdering = measureVocabOrdering(postings.phraseVocab);
+    await recordOrdering('phrase_ngrams', phraseOrdering, 'phrase_ngrams:ngram');
+    if (phraseOrdering.orderingHash) {
+      vocabOrder.phrase = {
+        hash: phraseOrdering.orderingHash,
+        count: phraseOrdering.orderingCount
+      };
+    }
   }
   if (resolvedConfig.enableChargrams !== false) {
     enqueueJsonObject('chargram_postings', {
+      fields: { hash: CHARGRAM_HASH_META },
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
     }, {
       piece: { type: 'postings', name: 'chargram_postings', count: postings.chargramVocab.length }
+    });
+    const chargramOrdering = measureVocabOrdering(postings.chargramVocab);
+    await recordOrdering('chargram_postings', chargramOrdering, 'chargram_postings:gram');
+    if (chargramOrdering.orderingHash) {
+      vocabOrder.chargram = {
+        hash: chargramOrdering.orderingHash,
+        count: chargramOrdering.orderingCount
+      };
+    }
+  }
+  if (Object.keys(vocabOrder).length) {
+    enqueueJsonObject('vocab_order', {
+      fields: {
+        algo: 'sha1',
+        generatedAt: new Date().toISOString(),
+        vocab: vocabOrder
+      }
+    }, {
+      piece: { type: 'postings', name: 'vocab_order' }
     });
   }
   totalWrites = writes.length;
@@ -993,6 +1296,31 @@ export async function writeIndexArtifacts(input) {
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+  if (filterIndexStats && typeof filterIndexStats === 'object') {
+    const filterIndexPiece = pieceEntries.find((entry) => entry?.name === 'filter_index' && entry?.path);
+    const filterIndexPath = filterIndexPiece?.path ? path.join(outDir, filterIndexPiece.path) : null;
+    let filterIndexDiskBytes = null;
+    if (filterIndexPiece?.path) {
+      const metric = artifactMetrics.get(filterIndexPiece.path);
+      if (Number.isFinite(metric?.bytes)) filterIndexDiskBytes = metric.bytes;
+    }
+    if (!Number.isFinite(filterIndexDiskBytes) && filterIndexPath) {
+      try {
+        const stat = await fs.stat(filterIndexPath);
+        filterIndexDiskBytes = stat.size;
+      } catch {}
+    }
+    if (Number.isFinite(filterIndexDiskBytes)) {
+      filterIndexStats.diskBytes = filterIndexDiskBytes;
+    }
+    if (
+      Number.isFinite(filterIndexDiskBytes)
+      && Number.isFinite(filterIndexStats.jsonBytes)
+      && filterIndexStats.jsonBytes > 0
+    ) {
+      filterIndexStats.compressionRatio = filterIndexDiskBytes / filterIndexStats.jsonBytes;
+    }
+  }
 
   for (const entry of pieceEntries) {
     if (!entry?.path) continue;

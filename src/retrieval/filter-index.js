@@ -27,19 +27,39 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     fileChargramN
   };
 
+  const addOne = (map, entry, id) => {
+    const key = String(entry || '').toLowerCase();
+    if (!key) return;
+    let bucket = map.get(key);
+    if (!bucket) {
+      bucket = new Set();
+      map.set(key, bucket);
+    }
+    bucket.add(id);
+  };
+
   const add = (map, value, id) => {
     if (!value) return;
-    const values = Array.isArray(value) ? value : [value];
-    for (const entry of values) {
-      const key = String(entry || '').toLowerCase();
-      if (!key) continue;
-      let bucket = map.get(key);
-      if (!bucket) {
-        bucket = new Set();
-        map.set(key, bucket);
-      }
-      bucket.add(id);
+    if (Array.isArray(value)) {
+      for (const entry of value) addOne(map, entry, id);
+      return;
     }
+    addOne(map, value, id);
+  };
+
+  const normalizeLang = (value) => {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    return normalized || null;
+  };
+  const resolveEffectiveLang = (chunk) => {
+    let normalized = normalizeLang(chunk?.metaV2?.lang);
+    if (normalized) return normalized;
+    normalized = normalizeLang(chunk?.metaV2?.effective?.languageId);
+    if (normalized) return normalized;
+    normalized = normalizeLang(chunk?.lang);
+    if (normalized) return normalized;
+    return 'unknown';
   };
 
   const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });
@@ -74,14 +94,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     if (!Number.isFinite(id)) continue;
     addFile(chunk.file, id);
     add(index.byExt, chunk.ext, id);
-    const effectiveLang = chunk.metaV2?.lang
-      || chunk.metaV2?.effective?.languageId
-      || chunk.lang
-      || null;
-    if (!effectiveLang) {
-      const fileLabel = chunk.file ? ` (${chunk.file})` : '';
-      throw new Error(`[filter-index] missing effective language id for chunk ${id}${fileLabel}`);
-    }
+    const effectiveLang = resolveEffectiveLang(chunk);
     add(index.byLang, effectiveLang, id);
     add(index.byKind, chunk.kind, id);
     add(index.byAuthor, chunk.last_author, id);
@@ -143,7 +156,8 @@ export function serializeFilterIndex(index) {
     byAuthor: serializeMap(index.byAuthor),
     byChunkAuthor: serializeMap(index.byChunkAuthor),
     byVisibility: serializeMap(index.byVisibility),
-    fileById: Array.isArray(index.fileById) ? index.fileById : [],
+    // Must be a copy because buildSerializedFilterIndex releases index memory after serialization.
+    fileById: Array.isArray(index.fileById) ? index.fileById.slice() : [],
     fileChunksById: Array.isArray(index.fileChunksById)
       ? index.fileChunksById.map((set) => Array.from(set || []))
       : [],

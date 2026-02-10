@@ -22,6 +22,10 @@ import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versi
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
 import {
+  hashDeterministicLines,
+  hashDeterministicValues
+} from '../shared/invariants.js';
+import {
   extractArray,
   normalizeDenseVectors,
   normalizeFieldPostings,
@@ -37,6 +41,8 @@ import { loadAndValidateManifest, sumManifestCounts } from './validate/manifest.
 import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
 import { validateRiskInterproceduralArtifacts } from './validate/risk-interprocedural.js';
+import { loadOrderingLedger } from './build/build-state.js';
+import { createGraphRelationsIterator } from './build/artifacts/helpers.js';
 import {
   validateChunkIds,
   validateChunkIdentity,
@@ -49,6 +55,82 @@ import {
 } from './validate/checks.js';
 
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
+
+const hashOrderingRows = (
+  rows,
+  { encodeLine = (row) => JSON.stringify(row) } = {}
+) => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  // Validate against the exact ordering-line representation emitted by writers.
+  const lines = rows.map((row) => encodeLine(row));
+  return hashDeterministicLines(lines, { encodeLine: (line) => line });
+};
+
+const hashGraphRelationsRows = (relations) => {
+  if (!relations || typeof relations !== 'object') return null;
+  const iterator = createGraphRelationsIterator(relations)();
+  const lines = [];
+  for (const row of iterator) {
+    lines.push(JSON.stringify(row));
+  }
+  return hashDeterministicLines(lines, { encodeLine: (line) => line });
+};
+
+const hashVocabList = (vocab) => {
+  return hashDeterministicValues(vocab);
+};
+
+const resolveLedgerStageKey = (ledger, stage, mode) => {
+  if (!ledger?.stages || typeof ledger.stages !== 'object') return null;
+  const stageKey = stage ? String(stage) : null;
+  const modeKey = stageKey && mode ? `${stageKey}:${mode}` : null;
+  if (modeKey && ledger.stages[modeKey]) return modeKey;
+  if (stageKey && ledger.stages[stageKey]) return stageKey;
+  if (mode) {
+    const match = Object.keys(ledger.stages).find((key) => key.endsWith(`:${mode}`));
+    if (match) return match;
+  }
+  const keys = Object.keys(ledger.stages);
+  return keys.length ? keys[0] : null;
+};
+
+const recordOrderingDrift = ({
+  report,
+  modeReport,
+  mode,
+  stageKey,
+  artifact,
+  expected,
+  actual,
+  strict,
+  source = null
+}) => {
+  const expectedHash = expected?.hash || null;
+  const actualHash = actual?.hash || null;
+  const rule = expected?.rule || null;
+  const issueLabel = `ordering ledger mismatch for ${artifact}`;
+  const detail = `${issueLabel} (expected ${expectedHash ?? 'null'}, got ${actualHash ?? 'null'})`;
+  const note = `[${mode}] ${detail}`;
+  const drift = {
+    stage: stageKey,
+    mode,
+    artifact,
+    rule,
+    expectedHash,
+    actualHash,
+    source
+  };
+  report.orderingDrift.push(drift);
+  if (strict) {
+    modeReport.ok = false;
+    modeReport.missing.push(detail);
+    report.issues.push(note);
+  } else {
+    modeReport.warnings.push(issueLabel);
+    report.warnings.push(note);
+  }
+  report.hints.push('Rebuild ordering ledger by re-running index build.');
+};
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -72,8 +154,11 @@ export async function validateIndexArtifacts(input = {}) {
     strict,
     issues: [],
     warnings: [],
-    hints: []
+    hints: [],
+    orderingDrift: []
   };
+  const orderingLedger = await loadOrderingLedger(indexRoot || root);
+  const orderingStrict = input.validateOrdering === true;
 
   const {
     requiredArtifacts,
@@ -262,6 +347,8 @@ export async function validateIndexArtifacts(input = {}) {
       }
 
       let tokenNormalized = null;
+      let phraseNormalized = null;
+      let chargramNormalized = null;
       try {
         const tokenIndex = loadTokenPostings(dir, { manifest, strict });
         tokenNormalized = normalizeTokenPostings(tokenIndex);
@@ -278,6 +365,13 @@ export async function validateIndexArtifacts(input = {}) {
           'Rebuild index artifacts for this mode.',
           { strictSchema: strict }
         );
+        const vocabIds = Array.isArray(tokenNormalized.vocabIds) ? tokenNormalized.vocabIds : [];
+        if (vocabIds.length && vocabIds.length !== tokenNormalized.vocab.length) {
+          const issue = `token_postings vocabIds mismatch (${vocabIds.length} !== ${tokenNormalized.vocab.length})`;
+          modeReport.ok = false;
+          modeReport.missing.push(issue);
+          report.issues.push(`[${mode}] ${issue}`);
+        }
         const docLengths = tokenNormalized.docLengths || [];
         if (docLengths.length && chunkMeta.length !== docLengths.length) {
           const issue = `docLengths mismatch (${docLengths.length} !== ${chunkMeta.length})`;
@@ -286,6 +380,20 @@ export async function validateIndexArtifacts(input = {}) {
           report.issues.push(`[${mode}] ${issue}`);
         }
         validatePostingsDocIds(report, mode, 'token_postings', tokenNormalized.postings, chunkMeta.length);
+      }
+
+      const phraseRaw = readJsonArtifact('phrase_ngrams');
+      if (phraseRaw) {
+        phraseNormalized = normalizePhrasePostings(phraseRaw);
+        validateSchema(report, mode, 'phrase_ngrams', phraseNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'phrase_ngrams', phraseNormalized.postings, chunkMeta.length);
+      }
+
+      const chargramRaw = readJsonArtifact('chargram_postings');
+      if (chargramRaw) {
+        chargramNormalized = normalizePhrasePostings(chargramRaw);
+        validateSchema(report, mode, 'chargram_postings', chargramNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+        validateIdPostings(report, mode, 'chargram_postings', chargramNormalized.postings, chunkMeta.length);
       }
 
       if (fileMeta) {
@@ -352,6 +460,25 @@ export async function validateIndexArtifacts(input = {}) {
             'Rebuild index artifacts for this mode.'
           );
         }
+        const tokenCollisionSummary = indexState?.extensions?.tokenIdCollisions;
+        const tokenCollisionCount = Number.isFinite(Number(tokenCollisionSummary?.count))
+          ? Number(tokenCollisionSummary.count)
+          : 0;
+        if (tokenCollisionCount > 0) {
+          const sample = Array.isArray(tokenCollisionSummary?.sample) ? tokenCollisionSummary.sample : [];
+          const first = sample.length
+            ? sample[0]
+            : null;
+          const sampleText = first
+            ? ` (${first.id}:${first.existing}->${first.token})`
+            : '';
+          addIssue(
+            report,
+            mode,
+            `ERR_TOKEN_ID_COLLISION tokenId collisions recorded (${tokenCollisionCount})${sampleText}`,
+            'Rebuild index with canonical token IDs.'
+          );
+        }
       }
 
       const fileLists = readJsonArtifact('filelists', { required: strict });
@@ -369,6 +496,62 @@ export async function validateIndexArtifacts(input = {}) {
       }
       if (relations) {
         validateSchema(report, mode, 'file_relations', relations, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      }
+
+      if (orderingLedger) {
+        const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
+        const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
+        if (!ledgerStage || !ledgerStage.artifacts) {
+          const warning = `[${mode}] ordering ledger missing stage ${stageKey || 'unknown'}`;
+          if (orderingStrict) {
+            modeReport.ok = false;
+            modeReport.missing.push(warning);
+            report.issues.push(warning);
+          } else {
+            modeReport.warnings.push('ordering ledger stage missing');
+            report.warnings.push(warning);
+          }
+        } else {
+          const actualHashes = {
+            chunk_meta: hashOrderingRows(chunkMeta),
+            file_relations: relations ? hashOrderingRows(relations) : null,
+            repo_map: repoMap ? hashOrderingRows(repoMap) : null,
+            graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null,
+            token_vocab: tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null,
+            phrase_ngrams: phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null,
+            chargram_postings: chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null
+          };
+          for (const [artifact, expected] of Object.entries(ledgerStage.artifacts)) {
+            const actual = actualHashes[artifact] || null;
+            if (!actual) {
+              recordOrderingDrift({
+                report,
+                modeReport,
+                mode,
+                stageKey,
+                artifact,
+                expected,
+                actual,
+                strict: orderingStrict,
+                source: 'missing-artifact'
+              });
+              continue;
+            }
+            if (expected?.hash && expected.hash !== actual.hash) {
+              recordOrderingDrift({
+                report,
+                modeReport,
+                mode,
+                stageKey,
+                artifact,
+                expected,
+                actual,
+                strict: orderingStrict,
+                source: 'hash-mismatch'
+              });
+            }
+          }
+        }
       }
 
       let callSites = null;
@@ -525,18 +708,27 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
-      const phraseRaw = readJsonArtifact('phrase_ngrams');
-      if (phraseRaw) {
-        const phrase = normalizePhrasePostings(phraseRaw);
-        validateSchema(report, mode, 'phrase_ngrams', phrase, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'phrase_ngrams', phrase.postings, chunkMeta.length);
-      }
-
-      const chargramRaw = readJsonArtifact('chargram_postings');
-      if (chargramRaw) {
-        const chargram = normalizePhrasePostings(chargramRaw);
-        validateSchema(report, mode, 'chargram_postings', chargram, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'chargram_postings', chargram.postings, chunkMeta.length);
+      const vocabOrder = readJsonArtifact('vocab_order');
+      if (vocabOrder && typeof vocabOrder === 'object') {
+        const tokenHash = tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null;
+        const phraseHash = phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null;
+        const chargramHash = chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null;
+        const vocab = vocabOrder?.fields?.vocab || vocabOrder?.vocab || null;
+        const expectToken = vocab?.token?.hash || null;
+        const expectPhrase = vocab?.phrase?.hash || null;
+        const expectChargram = vocab?.chargram?.hash || null;
+        if (expectToken && tokenHash?.hash && expectToken !== tokenHash.hash) {
+          addIssue(report, mode, 'vocab_order token hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
+        if (expectPhrase && phraseHash?.hash && expectPhrase !== phraseHash.hash) {
+          addIssue(report, mode, 'vocab_order phrase hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
+        if (expectChargram && chargramHash?.hash && expectChargram !== chargramHash.hash) {
+          addIssue(report, mode, 'vocab_order chargram hash mismatch', 'Rebuild index artifacts for this mode.');
+          modeReport.ok = false;
+        }
       }
 
       const denseTargets = [

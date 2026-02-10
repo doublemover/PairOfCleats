@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 
 import {
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   getTreeSitterCacheSnapshot
 } from '../../../src/lang/tree-sitter.js';
@@ -10,7 +10,7 @@ import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 
 const resetCaches = () => {
   treeSitterState.languageCache?.clear?.();
-  treeSitterState.wasmLanguageCache?.clear?.();
+  treeSitterState.grammarCache?.clear?.();
   treeSitterState.languageLoadPromises?.clear?.();
   treeSitterState.sharedParser = null;
   treeSitterState.sharedParserLanguageId = null;
@@ -19,16 +19,15 @@ const resetCaches = () => {
 const loadSequence = async () => {
   resetCaches();
   await preloadTreeSitterLanguages(['javascript', 'python', 'go'], {
-    maxLoadedLanguages: 2,
     skipDispose: true
   });
-  return getTreeSitterCacheSnapshot().wasmKeys.slice();
+  return getTreeSitterCacheSnapshot().loadedLanguages.slice();
 };
 
 const run = async () => {
-  const ok = await initTreeSitterWasm({ log: () => {} });
+  const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping eviction determinism test.');
+    console.log('tree-sitter runtime unavailable; skipping eviction determinism test.');
     return;
   }
 
@@ -38,10 +37,12 @@ const run = async () => {
   assert.deepStrictEqual(
     first,
     second,
-    'eviction order should be deterministic for the same preload sequence'
+    'preload activation order should be deterministic for the same preload sequence'
   );
 
-  console.log('tree-sitter eviction determinism ok');
+  console.log('tree-sitter preload determinism ok');
 };
 
 await run();
+
+

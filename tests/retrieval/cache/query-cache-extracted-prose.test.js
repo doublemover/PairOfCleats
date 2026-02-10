@@ -5,11 +5,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache-extracted-prose');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
 const srcDir = path.join(repoRoot, 'src');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -37,7 +39,7 @@ const env = applyTestEnv({
 });
 
 const repoId = getRepoId(repoRoot);
-const repoCacheBase = path.join(cacheRoot, 'repos', repoId);
+const repoCacheBase = path.join(cacheRootResolved, 'repos', repoId);
 const readTail = (filePath, maxLines = 120) => {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
@@ -118,12 +120,12 @@ if (!hits.some((hit) => hit?.file === 'src/sample.js')) {
   process.exit(1);
 }
 
-const repoCacheDirs = await fsPromises.readdir(path.join(cacheRoot, 'repos'));
+const repoCacheDirs = await fsPromises.readdir(path.join(cacheRootResolved, 'repos'));
 if (!repoCacheDirs.length) {
   console.error('Query cache extracted-prose test failed: repo cache not created.');
   process.exit(1);
 }
-const repoCacheRoot = path.join(cacheRoot, 'repos', repoCacheDirs[0]);
+const repoCacheRoot = path.join(cacheRootResolved, 'repos', repoCacheDirs[0]);
 const queryCachePath = path.join(repoCacheRoot, 'query-cache', 'queryCache.json');
 if (!fs.existsSync(queryCachePath)) {
   console.error(`Query cache extracted-prose test failed: missing cache file at ${queryCachePath}`);

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const { root, repoRoot, env, userConfig, run } = await setupIncrementalRepo({ name: 'manifest-hash-fill' });
 
@@ -9,11 +10,7 @@ run(
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-run(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
-  'build sqlite index',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
+await runSqliteBuild(repoRoot);
 
 let Database;
 try {
@@ -43,11 +40,7 @@ run(
   'build index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-run(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
-  'build sqlite index (incremental)',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
+await runSqliteBuild(repoRoot, { incremental: true });
 
 const sqlitePathsAfter = ensureSqlitePaths(repoRoot, userConfig);
 const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });

@@ -12,9 +12,11 @@ import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { toPosix } from '../../shared/files.js';
-import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
+import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
+import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
@@ -230,6 +232,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   throwIfAborted(abortSignal);
   await writeIndexArtifacts({
     outDir,
+    buildRoot: runtime.buildRoot,
     mode: 'records',
     state,
     postings,
@@ -246,12 +249,6 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     repoProvenance: runtime.repoProvenance
   });
 }
-
-const isPathUnderDir = (baseDir, targetPath) => {
-  if (!baseDir || !targetPath) return false;
-  const rel = path.relative(baseDir, targetPath);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-};
 
 async function listMarkdownFiles(rootDir) {
   try {
@@ -317,7 +314,16 @@ function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig, chargr
       : seq;
     sourceTokens.forEach((w) => {
       if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
-      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+      forEachRollingChargramHash(
+        w,
+        postingsConfig.chargramMinN,
+        postingsConfig.chargramMaxN,
+        { maxTokenLength: chargramMaxTokenLength },
+        (g) => {
+          charSet.add(g);
+          return true;
+        }
+      );
     });
     chargrams = Array.from(charSet);
   }

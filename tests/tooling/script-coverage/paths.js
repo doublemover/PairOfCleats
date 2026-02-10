@@ -13,8 +13,10 @@ export const resolveFailureLogRoot = ({ root, logDirOverride }) => {
     : path.join(root, '.testLogs', timestamp);
 };
 
-export const resolveScriptCoveragePaths = ({ root, logDirOverride }) => {
-  const baseCacheRoot = path.join(root, '.testCache', 'script-coverage');
+export const resolveScriptCoveragePaths = ({ root, logDirOverride, baseCacheRootOverride = '' }) => {
+  const baseCacheRoot = baseCacheRootOverride
+    ? path.resolve(baseCacheRootOverride)
+    : path.join(root, '.testCache', 'script-coverage');
   const repoCacheRoot = path.join(baseCacheRoot, 'repo');
   const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
   const failureLogRoot = resolveFailureLogRoot({ root, logDirOverride });

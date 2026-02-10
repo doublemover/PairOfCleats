@@ -119,7 +119,14 @@ export function createLruCache({
   ttlMs,
   maxEntries,
   sizeCalculation,
-  reporter
+  reporter,
+  onEvict = null,
+  onHit = null,
+  onMiss = null,
+  onSet = null,
+  onDelete = null,
+  onClear = null,
+  onSizeChange = null
 }) {
   const entryLimit = Number.isFinite(Number(maxEntries))
     ? Math.max(0, Math.floor(Number(maxEntries)))
@@ -144,11 +151,15 @@ export function createLruCache({
   }
 
   if ((hasEntryLimit && entryLimit > 0) || maxSizeBytes > 0) {
+    let cache = null;
     const options = {
       allowStale: false,
       updateAgeOnGet: true,
-      dispose: (_value, _key, reason) => {
+      dispose: (value, key, reason) => {
         if (reason === 'evict') stats.evictions += 1;
+        if (typeof onEvict === 'function') {
+          onEvict({ key, value, reason });
+        }
       }
     };
     if (hasEntryLimit && entryLimit > 0) {
@@ -168,34 +179,64 @@ export function createLruCache({
       };
     }
     if (ttlValue > 0) options.ttl = ttlValue;
-    const cache = new LRUCache(options);
+    cache = new LRUCache(options);
+    const reportSize = () => {
+      if (typeof onSizeChange === 'function') onSizeChange(cache.size);
+    };
     return {
       get(key) {
         const value = cache.get(key);
         if (value === undefined) {
           stats.misses += 1;
+          if (typeof onMiss === 'function') onMiss({ key });
           return null;
         }
         stats.hits += 1;
+        if (typeof onHit === 'function') onHit({ key, value });
         return value;
       },
       set(key, value) {
         stats.sets += 1;
         cache.set(key, value);
+        if (typeof onSet === 'function') onSet({ key, value });
+        reportSize();
       },
+      delete(key) {
+        cache.delete(key);
+        if (typeof onDelete === 'function') onDelete({ key });
+        reportSize();
+      },
+      clear() {
+        cache.clear();
+        if (typeof onClear === 'function') onClear();
+        reportSize();
+      },
+      size: () => cache.size,
       cache,
       stats
     };
   }
 
   return {
-    get() {
+    get(key) {
       stats.misses += 1;
+      if (typeof onMiss === 'function') onMiss({ key });
       return null;
     },
-    set() {
+    set(key, value) {
       stats.sets += 1;
+      if (typeof onSet === 'function') onSet({ key, value });
+      if (typeof onSizeChange === 'function') onSizeChange(0);
     },
+    delete(key) {
+      if (typeof onDelete === 'function') onDelete({ key });
+      if (typeof onSizeChange === 'function') onSizeChange(0);
+    },
+    clear() {
+      if (typeof onClear === 'function') onClear();
+      if (typeof onSizeChange === 'function') onSizeChange(0);
+    },
+    size: () => 0,
     cache: null,
     stats
   };

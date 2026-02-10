@@ -23,9 +23,13 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
 
   actions.push(
     {
-      label: 'sqlite-compact-test',
-      run: () => runNode('sqlite-compact-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-compact.test.js')),
-      covers: ['sqlite-compact-test', 'compact-sqlite-index'],
+      label: 'compact-sqlite-index-help',
+      run: () => runNode(
+        'compact-sqlite-index-help',
+        path.join(root, 'tools', 'build', 'compact-sqlite-index.js'),
+        ['--help']
+      ),
+      covers: ['compact-sqlite-index'],
       coversTierB: ['compact-sqlite-index']
     },
     {

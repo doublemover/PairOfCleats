@@ -3,14 +3,17 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { checksumString } from '../../shared/hash.js';
+import { buildCacheKey } from '../../shared/cache-key.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
-import { fromPosix, toPosix } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { buildChunkRef } from '../../shared/identity.js';
 import { decodeBloomFilter } from '../../shared/bloom.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isTestingEnv } from '../../shared/env.js';
 import { readJsonFile } from '../../shared/artifact-io.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import { readJsonlRows } from '../../shared/merge.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { computeSegmentUid } from '../identity/chunk-uid.js';
 import { LANGUAGE_ID_EXT } from '../segments/config.js';
@@ -21,6 +24,7 @@ export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
 const VFS_DISK_CACHE = new Map();
 const VFS_DOC_HASH_CACHE = new Map();
 const VFS_DOC_HASH_CACHE_MAX = 50000;
+const VFS_DOC_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
 const VFS_COLD_START_SCHEMA_VERSION = '1.0.0';
 const VFS_COLD_START_DIR = 'vfs-cold-start';
 const VFS_COLD_START_META = 'vfs_cold_start.meta.json';
@@ -106,8 +110,27 @@ const buildDocHashCacheKey = ({
   const algo = fileHashAlgo || 'sha1';
   const lang = languageId || 'unknown';
   const ext = effectiveExt || '';
-  return `${algo}:${fileHash}::${lang}::${ext}::${segmentStart}-${segmentEnd}`;
+  const range = `${segmentStart}-${segmentEnd}`;
+  return buildCacheKey({
+    repoHash: `${algo}:${fileHash}`,
+    buildConfigHash: null,
+    mode: 'vfs',
+    schemaVersion: VFS_DOC_HASH_CACHE_SCHEMA_VERSION,
+    featureFlags: [`lang:${lang}`, `ext:${ext}`],
+    pathPolicy: 'posix',
+    extra: { range }
+  }).key;
 };
+
+const buildVfsDiskCacheKey = ({ baseDir, virtualPath }) => buildCacheKey({
+  repoHash: baseDir || '',
+  buildConfigHash: null,
+  mode: 'vfs',
+  schemaVersion: 'vfs-disk-cache-v1',
+  featureFlags: null,
+  pathPolicy: 'posix',
+  extra: { virtualPath: virtualPath || '' }
+}).key;
 
 const getCachedDocHash = (cacheKey) => {
   if (!cacheKey) return null;
@@ -620,7 +643,7 @@ export const buildVfsManifestRowsForFile = async ({
   const seen = new Set();
   const groups = [];
   for (const chunk of chunks) {
-    if (!chunk?.file) continue;
+    if (!chunk) continue;
     const segment = chunk.segment || null;
     const segmentUid = segment?.segmentUid || null;
     const key = `${segmentUid || ''}`;
@@ -712,7 +735,7 @@ export const ensureVfsDiskDocument = async ({
   docHash = null,
   coldStartCache = null
 }) => {
-  const cacheKey = `${baseDir}::${virtualPath}`;
+  const cacheKey = buildVfsDiskCacheKey({ baseDir, virtualPath });
   const cachedPath = coldStartCache?.get
     ? coldStartCache.get({ virtualPath, docHash })
     : null;
@@ -767,62 +790,38 @@ export const ensureVfsDiskDocument = async ({
  * @returns {string}
  */
 export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
+  const baseRaw = String(baseDir || '').trim();
+  if (!baseRaw) {
+    throw new Error('VFS baseDir is required.');
+  }
+  const rootDir = path.resolve(baseRaw);
   const encodeUnsafeChar = (ch) => {
     const hex = ch.codePointAt(0).toString(16).toUpperCase().padStart(2, '0');
     return `%${hex}`;
   };
-  const parts = String(virtualPath || '').split('/');
+  const rawPath = toPosix(String(virtualPath || '').trim());
+  if (!rawPath) {
+    throw new Error('VFS virtualPath is required.');
+  }
+  if (isAbsolutePathAny(rawPath)) {
+    throw new Error(`VFS virtualPath must be relative: ${virtualPath}`);
+  }
+  const parts = rawPath.split('/').filter((part) => part.length > 0);
+  if (!parts.length) {
+    throw new Error(`VFS virtualPath is invalid: ${virtualPath}`);
+  }
   const safeParts = parts.map((part) => {
     if (part === '.' || part === '..') {
-      return part.split('').map((ch) => encodeUnsafeChar(ch)).join('');
+      throw new Error(`VFS virtualPath must not escape the baseDir: ${virtualPath}`);
     }
-    return part.replace(/[:*?"<>|]/g, (ch) => encodeUnsafeChar(ch));
+    return part.replace(/[:*?"<>|/\\]/g, (ch) => encodeUnsafeChar(ch));
   });
   const relative = safeParts.join(path.sep);
-  return path.join(baseDir, relative);
-};
-
-const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let lineNumber = 0;
-  let buffer = '';
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          const row = JSON.parse(trimmed);
-          yield row;
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        const row = JSON.parse(trimmed);
-        yield row;
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid JSONL at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
+  const resolvedPath = path.resolve(rootDir, relative);
+  if (!isPathUnderDir(rootDir, resolvedPath)) {
+    throw new Error(`VFS virtualPath resolves outside baseDir: ${virtualPath}`);
   }
+  return resolvedPath;
 };
 
 /**
@@ -923,11 +922,17 @@ const resolveColdStartConfig = (value) => {
   if (isTestingEnv() && value?.enabled !== true) {
     return { enabled: false };
   }
-  const maxBytes = Number.isFinite(Number(value?.maxBytes))
-    ? Math.max(0, Math.floor(Number(value.maxBytes)))
+  if (value?.maxBytes != null && (typeof value.maxBytes !== 'number' || !Number.isFinite(value.maxBytes))) {
+    throw new Error('vfs cold-start maxBytes must be a finite number.');
+  }
+  if (value?.maxAgeDays != null && (typeof value.maxAgeDays !== 'number' || !Number.isFinite(value.maxAgeDays))) {
+    throw new Error('vfs cold-start maxAgeDays must be a finite number.');
+  }
+  const maxBytes = Number.isFinite(value?.maxBytes)
+    ? Math.max(0, Math.floor(value.maxBytes))
     : VFS_COLD_START_MAX_BYTES;
-  const maxAgeDays = Number.isFinite(Number(value?.maxAgeDays))
-    ? Math.max(0, Number(value.maxAgeDays))
+  const maxAgeDays = Number.isFinite(value?.maxAgeDays)
+    ? Math.max(0, value.maxAgeDays)
     : VFS_COLD_START_MAX_AGE_DAYS;
   const cacheRoot = typeof value?.cacheRoot === 'string' && value.cacheRoot.trim()
     ? path.resolve(value.cacheRoot)
@@ -1120,29 +1125,184 @@ export const loadVfsManifestIndex = async ({ indexPath }) => {
   return map;
 };
 
+const parseVfsManifestRowBuffer = (buffer, bytesRead) => {
+  if (!buffer || !Number.isFinite(bytesRead) || bytesRead <= 0) return null;
+  const line = buffer.slice(0, bytesRead).toString('utf8').trim();
+  if (!line) return null;
+  return JSON.parse(line);
+};
+
+const coercePositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.floor(parsed));
+};
+
 /**
- * Read a single JSONL row by byte offset and length.
- * @param {{manifestPath:string,offset:number,bytes:number}} input
- * @returns {Promise<object|null>}
+ * Create a reusable VFS manifest offset reader that keeps a single file handle
+ * open and reuses buffers across reads.
+ * @param {{manifestPath:string,maxBufferPoolEntries?:number}} input
+ * @returns {{readAtOffset:(input:{offset:number,bytes:number})=>Promise<object|null>,readRows:(input:{requests:Array<{offset:number,bytes:number}>})=>Promise<Array<object|null>>,stats:()=>object,close:()=>Promise<void>}}
  */
-export const readVfsManifestRowAtOffset = async ({ manifestPath, offset, bytes }) => {
-  if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) return null;
-  const handle = await fsPromises.open(manifestPath, 'r');
-  try {
-    const buffer = Buffer.alloc(bytes);
-    const result = await handle.read(buffer, 0, bytes, offset);
-    if (!result?.bytesRead) return null;
-    const line = buffer.slice(0, result.bytesRead).toString('utf8').trim();
-    if (!line) return null;
-    return JSON.parse(line);
-  } finally {
+export const createVfsManifestOffsetReader = ({
+  manifestPath,
+  maxBufferPoolEntries = 64
+}) => {
+  const poolLimit = coercePositiveInt(maxBufferPoolEntries, 64);
+  const bufferPool = new Map();
+  let pooledBuffers = 0;
+  let handlePromise = null;
+  let closed = false;
+  const stats = {
+    handleOpens: 0,
+    readCalls: 0,
+    batchCalls: 0,
+    bufferAllocations: 0,
+    bufferReuses: 0
+  };
+
+  const checkoutBuffer = (size) => {
+    const key = coercePositiveInt(size, 0);
+    if (!key) return null;
+    const bucket = bufferPool.get(key);
+    if (bucket?.length) {
+      const value = bucket.pop();
+      pooledBuffers = Math.max(0, pooledBuffers - 1);
+      stats.bufferReuses += 1;
+      return value;
+    }
+    stats.bufferAllocations += 1;
+    return Buffer.alloc(key);
+  };
+
+  const checkinBuffer = (buffer) => {
+    if (!buffer || !buffer.length || pooledBuffers >= poolLimit) return;
+    const key = buffer.length;
+    if (!bufferPool.has(key)) bufferPool.set(key, []);
+    bufferPool.get(key).push(buffer);
+    pooledBuffers += 1;
+  };
+
+  const openHandle = async () => {
+    if (closed) {
+      const err = new Error('VFS offset reader is closed.');
+      err.code = 'ERR_VFS_OFFSET_READER_CLOSED';
+      throw err;
+    }
+    if (!handlePromise) {
+      stats.handleOpens += 1;
+      handlePromise = fsPromises.open(manifestPath, 'r');
+    }
+    return handlePromise;
+  };
+
+  const readAtOffset = async ({ offset, bytes }) => {
+    if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) return null;
+    const handle = await openHandle();
+    const expectedBytes = Math.max(1, Math.floor(bytes));
+    const buffer = checkoutBuffer(expectedBytes);
+    if (!buffer) return null;
+    stats.readCalls += 1;
+    try {
+      const result = await handle.read(buffer, 0, expectedBytes, offset);
+      return parseVfsManifestRowBuffer(buffer, result?.bytesRead || 0);
+    } finally {
+      checkinBuffer(buffer);
+    }
+  };
+
+  const readRows = async ({ requests }) => {
+    const list = Array.isArray(requests) ? requests : [];
+    stats.batchCalls += 1;
+    const out = new Array(list.length).fill(null);
+    for (let i = 0; i < list.length; i += 1) {
+      out[i] = await readAtOffset(list[i] || {});
+    }
+    return out;
+  };
+
+  const close = async () => {
+    closed = true;
+    const pending = handlePromise;
+    handlePromise = null;
+    if (!pending) return;
+    const handle = await pending;
     await handle.close();
+  };
+
+  return {
+    readAtOffset,
+    readRows,
+    stats: () => ({
+      ...stats,
+      pooledBuffers
+    }),
+    close
+  };
+};
+
+/**
+ * Read multiple JSONL rows by byte offsets and lengths.
+ * @param {{manifestPath:string,requests:Array<{offset:number,bytes:number}>,reader?:object|null}} input
+ * @returns {Promise<Array<object|null>>}
+ */
+export const readVfsManifestRowsAtOffsets = async ({
+  manifestPath,
+  requests,
+  reader = null
+}) => {
+  const list = Array.isArray(requests) ? requests : [];
+  if (!list.length) return [];
+  if (reader && typeof reader.readRows === 'function') {
+    return reader.readRows({ requests: list });
+  }
+  const ephemeralReader = createVfsManifestOffsetReader({ manifestPath });
+  try {
+    return await ephemeralReader.readRows({ requests: list });
+  } finally {
+    await ephemeralReader.close();
   }
 };
 
 /**
+ * Read a single JSONL row by byte offset and length.
+ * @param {{manifestPath:string,offset:number,bytes:number,reader?:object|null}} input
+ * @returns {Promise<object|null>}
+ */
+export const readVfsManifestRowAtOffset = async ({
+  manifestPath,
+  offset,
+  bytes,
+  reader = null
+}) => {
+  const rows = await readVfsManifestRowsAtOffsets({
+    manifestPath,
+    requests: [{ offset, bytes }],
+    reader
+  });
+  return rows[0] || null;
+};
+
+const emitVfsLookupTelemetry = (telemetry, event) => {
+  if (!telemetry || !event) return;
+  try {
+    if (typeof telemetry === 'function') {
+      telemetry(event);
+      return;
+    }
+    if (Array.isArray(telemetry)) {
+      telemetry.push(event);
+      return;
+    }
+    if (typeof telemetry.record === 'function') {
+      telemetry.record(event);
+    }
+  } catch {}
+};
+
+/**
  * Load a VFS manifest row by virtualPath using a vfsidx file.
- * @param {{manifestPath:string,indexPath?:string,index?:Map<string,object>,virtualPath:string,bloomPath?:string,bloom?:object,allowScan?:boolean}} input
+ * @param {{manifestPath:string,indexPath?:string,index?:Map<string,object>,virtualPath:string,bloomPath?:string,bloom?:object,allowScan?:boolean,reader?:object|null,telemetry?:(Function|Array|object)}} input
  * @returns {Promise<object|null>}
  */
 export const loadVfsManifestRowByPath = async ({
@@ -1152,21 +1312,64 @@ export const loadVfsManifestRowByPath = async ({
   virtualPath,
   bloomPath = null,
   bloom = null,
-  allowScan = false
+  allowScan = false,
+  reader = null,
+  telemetry = null
 }) => {
   if (!virtualPath) return null;
   const resolvedBloom = bloom || (bloomPath ? await loadVfsManifestBloomFilter({ bloomPath }) : null);
-  if (resolvedBloom && !resolvedBloom.has(virtualPath)) return null;
+  if (resolvedBloom && !resolvedBloom.has(virtualPath)) {
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'bloom',
+      outcome: 'negative',
+      virtualPath
+    });
+    return null;
+  }
+  if (resolvedBloom) {
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'bloom',
+      outcome: 'positive',
+      virtualPath
+    });
+  }
   const resolvedIndex = index || (indexPath ? await loadVfsManifestIndex({ indexPath }) : null);
   if (resolvedIndex) {
     const entry = resolvedIndex.get(virtualPath);
-    if (!entry) return null;
-    return readVfsManifestRowAtOffset({
+    if (!entry) {
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'vfsidx',
+        outcome: 'miss',
+        virtualPath
+      });
+      return null;
+    }
+    const row = await readVfsManifestRowAtOffset({
       manifestPath,
       offset: entry.offset,
-      bytes: entry.bytes
+      bytes: entry.bytes,
+      reader
     });
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'vfsidx',
+      outcome: row ? 'hit' : 'miss',
+      virtualPath
+    });
+    return row;
   }
-  if (!allowScan) return null;
-  return scanVfsManifestRowByPath({ manifestPath, virtualPath });
+  if (!allowScan) {
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'scan',
+      outcome: 'disabled',
+      virtualPath
+    });
+    return null;
+  }
+  const row = await scanVfsManifestRowByPath({ manifestPath, virtualPath });
+  emitVfsLookupTelemetry(telemetry, {
+    path: 'scan',
+    outcome: row ? 'hit' : 'miss',
+    virtualPath
+  });
+  return row;
 };

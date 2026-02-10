@@ -10,6 +10,7 @@ const MAX_KEYWORD_MATCHES = 50000;
 const WRITE_REGEX_CACHE = new Map();
 const ALIAS_REGEX_CACHE = new Map();
 const RETURN_REGEX_CACHE = new Map();
+const KEYWORD_REGEX_CACHE = new Map();
 
 const countMatches = (text, re, limit = Infinity) => {
   re.lastIndex = 0;
@@ -25,15 +26,23 @@ const countMatches = (text, re, limit = Infinity) => {
 
 const countKeywords = (text, keywords) => {
   const lower = String(text || '').toLowerCase();
-  let total = 0;
+  if (!lower) return 0;
   const unique = Array.isArray(keywords) ? Array.from(new Set(keywords)) : [];
+  const normalized = [];
   for (const keyword of unique) {
-    const normalized = String(keyword || '').trim().toLowerCase();
-    if (!normalized) continue;
-    const re = new RegExp(`\\b${escapeRegExp(normalized)}\\b`, 'g');
-    total += countMatches(lower, re, MAX_KEYWORD_MATCHES);
+    const value = String(keyword || '').trim().toLowerCase();
+    if (value) normalized.push(value);
   }
-  return total;
+  if (!normalized.length) return 0;
+  normalized.sort();
+  const key = normalized.join('|');
+  let re = KEYWORD_REGEX_CACHE.get(key);
+  if (!re) {
+    const pattern = normalized.map(escapeRegExp).join('|');
+    re = new RegExp(`\\b(?:${pattern})\\b`, 'g');
+    KEYWORD_REGEX_CACHE.set(key, re);
+  }
+  return countMatches(lower, re, MAX_KEYWORD_MATCHES);
 };
 
 const serializeList = (value) => (
@@ -113,6 +122,10 @@ const getReturnRegex = (keyword) => {
   RETURN_REGEX_CACHE.set(normalized, compiled);
   return compiled;
 };
+
+const toGlobalRegex = (regex) => (
+  regex.global ? regex : new RegExp(regex.source, `${regex.flags}g`)
+);
 
 const normalizeFlowName = (raw, memberOperators) => {
   let name = raw.replace(/\s+/g, '');
@@ -258,16 +271,21 @@ export function extractAliases(text, options = {}) {
  * @returns {string[]}
  */
 export function extractIdentifiers(text, options = {}) {
-  const regex = options.regex || /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  const regex = options.regex instanceof RegExp
+    ? toGlobalRegex(options.regex)
+    : /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
   const skip = options.skip || new Set();
   const normalize = typeof options.normalize === 'function' ? options.normalize : (name) => name;
   const out = new Set();
-  for (const match of text.matchAll(regex)) {
+  regex.lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
     const raw = match[1] || match[0];
     if (!raw || raw.length < 2) continue;
     const name = normalize(raw);
     if (!name || skip.has(name)) continue;
     out.add(name);
+    if (!match[0]) regex.lastIndex += 1;
   }
   return Array.from(out);
 }

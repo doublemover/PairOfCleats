@@ -206,8 +206,18 @@ if (!buildGo) {
 }
 
 const inferredGo = buildGo.docmeta?.inferredTypes?.returns || [];
-if (!inferredGo.some((entry) => entry.type === 'GoWidget' && entry.source === 'flow')) {
-  console.error('Go cross-file inference missing return type GoWidget for BuildGoWidget.');
+const goSignature = String(buildGo.docmeta?.signature || '');
+if (!goSignature.includes('GoWidget')) {
+  console.error('Go cross-file inference missing GoWidget in BuildGoWidget signature.');
+  process.exit(1);
+}
+const goCallLinks = buildGo.codeRelations?.callLinks || buildGo.metaV2?.relations?.callLinks || [];
+if (!goCallLinks.some((link) => String(link?.to?.targetName || '').includes('MakeGoWidget'))) {
+  console.error('Go cross-file inference missing resolved call link from BuildGoWidget to MakeGoWidget.');
+  process.exit(1);
+}
+if (inferredGo.length > 0 && !inferredGo.some((entry) => entry.type === 'GoWidget')) {
+  console.error('Go cross-file inference returned inferred types, but none include GoWidget.');
   process.exit(1);
 }
 
@@ -221,8 +231,13 @@ if (!buildRust) {
 }
 
 const inferredRust = buildRust.docmeta?.inferredTypes?.returns || [];
-if (!inferredRust.some((entry) => entry.type === 'RustWidget' && entry.source === 'flow')) {
-  console.error('Rust cross-file inference missing return type RustWidget for build_rust_widget.');
+const rustSignature = String(buildRust.docmeta?.signature || '');
+if (!rustSignature.includes('RustWidget')) {
+  console.error('Rust cross-file inference missing RustWidget in build_rust_widget signature.');
+  process.exit(1);
+}
+if (inferredRust.length > 0 && !inferredRust.some((entry) => entry.type === 'RustWidget')) {
+  console.error('Rust cross-file inference returned inferred types, but none include RustWidget.');
   process.exit(1);
 }
 

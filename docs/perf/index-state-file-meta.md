@@ -23,9 +23,14 @@ Artifacts:
 - **JSONL sharded** (when size exceeds `MAX_JSON_BYTES` or format is `jsonl`)
 - **Columnar** (string-table compression for repeated fields)
 
+Loaders default to streaming row iteration for JSONL shards; materialized reads are explicit.
+`loadFileMetaRows` streams JSONL using offsets when present and falls back to JSONL shards in non-strict mode if a
+columnar/JSON payload exceeds `MAX_JSON_BYTES`.
+
 Artifacts:
 - `file_meta.json` or `file_meta.parts/*` + `file_meta.meta.json`
 - `file_meta.columnar.json` + `file_meta.meta.json`
+JSONL shard metadata includes offsets (`offsets` array) when enabled.
 
 The columnar format is an object with:
 - `columns`: ordered list of fields
@@ -57,6 +62,7 @@ If `postings.minhashMaxDocs` is set and the corpus exceeds the limit, minhash em
 ## Benchmarks
 - `tools/bench/index/index-state-write.js`
 - `tools/bench/index/file-meta-compare.js`
+- `tools/bench/index/file-meta-streaming-load.js`
 - `tools/bench/index/minhash-packed.js`
 
 Run these with `--mode compare` to see baseline vs current output and deltas.

@@ -3,6 +3,7 @@ import { buildPostings } from '../../postings.js';
 import {
   applyTokenRetention,
   appendChunk,
+  enforceTokenIdCollisionPolicy,
   getPostingsGuardWarnings,
   normalizeTokenRetention
 } from '../../state.js';
@@ -159,10 +160,12 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
 };
 
 export const buildIndexPostings = async ({ runtime, state }) => {
+  enforceTokenIdCollisionPolicy(state);
   const postings = await buildPostings({
     chunks: state.chunks,
     df: state.df,
     tokenPostings: state.tokenPostings,
+    tokenIdMap: state.tokenIdMap,
     docLengths: state.docLengths,
     fieldPostings: state.fieldPostings,
     fieldDocLengths: state.fieldDocLengths,

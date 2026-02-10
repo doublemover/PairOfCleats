@@ -6,15 +6,17 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
+import { createOffsetsMeta } from '../helpers.js';
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  measureJsonlRows,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
@@ -96,18 +98,6 @@ const buildRows = (chunks) => {
   return rows;
 };
 
-const measureRows = (rows) => {
-  let totalBytes = 0;
-  let maxLineBytes = 0;
-  for (const row of rows) {
-    const line = JSON.stringify(row);
-    const bytes = Buffer.byteLength(line, 'utf8') + 1;
-    totalBytes += bytes;
-    if (bytes > maxLineBytes) maxLineBytes = bytes;
-  }
-  return { totalBytes, maxLineBytes };
-};
-
 export const enqueueSymbolsArtifacts = async ({
   state,
   outDir,
@@ -121,15 +111,15 @@ export const enqueueSymbolsArtifacts = async ({
 }) => {
   const rows = buildRows(state?.chunks || []);
   if (!rows.length) {
-    await fs.rm(path.join(outDir, 'symbols.jsonl'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbols.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbols.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbols.meta.json'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'symbols.parts'), { recursive: true, force: true }).catch(() => {});
+    await removeArtifacts([
+      ...buildJsonlVariantPaths({ outDir, baseName: 'symbols' }),
+      path.join(outDir, 'symbols.meta.json'),
+      path.join(outDir, 'symbols.parts')
+    ]);
     return;
   }
 
-  const measurement = measureRows(rows);
+  const measurement = measureJsonlRows(rows);
   if (maxJsonBytes && measurement.maxLineBytes > maxJsonBytes) {
     throw new Error(`symbols row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
@@ -141,12 +131,9 @@ export const enqueueSymbolsArtifacts = async ({
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${symbolsPath}.${offsetsConfig.suffix}` : null;
 
-  const removeJsonlVariants = async () => {
-    await fs.rm(path.join(outDir, 'symbols.jsonl'), { force: true });
-    await fs.rm(path.join(outDir, 'symbols.jsonl.gz'), { force: true });
-    await fs.rm(path.join(outDir, 'symbols.jsonl.zst'), { force: true });
-    await fs.rm(path.join(outDir, 'symbols.jsonl.offsets.bin'), { force: true });
-  };
+  const removeJsonlVariants = async () => removeArtifacts(
+    buildJsonlVariantPaths({ outDir, baseName: 'symbols', includeOffsets: true })
+  );
 
   if (!useShards) {
     enqueueWrite(
@@ -159,7 +146,8 @@ export const enqueueSymbolsArtifacts = async ({
           atomic: true,
           compression,
           gzipOptions,
-          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null
+          offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
+          maxBytes: maxJsonBytes
         });
       }
     );
@@ -199,34 +187,19 @@ export const enqueueSymbolsArtifacts = async ({
         gzipOptions,
         offsets: offsetsConfig
       });
-      const parts = result.parts.map((part, index) => ({
-        path: part,
-        records: result.counts[index] || 0,
-        bytes: result.bytes[index] || 0
-      }));
-      const offsetsMeta = result.offsets?.length
-        ? {
-          format: 'u64-le',
-          suffix: offsetsConfig?.suffix || null,
-          parts: result.offsets
-        }
-        : null;
-      await writeJsonObjectFile(symbolsMetaPath, {
-        fields: {
-          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-          artifact: 'symbols',
-          format: 'jsonl-sharded',
-          generatedAt: new Date().toISOString(),
-          compression: compression || 'none',
-          totalRecords: result.total,
-          totalBytes: result.totalBytes,
-          maxPartRecords: result.maxPartRecords,
-          maxPartBytes: result.maxPartBytes,
-          targetMaxBytes: result.targetMaxBytes,
-          extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined,
-          parts
-        },
-        atomic: true
+      const parts = buildShardedPartEntries(result);
+      const offsetsMeta = createOffsetsMeta({
+        suffix: offsetsConfig?.suffix || null,
+        parts: result.offsets,
+        compression: 'none'
+      });
+      await writeShardedJsonlMeta({
+        metaPath: symbolsMetaPath,
+        artifact: 'symbols',
+        compression,
+        result,
+        parts,
+        extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];

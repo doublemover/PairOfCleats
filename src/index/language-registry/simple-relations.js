@@ -8,8 +8,13 @@ export const normalizeImportToken = (raw) => {
 };
 
 export const buildSimpleRelations = (imports) => {
-  const list = Array.isArray(imports) ? imports.filter(Boolean) : [];
-  const unique = Array.from(new Set(list));
+  const list = Array.isArray(imports)
+    ? imports
+    : (Array.isArray(imports?.imports) ? imports.imports : []);
+  const normalized = list
+    .map((entry) => normalizeImportToken(entry))
+    .filter(Boolean);
+  const unique = Array.from(new Set(normalized));
   return {
     imports: unique,
     exports: [],

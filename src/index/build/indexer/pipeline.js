@@ -6,13 +6,14 @@ import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { createCrashLogger } from '../crash-log.js';
-import { updateBuildState } from '../build-state.js';
+import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -108,11 +109,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
   const crashLogger = await createCrashLogger({
     repoCacheRoot: runtime.repoCacheRoot,
-    enabled: runtime.debugCrash,
+    enabled: runtime.debugCrash === true,
     log
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   await fs.mkdir(outDir, { recursive: true });
+  log(`[init] ${mode} index dir: ${outDir}`);
   log(`\n📄  Scanning ${mode} ...`);
   const timing = { start: Date.now() };
   const metricsDir = getMetricsDir(runtime.root, runtime.userConfig);
@@ -182,6 +184,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   ];
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
+  const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
       const prevStage = stagePlan[stageIndex - 1];
@@ -192,7 +195,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       taskId: `stage:${mode}`,
       stage: stage.id,
       mode,
-      message: stage.label
+      message: stage.label,
+      scheduler: getSchedulerStats()
     });
   };
 
@@ -214,6 +218,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       skipped: state.skippedFiles?.length || 0
     }
   });
+  await recordOrderingSeedInputs(runtime.buildRoot, {
+    discoveryHash: state.discoveryHash,
+    fileListHash: state.fileListHash,
+    fileCount: allEntries.length
+  }, { stage: 'stage1', mode });
   throwIfAborted(abortSignal);
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const runtimeRef = dictConfig === runtime.dictConfig
@@ -294,6 +303,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     mode,
     runtime: runtimeRef,
     discovery,
+    outDir,
     entries: allEntries,
     contextWin,
     timing,
@@ -309,7 +319,17 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     abortSignal
   });
   throwIfAborted(abortSignal);
-  const { tokenizationStats, shardSummary } = processResult;
+  const { tokenizationStats, shardSummary, postingsQueueStats } = processResult;
+  const summarizePostingsQueue = (stats) => {
+    if (!stats || typeof stats !== 'object') return null;
+    return {
+      limits: stats.limits || null,
+      highWater: stats.highWater || null,
+      backpressure: stats.backpressure || null,
+      oversize: stats.oversize || null,
+      memory: stats.memory || null
+    };
+  };
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'processing',
@@ -322,7 +342,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       chargramPostings: state.triPost?.size || 0,
       fieldPostings: countFieldEntries(state.fieldPostings),
       fieldDocLengths: countFieldArrayEntries(state.fieldDocLengths),
-      treeSitter: getTreeSitterStats()
+      treeSitter: getTreeSitterStats(),
+      postingsQueue: summarizePostingsQueue(postingsQueueStats)
     }
   });
   await updateBuildState(runtimeRef.buildRoot, {
@@ -350,15 +371,29 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   if (postImportResult) importResult = postImportResult;
 
   advanceStage(stagePlan[3]);
-  const { crossFileEnabled, graphRelations } = await runCrossFileInference({
-    runtime: runtimeRef,
-    mode,
-    state,
-    crashLogger,
-    featureMetrics,
-    relationsEnabled,
-    abortSignal
-  });
+  const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
+    ? runtimeRef.scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2Relations,
+      { cpu: 1, mem: 1 },
+      () => runCrossFileInference({
+        runtime: runtimeRef,
+        mode,
+        state,
+        crashLogger,
+        featureMetrics,
+        relationsEnabled,
+        abortSignal
+      })
+    )
+    : runCrossFileInference({
+      runtime: runtimeRef,
+      mode,
+      state,
+      crashLogger,
+      featureMetrics,
+      relationsEnabled,
+      abortSignal
+    }));
   throwIfAborted(abortSignal);
   stageCheckpoints.record({
     stage: 'stage2',
@@ -422,7 +457,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(stagePlan[4]);
   throwIfAborted(abortSignal);
-  const postings = await buildIndexPostings({ runtime: runtimeRef, state });
+  const postings = await (runtimeRef.scheduler?.schedule
+    ? runtimeRef.scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage1Postings,
+      { cpu: 1 },
+      () => buildIndexPostings({ runtime: runtimeRef, state })
+    )
+    : buildIndexPostings({ runtime: runtimeRef, state }));
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'postings',
@@ -431,6 +472,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       phraseVocab: postings.phraseVocab?.length || 0,
       chargramVocab: postings.chargramVocab?.length || 0,
       chargramStats: postings.chargramStats || null,
+      postingsMerge: postings.postingsMergeStats || null,
       denseVectors: postings.quantizedVectors?.length || 0,
       docVectors: postings.quantizedDocVectors?.length || 0,
       codeVectors: postings.quantizedCodeVectors?.length || 0

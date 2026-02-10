@@ -39,6 +39,8 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 ## Performance expectations
 - Parsing should occur once per Markdown file.
 - Large files should not cause extra allocations beyond the existing segment list.
+- When segmentation artifacts spill or shard, use the shared merge core to preserve deterministic ordering
+  and ensure spill cleanup is centralized.
 
 ## Touchpoints
 - `src/index/segments/markdown.js`
@@ -49,3 +51,22 @@ Spans that would exceed `maxSpans` or `maxBytes` are skipped.
 - Regression fixture: frontmatter + fenced blocks + inline spans (order-sensitive).
 - Equivalence test: `segment-pipeline` outputs are byte-for-byte equivalent for Markdown inputs.
 - Determinism test: two runs on the same Markdown input produce identical segment ordering.
+
+## Phase 16.6 Stage1 Notes
+- Tokenization now emits canonical 64-bit token IDs alongside token strings; chunk metadata may include packed token IDs for retention.
+- Chargram postings are generated via a rolling 64-bit hash (`h64:`) to avoid substring allocations; legacy string chargrams remain readable.
+- Stable vocab ordering hashes are recorded in `vocab_order` and in the build ordering ledger to enforce determinism.
+- Stage1 now enforces a bounded postings queue (rows + bytes) between tokenization and postings apply, with heap-pressure throttling and backpressure metrics (`indexing.stage1.postings.*`).
+- Tokenization concurrency/backpressure can be tuned separately from postings apply via `indexing.stage1.tokenize.*`.
+
+## Phase 16.11 Tree-sitter Notes
+- Tree-sitter uses WASM grammar caching keyed by the wasm file to dedupe aliases (e.g., `javascript`/`jsx`) and bound memory with an LRU cap (`maxLoadedLanguages`).
+- Parser strategy is a single shared `Parser` instance with explicit `Tree.delete()` and `Parser.reset()` to keep WASM-backed memory bounded on long indexing runs.
+- When `batchByLanguage` is enabled, Stage1 may reorder file processing for throughput, but must preserve deterministic output ordering via ordered append/flush invariants.
+- Chunk/query caches are contract-covered: cached results must be byte-for-byte identical to uncached results, and cache reuse must be observable via `getTreeSitterStats()` (`queryHits`, `chunkCacheHits`).
+
+## Benchmarks
+- `tools/bench/merge/merge-core-throughput.js` (spill/merge throughput reference)
+- `tools/bench/index/postings-real.js` (Stage1 end-to-end postings baseline/current)
+- `tools/bench/index/chargram-postings.js --rolling-hash` (chargram postings throughput baseline/current)
+- `tools/bench/index/tree-sitter-load.js --json` (tree-sitter cold vs warm; file-order vs batch-by-language under `maxLoadedLanguages` pressure)

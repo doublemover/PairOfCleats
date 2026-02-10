@@ -10,6 +10,9 @@ export const teardownRuntime = async (runtime) => {
       await runtime.workerPool.destroy();
     }
   } catch {}
+  try {
+    runtime.scheduler?.shutdown?.();
+  } catch {}
   await shutdownTreeSitterWorkerPool();
   shutdownPythonAstPool();
 };

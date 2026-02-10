@@ -143,6 +143,10 @@ type ImpactRequest = {
 ## 4. Graph model requirements
 
 Impact analysis requires a normalized graph layer:
+- Graph artifacts should be loaded via `GraphStore` when available, and may use `graph_relations_csr` for traversal acceleration.
+  CSR must be validated (ordering/offsets/bounds) and fall back to `graph_relations` on invalid payloads to preserve correctness.
+- When a prebuilt `graphIndex` is supplied, callers should omit raw `graphRelations` to preserve cache reuse (some graphIndex variants
+  store a trimmed graphRelations representation when CSR is enabled).
 
 ### 4.1 Node identity
 - Prefer `symbolId`
@@ -244,6 +248,8 @@ Record in `stats`:
 - dropped edges by reason (`ambiguous`, `unresolved`, `budget`)
 - path counts
 - time per stage
+- traversal cap trigger counts (fanout/nodes/edges/paths/work-budget) and import graph lookup miss counts
+- traversal cache markers when results are reused for identical `(seed/filter/caps/indexSignature)` requests
 
 ---
 

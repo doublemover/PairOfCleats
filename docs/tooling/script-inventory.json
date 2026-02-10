@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-03T03:01:29.085Z",
+  "generatedAt": "2026-02-10T05:55:06.731Z",
   "scripts": [
     {
       "name": "api-server",
@@ -50,6 +50,12 @@
       "replacement": null
     },
     {
+      "name": "bootstrap:ci",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "build-index",
       "category": "indexing",
       "ciAllowed": false,
@@ -57,12 +63,6 @@
     },
     {
       "name": "build-lmdb-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "build-sqlite-index",
       "category": "indexing",
       "ciAllowed": false,
       "replacement": null
@@ -242,6 +242,24 @@
       "replacement": null
     },
     {
+      "name": "patch",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "postinstall",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "rebuild:native",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "release-check",
       "category": "release",
       "ciAllowed": false,
@@ -268,12 +286,6 @@
     {
       "name": "search",
       "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "setup",
-      "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },

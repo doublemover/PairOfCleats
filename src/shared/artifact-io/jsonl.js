@@ -41,6 +41,7 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
     'offset',
     'bytes'
   ],
+  file_meta: ['id', 'file'],
   repo_map: ['file', 'name'],
   file_relations: ['file', 'relations'],
   symbols: ['v', 'symbolId', 'scopedId', 'symbolKey', 'qualifiedName', 'kindGroup', 'file', 'virtualPath', 'chunkUid'],
@@ -67,7 +68,14 @@ const toJsonlError = (filePath, lineNumber, line, detail) => {
   return err;
 };
 
-export const parseJsonlLine = (line, targetPath, lineNumber, maxBytes, requiredKeys = null) => {
+export const parseJsonlLine = (
+  line,
+  targetPath,
+  lineNumber,
+  maxBytes,
+  requiredKeys = null,
+  validationMode = 'strict'
+) => {
   const trimmed = line.trim();
   if (!trimmed) return null;
   const byteLength = Buffer.byteLength(trimmed, 'utf8');
@@ -87,7 +95,7 @@ export const parseJsonlLine = (line, targetPath, lineNumber, maxBytes, requiredK
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw toJsonlError(targetPath, lineNumber, trimmed, 'JSONL entries must be objects');
   }
-  if (Array.isArray(requiredKeys) && requiredKeys.length) {
+  if (validationMode === 'strict' && Array.isArray(requiredKeys) && requiredKeys.length) {
     const missingKeys = requiredKeys.filter((key) => !Object.prototype.hasOwnProperty.call(parsed, key));
     if (missingKeys.length) {
       throw toJsonlError(

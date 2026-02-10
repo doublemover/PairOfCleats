@@ -24,6 +24,21 @@ const isBaseSegment = (segment, textLength, baseSegmentType) => segment.start ==
   && !segment.embeddingContext
   && (!segment.meta || Object.keys(segment.meta).length === 0);
 
+// When chunking a sliced segment (vs the full container text), any full-file chunk/AST
+// caches in `context` can produce out-of-segment ranges. That later breaks VFS tooling
+// range mapping (`Invalid virtualRange ...; skipping target.`). Strip those caches so
+// the segment is chunked against its own text, even if we have to fall back.
+const stripFullFileChunkingCaches = (context) => {
+  if (!context || typeof context !== 'object') return context;
+  const next = { ...context };
+  for (const key of Object.keys(next)) {
+    if (key.endsWith('Chunks')) delete next[key];
+  }
+  delete next.jsAst;
+  delete next.pythonAst;
+  return next;
+};
+
 export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
   if (!text || !Array.isArray(segments) || !segments.length) return segments;
   const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
@@ -144,7 +159,7 @@ export function chunkSegments({
     const segmentEndLine = offsetToLine(resolvedLineIndex, segmentEndOffset);
     const segmentUid = isBase ? null : segment.segmentUid || null;
     const segmentContext = {
-      ...context,
+      ...(isBase ? context : stripFullFileChunkingCaches(context)),
       languageId: segment.languageId || context.languageId || null,
       segment: isBase
         ? null

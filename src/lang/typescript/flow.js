@@ -36,13 +36,16 @@ export function computeTypeScriptFlow(text, chunk, options = {}) {
     });
     out.returnsValue = hasReturnValue(cleaned);
     const throws = new Set();
-    for (const match of cleaned.matchAll(/\bthrow\b\s+(?:new\s+)?([A-Za-z_$][A-Za-z0-9_$.]*)/g)) {
+    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_$][A-Za-z0-9_$.]*)/g;
+    let match;
+    while ((match = throwRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) throws.add(name);
     }
     out.throws = Array.from(throws);
     const awaits = new Set();
-    for (const match of cleaned.matchAll(/\bawait\b\s+([A-Za-z_$][A-Za-z0-9_$.]*)/g)) {
+    const awaitRe = /\bawait\b\s+([A-Za-z_$][A-Za-z0-9_$.]*)/g;
+    while ((match = awaitRe.exec(cleaned)) !== null) {
       const name = match[1].replace(/[({].*$/, '').trim();
       if (name) awaits.add(name);
     }

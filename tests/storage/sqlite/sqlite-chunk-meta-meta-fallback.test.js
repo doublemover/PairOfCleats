@@ -48,8 +48,7 @@ await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
     totalBytes: 0,
     maxPartRecords: chunkCount,
     maxPartBytes: 0,
-    targetMaxBytes: 0,
-    parts: [{ path: 'chunk_meta.parts/chunk_meta.part-00000.jsonl', records: chunkCount, bytes: 0 }]
+    targetMaxBytes: 0
   },
   atomic: true
 });

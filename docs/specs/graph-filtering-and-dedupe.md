@@ -33,11 +33,32 @@ Related docs:
 
 ## 3. Graph index reuse + consistency
 1. If `graphIndex` is provided and `graphRelations` is also provided:
-   - If they match (same identity or same signature), reuse graphIndex.
-   - If they mismatch, emit warning `GRAPH_INDEX_MISMATCH` and prefer `graphRelations` data.
+   - Current behavior is identity-based: if `graphIndex.graphRelations !== graphRelations`, emit warning
+     `GRAPH_INDEX_MISMATCH` and ignore `graphIndex` (rebuild indexes from `graphRelations`).
+   - Callers should pass either:
+     - `graphIndex` (preferred for performance), or
+     - `graphRelations` (baseline path),
+     but not both.
+   - Note: when CSR is enabled, `graphIndex.graphRelations` may be a trimmed metadata representation (no adjacency lists),
+     so passing the raw `graphRelations` artifact alongside `graphIndex` will always trip the mismatch guard.
 2. If `graphIndex.repoRoot` differs from request `repoRoot`:
    - Emit warning `GRAPH_INDEX_REPOROOT_MISMATCH`.
    - Use `graphIndex.repoRoot` for normalization to keep deterministic behavior.
+3. Optional CSR acceleration:
+   - If `includeCsr=true` and `graph_relations_csr` is present, `GraphStore` may attach `graphIndex.graphRelationsCsr`.
+   - CSR payloads are validated (sorted/unique node ids, monotonic offsets, edge bounds, per-node edge ordering) and must match
+     the `graph_relations` node ordering for each graph.
+   - On CSR validation failure, the system must fall back to the legacy `graph_relations` representation (and may derive CSR from it).
+   - When CSR is enabled:
+     - Neighbor resolution for `direction=out` must use CSR directly.
+     - Neighbor resolution for `direction=in|both` must use a reverse-edge index derived from CSR (built once per graphIndex and cached),
+       rather than materializing full `in`/`both` adjacency lists.
+     - Adjacency maps may omit `in` and `both` lists entirely (keep legacy adjacency only as fallback when CSR is unavailable).
+4. Traversal-result caching:
+   - Graph neighborhood results may be cached on the `graphIndex`, keyed by a query signature:
+     - seeds, graphs/edgeTypes filters, depth, direction, caps, includePaths, and `indexSignature`.
+   - Cache hits must return the same nodes/edges/paths ordering as an uncached traversal.
+   - Cache invalidation must be strict: a changed `indexSignature` must not reuse cached results.
 
 ## 4. Import graph expansion with chunk seeds
 When expanding import edges from a chunk seed:
@@ -93,6 +114,7 @@ Every change above must be covered by tests that assert:
 6. Edge de-duplication picks highest confidence/evidence deterministically.
 7. Symbol edge direction semantics align with `in/out/both`.
 8. Node/edge count mismatch produces warnings.
+9. Graph outputs follow shared ordering rules and record hashes in `build_state.json` orderingLedger.
 
 ## 10. Non-goals
 - Changing graph schema.

@@ -147,6 +147,54 @@ This lane prevents subprocess orchestration from being blocked by FS-heavy IO la
 
 **If proc lane is not implemented in Phase 4**, ensure `spawnSubprocess` does not reuse the IO lane by default.
 
+### 5.4 Build scheduler config (Phase 16.1)
+Scheduler configuration is read from config/env/CLI and surfaces in the build runtime. All values live under `indexing.scheduler` in config.
+
+Config keys:
+* `indexing.scheduler.enabled`
+* `indexing.scheduler.cpuTokens`
+* `indexing.scheduler.ioTokens`
+* `indexing.scheduler.memoryTokens`
+* `indexing.scheduler.lowResourceMode`
+* `indexing.scheduler.starvationMs`
+* `indexing.scheduler.queues.{queue}.priority`
+* `indexing.scheduler.queues.{queue}.maxPending`
+
+Env overrides:
+* `PAIROFCLEATS_SCHEDULER`
+* `PAIROFCLEATS_SCHEDULER_CPU`
+* `PAIROFCLEATS_SCHEDULER_IO`
+* `PAIROFCLEATS_SCHEDULER_MEM`
+* `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
+* `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
+
+CLI overrides:
+* `--scheduler` / `--no-scheduler`
+* `--scheduler-cpu`
+* `--scheduler-io`
+* `--scheduler-mem`
+* `--scheduler-low-resource` / `--no-scheduler-low-resource`
+* `--scheduler-starvation`
+
+### 5.5 Scheduler queue adapters (Phase 16.1.2)
+When the build scheduler is enabled, Stage1/2/4 wiring uses **scheduler queue adapters**
+instead of per-stage PQueue instances. These adapters expose the `add/onIdle/clear` surface
+expected by `runWithQueue`, but schedule work via the scheduler token pools.
+
+Required mappings:
+* Stage1 file processing → `stage1.cpu` and `stage1.io` queues (CPU/IO tokens split)
+* Stage1 postings → `stage1.postings` queue (CPU tokens)
+* Stage2 relations/cross-file → `stage2.relations` queue (CPU tokens)
+* Stage4 sqlite builds → `stage4.sqlite` queue (CPU+IO tokens)
+* Embeddings runner → `embeddings.compute` (CPU tokens for embed batches) and
+  `embeddings.io` (IO tokens for cache/artifact reads and writes). The embeddings
+  pipeline must process one file at a time (no cross-file batching) to keep
+  memory bounded and make scheduler backpressure effective.
+
+Fallback:
+* If the scheduler is disabled or in low-resource bypass mode, runtime queues
+  must fall back to PQueue-based concurrency to preserve existing caps.
+
 ---
 
 ## 6. `runWithQueue` contract v2 (Phase 4.3)
@@ -206,6 +254,16 @@ Callbacks:
 * Results array must preserve input order (existing behavior).
 * With `bestEffort=true`, results for failed items should be `undefined` (or remain unfilled), but errors must be included in the thrown `AggregateError`.
   * Explicitly document this behavior.
+
+### 6.4 Ordered output + backpressure (notes)
+
+Some pipelines intentionally reorder work for throughput (e.g., batch-by-language scheduling) but must preserve deterministic output ordering.
+When pairing `runWithQueue` with an ordered appender/flush stage:
+
+* Do not hold scarce reservations (memory/IO tokens) while waiting for an ordered flush to advance.
+  Always attach reservation releases in `finally` blocks so out-of-order completion cannot deadlock progress.
+* If a task is deferred or skipped, the ordered appender MUST be notified (`skip(orderIndex)`) so the flush cursor can advance.
+* If the pipeline aborts before a contiguous `orderIndex` is enqueued, the ordered appender MUST abort to reject waiters and prevent hangs/leaks.
 
 ---
 
@@ -290,6 +348,16 @@ Create: `tests/shared/concurrency/concurrency-run-with-queue-abort.test.js`
   * queue cleared
   * function rejects with AbortError
   * no unhandled rejection warnings
+
+### 8.6 Scheduler validation (Phase 16.1)
+Create:
+* `tests/perf/indexing/runtime/scheduler-no-output-regression.test.js`
+* `tests/perf/indexing/runtime/scheduler-telemetry.test.js`
+* `tests/perf/indexing/runtime/scheduler-deterministic.test.js`
+
+Bench:
+* `tools/bench/index/scheduler-build.js`
+* `tools/bench/index/scheduler-io-starvation.js`
 
 ---
 

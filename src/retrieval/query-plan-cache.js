@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { LRUCache } from 'lru-cache';
+import { createLruCache } from '../shared/cache.js';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics.js';
-import { sha1 } from '../shared/hash.js';
-import { stableStringifyForSignature } from '../shared/stable-json.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { createTempPath } from '../shared/json-stream/atomic.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,
@@ -15,6 +15,7 @@ const DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES = 128;
 const DEFAULT_QUERY_PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
 const QUERY_PLAN_DISK_CACHE_VERSION = 1;
 const DEFAULT_QUERY_PLAN_DISK_MAX_BYTES = 2 * 1024 * 1024;
+const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 
 const normalizeDiskLimit = (value, fallback) => {
   if (value === null || value === undefined) return fallback;
@@ -25,9 +26,11 @@ const normalizeDiskLimit = (value, fallback) => {
 
 const normalizeQueryText = (query) => String(query ?? '').trim();
 
-const hashSignature = (value) => {
-  const raw = stableStringifyForSignature(value ?? null);
-  return sha1(raw);
+const hashSignature = (value, namespace = 'signature') => {
+  return buildLocalCacheKey({
+    namespace,
+    payload: value ?? null
+  }).digest;
 };
 
 /**
@@ -104,6 +107,30 @@ const readDiskCache = (cachePath) => {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+};
+
+const writeDiskCacheAtomic = (cachePath, payload) => {
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  const tempPath = createTempPath(cachePath);
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(payload, null, 2));
+    try {
+      fs.renameSync(tempPath, cachePath);
+    } catch (err) {
+      if (!RENAME_RETRY_CODES.has(err?.code)) {
+        throw err;
+      }
+      try {
+        fs.rmSync(cachePath, { force: true });
+      } catch {}
+      fs.renameSync(tempPath, cachePath);
+    }
+  } catch (err) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {}
+    throw err;
   }
 };
 
@@ -201,8 +228,7 @@ export function createQueryPlanDiskCache({
       entries: trimmed
     };
     try {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-      fs.writeFileSync(cachePath, JSON.stringify(payload, null, 2));
+      writeDiskCacheAtomic(cachePath, payload);
       dirty = false;
       return trimmed.length;
     } catch {
@@ -319,7 +345,7 @@ export function buildQueryPlanConfigSignature({
  * @returns {string}
  */
 export function buildQueryPlanIndexSignature(indexSignature) {
-  return hashSignature(indexSignature ?? null);
+  return hashSignature(indexSignature ?? null, 'query-plan-index');
 }
 
 /**
@@ -336,7 +362,11 @@ export function buildQueryPlanCacheKey({ query, configSignature, indexSignature 
     parserVersion: QUERY_PARSER_VERSION,
     tokenizerVersion: QUERY_TOKENIZER_VERSION
   };
-  return { key: hashSignature(payload), payload };
+  const keyInfo = buildLocalCacheKey({
+    namespace: 'query-plan',
+    payload
+  });
+  return { key: keyInfo.key, payload };
 }
 
 /**
@@ -383,13 +413,24 @@ export function createQueryPlanCache({
   ttlMs = DEFAULT_QUERY_PLAN_CACHE_TTL_MS,
   onEvict = null
 } = {}) {
-  const resolvedMax = Number.isFinite(Number(maxEntries))
-    ? Math.floor(Number(maxEntries))
-    : DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES;
-  const resolvedTtlMs = Number.isFinite(Number(ttlMs))
-    ? Math.max(0, Number(ttlMs))
-    : DEFAULT_QUERY_PLAN_CACHE_TTL_MS;
-  if (!resolvedMax || resolvedMax <= 0) {
+  const cacheHandle = createLruCache({
+    name: 'query-plan',
+    maxEntries,
+    ttlMs,
+    onEvict: ({ key, value, reason }) => {
+      if (typeof onEvict === 'function') {
+        onEvict({ key, value, reason });
+      }
+      if (reason === 'evict' || reason === 'expire') {
+        incCacheEviction({ cache: 'query-plan' });
+      }
+      setCacheSize({ cache: 'query-plan', value: cacheHandle.size() });
+    },
+    onSizeChange: (size) => {
+      setCacheSize({ cache: 'query-plan', value: size });
+    }
+  });
+  if (!cacheHandle.cache) {
     return {
       enabled: false,
       resetIfConfigChanged() {},
@@ -403,57 +444,37 @@ export function createQueryPlanCache({
       cache: null
     };
   }
-  const cache = new LRUCache({
-    max: resolvedMax,
-    ttl: resolvedTtlMs > 0 ? resolvedTtlMs : undefined,
-    allowStale: false,
-    updateAgeOnGet: true,
-    dispose: (value, key, reason) => {
-      if (typeof onEvict === 'function') {
-        onEvict({ key, value, reason });
-      }
-      if (reason === 'evict' || reason === 'expire') {
-        incCacheEviction({ cache: 'query-plan' });
-      }
-      setCacheSize({ cache: 'query-plan', value: cache.size });
-    }
-  });
   let configSignature = null;
   return {
     enabled: true,
     resetIfConfigChanged(nextSignature) {
       if (nextSignature && configSignature && configSignature !== nextSignature) {
-        cache.clear();
-        setCacheSize({ cache: 'query-plan', value: cache.size });
+        cacheHandle.clear();
       }
       if (nextSignature) configSignature = nextSignature;
     },
     get(key, { configSignature: expectedConfig, indexSignature: expectedIndex } = {}) {
-      const entry = cache.get(key);
+      const entry = cacheHandle.get(key);
       const valid = validateQueryPlanEntry(entry, {
         configSignature: expectedConfig,
         indexSignature: expectedIndex
       });
       if (!valid && entry) {
-        cache.delete(key);
-        setCacheSize({ cache: 'query-plan', value: cache.size });
+        cacheHandle.delete(key);
       }
       incCacheEvent({ cache: 'query-plan', result: valid ? 'hit' : 'miss' });
       return valid ? entry : null;
     },
     set(key, entry) {
-      cache.set(key, entry);
-      setCacheSize({ cache: 'query-plan', value: cache.size });
+      cacheHandle.set(key, entry);
     },
     delete(key) {
-      cache.delete(key);
-      setCacheSize({ cache: 'query-plan', value: cache.size });
+      cacheHandle.delete(key);
     },
     clear() {
-      cache.clear();
-      setCacheSize({ cache: 'query-plan', value: cache.size });
+      cacheHandle.clear();
     },
-    size: () => cache.size,
-    cache
+    size: cacheHandle.size,
+    cache: cacheHandle.cache
   };
 }

@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
@@ -8,6 +7,7 @@ import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
 import { getQueryEmbedding } from '../embedding.js';
 import { buildIndexSignature } from '../index-cache.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import {
   buildContextIndex,
   expandContext,
@@ -18,6 +18,7 @@ import { loadQueryCache, pruneQueryCache } from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 export async function runSearchSession({
   rootDir,
@@ -284,9 +285,15 @@ export async function runSearchSession({
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
-    const cacheKeyLocal = useStubEmbeddings
-      ? `${modelId}:${resolvedDims}:${normalizeFlag ? 'norm' : 'raw'}`
-      : `${modelId}:${normalizeFlag ? 'norm' : 'raw'}`;
+    const cacheKeyLocal = buildLocalCacheKey({
+      namespace: 'embedding-query',
+      payload: {
+        modelId,
+        dims: useStubEmbeddings ? resolvedDims : null,
+        normalize: normalizeFlag,
+        stub: useStubEmbeddings
+      }
+    }).key;
     if (embeddingCache.has(cacheKeyLocal)) {
       incCacheEvent({ cache: 'embedding', result: 'hit' });
       return embeddingCache.get(cacheKeyLocal);
@@ -472,8 +479,8 @@ export async function runSearchSession({
     const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
     const dataPath = path.join(idx.indexDir, 'context_index.json');
     try {
-      fsSync.writeFileSync(dataPath, `${JSON.stringify(payload)}\n`);
-      fsSync.writeFileSync(metaPath, `${JSON.stringify({ version: 1, signature })}\n`);
+      await atomicWriteJson(dataPath, payload, { spaces: 0 });
+      await atomicWriteJson(metaPath, { version: 1, signature }, { spaces: 0 });
     } catch {}
   };
   const getContextIndex = async (idx) => {
@@ -571,8 +578,7 @@ export async function runSearchSession({
     }
     pruneQueryCache(cacheData, queryCacheMaxEntries);
     try {
-      await fs.mkdir(path.dirname(queryCachePath), { recursive: true });
-      await fs.writeFile(queryCachePath, JSON.stringify(cacheData, null, 2));
+      await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });
     } catch {}
   }
 

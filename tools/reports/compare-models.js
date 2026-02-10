@@ -8,6 +8,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
@@ -175,7 +176,8 @@ function buildEnv(modelId, modelCacheRoot) {
  * @returns {boolean}
  */
 function indexExists(modelCacheRoot, mode) {
-  const repoCacheRoot = path.join(modelCacheRoot, 'repos', repoId);
+  const resolvedCacheRoot = resolveVersionedCacheRoot(modelCacheRoot);
+  const repoCacheRoot = path.join(resolvedCacheRoot, 'repos', repoId);
   let indexRoot = repoCacheRoot;
   const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
   if (fs.existsSync(currentPath)) {
@@ -362,7 +364,7 @@ for (const modelId of models) {
   }
 
   if (buildSqlite) {
-    const args = [path.join(scriptRoot, 'tools', 'build', 'sqlite-index.js'), '--repo', root];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--stage', '4', '--repo', root];
     if (buildIncremental) args.push('--incremental');
     runCommand(args, env, `build sqlite (${modelId})`);
   } else if (sqliteBackend) {

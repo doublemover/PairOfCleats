@@ -4,18 +4,15 @@ import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
 import { getScmRuntimeConfig } from '../runtime.js';
 import { toPosix } from '../../../shared/files.js';
+import { findUpwards } from '../../../shared/fs/find-upwards.js';
+import { createWarnOnce } from '../../../shared/logging/warn-once.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
   parseJjJsonLines
 } from './jj-parse.js';
 
-const warned = new Set();
-const warnOnce = (key, message) => {
-  if (warned.has(key)) return;
-  warned.add(key);
-  console.warn(message);
-};
+const warnOnce = createWarnOnce();
 
 const logState = {
   provider: false,
@@ -391,13 +388,8 @@ export const jjProvider = {
 };
 
 const findJjRoot = (startPath) => {
-  let current = path.resolve(startPath || process.cwd());
-  while (true) {
-    const jjPath = path.join(current, '.jj');
-    if (fsSync.existsSync(jjPath)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return null;
+  return findUpwards(
+    startPath || process.cwd(),
+    (candidateDir) => fsSync.existsSync(path.join(candidateDir, '.jj'))
+  );
 };

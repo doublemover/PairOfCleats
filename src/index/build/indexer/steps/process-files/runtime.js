@@ -1,4 +1,4 @@
-import { createTaskQueues } from '../../../../../shared/concurrency.js';
+import { createRuntimeQueues } from '../../../runtime/workers.js';
 
 export const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
   if (!Number.isFinite(totalFiles) || totalFiles <= 0) return 10;
@@ -23,37 +23,32 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
   const cpuConcurrency = Number.isFinite(baseRuntime.cpuConcurrency)
     ? Math.max(1, Math.floor(baseRuntime.cpuConcurrency))
     : Math.max(1, fileConcurrency);
-  // Keep shard workers from running too far ahead of the ordered append cursor.
-  // Large pending windows can accumulate many completed-but-unappended file results
-  // (especially when one earlier file is slow), which is a common source of V8 OOM
-  // that often disappears under `--inspect`.
   const pendingLimits = baseRuntime?.envelope?.queues || null;
-  const maxFilePending = Number.isFinite(pendingLimits?.cpu?.maxPending)
-    ? pendingLimits.cpu.maxPending
-    : Math.max(16, cpuConcurrency * 4);
-  const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
-    ? pendingLimits.io.maxPending
-    : Math.max(8, ioConcurrency * 4);
-  const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
-    ? pendingLimits.embedding.maxPending
-    : Math.max(16, embeddingConcurrency * 4);
-  const queues = createTaskQueues({
+  const scheduler = baseRuntime?.scheduler || null;
+  const stage1Queues = baseRuntime?.stage1Queues || null;
+  const procConcurrency = baseRuntime?.procConcurrency ?? null;
+  const { queues } = createRuntimeQueues({
     ioConcurrency,
     cpuConcurrency,
+    fileConcurrency,
     embeddingConcurrency,
-    ioPendingLimit: maxIoPending,
-    cpuPendingLimit: maxFilePending,
-    embeddingPendingLimit: maxEmbeddingPending
+    pendingLimits,
+    scheduler,
+    stage1Queues,
+    procConcurrency
   });
   const destroyQueues = async () => {
-    await Promise.all([
+    const idles = [
       queues.io.onIdle(),
       queues.cpu.onIdle(),
       queues.embedding.onIdle()
-    ]);
+    ];
+    if (queues.proc?.onIdle) idles.push(queues.proc.onIdle());
+    await Promise.all(idles);
     queues.io.clear();
     queues.cpu.clear();
     queues.embedding.clear();
+    if (queues.proc?.clear) queues.proc.clear();
   };
   const destroy = async () => {
     await destroyQueues();

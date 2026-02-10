@@ -4,7 +4,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../shared/artifact-io.js';
-import { sha1 } from '../shared/hash.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { stableStringify } from '../shared/stable-json.js';
 import {
   DEFAULT_LEGEND,
@@ -363,181 +363,199 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   }
 
   const tempDir = await createTempDir();
-  const nodeSorter = createSpillSorter({
-    label: 'nodes',
-    compare: compareNodes,
-    maxInMemory: options.nodeSpillThreshold || 5000,
-    tempDir
-  });
-  await timer.track('build-nodes', async () => {
-    for (const node of buildFileNodesIterable(membersByFile, { intern })) {
-      await nodeSorter.push(node);
+  let nodeSorter = null;
+  let edgeSorter = null;
+  let scope = null;
+  let focus = null;
+  let collapse = 'none';
+  let topKByDegree = false;
+  let dropped = { files: 0, members: 0, edges: 0 };
+  let limitedNodes = [];
+  let limitedEdges = [];
+  const edgeAggregateMap = new Map();
+  try {
+    nodeSorter = createSpillSorter({
+      label: 'nodes',
+      compare: compareNodes,
+      maxInMemory: options.nodeSpillThreshold || 5000,
+      tempDir
+    });
+    await timer.track('build-nodes', async () => {
+      for (const node of buildFileNodesIterable(membersByFile, { intern })) {
+        await nodeSorter.push(node);
+      }
+    });
+    const nodeFinalize = await nodeSorter.finalize();
+    const nodeItems = nodeFinalize.items;
+
+    const memberIndex = buildMemberIndex(memberById);
+    const edgeIteratorFactory = buildEdgeIteratorFactory({
+      includes,
+      fileRelations,
+      graphRelations,
+      chunkMeta,
+      memberIndex,
+      memberById,
+      memberByChunkUid,
+      aliasById,
+      membersByFile,
+      intern
+    });
+
+    ({ scope, focus } = resolveFocus(options));
+    collapse = options.collapse || 'none';
+    topKByDegree = options.topKByDegree === true;
+    const scopeFilters = createScopeFilters({
+      scope,
+      focus,
+      edgeIteratorFactory,
+      normalizeMemberId
+    });
+    const scopedNodes = await timer.track('apply-scope', async () => {
+      const list = [];
+      for await (const node of nodeItems) {
+        const next = scopeFilters.nodeFilter(node);
+        if (next) list.push(next);
+      }
+      return list;
+    });
+
+    let nodes = scopedNodes;
+    let edgeFilter = scopeFilters.edgeFilter;
+    const collapseResult = createCollapseTransform({ collapse, nodes });
+    nodes = collapseResult.nodes;
+    const transformEdge = collapseResult.edgeTransform;
+
+    const degreeMap = topKByDegree
+      ? await timer.track('edge-degree', async () => {
+        const degree = new Map();
+        for (const edge of edgeIteratorFactory()) {
+          if (!edgeFilter(edge)) continue;
+          const next = transformEdge(edge);
+          const fromFile = next.from?.file || null;
+          const toFile = next.to?.file || null;
+          if (fromFile) degree.set(fromFile, (degree.get(fromFile) || 0) + 1);
+          if (toFile) degree.set(toFile, (degree.get(toFile) || 0) + 1);
+        }
+        return degree;
+      })
+      : null;
+
+    const fileList = topKByDegree
+      ? nodes.slice().sort((a, b) => {
+        const scoreA = degreeMap?.get(a.path) || 0;
+        const scoreB = degreeMap?.get(b.path) || 0;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return String(a.path).localeCompare(String(b.path));
+      })
+      : nodes.slice().sort(compareNodes);
+
+    dropped = { files: 0, members: 0, edges: 0 };
+    limitedNodes = [];
+    for (const node of fileList.slice(0, limits.maxFiles)) {
+      const members = Array.isArray(node.members) ? node.members : [];
+      const memberList = members.slice().sort((a, b) => (
+        String(a.name || '').localeCompare(String(b.name || ''))
+        || (Number(a.range?.startLine || 0) - Number(b.range?.startLine || 0))
+      ));
+      const keptMembers = memberList.slice(0, limits.maxMembersPerFile);
+      dropped.members += Math.max(0, memberList.length - keptMembers.length);
+      const nextNode = { ...node, members: keptMembers };
+      guards.nodes.add(resolveJsonBytes(nextNode));
+      for (const member of keptMembers) {
+        guards.symbols.add(resolveJsonBytes(member));
+      }
+      limitedNodes.push(nextNode);
     }
-  });
-  const nodeFinalize = await nodeSorter.finalize();
-  const nodeItems = nodeFinalize.items;
+    dropped.files = Math.max(0, fileList.length - limitedNodes.length);
 
-  const memberIndex = buildMemberIndex(memberById);
-  const edgeIteratorFactory = buildEdgeIteratorFactory({
-    includes,
-    fileRelations,
-    graphRelations,
-    chunkMeta,
-    memberIndex,
-    memberById,
-    memberByChunkUid,
-    aliasById,
-    membersByFile,
-    intern
-  });
-
-  const { scope, focus } = resolveFocus(options);
-  const collapse = options.collapse || 'none';
-  const topKByDegree = options.topKByDegree === true;
-  const scopeFilters = createScopeFilters({
-    scope,
-    focus,
-    edgeIteratorFactory,
-    normalizeMemberId
-  });
-  const scopedNodes = await timer.track('apply-scope', async () => {
-    const list = [];
-    for await (const node of nodeItems) {
-      const next = scopeFilters.nodeFilter(node);
-      if (next) list.push(next);
+    const fileSet = new Set(limitedNodes.map((node) => node.path));
+    const memberSet = new Set();
+    for (const node of limitedNodes) {
+      for (const member of node.members || []) {
+        const id = normalizeMemberId(member.id);
+        if (id) memberSet.add(id);
+      }
     }
-    return list;
-  });
-  await nodeSorter.cleanup();
 
-  let nodes = scopedNodes;
-  let edgeFilter = scopeFilters.edgeFilter;
-  const collapseResult = createCollapseTransform({ collapse, nodes });
-  nodes = collapseResult.nodes;
-  const transformEdge = collapseResult.edgeTransform;
+    const edgeLimitFilter = (edge) => {
+      const fromMember = normalizeMemberId(edge.from?.member);
+      const toMember = normalizeMemberId(edge.to?.member);
+      const fromFile = edge.from?.file || null;
+      const toFile = edge.to?.file || null;
+      if (fromMember && !memberSet.has(fromMember)) return false;
+      if (toMember && !memberSet.has(toMember)) return false;
+      if (fromFile && !fileSet.has(fromFile)) return false;
+      if (toFile && !fileSet.has(toFile)) return false;
+      return true;
+    };
 
-  const degreeMap = topKByDegree
-    ? await timer.track('edge-degree', async () => {
-      const degree = new Map();
+    const edgeWeights = DEFAULT_EDGE_WEIGHTS;
+    edgeSorter = createSpillSorter({
+      label: 'edges',
+      compare: compareEdges,
+      maxInMemory: options.edgeSpillThreshold || 5000,
+      tempDir
+    });
+    let keptEdges = 0;
+    await timer.track('build-edges', async () => {
       for (const edge of edgeIteratorFactory()) {
         if (!edgeFilter(edge)) continue;
         const next = transformEdge(edge);
+        if (!edgeLimitFilter(next)) continue;
+        if (keptEdges >= limits.maxEdges) {
+          dropped.edges += 1;
+          continue;
+        }
         const fromFile = next.from?.file || null;
         const toFile = next.to?.file || null;
-        if (fromFile) degree.set(fromFile, (degree.get(fromFile) || 0) + 1);
-        if (toFile) degree.set(toFile, (degree.get(toFile) || 0) + 1);
-      }
-      return degree;
-    })
-    : null;
-
-  const fileList = topKByDegree
-    ? nodes.slice().sort((a, b) => {
-      const scoreA = degreeMap?.get(a.path) || 0;
-      const scoreB = degreeMap?.get(b.path) || 0;
-      if (scoreA !== scoreB) return scoreB - scoreA;
-      return String(a.path).localeCompare(String(b.path));
-    })
-    : nodes.slice().sort(compareNodes);
-
-  const dropped = { files: 0, members: 0, edges: 0 };
-  const limitedNodes = [];
-  for (const node of fileList.slice(0, limits.maxFiles)) {
-    const members = Array.isArray(node.members) ? node.members : [];
-    const memberList = members.slice().sort((a, b) => (
-      String(a.name || '').localeCompare(String(b.name || ''))
-      || (Number(a.range?.startLine || 0) - Number(b.range?.startLine || 0))
-    ));
-    const keptMembers = memberList.slice(0, limits.maxMembersPerFile);
-    dropped.members += Math.max(0, memberList.length - keptMembers.length);
-    const nextNode = { ...node, members: keptMembers };
-    guards.nodes.add(resolveJsonBytes(nextNode));
-    for (const member of keptMembers) {
-      guards.symbols.add(resolveJsonBytes(member));
-    }
-    limitedNodes.push(nextNode);
-  }
-  dropped.files = Math.max(0, fileList.length - limitedNodes.length);
-
-  const fileSet = new Set(limitedNodes.map((node) => node.path));
-  const memberSet = new Set();
-  for (const node of limitedNodes) {
-    for (const member of node.members || []) {
-      const id = normalizeMemberId(member.id);
-      if (id) memberSet.add(id);
-    }
-  }
-
-  const edgeLimitFilter = (edge) => {
-    const fromMember = normalizeMemberId(edge.from?.member);
-    const toMember = normalizeMemberId(edge.to?.member);
-    const fromFile = edge.from?.file || null;
-    const toFile = edge.to?.file || null;
-    if (fromMember && !memberSet.has(fromMember)) return false;
-    if (toMember && !memberSet.has(toMember)) return false;
-    if (fromFile && !fileSet.has(fromFile)) return false;
-    if (toFile && !fileSet.has(toFile)) return false;
-    return true;
-  };
-
-  const edgeWeights = DEFAULT_EDGE_WEIGHTS;
-  const edgeAggregateMap = new Map();
-  const edgeSorter = createSpillSorter({
-    label: 'edges',
-    compare: compareEdges,
-    maxInMemory: options.edgeSpillThreshold || 5000,
-    tempDir
-  });
-  let keptEdges = 0;
-  await timer.track('build-edges', async () => {
-    for (const edge of edgeIteratorFactory()) {
-      if (!edgeFilter(edge)) continue;
-      const next = transformEdge(edge);
-      if (!edgeLimitFilter(next)) continue;
-      if (keptEdges >= limits.maxEdges) {
-        dropped.edges += 1;
-        continue;
-      }
-      const fromFile = next.from?.file || null;
-      const toFile = next.to?.file || null;
-      if (fromFile && toFile) {
-        const key = `${next.type}:${fromFile}->${toFile}`;
-        let bucket = edgeAggregateMap.get(key);
-        if (!bucket) {
-          bucket = {
-            type: next.type,
-            fromFile,
-            toFile,
-            count: 0,
-            weight: 0,
-            minWeight: Infinity,
-            maxWeight: -Infinity
-          };
-          edgeAggregateMap.set(key, bucket);
+        if (fromFile && toFile) {
+          const key = `${next.type}:${fromFile}->${toFile}`;
+          let bucket = edgeAggregateMap.get(key);
+          if (!bucket) {
+            bucket = {
+              type: next.type,
+              fromFile,
+              toFile,
+              count: 0,
+              weight: 0,
+              minWeight: Infinity,
+              maxWeight: -Infinity
+            };
+            edgeAggregateMap.set(key, bucket);
+          }
+          const edgeWeight = edgeWeights[next.type] || 1;
+          bucket.count += 1;
+          bucket.weight += edgeWeight;
+          bucket.minWeight = Math.min(bucket.minWeight, edgeWeight);
+          bucket.maxWeight = Math.max(bucket.maxWeight, edgeWeight);
         }
-        const edgeWeight = edgeWeights[next.type] || 1;
-        bucket.count += 1;
-        bucket.weight += edgeWeight;
-        bucket.minWeight = Math.min(bucket.minWeight, edgeWeight);
-        bucket.maxWeight = Math.max(bucket.maxWeight, edgeWeight);
+        guards.edges.add(resolveJsonBytes(next));
+        await edgeSorter.push(next);
+        keptEdges += 1;
       }
-      guards.edges.add(resolveJsonBytes(next));
-      await edgeSorter.push(next);
-      keptEdges += 1;
-    }
-  });
+    });
 
-  const edgeFinalize = await edgeSorter.finalize();
-  const edgeItems = edgeFinalize.items;
-  const limitedEdges = Array.isArray(edgeItems)
-    ? edgeItems
-    : await (async () => {
-      const list = [];
-      for await (const edge of edgeItems) list.push(edge);
-      return list;
-    })();
-  await edgeSorter.cleanup();
-  await cleanupTempDir(tempDir);
+    const edgeFinalize = await edgeSorter.finalize();
+    const edgeItems = edgeFinalize.items;
+    limitedEdges = Array.isArray(edgeItems)
+      ? edgeItems
+      : await (async () => {
+        const list = [];
+        for await (const edge of edgeItems) list.push(edge);
+        return list;
+      })();
+  } finally {
+    try {
+      if (nodeSorter?.cleanup) await nodeSorter.cleanup();
+    } catch {}
+    try {
+      if (edgeSorter?.cleanup) await edgeSorter.cleanup();
+    } catch {}
+    try {
+      await cleanupTempDir(tempDir);
+    } catch {}
+  }
 
   const sortedNodes = sortBy(limitedNodes, (node) => node.path);
   const sortedEdges = sortBy(limitedEdges, (edge) => {
@@ -684,6 +702,9 @@ export function buildNodeList(mapModel) {
 
 export function buildMapCacheKey({ buildId, options }) {
   const payload = { buildId: buildId || null, options: options || null };
-  return sha1(stableStringify(payload));
+  return buildLocalCacheKey({
+    namespace: 'code-map',
+    payload
+  }).key;
 }
 

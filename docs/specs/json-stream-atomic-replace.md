@@ -177,6 +177,15 @@ Only remove `.bak` if:
 
 Implementation can reuse existing helper patterns from SQLite and HNSW subsystems (which already implement cleanup carefully).
 
+### 5.4 Sharded directory swaps
+Sharded JSONL outputs must be swapped atomically as a **directory**, not by deleting the existing shard set up front.
+
+Rules:
+* Write shards into a temp directory sibling of the final parts directory.
+* Once all shards and meta files are written, rename the temp directory into place.
+* If a prior parts directory exists, move it to a `.bak` path and delete after swap succeeds.
+* On failure, keep the old directory intact and clean up the temp directory.
+
 ---
 
 ## 6. Tests
@@ -224,9 +233,19 @@ Add keepBackup case:
   * expose `getBytesWritten`
   * update sharding logic to use post-compression bytes
   * update `replaceFile` to accept keepBackup option and clean `.bak` by default
+  * add `replaceDir` to atomically swap sharded outputs
 
 * `src/index/build/artifacts.js`
   * if any code relies on bytes being uncompressed, document or adjust; otherwise just accept the corrected metric
 
 * Add tests under `tests/` as described above.
+
+## 8. Reader notes
+
+- JSONL readers use buffer scanning (no readline) and adaptive `highWaterMark` sizing for large shards.
+- Large zstd/gzip shards use streaming decompression; buffer decompression is reserved for small files.
+- Sharded reads may run in parallel but must preserve shard order when concatenating rows.
+- Offsets metadata records `version`, `format`, and `compression` for deterministic loader validation.
+- Unsharded JSONL writers should pass `maxBytes` into `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast with `ERR_JSON_TOO_LARGE`.
+- JSONL readers support `validationMode: "trusted"` to skip required-key checks on hot paths.
 

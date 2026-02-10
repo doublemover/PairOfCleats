@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveSilentStdio } from '../helpers/test-env.js';
+import { runSqliteBuild } from '../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -35,7 +36,7 @@ const run = (args, label) => {
 };
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+await runSqliteBuild(repoRoot);
 
 const queriesPath = path.join(repoRoot, 'queries.txt');
 const rawQueries = await fsPromises.readFile(queriesPath, 'utf8');

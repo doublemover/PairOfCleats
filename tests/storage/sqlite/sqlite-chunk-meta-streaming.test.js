@@ -100,6 +100,7 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
 
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta parts');
+const sqliteStats = {};
 const count = await buildDatabaseFromArtifacts({
   Database,
   outPath,
@@ -110,9 +111,37 @@ const count = await buildDatabaseFromArtifacts({
   emitOutput: false,
   validateMode: 'off',
   vectorConfig: { enabled: false },
-  modelConfig: { id: null }
+  modelConfig: { id: null },
+  stats: sqliteStats
 });
 assert.equal(count, chunkCount, 'expected sqlite build to ingest all chunks');
+assert.ok(sqliteStats.chunkMeta, 'expected sqlite stats to include chunkMeta metrics');
+assert.equal(sqliteStats.chunkMeta.passes, 1, 'expected single consolidated chunk_meta ingest pass');
+assert.equal(sqliteStats.chunkMeta.rows, chunkCount, 'expected chunkMeta rows metric to match ingested chunks');
+assert.equal(
+  sqliteStats.chunkMeta.streamedRows,
+  chunkCount,
+  'expected sharded/jsonl chunk_meta rows to be counted as streamed'
+);
+assert.equal(
+  sqliteStats.chunkMeta.sourceRows?.jsonl,
+  chunkCount,
+  'expected sourceRows.jsonl to match chunk count'
+);
+assert.ok(
+  Number(sqliteStats.chunkMeta.sourceFiles?.jsonl) >= 2,
+  'expected sourceFiles.jsonl to include multiple shard files'
+);
+assert.equal(
+  sqliteStats.chunkMeta.tokenTextMaterialized,
+  chunkCount,
+  'expected token text materialization count for populated token arrays'
+);
+assert.equal(
+  sqliteStats.chunkMeta.tokenTextSkipped,
+  0,
+  'expected no token text skips when all chunks include tokens'
+);
 
 const db = new Database(outPath);
 const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get('code');

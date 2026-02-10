@@ -3,9 +3,15 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, getIndexDir } from '../../../../tools/shared/dict-utils.js';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-ann-fallback');
+const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
+  ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
+  : '';
+const cacheName = suffixRaw ? `sqlite-ann-fallback-${suffixRaw}` : 'sqlite-ann-fallback';
+const tempRoot = path.join(root, '.testCache', cacheName);
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -18,15 +24,10 @@ await fsPromises.writeFile(
   'export const alpha = () => "ann_fallback_token";\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-process.env.PAIROFCLEATS_TESTING = '1';
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
@@ -37,7 +38,7 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_sqlite', [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot]);
+await runSqliteBuild(repoRoot);
 
 const searchResult = spawnSync(
   process.execPath,

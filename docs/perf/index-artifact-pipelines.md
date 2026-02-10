@@ -16,8 +16,16 @@ Run benchmarks from the repo root.
 8. `node tools/bench/index/postings-packed.js --mode compare`
 9. `node tools/bench/index/jsonl-compression-pipeline.js --mode compare`
 10. `node tools/bench/index/import-graph-incremental.js --mode compare`
+11. `node tools/bench/index/artifact-io-read.js --mode compare`
+12. `node tools/bench/artifact-io/jsonl-offset-index.js`
+13. `node tools/bench/artifact-io/artifact-io-throughput.js`
+14. `node tools/bench/artifact-io/streaming-vs-materialize.js`
+15. `node tools/bench/index/file-meta-streaming-load.js --index-dir <path>`
 
 Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`.
+
+## Writer guardrails (Phase 16.2.3)
+Unsharded JSONL writers now pass `maxBytes` into `writeJsonLinesFile`/`writeJsonLinesFileAsync` so oversized rows fail fast. This keeps byte budgets enforced even when a writer stays in the single-file path.
 
 ## Expected Deltas
 
@@ -70,3 +78,29 @@ Each benchmark supports `--mode baseline`, `--mode current`, or `--mode compare`
 
 - Target: high reuse ratio with faster warm runs.
 - Output: reuse ratio, invalidations, and duration delta.
+
+### Artifact IO read
+
+- Target: higher rows/sec with deterministic shard ordering.
+- Output: rows/sec, bytes/sec, and delta vs baseline.
+- Note: manifest/meta hot-cache reduces repeated parse overhead in tight loops.
+
+### Streaming vs materialized JSONL
+
+- Target: lower heap and competitive rows/sec when using streaming iterator.
+- Output: rows/sec, heap delta, and delta vs baseline materialized read.
+
+## SQLite Build (Phase 16.9)
+Stage4 SQLite build throughput benchmarks live under `tools/bench/sqlite/`:
+- `node tools/bench/sqlite/build-from-artifacts.js --mode compare`
+- `node tools/bench/sqlite/build-from-bundles.js --mode compare`
+- `node tools/bench/sqlite/incremental-update.js --mode compare`
+- `node tools/bench/sqlite/jsonl-streaming.js`
+
+Use these when changing statement strategies (multi-row vs per-row prepared) and transaction boundaries so throughput decisions remain measurable.
+`build-from-artifacts` supports `--index-dir <path>` for benchmarking real Stage2 output and `--statement-strategy` for forcing prepared vs multi-row behavior.
+
+Stage4 notes:
+- `chunks_fts` is contentless (`content=''`, `contentless_delete=1`) and is used for MATCH + bm25 ranking only.
+- Full builds run an explicit FTS optimize step before `PRAGMA optimize`/`ANALYZE`.
+- Most lookup-heavy tables rely on PRIMARY KEY/UNIQUE indexes (and avoid redundant secondary indexes).

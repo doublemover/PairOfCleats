@@ -2,13 +2,13 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-missing-dep');
 const cacheRoot = path.join(tempRoot, '.cache');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');
-const buildSqlitePath = path.join(root, 'tools', 'build/sqlite-index.js');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -26,6 +26,9 @@ const envBase = {
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const run = (args, label, envOverride = {}) => {
   const result = spawnSync(process.execPath, args, {
@@ -42,7 +45,7 @@ const run = (args, label, envOverride = {}) => {
 };
 
 run([buildIndexPath, '--stub-embeddings', '--repo', tempRoot], 'build index');
-run([buildSqlitePath, '--repo', tempRoot], 'build sqlite');
+await runSqliteBuild(tempRoot);
 
 const autoOutput = run(
   [searchPath, 'greet', '--json', '--repo', tempRoot],

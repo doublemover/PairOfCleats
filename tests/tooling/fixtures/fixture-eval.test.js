@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const argv = createCli({
   scriptName: 'fixture-eval',
@@ -89,11 +90,13 @@ for (const fixtureName of fixtures) {
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
   console.log(`\nFixture eval: ${fixtureName}`);
   run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env, true);
   if (needsSqlite) {
-    run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot], `build sqlite (${fixtureName})`, fixtureRoot, env, true);
+    await runSqliteBuild(fixtureRoot);
   }
 
   const cases = loadCases(evalPath);

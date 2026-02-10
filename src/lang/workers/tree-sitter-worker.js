@@ -1,7 +1,6 @@
 import {
   buildTreeSitterChunks,
-  preloadTreeSitterLanguages,
-  pruneTreeSitterLanguages
+  getTreeSitterStats
 } from '../tree-sitter.js';
 
 function normalizeEnabled(value) {
@@ -77,22 +76,15 @@ function resolveLanguageForExt(languageId, ext) {
  * Piscina worker entrypoint.
  *
  * Note: Worker threads do not share the main thread's module state.
- * We must initialize web-tree-sitter and load the grammar inside the worker
- * before running any parses, otherwise every parse returns null.
+ * Parsing always uses the native tree-sitter runtime in-thread.
  */
 export async function parseTreeSitter(payload = {}) {
   const { text = '', languageId = null, ext = null, treeSitter = null } = payload;
+  const strict = treeSitter?.strict === true;
 
-  try {
-    const resolvedId = resolveLanguageForExt(languageId, ext);
-    if (resolvedId && isLanguageEnabled(treeSitter, resolvedId)) {
-      // Cached by the runtime module within this worker thread.
-      await preloadTreeSitterLanguages([resolvedId], {
-        maxLoadedLanguages: treeSitter?.maxLoadedLanguages
-      });
-    }
-  } catch {
-    // If init/preload fails in this worker, fall back to heuristic chunking upstream.
+  const resolvedId = resolveLanguageForExt(languageId, ext);
+  if (resolvedId && !isLanguageEnabled(treeSitter, resolvedId)) {
+    return null;
   }
 
   try {
@@ -102,15 +94,16 @@ export async function parseTreeSitter(payload = {}) {
       ext,
       options: { treeSitter }
     });
-    const resolvedId = resolveLanguageForExt(languageId, ext);
-    if (resolvedId) {
-      pruneTreeSitterLanguages([resolvedId], {
-        maxLoadedLanguages: treeSitter?.maxLoadedLanguages,
-        onlyIfExceeds: true
-      });
+    if (strict && (!Array.isArray(result) || result.length === 0)) {
+      throw new Error(`Tree-sitter worker returned no chunks for ${resolvedId || languageId || 'unknown'}.`);
     }
     return result;
-  } catch {
+  } catch (err) {
+    if (strict) throw err;
     return null;
   }
+}
+
+export function treeSitterWorkerStats() {
+  return getTreeSitterStats();
 }

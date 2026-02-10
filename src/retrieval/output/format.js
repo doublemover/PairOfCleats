@@ -3,6 +3,7 @@ import { formatScoreBreakdown } from './explain.js';
 import { getBodySummary } from './summary.js';
 import { getFormatFullCache, getFormatShortCache } from './cache.js';
 import { sha1 } from '../../shared/hash.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { ANSI, applyLineBackground, stripAnsi as stripAnsiShared } from '../../shared/cli/ansi-utils.js';
 
 const formatInferredEntry = (entry) => {
@@ -88,9 +89,19 @@ const buildFormatCacheKey = ({
   queryHash,
   matched,
   explain
-}) => sha1(
-  `${mode}:${index}:${chunk.file}:${chunk.start}:${chunk.end}:${matched ? 1 : 0}:${explain ? 1 : 0}:${queryHash}`
-);
+}) => buildLocalCacheKey({
+  namespace: 'format',
+  payload: {
+    mode,
+    index,
+    file: chunk.file,
+    start: chunk.start,
+    end: chunk.end,
+    matched: Boolean(matched),
+    explain: Boolean(explain),
+    queryHash
+  }
+}).key;
 
 const buildWrappedLines = (label, items, { indent = INDENT, maxWidth = 110 } = {}) => {
   if (!Array.isArray(items) || !items.length) return [];

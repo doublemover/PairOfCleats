@@ -170,7 +170,8 @@ export const runToolingPass = async ({
     if (chunk?.chunkUid) chunkByUid.set(chunk.chunkUid, chunk);
   }
 
-  const cacheDirRaw = toolingConfig?.cache?.dir;
+  const cacheConfig = toolingConfig?.cache || {};
+  const cacheDirRaw = cacheConfig.dir;
   const cacheDir = cacheDirRaw
     ? (isAbsolutePathNative(cacheDirRaw) ? cacheDirRaw : path.join(buildRoot || rootDir, cacheDirRaw))
     : path.join(buildRoot || rootDir, 'tooling-cache');
@@ -189,8 +190,10 @@ export const runToolingPass = async ({
       logDir: toolingLogDir
     },
     cache: {
-      enabled: toolingConfig?.cache?.enabled !== false,
-      dir: cacheDir
+      enabled: cacheConfig.enabled !== false,
+      dir: cacheDir,
+      maxBytes: Number.isFinite(cacheConfig.maxBytes) ? cacheConfig.maxBytes : null,
+      maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
     }
   };
 

@@ -38,6 +38,9 @@ export function getEnvConfig(env = process.env) {
     mcpMode,
     homeRoot: normalizeString(env.PAIROFCLEATS_HOME),
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
+    cacheNamespace: normalizeString(env.PAIROFCLEATS_CACHE_NAMESPACE),
+    cacheRebuild: normalizeBoolean(env.PAIROFCLEATS_CACHE_REBUILD),
+    cacheMetricsSampleRate: normalizeNumber(env.PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
     threads: normalizeNumber(env.PAIROFCLEATS_THREADS),
@@ -57,7 +60,14 @@ export function getEnvConfig(env = process.env) {
     regexEngine: normalizeString(env.PAIROFCLEATS_REGEX_ENGINE),
     compression: normalizeString(env.PAIROFCLEATS_COMPRESSION),
     docExtract: normalizeString(env.PAIROFCLEATS_DOC_EXTRACT),
+    schedulerEnabled: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER),
+    schedulerCpuTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_CPU),
+    schedulerIoTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_IO),
+    schedulerMemoryTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEM),
+    schedulerStarvationMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_STARVATION_MS),
+    schedulerLowResource: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_LOW_RESOURCE),
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
+    traceArtifactIo: normalizeBoolean(env.PAIROFCLEATS_TRACE_ARTIFACT_IO),
     modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
     dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),
     extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),
@@ -113,5 +123,13 @@ export function setVerboseEnv(enabled, env = process.env) {
     env.PAIROFCLEATS_VERBOSE = '1';
   } else if (env.PAIROFCLEATS_VERBOSE != null) {
     delete env.PAIROFCLEATS_VERBOSE;
+  }
+}
+
+export function setCacheRebuildEnv(enabled, env = process.env) {
+  if (enabled) {
+    env.PAIROFCLEATS_CACHE_REBUILD = '1';
+  } else if (env.PAIROFCLEATS_CACHE_REBUILD != null) {
+    delete env.PAIROFCLEATS_CACHE_REBUILD;
   }
 }

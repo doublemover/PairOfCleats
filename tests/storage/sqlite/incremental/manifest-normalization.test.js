@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
 import { getCombinedOutput } from '../../../helpers/stdio.js';
+import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncrementalRepo({
   name: 'manifest-normalization'
@@ -14,11 +15,7 @@ run(
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-run(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', repoRoot],
-  'build sqlite index',
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
+await runSqliteBuild(repoRoot);
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
@@ -37,11 +34,16 @@ manifest.files['src\\index.js'] = manifest.files['src/index.js'];
 delete manifest.files['src/index.js'];
 await fsPromises.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 
-const normalizedResult = runCapture(
-  [path.join(root, 'tools', 'build/sqlite-index.js'), '--incremental', '--repo', repoRoot],
-  'build sqlite index (normalized manifest)'
-);
-const normalizedOutput = getCombinedOutput(normalizedResult);
+const normalizedLogs = [];
+await runSqliteBuild(repoRoot, {
+  incremental: true,
+  logger: {
+    log: (message) => normalizedLogs.push(message),
+    warn: (message) => normalizedLogs.push(message),
+    error: (message) => normalizedLogs.push(message)
+  }
+});
+const normalizedOutput = getCombinedOutput({ stdout: normalizedLogs.join('\n'), stderr: '' });
 if (!normalizedOutput.includes('SQLite Indexes Updated') && !normalizedOutput.includes('SQLite Index Updated')) {
   console.error('Expected incremental sqlite update with normalized manifest.');
   process.exit(1);

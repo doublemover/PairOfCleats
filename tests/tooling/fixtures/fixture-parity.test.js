@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
+import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');
@@ -81,12 +82,17 @@ for (const fixtureName of fixtures) {
     PAIROFCLEATS_EMBEDDINGS: 'stub',
     ...(resolvedProfile ? { PAIROFCLEATS_PROFILE: resolvedProfile } : {})
   };
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  if (resolvedProfile) {
+    process.env.PAIROFCLEATS_PROFILE = resolvedProfile;
+  }
   if (resolvedProfile) {
     console.log(`[fixture-parity] profile=${resolvedProfile}`);
   }
 
   run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env);
-  run([path.join(root, 'tools', 'build/sqlite-index.js'), '--repo', fixtureRoot], `build sqlite index (${fixtureName})`, fixtureRoot, env);
+  await runSqliteBuild(fixtureRoot);
 
   const queriesPath = path.join(fixtureRoot, 'queries.txt');
   const queryFile = fs.existsSync(queriesPath)
@@ -94,7 +100,7 @@ for (const fixtureName of fixtures) {
     : path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 
   run([
-    path.join(root, 'tests', 'parity.js'),
+    path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
     '--no-ann',
     '--queries',
     queryFile,

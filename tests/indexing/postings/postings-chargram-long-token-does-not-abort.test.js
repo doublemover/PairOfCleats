@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createIndexState, appendChunk } from '../../../src/index/build/state.js';
-import { tri } from '../../../src/shared/tokenize.js';
+import { forEachRollingChargramHash } from '../../../src/shared/chargram-hash.js';
 
 const state = createIndexState();
 const postingsConfig = {
@@ -17,7 +17,11 @@ appendChunk(state, {
   file: 'sample.txt'
 }, postingsConfig);
 
-const expected = tri('ok', 3)[0];
+let expected = null;
+forEachRollingChargramHash('ok', 3, 3, { maxTokenLength: null }, (g) => {
+  expected = g;
+  return false;
+});
 const postings = state.triPost.get(expected);
 assert.ok(postings !== undefined, 'expected chargram from short token');
 

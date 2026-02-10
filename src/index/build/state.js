@@ -1,8 +1,11 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
+import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
+import { registerTokenIdInvariant } from '../../shared/invariants.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
 const POSTINGS_GUARD_SAMPLES = 5;
+const TOKEN_ID_COLLISION_SAMPLE_SIZE = 5;
 const POSTINGS_GUARDS = {
   phrase: { maxUnique: 1000000, maxPerChunk: 20000 },
   chargram: { maxUnique: 2000000, maxPerChunk: 50000 }
@@ -121,38 +124,21 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard =
   }
 }
 
-function appendChargramsToSet(token, minN, maxN, set, maxPerChunk = 0, buffer = null) {
+function appendChargramsToSet(
+  token,
+  minN,
+  maxN,
+  set,
+  maxPerChunk = 0,
+  _buffer = null,
+  { maxTokenLength = null } = {}
+) {
   if (!token) return;
-  const sentinel = `\u27ec${token}\u27ed`;
-  for (let n = minN; n <= maxN; n += 1) {
-    if (sentinel.length < n) continue;
-    if (buffer && Array.isArray(buffer)) {
-      buffer.length = n;
-      for (let i = 0; i < n; i += 1) buffer[i] = sentinel[i];
-      let window = buffer.join('');
-      set.add(window);
-      if (maxPerChunk && set.size >= maxPerChunk) return;
-      for (let i = n; i < sentinel.length; i += 1) {
-        buffer[i % n] = sentinel[i];
-        const start = (i + 1) % n;
-        window = '';
-        for (let j = 0; j < n; j += 1) {
-          window += buffer[(start + j) % n];
-        }
-        set.add(window);
-        if (maxPerChunk && set.size >= maxPerChunk) return;
-      }
-      continue;
-    }
-    let window = sentinel.slice(0, n);
-    set.add(window);
-    if (maxPerChunk && set.size >= maxPerChunk) return;
-    for (let i = n; i < sentinel.length; i += 1) {
-      window = window.slice(1) + sentinel[i];
-      set.add(window);
-      if (maxPerChunk && set.size >= maxPerChunk) return;
-    }
-  }
+  forEachRollingChargramHash(token, minN, maxN, { maxTokenLength }, (hash) => {
+    set.add(hash);
+    if (maxPerChunk && set.size >= maxPerChunk) return false;
+    return true;
+  });
 }
 
 function *iteratePostingDocIds(posting) {
@@ -197,12 +183,16 @@ export function applyTokenRetention(chunk, retention) {
   if (!chunk || !retention || retention.mode === 'full') return;
   if (retention.mode === 'none') {
     if (chunk.tokens) delete chunk.tokens;
+    if (chunk.tokenIds) delete chunk.tokenIds;
     if (chunk.ngrams) delete chunk.ngrams;
     return;
   }
   if (retention.mode === 'sample') {
     if (Array.isArray(chunk.tokens) && chunk.tokens.length > retention.sampleSize) {
       chunk.tokens = chunk.tokens.slice(0, retention.sampleSize);
+    }
+    if (Array.isArray(chunk.tokenIds) && chunk.tokenIds.length > retention.sampleSize) {
+      chunk.tokenIds = chunk.tokenIds.slice(0, retention.sampleSize);
     }
     if (Array.isArray(chunk.ngrams) && chunk.ngrams.length > retention.sampleSize) {
       chunk.ngrams = chunk.ngrams.slice(0, retention.sampleSize);
@@ -219,6 +209,8 @@ export function createIndexState() {
     df: new Map(),
     chunks: [],
     tokenPostings: new Map(),
+    tokenIdMap: new Map(),
+    tokenIdCollisions: [],
     fieldPostings: {
       name: new Map(),
       signature: new Map(),
@@ -245,6 +237,7 @@ export function createIndexState() {
     phrasePost: new Map(),
     discoveredFiles: [],
     discoveryHash: null,
+    fileListHash: null,
     scannedFiles: [],
     scannedFilesTimes: [],
     riskSummaries: [],
@@ -267,12 +260,58 @@ export function createIndexState() {
       set: new Set(),
       window: []
     },
+    tokenBuffers: {
+      freq: new Map(),
+      fieldFreq: new Map()
+    },
+    postingsQueueStats: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)
     }
   };
 }
+
+const normalizeTokenIdCollisionSample = (entry) => ({
+  id: entry?.id || null,
+  existing: entry?.existing || null,
+  token: entry?.token || null
+});
+
+export const getTokenIdCollisionSummary = (
+  state,
+  { sampleSize = TOKEN_ID_COLLISION_SAMPLE_SIZE } = {}
+) => {
+  const collisions = Array.isArray(state?.tokenIdCollisions) ? state.tokenIdCollisions : [];
+  const resolvedSampleSize = Number.isFinite(Number(sampleSize))
+    ? Math.max(0, Math.floor(Number(sampleSize)))
+    : TOKEN_ID_COLLISION_SAMPLE_SIZE;
+  const sample = collisions
+    .slice(0, resolvedSampleSize || 0)
+    .map((entry) => normalizeTokenIdCollisionSample(entry));
+  return {
+    policy: 'fail',
+    count: collisions.length,
+    sample
+  };
+};
+
+export const enforceTokenIdCollisionPolicy = (
+  state,
+  { sampleSize = TOKEN_ID_COLLISION_SAMPLE_SIZE } = {}
+) => {
+  const summary = getTokenIdCollisionSummary(state, { sampleSize });
+  if (!summary.count) return summary;
+  const sampleText = summary.sample
+    .map((entry) => `${entry.id}:${entry.existing}->${entry.token}`)
+    .join(', ');
+  const suffix = sampleText ? ` Samples: ${sampleText}` : '';
+  const err = new Error(`ERR_TOKEN_ID_COLLISION tokenId collisions detected (${summary.count}).${suffix}`);
+  err.code = 'ERR_TOKEN_ID_COLLISION';
+  err.count = summary.count;
+  err.collisions = summary.sample;
+  throw err;
+};
 
 /**
  * Append a processed chunk into global index structures.
@@ -287,6 +326,9 @@ export function appendChunk(
 ) {
   const config = postingsConfig && typeof postingsConfig === 'object' ? postingsConfig : {};
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
+  const tokenIds = Array.isArray(chunk.tokenIds) ? chunk.tokenIds : null;
+  const useTokenIds = tokenIds && tokenIds.length === tokens.length;
+  const tokenKeys = useTokenIds ? tokenIds : tokens;
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
 
   const phraseEnabled = config.enablePhraseNgrams !== false;
@@ -331,7 +373,13 @@ export function appendChunk(
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
       ? chunk.chargrams
       : null;
-    if (chargrams) {
+    const hasHashedChargrams = chargrams
+      && typeof chargrams[0] === 'string'
+      && chargrams[0].startsWith('h64:');
+    const wantsLegacyChargrams = chargrams
+      && hasHashedChargrams
+      && (!chargramMaxTokenLength || Array.isArray(chunk.chargramTokens));
+    if (wantsLegacyChargrams) {
       for (const g of chargrams) {
         if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) break;
         charSet.add(g);
@@ -347,7 +395,8 @@ export function appendChunk(
             chargramMaxN,
             charSet,
             maxChargramsPerChunk,
-            reuseWindow
+            reuseWindow,
+            { maxTokenLength: chargramMaxTokenLength }
           );
           if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) return;
         }
@@ -371,8 +420,20 @@ export function appendChunk(
     }
   }
 
-  const freq = new Map();
-  tokens.forEach((t) => {
+  if (useTokenIds && state.tokenIdMap) {
+    for (let i = 0; i < tokenIds.length; i += 1) {
+      registerTokenIdInvariant({
+        tokenIdMap: state.tokenIdMap,
+        tokenIdCollisions: state.tokenIdCollisions,
+        id: tokenIds[i],
+        token: tokens[i]
+      });
+    }
+  }
+
+  const freq = state.tokenBuffers?.freq || new Map();
+  if (state.tokenBuffers?.freq) freq.clear();
+  tokenKeys.forEach((t) => {
     freq.set(t, (freq.get(t) || 0) + 1);
   });
 
@@ -470,10 +531,12 @@ export function appendChunk(
       }
 
       if (!fieldTokens.length) continue;
-      const fieldFreq = new Map();
-      fieldTokens.forEach((tok) => {
+      const fieldFreq = state.tokenBuffers?.fieldFreq || new Map();
+      if (state.tokenBuffers?.fieldFreq) fieldFreq.clear();
+      for (let i = 0; i < fieldTokens.length; i += 1) {
+        const tok = fieldTokens[i];
         fieldFreq.set(tok, (fieldFreq.get(tok) || 0) + 1);
-      });
+      }
       for (const [tok, count] of fieldFreq.entries()) {
         let postings = state.fieldPostings[field].get(tok);
         if (!postings) {
@@ -482,6 +545,7 @@ export function appendChunk(
         }
         postings.push([chunkId, count]);
       }
+      if (state.tokenBuffers?.fieldFreq) fieldFreq.clear();
     }
   }
   chunk.id = chunkId;
@@ -607,6 +671,9 @@ export function mergeIndexState(target, source) {
   }
   if (source.discoveryHash && !target.discoveryHash) {
     target.discoveryHash = source.discoveryHash;
+  }
+  if (source.fileListHash && !target.fileListHash) {
+    target.fileListHash = source.fileListHash;
   }
   if (Array.isArray(source.scannedFilesTimes)) {
     target.scannedFilesTimes.push(...source.scannedFilesTimes);

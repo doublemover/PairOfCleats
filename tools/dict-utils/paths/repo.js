@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
+import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
@@ -55,15 +56,10 @@ function resolveGitRoot(startPath) {
 }
 
 function findConfigRoot(startPath) {
-  let current = path.resolve(startPath);
-  while (true) {
-    const configPath = path.join(current, '.pairofcleats.json');
-    if (fs.existsSync(configPath)) return current;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return null;
+  return findUpwards(
+    startPath,
+    (candidateDir) => fs.existsSync(path.join(candidateDir, '.pairofcleats.json'))
+  );
 }
 
 /**
@@ -76,10 +72,7 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const repoId = getRepoId(repoRoot);
-  const repoCacheRoot = path.join(cacheRoot, 'repos', repoId);
-  const legacyRoot = path.join(cacheRoot, 'repos', getLegacyRepoId(repoRoot));
-  if (fs.existsSync(legacyRoot) && !fs.existsSync(repoCacheRoot)) return legacyRoot;
-  return repoCacheRoot;
+  return path.join(cacheRoot, 'repos', repoId);
 }
 
 /**

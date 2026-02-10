@@ -1,10 +1,11 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { findUpwards } from '../../shared/fs/find-upwards.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
@@ -34,38 +35,6 @@ const formatDiagnostic = (ts, diagnostic) => {
   return message;
 };
 
-async function loadTypeScript(toolingConfig, repoRoot) {
-  if (toolingConfig?.typescript?.enabled === false) return null;
-  const toolingRoot = toolingConfig?.dir || '';
-  const resolveOrder = Array.isArray(toolingConfig?.typescript?.resolveOrder)
-    ? toolingConfig.typescript.resolveOrder
-    : ['repo', 'cache', 'global'];
-  const lookup = {
-    repo: path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
-    cache: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
-    tooling: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
-  };
-
-  for (const entry of resolveOrder) {
-    const key = String(entry || '').toLowerCase();
-    if (key === 'global') {
-      try {
-        const mod = await import('typescript');
-        return mod?.default || mod;
-      } catch {
-        continue;
-      }
-    }
-    const candidate = lookup[key];
-    if (!candidate || !fsSync.existsSync(candidate)) continue;
-    try {
-      const mod = await import(pathToFileURL(candidate).href);
-      return mod?.default || mod;
-    } catch {}
-  }
-  return null;
-}
-
 const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
   const override = toolingConfig?.typescript?.tsconfigPath;
   if (!override) return null;
@@ -79,31 +48,30 @@ const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
 
 const findNearestConfig = (startDir, repoRoot, cache, useCaseSensitive) => {
   if (!startDir) return null;
-  const rootKey = normalizePathKey(repoRoot || startDir, useCaseSensitive);
-  let current = startDir;
   const visited = [];
-  while (true) {
-    const currentKey = normalizePathKey(current, useCaseSensitive);
-    if (cache.has(currentKey)) {
-      const cached = cache.get(currentKey) || null;
-      for (const key of visited) cache.set(key, cached);
-      return cached;
-    }
-    visited.push(currentKey);
-    for (const filename of CONFIG_FILENAMES) {
-      const candidate = path.join(current, filename);
-      if (fsSync.existsSync(candidate)) {
-        for (const key of visited) cache.set(key, candidate);
-        return candidate;
+  let resolved = null;
+  findUpwards(
+    startDir,
+    (candidateDir) => {
+      const currentKey = normalizePathKey(candidateDir, useCaseSensitive);
+      if (cache.has(currentKey)) {
+        resolved = cache.get(currentKey) || null;
+        return true;
       }
-    }
-    if (currentKey === rootKey) break;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  for (const key of visited) cache.set(key, null);
-  return null;
+      visited.push(currentKey);
+      for (const filename of CONFIG_FILENAMES) {
+        const candidate = path.join(candidateDir, filename);
+        if (fsSync.existsSync(candidate)) {
+          resolved = candidate;
+          return true;
+        }
+      }
+      return false;
+    },
+    repoRoot || startDir
+  );
+  for (const key of visited) cache.set(key, resolved);
+  return resolved;
 };
 
 const parseTsConfig = (ts, configPath, log) => {

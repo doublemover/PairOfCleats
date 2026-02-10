@@ -68,7 +68,8 @@ if (argv.load && exists) {
         const insert = db.prepare(
           `INSERT OR REPLACE INTO ${created.tableName} (rowid, ${created.column}) VALUES (?, ?)`
         );
-        insert.run(1, payload);
+        // sqlite-vec requires an INTEGER rowid; better-sqlite3 binds JS numbers as REAL.
+        insert.run(1n, payload);
         db.prepare(`SELECT rowid FROM ${created.tableName} WHERE rowid = 1`).get();
         smoke.ok = true;
       }

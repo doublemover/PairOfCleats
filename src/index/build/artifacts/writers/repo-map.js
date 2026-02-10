@@ -1,3 +1,5 @@
+import { orderRepoMapEntries } from '../../../../shared/order.js';
+
 export const createRepoMapIterator = ({ chunks, fileRelations }) => {
   const fileExportMap = new Map();
   if (fileRelations && fileRelations.size) {
@@ -7,7 +9,7 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
     }
   }
   return function* repoMapIterator() {
-    const grouped = new Map();
+    const entries = [];
     for (const c of chunks) {
       if (!c?.name) continue;
       const exportsSet = fileExportMap.get(c.file) || null;
@@ -31,21 +33,14 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         endLine: c.endLine,
         exported
       };
+      entries.push(entry);
+    }
+    const orderedEntries = orderRepoMapEntries(entries);
+    let lastDedupeKey = null;
+    for (const entry of orderedEntries) {
       const fileKey = String(entry.file || '');
       const nameKey = String(entry.name || '');
       const kindKey = String(entry.kind || '');
-      const groupKey = `${fileKey}\u0000${nameKey}\u0000${kindKey}`;
-      let group = grouped.get(groupKey);
-      if (!group) {
-        group = {
-          file: fileKey,
-          name: nameKey,
-          kind: kindKey,
-          entries: [],
-          seen: new Set()
-        };
-        grouped.set(groupKey, group);
-      }
       const dedupeKey = [
         fileKey,
         nameKey,
@@ -53,20 +48,9 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
         entry.signature == null ? '' : String(entry.signature),
         Number.isFinite(entry.startLine) ? entry.startLine : ''
       ].join('::');
-      if (group.seen.has(dedupeKey)) continue;
-      group.seen.add(dedupeKey);
-      group.entries.push(entry);
-    }
-    const groups = Array.from(grouped.values());
-    groups.sort((a, b) => {
-      if (a.file !== b.file) return a.file.localeCompare(b.file);
-      if (a.name !== b.name) return a.name.localeCompare(b.name);
-      return a.kind.localeCompare(b.kind);
-    });
-    for (const group of groups) {
-      for (const entry of group.entries) {
-        yield entry;
-      }
+      if (dedupeKey === lastDedupeKey) continue;
+      lastDedupeKey = dedupeKey;
+      yield entry;
     }
   };
 };

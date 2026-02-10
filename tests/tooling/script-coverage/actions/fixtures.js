@@ -9,8 +9,8 @@ export const buildFixtureActions = ({ root, runNode }) => [
   {
     label: 'fixture-smoke',
     run: () => runNode('fixture-smoke', path.join(root, 'tests', 'indexing', 'fixtures', 'build-and-artifacts.test.js')),
-    covers: ['fixture-smoke', 'build-index', 'build-sqlite-index', 'search'],
-    coversTierB: ['build-index', 'build-sqlite-index']
+    covers: ['fixture-smoke', 'build-index', 'search'],
+    coversTierB: ['build-index']
   },
   {
     label: 'fixture-parity',

@@ -4,6 +4,8 @@ This document captures the shared JSON streaming and artifact IO performance wor
 
 ## JSON Streaming Controls
 - `writeJsonLinesFile`, `writeJsonLinesSharded`, `writeJsonArrayFile`, and `writeJsonObjectFile` now accept `highWaterMark`.
+- `writeJsonLinesFile` and `writeJsonLinesFileAsync` accept `maxBytes` to fail fast when a single JSONL row exceeds the budget.
+- Sharded JSONL writers swap the entire parts directory atomically (temp dir → final) to avoid partial outputs.
 - `highWaterMark` is applied to the JSON write stream buffer.
 - `highWaterMark` is applied to compression transforms (gzip/zstd).
 - `highWaterMark` is applied to the byte counter transform.
@@ -28,13 +30,35 @@ Recorded fields for JSON/JSONL reads:
 - `compression`: `null`, `gzip`, or `zstd`
 - `rawBytes`: compressed or on-disk byte size
 - `bytes`: inflated byte size (when available)
+- `rows`: parsed row count when available
 - `durationMs`: total read + parse duration
 
 Telemetry only fires when:
 - an observer is registered, and
 - the read meets or exceeds `thresholdBytes` (default 8 MB).
 
+## Manifest + Meta Hot Cache
+- `pieces/manifest.json` and `*.meta.json` reads use a small stat-keyed in-memory cache to avoid repeated JSON parsing in tight loops.
+- Cache entries are keyed by file path + size + mtime; changes invalidate automatically.
+
+## JSONL Reader Fast Paths
+- JSONL parsing uses a buffer scanner (no readline) to avoid per-line interface overhead.
+- Reader highWaterMark adapts to file size for better throughput on large artifacts.
+- Small JSONL files use a buffer scan fast path to avoid stream overhead.
+- Zstd reads use streaming decompression for large shards; buffer decompression is limited to small files.
+- Sharded JSONL reads support bounded parallelism with deterministic ordering.
+- Validation modes: strict (required keys checked) vs trusted (skip required-key checks for hot paths).
+- Missing shard parts are treated as errors in strict mode (surface missing paths early).
+- Non-strict readers still reject detectably partial shard sequences (gap detection in shard indexes).
+- Packed minhash readers validate sidecar checksums when checksum metadata is present.
+- Streaming row iterators are the default for large JSONL reads; materialized arrays require explicit opt-in.
+- Streaming iterators support backpressure and optional in-flight row caps.
+
 ## Expectations
 - Large JSONL reads stay streaming (line-by-line) for gzip, zstd, and plain files.
 - Large array writes are streaming and avoid building full JSON strings in memory.
 - IO telemetry stays opt-in and low-overhead when disabled.
+
+## Offsets Metadata
+- Offsets sidecars use the unified `u64-le` format with an explicit `version`.
+- Sharded JSONL meta records offsets `format`, `version`, `compression`, and `suffix`.

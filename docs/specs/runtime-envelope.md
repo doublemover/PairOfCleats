@@ -167,6 +167,49 @@ interface RuntimeEnvelopeV1 {
   - `cpu`: `max(16, cpuConcurrency * 4)`
   - `embedding`: `max(16, embeddingConcurrency * 4)`
 
+Embedding batch size auto-tuning is centralized in `src/shared/embedding-batch.js`.
+Stage3 `build-embeddings` uses provider-aware defaults when batch size is not explicitly configured
+(for CPU-only providers like `stub`/`onnx`, batch size is additionally capped by available threads).
+
+## 4.5 Scheduler config (build runtime)
+The build scheduler configuration is resolved alongside the runtime envelope (in `createBuildRuntime`) and stored on the build runtime object. It is **not** part of the RuntimeEnvelope schema.
+
+Runtime fields:
+- `runtime.schedulerConfig` holds the resolved config values.
+- `runtime.scheduler` holds the scheduler instance used for stage wiring and queue adapters.
+
+When the scheduler is enabled (and not in low-resource bypass mode), runtime queues are
+adapter-backed and schedule work via the scheduler token pools instead of PQueue.
+Stage progress reporting includes scheduler stats in its metadata payload.
+
+The `build-embeddings` tool resolves the scheduler configuration using the same
+envelope inputs (argv, config, env) and schedules embedding compute + artifact IO
+via `embeddings.compute` and `embeddings.io` queues. This keeps Stage3 backpressure
+consistent with the rest of the build pipeline.
+
+Stage3 cache writes also use a bounded in-process writer queue to avoid unbounded pending payload retention.
+Writer `maxPending` defaults to a small value derived from IO tokens (capped) and is additionally bounded by
+`indexing.scheduler.queues[embeddings.io].maxPending` when configured.
+
+Config path:
+- `indexing.scheduler.*` (config file)
+
+Env overrides:
+- `PAIROFCLEATS_SCHEDULER`
+- `PAIROFCLEATS_SCHEDULER_CPU`
+- `PAIROFCLEATS_SCHEDULER_IO`
+- `PAIROFCLEATS_SCHEDULER_MEM`
+- `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
+- `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
+
+CLI overrides:
+- `--scheduler` / `--no-scheduler`
+- `--scheduler-cpu`
+- `--scheduler-io`
+- `--scheduler-mem`
+- `--scheduler-low-resource` / `--no-scheduler-low-resource`
+- `--scheduler-starvation`
+
 ## 5) Env patch
 
 `envPatch` is safe to apply to subprocesses using `applyEnvPatch` or `resolveRuntimeEnv`.

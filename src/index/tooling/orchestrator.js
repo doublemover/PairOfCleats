@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { sha1 } from '../../shared/hash.js';
+import { buildLocalCacheKey } from '../../shared/cache-key.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 
@@ -21,13 +22,70 @@ const computeDocumentsKey = (documents) => {
 
 const computeCacheKey = ({ providerId, providerVersion, configHash, documents }) => {
   const docKey = computeDocumentsKey(documents || []);
-  return sha1(`${providerId}|${providerVersion}|${configHash}|${docKey}`);
+  return buildLocalCacheKey({
+    namespace: 'tooling-provider',
+    payload: {
+      providerId,
+      providerVersion,
+      configHash,
+      documents: docKey
+    }
+  }).key;
 };
 
 const ensureCacheDir = async (dir) => {
   if (!dir) return null;
   await fs.mkdir(dir, { recursive: true });
   return dir;
+};
+
+const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => {
+  if (!cacheDir) return { removed: 0, remainingBytes: 0 };
+  const limitBytes = Number.isFinite(maxBytes) ? Math.max(0, Math.floor(maxBytes)) : 0;
+  const limitEntries = Number.isFinite(maxEntries) ? Math.max(0, Math.floor(maxEntries)) : 0;
+  if (!limitBytes && !limitEntries) return { removed: 0, remainingBytes: 0 };
+  let entries;
+  try {
+    entries = await fs.readdir(cacheDir, { withFileTypes: true });
+  } catch {
+    return { removed: 0, remainingBytes: 0 };
+  }
+  const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.json'));
+  const stats = [];
+  for (const entry of files) {
+    const fullPath = path.join(cacheDir, entry.name);
+    try {
+      const stat = await fs.stat(fullPath);
+      stats.push({
+        path: fullPath,
+        size: Number.isFinite(stat.size) ? stat.size : 0,
+        mtimeMs: Number.isFinite(stat.mtimeMs) ? stat.mtimeMs : 0
+      });
+    } catch {}
+  }
+  stats.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  let remainingBytes = stats.reduce((sum, entry) => sum + entry.size, 0);
+  const toRemove = new Set();
+  if (limitEntries && stats.length > limitEntries) {
+    for (const entry of stats.slice(0, stats.length - limitEntries)) {
+      toRemove.add(entry.path);
+      remainingBytes -= entry.size;
+    }
+  }
+  if (limitBytes && remainingBytes > limitBytes) {
+    for (const entry of stats) {
+      if (remainingBytes <= limitBytes) break;
+      if (toRemove.has(entry.path)) continue;
+      toRemove.add(entry.path);
+      remainingBytes -= entry.size;
+    }
+  }
+  for (const target of toRemove) {
+    try {
+      await fs.rm(target, { force: true });
+    } catch {}
+  }
+  return { removed: toRemove.size, remainingBytes: Math.max(0, remainingBytes) };
 };
 
 // Cap param-type growth deterministically to avoid unbounded merges.
@@ -249,7 +307,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       }
       if (cachePath && output) {
         try {
-          await fs.writeFile(cachePath, JSON.stringify(output, null, 2));
+          await atomicWriteJson(cachePath, output, { spaces: 2 });
         } catch {}
       }
     }
@@ -285,6 +343,13 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       sources.add(providerId);
       sourcesByChunkUid.set(chunkUid, sources);
     }
+  }
+
+  if (cacheDir) {
+    await pruneToolingCacheDir(cacheDir, {
+      maxBytes: ctx?.cache?.maxBytes,
+      maxEntries: ctx?.cache?.maxEntries
+    });
   }
 
   return {

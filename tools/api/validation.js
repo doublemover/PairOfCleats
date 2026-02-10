@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 
 const stringListSchema = {
   anyOf: [
@@ -82,8 +82,10 @@ const searchRequestSchema = {
     caseFile: { type: 'boolean' },
     caseTokens: { type: 'boolean' },
     path: stringListSchema,
+    paths: stringListSchema,
     file: stringListSchema,
     ext: stringListSchema,
+    filter: { type: 'string' },
     meta: metaSchema,
     metaJson: {
       type: ['string', 'object', 'array', 'number', 'boolean', 'null']
@@ -102,38 +104,9 @@ const formatValidationErrors = (errors = []) => errors.map((err) => {
   return `${path} ${err.message}`.trim();
 });
 
-/**
- * Normalize meta filters into CLI-friendly key/value strings.
- * @param {any} meta
- * @returns {string[]|null}
- */
-export const normalizeMetaFilters = (meta) => {
-  if (!meta) return null;
-  if (Array.isArray(meta)) {
-    const entries = meta.flatMap((entry) => {
-      if (entry == null) return [];
-      if (typeof entry === 'string') return [entry];
-      if (typeof entry === 'object') {
-        return Object.entries(entry).map(([key, value]) =>
-          value == null || value === '' ? String(key) : `${key}=${value}`
-        );
-      }
-      return [String(entry)];
-    });
-    return entries.length ? entries : null;
-  }
-  if (typeof meta === 'object') {
-    const entries = Object.entries(meta).map(([key, value]) =>
-      value == null || value === '' ? String(key) : `${key}=${value}`
-    );
-    return entries.length ? entries : null;
-  }
-  return [String(meta)];
-};
-
 export const createSearchValidator = () => {
-  const ajv = new Ajv({ allErrors: false, strict: false });
-  const validateSearchRequest = ajv.compile(searchRequestSchema);
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateSearchRequest = compileSchema(ajv, searchRequestSchema);
   return (payload) => {
     const valid = validateSearchRequest(payload);
     if (valid) return { ok: true };

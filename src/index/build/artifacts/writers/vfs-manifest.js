@@ -13,26 +13,25 @@ import {
 import { stringifyJsonValue } from '../../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../../shared/json-stream/streams.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { createBloomFilter, encodeBloomFilter } from '../../../../shared/bloom.js';
+import { mergeSortedRuns, readJsonlRows } from '../../../../shared/merge.js';
 import {
   compareVfsManifestRows,
   trimVfsManifestRow,
   buildVfsHashVirtualPath
 } from '../../../tooling/vfs.js';
 import { isVfsManifestCollector } from '../../vfs-manifest-collector.js';
-import { mergeSortedRuns } from '../helpers.js';
+import { applyByteBudget } from '../../byte-budget.js';
+import {
+  buildShardedPartEntries,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const sortVfsRows = (rows) => rows.sort(compareVfsManifestRows);
 const VFS_INDEX_SCHEMA_VERSION = '1.0.0';
 const VFS_BLOOM_FALSE_POSITIVE = 0.01;
 const VFS_BLOOM_MIN_BITS = 1024;
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
 
 const resolveLineBytes = (value) => {
   const line = stringifyJsonValue(value);
@@ -74,49 +73,6 @@ const measureRows = (rows) => {
 const trimRows = (rows, { log: logFn, stats } = {}) => rows
   .map((row) => trimVfsManifestRow(row, { log: logFn, stats }))
   .filter(Boolean);
-
-const readJsonlRows = async function* (filePath) {
-  const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
-  let lineNumber = 0;
-  let buffer = '';
-  try {
-    for await (const chunk of stream) {
-      buffer += chunk;
-      let newlineIndex = buffer.indexOf('\n');
-      while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        lineNumber += 1;
-        const trimmed = line.trim();
-        if (!trimmed) {
-          newlineIndex = buffer.indexOf('\n');
-          continue;
-        }
-        try {
-          const row = JSON.parse(trimmed);
-          yield row;
-        } catch (err) {
-          const message = err?.message || 'JSON parse error';
-          throw new Error(`Invalid vfs_manifest run JSON at ${filePath}:${lineNumber}: ${message}`);
-        }
-        newlineIndex = buffer.indexOf('\n');
-      }
-    }
-    const trimmed = buffer.trim();
-    if (trimmed) {
-      lineNumber += 1;
-      try {
-        const row = JSON.parse(trimmed);
-        yield row;
-      } catch (err) {
-        const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid vfs_manifest run JSON at ${filePath}:${lineNumber}: ${message}`);
-      }
-    }
-  } finally {
-    if (!stream.destroyed) stream.destroy();
-  }
-};
 
 const createPathMapIterator = (items) => (async function* () {
   for await (const row of items) {
@@ -195,7 +151,8 @@ const writeVfsIndexForJsonl = async ({
 
 const mergeVfsRuns = (runs) => mergeSortedRuns(runs, {
   compare: compareVfsManifestRows,
-  readRun: readJsonlRows
+  readRun: readJsonlRows,
+  validateComparator: true
 });
 
 const writeJsonLinesFileAsync = async (filePath, items, options = {}) => {
@@ -387,12 +344,14 @@ export const enqueueVfsManifestArtifacts = async ({
   mode,
   rows,
   maxJsonBytes = MAX_JSON_BYTES,
+  byteBudget = null,
   compression = null,
   gzipOptions = null,
   hashRouting = false,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints
 }) => {
   const resolved = await resolveRowsInput({ rows, log });
   const measurement = resolved.measurement;
@@ -416,39 +375,55 @@ export const enqueueVfsManifestArtifacts = async ({
     await resolved.cleanup();
     throw new Error(`vfs_manifest row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
+  applyByteBudget({
+    budget: byteBudget,
+    totalBytes: measurement.totalBytes,
+    label: 'vfs_manifest',
+    stageCheckpoints,
+    logger: log
+  });
   const useShards = maxJsonBytes && measurement.totalBytes > maxJsonBytes;
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `vfs_manifest.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
   const writeIndex = compression == null;
+  const cleanupTargets = new Set();
+  const planCleanup = (targetPath) => {
+    if (targetPath) cleanupTargets.add(targetPath);
+  };
   const removeArtifact = async (targetPath) => {
     try { await fsPromises.rm(targetPath, { recursive: true, force: true }); } catch {}
   };
+  const cleanupObsoleteArtifacts = async () => {
+    for (const targetPath of cleanupTargets) {
+      await removeArtifact(targetPath);
+    }
+  };
   if (!writePathMap) {
-    await removeArtifact(path.join(outDir, 'vfs_path_map.jsonl'));
-    await removeArtifact(path.join(outDir, 'vfs_path_map.meta.json'));
-    await removeArtifact(path.join(outDir, 'vfs_path_map.parts'));
+    planCleanup(path.join(outDir, 'vfs_path_map.jsonl'));
+    planCleanup(path.join(outDir, 'vfs_path_map.meta.json'));
+    planCleanup(path.join(outDir, 'vfs_path_map.parts'));
   }
   if (useShards) {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.jsonl.zst'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl.gz'));
+    planCleanup(path.join(outDir, 'vfs_manifest.jsonl.zst'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsidx'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
     if (writePathMap) {
-      await removeArtifact(path.join(outDir, 'vfs_path_map.jsonl'));
+      planCleanup(path.join(outDir, 'vfs_path_map.jsonl'));
     }
   } else {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.meta.json'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.parts'));
+    planCleanup(path.join(outDir, 'vfs_manifest.meta.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.parts'));
     if (writePathMap) {
-      await removeArtifact(path.join(outDir, 'vfs_path_map.meta.json'));
-      await removeArtifact(path.join(outDir, 'vfs_path_map.parts'));
+      planCleanup(path.join(outDir, 'vfs_path_map.meta.json'));
+      planCleanup(path.join(outDir, 'vfs_path_map.parts'));
     }
   }
   if (!writeIndex) {
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsidx'));
-    await removeArtifact(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsidx'));
+    planCleanup(path.join(outDir, 'vfs_manifest.vfsbloom.json'));
   }
   await ensureDiskSpace({
     targetPath: outDir,
@@ -485,26 +460,13 @@ export const enqueueVfsManifestArtifacts = async ({
               compression,
               gzipOptions
             });
-          const parts = result.parts.map((part, index) => ({
-            path: part,
-            records: result.counts[index] || 0,
-            bytes: result.bytes[index] || 0
-          }));
-          await writeJsonObjectFile(metaPath, {
-            fields: {
-              schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-              artifact: 'vfs_manifest',
-              format: 'jsonl-sharded',
-              generatedAt: new Date().toISOString(),
-              compression: compression || 'none',
-              totalRecords: result.total,
-              totalBytes: result.totalBytes,
-              maxPartRecords: result.maxPartRecords,
-              maxPartBytes: result.maxPartBytes,
-              targetMaxBytes: result.targetMaxBytes,
-              parts
-            },
-            atomic: true
+          const parts = buildShardedPartEntries(result);
+          await writeShardedJsonlMeta({
+            metaPath,
+            artifact: 'vfs_manifest',
+            compression,
+            result,
+            parts
           });
           for (let i = 0; i < result.parts.length; i += 1) {
             const relPath = result.parts[i];
@@ -541,26 +503,13 @@ export const enqueueVfsManifestArtifacts = async ({
                 atomic: true,
                 compression: null
               });
-            const mapParts = mapResult.parts.map((part, index) => ({
-              path: part,
-              records: mapResult.counts[index] || 0,
-              bytes: mapResult.bytes[index] || 0
-            }));
-            await writeJsonObjectFile(mapMetaPath, {
-              fields: {
-                schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-                artifact: 'vfs_path_map',
-                format: 'jsonl-sharded',
-                generatedAt: new Date().toISOString(),
-                compression: 'none',
-                totalRecords: mapResult.total,
-                totalBytes: mapResult.totalBytes,
-                maxPartRecords: mapResult.maxPartRecords,
-                maxPartBytes: mapResult.maxPartBytes,
-                targetMaxBytes: mapResult.targetMaxBytes,
-                parts: mapParts
-              },
-              atomic: true
+            const mapParts = buildShardedPartEntries(mapResult);
+            await writeShardedJsonlMeta({
+              metaPath: mapMetaPath,
+              artifact: 'vfs_path_map',
+              compression: null,
+              result: mapResult,
+              parts: mapParts
             });
             for (let i = 0; i < mapResult.parts.length; i += 1) {
               const relPath = mapResult.parts[i];
@@ -602,6 +551,7 @@ export const enqueueVfsManifestArtifacts = async ({
               }, bloomPath);
             }
           }
+          await cleanupObsoleteArtifacts();
         } finally {
           await resolved.cleanup();
         }
@@ -669,6 +619,7 @@ export const enqueueVfsManifestArtifacts = async ({
             count: totalRecords
           }, bloomPath);
         }
+        await cleanupObsoleteArtifacts();
       } finally {
         await resolved.cleanup();
       }

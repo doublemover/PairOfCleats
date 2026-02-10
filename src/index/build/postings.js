@@ -1,9 +1,17 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { quantizeVec } from '../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../shared/embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { isVectorLike } from '../../shared/embedding-utils.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
-import { createRowSpillCollector, mergeSortedRuns } from './artifacts/helpers.js';
+import { createRowSpillCollector } from './artifacts/helpers.js';
+import {
+  DEFAULT_MAX_OPEN_RUNS,
+  mergeRunsWithPlanner,
+  mergeSortedRuns,
+  readJsonlRows
+} from '../../shared/merge.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -45,6 +53,7 @@ export async function buildPostings(input) {
     chunks,
     df,
     tokenPostings,
+    tokenIdMap,
     docLengths,
     fieldPostings,
     fieldDocLengths,
@@ -128,6 +137,7 @@ export async function buildPostings(input) {
       chargramVocab: [],
       chargramPostings: [],
       tokenVocab: [],
+      tokenVocabIds: [],
       tokenPostingsList: [],
       avgDocLen: 0,
       minhashSigs: [],
@@ -185,7 +195,47 @@ export async function buildPostings(input) {
     sorted.sort((a, b) => a - b);
     return sorted;
   };
+  const postingsMergeStats = {
+    phrase: null,
+    chargram: null
+  };
   const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  const mergeSpillRuns = async ({ runs, compare, label }) => {
+    if (!runs || !runs.length) return { iterator: null, cleanup: null };
+    if (!buildRoot || runs.length <= DEFAULT_MAX_OPEN_RUNS) {
+      return {
+        iterator: mergeSortedRuns(runs, { compare, validateComparator: true }),
+        cleanup: null,
+        stats: null,
+        plannerUsed: false
+      };
+    }
+    const mergeDir = path.join(buildRoot, `${label}.merge`);
+    const mergedPath = path.join(mergeDir, `${label}.merged.jsonl`);
+    const checkpointPath = path.join(mergeDir, `${label}.checkpoint.json`);
+    const { cleanup, stats } = await mergeRunsWithPlanner({
+      runs,
+      outputPath: mergedPath,
+      compare,
+      tempDir: mergeDir,
+      runPrefix: label,
+      checkpointPath,
+      maxOpenRuns: DEFAULT_MAX_OPEN_RUNS,
+      validateComparator: true
+    });
+    const cleanupAll = async () => {
+      if (cleanup) await cleanup();
+      await fs.rm(mergedPath, { force: true });
+      await fs.rm(checkpointPath, { force: true });
+      await fs.rm(mergeDir, { recursive: true, force: true });
+    };
+    return {
+      iterator: readJsonlRows(mergedPath),
+      cleanup: cleanupAll,
+      stats: stats || null,
+      plannerUsed: true
+    };
+  };
   const shouldSpillByBytes = (map, maxBytes) => {
     if (!maxBytes || !map || typeof map.entries !== 'function') return false;
     let total = 0;
@@ -429,7 +479,9 @@ export async function buildPostings(input) {
     }
   } else {
     const stageLabel = buildStage ? ` (${buildStage})` : '';
-    log(`Embeddings disabled${stageLabel}; skipping dense vector build.`);
+    if (typeof log === 'function') {
+      log(`Embeddings disabled${stageLabel}; skipping dense vector build.`);
+    }
   }
 
   // Convert phrase/chargram postings into dense arrays while aggressively
@@ -459,8 +511,11 @@ export async function buildPostings(input) {
       const collected = await collector.finalize();
       const rows = collected?.rows || null;
       const runs = collected?.runs || null;
+      const mergeResult = runs
+        ? await mergeSpillRuns({ runs, compare: compareChargramRows, label: 'phrase_postings' })
+        : null;
       const items = runs
-        ? mergeSortedRuns(runs, { compare: compareChargramRows })
+        ? mergeResult?.iterator
         : rows;
       const vocab = [];
       const postingsList = [];
@@ -469,9 +524,19 @@ export async function buildPostings(input) {
       if (items) {
         const iterator = runs ? items : items[Symbol.iterator]();
         if (runs) {
+          postingsMergeStats.phrase = {
+            runs: runs.length,
+            rows: 0,
+            bytes: mergeResult?.stats?.bytes ?? null,
+            planner: mergeResult?.plannerUsed || false,
+            passes: mergeResult?.stats?.passes ?? null,
+            runsMerged: mergeResult?.stats?.runsMerged ?? null,
+            elapsedMs: mergeResult?.stats?.elapsedMs ?? null
+          };
           for await (const row of iterator) {
             const token = row?.token;
             if (!token) continue;
+            postingsMergeStats.phrase.rows += 1;
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
@@ -521,6 +586,7 @@ export async function buildPostings(input) {
       }
       phraseVocab = vocab;
       phrasePostings = postingsList;
+      if (mergeResult?.cleanup) await mergeResult.cleanup();
       if (collected?.cleanup) await collected.cleanup();
     } else {
       const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
@@ -566,8 +632,11 @@ export async function buildPostings(input) {
       const rows = collected?.rows || null;
       const runs = collected?.runs || null;
       const stats = collected?.stats || null;
+      const mergeResult = runs
+        ? await mergeSpillRuns({ runs, compare: compareChargramRows, label: 'chargram_postings' })
+        : null;
       const items = runs
-        ? mergeSortedRuns(runs, { compare: compareChargramRows })
+        ? mergeResult?.iterator
         : rows;
       const vocab = [];
       const postingsList = [];
@@ -576,9 +645,19 @@ export async function buildPostings(input) {
       if (items) {
         const iterator = runs ? items : items[Symbol.iterator]();
         if (runs) {
+          postingsMergeStats.chargram = {
+            runs: runs.length,
+            rows: 0,
+            bytes: mergeResult?.stats?.bytes ?? null,
+            planner: mergeResult?.plannerUsed || false,
+            passes: mergeResult?.stats?.passes ?? null,
+            runsMerged: mergeResult?.stats?.runsMerged ?? null,
+            elapsedMs: mergeResult?.stats?.elapsedMs ?? null
+          };
           for await (const row of iterator) {
             const token = row?.token;
             if (!token) continue;
+            postingsMergeStats.chargram.rows += 1;
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
@@ -628,6 +707,7 @@ export async function buildPostings(input) {
       }
       chargramVocab = vocab;
       chargramPostings = postingsList;
+      if (mergeResult?.cleanup) await mergeResult.cleanup();
       if (collected?.cleanup) await collected.cleanup();
       const guard = postingsGuard?.chargram || null;
       const guardStats = guard
@@ -667,12 +747,23 @@ export async function buildPostings(input) {
     }
   }
 
-  const tokenVocab = Array.from(tokenPostings.keys()).sort(sortStrings);
-  const tokenPostingsList = new Array(tokenVocab.length);
-  for (let i = 0; i < tokenVocab.length; i += 1) {
-    const token = tokenVocab[i];
-    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(token));
-    tokenPostings.delete(token);
+  let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
+  const tokenEntries = Array.from(tokenPostings.keys()).map((id) => {
+    const mapped = tokenIdMap?.get(id);
+    if (!mapped) includeTokenIds = false;
+    const token = mapped ?? (typeof id === 'string' ? id : String(id));
+    return { id, token };
+  });
+  tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
+  const tokenVocab = new Array(tokenEntries.length);
+  const tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
+  const tokenPostingsList = new Array(tokenEntries.length);
+  for (let i = 0; i < tokenEntries.length; i += 1) {
+    const entry = tokenEntries[i];
+    tokenVocab[i] = entry.token;
+    if (tokenVocabIds) tokenVocabIds[i] = entry.id;
+    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
+    tokenPostings.delete(entry.id);
   }
   if (typeof tokenPostings.clear === 'function') tokenPostings.clear();
   const avgDocLen = normalizedDocLengths.length
@@ -755,6 +846,7 @@ export async function buildPostings(input) {
     chargramPostings,
     chargramStats,
     tokenVocab,
+    tokenVocabIds,
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
@@ -763,6 +855,7 @@ export async function buildPostings(input) {
     dims,
     quantizedVectors,
     quantizedDocVectors,
-    quantizedCodeVectors
+    quantizedCodeVectors,
+    postingsMergeStats
   };
 }
