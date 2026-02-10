@@ -1,7 +1,7 @@
 # Spec -- USR Language Profile Catalog
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 ## 0. Purpose and scope
 
@@ -150,9 +150,39 @@ Language profile changes are contract changes:
 - Required capability/conformance changes are Tier 3
 - Any parser preference downgrade MUST include migration note and conformance impact statement
 
-## 8. References
+## 8. Per-language child contract requirements
+
+Every file in `docs/specs/usr/languages/<language-id>.md` MUST define:
+
+- explicit required node-kind set for that language
+- explicit required edge-kind set for that language
+- explicit capability baseline map
+- parser fallback sequence and downgrade behavior
+- language-specific edge-case fixture families
+- language-specific risk taxonomy expectations (when C3 applies)
+
+Child contracts MUST NOT conflict with this catalog. Conflicts are Tier 3 blockers.
+
+## 9. Machine-readable validation contract
+
+`tests/lang/matrix/usr-language-profiles.json` MUST validate the following additional constraints:
+
+- `id` values are unique and lexically sorted
+- `frameworkProfiles` entries are unique and sorted
+- `requiredConformance` entries are unique and sorted in canonical order (`C0,C1,C2,C3,C4`)
+- `fallbackChain` starts with the preferred parser strategy or a justified equivalent
+- every language ID in the registry has exactly one row
+
+Recommended report outputs:
+
+- `usr-language-profile-coverage.json`
+- `usr-language-profile-drift.json`
+- `usr-language-profile-capability-gaps.json`
+
+## 10. References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-resolution-and-linking-contract.md`
+

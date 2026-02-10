@@ -1,7 +1,7 @@
 # USR Language Contracts Index
 
 Status: Draft v0.1
-Last updated: 2026-02-10T03:00:00Z
+Last updated: 2026-02-10T04:00:00Z
 
 This index lists per-language USR contract documents.
 
@@ -12,6 +12,14 @@ Parent contracts:
 - docs/specs/usr-resolution-and-linking-contract.md
 - docs/specs/usr-language-risk-contract.md
 - docs/specs/usr-conformance-and-fixture-contract.md
+
+Template requirements for each language file:
+
+- section 1 profile baseline with parser/conformance/fallback
+- explicit node and edge coverage requirements
+- capability baseline expectations
+- language-specific edge-case focus
+- resolution, risk, and fixture expectations
 
 ## Languages
 - docs/specs/usr/languages/javascript.md
@@ -48,3 +56,4 @@ Parent contracts:
 - docs/specs/usr/languages/makefile.md
 - docs/specs/usr/languages/dockerfile.md
 - docs/specs/usr/languages/graphql.md
+
