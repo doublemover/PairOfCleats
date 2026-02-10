@@ -1,7 +1,7 @@
 # Spec -- USR Registry Schema and Serialization Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T08:15:00Z
+Status: Draft v0.2
+Last updated: 2026-02-10T08:35:00Z
 
 ## 0. Purpose and scope
 
@@ -27,6 +27,10 @@ Implementations MUST maintain and validate all files below:
 - `usr-embedding-bridge-cases.json`
 - `usr-generated-provenance-cases.json`
 - `usr-parser-runtime-lock.json`
+- `usr-slo-budgets.json`
+- `usr-alert-policies.json`
+- `usr-redaction-rules.json`
+- `usr-security-gates.json`
 
 ## 2. Canonical wrappers and metadata
 
@@ -87,6 +91,61 @@ type USRParserRuntimeLockRowV1 = {
 };
 ```
 
+### 3.4 `usr-slo-budgets.json`
+
+```ts
+type USRSLOBudgetRowV1 = {
+  laneId: string;
+  profileScope: "global" | "batch" | "language" | "framework";
+  scopeId: string;
+  maxDurationMs: number;
+  maxMemoryMb: number;
+  maxParserTimePerSegmentMs: number;
+  maxUnknownKindRate: number;
+  maxUnresolvedRate: number;
+  blocking: boolean;
+};
+```
+
+### 3.5 `usr-alert-policies.json`
+
+```ts
+type USRAlertPolicyRowV1 = {
+  id: string;
+  metric: string;
+  threshold: number;
+  comparator: ">" | ">=" | "<" | "<=";
+  window: "run" | "24h" | "7d";
+  severity: "warning" | "critical";
+  escalationPolicyId: string;
+  blocking: boolean;
+};
+```
+
+### 3.6 `usr-redaction-rules.json`
+
+```ts
+type USRRedactionRuleRowV1 = {
+  id: string;
+  class: string;
+  replacement: string;
+  appliesTo: string[];
+  blocking: boolean;
+};
+```
+
+### 3.7 `usr-security-gates.json`
+
+```ts
+type USRSecurityGateRowV1 = {
+  id: string;
+  check: string;
+  scope: "parser" | "path" | "serialization" | "reporting" | "runtime";
+  enforcement: "strict" | "warn";
+  blocking: boolean;
+};
+```
+
 ## 4. Canonical ordering policy
 
 Sorting MUST be stable and deterministic.
@@ -113,6 +172,8 @@ The following MUST hold:
 - framework IDs referenced by language/framework registries MUST exist in framework registry.
 - parser/runtime lock rows MUST cover all parser sources used by language/framework profiles.
 - case IDs referenced by framework/risk/bridge/provenance contracts MUST resolve to existing matrix rows.
+- SLO/alert policy matrices MUST cover all required lanes and blocking gate scopes.
+- security gate and redaction matrices MUST cover required security control classes.
 
 ## 6. Strict validation behavior
 
@@ -137,3 +198,5 @@ Required validation outputs:
 - `docs/specs/usr-framework-profile-catalog.md`
 - `docs/specs/usr-normalization-mapping-contract.md`
 - `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-observability-and-slo-contract.md`
+- `docs/specs/usr-security-and-data-governance-contract.md`
