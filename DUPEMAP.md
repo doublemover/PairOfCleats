@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:00:25.3721126-05:00
+Last updated: 2026-02-09T21:00:47.8310798-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -69,7 +69,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
 | D7 | [ ] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
-| F0 | [ ] | Findings phase mapping + ownership (no new audit tooling) |
+| F0 | [@] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [ ] | Build/runtime lifecycle correctness remediation |
 | F2 | [ ] | Language/chunking/import correctness remediation |
 | F3 | [ ] | Artifact/storage I/O correctness + crash-safety |
@@ -312,9 +312,14 @@ Touchpoints:
 - phase status notes in roadmap updates
 
 Subphase F0.1 — Findings mapping baseline:
-- [ ] Ensure all findings families are mapped to phases in `DUPEMAP.md`.
-- [ ] Ensure each mapped finding family has explicit touchpoints and tests.
-- [ ] Keep consistent finding ID references (`A-*`, ..., `P5-*`) in planning notes.
+- [x] Ensure all findings families are mapped to phases in `DUPEMAP.md`.
+- [x] Ensure each mapped finding family has explicit touchpoints and tests.
+- [x] Keep consistent finding ID references (`A-*`, ..., `P5-*`) in planning notes.
+
+F0.1 mapping confirmation:
+- Findings families `A`..`O`, addendum (`2A/2B/2C`), and `P5-*` are mapped in `Findings-to-phase coverage matrix`.
+- Path-level `P5-*` ownership is mapped in `Part 5 src/** finding integration map`.
+- Phase-level tests are anchored in each phase section (`F1`..`F9`) and in D/F coupling checkpoints.
 
 Subphase F0.2 — Ownership and closure criteria:
 - [ ] Assign owner responsibility by phase (not by separate tooling artifact).
