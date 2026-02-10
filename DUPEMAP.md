@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T04:12:21.1889601-05:00
+Last updated: 2026-02-10T05:51:01.7514959-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -288,6 +288,7 @@ Performance refinement evidence update (2026-02-10T03:31:25-05:00):
 - P4 I/O amplification controls use streaming/coalesced artifact paths (validated by existing streaming artifact perf contracts), early max-byte enforcement plus read metrics in `src/shared/artifact-io/offsets.js` and `tests/shared/jsonl/read-row-max-bytes-enforced.test.js`, and write-byte accounting in `tools/service/subprocess-log.js` and `tests/tooling/logging/output-byte-accounting.test.js`.
 - P3/P4 follow-up (2026-02-10T04:06:37.6084824-05:00): batched stage3 embeddings execution in `src/integrations/core/build-index/stages.js` now collapses per-mode subprocess launches into a single `--mode all` invocation when modes share one build root. Measured against recent file-caps index logs (`.testLogs/run-1770676140923-r1dj8d/indexing_file-caps_file-size-guard.attempt-1.log` at 29s baseline), the post-change verification run of `tests/indexing/file-caps/file-size-guard.test.js` completed in 25s.
 - P3/P4 follow-up (2026-02-10T04:12:21.1889601-05:00): `tools/build/embeddings/runner.js` now skips expensive `validateIndexArtifacts` calls for zero-chunk modes, preserving validation for non-empty modes. Against recent baseline logs (`.testLogs/run-1770713620356-arfuvr/indexing_file-caps_file-size-guard.attempt-1.log` and `.testLogs/run-1770713620356-arfuvr/indexing_map_code-map-basic.attempt-1.log`, both 29s), targeted TTY reruns of `tests/indexing/file-caps/file-size-guard.test.js` and `tests/indexing/map/code-map-basic.test.js` each completed in 25s.
+- P1/P2 follow-up (2026-02-10T05:51:01.7514959-05:00): removed parse5 from the HTML import pre-scan hot path by switching `collectHtmlImports` in `src/lang/html.js` to linear tag/attribute scanning, and added Swift no-import/no-declaration guards in `src/lang/swift.js` to skip split-line and declaration regex scans when hints are absent. Bench evidence in `docs/worklogs/indexing-hotpath-bench-2026-02-10.json` on `benchmarks/repos/swift/alamofire__alamofire/docs/Classes.html` (104,354 bytes) and a 441KB no-import Swift payload: HTML import scan improved from 14.548ms to 0.133ms per iteration (109.38x), Swift import collection improved from 2.798ms to 0.122ms per iteration (22.93x), and Swift relation scan improved from 2.23ms to 1.93ms per iteration (1.16x).
 
 ### Phase F0 — Findings manifest and ownership
 

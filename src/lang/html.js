@@ -228,6 +228,12 @@ const SCRIPT_TYPE_ALIASES = new Map([
   ['module', 'javascript']
 ]);
 
+const HTML_IMPORT_TAG_HINT = /<(?:script|link)\b/i;
+const HTML_IMPORT_ATTR_HINT = /\b(?:src|href)\s*=/i;
+const HTML_IMPORT_COMMENT = /<!--[\s\S]*?-->/g;
+const HTML_IMPORT_TAG = /<(script|link)\b[^>]*>/gi;
+const HTML_IMPORT_ATTR = /\b([A-Za-z_:][A-Za-z0-9_:\-\.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/g;
+
 function extractTagSignature(text, start, end) {
   const limit = Math.min(end, start + 400);
   const slice = text.slice(start, limit);
@@ -303,8 +309,37 @@ export function getHtmlMetadata(text) {
   return extractHtmlMetadata(text);
 }
 
+function collectHtmlImportsFast(text) {
+  if (!text || !HTML_IMPORT_TAG_HINT.test(text) || !HTML_IMPORT_ATTR_HINT.test(text)) return [];
+  const source = text.includes('<!--')
+    ? text.replace(HTML_IMPORT_COMMENT, ' ')
+    : text;
+  const imports = new Set();
+  HTML_IMPORT_TAG.lastIndex = 0;
+  let tagMatch = HTML_IMPORT_TAG.exec(source);
+  while (tagMatch) {
+    const tag = String(tagMatch[1] || '').toLowerCase();
+    const wantedAttr = tag === 'script' ? 'src' : 'href';
+    const fragment = tagMatch[0];
+    HTML_IMPORT_ATTR.lastIndex = 0;
+    let attrMatch = HTML_IMPORT_ATTR.exec(fragment);
+    while (attrMatch) {
+      const attr = String(attrMatch[1] || '').toLowerCase();
+      if (attr === wantedAttr) {
+        const raw = attrMatch[2] || attrMatch[3] || attrMatch[4] || '';
+        const value = raw.trim();
+        if (value) imports.add(value);
+        break;
+      }
+      attrMatch = HTML_IMPORT_ATTR.exec(fragment);
+    }
+    tagMatch = HTML_IMPORT_TAG.exec(source);
+  }
+  return Array.from(imports);
+}
+
 export function collectHtmlImports(text) {
-  return extractHtmlMetadata(text).imports;
+  return collectHtmlImportsFast(text);
 }
 
 function normalizeLang(raw) {

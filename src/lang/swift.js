@@ -112,6 +112,8 @@ const SWIFT_KIND_MAP = {
   extension: 'ExtensionDeclaration',
   actor: 'ActorDeclaration'
 };
+const SWIFT_IMPORT_HINT = /\bimport\b/;
+const SWIFT_DECL_HINT = /\b(?:class|struct|enum|protocol|extension|actor|func)\b/;
 
 function normalizeSwiftName(raw) {
   if (!raw) return '';
@@ -461,6 +463,9 @@ export function buildSwiftChunks(text, options = {}) {
  * @returns {{imports:string[],usages:string[]}}
  */
 export function collectSwiftImports(text) {
+  if (!text || !SWIFT_IMPORT_HINT.test(text)) {
+    return { imports: [], usages: [] };
+  }
   const imports = new Set();
   const usages = new Set();
   const lines = text.split('\n');
@@ -483,6 +488,14 @@ export function collectSwiftImports(text) {
  */
 export function buildSwiftRelations(text) {
   const { imports, usages } = collectSwiftImports(text);
+  if (!text || !SWIFT_DECL_HINT.test(text)) {
+    return {
+      imports,
+      exports: [],
+      calls: [],
+      usages
+    };
+  }
   const exports = new Set();
   const declRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
   for (const match of text.matchAll(declRe)) {
