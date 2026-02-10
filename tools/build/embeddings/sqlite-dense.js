@@ -6,6 +6,7 @@ import {
   getVectorExtensionConfig,
   hasVectorTable,
   loadVectorExtension,
+  resolveVectorIngestEncoding,
   resolveVectorExtensionConfigForMode
 } from '../../sqlite/vector-extension.js';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
@@ -192,6 +193,7 @@ export const updateSqliteDense = ({
       'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     const resolvedQuantization = resolveQuantizationParams(quantization);
+    const ingestEncoding = resolveVectorIngestEncoding(vectorExtension, { preferQuantized: true });
     const vectorRows = Array.isArray(vectors) ? vectors : [];
     const toComparableBuffer = (value) => {
       if (Buffer.isBuffer(value)) return value;
@@ -202,13 +204,15 @@ export const updateSqliteDense = ({
     };
     const upsertVectorAnnRow = (docId, vec) => {
       if (!vectorAnnReady || !insertVectorAnn) return;
-      const floatVec = dequantizeUint8ToFloat32(
-        vec,
-        resolvedQuantization.minVal,
-        resolvedQuantization.maxVal,
-        resolvedQuantization.levels
-      );
-      const encoded = encodeVector(floatVec, vectorExtension);
+      const vectorInput = ingestEncoding === 'quantized'
+        ? vec
+        : dequantizeUint8ToFloat32(
+          vec,
+          resolvedQuantization.minVal,
+          resolvedQuantization.maxVal,
+          resolvedQuantization.levels
+        );
+      const encoded = encodeVector(vectorInput, vectorExtension);
       if (encoded) {
         insertVectorAnn.run(toSqliteRowId(docId), encoded);
       }
@@ -295,6 +299,7 @@ export const updateSqliteDense = ({
       skipped: false,
       count: vectors.length,
       vectorAnn: vectorAnnState,
+      ingestEncoding,
       pragmas: pragmaState?.applied || null
     };
   } finally {

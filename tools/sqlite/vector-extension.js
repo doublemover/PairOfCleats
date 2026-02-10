@@ -12,6 +12,7 @@ const DEFAULT_MODULE = 'vec0';
 const DEFAULT_TABLE = 'dense_vectors_ann';
 const DEFAULT_COLUMN = 'embedding';
 const DEFAULT_ENCODING = 'float32';
+const DEFAULT_INGEST_ENCODING = 'auto';
 const SQLITE_IN_LIMIT = 900;
 const SQLITE_TEMP_INSERT_BATCH = 512;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -22,7 +23,11 @@ const PROVIDERS = {
     module: 'vec0',
     table: DEFAULT_TABLE,
     column: DEFAULT_COLUMN,
-    encoding: DEFAULT_ENCODING
+    encoding: DEFAULT_ENCODING,
+    ingestEncoding: DEFAULT_INGEST_ENCODING,
+    capabilities: {
+      quantizedIngest: false
+    }
   }
 };
 
@@ -44,6 +49,15 @@ function isSafeIdentifier(value) {
 
 function normalizeOptionValue(value) {
   return toPosix(String(value || '')).trim();
+}
+
+function normalizeIngestEncoding(value) {
+  if (typeof value !== 'string') return DEFAULT_INGEST_ENCODING;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'auto' || normalized === 'float32' || normalized === 'quantized') {
+    return normalized;
+  }
+  return DEFAULT_INGEST_ENCODING;
 }
 
 function parseVectorOptions(raw) {
@@ -150,9 +164,13 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const platformKey = getPlatformKey(platform, arch);
   const moduleName = merged.module || providerDefaults.module || DEFAULT_MODULE;
   const encoding = merged.encoding || providerDefaults.encoding || DEFAULT_ENCODING;
+  const ingestEncoding = normalizeIngestEncoding(
+    merged.ingestEncoding || providerDefaults.ingestEncoding || DEFAULT_INGEST_ENCODING
+  );
   const table = merged.table || providerDefaults.table || DEFAULT_TABLE;
   const column = merged.column || providerDefaults.column || DEFAULT_COLUMN;
   const options = merged.options || providerDefaults.options || '';
+  const capabilities = providerDefaults.capabilities || {};
 
   const dir = merged.dir
     ? resolvePath(repoRoot, merged.dir)
@@ -173,9 +191,13 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
     provider,
     module: moduleName,
     encoding,
+    ingestEncoding,
     table,
     column,
     options,
+    capabilities: {
+      quantizedIngest: capabilities.quantizedIngest === true
+    },
     dir,
     filename,
     path: pathOverride,
@@ -236,11 +258,24 @@ const getLoadCacheKey = (config) => {
       table: config?.table || null,
       column: config?.column || null,
       encoding: config?.encoding || null,
+      ingestEncoding: config?.ingestEncoding || null,
       options: config?.options || null,
       extPath
     }
   }).key;
 };
+
+export function supportsQuantizedIngest(config) {
+  return config?.capabilities?.quantizedIngest === true;
+}
+
+export function resolveVectorIngestEncoding(config, { preferQuantized = true } = {}) {
+  if (!preferQuantized) return 'float32';
+  const requested = normalizeIngestEncoding(config?.ingestEncoding);
+  if (requested === 'float32') return 'float32';
+  if (!supportsQuantizedIngest(config)) return 'float32';
+  return requested === 'quantized' || requested === 'auto' ? 'quantized' : 'float32';
+}
 
 /**
  * Load the vector extension into a SQLite connection (cached per db).

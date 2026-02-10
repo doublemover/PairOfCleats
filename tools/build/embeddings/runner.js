@@ -1312,6 +1312,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               table: vectorAnn.table,
               embeddingColumn: vectorAnn.column || null,
               idColumn: vectorAnn.idColumn || 'rowid',
+              ingestEncoding: sqliteResult?.ingestEncoding || 'float32',
               scale: denseScale,
               minVal: quantization.minVal,
               maxVal: quantization.maxVal,

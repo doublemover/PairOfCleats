@@ -428,7 +428,7 @@ Implementation policy for Sweep 3:
 - Rollout: `embeddings.binaryDenseVectors=true`; dual-read with current JSON artifacts.
 - Target: materially lower vector load time and startup RSS.
 
-14. Area: Quantized sqlite-vec ingestion path
+14. [x] Area: Quantized sqlite-vec ingestion path
 - Files: `tools/sqlite/vector-extension.js`, `tools/build/embeddings/sqlite-dense.js`, `src/storage/sqlite/quantization.js`
 - Decision: Ingest quantized data directly when backend capability advertises support; fallback to float32 path.
 - Rollout: `sqliteVec.ingestEncoding=auto`; strict capability gating.
