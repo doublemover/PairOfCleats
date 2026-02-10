@@ -73,7 +73,8 @@ export function createFileProcessor(options) {
     toolInfo = null,
     tokenizationStats = null,
     featureMetrics = null,
-    buildStage = null
+    buildStage = null,
+    abortSignal = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
@@ -96,7 +97,8 @@ export function createFileProcessor(options) {
   );
   const resolvedLanguageOptions = {
     skipUnknownLanguages: true,
-    ...(languageOptions || {})
+    ...(languageOptions || {}),
+    abortSignal
   };
   const { astDataflowEnabled, controlFlowEnabled } = resolvedLanguageOptions;
   const ioQueue = queues?.io || null;

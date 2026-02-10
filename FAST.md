@@ -43,13 +43,13 @@ Format:
 - Impact: Lower memory churn and parsing CPU.
 - Risk: Keep line-number semantics stable.
 
-6. Area: Duplicate tree-sitter work
+6. [x] Area: Duplicate tree-sitter work
 - Files: `src/index/language-registry/registry-data.js`, `src/index/build/file-processor/cpu.js`
 - Opportunity: Prevent duplicate parse/chunk work between language prepare paths and scheduler paths.
 - Impact: Material CPU reduction on JS/TS-heavy repos.
 - Risk: Must keep identical chunk identities.
 
-7. Area: Duplicate segment discovery
+7. [x] Area: Duplicate segment discovery
 - Files: `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/file-processor/cpu.js`
 - Opportunity: Reuse plan segment metadata in processing instead of recomputing.
 - Impact: Less parsing/scanning overhead.
@@ -67,7 +67,7 @@ Format:
 - Impact: Lower CPU in large manifest generation.
 - Risk: Slight memory increase if cached strings are retained too long.
 
-10. Area: Global build lock scope
+10. [x] Area: Global build lock scope
 - Files: `src/index/build/lock.js`, `src/index/build/watch/lock.js`
 - Opportunity: Narrow lock duration to write/finalization phases.
 - Impact: Better parallelism and less watch contention.
@@ -133,7 +133,7 @@ Format:
 - Impact: Lower long-term cache bloat and faster lookup hygiene.
 - Risk: Migration of existing orphan entries.
 
-21. Area: HNSW pending vector accumulation
+21. [x] Area: HNSW pending vector accumulation
 - Files: `tools/build/embeddings/hnsw.js`
 - Opportunity: Incremental insertion instead of keeping full `pending` vectors.
 - Impact: Lower peak RSS and earlier failure detection.
@@ -145,7 +145,7 @@ Format:
 - Impact: Avoid OOM and reduce GC pressure.
 - Risk: More complex streaming parser path.
 
-23. Area: Full rewrite of SQLite dense tables
+23. [x] Area: Full rewrite of SQLite dense tables
 - Files: `tools/build/embeddings/sqlite-dense.js`
 - Opportunity: Incremental upsert/update path for changed doc_ids.
 - Impact: Large write-time reduction for partial rebuilds.
@@ -227,7 +227,7 @@ Format:
 - Impact: Smaller artifacts and lower parse cost.
 - Risk: Contract/schema changes.
 
-10. Area: Piscina backpressure/cancellation
+10. [x] Area: Piscina backpressure/cancellation
 - Files: `src/lang/tree-sitter/chunking.js`, `src/lang/tree-sitter/worker.js`, `src/lang/workers/tree-sitter-worker.js`
 - Opportunity: Add abort propagation + bounded queue controls.
 - Impact: Better tail latency and cancellation behavior.
@@ -299,7 +299,7 @@ Format:
 - Impact: Smaller read footprint for common retrieval paths.
 - Risk: Schema/migration complexity.
 
-22. Area: Windowed packed-postings reads
+22. [x] Area: Windowed packed-postings reads
 - Files: `src/shared/artifact-io/loaders.js`
 - Opportunity: Avoid full `.bin` loads by windowed reads.
 - Impact: Lower memory spikes.

@@ -363,25 +363,48 @@ export const processFileCpu = async (context) => {
   } catch (err) {
     return failFile('parse-error', 'comments', err);
   }
+  const mustUseTreeSitterScheduler = treeSitterEnabled
+    && treeSitterScheduler
+    && typeof treeSitterScheduler.loadChunks === 'function';
+  const treeSitterStrict = treeSitterConfigForMode?.strict === true;
   let segments;
+  let segmentsFromSchedulerPlan = false;
   updateCrashStage('segments');
   try {
-    segments = discoverSegments({
-      text,
-      ext,
-      relPath: relKey,
-      mode,
-      languageId: lang?.id || null,
-      context: languageContext,
-      segmentsConfig: resolvedSegmentsConfig,
-      extraSegments
-    });
+    const plannedSegments = (mustUseTreeSitterScheduler
+      && !extraSegments.length
+      && typeof treeSitterScheduler?.loadPlannedSegments === 'function')
+      ? treeSitterScheduler.loadPlannedSegments(relKey)
+      : null;
+    if (Array.isArray(plannedSegments) && plannedSegments.length) {
+      segments = plannedSegments;
+      segmentsFromSchedulerPlan = true;
+    } else {
+      segments = discoverSegments({
+        text,
+        ext,
+        relPath: relKey,
+        mode,
+        languageId: lang?.id || null,
+        context: languageContext,
+        segmentsConfig: resolvedSegmentsConfig,
+        extraSegments
+      });
+    }
   } catch (err) {
     return failFile('parse-error', 'segments', err);
   }
   updateCrashStage('segment-uid');
   try {
-    await assignSegmentUids({ text, segments, ext, mode });
+    const needsSegmentUids = !segmentsFromSchedulerPlan
+      || (segments || []).some((segment) => {
+        if (!segment) return false;
+        if (segment.segmentUid) return false;
+        return !(segment.start === 0 && segment.end === text.length);
+      });
+    if (needsSegmentUids) {
+      await assignSegmentUids({ text, segments, ext, mode });
+    }
   } catch (err) {
     return failFile('parse-error', 'segment-uid', err);
   }
@@ -396,10 +419,6 @@ export const processFileCpu = async (context) => {
     treeSitter: { ...(treeSitterConfigForMode || {}), enabled: false },
     log: languageOptions?.log
   };
-  const mustUseTreeSitterScheduler = treeSitterEnabled
-    && treeSitterScheduler
-    && typeof treeSitterScheduler.loadChunks === 'function';
-  const treeSitterStrict = treeSitterConfigForMode?.strict === true;
   if (treeSitterEnabled && !mustUseTreeSitterScheduler) {
     logLine?.(
       `[tree-sitter:schedule] scheduler missing for ${relKey} with tree-sitter enabled`,

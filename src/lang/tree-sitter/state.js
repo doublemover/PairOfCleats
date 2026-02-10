@@ -58,5 +58,6 @@ export const treeSitterState = {
     fallbacks: 0
   },
   treeSitterWorkerPool: null,
-  treeSitterWorkerConfigSignature: null
+  treeSitterWorkerConfigSignature: null,
+  treeSitterWorkerMaxQueue: null
 };

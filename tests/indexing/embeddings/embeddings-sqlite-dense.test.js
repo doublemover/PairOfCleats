@@ -86,4 +86,48 @@ assert.equal(denseCount, vectors.length, 'expected dense vectors to be written')
 assert.equal(metaCount, 1, 'expected dense metadata to be written');
 assert.equal(modeCount, vectors.length, 'expected mode-specific dense vectors');
 
+const trimmedVectors = [
+  [1, 2, 3]
+];
+const trimmedResult = updateSqliteDense({
+  Database,
+  root: tempRoot,
+  userConfig: { sqlite: { use: true } },
+  mode: 'code',
+  vectors: trimmedVectors,
+  dims: 3,
+  scale: 1,
+  modelId: 'model-a',
+  dbPath,
+  emitOutput: false
+});
+assert.equal(trimmedResult.skipped, false, 'expected sqlite update to run for trimmed vectors');
+
+const sparseVectors = [
+  null,
+  [9, 9, 9]
+];
+const sparseResult = updateSqliteDense({
+  Database,
+  root: tempRoot,
+  userConfig: { sqlite: { use: true } },
+  mode: 'code',
+  vectors: sparseVectors,
+  dims: 3,
+  scale: 1,
+  modelId: 'model-a',
+  dbPath,
+  emitOutput: false
+});
+assert.equal(sparseResult.skipped, false, 'expected sqlite update to run for sparse vectors');
+
+const dbAfterIncremental = new Database(dbPath, { readonly: true });
+const rowsAfterIncremental = dbAfterIncremental.prepare(
+  'SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id'
+).all('code');
+dbAfterIncremental.close();
+assert.equal(rowsAfterIncremental.length, 1, 'expected sparse update to keep only one dense row');
+assert.equal(rowsAfterIncremental[0].doc_id, 1, 'expected sparse update to retain doc_id=1');
+assert.deepEqual(Array.from(rowsAfterIncremental[0].vector || []), [9, 9, 9], 'expected updated vector payload');
+
 console.log('embeddings sqlite dense test passed');

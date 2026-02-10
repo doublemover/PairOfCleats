@@ -177,8 +177,14 @@ export const updateSqliteDense = ({
       vectorAnnState.column = vectorAnnColumn;
     }
 
-    const deleteDense = db.prepare('DELETE FROM dense_vectors WHERE mode = ?');
     const deleteMeta = db.prepare('DELETE FROM dense_meta WHERE mode = ?');
+    const deleteDenseByDocId = db.prepare('DELETE FROM dense_vectors WHERE mode = ? AND doc_id = ?');
+    const selectDenseByMode = db.prepare(
+      'SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id ASC'
+    );
+    const deleteVectorAnnByRowId = vectorAnnReady
+      ? db.prepare(`DELETE FROM ${vectorAnnTable} WHERE rowid = ?`)
+      : null;
     const insertDense = db.prepare(
       'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
     );
@@ -186,13 +192,29 @@ export const updateSqliteDense = ({
       'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     const resolvedQuantization = resolveQuantizationParams(quantization);
-    const batchSize = Math.max(1, Math.min(5000, Math.floor((vectors.length || 0) / 8) || 1000));
-    const run = db.transaction(() => {
-      deleteDense.run(mode);
-      deleteMeta.run(mode);
-      if (vectorAnnReady) {
-        db.exec(`DELETE FROM ${vectorAnnTable}`);
+    const vectorRows = Array.isArray(vectors) ? vectors : [];
+    const toComparableBuffer = (value) => {
+      if (Buffer.isBuffer(value)) return value;
+      if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+        return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
       }
+      return null;
+    };
+    const upsertVectorAnnRow = (docId, vec) => {
+      if (!vectorAnnReady || !insertVectorAnn) return;
+      const floatVec = dequantizeUint8ToFloat32(
+        vec,
+        resolvedQuantization.minVal,
+        resolvedQuantization.maxVal,
+        resolvedQuantization.levels
+      );
+      const encoded = encodeVector(floatVec, vectorExtension);
+      if (encoded) {
+        insertVectorAnn.run(toSqliteRowId(docId), encoded);
+      }
+    };
+    const run = db.transaction(() => {
+      deleteMeta.run(mode);
       insertMeta.run(
         mode,
         dims,
@@ -202,22 +224,67 @@ export const updateSqliteDense = ({
         resolvedQuantization.maxVal,
         resolvedQuantization.levels
       );
-      for (let batchStart = 0; batchStart < vectors.length; batchStart += batchSize) {
-        const batchEnd = Math.min(vectors.length, batchStart + batchSize);
-        for (let docId = batchStart; docId < batchEnd; docId += 1) {
-          const vec = vectors[docId];
-          insertDense.run(mode, docId, packUint8(vec));
-          if (vectorAnnReady && insertVectorAnn) {
-            const floatVec = dequantizeUint8ToFloat32(
-              vec,
-              resolvedQuantization.minVal,
-              resolvedQuantization.maxVal,
-              resolvedQuantization.levels
-            );
-            const encoded = encodeVector(floatVec, vectorExtension);
-            if (encoded) insertVectorAnn.run(toSqliteRowId(docId), encoded);
+
+      const existingRows = selectDenseByMode.all(mode);
+      let existingIndex = 0;
+      let current = existingRows[existingIndex] || null;
+      for (let docId = 0; docId < vectorRows.length; docId += 1) {
+        while (current && Number(current.doc_id) < docId) {
+          const staleDocId = Number(current.doc_id);
+          deleteDenseByDocId.run(mode, staleDocId);
+          if (deleteVectorAnnByRowId) {
+            deleteVectorAnnByRowId.run(toSqliteRowId(staleDocId));
           }
+          existingIndex += 1;
+          current = existingRows[existingIndex] || null;
         }
+
+        const hasExisting = Boolean(current) && Number(current.doc_id) === docId;
+        const vec = vectorRows[docId];
+        const hasVector = Array.isArray(vec) || (ArrayBuffer.isView(vec) && !(vec instanceof DataView));
+
+        if (!hasVector) {
+          if (hasExisting) {
+            deleteDenseByDocId.run(mode, docId);
+            if (deleteVectorAnnByRowId) {
+              deleteVectorAnnByRowId.run(toSqliteRowId(docId));
+            }
+            existingIndex += 1;
+            current = existingRows[existingIndex] || null;
+          }
+          continue;
+        }
+
+        const packed = packUint8(vec);
+        const existingPacked = hasExisting ? toComparableBuffer(current?.vector) : null;
+        const unchanged = Boolean(
+          existingPacked
+          && existingPacked.byteLength === packed.byteLength
+          && existingPacked.equals(packed)
+        );
+        if (hasExisting) {
+          existingIndex += 1;
+          current = existingRows[existingIndex] || null;
+        }
+        if (unchanged) {
+          continue;
+        }
+
+        insertDense.run(mode, docId, packed);
+        if (deleteVectorAnnByRowId) {
+          deleteVectorAnnByRowId.run(toSqliteRowId(docId));
+        }
+        upsertVectorAnnRow(docId, vec);
+      }
+
+      while (current) {
+        const staleDocId = Number(current.doc_id);
+        deleteDenseByDocId.run(mode, staleDocId);
+        if (deleteVectorAnnByRowId) {
+          deleteVectorAnnByRowId.run(toSqliteRowId(staleDocId));
+        }
+        existingIndex += 1;
+        current = existingRows[existingIndex] || null;
       }
     });
     run();

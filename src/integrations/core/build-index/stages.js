@@ -316,8 +316,7 @@ export const runSqliteStage = async ({
     const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
       ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
       : fn());
-    const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
-    if (!lock) throw new Error('Index lock unavailable.');
+    let lock = null;
     let stage4Running = false;
     let stage4Done = false;
     let promoteRunning = false;
@@ -363,6 +362,8 @@ export const runSqliteStage = async ({
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
       const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
+        lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+        if (!lock) throw new Error('Index lock unavailable.');
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
         await promoteBuild({
@@ -404,7 +405,9 @@ export const runSqliteStage = async ({
       }
       throw err;
     } finally {
-      await lock.release();
+      if (lock?.release) {
+        await lock.release();
+      }
     }
   } catch (err) {
     if (isAbortError(err)) {
@@ -465,8 +468,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
     } else {
       runtime.overallProgress = null;
     }
-    const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
-    if (!lock) throw new Error('Index lock unavailable.');
+    let lock = null;
     let sqliteResult = null;
     let phaseRunning = false;
     let phaseDone = false;
@@ -635,6 +637,9 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
+      throwIfAborted(abortSignal);
+      lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+      if (!lock) throw new Error('Index lock unavailable.');
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
       throwIfAborted(abortSignal);
@@ -675,7 +680,9 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
       stopHeartbeat();
       let releaseError = null;
       try {
-        await lock.release();
+        if (lock?.release) {
+          await lock.release();
+        }
       } catch (err) {
         releaseError = err;
       }

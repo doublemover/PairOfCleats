@@ -32,7 +32,12 @@ import {
 } from './graph.js';
 import { createPackedChecksumValidator } from './checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from './manifest.js';
-import { DEFAULT_PACKED_BLOCK_SIZE, decodePackedOffsets, unpackTfPostings } from '../packed-postings.js';
+import {
+  DEFAULT_PACKED_BLOCK_SIZE,
+  decodePackedOffsets,
+  unpackTfPostingSlice,
+  unpackTfPostings
+} from '../packed-postings.js';
 import { decodeVarint64List } from './varint.js';
 import { formatHash64 } from '../token-id.js';
 
@@ -1307,7 +1312,9 @@ export const loadTokenPostings = (
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
-    strict = true
+    strict = true,
+    packedWindowTokens = 1024,
+    packedWindowBytes = 16 * 1024 * 1024
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
@@ -1337,8 +1344,80 @@ export const loadTokenPostings = (
     const blockSize = Number.isFinite(Number(fields?.blockSize))
       ? Math.max(1, Math.floor(Number(fields.blockSize)))
       : DEFAULT_PACKED_BLOCK_SIZE;
-    const buffer = fs.readFileSync(packedPath);
-    const postings = unpackTfPostings(buffer, offsets, { blockSize });
+    const totalTokens = Math.max(0, offsets.length - 1);
+    const postings = new Array(totalTokens);
+    const resolvedWindowTokens = Number.isFinite(Number(packedWindowTokens))
+      ? Math.max(1, Math.floor(Number(packedWindowTokens)))
+      : 1024;
+    const resolvedWindowBytes = Number.isFinite(Number(packedWindowBytes))
+      ? Math.max(1024, Math.floor(Number(packedWindowBytes)))
+      : (16 * 1024 * 1024);
+    const readWindow = (fd, startToken, endToken) => {
+      const byteStart = offsets[startToken] ?? 0;
+      const byteEnd = offsets[endToken] ?? byteStart;
+      const byteLen = Math.max(0, byteEnd - byteStart);
+      if (!byteLen) {
+        for (let i = startToken; i < endToken; i += 1) {
+          postings[i] = [];
+        }
+        return;
+      }
+      const windowBuffer = Buffer.allocUnsafe(byteLen);
+      const bytesRead = fs.readSync(fd, windowBuffer, 0, byteLen, byteStart);
+      if (bytesRead < byteLen) {
+        throw new Error('Packed token_postings truncated');
+      }
+      for (let i = startToken; i < endToken; i += 1) {
+        const localStart = (offsets[i] ?? 0) - byteStart;
+        const localEnd = (offsets[i + 1] ?? localStart) - byteStart;
+        if (localEnd <= localStart) {
+          postings[i] = [];
+          continue;
+        }
+        postings[i] = unpackTfPostingSlice(windowBuffer.subarray(localStart, localEnd), { blockSize });
+      }
+    };
+    const fallbackFullRead = () => {
+      const buffer = fs.readFileSync(packedPath);
+      return unpackTfPostings(buffer, offsets, { blockSize });
+    };
+    let fd = null;
+    try {
+      fd = fs.openSync(packedPath, 'r');
+      let startToken = 0;
+      while (startToken < totalTokens) {
+        let endToken = Math.min(totalTokens, startToken + resolvedWindowTokens);
+        // Keep each decode window bounded in bytes for lower peak RSS.
+        while (endToken < totalTokens) {
+          const candidateBytes = (offsets[endToken] ?? 0) - (offsets[startToken] ?? 0);
+          if (candidateBytes >= resolvedWindowBytes) break;
+          endToken += 1;
+        }
+        if (endToken <= startToken) {
+          endToken = Math.min(totalTokens, startToken + 1);
+        }
+        readWindow(fd, startToken, endToken);
+        startToken = endToken;
+      }
+    } catch {
+      return {
+        ...fields,
+        avgDocLen: Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
+          docLengths.length
+            ? docLengths.reduce((sum, len) => sum + (Number(len) || 0), 0) / docLengths.length
+            : 0
+        ),
+        totalDocs: Number.isFinite(fields?.totalDocs) ? fields.totalDocs : docLengths.length,
+        vocab,
+        ...(vocabIds.length ? { vocabIds } : {}),
+        postings: fallbackFullRead(),
+        docLengths
+      };
+    } finally {
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch {}
+      }
+    }
     const avgDocLen = Number.isFinite(fields?.avgDocLen) ? fields.avgDocLen : (
       docLengths.length
         ? docLengths.reduce((sum, len) => sum + (Number(len) || 0), 0) / docLengths.length

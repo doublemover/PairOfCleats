@@ -62,7 +62,7 @@ const expectQueue = (queueName) => {
   }
 };
 
-expectQueue(SCHEDULER_QUEUE_NAMES.stage1Files);
+expectQueue(SCHEDULER_QUEUE_NAMES.stage1Cpu);
 expectQueue(SCHEDULER_QUEUE_NAMES.stage1Postings);
 expectQueue(SCHEDULER_QUEUE_NAMES.stage2Relations);
 

@@ -62,7 +62,6 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
   let failed = 0;
   const failedChunks = [];
   const failureMessages = [];
-  const pending = [];
 
   const isVectorLike = (value) => (
     Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))
@@ -82,30 +81,24 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
 
   const addVector = (chunkIndex, vector) => {
     if (!enabled || !isVectorLike(vector) || !vector.length) return;
-    const data = Array.isArray(vector) ? vector : Array.from(vector);
+    const data = vector;
     initHnsw(data);
     if (!index) return;
     expected += 1;
-    pending.push({ chunkIndex, vector: data });
+    try {
+      index.addPoint(data, chunkIndex);
+      added += 1;
+    } catch (err) {
+      failed += 1;
+      if (failedChunks.length < 25) failedChunks.push(chunkIndex);
+      if (failureMessages.length < 3) {
+        failureMessages.push(err?.message || String(err));
+      }
+    }
   };
 
   const writeIndex = async ({ indexPath, metaPath, modelId, dims, quantization, scale }) => {
     if (!enabled || !index || !expected) return { skipped: true };
-    if (pending.length) {
-      pending.sort((a, b) => a.chunkIndex - b.chunkIndex);
-      for (const entry of pending) {
-        try {
-          index.addPoint(entry.vector, entry.chunkIndex);
-          added += 1;
-        } catch (err) {
-          failed += 1;
-          if (failedChunks.length < 25) failedChunks.push(entry.chunkIndex);
-          if (failureMessages.length < 3) {
-            failureMessages.push(err?.message || String(err));
-          }
-        }
-      }
-    }
     if (expected !== added) {
       const reportPath = metaPath
         ? metaPath.replace(/\.meta\.json$/i, '.failures.json')

@@ -8,6 +8,38 @@ import { createTreeSitterSchedulerLookup } from './lookup.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 
+const buildPlannedSegmentsByContainer = (groups) => {
+  const byContainer = new Map();
+  const seen = new Map();
+  const entries = Array.isArray(groups) ? groups : [];
+  for (const group of entries) {
+    const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+    for (const job of jobs) {
+      const containerPath = typeof job?.containerPath === 'string' ? job.containerPath : null;
+      const segment = job?.segment && typeof job.segment === 'object' ? job.segment : null;
+      if (!containerPath || !segment) continue;
+      const start = Number(segment.start);
+      const end = Number(segment.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) continue;
+      const segmentUid = segment.segmentUid || null;
+      const dedupeKey = `${containerPath}|${segmentUid || ''}|${start}:${end}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.set(dedupeKey, true);
+      const target = byContainer.get(containerPath) || [];
+      target.push({
+        ...segment,
+        start,
+        end
+      });
+      byContainer.set(containerPath, target);
+    }
+  }
+  for (const segments of byContainer.values()) {
+    segments.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+  }
+  return byContainer;
+};
+
 const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();
@@ -82,10 +114,17 @@ export const runTreeSitterScheduler = async ({
     index,
     log
   });
+  const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
 
   return {
     ...lookup,
     plan: planResult.plan,
+    plannedSegmentsByContainer,
+    loadPlannedSegments: (containerPath) => {
+      if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;
+      const segments = plannedSegmentsByContainer.get(containerPath);
+      return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
+    },
     schedulerStats: planResult.plan
       ? { grammarKeys: (planResult.plan.grammarKeys || []).length, jobs: planResult.plan.jobs || 0 }
       : null

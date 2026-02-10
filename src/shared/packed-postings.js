@@ -69,6 +69,17 @@ const decodeTfPostingList = (buffer, blockSize) => {
 };
 
 /**
+ * Decode a single packed posting list slice.
+ * @param {Buffer} buffer
+ * @param {{blockSize?:number}} [options]
+ * @returns {Array<[number, number]>}
+ */
+export const unpackTfPostingSlice = (buffer, { blockSize = DEFAULT_BLOCK_SIZE } = {}) => {
+  if (!buffer || buffer.length === 0) return [];
+  return decodeTfPostingList(buffer, blockSize);
+};
+
+/**
  * Encode an offsets array as little-endian uint64 values.
  * @param {number[]} offsets
  * @returns {Buffer}

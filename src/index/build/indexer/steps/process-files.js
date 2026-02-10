@@ -306,7 +306,8 @@ export const processFiles = async ({
       maxFileBytes: runtimeRef.maxFileBytes,
       fileScan: runtimeRef.fileScan,
       featureMetrics: runtimeRef.featureMetrics,
-      buildStage: runtimeRef.stage
+      buildStage: runtimeRef.stage,
+      abortSignal
     });
     const runEntryBatch = async (batchEntries) => {
       await runWithQueue(

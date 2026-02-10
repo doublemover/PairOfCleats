@@ -14,6 +14,11 @@ const normalizeTreeSitterWorkerConfig = (raw) => {
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
     ? Math.max(1, Math.floor(maxWorkersRaw))
     : defaultMax;
+  const maxQueueRaw = Number(raw.maxQueue);
+  const defaultMaxQueue = Math.max(4, maxWorkers * 4);
+  const maxQueue = Number.isFinite(maxQueueRaw) && maxQueueRaw > 0
+    ? Math.max(1, Math.floor(maxQueueRaw))
+    : defaultMaxQueue;
   const idleTimeoutMsRaw = Number(raw.idleTimeoutMs);
   const idleTimeoutMs = Number.isFinite(idleTimeoutMsRaw) && idleTimeoutMsRaw > 0
     ? Math.floor(idleTimeoutMsRaw)
@@ -25,6 +30,7 @@ const normalizeTreeSitterWorkerConfig = (raw) => {
   return {
     enabled,
     maxWorkers,
+    maxQueue,
     idleTimeoutMs,
     taskTimeoutMs
   };
@@ -141,11 +147,13 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
     treeSitterState.treeSitterWorkerPool = new Piscina({
       filename: fileURLToPath(new URL('../workers/tree-sitter-worker.js', import.meta.url)),
       maxThreads: config.maxWorkers,
+      maxQueue: config.maxQueue,
       idleTimeout: config.idleTimeoutMs,
       taskTimeout: config.taskTimeoutMs,
       ...(execArgv.length ? { execArgv } : {}),
       ...(resourceLimits ? { resourceLimits } : {})
     });
+    treeSitterState.treeSitterWorkerMaxQueue = config.maxQueue;
     return treeSitterState.treeSitterWorkerPool;
   } catch (err) {
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('init')) {
@@ -153,6 +161,7 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
       treeSitterState.loggedWorkerFailures.add('init');
     }
     treeSitterState.treeSitterWorkerPool = null;
+    treeSitterState.treeSitterWorkerMaxQueue = null;
     return null;
   }
 };
@@ -167,4 +176,5 @@ export const shutdownTreeSitterWorkerPool = async () => {
   }
   treeSitterState.treeSitterWorkerPool = null;
   treeSitterState.treeSitterWorkerConfigSignature = null;
+  treeSitterState.treeSitterWorkerMaxQueue = null;
 };

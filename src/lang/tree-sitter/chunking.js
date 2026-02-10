@@ -979,7 +979,18 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     : options;
 
   try {
-    const result = await pool.run(payload, { name: 'parseTreeSitter' });
+    const maxQueue = Number(treeSitterState.treeSitterWorkerMaxQueue);
+    const queueSize = Number(pool?.queueSize);
+    if (Number.isFinite(maxQueue) && maxQueue > 0
+      && Number.isFinite(queueSize) && queueSize >= maxQueue) {
+      bumpMetric('workerFallbacks', 1);
+      return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
+    }
+    const runOptions = { name: 'parseTreeSitter' };
+    if (options?.abortSignal) {
+      runOptions.signal = options.abortSignal;
+    }
+    const result = await pool.run(payload, runOptions);
     if (Array.isArray(result) && result.length) {
       if (cacheKey && cacheRef) {
         setCachedChunks(cacheRef.cache, cacheKey, result, cacheRef.maxEntries);
