@@ -53,6 +53,90 @@ if (buildResult.status !== 0) {
 const { userConfig } = resolveRepoConfig(repoRoot);
 const indexDir = getIndexDir(repoRoot, 'code', userConfig, {});
 assert.ok(indexDir, 'expected code indexDir');
+const buildRoot = path.dirname(indexDir);
+const repoCacheRoot = path.dirname(path.dirname(buildRoot));
+const readJson = async (filePath) => JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
+
+const buildState = await readJson(path.join(buildRoot, 'build_state.json'));
+assert.equal(buildState.stage, 'stage4', 'expected Stage4 completion in build_state');
+assert.equal(buildState.phases?.stage2?.status, 'done');
+assert.equal(buildState.phases?.stage3?.status, 'done');
+assert.equal(buildState.phases?.stage4?.status, 'done');
+assert.ok(buildState.orderingLedger?.schemaVersion >= 1, 'expected ordering ledger');
+
+const stageCheckpoints = await readJson(path.join(buildRoot, 'build_state.stage-checkpoints.json'));
+assert.ok(stageCheckpoints?.code?.multi?.checkpoints?.length > 0, 'expected multi-stage checkpoints');
+assert.ok(stageCheckpoints?.code?.stage3?.checkpoints?.length > 0, 'expected stage3 checkpoints');
+assert.ok(stageCheckpoints?.code?.stage4?.checkpoints?.length > 0, 'expected stage4 checkpoints');
+
+const findCheckpoint = (collection, predicate) => (
+  Array.isArray(collection) ? collection.find(predicate) : null
+);
+const multiCheckpoints = stageCheckpoints.code.multi.checkpoints;
+const stage3Checkpoints = stageCheckpoints.code.stage3.checkpoints;
+const stage4Checkpoints = stageCheckpoints.code.stage4.checkpoints;
+
+const stage1Processing = findCheckpoint(
+  multiCheckpoints,
+  (entry) => entry?.stage === 'stage1' && entry?.step === 'processing'
+);
+assert.ok(stage1Processing, 'expected stage1 processing checkpoint');
+assert.ok(
+  Number.isFinite(stage1Processing?.extra?.postingsQueue?.highWater?.bytes),
+  'expected measured postings queue bytes in stage1'
+);
+
+const stage2ChunkMetaArtifact = findCheckpoint(
+  multiCheckpoints,
+  (entry) => entry?.stage === 'stage2' && entry?.step === 'artifact' && entry?.label === 'chunk_meta'
+);
+assert.ok(stage2ChunkMetaArtifact, 'expected stage2 chunk_meta artifact checkpoint');
+assert.ok(
+  Number.isFinite(stage2ChunkMetaArtifact?.extra?.budget?.usedBytes),
+  'expected stage2 artifact budget telemetry'
+);
+
+const stage2Write = findCheckpoint(
+  multiCheckpoints,
+  (entry) => entry?.stage === 'stage2' && entry?.step === 'write'
+);
+assert.ok(stage2Write, 'expected stage2 write checkpoint');
+assert.ok(
+  Number.isFinite(stage2Write?.extra?.vfsManifest?.rows),
+  'expected vfs manifest telemetry in stage2 write checkpoint'
+);
+
+const stage3Vectors = findCheckpoint(
+  stage3Checkpoints,
+  (entry) => entry?.stage === 'stage3' && entry?.step === 'vectors-filled'
+);
+assert.ok(stage3Vectors, 'expected stage3 vectors-filled checkpoint');
+assert.ok(
+  Number.isFinite(stage3Vectors?.extra?.vectors?.merged),
+  'expected stage3 vector count signal'
+);
+
+const stage4Build = findCheckpoint(
+  stage4Checkpoints,
+  (entry) => entry?.stage === 'stage4' && entry?.step === 'build'
+);
+assert.ok(stage4Build, 'expected stage4 build checkpoint');
+assert.ok(
+  Number.isFinite(stage4Build?.extra?.outputBytes) && stage4Build.extra.outputBytes > 0,
+  'expected stage4 output bytes signal'
+);
+
+const requiredArtifacts = [
+  path.join(indexDir, 'vfs_manifest.vfsidx'),
+  path.join(indexDir, 'vfs_manifest.vfsbloom.json'),
+  path.join(indexDir, 'tree-sitter', 'plan.json'),
+  path.join(indexDir, 'minhash_signatures.packed.meta.json'),
+  path.join(buildRoot, 'index-sqlite', 'index-code.db')
+];
+for (const artifactPath of requiredArtifacts) {
+  const stats = await fsPromises.stat(artifactPath);
+  assert.ok(stats.isFile(), `expected artifact file: ${artifactPath}`);
+}
 
 const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
 assert.ok(manifest, 'expected pieces manifest to load');
@@ -93,5 +177,12 @@ if (sqliteResult.status !== 0) {
 const sqliteEnvelope = JSON.parse(String(sqliteResult.stdout || '{}'));
 assert.equal(sqliteEnvelope.backend, 'sqlite');
 assert.ok(Array.isArray(sqliteEnvelope.code) && sqliteEnvelope.code.length > 0, 'expected sqlite code hits');
+
+const queryCachePath = path.join(repoCacheRoot, 'query-cache', 'queryCache.json');
+const queryPlanCachePath = path.join(repoCacheRoot, 'query-cache', 'queryPlanCache.json');
+const queryCache = await readJson(queryCachePath);
+const queryPlanCache = await readJson(queryPlanCachePath);
+assert.ok(Array.isArray(queryCache?.entries) && queryCache.entries.length > 0, 'expected query cache entries');
+assert.ok(Array.isArray(queryPlanCache?.entries) && queryPlanCache.entries.length > 0, 'expected query plan cache entries');
 
 console.log('phase usage checklist test passed');
