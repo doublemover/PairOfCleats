@@ -5,6 +5,7 @@ tooling/install/rebuild-native-required-contract
 indexing/policy/module-cache-boundedness-contract
 indexing/policy/hotpath-membership-guard
 tooling/install/postinstall-patch-enforcement
+tooling/install/postinstall-rebuild-native
 tooling/service/subprocess-cancellation-contract
 indexing/imports/imports-require-regex-fallback-on-lexer-failure
 shared/cache/cache-gc

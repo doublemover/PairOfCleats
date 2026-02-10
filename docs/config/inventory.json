@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T12:29:56.304Z",
+  "generatedAt": "2026-02-10T14:26:13.584Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -5523,6 +5523,7 @@
       "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
+      "tools/build/embeddings/cache-flush.js",
       "tools/config/inventory/scan.js",
       "tools/sqlite/vector-extension.js"
     ]

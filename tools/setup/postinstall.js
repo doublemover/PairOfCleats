@@ -19,6 +19,10 @@ function resolvePatchPackageBin(cwd) {
   return path.join(cwd, 'node_modules', '.bin', binName);
 }
 
+function resolveRebuildNativeScript(cwd) {
+  return path.join(cwd, 'tools', 'setup', 'rebuild-native.js');
+}
+
 function getEnvValue(name) {
   const exact = process.env[name];
   if (exact != null) return exact;
@@ -42,6 +46,7 @@ function isDevDependenciesOmitted() {
 function run() {
   const cwd = process.cwd();
   const patchPackageBin = resolvePatchPackageBin(cwd);
+  const rebuildNativeScript = resolveRebuildNativeScript(cwd);
   const patchFilesPresent = hasPatchFiles(cwd);
   const devDependenciesOmitted = isDevDependenciesOmitted();
 
@@ -60,6 +65,11 @@ function run() {
     process.exit(0);
   }
 
+  if (!patchFilesPresent) {
+    console.log('[postinstall] no patch files found; skipping patch step.');
+    process.exit(0);
+  }
+
   const result = spawnSync(patchPackageBin, ['--exclude', 'a^'], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
@@ -70,7 +80,23 @@ function run() {
     process.exit(1);
   }
 
-  process.exit(Number.isInteger(result.status) ? result.status : 1);
+  if (result.status !== 0) {
+    process.exit(Number.isInteger(result.status) ? result.status : 1);
+  }
+
+  if (!fs.existsSync(rebuildNativeScript)) {
+    console.error(`[postinstall] rebuild script not found: ${rebuildNativeScript}`);
+    process.exit(1);
+  }
+
+  const rebuildResult = spawnSync(process.execPath, [rebuildNativeScript], {
+    stdio: 'inherit'
+  });
+  if (rebuildResult.error) {
+    console.error(`[postinstall] Failed to execute rebuild:native: ${rebuildResult.error.message}`);
+    process.exit(1);
+  }
+  process.exit(Number.isInteger(rebuildResult.status) ? rebuildResult.status : 1);
 }
 
 run();

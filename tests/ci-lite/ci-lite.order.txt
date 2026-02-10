@@ -246,6 +246,7 @@ cli/general/cli-options-schema-drift
 indexer/signatures/index-signature
 lang/javascript/js-imports
 tooling/install/postinstall-patch-enforcement
+tooling/install/postinstall-rebuild-native
 indexing/embeddings/onnx-session-queue
 lang/javascript/js-chunking
 indexing/artifacts/sharded-meta/sharded-meta-bytes
