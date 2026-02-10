@@ -21,7 +21,11 @@ import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
-import { createOrderingHasher } from '../shared/order.js';
+import {
+  hashDeterministicIterable,
+  hashDeterministicJsonRows,
+  hashDeterministicValues
+} from '../shared/invariants.js';
 import {
   extractArray,
   normalizeDenseVectors,
@@ -54,31 +58,19 @@ import {
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
 
 const hashJsonRows = (rows) => {
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  const hasher = createOrderingHasher();
-  for (const row of rows) {
-    hasher.update(JSON.stringify(row));
-  }
-  return hasher.digest();
+  return hashDeterministicJsonRows(rows);
 };
 
 const hashGraphRelationsRows = (relations) => {
   if (!relations || typeof relations !== 'object') return null;
-  const hasher = createOrderingHasher();
   const iterator = createGraphRelationsIterator(relations)();
-  for (const row of iterator) {
-    hasher.update(JSON.stringify(row));
-  }
-  return hasher.digest();
+  return hashDeterministicIterable(iterator, {
+    encodeLine: (row) => JSON.stringify(row)
+  });
 };
 
 const hashVocabList = (vocab) => {
-  if (!Array.isArray(vocab) || vocab.length === 0) return null;
-  const hasher = createOrderingHasher();
-  for (const entry of vocab) {
-    hasher.update(entry);
-  }
-  return hasher.digest();
+  return hashDeterministicValues(vocab);
 };
 
 const resolveLedgerStageKey = (ledger, stage, mode) => {

@@ -43,11 +43,21 @@ export const registerTokenIdInvariant = ({
 
 export const hashDeterministicLines = (lines, { encodeLine = (value) => String(value ?? '') } = {}) => {
   if (!Array.isArray(lines) || lines.length === 0) return null;
+  return hashDeterministicIterable(lines, { encodeLine });
+};
+
+export const hashDeterministicIterable = (
+  iterable,
+  { encodeLine = (value) => String(value ?? '') } = {}
+) => {
+  if (!iterable || typeof iterable[Symbol.iterator] !== 'function') return null;
   const hasher = createOrderingHasher();
-  for (const line of lines) {
+  let count = 0;
+  for (const line of iterable) {
     hasher.update(encodeLine(line));
+    count += 1;
   }
-  return hasher.digest();
+  return count > 0 ? hasher.digest() : null;
 };
 
 export const hashDeterministicJsonRows = (rows, { serialize = JSON.stringify } = {}) =>
