@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:00:03.2679797-05:00
+Last updated: 2026-02-09T21:00:25.3721126-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -60,7 +60,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 
 | Phase | Status | Scope |
 | --- | --- | --- |
-| D0 | [@] | Baseline mapping + execution kickoff (no new scanner tooling) |
+| D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [ ] | Shared primitive consolidation |
 | D2 | [ ] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
@@ -807,18 +807,23 @@ Execution directives (D0.2 lock-in):
 
 ### Subphase D0.3 — Existing-lane enforcement only
 Tasks:
-- [ ] Task D0.3.a: Use existing lane and targeted-test workflow as enforcement.
+- [x] Task D0.3.a: Use existing lane and targeted-test workflow as enforcement.
 Details: Fixes are validated through phase tests and existing CI lanes.
-- [ ] Task D0.3.b: Do not add new scanner/audit scripts as D0 deliverables.
+- [x] Task D0.3.b: Do not add new scanner/audit scripts as D0 deliverables.
 Details: Keep momentum on direct remediation.
 
+Enforcement constraints (D0.3 lock-in):
+- Validation for all follow-on phases uses targeted test files plus existing lane subsets (`ci-lite` minimum), not new D0 scanner deliverables.
+- Sweep enforcement is done through documented `rg` checks in each phase body and CI lane assertions already present in the repository.
+- Any proposal to add scanner/audit tooling must be tied to a later phase objective and cannot block active remediation.
+
 ### Tests
-- [ ] no new D0-specific tooling tests required
+- [x] no new D0-specific tooling tests required
 
 ### Exit criteria
-- [ ] Manifest exists and covers all known clusters.
-- [ ] D0 is explicitly configured for fix-first execution with no new scanner/audit tooling tasks.
-- [ ] D0.DOC note (2026-02-09T20:54:16-05:00): no additional docs beyond `DUPEMAP.md` and `docs/tooling/dupemap-migration-manifest.json` required for this subphase conversion.
+- [x] Manifest exists and covers all known clusters.
+- [x] D0 is explicitly configured for fix-first execution with no new scanner/audit tooling tasks.
+- [x] D0.DOC note (2026-02-09T20:54:16-05:00): no additional docs beyond `DUPEMAP.md` and `docs/tooling/dupemap-migration-manifest.json` required for this subphase conversion.
 
 ---
 
