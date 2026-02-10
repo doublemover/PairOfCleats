@@ -32,6 +32,14 @@ Deliver full, deterministic, and auditable support for all registry languages an
 This roadmap is governed by these authoritative documents:
 
 - `docs/specs/unified-syntax-representation.md`
+- `docs/specs/usr/README.md`
+- `docs/specs/usr-language-profile-catalog.md`
+- `docs/specs/usr-framework-profile-catalog.md`
+- `docs/specs/usr-normalization-mapping-contract.md`
+- `docs/specs/usr-resolution-and-linking-contract.md`
+- `docs/specs/usr-language-risk-contract.md`
+- `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -139,6 +147,7 @@ This roadmap is governed by these authoritative documents:
 - [ ] Create `tests/lang/matrix/usr-capability-matrix.json`.
 - [ ] Create `tests/lang/matrix/usr-conformance-levels.json`.
 - [ ] Create `tests/lang/matrix/usr-backcompat-matrix.json` (USR section 36.4).
+- [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
 
