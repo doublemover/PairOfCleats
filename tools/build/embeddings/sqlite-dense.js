@@ -15,6 +15,7 @@ import {
   toSqliteRowId
 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { applyBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 
 const hasTable = (db, table) => {
   try {
@@ -119,8 +120,11 @@ export const updateSqliteDense = ({
       return { skipped: true, reason: 'missing dense tables', vectorAnn: vectorAnnState };
     }
     ensureDenseMetaSchema(db);
+    let pragmaState = null;
     try {
-      db.pragma('journal_mode = WAL');
+      const estimatedInputBytes = Math.max(1, Math.floor((vectors?.length || 0) * Math.max(1, Number(dims) || 1)));
+      pragmaState = applyBuildPragmas(db, { inputBytes: estimatedInputBytes });
+      // Embedding updates trade some throughput for safer crash behavior.
       db.pragma('synchronous = NORMAL');
     } catch {}
 
@@ -220,7 +224,12 @@ export const updateSqliteDense = ({
     if (emitOutput) {
       logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
     }
-    return { skipped: false, count: vectors.length, vectorAnn: vectorAnnState };
+    return {
+      skipped: false,
+      count: vectors.length,
+      vectorAnn: vectorAnnState,
+      pragmas: pragmaState?.applied || null
+    };
   } finally {
     db.close();
   }

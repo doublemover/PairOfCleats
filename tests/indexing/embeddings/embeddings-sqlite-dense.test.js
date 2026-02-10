@@ -74,6 +74,8 @@ const enabledResult = updateSqliteDense({
   emitOutput: false
 });
 assert.equal(enabledResult.skipped, false, 'expected sqlite update to run when enabled');
+assert.ok(Number(enabledResult?.pragmas?.wal_autocheckpoint) > 0, 'expected wal_autocheckpoint to be tuned for embedding writes');
+assert.ok(Number(enabledResult?.pragmas?.journal_size_limit) > 0, 'expected journal_size_limit to be tuned for embedding writes');
 
 const db = new Database(dbPath, { readonly: true });
 const denseCount = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors').get().total;

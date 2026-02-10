@@ -329,7 +329,7 @@ Format:
 - Impact: Better query latency on larger DBs.
 - Risk: Platform tuning variance.
 
-27. Area: WAL checkpoint/journal tuning for embedding updates
+27. [x] Area: WAL checkpoint/journal tuning for embedding updates
 - Files: `tools/build/embeddings/sqlite-dense.js`, `src/storage/sqlite/build/pragmas.js`
 - Opportunity: Tune `wal_autocheckpoint`/`journal_size_limit` for heavy vector writes.
 - Impact: Smoother write latency and less WAL burst behavior.
