@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.2
-Last updated: 2026-02-10T00:00:00Z
+Status: Draft v0.3
+Last updated: 2026-02-10T01:00:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1516,3 +1516,1068 @@ These items are not mandatory for `usr-1.0.0` but are high-value improvements.
 - add fuzz-based malformed input corpus generation for parser/segment stress testing
 - add long-horizon determinism checks across runtime version pins
 - add contract-drift bots that open automated PRs when profile/schema divergence is detected
+
+## 33. Diagnostic and reason-code taxonomy (normative)
+
+Diagnostic and resolution reason codes are contract-stable and MUST be treated as API surface.
+
+### 33.1 Diagnostic code taxonomy
+
+All emitted diagnostics MUST use a code in this table.
+
+| Code | Trigger | Required fields | Required remediation behavior |
+| --- | --- | --- | --- |
+| `USR-E-PARSER-UNAVAILABLE` | Selected parser source is not installed/usable for profile. | `phase=parse`, `languageId`, `docUid` or `segmentUid`, `capabilityImpact` includes impacted capability keys. | Producer MUST execute configured fallback chain (if any) and emit capability downgrade/loss transitions. |
+| `USR-E-PARSER-FAILED` | Parser crashed, timed out, or returned invalid AST payload. | `phase=parse`, `docUid` or `segmentUid`, `message` includes parser identity/version, `range` when localized. | Producer MUST preserve previously valid segment metadata, avoid partial object corruption, and continue other segments where possible. |
+| `USR-E-SEGMENT-INVALID-RANGE` | Segment or node range violates section 5/7.11 invariants. | `phase=segment`, `docUid`, `segmentUid`, `range`, `capabilityImpact` includes `ast`. | Producer MUST reject malformed entity in strict mode and MUST NOT emit dangling references to rejected entities. |
+| `USR-E-SCHEMA-VIOLATION` | Entity fails schema validation (strict or configured non-strict hard checks). | `phase` for emitting stage, `message` with schema key path, `docUid` when available. | Producer MUST fail entity write path in strict mode and include violation in audit output. |
+| `USR-E-CAPABILITY-LOST` | Capability transitioned from `supported`/`partial` to `unsupported`. | `phase`, `docUid`, `capabilityImpact` non-empty. | Producer MUST record deterministic downgrade/loss transition entry and block corresponding conformance assertions for that capability. |
+| `USR-E-ID-GRAMMAR-VIOLATION` | Any USR ID fails section 6.7 grammar. | `phase=normalize` or `symbolize`, `message` includes field name, `docUid` if available. | Producer MUST regenerate or reject invalid IDs; strict mode MUST fail the payload. |
+| `USR-E-EDGE-ENDPOINT-INVALID` | `USREdgeV1` endpoints violate section 8.5 constraints or non-resolvable refs. | `phase=relate`, `docUid` and/or `segmentUid`, `capabilityImpact` includes `relations` or `graphRelations`. | Producer MUST suppress invalid edge from resolved set and emit deterministic unresolved/suppressed representation when applicable. |
+| `USR-E-RANGE-MAPPING-FAILED` | Container/virtual range mapping cannot be reconstructed for embedded/framework segments. | `phase=framework` or `segment`, `docUid`, `segmentUid`, `range` if partial mapping exists. | Producer MUST keep container entity with explicit downgrade and MUST NOT fabricate mappings. |
+| `USR-E-DETERMINISM-DRIFT` | Rerun produced non-equivalent canonical serialization for identical inputs. | `phase=normalize` or `relate`, `message` includes artifact/entity class, `capabilityImpact` includes impacted surfaces. | Producer/release gate MUST fail lane promotion until drift source is corrected. |
+| `USR-E-PROFILE-CONFLICT` | Language and framework profile requirements conflict for a segment/document. | `phase=framework`, `docUid`, `frameworkProfile`, `message` includes conflicting keys. | Producer MUST select deterministic precedence outcome and emit downgrade or suppression diagnostics for non-selected path. |
+| `USR-E-SERIALIZATION-NONCANONICAL` | Emitted payload violates section 13.7 canonical serialization profile. | `phase=normalize`, `docUid` optional, `message` includes failing canonicalization check. | Writer MUST reserialize canonically before persistence; strict mode MUST fail write. |
+| `USR-W-PARTIAL-PARSE` | Parser emitted partial tree with recoverable errors. | `phase=parse`, `docUid` or `segmentUid`, `capabilityImpact` non-empty. | Producer MUST keep valid outputs, mark affected capabilities `partial`, and include precise impacted ranges when available. |
+| `USR-W-CAPABILITY-DOWNGRADED` | Capability transitioned `supported -> partial` or `unsupported -> partial`. | `phase`, `docUid`, `capabilityImpact` non-empty. | Producer MUST persist transition in capability transition artifact and attach triggering diagnostics. |
+| `USR-W-FRAMEWORK-PROFILE-INCOMPLETE` | Framework overlay required signals are missing or partially derived. | `phase=framework`, `frameworkProfile`, `docUid` or `segmentUid`. | Producer MUST keep framework profile explicit, set impacted capability states to `partial`, and avoid inferred hard claims. |
+| `USR-W-REFERENCE-AMBIGUOUS` | Edge/symbol reference has multiple plausible targets. | `phase=relate`, `docUid`, `attrs.resolution.status=ambiguous`, `attrs.resolution.candidates` length >= 2. | Producer MUST emit deterministic candidate list and reasonCode, and MUST NOT mark reference as resolved. |
+| `USR-W-HEURISTIC-BINDING` | Resolution succeeded only via heuristic strategy below preferred parser/compiler levels. | `phase=relate` or `framework`, `docUid`, `message` contains resolver source. | Producer MUST annotate envelope resolver as `heuristic` and include confidence bounds in attrs/evidence. |
+| `USR-W-TRUNCATED-FLOW` | Flow path terminated due to cap or analysis boundary. | `phase=flow` or `risk`, `docUid`, flow path references, truncation reason. | Producer MUST set `USRFlowPathV1.truncated=true` and include non-null `truncationReason`. |
+| `USR-W-CANONICALIZATION-FALLBACK` | Canonical mapping required fallback from profile-specific to generic normalized kind/rule. | `phase=normalize`, `languageId`, `message` includes raw kind and mapped kind. | Producer MUST preserve raw kind and include fallback marker in attrs for review. |
+| `USR-I-FALLBACK-HEURISTIC` | Fallback path chosen with valid deterministic output. | `phase`, `docUid` optional, `message` identifies chosen fallback chain. | Producer SHOULD continue pipeline and include info-level audit trace for operator visibility. |
+| `USR-I-LEGACY-ADAPTER-APPLIED` | Compatibility adapter transformed legacy/alternate payload fields into canonical USR shape. | `phase=normalize` or `segment`, `message` includes adapter key/version. | Reader/writer SHOULD emit normalized output and include compatibility adapter metrics in reports. |
+| `USR-I-COMPAT-MINOR-IGNORED` | Reader ignored unknown additive fields from compatible minor producer in non-strict mode. | `phase=normalize`, `message` includes ignored field keys. | Reader SHOULD continue read path and emit explicit compatibility trace event. |
+
+### 33.2 Resolution envelope reason code taxonomy
+
+`attrs.resolution.reasonCode` MUST be one of the following values when `status` is `unresolved` or `ambiguous`.
+
+| Reason code | Trigger | Required envelope fields | Required remediation behavior |
+| --- | --- | --- | --- |
+| `USR-R-NAME-NOT-FOUND` | Target symbol/name absent in active scope/module graph. | `status=unresolved`, `targetName`, `resolver`, `candidates=[]`. | Keep unresolved edge; emit follow-up indexing/import diagnostics if module graph incomplete. |
+| `USR-R-MULTIPLE-CANDIDATES` | More than one candidate has equivalent winning score. | `status=ambiguous`, `targetName`, `candidates` >= 2 sorted deterministically. | Preserve all candidates; require consumer to treat link as ambiguous and non-authoritative. |
+| `USR-R-SCOPE-MISMATCH` | Candidate exists but violates lexical/module/template scope rules. | `status=unresolved` or `ambiguous`, `targetName`, candidate `why` strings. | Keep candidates only as evidence; do not emit resolved edge. |
+| `USR-R-TYPE-MISMATCH` | Candidate incompatible with expected callable/type/value position. | `status=unresolved` or `ambiguous`, `targetName`, `candidates` optional. | Emit unresolved edge and preserve expected vs observed shape in notes. |
+| `USR-R-MODULE-NOT-LOADED` | Dependency/module index required for resolution is unavailable. | `status=unresolved`, `targetName`, `resolver`, empty or partial candidates. | Emit capability downgrade and reattempt on next full index when dependency graph available. |
+| `USR-R-DYNAMIC-DISPATCH` | Dynamic runtime dispatch prevents deterministic static binding. | `status=unresolved` or `ambiguous`, `targetName` may be null, `resolver`. | Emit unresolved/ambiguous edge with bounded confidence and risk annotations where required. |
+| `USR-R-FRAMEWORK-VIRTUAL-BINDING` | Framework compiler generated binding does not map uniquely to source symbol/node. | `status=ambiguous` or `unresolved`, `frameworkProfile`, candidate provenance. | Preserve framework linkage edge with explicit ambiguity; avoid synthetic hard resolution. |
+| `USR-R-ROUTE-PATTERN-CONFLICT` | Multiple route handlers normalize to same canonical route pattern. | `status=ambiguous`, `targetName` route pattern, `candidates` >= 2. | Emit route ambiguity diagnostic and require route precedence policy application. |
+| `USR-R-TEMPLATE-SLOT-LATE-BIND` | Template slot/prop/event wiring resolved only at runtime composition boundary. | `status=unresolved` or `ambiguous`, `targetName`, resolver source. | Keep deterministic unresolved template edge and mark framework capability partial if required. |
+| `USR-R-STYLE-SCOPE-UNKNOWN` | Style ownership/scope cannot be attached deterministically to symbol/source block. | `status=unresolved`, `targetName` may be null, empty candidates permitted. | Emit unresolved style scope edge and downgrade style capability for affected segment. |
+| `USR-R-CROSS-LANG-BRIDGE-PARTIAL` | Cross-language edge (template->script, style->template, etc.) lacks complete bridge metadata. | `status=ambiguous` or `unresolved`, candidate set optional, resolver source. | Preserve partial bridge metadata and emit framework incompleteness diagnostics. |
+| `USR-R-HEURISTIC-ONLY` | Resolution candidate generated only by heuristic fallback with insufficient confidence. | `status=ambiguous` or `unresolved`, `resolver=heuristic`, candidates may exist. | Keep unresolved unless confidence policy explicitly permits derived edge creation. |
+
+Reason-code governance rules:
+
+- New reason codes are Tier 2 changes at minimum under section 28.
+- Producers MUST NOT emit free-form reason codes in strict mode.
+- Readers in non-strict mode MAY preserve unknown reason codes only under compatibility adapters and MUST emit `USR-I-COMPAT-MINOR-IGNORED`.
+
+## 34. Canonical JSON examples (normative reference)
+
+The examples in this section are canonical references for schema shape, deterministic ordering, and minimum required field sets.
+
+Rules:
+
+- Every example is valid JSON with explicit nulls where applicable.
+- Minimal examples represent the smallest valid object expected in strict mode.
+- Maximal typical examples represent common high-fidelity payloads, not absolute maxima.
+- Producers MAY include additional fields only where extension policy allows (section 29).
+
+### 34.1 `USRDocumentV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+  "namespaceKey": "repo:main",
+  "fileRelPath": "src/main.ts",
+  "virtualPath": "src/main.ts",
+  "containerExt": null,
+  "containerLanguageId": null,
+  "effectiveLanguageId": "typescript",
+  "parserLanguageId": "typescript",
+  "encoding": "utf-8",
+  "textHash": {
+    "algo": "xxh64",
+    "value": "9f01aa22bb33cc44"
+  },
+  "segmentUid": null,
+  "segmentKind": "file",
+  "frameworkProfiles": [],
+  "capabilities": {
+    "imports": "supported",
+    "relations": "supported",
+    "docmeta": "supported",
+    "ast": "supported",
+    "controlFlow": "partial",
+    "dataFlow": "partial",
+    "graphRelations": "supported",
+    "riskLocal": "partial",
+    "riskInterprocedural": "unsupported",
+    "symbolGraph": "supported"
+  },
+  "diagnostics": [],
+  "provenance": {
+    "buildId": null,
+    "mode": "code",
+    "parserRuntime": "tree-sitter-typescript@0.23.2",
+    "registrySignature": "lang-registry:sha256:1111",
+    "generatedAt": "2026-02-10T01:00:00Z"
+  }
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "docUid": "doc64:v1:9abcdeff00112233",
+  "namespaceKey": "repo:webapp",
+  "fileRelPath": "apps/web/src/pages/index.vue",
+  "virtualPath": "apps/web/src/pages/index.vue#template",
+  "containerExt": ".vue",
+  "containerLanguageId": "vue",
+  "effectiveLanguageId": "html",
+  "parserLanguageId": "html",
+  "encoding": "utf-8",
+  "textHash": {
+    "algo": "sha1",
+    "value": "7c4f98efb6b0aa77c8f7a1112233445566778899"
+  },
+  "segmentUid": "segu:v1:33445566778899aa",
+  "segmentKind": "template",
+  "frameworkProfiles": [
+    "vue"
+  ],
+  "capabilities": {
+    "imports": "partial",
+    "relations": "supported",
+    "docmeta": "supported",
+    "ast": "supported",
+    "controlFlow": "partial",
+    "dataFlow": "unsupported",
+    "graphRelations": "supported",
+    "riskLocal": "partial",
+    "riskInterprocedural": "unsupported",
+    "symbolGraph": "partial"
+  },
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd33"
+  ],
+  "provenance": {
+    "buildId": "build-2026-02-10T01:00:00Z",
+    "mode": "code",
+    "parserRuntime": "vue-compiler-sfc@3.5.0",
+    "registrySignature": "lang-registry:sha256:2222",
+    "generatedAt": "2026-02-10T01:00:00Z"
+  }
+}
+```
+
+### 34.2 `USRSegmentV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "segmentUid": "segu:v1:00aa11bb22cc33dd",
+  "segmentId": null,
+  "parentSegmentUid": null,
+  "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+  "kind": "code",
+  "containerRange": {
+    "start": 0,
+    "end": 42,
+    "startLine": 1,
+    "endLine": 3,
+    "startCol": 1,
+    "endCol": 5
+  },
+  "virtualRange": {
+    "start": 0,
+    "end": 42,
+    "startLine": 1,
+    "endLine": 3,
+    "startCol": 1,
+    "endCol": 5
+  },
+  "effectiveExt": ".ts",
+  "effectiveLanguageId": "typescript",
+  "parserLanguageId": "typescript",
+  "frameworkProfile": null,
+  "extraction": {
+    "method": "tree-sitter",
+    "confidence": 1.0,
+    "partial": false
+  },
+  "textHash": {
+    "algo": "xxh64",
+    "value": "0011223344556677"
+  },
+  "flags": {
+    "synthetic": false,
+    "generated": false,
+    "minified": false
+  },
+  "diagnostics": []
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "segmentUid": "segu:v1:1122334455667788",
+  "segmentId": "legacy:range:src/pages/index.vue:template:3-120",
+  "parentSegmentUid": "segu:v1:aabbccddeeff0011",
+  "docUid": "doc64:v1:9abcdeff00112233",
+  "kind": "template",
+  "containerRange": {
+    "start": 210,
+    "end": 1180,
+    "startLine": 10,
+    "endLine": 62,
+    "startCol": 1,
+    "endCol": 12
+  },
+  "virtualRange": {
+    "start": 0,
+    "end": 970,
+    "startLine": 1,
+    "endLine": 52,
+    "startCol": 1,
+    "endCol": 12
+  },
+  "effectiveExt": ".vue.html",
+  "effectiveLanguageId": "html",
+  "parserLanguageId": "html",
+  "frameworkProfile": "vue",
+  "extraction": {
+    "method": "framework-compiler",
+    "confidence": 0.98,
+    "partial": true
+  },
+  "textHash": {
+    "algo": "xxh64",
+    "value": "8899aabbccddeeff"
+  },
+  "flags": {
+    "synthetic": true,
+    "generated": false,
+    "minified": false
+  },
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd33",
+    "diag64:v1:aa00bb11cc22dd44"
+  ]
+}
+```
+
+### 34.3 `USRNodeV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "nodeUid": "n64:v1:0123456789abcdef",
+  "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+  "segmentUid": "segu:v1:00aa11bb22cc33dd",
+  "parentNodeUid": null,
+  "rawKind": "function_declaration",
+  "normKind": "function_decl",
+  "category": "callable",
+  "containerRange": {
+    "start": 0,
+    "end": 24,
+    "startLine": 1,
+    "endLine": 1,
+    "startCol": 1,
+    "endCol": 24
+  },
+  "virtualRange": {
+    "start": 0,
+    "end": 24,
+    "startLine": 1,
+    "endLine": 1,
+    "startCol": 1,
+    "endCol": 24
+  },
+  "textHash": {
+    "algo": "xxh64",
+    "value": "1234567890abcdef"
+  },
+  "flags": [],
+  "attrs": {},
+  "parser": {
+    "source": "tree-sitter",
+    "languageId": "typescript",
+    "grammar": "tree-sitter-typescript",
+    "version": "0.23.2"
+  },
+  "diagnostics": []
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "nodeUid": "n64:v1:fedcba9876543210",
+  "docUid": "doc64:v1:9abcdeff00112233",
+  "segmentUid": "segu:v1:1122334455667788",
+  "parentNodeUid": "n64:v1:10101010aabbccdd",
+  "rawKind": "VElement",
+  "normKind": "template_element",
+  "category": "template",
+  "containerRange": {
+    "start": 262,
+    "end": 340,
+    "startLine": 13,
+    "endLine": 16,
+    "startCol": 3,
+    "endCol": 8
+  },
+  "virtualRange": {
+    "start": 52,
+    "end": 130,
+    "startLine": 4,
+    "endLine": 7,
+    "startCol": 3,
+    "endCol": 8
+  },
+  "textHash": {
+    "algo": "xxh64",
+    "value": "9988776655443322"
+  },
+  "flags": [
+    "framework-generated-attrs",
+    "binds-runtime-event"
+  ],
+  "attrs": {
+    "tagName": "UserCard",
+    "namespace": "html",
+    "slot": "default"
+  },
+  "parser": {
+    "source": "framework-compiler",
+    "languageId": "html",
+    "grammar": "vue-template-ast",
+    "version": "3.5.0"
+  },
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd33"
+  ]
+}
+```
+
+### 34.4 `USRSymbolV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "symbolUid": "symu:v1:typescript:src/main.ts:alphaone",
+  "symbolId": null,
+  "scopedId": null,
+  "symbolKey": "typescript::src/main.ts::alphaOne",
+  "signatureKey": null,
+  "languageId": "typescript",
+  "kind": "function",
+  "kindGroup": "callable",
+  "name": "alphaOne",
+  "qualifiedName": "alphaOne",
+  "declarationNodeUid": "n64:v1:0123456789abcdef",
+  "declarationDocUid": "doc64:v1:1a2b3c4d5e6f7788",
+  "declarationSegmentUid": "segu:v1:00aa11bb22cc33dd",
+  "exported": false,
+  "visibility": "unknown",
+  "modifiers": [],
+  "frameworkRole": "none",
+  "types": {},
+  "diagnostics": []
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "symbolUid": "symu:v1:vue:apps/web/src/pages/index.vue:usercard",
+  "symbolId": "legacy-symbol-id:user-card",
+  "scopedId": "vue::component::index.vue::UserCard",
+  "symbolKey": "vue::apps/web/src/pages/index.vue::UserCard",
+  "signatureKey": "UserCard(props:UserCardProps):VNode",
+  "languageId": "typescript",
+  "kind": "class",
+  "kindGroup": "type",
+  "name": "UserCard",
+  "qualifiedName": "components.UserCard",
+  "declarationNodeUid": "n64:v1:fedcba9876543210",
+  "declarationDocUid": "doc64:v1:9abcdeff00112233",
+  "declarationSegmentUid": "segu:v1:33445566778899aa",
+  "exported": true,
+  "visibility": "public",
+  "modifiers": [
+    "default",
+    "framework:component"
+  ],
+  "frameworkRole": "component",
+  "types": {
+    "declared": {
+      "returns": [
+        {
+          "type": "VNode",
+          "source": "declared",
+          "confidence": 1.0,
+          "shape": "named"
+        }
+      ],
+      "params": {
+        "props": [
+          {
+            "type": "UserCardProps",
+            "source": "declared",
+            "confidence": 1.0,
+            "shape": "named"
+          }
+        ]
+      }
+    },
+    "inferred": {
+      "fields": {
+        "isLoading": [
+          {
+            "type": "boolean",
+            "source": "inferred",
+            "confidence": 0.98,
+            "shape": "primitive"
+          }
+        ]
+      }
+    }
+  },
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd55"
+  ]
+}
+```
+
+### 34.5 `USREdgeV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "edgeUid": "edge64:v1:0011aa22bb33cc44",
+  "kind": "references",
+  "source": {
+    "entity": "node",
+    "uid": "n64:v1:0123456789abcdef"
+  },
+  "target": {
+    "entity": "symbol",
+    "uid": "symu:v1:typescript:src/main.ts:alphaone"
+  },
+  "languageId": "typescript",
+  "frameworkProfile": null,
+  "status": "resolved",
+  "confidence": 1.0,
+  "containerRange": {
+    "start": 30,
+    "end": 38,
+    "startLine": 2,
+    "endLine": 2,
+    "startCol": 10,
+    "endCol": 18
+  },
+  "virtualRange": {
+    "start": 30,
+    "end": 38,
+    "startLine": 2,
+    "endLine": 2,
+    "startCol": 10,
+    "endCol": 18
+  },
+  "attrs": {},
+  "evidence": {
+    "source": "parser"
+  },
+  "diagnostics": []
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "edgeUid": "edge64:v1:55aa66bb77cc88dd",
+  "kind": "template_binds",
+  "source": {
+    "entity": "node",
+    "uid": "n64:v1:fedcba9876543210"
+  },
+  "target": {
+    "entity": "symbol",
+    "uid": "symu:v1:vue:apps/web/src/pages/index.vue:usercard"
+  },
+  "languageId": "html",
+  "frameworkProfile": "vue",
+  "status": "ambiguous",
+  "confidence": 0.74,
+  "containerRange": {
+    "start": 280,
+    "end": 312,
+    "startLine": 14,
+    "endLine": 14,
+    "startCol": 7,
+    "endCol": 39
+  },
+  "virtualRange": {
+    "start": 70,
+    "end": 102,
+    "startLine": 5,
+    "endLine": 5,
+    "startCol": 7,
+    "endCol": 39
+  },
+  "attrs": {
+    "bindingKind": "prop",
+    "bindingName": "user",
+    "resolution": {
+      "status": "ambiguous",
+      "targetName": "user",
+      "resolver": "framework-compiler",
+      "reasonCode": "USR-R-MULTIPLE-CANDIDATES",
+      "candidates": [
+        {
+          "uid": "symu:v1:typescript:apps/web/src/stores/user.ts:state",
+          "entity": "symbol",
+          "confidence": 0.74,
+          "why": "store state alias in setup scope"
+        },
+        {
+          "uid": "symu:v1:typescript:apps/web/src/pages/index.vue:props.user",
+          "entity": "symbol",
+          "confidence": 0.74,
+          "why": "prop destructure in script setup"
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "source": "compiler",
+    "notes": [
+      "v-bind:user expression resolved from merged setup scope"
+    ]
+  },
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd66"
+  ]
+}
+```
+
+### 34.6 `USRFlowPathV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "pathUid": "path64:v1:1111222233334444",
+  "flowKind": "control",
+  "languageId": "typescript",
+  "nodeRefs": [],
+  "edgeRefs": [],
+  "truncated": false,
+  "truncationReason": null,
+  "confidence": 1.0,
+  "diagnostics": []
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "pathUid": "path64:v1:aaaabbbbccccdddd",
+  "flowKind": "risk",
+  "languageId": "typescript",
+  "nodeRefs": [
+    {
+      "entity": "node",
+      "uid": "n64:v1:10101010aabbccdd"
+    },
+    {
+      "entity": "node",
+      "uid": "n64:v1:20202020aabbccdd"
+    },
+    {
+      "entity": "node",
+      "uid": "n64:v1:30303030aabbccdd"
+    }
+  ],
+  "edgeRefs": [
+    "edge64:v1:a1a1a1a1b2b2b2b2",
+    "edge64:v1:c3c3c3c3d4d4d4d4"
+  ],
+  "truncated": true,
+  "truncationReason": "max-hop-cap:32",
+  "confidence": 0.82,
+  "diagnostics": [
+    "diag64:v1:aa00bb11cc22dd77"
+  ]
+}
+```
+
+### 34.7 `USRRouteV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "routeUid": "route64:v1:0102030405060708",
+  "framework": "next",
+  "pattern": "/",
+  "file": "apps/web/src/app/page.tsx",
+  "segmentUid": null,
+  "symbolUid": null,
+  "method": null,
+  "runtimeSide": "universal",
+  "attrs": {}
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "routeUid": "route64:v1:8899aabbccddeeff",
+  "framework": "nuxt",
+  "pattern": "/users/[id]",
+  "file": "apps/web/pages/users/[id].vue",
+  "segmentUid": "segu:v1:77889900aabbccdd",
+  "symbolUid": "symu:v1:vue:apps/web/pages/users/[id].vue:default",
+  "method": "GET",
+  "runtimeSide": "server",
+  "attrs": {
+    "routeName": "users-id",
+    "middleware": [
+      "auth",
+      "audit"
+    ],
+    "priority": 120
+  }
+}
+```
+
+### 34.8 `USRStyleScopeV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "scopeUid": "scope64:v1:1111aaaabbbb2222",
+  "framework": "none",
+  "scopeType": "global",
+  "segmentUid": null,
+  "ownerSymbolUid": null,
+  "selectorHashes": [],
+  "attrs": {}
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "scopeUid": "scope64:v1:3333ccccdddd4444",
+  "framework": "vue",
+  "scopeType": "scoped",
+  "segmentUid": "segu:v1:44556677889900aa",
+  "ownerSymbolUid": "symu:v1:vue:apps/web/src/components/user-card.vue:usercard",
+  "selectorHashes": [
+    "xxh64:2f0037bb77cc00dd",
+    "xxh64:98aa76cc55bb1100"
+  ],
+  "attrs": {
+    "scopeToken": "data-v-7f2a9912",
+    "containsDeepSelector": true
+  }
+}
+```
+
+### 34.9 `USRDiagnosticV1`
+
+Minimal valid:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "diagnosticUid": "diag64:v1:0101010102020202",
+  "code": "USR-W-PARTIAL-PARSE",
+  "severity": "warning",
+  "phase": "parse",
+  "message": "Recovered parse with inserted missing token.",
+  "languageId": "typescript",
+  "frameworkProfile": null,
+  "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+  "segmentUid": "segu:v1:00aa11bb22cc33dd",
+  "nodeUid": null,
+  "range": null,
+  "capabilityImpact": [
+    "ast"
+  ]
+}
+```
+
+Maximal typical:
+
+```json
+{
+  "schemaVersion": "usr-1.0.0",
+  "diagnosticUid": "diag64:v1:9999aaaabbbbcccc",
+  "code": "USR-W-REFERENCE-AMBIGUOUS",
+  "severity": "warning",
+  "phase": "relate",
+  "message": "Reference 'user' matched multiple framework scope candidates.",
+  "languageId": "html",
+  "frameworkProfile": "vue",
+  "docUid": "doc64:v1:9abcdeff00112233",
+  "segmentUid": "segu:v1:1122334455667788",
+  "nodeUid": "n64:v1:fedcba9876543210",
+  "range": {
+    "start": 280,
+    "end": 312,
+    "startLine": 14,
+    "endLine": 14,
+    "startCol": 7,
+    "endCol": 39
+  },
+  "capabilityImpact": [
+    "relations",
+    "symbolGraph"
+  ]
+}
+```
+
+## 35. Per-framework edge canonicalization examples (normative)
+
+This section defines canonical edge construction patterns for framework route/template/style semantics.
+
+### 35.1 Canonicalization rules (applies to all framework examples)
+
+- `route_maps_to` MUST represent normalized route pattern to handler/layout/page symbols.
+- `template_binds` MUST represent data/prop/event binding relationships across template and script surfaces.
+- `style_scopes` MUST represent style ownership/scope attachment from style/template segments or nodes to owning symbols.
+- All examples below are normative in structure, field naming, and edge kind selection.
+
+### 35.2 React (`frameworkProfile=react`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "react",
+    "source": { "entity": "node", "uid": "n64:v1:1111111111110001" },
+    "target": { "entity": "symbol", "uid": "symu:v1:react:src/app.tsx:dashboardpage" },
+    "attrs": { "routePattern": "/dashboard", "router": "react-router", "routeSource": "jsx-route-element" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "react",
+    "source": { "entity": "node", "uid": "n64:v1:1111111111110002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:react:src/components/usercard.tsx:user" },
+    "attrs": { "bindingKind": "prop", "bindingName": "user", "expressionKind": "jsx-expression-container" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "react",
+    "source": { "entity": "segment", "uid": "segu:v1:1111111111110003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:react:src/components/usercard.tsx:usercard" },
+    "attrs": { "scopeType": "module", "styleSystem": "css-modules", "token": "styles.userCard" }
+  }
+]
+```
+
+### 35.3 Vue (`frameworkProfile=vue`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "vue",
+    "source": { "entity": "node", "uid": "n64:v1:2222222222220001" },
+    "target": { "entity": "symbol", "uid": "symu:v1:vue:src/router/index.ts:userdetails" },
+    "attrs": { "routePattern": "/users/[id]", "router": "vue-router", "routeName": "user-details" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "vue",
+    "source": { "entity": "node", "uid": "n64:v1:2222222222220002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:typescript:src/pages/users/[id].vue:userid" },
+    "attrs": { "bindingKind": "directive", "directive": "v-model", "bindingName": "userId" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "vue",
+    "source": { "entity": "segment", "uid": "segu:v1:2222222222220003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:vue:src/pages/users/[id].vue:default" },
+    "attrs": { "scopeType": "scoped", "scopeToken": "data-v-7f2a9912", "deepSelectorMode": "combinator" }
+  }
+]
+```
+
+### 35.4 Next.js (`frameworkProfile=next`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "next",
+    "source": { "entity": "node", "uid": "n64:v1:3333333333330001" },
+    "target": { "entity": "document", "uid": "doc64:v1:3333333333330004" },
+    "attrs": { "routePattern": "/blog/[slug]", "router": "app-router", "segmentType": "page" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "next",
+    "source": { "entity": "node", "uid": "n64:v1:3333333333330002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:next:src/app/blog/[slug]/page.tsx:params" },
+    "attrs": { "bindingKind": "prop", "bindingName": "params.slug", "runtimeSide": "server" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "next",
+    "source": { "entity": "segment", "uid": "segu:v1:3333333333330003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:next:src/app/blog/[slug]/page.tsx:page" },
+    "attrs": { "scopeType": "module", "styleSystem": "css-modules", "file": "page.module.css" }
+  }
+]
+```
+
+### 35.5 Nuxt (`frameworkProfile=nuxt`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "nuxt",
+    "source": { "entity": "node", "uid": "n64:v1:4444444444440001" },
+    "target": { "entity": "symbol", "uid": "symu:v1:nuxt:pages/users/[id].vue:default" },
+    "attrs": { "routePattern": "/users/[id]", "router": "file-system", "routeName": "users-id" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "nuxt",
+    "source": { "entity": "node", "uid": "n64:v1:4444444444440002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:nuxt:pages/users/[id].vue:useRoute" },
+    "attrs": { "bindingKind": "composable", "bindingName": "route.params.id", "origin": "script-setup" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "nuxt",
+    "source": { "entity": "segment", "uid": "segu:v1:4444444444440003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:nuxt:pages/users/[id].vue:default" },
+    "attrs": { "scopeType": "scoped", "scopeToken": "data-v-a1122334", "styleSystem": "sfc-style" }
+  }
+]
+```
+
+### 35.6 Svelte (`frameworkProfile=svelte`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "svelte",
+    "source": { "entity": "node", "uid": "n64:v1:5555555555550001" },
+    "target": { "entity": "symbol", "uid": "symu:v1:svelte:src/App.svelte:default" },
+    "attrs": { "routePattern": "/", "router": "custom-or-none", "routeSource": "manual-map" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "svelte",
+    "source": { "entity": "node", "uid": "n64:v1:5555555555550002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:svelte:src/lib/UserCard.svelte:user" },
+    "attrs": { "bindingKind": "directive", "directive": "bind:value", "bindingName": "user" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "svelte",
+    "source": { "entity": "segment", "uid": "segu:v1:5555555555550003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:svelte:src/lib/UserCard.svelte:default" },
+    "attrs": { "scopeType": "scoped", "scopeToken": "svelte-1a2b3c", "styleSystem": "compiled-scoping" }
+  }
+]
+```
+
+### 35.7 SvelteKit (`frameworkProfile=sveltekit`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "sveltekit",
+    "source": { "entity": "node", "uid": "n64:v1:6666666666660001" },
+    "target": { "entity": "document", "uid": "doc64:v1:6666666666660004" },
+    "attrs": { "routePattern": "/products/[sku]", "router": "file-system", "routeFileKind": "+page.svelte" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "sveltekit",
+    "source": { "entity": "node", "uid": "n64:v1:6666666666660002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:src/routes/products/[sku]/+page.ts:load" },
+    "attrs": { "bindingKind": "data-prop", "bindingName": "data.product", "origin": "load-return" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "sveltekit",
+    "source": { "entity": "segment", "uid": "segu:v1:6666666666660003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:src/routes/products/[sku]/+page.svelte:default" },
+    "attrs": { "scopeType": "scoped", "scopeToken": "svelte-7f8e9d", "styleSystem": "compiled-scoping" }
+  }
+]
+```
+
+### 35.8 Angular (`frameworkProfile=angular`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "angular",
+    "source": { "entity": "node", "uid": "n64:v1:7777777777770001" },
+    "target": { "entity": "symbol", "uid": "symu:v1:angular:src/app/users/users.component.ts:UsersComponent" },
+    "attrs": { "routePattern": "users/[id]", "router": "@angular/router", "routeSource": "Route[] config" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "angular",
+    "source": { "entity": "node", "uid": "n64:v1:7777777777770002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:angular:src/app/users/users.component.ts:userId" },
+    "attrs": { "bindingKind": "template-binding", "directive": "ngModel", "bindingName": "userId" }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "angular",
+    "source": { "entity": "segment", "uid": "segu:v1:7777777777770003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:angular:src/app/users/users.component.ts:UsersComponent" },
+    "attrs": { "scopeType": "shadow", "encapsulation": "ViewEncapsulation.Emulated", "styleSystem": "component-styles" }
+  }
+]
+```
+
+### 35.9 Astro (`frameworkProfile=astro`)
+
+```json
+[
+  {
+    "kind": "route_maps_to",
+    "frameworkProfile": "astro",
+    "source": { "entity": "node", "uid": "n64:v1:8888888888880001" },
+    "target": { "entity": "document", "uid": "doc64:v1:8888888888880004" },
+    "attrs": { "routePattern": "/docs/[...slug]", "router": "file-system", "routeFileKind": ".astro page" }
+  },
+  {
+    "kind": "template_binds",
+    "frameworkProfile": "astro",
+    "source": { "entity": "node", "uid": "n64:v1:8888888888880002" },
+    "target": { "entity": "symbol", "uid": "symu:v1:astro:src/pages/docs/[...slug].astro:Astro.params.slug" },
+    "attrs": { "bindingKind": "frontmatter-binding", "bindingName": "Astro.params.slug", "islandBoundary": false }
+  },
+  {
+    "kind": "style_scopes",
+    "frameworkProfile": "astro",
+    "source": { "entity": "segment", "uid": "segu:v1:8888888888880003" },
+    "target": { "entity": "symbol", "uid": "symu:v1:astro:src/pages/docs/[...slug].astro:default" },
+    "attrs": { "scopeType": "scoped", "styleSystem": "scoped-by-default", "globalEscape": ":global" }
+  }
+]
+```
+
+### 35.10 Cross-framework canonicalization constraints
+
+- Dynamic route placeholders MUST canonicalize to bracket form in `routePattern` (`[id]`, `[...slug]`) regardless of source syntax (`:id`, regex form, etc.).
+- Template event bindings MUST canonicalize into `template_binds` with `attrs.bindingKind` and `attrs.bindingName`; framework-native event tokens stay in `attrs.directive` or `attrs.eventSyntax`.
+- Style scoping MUST canonicalize to `attrs.scopeType` values: `global`, `module`, `scoped`, `shadow`, or `unknown`.
+- If canonical route/template/style mapping cannot be completed, producer MUST emit unresolved/ambiguous edges and include section 33 reason codes.
+
+## 36. Mandatory backward-compatibility test matrix (normative)
+
+Backward compatibility for USR is release-blocking. The matrix below is the minimum mandatory scenario set.
+
+### 36.1 Producer/reader compatibility matrix
+
+| Scenario ID | Producer schemaVersion | Reader supported versions | Reader mode | Input shape | Expected result | Required diagnostics/events |
+| --- | --- | --- | --- | --- | --- | --- |
+| `BC-001` | `usr-1.0.0` | `usr-1.0.0` | strict | canonical minimal payloads only | accept | none |
+| `BC-002` | `usr-1.0.0` | `usr-1.0.0` | strict | canonical maximal typical payloads | accept | none |
+| `BC-003` | `usr-1.0.0` | `usr-1.0.0` | strict | payload with unknown top-level fields | reject | `USR-E-SCHEMA-VIOLATION` |
+| `BC-004` | `usr-1.0.0` | `usr-1.0.0` | non-strict | payload with additive namespaced extension fields | accept with adapter | `USR-I-LEGACY-ADAPTER-APPLIED` |
+| `BC-005` | `usr-1.0.0` | `usr-1.1.x` | strict | base 1.0 payload | accept | none |
+| `BC-006` | `usr-1.1.x` | `usr-1.0.0` | strict | payload includes new minor fields not known to 1.0 reader | reject | `USR-E-SCHEMA-VIOLATION` |
+| `BC-007` | `usr-1.1.x` | `usr-1.0.0` | non-strict | payload includes additive fields only | accept with ignored fields | `USR-I-COMPAT-MINOR-IGNORED` |
+| `BC-008` | `usr-2.0.0` | `usr-1.0.0` | strict | payload with breaking major semantics | reject | compatibility error plus `USR-E-SCHEMA-VIOLATION` |
+| `BC-009` | `usr-1.0.0` | `usr-1.0.0` | strict | payload has legacy IDs not matching 6.7 grammar | reject | `USR-E-ID-GRAMMAR-VIOLATION` |
+| `BC-010` | `usr-1.0.0` | `usr-1.0.0` | strict | payload has unknown diagnostic reason code | reject | `USR-E-SCHEMA-VIOLATION` |
+| `BC-011` | `usr-1.0.0` | `usr-1.0.0` | non-strict | payload has unknown reason code with adapter enabled | accept with warning | `USR-I-COMPAT-MINOR-IGNORED` |
+| `BC-012` | `usr-1.0.0` | `usr-1.0.0` | strict | canonical serialization keys reordered or non-normalized numbers | reject | `USR-E-SERIALIZATION-NONCANONICAL` |
+
+### 36.2 Mandatory fixture families
+
+The compatibility matrix MUST be executed against all of the following fixture families:
+
+- plain source language fixtures (single-language, non-framework)
+- embedded/multi-segment fixtures (`.vue`, `.svelte`, `.astro`, Angular template+style pairs)
+- cross-language binding fixtures (template-script-style bridges)
+- degraded capability fixtures (forced parser fallback and partial parse)
+- extension/adaptation fixtures (known additive fields with namespaced keys)
+
+### 36.3 Mandatory CI execution policy
+
+- Compatibility matrix scenarios `BC-001` through `BC-012` MUST run in CI on every PR touching:
+  - `src/contracts/**`
+  - `src/index/**`
+  - `docs/specs/unified-syntax-representation.md`
+  - `tests/lang/matrix/**`
+- Any failing strict scenario (`BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`) is release-blocking.
+- Non-strict scenario failures are warning-level until explicitly promoted by release policy, but MUST still produce diagnostics.
+- Matrix results MUST be emitted to `usr-backcompat-matrix-results.json` and linked from release readiness scorecard evidence.
+
+### 36.4 Required machine-readable matrix artifact
+
+Implementations MUST maintain:
+
+- `tests/lang/matrix/usr-backcompat-matrix.json`
+
+Each scenario entry MUST include:
+
+- `id`
+- `producerVersion`
+- `readerVersions`
+- `readerMode`
+- `fixtureFamily`
+- `expectedOutcome`
+- `requiredDiagnostics`
+- `blocking`
+
+
+
