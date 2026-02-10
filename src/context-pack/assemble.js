@@ -608,39 +608,41 @@ const resolveChunkUidMapSeedRefs = (seedRef) => {
   return refs;
 };
 
-const resolveChunkUidMapRow = async ({
+const buildChunkUidMapSeedIndex = async ({
   indexDir,
   manifest,
   strict,
-  repoRoot,
-  seedRef
+  repoRoot
 } = {}) => {
-  if (!indexDir || !seedRef) return null;
-  if (seedRef.type !== 'chunk' && seedRef.type !== 'file') return null;
-  const normalizedSeedFile = seedRef.type === 'file'
-    ? normalizePathForRepo(seedRef.path, repoRoot)
-    : null;
+  if (!indexDir) return null;
+  const byChunkUid = new Map();
+  const byFile = new Map();
+  let rowsIndexed = 0;
   try {
     for await (const row of loadJsonArrayArtifactRows(indexDir, 'chunk_uid_map', {
       manifest,
       maxBytes: MAX_JSON_BYTES,
       strict
     })) {
-      if (!row || typeof row !== 'object') continue;
-      if (seedRef.type === 'chunk' && row.chunkUid && row.chunkUid === seedRef.chunkUid) {
-        return row;
+      const chunk = normalizeChunkUidMapRowAsChunk(row);
+      if (!chunk) continue;
+      rowsIndexed += 1;
+      if (chunk.chunkUid && !byChunkUid.has(chunk.chunkUid)) {
+        byChunkUid.set(chunk.chunkUid, chunk);
       }
-      if (seedRef.type === 'file') {
-        const rowFile = normalizePathForRepo(row.file, repoRoot);
-        if (rowFile && normalizedSeedFile && rowFile === normalizedSeedFile) {
-          return row;
-        }
+      const normalizedFile = normalizePathForRepo(chunk.file, repoRoot);
+      if (normalizedFile && !byFile.has(normalizedFile)) {
+        byFile.set(normalizedFile, chunk);
       }
     }
   } catch {
     return null;
   }
-  return null;
+  return {
+    byChunkUid,
+    byFile,
+    rowsIndexed
+  };
 };
 
 const normalizeChunkUidMapRowAsChunk = (row) => {
@@ -656,6 +658,22 @@ const normalizeChunkUidMapRowAsChunk = (row) => {
     startLine: null,
     endLine: null
   };
+};
+
+const resolveChunkUidMapSeedFromIndex = ({
+  seedIndex,
+  seedRef,
+  repoRoot
+} = {}) => {
+  if (!seedIndex || !seedRef) return null;
+  if (seedRef.type === 'chunk') {
+    return seedRef.chunkUid ? (seedIndex.byChunkUid.get(seedRef.chunkUid) || null) : null;
+  }
+  if (seedRef.type === 'file') {
+    const normalizedSeedFile = normalizePathForRepo(seedRef.path, repoRoot);
+    return normalizedSeedFile ? (seedIndex.byFile.get(normalizedSeedFile) || null) : null;
+  }
+  return null;
 };
 
 /**
@@ -683,18 +701,23 @@ export const assembleCompositeContextPackStreaming = async ({
   const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict });
   const seedRef = resolveSeedRef(seed);
   const candidates = resolveChunkUidMapSeedRefs(seedRef);
-  let resolvedRow = null;
-  for (const candidate of candidates) {
-    resolvedRow = await resolveChunkUidMapRow({
+  const seedIndex = candidates.length
+    ? await buildChunkUidMapSeedIndex({
       indexDir,
       manifest: resolvedManifest,
       strict,
-      repoRoot,
-      seedRef: candidate
+      repoRoot
+    })
+    : null;
+  let chunk = null;
+  for (const candidate of candidates) {
+    chunk = resolveChunkUidMapSeedFromIndex({
+      seedIndex,
+      seedRef: candidate,
+      repoRoot
     });
-    if (resolvedRow) break;
+    if (chunk) break;
   }
-  const chunk = normalizeChunkUidMapRowAsChunk(resolvedRow);
   const chunkMetaResolved = chunk ? [chunk] : null;
   const chunkIndexResolved = chunkMetaResolved ? buildChunkIndex(chunkMetaResolved, { repoRoot }) : null;
   const payload = assembleCompositeContextPack({
@@ -715,6 +738,14 @@ export const assembleCompositeContextPackStreaming = async ({
       code: 'CHUNK_UID_MAP_MISS',
       message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
     }];
+  }
+  if (payload?.stats) {
+    payload.stats.seedResolution = {
+      strategy: 'chunk_uid_map_index',
+      candidates: candidates.length,
+      rowsIndexed: seedIndex?.rowsIndexed || 0,
+      hit: Boolean(chunk)
+    };
   }
   return payload;
 };
