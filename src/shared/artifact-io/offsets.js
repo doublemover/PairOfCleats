@@ -64,23 +64,6 @@ export const readOffsetsFile = async (offsetsPath) => {
   return offsets;
 };
 
-export const readOffsetAt = async (offsetsPath, index) => {
-  const handle = await fs.open(offsetsPath, 'r');
-  try {
-    const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
-    const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
-    if (bytesRead !== OFFSET_BYTES) return null;
-    return readOffsetValue(buffer, 0);
-  } finally {
-    await handle.close();
-  }
-};
-
-export const resolveOffsetsCount = async (offsetsPath) => {
-  const { size } = await fs.stat(offsetsPath);
-  return Math.floor(size / OFFSET_BYTES);
-};
-
 const readOffsetsAtWithHandle = async (handle, indexes) => {
   const sorted = Array.from(new Set(indexes.filter((index) => Number.isInteger(index) && index >= 0)))
     .sort((a, b) => a - b);
@@ -104,6 +87,44 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
   return out;
 };
 
+export const readOffsetsAt = async (
+  offsetsPath,
+  indexes,
+  { handle = null } = {}
+) => {
+  if (handle) {
+    return readOffsetsAtWithHandle(handle, indexes);
+  }
+  const ownedHandle = await fs.open(offsetsPath, 'r');
+  try {
+    return await readOffsetsAtWithHandle(ownedHandle, indexes);
+  } finally {
+    await ownedHandle.close();
+  }
+};
+
+export const readOffsetAt = async (
+  offsetsPath,
+  index,
+  { handle = null } = {}
+) => {
+  if (!Number.isInteger(index) || index < 0) return null;
+  const offsets = await readOffsetsAt(offsetsPath, [index], { handle });
+  return offsets.get(index) ?? null;
+};
+
+export const resolveOffsetsCount = async (
+  offsetsPath,
+  { handle = null } = {}
+) => {
+  if (handle) {
+    const { size } = await handle.stat();
+    return Math.floor(size / OFFSET_BYTES);
+  }
+  const { size } = await fs.stat(offsetsPath);
+  return Math.floor(size / OFFSET_BYTES);
+};
+
 export const readJsonlRowAt = async (
   jsonlPath,
   offsetsPath,
@@ -121,33 +142,35 @@ export const readJsonlRowAt = async (
   }
   const resolvedMaxBytes = Math.floor(maxBytes);
   if (!Number.isFinite(index) || index < 0) return null;
-  const [offsetCount, jsonlStat] = await Promise.all([
-    resolveOffsetsCount(offsetsPath),
-    fs.stat(jsonlPath)
+  const [jsonlHandle, offsetsHandle] = await Promise.all([
+    fs.open(jsonlPath, 'r'),
+    fs.open(offsetsPath, 'r')
   ]);
-  if (index >= offsetCount) return null;
-  const [start, next] = await Promise.all([
-    readOffsetAt(offsetsPath, index),
-    index + 1 < offsetCount ? readOffsetAt(offsetsPath, index + 1) : null
-  ]);
-  if (!Number.isFinite(start)) return null;
-  const end = Number.isFinite(next) ? next : jsonlStat.size;
-  if (end < start) {
-    throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
-  }
-  const length = end - start;
-  if (length === 0) return null;
-  if (metrics && typeof metrics === 'object') {
-    const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
-    metrics.bytesRequested = currentRequested + length;
-  }
-  if (length > resolvedMaxBytes) {
-    throw toJsonTooLargeError(jsonlPath, length);
-  }
-  const handle = await fs.open(jsonlPath, 'r');
   try {
+    const [offsetCount, jsonlStat, offsets] = await Promise.all([
+      resolveOffsetsCount(offsetsPath, { handle: offsetsHandle }),
+      jsonlHandle.stat(),
+      readOffsetsAt(offsetsPath, [index, index + 1], { handle: offsetsHandle })
+    ]);
+    if (index >= offsetCount) return null;
+    const start = offsets.get(index);
+    const next = index + 1 < offsetCount ? offsets.get(index + 1) : null;
+    if (!Number.isFinite(start)) return null;
+    const end = Number.isFinite(next) ? next : jsonlStat.size;
+    if (end < start) {
+      throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
+    }
+    const length = end - start;
+    if (length === 0) return null;
+    if (metrics && typeof metrics === 'object') {
+      const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
+      metrics.bytesRequested = currentRequested + length;
+    }
+    if (length > resolvedMaxBytes) {
+      throw toJsonTooLargeError(jsonlPath, length);
+    }
     const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await handle.read(buffer, 0, length, start);
+    const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
     const line = buffer.slice(0, bytesRead).toString('utf8');
     if (metrics && typeof metrics === 'object') {
       const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
@@ -157,7 +180,7 @@ export const readJsonlRowAt = async (
     }
     return parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys);
   } finally {
-    await handle.close();
+    await Promise.allSettled([jsonlHandle.close(), offsetsHandle.close()]);
   }
 };
 
@@ -189,13 +212,16 @@ export const readJsonlRowsAt = async (
     uniqueNeeded.add(index);
     uniqueNeeded.add(index + 1);
   }
-  const [jsonlHandle, offsetsHandle, offsetCount, jsonlStat] = await Promise.all([
+  const [jsonlHandle, offsetsHandle] = await Promise.all([
     fs.open(jsonlPath, 'r'),
-    fs.open(offsetsPath, 'r'),
-    resolveOffsetsCount(offsetsPath),
-    fs.stat(jsonlPath)
+    fs.open(offsetsPath, 'r')
   ]);
   try {
+    const [offsetsStat, jsonlStat] = await Promise.all([
+      offsetsHandle.stat(),
+      jsonlHandle.stat()
+    ]);
+    const offsetCount = Math.floor(offsetsStat.size / OFFSET_BYTES);
     const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
     const rowByIndex = new Map();
     for (const index of uniqueIndexes) {

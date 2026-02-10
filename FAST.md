@@ -263,7 +263,7 @@ Format:
 - Impact: Faster repeated startup/load paths.
 - Risk: Robust invalidation required.
 
-16. Area: File descriptor reuse for row reads
+16. [x] Area: File descriptor reuse for row reads
 - Files: `src/shared/artifact-io/offsets.js`, `src/shared/artifact-io/loaders.js`
 - Opportunity: Keep handles open and reuse buffers for repeated `readOffsetAt`/`readJsonlRowAt`.
 - Impact: Fewer syscalls and lower latency.

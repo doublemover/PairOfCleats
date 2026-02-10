@@ -9,6 +9,7 @@ import {
   OFFSETS_FORMAT,
   OFFSETS_FORMAT_VERSION,
   readJsonlRowsAt,
+  readOffsetsAt,
   readOffsetAt,
   resolveOffsetsCount,
   validateOffsetsAgainstFile
@@ -1744,10 +1745,9 @@ const loadSymbolRowsForFile = async (
   try {
     offsetsCount = await resolveOffsetsCount(offsetsPath);
     if (resolvedFileId + 1 >= offsetsCount) return loadFullRows();
-    [start, end] = await Promise.all([
-      readOffsetAt(offsetsPath, resolvedFileId),
-      readOffsetAt(offsetsPath, resolvedFileId + 1)
-    ]);
+    const offsets = await readOffsetsAt(offsetsPath, [resolvedFileId, resolvedFileId + 1]);
+    start = offsets.get(resolvedFileId);
+    end = offsets.get(resolvedFileId + 1);
     if (!Number.isFinite(start) || !Number.isFinite(end)) return loadFullRows();
     if (end < start) return loadFullRows();
     if (end === start) return [];
