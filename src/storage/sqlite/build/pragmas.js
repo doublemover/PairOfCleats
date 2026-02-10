@@ -46,6 +46,25 @@ const resolveBuildPragmas = (options = {}) => {
   };
 };
 
+const resolveReadPragmas = (options = {}) => {
+  const dbBytes = Number(options.dbBytes);
+  const dbMb = Number.isFinite(dbBytes) && dbBytes > 0
+    ? dbBytes / BYTES_PER_MB
+    : null;
+  const cacheMb = dbMb === null
+    ? 64
+    : clamp(Math.round(dbMb * 0.1), 32, 256);
+  const mmapMb = dbMb === null
+    ? 256
+    : clamp(Math.round(dbMb * 0.5), 128, 2048);
+  return {
+    temp_store: 'MEMORY',
+    cache_size: -cacheMb * 1024,
+    mmap_size: mmapMb * BYTES_PER_MB,
+    busy_timeout: 5000
+  };
+};
+
 export const applyBuildPragmas = (db, options = {}) => {
   const before = {
     journal_mode: readPragma(db, 'journal_mode'),
@@ -89,6 +108,21 @@ export const applyBuildPragmas = (db, options = {}) => {
   return {
     before,
     applied
+  };
+};
+
+export const applyReadPragmas = (db, options = {}) => {
+  if (!db) return null;
+  const resolved = resolveReadPragmas(options);
+  applyPragma(db, `temp_store = ${resolved.temp_store}`, 'temp_store');
+  applyPragma(db, `cache_size = ${resolved.cache_size}`, 'cache_size');
+  applyPragma(db, `mmap_size = ${resolved.mmap_size}`, 'mmap_size');
+  applyPragma(db, `busy_timeout = ${resolved.busy_timeout}`, 'busy_timeout');
+  return {
+    temp_store: readPragma(db, 'temp_store') ?? resolved.temp_store,
+    cache_size: readPragma(db, 'cache_size') ?? resolved.cache_size,
+    mmap_size: readPragma(db, 'mmap_size') ?? resolved.mmap_size,
+    busy_timeout: readPragma(db, 'busy_timeout') ?? resolved.busy_timeout
   };
 };
 

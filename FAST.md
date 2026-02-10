@@ -323,7 +323,7 @@ Format:
 - Impact: Predictable results and fewer surprise fallbacks.
 - Risk: Behavior change needs explicit contract update.
 
-26. Area: Search-side SQLite pragmas
+26. [x] Area: Search-side SQLite pragmas
 - Files: `src/retrieval/cli-sqlite.js`, `src/storage/sqlite/build/pragmas.js`
 - Opportunity: Apply read-optimized runtime pragmas (`cache_size`, `mmap_size`, `temp_store`, `busy_timeout`).
 - Impact: Better query latency on larger DBs.

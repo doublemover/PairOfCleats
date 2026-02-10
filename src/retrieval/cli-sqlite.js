@@ -8,6 +8,7 @@ import {
 } from '../../tools/sqlite/vector-extension.js';
 
 import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
+import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 
 const sqliteChunkCountCache = new Map();
@@ -151,7 +152,9 @@ export async function createSqliteBackend(options) {
     const cached = dbCache?.get?.(dbPath);
     if (cached) return cached;
     let db;
+    let dbStat = null;
     try {
+      dbStat = fsSync.statSync(dbPath);
       db = new Database(dbPath, { readonly: true });
     } catch (err) {
       const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
@@ -203,6 +206,7 @@ export async function createSqliteBackend(options) {
       db.close();
       return null;
     }
+    applyReadPragmas(db, { dbBytes: dbStat?.size });
     if (dbCache?.set) dbCache.set(dbPath, db);
     return db;
   };
