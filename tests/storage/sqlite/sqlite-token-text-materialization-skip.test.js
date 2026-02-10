@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
@@ -15,27 +14,26 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-chunk-meta-streaming');
+const tempRoot = path.join(root, '.testCache', 'sqlite-token-text-materialization-skip');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(indexDir, { recursive: true });
 
-const chunkCount = 5000;
-const tokens = ['alpha', 'beta'];
+const chunkCount = 12;
 const chunkIterator = function* chunkIterator() {
   for (let i = 0; i < chunkCount; i += 1) {
     yield {
       id: i,
-      file: `src/file-${i % 10}.js`,
+      file: `src/file-${i % 3}.js`,
       start: 0,
       end: 10,
       startLine: 1,
       endLine: 1,
       kind: 'code',
       name: `fn${i}`,
-      tokens
+      tokens: []
     };
   }
 };
@@ -45,13 +43,9 @@ const shardResult = await writeJsonLinesSharded({
   partsDirName: 'chunk_meta.parts',
   partPrefix: 'chunk_meta.part-',
   items: chunkIterator(),
-  maxBytes: 8192,
+  maxBytes: 4096,
   atomic: true
 });
-if (shardResult.parts.length < 2) {
-  console.error('Expected chunk_meta to be sharded for streaming test.');
-  process.exit(1);
-}
 await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
   fields: {
     schemaVersion: '0.0.1',
@@ -75,33 +69,32 @@ await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
 
 const postingsDir = path.join(indexDir, 'token_postings.shards');
 await fs.mkdir(postingsDir, { recursive: true });
-const postingsPart = path.join(postingsDir, 'token_postings.part-00000.json');
-const postingsEntries = Array.from({ length: chunkCount }, (_, i) => [i, 1]);
-await writeJsonObjectFile(postingsPart, {
+await writeJsonObjectFile(path.join(postingsDir, 'token_postings.part-00000.json'), {
   arrays: {
-    vocab: ['alpha'],
-    postings: [postingsEntries]
+    vocab: [],
+    postings: []
   },
   atomic: true
 });
-const docLengths = Array.from({ length: chunkCount }, () => tokens.length);
 await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
   fields: {
-    avgDocLen: tokens.length,
+    avgDocLen: 0,
     totalDocs: chunkCount,
     format: 'sharded',
     shardSize: 1,
-    vocabCount: 1,
+    vocabCount: 0,
     parts: ['token_postings.shards/token_postings.part-00000.json']
   },
-  arrays: { docLengths },
+  arrays: {
+    docLengths: Array.from({ length: chunkCount }, () => 0)
+  },
   atomic: true
 });
 
 const indexPieces = await loadIndexPieces(indexDir, null);
-assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta parts');
+assert.ok(indexPieces, 'expected loadIndexPieces to detect sharded chunk_meta');
 const sqliteStats = {};
-const count = await buildDatabaseFromArtifacts({
+const ingested = await buildDatabaseFromArtifacts({
   Database,
   outPath,
   index: indexPieces,
@@ -114,44 +107,17 @@ const count = await buildDatabaseFromArtifacts({
   modelConfig: { id: null },
   stats: sqliteStats
 });
-assert.equal(count, chunkCount, 'expected sqlite build to ingest all chunks');
-assert.ok(sqliteStats.chunkMeta, 'expected sqlite stats to include chunkMeta metrics');
-assert.equal(sqliteStats.chunkMeta.passes, 1, 'expected single consolidated chunk_meta ingest pass');
-assert.equal(sqliteStats.chunkMeta.rows, chunkCount, 'expected chunkMeta rows metric to match ingested chunks');
-assert.equal(
-  sqliteStats.chunkMeta.streamedRows,
-  chunkCount,
-  'expected sharded/jsonl chunk_meta rows to be counted as streamed'
-);
-assert.equal(
-  sqliteStats.chunkMeta.sourceRows?.jsonl,
-  chunkCount,
-  'expected sourceRows.jsonl to match chunk count'
-);
-assert.ok(
-  Number(sqliteStats.chunkMeta.sourceFiles?.jsonl) >= 2,
-  'expected sourceFiles.jsonl to include multiple shard files'
-);
-assert.equal(
-  sqliteStats.chunkMeta.tokenTextMaterialized,
-  chunkCount,
-  'expected token text materialization count for populated token arrays'
-);
-assert.equal(
-  sqliteStats.chunkMeta.tokenTextSkipped,
-  0,
-  'expected no token text skips when all chunks include tokens'
-);
+
+assert.equal(ingested, chunkCount, 'expected sqlite build to ingest all chunks');
+assert.equal(sqliteStats.chunkMeta?.tokenTextMaterialized || 0, 0, 'expected zero token text materializations');
+assert.equal(sqliteStats.chunkMeta?.tokenTextSkipped || 0, chunkCount, 'expected token text skips to match chunk count');
 
 const db = new Database(outPath);
-const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get('code');
-assert.equal(row?.total, chunkCount, 'expected sqlite chunks table to match chunk_meta count');
-db.close();
-
-if (!fsSync.existsSync(outPath)) {
-  console.error('Expected sqlite DB to be created.');
-  process.exit(1);
+try {
+  const ftsNullTokens = db.prepare('SELECT COUNT(*) AS total FROM chunks_fts WHERE tokens IS NULL').get();
+  assert.equal(ftsNullTokens?.total, chunkCount, 'expected FTS token column to remain NULL for empty token arrays');
+} finally {
+  db.close();
 }
 
-console.log('sqlite chunk_meta streaming test passed');
-
+console.log('sqlite token-text materialization skip test passed');

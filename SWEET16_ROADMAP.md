@@ -1626,9 +1626,9 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] Emit VFS fast-path telemetry for bloom/vfsidx/scan paths.
 - [x] Implement batched VFS row-load behavior from docs.
 - [x] Validate batched VFS row-load behavior against docs.
-- [ ] Consolidate Stage4 chunk_meta streaming + token-text skip changes into one measured pass.
-- [ ] Stream `chunk_meta` in Stage4 where supported.
-- [ ] Skip unnecessary token-text materialization in Stage4.
+- [x] Consolidate Stage4 chunk_meta streaming + token-text skip changes into one measured pass.
+- [x] Stream `chunk_meta` in Stage4 where supported.
+- [x] Skip unnecessary token-text materialization in Stage4.
 - [ ] Replace linear seed-resolution scans with indexed lookup in context-pack assembly.
 - [ ] Convert paired behavior tests to parameterized coverage.
 - [ ] Convert paired behavior tests to metamorphic coverage.
@@ -1663,7 +1663,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/indexing/tree-sitter/tree-sitter-plan-stale-file-resilience.test.js` (perf lane) (new)
 - [x] `tests/shared/artifact-io/minhash-checksum-validation.test.js` (perf lane) (new)
 - [x] `tests/tooling/vfs/vfs-fastpath-telemetry-contract.test.js` (perf lane) (new)
-- [ ] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
+- [x] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
 - [ ] `tests/retrieval/graph/context-pack-seed-indexing.test.js` (perf lane) (new)
 - [ ] `tests/perf/tooling/bench/per-bench-output-schema.test.js` (perf lane) (new)
 - [ ] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (update)

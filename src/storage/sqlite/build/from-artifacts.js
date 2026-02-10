@@ -313,6 +313,37 @@ export async function buildDatabaseFromArtifacts({
   }
   const manifestByNormalized = manifestLookup.map;
   const validationStats = { chunks: 0, dense: 0, minhash: 0 };
+  const chunkMetaStats = batchStats
+    ? (batchStats.chunkMeta || (batchStats.chunkMeta = {
+      passes: 0,
+      rows: 0,
+      streamedRows: 0,
+      tokenTextMaterialized: 0,
+      tokenTextSkipped: 0,
+      sourceRows: {
+        json: 0,
+        columnar: 0,
+        jsonl: 0,
+        array: 0
+      },
+      sourceFiles: {
+        json: 0,
+        columnar: 0,
+        jsonl: 0
+      }
+    }))
+    : null;
+  const bumpChunkMetaCounter = (key, delta = 1) => {
+    if (!chunkMetaStats || !key || !Number.isFinite(delta)) return;
+    chunkMetaStats[key] = (Number(chunkMetaStats[key]) || 0) + delta;
+  };
+  const bumpChunkMetaBucket = (bucketKey, key, delta = 1) => {
+    if (!chunkMetaStats || !bucketKey || !key || !Number.isFinite(delta)) return;
+    const bucket = chunkMetaStats[bucketKey] && typeof chunkMetaStats[bucketKey] === 'object'
+      ? chunkMetaStats[bucketKey]
+      : (chunkMetaStats[bucketKey] = {});
+    bucket[key] = (Number(bucket[key]) || 0) + delta;
+  };
   const vectorExtension = vectorConfig?.extension || {};
   const encodeVector = vectorConfig?.encodeVector;
   const quantization = resolveQuantizationParams(vectorConfig?.quantization);
@@ -1103,7 +1134,13 @@ export async function buildDatabaseFromArtifacts({
       const resolvedChurnDeleted = typeof chunk.churn_deleted === 'number' ? chunk.churn_deleted : null;
       const resolvedChurnCommits = typeof chunk.churn_commits === 'number' ? chunk.churn_commits : null;
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-      const tokensText = tokensArray.join(' ');
+      const hasTokens = tokensArray.length > 0;
+      const tokensText = hasTokens ? tokensArray.join(' ') : null;
+      if (hasTokens) {
+        bumpChunkMetaCounter('tokenTextMaterialized', 1);
+      } else {
+        bumpChunkMetaCounter('tokenTextSkipped', 1);
+      }
       const signatureText = typeof chunk.docmeta?.signature === 'string'
         ? chunk.docmeta.signature
         : (typeof chunk.signature === 'string' ? chunk.signature : null);
@@ -1153,9 +1190,7 @@ export async function buildDatabaseFromArtifacts({
       };
     };
 
-    const ingestChunkMetaPieces = async (targetMode, indexDir) => {
-      const sources = resolveChunkMetaSources(indexDir);
-      if (!sources) return { count: 0 };
+    const createChunkMetaStageIngestor = ({ targetMode, sourceKind }) => {
       const rows = [];
       const start = performance.now();
       const insert = db.transaction((batch) => {
@@ -1182,35 +1217,57 @@ export async function buildDatabaseFromArtifacts({
         return bytes;
       };
       let chunkCount = 0;
-      const handleChunk = (chunk) => {
+      bumpChunkMetaCounter('passes', 1);
+      const handleChunk = (chunk, fallbackId = null) => {
         if (!chunk) return;
         if (!Number.isFinite(chunk.id)) {
-          chunk.id = chunkCount;
+          chunk.id = Number.isFinite(fallbackId) ? fallbackId : chunkCount;
         }
         const row = buildChunkRowBase(chunk, targetMode);
         rows.push(row);
         batchBytes += estimateRowBytes(row);
         chunkCount += 1;
+        bumpChunkMetaCounter('rows', 1);
+        if (sourceKind === 'jsonl') {
+          bumpChunkMetaCounter('streamedRows', 1);
+        }
+        bumpChunkMetaBucket('sourceRows', sourceKind, 1);
         if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
       };
+      const finish = () => {
+        flush();
+        recordTable('chunks_stage', chunkCount, performance.now() - start);
+        return chunkCount;
+      };
+      return { handleChunk, finish };
+    };
+
+    const ingestChunkMetaPieces = async (targetMode, indexDir) => {
+      const sources = resolveChunkMetaSources(indexDir);
+      if (!sources) return { count: 0 };
+      const sourceKind = sources.format === 'jsonl' ? 'jsonl' : (sources.format === 'columnar' ? 'columnar' : 'json');
+      const ingestor = createChunkMetaStageIngestor({ targetMode, sourceKind });
       if (sources.format === 'json') {
+        bumpChunkMetaBucket('sourceFiles', 'json', 1);
         const data = readJson(sources.paths[0]);
         if (Array.isArray(data)) {
-          for (const chunk of data) handleChunk(chunk);
+          for (const chunk of data) ingestor.handleChunk(chunk);
         }
       } else if (sources.format === 'columnar') {
+        bumpChunkMetaBucket('sourceFiles', 'columnar', 1);
         const data = inflateColumnarRows(readJson(sources.paths[0]));
         if (Array.isArray(data)) {
-          for (const chunk of data) handleChunk(chunk);
+          for (const chunk of data) ingestor.handleChunk(chunk);
         }
       } else {
         for (const chunkPath of sources.paths) {
-          await readJsonLinesFile(chunkPath, handleChunk, { requiredKeys: CHUNK_META_REQUIRED_KEYS });
+          if (chunkPath) {
+            bumpChunkMetaBucket('sourceFiles', 'jsonl', 1);
+          }
+          await readJsonLinesFile(chunkPath, ingestor.handleChunk, { requiredKeys: CHUNK_META_REQUIRED_KEYS });
         }
       }
-      flush();
-      recordTable('chunks_stage', chunkCount, performance.now() - start);
-      return { count: chunkCount };
+      return { count: ingestor.finish() };
     };
 
     const finalizeChunkIngest = (targetMode, chunkCount) => {
@@ -1367,45 +1424,12 @@ export async function buildDatabaseFromArtifacts({
         chunkMetaLoaded = result.count > 0;
       }
       if (!chunkMetaLoaded && Array.isArray(indexData?.chunkMeta)) {
-        const start = performance.now();
-        const insert = db.transaction((rows) => {
-          for (const row of rows) {
-            insertChunkStage.run(row);
-          }
-        });
-        const rows = [];
-        const maxBatchBytes = resolvedBatchSize * 4096;
-        let batchBytes = 0;
-        const flush = () => {
-          if (!rows.length) return;
-          insert(rows);
-          rows.length = 0;
-          batchBytes = 0;
-          recordBatch('chunkMetaBatches');
-        };
-        const estimateRowBytes = (row) => {
-          if (!row) return 0;
-          let bytes = 128;
-          if (row.file) bytes += row.file.length;
-          if (row.ext) bytes += row.ext.length;
-          if (row.name) bytes += row.name.length;
-          if (row.tokensText) bytes += row.tokensText.length;
-          return bytes;
-        };
+        const ingestor = createChunkMetaStageIngestor({ targetMode, sourceKind: 'array' });
         for (let i = 0; i < indexData.chunkMeta.length; i += 1) {
           const chunk = indexData.chunkMeta[i];
-          if (!chunk) continue;
-          if (!Number.isFinite(chunk.id)) {
-            chunk.id = i;
-          }
-          const row = buildChunkRowBase(chunk, targetMode);
-          rows.push(row);
-          batchBytes += estimateRowBytes(row);
-          chunkCount += 1;
-          if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
+          ingestor.handleChunk(chunk, i);
         }
-        flush();
-        recordTable('chunks_stage', chunkCount, performance.now() - start);
+        chunkCount = ingestor.finish();
       }
       finalizeChunkIngest(targetMode, chunkCount);
 
