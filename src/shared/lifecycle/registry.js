@@ -142,13 +142,18 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
         errors.push(err);
       }
     }
-    try {
-      await drain();
-    } catch (err) {
-      if (err instanceof AggregateError) {
-        errors.push(...err.errors);
-      } else {
+    for (const entry of entries) {
+      if (!entry.drain) continue;
+      try {
+        await entry.drain();
+      } catch (err) {
         errors.push(err);
+      }
+    }
+    if (pending.size) {
+      const settled = await Promise.allSettled(Array.from(pending));
+      for (const result of settled) {
+        if (result.status === 'rejected') errors.push(result.reason);
       }
     }
     const error = toLifecycleError(name, 'close', errors);
@@ -168,4 +173,3 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
     pendingCount: () => pending.size
   };
 };
-

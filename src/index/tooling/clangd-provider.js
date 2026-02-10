@@ -208,7 +208,7 @@ export const createClangdProvider = () => ({
       byChunkUid: result.byChunkUid,
       diagnostics: appendDiagnosticChecks(
         result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-        duplicateChecks
+        [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
       )
     };
   }

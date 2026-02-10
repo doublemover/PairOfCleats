@@ -19,7 +19,7 @@ const asFiniteNumber = (value) => {
 
 const canRunPyright = (cmd) => {
   if (!cmd) return false;
-  if (fsSync.existsSync(cmd)) return true;
+  if (isAbsolutePathNative(cmd) && !fsSync.existsSync(cmd)) return false;
   for (const args of [['--version'], ['--help']]) {
     try {
       const result = execaSync(cmd, args, {
@@ -27,11 +27,13 @@ const canRunPyright = (cmd) => {
         shell: shouldUseShell(cmd),
         reject: false
       });
-      if (typeof result.exitCode === 'number') return true;
+      if (result.exitCode === 0) return true;
     } catch {}
   }
   return false;
 };
+
+export const __canRunPyrightForTests = (cmd) => canRunPyright(cmd);
 
 const resolveCommand = (cmd, rootDir, toolingConfig) => {
   if (!cmd) return cmd;
@@ -134,7 +136,7 @@ export const createPyrightProvider = () => ({
         result.diagnosticsCount
           ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
           : null,
-        duplicateChecks
+        [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
       )
     };
   }

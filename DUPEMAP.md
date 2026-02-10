@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T02:24:47.9337385-05:00
+Last updated: 2026-02-10T02:37:19.0577276-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -74,7 +74,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | F2 | [x] | Language/chunking/import correctness remediation |
 | F3 | [x] | Artifact/storage I/O correctness + crash-safety |
 | F4 | [x] | Retrieval/ANN/embeddings correctness + boundedness |
-| F5 | [ ] | Tooling/LSP/service resilience + diagnostics hygiene |
+| F5 | [x] | Tooling/LSP/service resilience + diagnostics hygiene |
 | F6 | [ ] | Map/graph/context-pack correctness + cleanup safety |
 | F7 | [ ] | Security/path/input hardening across surfaces |
 | F8 | [ ] | Contract-test expansion + `src/**` coverage lock |
@@ -537,29 +537,47 @@ Touchpoints:
 - `tools/service/**`
 
 Subphase F5.1 — LSP provider hardening:
-- [ ] Guard URI decode in `src/integrations/tooling/lsp/uris.js:21`.
-- [ ] Replace executable-existence shortcuts with runnable checks in `src/index/tooling/pyright-provider.js:37`.
-- [ ] Ensure timeout/circuit-breaker behavior degrades gracefully with actionable diagnostics.
+- [x] Guard URI decode in `src/integrations/tooling/lsp/uris.js:21`.
+- [x] Replace executable-existence shortcuts with runnable checks in `src/index/tooling/pyright-provider.js:37`.
+- [x] Ensure timeout/circuit-breaker behavior degrades gracefully with actionable diagnostics.
 
 Subphase F5.2 — Diagnostics/logging boundedness:
-- [ ] Bound tooling diagnostics buffers and dedupe queues.
-- [ ] Ensure byte-accurate logging/output accounting and timeout termination reporting.
-- [ ] Remove silent-failure paths in service subprocess logging.
+- [x] Bound tooling diagnostics buffers and dedupe queues.
+- [x] Ensure byte-accurate logging/output accounting and timeout termination reporting.
+- [x] Remove silent-failure paths in service subprocess logging.
 
 Subphase F5.3 — API/MCP/service parity contracts:
-- [ ] Complete request/filter/cache config parity from D4 plus service runtime checks.
-- [ ] Add service-level lifecycle tests for worker shutdown and queue drain.
+- [x] Complete request/filter/cache config parity from D4 plus service runtime checks.
+- [x] Add service-level lifecycle tests for worker shutdown and queue drain.
 
 Tests:
-- [ ] `tests/integrations/lsp/uri-decode-malformed-input.test.js` (new)
-- [ ] `tests/indexing/tooling/pyright-runnable-detection.test.js` (new)
-- [ ] `tests/tooling/logging/output-byte-accounting.test.js` (new)
-- [ ] `tests/tooling/service/subprocess-buffer-bounds.test.js` (new)
-- [ ] `tests/tooling/api-mcp/search-request-parity.test.js` (from D4)
-- [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
+- [x] `tests/integrations/lsp/uri-decode-malformed-input.test.js` (new)
+- [x] `tests/indexing/tooling/pyright-runnable-detection.test.js` (new)
+- [x] `tests/tooling/logging/output-byte-accounting.test.js` (new)
+- [x] `tests/tooling/service/subprocess-buffer-bounds.test.js` (new)
+- [x] `tests/tooling/api-mcp/search-request-parity.test.js` (from D4)
+- [x] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)
 
 Exit criteria:
-- [ ] Tooling and service failure modes are bounded, recoverable, and test-covered.
+- [x] Tooling and service failure modes are bounded, recoverable, and test-covered.
+
+F5 status update (2026-02-10T02:37:19.0577276-05:00):
+- resolved: guarded malformed URI decode paths in `src/integrations/tooling/lsp/uris.js` so malformed percent-encoding fails closed and token fallback mapping remains safe.
+- resolved: replaced pyright executable existence shortcut with runnable probe checks and added explicit runnable-detection contract coverage.
+- resolved: hardened LSP failure handling with bounded diagnostics buffers (`per-uri`, `uri-map`, and `per-chunk` caps), dedupe keys, and actionable circuit-breaker/timeout checks propagated through provider diagnostics.
+- resolved: extracted service subprocess logging helper `tools/service/subprocess-log.js` with byte-accurate stdout/stderr accounting, bounded capture policy, explicit timeout logging, and write-failure reporting; wired `tools/service/indexer-service.js` to use it.
+- resolved: fixed lifecycle shutdown semantics in `src/shared/lifecycle/registry.js` so `close()` now executes resource `drain` hooks and waits pending work.
+- remaining: none (F5 subphases complete).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this phase.
+- exceptions: none.
+- sweep results:
+  - `rg --line-number "decodeURIComponent\\(|catch \\{\\s*return null;\\s*\\}" src/integrations/tooling/lsp/uris.js`
+  - `rg --line-number "existsSync\\(cmd\\)|__canRunPyrightForTests|exitCode === 0" src/index/tooling/pyright-provider.js`
+  - `rg --line-number "maxDiagnosticUris|maxDiagnosticsPerUri|maxDiagnosticsPerChunk|tooling_circuit_open|tooling_hover_timeout|tooling_diagnostics" src/integrations/tooling/providers/lsp.js src/index/tooling/lsp-provider.js src/index/tooling/clangd-provider.js src/index/tooling/pyright-provider.js src/index/tooling/sourcekit-provider.js`
+  - `rg --line-number "runLoggedSubprocess|output bytes stdout|job timeout|PAIROFCLEATS_SERVICE_SUBPROCESS" tools/service/indexer-service.js tools/service/subprocess-log.js`
+
+F5.DOC no-doc-change rationale (2026-02-10T02:37:19.0577276-05:00):
+- F5 updates were internal resilience and diagnostics hardening for tooling/service execution paths with contract tests; no user-facing commands/config schema behavior required doc edits.
 
 ### Phase F6 — Map/graph/context-pack correctness
 
@@ -768,7 +786,7 @@ Documents: `docs/contracts/schemas/*` (artifact/storage schema docs touched), `d
 - [x] Task F4.DOC: Retrieval/ANN/embeddings reliability docs.
 Documents: `docs/benchmarks/*`, `docs/specs/tooling-and-api-contract.md` (if retrieval contract changes), `docs/contracts/*` (retrieval/ANN contracts touched), `docs/perf/*`.
 
-- [ ] Task F5.DOC: Tooling/LSP/service resilience docs.
+- [x] Task F5.DOC: Tooling/LSP/service resilience docs.
 Documents: `docs/api/*`, `docs/specs/*` (tooling/service behavior docs touched), `docs/guides/commands.md`, `docs/testing/*`.
 
 - [ ] Task F6.DOC: Map/graph/context-pack correctness docs.
