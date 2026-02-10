@@ -26,8 +26,6 @@ indexing/relations/graph-relations-v2-chunkuid
 indexing/type-inference/crossfile/extract
 retrieval/graph/impact-analysis-caps-and-truncation
 tooling/docs/truth-table
-tooling/findings/findings-test-evidence-contract
-tooling/findings/src-review-coverage-lock
 retrieval/ranking/graph-ranking-explain
 indexing/type-inference/crossfile/symbols
 tooling/test-selection/suggest-tests-witness-path
