@@ -1,13 +1,12 @@
-const warnOnce = (() => {
-  const seen = new Set();
-  return (key, message) => {
-    if (seen.has(key)) return;
-    seen.add(key);
+import { createWarnOnce } from '../logging/warn-once.js';
+
+const warnOnce = createWarnOnce({
+  logger: (message) => {
     try {
       process.stderr.write(`${message}\n`);
     } catch {}
-  };
-})();
+  }
+});
 
 const createAbortError = () => {
   const err = new Error('Operation aborted');

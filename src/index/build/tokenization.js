@@ -5,7 +5,7 @@ import { hashTokenId } from '../../shared/token-id.js';
 import { buildChargramHashSet } from '../../shared/chargram-hash.js';
 import { normalizeCodeDictLanguage } from '../../shared/code-dictionaries.js';
 import { COMMON_NAME_NODE_TYPES } from '../../lang/tree-sitter/ast.js';
-import { getTreeSitterParser } from '../../lang/tree-sitter/runtime.js';
+import { getNativeTreeSitterParser } from '../../lang/tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
 import { resolveTreeSitterLanguageForSegment } from './file-processor/tree-sitter.js';
 import { JS_RESERVED_WORDS } from '../../lang/javascript/constants.js';
@@ -227,7 +227,7 @@ const classifyTokensWithTreeSitter = ({
       if (byteLen > maxBytesRaw) return null;
     }
   }
-  const parser = getTreeSitterParser(resolvedLang, { treeSitter, suppressMissingLog: true });
+  const parser = getNativeTreeSitterParser(resolvedLang, { treeSitter, suppressMissingLog: true });
   if (!parser) return null;
   let tree;
   try {

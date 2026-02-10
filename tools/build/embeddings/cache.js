@@ -13,6 +13,7 @@ import {
   resolveEmbeddingsCacheRoot
 } from '../../../src/shared/embeddings-cache/index.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
 const CACHE_INDEX_VERSION = 1;
@@ -23,45 +24,9 @@ const DEFAULT_LOCK_WAIT_MS = 5000;
 const DEFAULT_LOCK_POLL_MS = 100;
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const resolveCacheLockPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.lock') : null
 );
-
-const readLockInfo = async (lockPath) => {
-  try {
-    const raw = await fs.readFile(lockPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-};
-
-const isProcessAlive = (pid) => {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
-};
-
-const isLockStale = async (lockPath, staleMs) => {
-  try {
-    const info = await readLockInfo(lockPath);
-    if (info?.startedAt) {
-      const startedAt = Date.parse(info.startedAt);
-      if (Number.isFinite(startedAt) && Date.now() - startedAt > staleMs) return true;
-    }
-    const stat = await fs.stat(lockPath);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return false;
-  }
-};
 
 const withCacheLock = async (cacheDir, worker, options = {}) => {
   const lockPath = resolveCacheLockPath(cacheDir);
@@ -71,41 +36,24 @@ const withCacheLock = async (cacheDir, worker, options = {}) => {
   const staleMs = Number.isFinite(Number(options.staleMs)) ? Math.max(1, Number(options.staleMs)) : DEFAULT_LOCK_STALE_MS;
   const log = typeof options.log === 'function' ? options.log : null;
 
-  const start = Date.now();
-  await fs.mkdir(cacheDir, { recursive: true });
-  while (true) {
-    try {
-      const handle = await fs.open(lockPath, 'wx');
-      try {
-        await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }));
-        return await worker();
-      } finally {
-        try {
-          await handle.close();
-        } catch {}
-        try {
-          await fs.rm(lockPath, { force: true });
-        } catch {}
-      }
-    } catch (err) {
-      if (err?.code !== 'EEXIST') throw err;
-      const info = await readLockInfo(lockPath);
-      const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
-      const pidAlive = pid ? isProcessAlive(pid) : false;
-      const stale = await isLockStale(lockPath, staleMs);
-      if ((pid && !pidAlive) || (stale && !pid)) {
-        try {
-          await fs.rm(lockPath, { force: true });
-          if (log) log(`[embeddings-cache] Removed stale cache lock: ${lockPath}`);
-          continue;
-        } catch {}
-      }
-      if (Date.now() - start > waitMs) {
-        if (log) log(`[embeddings-cache] Cache lock timeout: ${lockPath}`);
-        return null;
-      }
-      await sleep(pollMs);
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs,
+    pollMs,
+    staleMs,
+    metadata: { scope: 'embeddings-cache' },
+    onStale: () => {
+      if (log) log(`[embeddings-cache] Removed stale cache lock: ${lockPath}`);
+    },
+    onBusy: () => {
+      if (log) log(`[embeddings-cache] Cache lock timeout: ${lockPath}`);
     }
+  });
+  if (!lock) return null;
+  try {
+    return await worker();
+  } finally {
+    await lock.release();
   }
 };
 

@@ -7,8 +7,14 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
-import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import {
+  loadChunkMeta,
+  loadFileMetaRows,
+  readJsonFile,
+  MAX_JSON_BYTES
+} from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
@@ -133,6 +139,38 @@ export async function runBuildEmbeddingsWithConfig(config) {
       return null;
     }
   };
+  const traceArtifactIo = isTestingEnv() || (configEnv || getEnvConfig()).traceArtifactIo;
+  const hasArtifactFile = (filePath) => (
+    fsSync.existsSync(filePath)
+    || fsSync.existsSync(`${filePath}.gz`)
+    || fsSync.existsSync(`${filePath}.zst`)
+    || fsSync.existsSync(`${filePath}.bak`)
+  );
+  const logArtifactLocation = (mode, label, filePath) => {
+    if (!traceArtifactIo) return;
+    const exists = hasArtifactFile(filePath);
+    log(`[embeddings] ${mode}: artifact ${label} path=${filePath} exists=${exists}`);
+  };
+  const logExpectedArtifacts = (mode, indexDir, stageLabel) => {
+    if (!traceArtifactIo) return;
+    const expected = [
+      { label: 'chunk_meta', path: path.join(indexDir, 'chunk_meta.json') },
+      { label: 'chunk_meta_stream', path: path.join(indexDir, 'chunk_meta.jsonl') },
+      { label: 'chunk_meta_meta', path: path.join(indexDir, 'chunk_meta.meta.json') },
+      { label: 'token_postings', path: path.join(indexDir, 'token_postings.json') },
+      { label: 'token_postings_stream', path: path.join(indexDir, 'token_postings.jsonl') },
+      { label: 'token_postings_meta', path: path.join(indexDir, 'token_postings.meta.json') },
+      { label: 'phrase_ngrams', path: path.join(indexDir, 'phrase_ngrams.json') },
+      { label: 'chargram_postings', path: path.join(indexDir, 'chargram_postings.json') },
+      { label: 'index_state', path: path.join(indexDir, 'index_state.json') },
+      { label: 'filelists', path: path.join(indexDir, '.filelists.json') },
+      { label: 'pieces_manifest', path: path.join(indexDir, 'pieces', 'manifest.json') }
+    ];
+    log(`[embeddings] ${mode}: expected artifact snapshot (${stageLabel})`);
+    for (const entry of expected) {
+      logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -184,21 +222,37 @@ export async function runBuildEmbeddingsWithConfig(config) {
     useStubEmbeddings ? 'stub' : null
   ].filter(Boolean);
 
-  const embedder = createEmbedder({
-    rootDir: root,
-    useStubEmbeddings,
-    modelId,
-    dims: argv.dims,
-    modelsDir,
-    provider: embeddingProvider,
-    onnx: embeddingOnnx,
-    normalize: embeddingNormalize
-  });
-  const getChunkEmbeddings = embedder.getChunkEmbeddings;
-
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: true,
+    log
+  });
+  crashLogger.updatePhase('stage3:init');
+  let embedder;
+  try {
+    embedder = createEmbedder({
+      rootDir: root,
+      useStubEmbeddings,
+      modelId,
+      dims: argv.dims,
+      modelsDir,
+      provider: embeddingProvider,
+      onnx: embeddingOnnx,
+      normalize: embeddingNormalize
+    });
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3:init',
+      stage: 'embedder',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
+  }
+  const getChunkEmbeddings = embedder.getChunkEmbeddings;
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const { scheduler, scheduleCompute, scheduleIo } = createEmbeddingsScheduler({
     argv,
@@ -206,13 +260,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
     userConfig,
     envConfig,
     indexingConfig
-  });
-  const crashLoggingEnabled = isTestingEnv()
-    || envConfig.debugCrash === true;
-  const crashLogger = await createCrashLogger({
-    repoCacheRoot,
-    enabled: crashLoggingEnabled,
-    log: null
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
@@ -263,6 +310,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheFastRejects = 0;
       const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
+      logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
       let indexState = loadIndexState(statePath);
       indexState.generatedAt = indexState.generatedAt || stateNow;
@@ -288,24 +336,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
 
       try {
-        const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-        const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
-        const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
-        const hasChunkMeta = fsSync.existsSync(chunkMetaPath)
-        || fsSync.existsSync(chunkMetaJsonlPath)
-        || fsSync.existsSync(chunkMetaMetaPath);
 
         let chunkMeta;
         try {
-          if (hasChunkMeta) {
-            chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES }));
-          }
+          chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, {
+            maxBytes: MAX_JSON_BYTES,
+            strict: false
+          }));
         } catch (err) {
+          const message = String(err?.message || '');
           if (err?.code === 'ERR_JSON_TOO_LARGE') {
             warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
-          } else {
+          } else if (!message.includes('Missing index artifact: chunk_meta.json')) {
             warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
           }
           chunkMeta = null;
@@ -321,6 +365,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
               fileMeta = await scheduleIo(() => readJsonFile(fileMetaPath, { maxBytes: MAX_JSON_BYTES }));
             } catch (err) {
               warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
+              fileMeta = [];
+            }
+          } else {
+            try {
+              for await (const row of loadFileMetaRows(indexDir, {
+                maxBytes: MAX_JSON_BYTES,
+                strict: false
+              })) {
+                fileMeta.push(row);
+              }
+            } catch (err) {
+              const message = String(err?.message || '');
+              if (!message.includes('Missing index artifact: file_meta.json')) {
+                warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+              }
               fileMeta = [];
             }
           }
@@ -1013,6 +1072,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
         const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
         const codeVectorsPath = path.join(indexDir, 'dense_vectors_code_uint8.json');
+        if (traceArtifactIo) {
+          log(`[embeddings] ${mode}: writing vectors to ${mergedVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${docVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${codeVectorsPath}`);
+        }
         await scheduleIo(() => writeJsonObjectFile(mergedVectorsPath, {
           fields: {
             model: modelId,
@@ -1049,6 +1113,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           arrays: { vectors: codeVectors },
           atomic: true
         }));
+        logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
 
         Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
           mode,
@@ -1133,7 +1200,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           } else {
             try {
+              if (traceArtifactIo) {
+                log(`[embeddings] ${mode}: deleting optional sqlite vec meta ${sqliteMetaPath}`);
+              }
               await scheduleIo(() => fs.rm(sqliteMetaPath, { force: true }));
+              logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
             } catch {}
           }
         }
@@ -1230,9 +1301,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         try {
           await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
+          logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
         } catch {
         // Ignore piece manifest write failures.
         }
+        logExpectedArtifacts(mode, indexDir, 'pre-validate');
 
         const validation = await scheduleIo(() => validateIndexArtifacts({
           root,
@@ -1297,6 +1370,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
         finishMode(`built ${mode}`);
       } catch (err) {
+        logExpectedArtifacts(mode, indexDir, 'failure');
         const now = new Date().toISOString();
         const failureState = loadIndexState(statePath);
         failureState.generatedAt = failureState.generatedAt || now;
@@ -1338,6 +1412,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
       await markBuildPhase(indexRoot, 'stage3', 'done');
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
+  } catch (err) {
+    crashLogger.logError({
+      phase: 'stage3',
+      stage: 'embeddings',
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    });
+    throw err;
   } finally {
     scheduler?.shutdown?.();
     finalize();

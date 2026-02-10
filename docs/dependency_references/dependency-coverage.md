@@ -34,10 +34,8 @@ Add a dependency-bundle sheet + manifest entry for each of the following package
 - tar-fs
 - terminal-kit
 - three
-- tree-sitter-wasms
 - vscode-jsonrpc
 - vscode-languageserver-protocol
-- web-tree-sitter
 - yargs
 
 ## Notes

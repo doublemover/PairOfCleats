@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-02-10T11:33:40.038Z",
+  "iterations": 500,
+  "benchmarkResults": [
+    {
+      "id": "flow_count_keywords",
+      "old": {
+        "avgMs": 1.1152816000000003,
+        "minMs": 0.9195,
+        "maxMs": 2.0969
+      },
+      "new": {
+        "avgMs": 0.8944413999999995,
+        "minMs": 0.8315,
+        "maxMs": 2.3992
+      },
+      "speedup": 1.246902927346611
+    },
+    {
+      "id": "flow_extract_identifiers",
+      "old": {
+        "avgMs": 3.7459306000000026,
+        "minMs": 3.4101,
+        "maxMs": 6.4932
+      },
+      "new": {
+        "avgMs": 3.500209000000001,
+        "minMs": 3.2432,
+        "maxMs": 5.5142
+      },
+      "speedup": 1.0702019793675182
+    },
+    {
+      "id": "relations_call_segment_parse",
+      "old": {
+        "avgMs": 7.442304399999996,
+        "minMs": 6.972,
+        "maxMs": 13.3229
+      },
+      "new": {
+        "avgMs": 5.256145400000002,
+        "minMs": 4.1188,
+        "maxMs": 9.402
+      },
+      "speedup": 1.4159243768256473
+    },
+    {
+      "id": "docmeta_no_doc_fastpath",
+      "old": {
+        "avgMs": 0.1638439999999999,
+        "minMs": 0.0984,
+        "maxMs": 1.0707
+      },
+      "new": {
+        "avgMs": 0.05676999999999997,
+        "minMs": 0.038,
+        "maxMs": 0.0994
+      },
+      "speedup": 2.886101814338559
+    }
+  ]
+}

@@ -12,9 +12,9 @@ import { resolveSqlitePaths } from '../../shared/dict-utils.js';
 import {
   dequantizeUint8ToFloat32,
   packUint8,
-  resolveQuantizationParams,
   toSqliteRowId
 } from '../../../src/storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 
 const hasTable = (db, table) => {
   try {

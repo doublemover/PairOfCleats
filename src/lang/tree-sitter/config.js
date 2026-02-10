@@ -1,30 +1,30 @@
 import { findDescendantByType } from './ast.js';
 
-const LANGUAGE_WASM_FILES = {
-  javascript: 'tree-sitter-javascript.wasm',
-  typescript: 'tree-sitter-typescript.wasm',
-  tsx: 'tree-sitter-tsx.wasm',
-  jsx: 'tree-sitter-javascript.wasm',
-  python: 'tree-sitter-python.wasm',
-  json: 'tree-sitter-json.wasm',
-  yaml: 'tree-sitter-yaml.wasm',
-  toml: 'tree-sitter-toml.wasm',
-  markdown: 'tree-sitter-markdown.wasm',
-  swift: 'tree-sitter-swift.wasm',
-  kotlin: 'tree-sitter-kotlin.wasm',
-  csharp: 'tree-sitter-c_sharp.wasm',
-  clike: 'tree-sitter-c.wasm',
-  cpp: 'tree-sitter-cpp.wasm',
-  objc: 'tree-sitter-objc.wasm',
-  go: 'tree-sitter-go.wasm',
-  rust: 'tree-sitter-rust.wasm',
-  java: 'tree-sitter-java.wasm',
-  css: 'tree-sitter-css.wasm',
-  html: 'tree-sitter-html.wasm'
+const LANGUAGE_GRAMMAR_KEYS = {
+  javascript: 'native:javascript',
+  typescript: 'native:typescript',
+  tsx: 'native:tsx',
+  jsx: 'native:javascript',
+  python: 'native:python',
+  json: 'native:json',
+  yaml: 'native:yaml',
+  toml: 'native:toml',
+  markdown: 'native:markdown',
+  swift: 'native:swift',
+  kotlin: 'native:kotlin',
+  csharp: 'native:csharp',
+  clike: 'native:clike',
+  cpp: 'native:cpp',
+  objc: 'native:objc',
+  go: 'native:go',
+  rust: 'native:rust',
+  java: 'native:java',
+  css: 'native:css',
+  html: 'native:html'
 };
 
 export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
-  Object.keys(LANGUAGE_WASM_FILES)
+  Object.keys(LANGUAGE_GRAMMAR_KEYS)
 );
 
 const JS_TS_CONFIG = {
@@ -55,6 +55,41 @@ const LANG_CONFIG = {
   typescript: JS_TS_CONFIG,
   tsx: JS_TS_CONFIG,
   jsx: JS_TS_CONFIG,
+  css: {
+    typeNodes: new Set([
+      'rule_set',
+      'at_rule'
+    ]),
+    memberNodes: new Set([]),
+    kindMap: {
+      rule_set: 'RuleSet',
+      at_rule: 'AtRule'
+    },
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      if (node.type !== 'rule_set' && node.type !== 'at_rule') return null;
+
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+
+      const braceIndex = raw.indexOf('{');
+      const semiIndex = raw.indexOf(';');
+      const cutIndex = braceIndex >= 0
+        ? braceIndex
+        : (semiIndex >= 0 ? semiIndex : -1);
+
+      let head = cutIndex >= 0 ? raw.slice(0, cutIndex) : raw;
+      head = head.split('\n', 1)[0] || head;
+      head = head.replace(/\s+/g, ' ').trim();
+      if (!head) return null;
+
+      const maxLen = 160;
+      if (head.length > maxLen) {
+        head = `${head.slice(0, maxLen).trimEnd()}...`;
+      }
+      return head;
+    }
+  },
   python: {
     typeNodes: new Set(['class_definition']),
     memberNodes: new Set(['function_definition']),
@@ -85,7 +120,16 @@ const LANG_CONFIG = {
     typeNodes: new Set(['pair']),
     memberNodes: new Set([]),
     kindMap: { pair: 'ConfigEntry' },
-    nameFields: ['key']
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      if (node.type !== 'pair') return null;
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+      const eq = raw.indexOf('=');
+      const head = eq >= 0 ? raw.slice(0, eq) : raw;
+      const name = head.trim();
+      return name || null;
+    }
   },
   markdown: {
     typeNodes: new Set(['atx_heading', 'setext_heading']),
@@ -383,4 +427,4 @@ const LANG_CONFIG = {
   }
 };
 
-export { LANGUAGE_WASM_FILES, LANG_CONFIG };
+export { LANGUAGE_GRAMMAR_KEYS, LANG_CONFIG };

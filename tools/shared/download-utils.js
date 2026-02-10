@@ -39,7 +39,14 @@ export function parseHashOverrides(input) {
  * @param {object} cfg
  * @param {object} [defaults]
  * @param {number} [defaults.defaultMaxBytes]
- * @returns {{requireHash:boolean,warnUnsigned:boolean,allowlist:Record<string,string>,maxBytes:number|undefined}}
+ * @returns {{
+ *   requireHash:boolean,
+ *   warnUnsigned:boolean,
+ *   allowlist:Record<string,string>,
+ *   maxBytes:number|undefined,
+ *   timeoutMs:number|undefined,
+ *   maxRedirects:number|undefined
+ * }}
  */
 export function resolveDownloadPolicy(cfg, defaults = {}) {
   const policy = cfg?.security?.downloads || {};
@@ -50,11 +57,21 @@ export function resolveDownloadPolicy(cfg, defaults = {}) {
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
     ? Math.floor(maxBytesRaw)
     : (Number.isFinite(defaults.defaultMaxBytes) ? defaults.defaultMaxBytes : undefined);
+  const timeoutRaw = Number(policy.timeoutMs);
+  const timeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0
+    ? Math.max(1000, Math.floor(timeoutRaw))
+    : undefined;
+  const maxRedirectsRaw = Number(policy.maxRedirects);
+  const maxRedirects = Number.isFinite(maxRedirectsRaw) && maxRedirectsRaw >= 0
+    ? Math.floor(maxRedirectsRaw)
+    : undefined;
   return {
     requireHash: policy.requireHash === true,
     warnUnsigned: policy.warnUnsigned !== false,
     allowlist,
-    maxBytes
+    maxBytes,
+    timeoutMs,
+    maxRedirects
   };
 }
 

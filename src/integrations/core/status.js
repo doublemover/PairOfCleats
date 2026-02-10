@@ -4,48 +4,12 @@ import path from 'node:path';
 import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isPathUnderDir } from '../../shared/path-normalize.js';
+import { sizeOfPath } from '../../shared/disk-space.js';
+import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
-
-/**
- * Recursively compute the size of a file or directory.
- * @param {string} targetPath
- * @returns {Promise<number>}
- */
-async function sizeOfPath(targetPath) {
-  const stack = [targetPath];
-  let total = 0;
-  while (stack.length) {
-    const current = stack.pop();
-    try {
-      const stat = await fsPromises.lstat(current);
-      if (stat.isSymbolicLink()) continue;
-      if (stat.isFile()) {
-        total += stat.size;
-        continue;
-      }
-      if (!stat.isDirectory()) continue;
-      const entries = await fsPromises.readdir(current);
-      for (const entry of entries) {
-        stack.push(path.join(current, entry));
-      }
-    } catch {}
-  }
-  return total;
-}
-
-/**
- * Check if a path is contained within another path.
- * @param {string} parent
- * @param {string} child
- * @returns {boolean}
- */
-function isInside(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
-}
 
 /**
  * Collect artifact sizes and health status for a repo.
@@ -100,7 +64,7 @@ export async function getStatus(input = {}) {
     const exists = fs.existsSync(target.path);
     const size = exists ? await sizeOfPath(target.path) : 0;
     sqliteStats[target.label] = exists ? { path: target.path, bytes: size } : null;
-    if (exists && !isInside(path.resolve(cacheRoot), target.path)) {
+    if (exists && !isPathUnderDir(path.resolve(cacheRoot), target.path)) {
       sqliteOutsideCacheSize += size;
     }
   }
@@ -109,10 +73,10 @@ export async function getStatus(input = {}) {
     { label: 'prose', path: lmdbPaths.prosePath }
   ];
   for (const target of lmdbTargets) {
-    const exists = fs.existsSync(path.join(target.path, 'data.mdb'));
+    const exists = hasLmdbStore(target.path);
     const size = exists ? await sizeOfPath(target.path) : 0;
     lmdbStats[target.label] = exists ? { path: target.path, bytes: size } : null;
-    if (exists && !isInside(path.resolve(cacheRoot), target.path)) {
+    if (exists && !isPathUnderDir(path.resolve(cacheRoot), target.path)) {
       lmdbOutsideCacheSize += size;
     }
   }
@@ -189,10 +153,10 @@ export async function getStatus(input = {}) {
 
   const lmdbIssues = [];
   if (userConfig.lmdb?.use !== false) {
-    if (!fs.existsSync(path.join(lmdbPaths.codePath, 'data.mdb'))) {
+    if (!hasLmdbStore(lmdbPaths.codePath)) {
       lmdbIssues.push('lmdb code db missing');
     }
-    if (!fs.existsSync(path.join(lmdbPaths.prosePath, 'data.mdb'))) {
+    if (!hasLmdbStore(lmdbPaths.prosePath)) {
       lmdbIssues.push('lmdb prose db missing');
     }
   }

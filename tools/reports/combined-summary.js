@@ -161,7 +161,7 @@ function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
  */
 function buildParityArgs({ backend, outPath }) {
   const args = [
-    path.join(scriptRoot, 'tests', 'parity.js'),
+    path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity.test.js'),
     '--search',
     path.join(scriptRoot, 'search.js'),
     '--sqlite-backend',

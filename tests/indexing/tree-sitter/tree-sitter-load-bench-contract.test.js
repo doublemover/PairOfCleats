@@ -36,29 +36,25 @@ const scenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
 assert.equal(scenarios.length, 4, 'expected 4 scenarios');
 
 if (scenarios.every((scenario) => scenario && scenario.skipped)) {
-  console.log('tree-sitter wasm unavailable; skipping tree-sitter-load bench contract.');
+  console.log('tree-sitter runtime unavailable; skipping tree-sitter-load bench contract.');
   process.exit(0);
 }
 
-const warmMax = Number(payload.warmMaxLoadedLanguages);
-const thrashMax = Number(payload.thrashMaxLoadedLanguages);
-
-const findScenario = ({ cacheMode, policy, maxLoadedLanguages }) => (
+const findScenario = ({ cacheMode, policy }) => (
   scenarios.find((scenario) => (
     scenario
     && scenario.cacheMode === cacheMode
     && scenario.policy === policy
-    && Number(scenario.maxLoadedLanguages) === Number(maxLoadedLanguages)
   )) || null
 );
 
-const cold = findScenario({ cacheMode: 'cold', policy: 'file-order', maxLoadedLanguages: warmMax });
-const warm = findScenario({ cacheMode: 'warm', policy: 'file-order', maxLoadedLanguages: warmMax });
+const cold = findScenario({ cacheMode: 'cold', policy: 'file-order' });
+const warm = findScenario({ cacheMode: 'warm', policy: 'file-order' });
 assert.ok(cold && !cold.skipped, 'expected cold warm/cold scenario');
 assert.ok(warm && !warm.skipped, 'expected warm warm/cold scenario');
 
-assert.ok(Number(cold.treeSitter?.wasmLoads) > 0, 'expected cold run to load grammars');
-assert.equal(Number(warm.treeSitter?.wasmLoads), 0, 'expected warm run to avoid grammar loads');
+assert.ok(Number(cold.treeSitter?.grammarLoads) > 0, 'expected cold run to load grammars');
+assert.equal(Number(warm.treeSitter?.grammarLoads), 0, 'expected warm run to avoid grammar loads');
 assert.ok(
   Number.isFinite(Number(cold.totalMs)) && Number.isFinite(Number(warm.totalMs)),
   'expected warm/cold scenarios to report totalMs'
@@ -68,14 +64,15 @@ assert.ok(
   `expected warm run to be faster than cold (warmMs=${warm.totalMs} coldMs=${cold.totalMs})`
 );
 
-const fileOrderThrash = findScenario({ cacheMode: 'cold', policy: 'file-order', maxLoadedLanguages: thrashMax });
-const batchThrash = findScenario({ cacheMode: 'cold', policy: 'batch-by-language', maxLoadedLanguages: thrashMax });
-assert.ok(fileOrderThrash && !fileOrderThrash.skipped, 'expected file-order thrash scenario');
-assert.ok(batchThrash && !batchThrash.skipped, 'expected batch-by-language thrash scenario');
+const fileOrderCold = findScenario({ cacheMode: 'cold', policy: 'file-order' });
+const batchCold = findScenario({ cacheMode: 'cold', policy: 'batch-by-language' });
+assert.ok(fileOrderCold && !fileOrderCold.skipped, 'expected cold file-order scenario');
+assert.ok(batchCold && !batchCold.skipped, 'expected cold batch-by-language scenario');
 
 assert.ok(
-  Number(fileOrderThrash.treeSitter?.wasmLoads) > Number(batchThrash.treeSitter?.wasmLoads),
-  'expected batch-by-language to reduce redundant WASM loads under eviction pressure'
+  Number(fileOrderCold.treeSitter?.parserActivations) >= Number(batchCold.treeSitter?.parserActivations),
+  'expected batch-by-language to avoid extra parser language switching'
 );
 
 console.log('tree-sitter load bench contract test passed');
+

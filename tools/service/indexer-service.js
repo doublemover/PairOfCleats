@@ -6,6 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import {
   resolveRepoRootArg,
   getCacheRoot,
@@ -28,6 +29,7 @@ import {
 } from './queue.js';
 import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from './indexer-service-helpers.js';
+import { runLoggedSubprocess } from './subprocess-log.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
@@ -180,12 +182,15 @@ const formatProgressLine = ({ jobId, stage, state }) => {
 };
 
 const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
-  if (!job || !repoPath) return () => {};
+  if (!job || !repoPath) return async () => {};
   const repoCacheRoot = getRepoCacheRoot(repoPath);
   const startedAt = Date.now();
   let active = null;
   let waitingLogged = false;
   let lastLine = '';
+  const lifecycle = createLifecycleRegistry({
+    name: `indexer-service-progress:${job.id}`
+  });
   const poll = async () => {
     if (!active) {
       active = await pickBuildState(repoCacheRoot, stage, startedAt - BUILD_STATE_LOOKBACK_MS);
@@ -205,45 +210,38 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
       lastLine = line;
     }
   };
+  const runPoll = () => {
+    if (lifecycle.isClosed()) return;
+    lifecycle.registerPromise(poll(), { label: 'indexer-service-progress-poll' });
+  };
   const timer = setInterval(() => {
-    void poll();
+    runPoll();
   }, BUILD_STATE_POLL_MS);
-  void poll();
-  return () => clearInterval(timer);
+  lifecycle.registerTimer(timer, { label: 'indexer-service-progress-interval' });
+  runPoll();
+  return async () => {
+    await lifecycle.close().catch(() => {});
+  };
 };
 
 const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
-  const useLog = typeof logPath === 'string' && logPath.trim();
-  const stdio = useLog ? ['ignore', 'pipe', 'pipe'] : 'inherit';
-  try {
-    const result = await spawnSubprocess(process.execPath, args, {
-      stdio,
-      env: { ...process.env, ...extraEnv },
-      rejectOnNonZeroExit: false,
-      captureStdout: useLog,
-      captureStderr: useLog,
-      outputMode: 'string'
-    });
-    if (useLog) {
-      fs.mkdirSync(path.dirname(logPath), { recursive: true });
-      const parts = [];
-      parts.push(`[${new Date().toISOString()}] job start`);
-      const stdoutText = typeof result.stdout === 'string' ? result.stdout : '';
-      const stderrText = typeof result.stderr === 'string' ? result.stderr : '';
-      if (stdoutText) parts.push(stdoutText.trimEnd());
-      if (stderrText) parts.push(stderrText.trimEnd());
-      parts.push(`[${new Date().toISOString()}] job exit ${result.exitCode ?? 1}`);
-      fs.appendFileSync(logPath, `${parts.join('\n')}\n`);
+  const result = await runLoggedSubprocess({
+    command: process.execPath,
+    args,
+    env: process.env,
+    extraEnv,
+    logPath,
+    onWriteError: (err) => {
+      console.error(`[indexer] failed writing subprocess log (${logPath}): ${err?.message || err}`);
     }
-    return result.exitCode ?? 1;
-  } catch (err) {
-    if (useLog) {
-      fs.mkdirSync(path.dirname(logPath), { recursive: true });
-      const message = err?.message || String(err);
-      fs.appendFileSync(logPath, `[${new Date().toISOString()}] job error ${message}\n`);
-    }
-    return 1;
+  });
+  if (result.errorMessage) {
+    const reason = result.timedOut
+      ? `timed out after ${result.durationMs ?? 'unknown'}ms`
+      : result.errorMessage;
+    console.error(`[indexer] subprocess failed: ${reason}`);
   }
+  return Number.isFinite(result.exitCode) ? result.exitCode : 1;
 };
 
 const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
@@ -337,13 +335,18 @@ const processQueueOnce = async (metrics) => {
   const extraEnv = memoryMb
     ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${memoryMb}`.trim() }
     : {};
+  const jobLifecycle = createLifecycleRegistry({
+    name: `indexer-service-job:${job.id}`
+  });
   const heartbeat = setInterval(() => {
     void touchJobHeartbeat(queueDir, job.id, resolvedQueueName);
   }, 30000);
+  jobLifecycle.registerTimer(heartbeat, { label: 'indexer-service-job-heartbeat' });
   const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
   const stopProgress = queueName === 'index'
     ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
-    : () => {};
+    : (async () => {});
+  jobLifecycle.registerCleanup(() => stopProgress(), { label: 'indexer-service-progress-stop' });
   let exitCode;
   try {
     if (queueName === 'embeddings') {
@@ -374,19 +377,21 @@ const processQueueOnce = async (metrics) => {
           console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
         }
       }
-      exitCode = await runBuildEmbeddings(
+      exitCode = await jobLifecycle.registerPromise(runBuildEmbeddings(
         normalized.repoRoot || job.repo,
         job.mode,
         normalized.buildRoot,
         extraEnv,
         logPath
-      );
+      ), { label: 'indexer-service-run-embeddings' });
     } else {
-      exitCode = await runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath);
+      exitCode = await jobLifecycle.registerPromise(
+        runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath),
+        { label: 'indexer-service-run-index' }
+      );
     }
   } finally {
-    stopProgress();
-    clearInterval(heartbeat);
+    await jobLifecycle.close().catch(() => {});
   }
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;

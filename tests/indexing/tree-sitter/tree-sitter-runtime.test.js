@@ -17,3 +17,4 @@ assert.equal(
 );
 
 console.log('tree-sitter runtime test passed');
+

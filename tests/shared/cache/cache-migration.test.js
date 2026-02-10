@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { CACHE_KEY_VERSION } from '../../../src/shared/cache-key.js';
 import { getCacheRoot, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
@@ -13,11 +12,13 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const runScenario = async ({ baseName, rebuild }) => {
   const baseRoot = path.join(tempRoot, baseName);
-  const versionedRoot = resolveVersionedCacheRoot(baseRoot, CACHE_KEY_VERSION);
+  const resolvedRoot = resolveVersionedCacheRoot(baseRoot);
   await fs.mkdir(baseRoot, { recursive: true });
-  await fs.mkdir(versionedRoot, { recursive: true });
-  await fs.writeFile(path.join(baseRoot, 'legacy.txt'), 'legacy');
-  await fs.writeFile(path.join(versionedRoot, 'sentinel.txt'), 'keep');
+  await fs.mkdir(resolvedRoot, { recursive: true });
+  const legacyPath = path.join(resolvedRoot, 'legacy.txt');
+  const sentinelPath = path.join(resolvedRoot, 'sentinel.txt');
+  await fs.writeFile(legacyPath, 'legacy');
+  await fs.writeFile(sentinelPath, 'keep');
 
   process.env.PAIROFCLEATS_CACHE_ROOT = baseRoot;
   if (rebuild) {
@@ -27,16 +28,14 @@ const runScenario = async ({ baseName, rebuild }) => {
   }
 
   const resolved = getCacheRoot();
-  assert.ok(resolved.endsWith(path.join(baseName, CACHE_KEY_VERSION)), 'expected versioned cache root');
+  assert.equal(path.resolve(resolved), path.resolve(resolvedRoot), 'expected resolved cache root');
 
-  const legacyPath = path.join(baseRoot, 'legacy.txt');
-  assert.equal(fsSync.existsSync(legacyPath), false, 'expected legacy cache to be purged');
-
-  const sentinelPath = path.join(versionedRoot, 'sentinel.txt');
   if (rebuild) {
-    assert.equal(fsSync.existsSync(sentinelPath), false, 'expected rebuild to clear versioned cache root');
+    assert.equal(fsSync.existsSync(legacyPath), false, 'expected rebuild to clear cache root');
+    assert.equal(fsSync.existsSync(sentinelPath), false, 'expected rebuild to clear cache root');
   } else {
-    assert.equal(fsSync.existsSync(sentinelPath), true, 'expected versioned cache root to remain');
+    assert.equal(fsSync.existsSync(legacyPath), true, 'expected cache root to remain without rebuild');
+    assert.equal(fsSync.existsSync(sentinelPath), true, 'expected cache root to remain without rebuild');
   }
 };
 

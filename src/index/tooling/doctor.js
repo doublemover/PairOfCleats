@@ -1,36 +1,19 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import semver from 'semver';
 import { execaSync } from 'execa';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { findBinaryInDirs } from './binary-utils.js';
+import { loadTypeScript } from './typescript/load.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
-
-const candidateNames = (name) => {
-  if (process.platform === 'win32') {
-    return [`${name}.cmd`, `${name}.exe`, name];
-  }
-  return [name];
-};
-
-const findBinaryInDirs = (name, dirs) => {
-  const candidates = candidateNames(name);
-  for (const dir of dirs) {
-    for (const candidate of candidates) {
-      const full = path.join(dir, candidate);
-      if (fsSync.existsSync(full)) return full;
-    }
-  }
-  return null;
-};
 
 const canRunBinary = (cmd, argsList) => {
   if (!cmd) return false;
@@ -44,38 +27,6 @@ const canRunBinary = (cmd, argsList) => {
     } catch {}
   }
   return false;
-};
-
-const resolveTypeScript = async (toolingConfig, repoRoot) => {
-  if (toolingConfig?.typescript?.enabled === false) return null;
-  const toolingRoot = toolingConfig?.dir || '';
-  const resolveOrder = Array.isArray(toolingConfig?.typescript?.resolveOrder)
-    ? toolingConfig.typescript.resolveOrder
-    : ['repo', 'cache', 'global'];
-  const lookup = {
-    repo: path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
-    cache: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
-    tooling: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
-  };
-
-  for (const entry of resolveOrder) {
-    const key = String(entry || '').toLowerCase();
-    if (key === 'global') {
-      try {
-        const mod = await import('typescript');
-        return mod?.default || mod;
-      } catch {
-        continue;
-      }
-    }
-    const candidate = lookup[key];
-    if (!candidate || !fsSync.existsSync(candidate)) continue;
-    try {
-      const mod = await import(pathToFileURL(candidate).href);
-      return mod?.default || mod;
-    } catch {}
-  }
-  return null;
 };
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
@@ -299,7 +250,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         message: 'Provider disabled by tooling configuration.'
       });
     } else if (providerId === 'typescript') {
-      const ts = await resolveTypeScript(toolingConfig, repoRoot);
+      const ts = await loadTypeScript(toolingConfig, repoRoot);
       if (!ts) {
         addCheck({
           name: 'typescript',

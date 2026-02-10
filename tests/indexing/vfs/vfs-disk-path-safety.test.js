@@ -14,16 +14,9 @@ assert.ok(resolvedUnsafe.includes('%2A'), 'asterisk should be percent-encoded in
 assert.ok(resolvedUnsafe.includes('%3F'), 'question mark should be percent-encoded in disk path');
 
 const traversalVirtualPath = '.poc-vfs/../escape.txt';
-const resolvedTraversal = resolveVfsDiskPath({ baseDir, virtualPath: traversalVirtualPath });
-const resolvedBase = path.resolve(baseDir);
-const resolvedTarget = path.resolve(resolvedTraversal);
-assert.ok(
-  resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`),
-  'resolved disk path should stay under baseDir'
-);
-assert.ok(
-  resolvedTraversal.includes('%2E%2E'),
-  'dot-dot path segments should be encoded as literal components'
+assert.throws(
+  () => resolveVfsDiskPath({ baseDir, virtualPath: traversalVirtualPath }),
+  /must not escape the baseDir/i
 );
 
 console.log('VFS disk path safety ok');

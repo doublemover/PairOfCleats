@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { resolveOutputPaths } from '../../../../tools/build/sqlite/output-paths.js';
+import { resolveOutputPaths } from '../../../../src/storage/sqlite/build/output-paths.js';
 
 const sqlitePaths = {
   codePath: path.join('C:', 'cache', 'index-code.db'),

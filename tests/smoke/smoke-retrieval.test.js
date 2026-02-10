@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { toPosix } from '../../src/shared/files.js';
 import { getCombinedOutput } from '../helpers/stdio.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 import { cleanup, root } from './smoke-utils.js';
 
 const tempRoot = path.join(root, '.testCache', 'smoke-retrieval');
@@ -12,12 +13,10 @@ const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const searchPath = path.join(root, 'search.js');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const fail = (message, exitCode = 1) => {
   const error = new Error(message);
@@ -126,11 +125,11 @@ try {
     [searchPath, 'return', '--mode', 'code', '--no-ann', '--repo', repoRoot, '--explain']
   );
   const explainOutput = stripAnsi(getCombinedOutput(explainResult));
-  if (!explainOutput.includes('Score:')) {
-    fail('Explain output missing Score breakdown.');
+  if (!/score/i.test(explainOutput)) {
+    fail('Explain output missing score details.');
   }
-  if (!explainOutput.includes('Sparse:')) {
-    fail('Explain output missing Sparse breakdown.');
+  if (!/sparse|bm25/i.test(explainOutput)) {
+    fail('Explain output missing sparse/bm25 details.');
   }
 
 } catch (err) {

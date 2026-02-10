@@ -1,5 +1,18 @@
 import { parseJavaScriptAst } from './parse.js';
 
+const WALK_SKIP_KEYS = new Set([
+  'loc',
+  'start',
+  'end',
+  'tokens',
+  'comments',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+  'extra',
+  'parent'
+]);
+
 /**
  * Collect import/require dependencies from JS AST.
  * @param {object} ast
@@ -7,18 +20,6 @@ import { parseJavaScriptAst } from './parse.js';
  */
 export function collectImportsFromAst(ast) {
   const imports = new Set();
-  const WALK_SKIP_KEYS = new Set([
-    'loc',
-    'start',
-    'end',
-    'tokens',
-    'comments',
-    'leadingComments',
-    'trailingComments',
-    'innerComments',
-    'extra',
-    'parent'
-  ]);
 
   const stack = [ast];
   while (stack.length) {
@@ -59,9 +60,8 @@ export function collectImportsFromAst(ast) {
         imports.add(arg.value);
       }
     }
-    const keys = Object.keys(node);
-    for (let i = keys.length - 1; i >= 0; i -= 1) {
-      const key = keys[i];
+    for (const key in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
       if (WALK_SKIP_KEYS.has(key)) continue;
       const child = node[key];
       if (child && typeof child === 'object') {
@@ -79,6 +79,9 @@ export function collectImportsFromAst(ast) {
  * @returns {string[]}
  */
 export function collectImports(text, options = {}) {
+  if (!text || (!text.includes('import') && !text.includes('export') && !text.includes('require'))) {
+    return [];
+  }
   const ast = options.ast || parseJavaScriptAst(text, options);
   if (!ast) return [];
   return collectImportsFromAst(ast);

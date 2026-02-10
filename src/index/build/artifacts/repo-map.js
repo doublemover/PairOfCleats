@@ -5,17 +5,17 @@ import { fromPosix } from '../../../shared/files.js';
 import { createOrderingHasher } from '../../../shared/order.js';
 import { applyByteBudget } from '../byte-budget.js';
 
-export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
+export function measureRepoMap({ repoMapIterator, maxJsonBytes, fileIdByPath = null }) {
   let totalEntries = 0;
   let totalBytes = 2;
   let totalJsonlBytes = 0;
   let totalDeltaJsonlBytes = 0;
-  let deltaEnabled = false;
+  const hasDeltaMap = fileIdByPath && typeof fileIdByPath.get === 'function';
+  let deltaEligible = hasDeltaMap;
   const kindTable = [];
   const kindIndex = new Map();
   const signatureTable = [null];
   const signatureIndex = new Map([[null, 0]]);
-  const fileIdByPath = arguments?.[0]?.fileIdByPath || null;
   const orderingHasher = createOrderingHasher();
   const pushTable = (value, table, index) => {
     const key = value == null ? null : String(value);
@@ -34,10 +34,9 @@ export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
     }
     totalBytes += lineBytes + (totalEntries > 0 ? 1 : 0);
     totalJsonlBytes += lineBytes + 1;
-    if (fileIdByPath && typeof fileIdByPath.get === 'function') {
+    if (deltaEligible) {
       const fileId = fileIdByPath.get(entry.file);
       if (Number.isFinite(fileId)) {
-        deltaEnabled = true;
         const kindId = pushTable(entry.kind || null, kindTable, kindIndex);
         const signatureId = pushTable(entry.signature ?? null, signatureTable, signatureIndex);
         const deltaRow = [
@@ -57,11 +56,13 @@ export function measureRepoMap({ repoMapIterator, maxJsonBytes }) {
         }
         totalDeltaJsonlBytes += deltaBytes + 1;
       } else {
-        deltaEnabled = false;
+        // Delta encoding requires total file-id coverage; fail closed if any row is missing.
+        deltaEligible = false;
       }
     }
     totalEntries += 1;
   }
+  const deltaEnabled = deltaEligible && totalEntries > 0;
   const orderingResult = totalEntries ? orderingHasher.digest() : null;
   const deltaRatio = (deltaEnabled && totalJsonlBytes > 0)
     ? totalDeltaJsonlBytes / totalJsonlBytes

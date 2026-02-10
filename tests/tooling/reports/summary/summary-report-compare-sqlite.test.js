@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ensureSummaryReportFixture } from './summary-report-helpers.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
 const modelId = 'Xenova/all-MiniLM-L12-v2';
@@ -12,12 +13,11 @@ const outPath = path.join(tempRoot, 'compare-sqlite.json');
 
 await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  testing: '1',
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const result = spawnSync(
   process.execPath,

@@ -9,14 +9,17 @@ const tempRoot = await makeTempDir('pairofcleats-vfs-diskpath-');
 
 try {
   const virtualPath = '.poc-vfs/../C:/evil#seg:segu:v1:abc.ts';
-  const resolved = resolveVfsDiskPath({ baseDir: tempRoot, virtualPath });
-  const rel = path.relative(tempRoot, resolved);
-  const relParts = rel.split(path.sep);
+  assert.throws(
+    () => resolveVfsDiskPath({ baseDir: tempRoot, virtualPath }),
+    /must not escape the baseDir|must be relative|outside baseDir/i
+  );
 
-  assert.ok(!rel.startsWith('..'), 'resolved path should remain under baseDir');
-  assert.ok(!relParts.includes('..'), 'resolved path should not contain traversal segments');
-  assert.ok(rel.includes('%2E%2E') || rel.includes('%2e%2e'), 'dot segments should be encoded');
-  assert.ok(rel.includes('%3A'), 'colon should be percent-encoded');
+  const safeResolved = resolveVfsDiskPath({
+    baseDir: tempRoot,
+    virtualPath: '.poc-vfs/safe/path#seg:segu:v1:abc.ts'
+  });
+  const rel = path.relative(tempRoot, safeResolved);
+  assert.ok(!rel.startsWith('..'), 'safe path should remain under baseDir');
 
   console.log('VFS disk path safety test passed');
 } finally {

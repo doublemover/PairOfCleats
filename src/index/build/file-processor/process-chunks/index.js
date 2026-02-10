@@ -400,7 +400,7 @@ export const processChunks = async (context) => {
       && chunkMode === 'code';
     if (tokenClassificationEnabled && usedWorkerTokenize) {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
-      // multiplying WASM/grammar memory across --threads. Attach buckets here using the
+      // multiplying parser/grammar memory across --threads. Attach buckets here using the
       // main thread tree-sitter runtime (global caps).
       const classification = classifyTokenBuckets({
         text: tokenText,

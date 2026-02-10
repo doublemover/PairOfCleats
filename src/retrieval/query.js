@@ -211,7 +211,7 @@ const parseBooleanQuery = (raw) => {
   return { ast, errors };
 };
 
-const flattenQueryAst = (ast, state = null, negated = false) => {
+const flattenQueryAst = (ast, state = null, negated = false, inCompoundNegation = false) => {
   const acc = state || {
     includeTerms: [],
     excludeTerms: [],
@@ -221,17 +221,24 @@ const flattenQueryAst = (ast, state = null, negated = false) => {
   if (!ast) return acc;
   switch (ast.type) {
     case BOOLEAN_TOKEN.TERM:
+      if (negated && inCompoundNegation) return acc;
       (negated ? acc.excludeTerms : acc.includeTerms).push(ast.value);
       return acc;
     case BOOLEAN_TOKEN.PHRASE:
+      if (negated && inCompoundNegation) return acc;
       (negated ? acc.excludePhrases : acc.phrases).push(ast.value);
       return acc;
     case BOOLEAN_TOKEN.NOT:
-      return flattenQueryAst(ast.child, acc, !negated);
+      return flattenQueryAst(
+        ast.child,
+        acc,
+        !negated,
+        inCompoundNegation || ast.child?.type === BOOLEAN_TOKEN.AND || ast.child?.type === BOOLEAN_TOKEN.OR
+      );
     case BOOLEAN_TOKEN.AND:
     case BOOLEAN_TOKEN.OR:
-      flattenQueryAst(ast.left, acc, negated);
-      return flattenQueryAst(ast.right, acc, negated);
+      flattenQueryAst(ast.left, acc, negated, inCompoundNegation);
+      return flattenQueryAst(ast.right, acc, negated, inCompoundNegation);
     default:
       return acc;
   }

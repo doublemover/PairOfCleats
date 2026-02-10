@@ -1,10 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
-const normalizeRoot = (value) => {
-  const resolved = path.resolve(value || '');
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-};
+import { normalizeRoot } from './shared.js';
 
 export const resolveRecordsRoot = (root, recordsDir) => {
   if (!recordsDir) return null;

@@ -12,7 +12,7 @@ import {
   readCompatibilityKey
 } from '../../shared/artifact-io.js';
 import { resolveManifestArtifactSources } from '../../shared/artifact-io/manifest.js';
-import { readJsonlRows } from '../../index/build/artifacts/helpers.js';
+import { readJsonlRows } from '../../shared/merge.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';

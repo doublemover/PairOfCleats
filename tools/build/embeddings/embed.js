@@ -1,6 +1,6 @@
 import { quantizeVecUint8 } from '../../../src/index/embedding.js';
 import { mergeEmbeddingVectors, normalizeEmbeddingVector } from '../../../src/shared/embedding-utils.js';
-import { resolveQuantizationParams } from '../../../src/storage/sqlite/vector.js';
+import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 
 const isVectorLike = (value) => {
   if (Array.isArray(value)) return true;

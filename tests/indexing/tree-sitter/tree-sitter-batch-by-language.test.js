@@ -20,3 +20,4 @@ assert.equal(entries[1].rel, 'c.js');
 assert.equal(entries[2].rel, 'b.py');
 
 console.log('tree-sitter batch-by-language ok');
+

@@ -2,12 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadIndexWithCache } from '../index-cache.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../shared/artifact-io.js';
+import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 import { resolveIndexDir } from '../cli-index.js';
 
-export function hasLmdbStore(storePath) {
-  if (!storePath || !fs.existsSync(storePath)) return false;
-  return fs.existsSync(path.join(storePath, 'data.mdb'));
-}
+export { hasLmdbStore };
 
 export async function loadIndexCached({
   indexCache,

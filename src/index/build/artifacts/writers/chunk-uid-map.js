@@ -8,26 +8,15 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { applyByteBudget } from '../../byte-budget.js';
-
-const resolveJsonlExtension = (value) => {
-  if (value === 'gzip') return 'jsonl.gz';
-  if (value === 'zstd') return 'jsonl.zst';
-  return 'jsonl';
-};
-
-const measureRows = (rows) => {
-  let totalBytes = 0;
-  let maxLineBytes = 0;
-  for (const row of rows) {
-    const line = JSON.stringify(row);
-    const bytes = Buffer.byteLength(line, 'utf8') + 1;
-    totalBytes += bytes;
-    if (bytes > maxLineBytes) maxLineBytes = bytes;
-  }
-  return { totalBytes, maxLineBytes };
-};
+import {
+  buildJsonlVariantPaths,
+  buildShardedPartEntries,
+  measureJsonlRows,
+  removeArtifacts,
+  resolveJsonlExtension,
+  writeShardedJsonlMeta
+} from './_common.js';
 
 const buildRows = (chunks) => {
   const rows = [];
@@ -63,15 +52,15 @@ export const enqueueChunkUidMapArtifacts = async ({
 }) => {
   const rows = buildRows(chunks);
   if (!rows.length) {
-    await fs.rm(path.join(outDir, 'chunk_uid_map.jsonl'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'chunk_uid_map.jsonl.gz'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'chunk_uid_map.jsonl.zst'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'chunk_uid_map.meta.json'), { recursive: true, force: true }).catch(() => {});
-    await fs.rm(path.join(outDir, 'chunk_uid_map.parts'), { recursive: true, force: true }).catch(() => {});
+    await removeArtifacts([
+      ...buildJsonlVariantPaths({ outDir, baseName: 'chunk_uid_map' }),
+      path.join(outDir, 'chunk_uid_map.meta.json'),
+      path.join(outDir, 'chunk_uid_map.parts')
+    ]);
     return;
   }
 
-  const measurement = measureRows(rows);
+  const measurement = measureJsonlRows(rows);
   if (maxJsonBytes && measurement.maxLineBytes > maxJsonBytes) {
     throw new Error(`chunk_uid_map row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
@@ -87,17 +76,13 @@ export const enqueueChunkUidMapArtifacts = async ({
   const jsonlName = `chunk_uid_map.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
 
-  const removeArtifact = async (targetPath) => {
-    try { await fs.rm(targetPath, { recursive: true, force: true }); } catch {}
-  };
-
   if (useShards) {
-    await removeArtifact(path.join(outDir, 'chunk_uid_map.jsonl'));
-    await removeArtifact(path.join(outDir, 'chunk_uid_map.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'chunk_uid_map.jsonl.zst'));
+    await removeArtifacts(buildJsonlVariantPaths({ outDir, baseName: 'chunk_uid_map' }));
   } else {
-    await removeArtifact(path.join(outDir, 'chunk_uid_map.meta.json'));
-    await removeArtifact(path.join(outDir, 'chunk_uid_map.parts'));
+    await removeArtifacts([
+      path.join(outDir, 'chunk_uid_map.meta.json'),
+      path.join(outDir, 'chunk_uid_map.parts')
+    ]);
   }
 
   await ensureDiskSpace({
@@ -122,26 +107,13 @@ export const enqueueChunkUidMapArtifacts = async ({
           compression,
           gzipOptions
         });
-        const parts = result.parts.map((part, index) => ({
-          path: part,
-          records: result.counts[index] || 0,
-          bytes: result.bytes[index] || 0
-        }));
-        await writeJsonObjectFile(metaPath, {
-          fields: {
-            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-            artifact: 'chunk_uid_map',
-            format: 'jsonl-sharded',
-            generatedAt: new Date().toISOString(),
-            compression: compression || 'none',
-            totalRecords: result.total,
-            totalBytes: result.totalBytes,
-            maxPartRecords: result.maxPartRecords,
-            maxPartBytes: result.maxPartBytes,
-            targetMaxBytes: result.targetMaxBytes,
-            parts
-          },
-          atomic: true
+        const parts = buildShardedPartEntries(result);
+        await writeShardedJsonlMeta({
+          metaPath,
+          artifact: 'chunk_uid_map',
+          compression,
+          result,
+          parts
         });
         for (let i = 0; i < result.parts.length; i += 1) {
           const relPath = result.parts[i];

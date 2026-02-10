@@ -1,29 +1,32 @@
 import { rankLanceDb } from '../../lancedb.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
-
-const isEmbeddingReady = (embedding) => (
-  (Array.isArray(embedding) || (ArrayBuffer.isView(embedding) && !(embedding instanceof DataView)))
-  && embedding.length > 0
-);
+import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 
 export function createLanceDbAnnProvider({
   lancedbConfig,
   lanceAnnState,
   lanceAnnUsed
 }) {
+  const isEnabled = lancedbConfig?.enabled !== false;
+  const isBackendReady = (idx, mode) => Boolean(idx?.lancedb?.available || lanceAnnState?.[mode]?.available);
+
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
-    isAvailable: ({ idx, mode, embedding }) => (
-      isEmbeddingReady(embedding)
-      && lancedbConfig?.enabled !== false
-      && (idx?.lancedb?.available || lanceAnnState?.[mode]?.available)
-    ),
+    isAvailable: ({ idx, mode, embedding }) => isAnnProviderAvailable({
+      embedding,
+      enabled: isEnabled,
+      backendReady: isBackendReady(idx, mode)
+    }),
     query: async ({ idx, mode, embedding, topN, candidateSet, signal }) => {
-      if (signal?.aborted) return [];
-      if (!isEmbeddingReady(embedding)) return [];
-      if (candidateSet && candidateSet.size === 0) return [];
-      if (lancedbConfig?.enabled === false) return [];
-      if (!(idx?.lancedb?.available || lanceAnnState?.[mode]?.available)) return [];
+      if (!canRunAnnQuery({
+        signal,
+        embedding,
+        candidateSet,
+        enabled: isEnabled,
+        backendReady: isBackendReady(idx, mode)
+      })) {
+        return [];
+      }
       const hits = await rankLanceDb({
         lancedbInfo: idx.lancedb,
         queryEmbedding: embedding,

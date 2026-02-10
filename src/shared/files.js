@@ -82,6 +82,6 @@ export function readFileRangeSync(filePath, start, end) {
     const bytesRead = fs.readSync(fd, buffer, 0, length, safeStart);
     return buffer.subarray(0, bytesRead);
   } finally {
-    if (fd) fs.closeSync(fd);
+    if (fd !== null) fs.closeSync(fd);
   }
 }

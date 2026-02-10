@@ -1,7 +1,7 @@
 export { TREE_SITTER_LANGUAGE_IDS } from './tree-sitter/config.js';
 export {
-  initTreeSitterWasm,
-  preflightTreeSitterWasmLanguages,
+  initTreeSitterRuntime,
+  preflightTreeSitterLanguages,
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
   resetTreeSitterParser,

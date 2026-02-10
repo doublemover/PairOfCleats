@@ -38,17 +38,21 @@ export function buildPythonHeuristicChunks(text) {
     });
   }
   if (defs.length) {
+    const nextAtOrBelowIndent = new Array(defs.length).fill(-1);
+    const stack = [];
+    for (let i = 0; i < defs.length; i += 1) {
+      const currentIndent = defs[i].indent;
+      while (stack.length && currentIndent <= defs[stack[stack.length - 1]].indent) {
+        nextAtOrBelowIndent[stack.pop()] = i;
+      }
+      stack.push(i);
+    }
     const chunks = [];
     for (let i = 0; i < defs.length; i++) {
       const current = defs[i];
-      let end = text.length;
-      for (let j = i + 1; j < defs.length; j++) {
-        if (defs[j].indent <= current.indent) {
-          end = defs[j].start;
-          break;
-        }
-      }
-      const endLine = offsetToLine(lineIndex, end);
+      const nextIndex = nextAtOrBelowIndent[i];
+      const end = nextIndex === -1 ? text.length : defs[nextIndex].start;
+      const endLine = offsetToLine(lineIndex, Math.max(current.start, end - 1));
       chunks.push({
         start: current.start,
         end,

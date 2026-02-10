@@ -100,17 +100,42 @@ export const createToolingGuard = ({
   log = () => {}
 } = {}) => {
   let consecutiveFailures = 0;
+  let lastFailure = null;
+  let tripCount = 0;
   const isOpen = () => consecutiveFailures >= breakerThreshold;
   const reset = () => {
     consecutiveFailures = 0;
   };
   const recordFailure = (err, label) => {
     consecutiveFailures += 1;
+    const message = err?.message || String(err);
+    lastFailure = {
+      label: label || null,
+      message,
+      code: err?.code || null,
+      at: new Date().toISOString(),
+      timedOut: /\btimeout\b/i.test(message)
+    };
     if (label) log(`[tooling] ${name} ${label} failed (${consecutiveFailures}/${breakerThreshold}): ${err?.message || err}`);
-    if (isOpen()) log(`[tooling] ${name} circuit breaker tripped.`);
+    if (isOpen()) {
+      tripCount += 1;
+      log(`[tooling] ${name} circuit breaker tripped.`);
+    }
   };
   const run = async (fn, { label, timeoutOverride } = {}) => {
-    if (isOpen()) throw new Error(`${name} tooling disabled (circuit breaker).`);
+    if (isOpen()) {
+      const reason = lastFailure?.message || 'unknown failure';
+      const err = new Error(`${name} tooling disabled (circuit breaker): ${reason}`);
+      err.code = 'TOOLING_CIRCUIT_OPEN';
+      err.detail = {
+        provider: name,
+        breakerThreshold,
+        consecutiveFailures,
+        tripCount,
+        lastFailure
+      };
+      throw err;
+    }
     let attempt = 0;
     while (attempt <= retries) {
       try {
@@ -131,6 +156,12 @@ export const createToolingGuard = ({
   };
   return {
     isOpen,
+    getState: () => ({
+      breakerThreshold,
+      consecutiveFailures,
+      tripCount,
+      lastFailure
+    }),
     run
   };
 };

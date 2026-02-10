@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createTempPath } from '../../../shared/json-stream.js';
+import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
@@ -53,18 +54,6 @@ const normalizeModeArg = (value) => {
   }
   return 'all';
 };
-
-const createNoopTask = () => ({
-  tick() {},
-  set() {},
-  done() {},
-  fail() {},
-  update() {}
-});
-
-const resolveTaskFactory = (taskFactory) => (
-  typeof taskFactory === 'function' ? taskFactory : (() => createNoopTask())
-);
 
 /**
  * Build sqlite indexes without CLI parsing.
@@ -497,9 +486,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
           ? pieces.denseVec.vectors.length
           : 0;
+        const vectorRequiredForMode = vectorAnnEnabled
+          && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose');
         const bundleManifest = incrementalData?.manifest || null;
         let bundleSkipReason = null;
-        if (hasIncrementalBundles && expectedDenseCount > 0 && bundleManifest?.bundleEmbeddings === false) {
+        if (hasIncrementalBundles
+          && vectorRequiredForMode
+          && expectedDenseCount > 0
+          && bundleManifest?.bundleEmbeddings === false) {
           const stageNote = bundleManifest.bundleEmbeddingStage
             ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
             : '';
@@ -636,7 +630,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             batchSize: batchSizeOverride,
             stats: sqliteStats
           });
-          const missingDense = vectorAnnEnabled && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
+          const missingDense = vectorRequiredForMode && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
           if (bundleFailureReason) {
             warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);

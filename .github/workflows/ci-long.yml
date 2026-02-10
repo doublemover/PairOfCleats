@@ -35,16 +35,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
         run: |
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
-            npm ci
+            npm run bootstrap:ci
           else
-            echo "node_modules cache hit; skipping npm ci."
+            echo "node_modules cache hit; using cached patched dependencies and skipping native rebuild."
           fi
           node -v
           npm -v

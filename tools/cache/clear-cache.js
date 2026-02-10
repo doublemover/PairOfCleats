@@ -19,8 +19,8 @@ const cli = createCli({
 
 const argv = cli.parse();
 const baseRoot = argv['cache-root'] ? path.resolve(argv['cache-root']) : getCacheRootBase();
-const versionedRoot = resolveVersionedCacheRoot(baseRoot);
-const targetLabel = argv.all ? baseRoot : versionedRoot;
+const cacheRoot = resolveVersionedCacheRoot(baseRoot);
+const targetLabel = argv.all ? baseRoot : cacheRoot;
 
 if (!argv.force) {
   if (!process.stdin.isTTY) {

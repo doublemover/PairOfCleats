@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import {
   buildTreeSitterChunks,
-  initTreeSitterWasm,
+  initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   resetTreeSitterParser,
   resetTreeSitterStats,
@@ -31,25 +31,23 @@ try {
   resetTreeSitterStats();
   resetTreeSitterParser({ hard: true });
 
-  const ok = await initTreeSitterWasm({ log });
+  const ok = await initTreeSitterRuntime({ log });
   if (!ok) {
-    console.log('tree-sitter wasm unavailable; skipping parse determinism test.');
+    console.log('tree-sitter runtime unavailable; skipping parse determinism test.');
     process.exit(0);
   }
 
   const languageId = 'javascript';
   const ext = '.js';
-  const maxLoadedLanguages = 2;
 
-  await preloadTreeSitterLanguages([languageId], { log, parallel: false, maxLoadedLanguages });
+  await preloadTreeSitterLanguages([languageId], { log, parallel: false });
 
   const options = {
     log,
     treeSitter: {
       enabled: true,
       useQueries: true,
-      chunkCache: false,
-      maxLoadedLanguages
+      chunkCache: false
     }
   };
 
@@ -76,8 +74,7 @@ try {
         treeSitter: {
           enabled: true,
           useQueries: true,
-          chunkCache: false,
-          maxLoadedLanguages
+          chunkCache: false
         }
       },
       { name: 'parseTreeSitter' }
@@ -90,3 +87,5 @@ try {
   clearTimeout(timeout);
   await shutdownTreeSitterWorkerPool();
 }
+
+

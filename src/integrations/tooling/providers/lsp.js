@@ -14,6 +14,31 @@ import {
   resolveVfsDiskPath
 } from '../../../index/tooling/vfs.js';
 
+const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
+const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
+const DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK = 100;
+
+const clampPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const diagnosticKey = (diag) => {
+  if (!diag || typeof diag !== 'object') return '';
+  const range = diag.range || {};
+  const start = range.start || {};
+  const end = range.end || {};
+  return [
+    String(diag.code || ''),
+    String(diag.severity || ''),
+    String(diag.source || ''),
+    String(diag.message || ''),
+    `${start.line ?? ''}:${start.character ?? ''}`,
+    `${end.line ?? ''}:${end.character ?? ''}`
+  ].join('|');
+};
+
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
   if (typeof contents === 'string') return contents;
@@ -30,6 +55,62 @@ const normalizeHoverContents = (contents) => {
 const normalizeTypeText = (value) => {
   if (!value) return null;
   return String(value).replace(/\s+/g, ' ').trim() || null;
+};
+
+const normalizeSignatureCacheText = (value) => (
+  String(value || '').replace(/\s+/g, ' ').trim()
+);
+
+const toFiniteInt = (value, min = null) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const normalized = Math.floor(parsed);
+  if (!Number.isFinite(min)) return normalized;
+  return Math.max(min, normalized);
+};
+
+const percentile = (values, ratio) => {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const target = Number(ratio);
+  if (!Number.isFinite(target) || target <= 0) return Math.min(...values);
+  if (target >= 1) return Math.max(...values);
+  const sorted = values.slice().sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(target * sorted.length) - 1));
+  return sorted[index];
+};
+
+const summarizeLatencies = (values) => {
+  if (!Array.isArray(values) || values.length === 0) {
+    return { count: 0, p50Ms: null, p95Ms: null };
+  }
+  return {
+    count: values.length,
+    p50Ms: percentile(values, 0.5),
+    p95Ms: percentile(values, 0.95)
+  };
+};
+
+const createHoverFileStats = () => ({
+  requested: 0,
+  succeeded: 0,
+  timedOut: 0,
+  skippedByBudget: 0,
+  skippedByKind: 0,
+  skippedByReturnSufficient: 0,
+  skippedByAdaptiveDisable: 0,
+  skippedByGlobalDisable: 0,
+  latencyMs: [],
+  disabledAdaptive: false
+});
+
+const normalizeHoverKinds = (kinds) => {
+  if (kinds == null) return null;
+  const source = Array.isArray(kinds) ? kinds : [kinds];
+  const normalized = source
+    .map((entry) => toFiniteInt(entry, 0))
+    .filter((entry) => Number.isFinite(entry));
+  if (!normalized.length) return null;
+  return new Set(normalized);
 };
 
 const normalizeParamTypes = (paramTypes) => {
@@ -56,6 +137,39 @@ const normalizeParamTypes = (paramTypes) => {
     }
   }
   return Object.keys(output).length ? output : null;
+};
+
+const hasParamTypes = (paramTypes) => {
+  if (!paramTypes || typeof paramTypes !== 'object') return false;
+  for (const entries of Object.values(paramTypes)) {
+    if (Array.isArray(entries)) {
+      if (entries.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type))) {
+        return true;
+      }
+      continue;
+    }
+    if (normalizeTypeText(entries)) return true;
+  }
+  return false;
+};
+
+const buildSourceSignatureCandidate = (text, virtualRange) => {
+  if (typeof text !== 'string' || !text) return null;
+  const start = Number(virtualRange?.start);
+  const end = Number(virtualRange?.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const clampedStart = Math.max(0, Math.min(text.length, Math.floor(start)));
+  const clampedEnd = Math.max(clampedStart, Math.min(text.length, Math.ceil(end + 1)));
+  if (clampedEnd <= clampedStart) return null;
+  let candidate = text.slice(clampedStart, clampedEnd);
+  if (!candidate.includes('(') || !candidate.includes(')')) return null;
+  const terminators = [candidate.indexOf('{'), candidate.indexOf(';')].filter((idx) => idx >= 0);
+  if (terminators.length) {
+    candidate = candidate.slice(0, Math.min(...terminators));
+  }
+  const lastParen = candidate.lastIndexOf(')');
+  if (lastParen === -1) return null;
+  return normalizeSignatureCacheText(candidate.slice(0, lastParen + 1));
 };
 
 const findTargetForOffsets = (targets, offsets, nameHint = null) => {
@@ -192,12 +306,53 @@ export async function collectLspTypes({
   lineIndexFactory = buildLineIndex,
   indexDir = null,
   vfsColdStartCache = null,
-  cacheRoot = null
+  cacheRoot = null,
+  hoverTimeoutMs = null,
+  hoverEnabled = true,
+  hoverRequireMissingReturn = true,
+  hoverSymbolKinds = null,
+  hoverMaxPerFile = null,
+  hoverDisableAfterTimeouts = null,
+  maxDiagnosticUris = DEFAULT_MAX_DIAGNOSTIC_URIS,
+  maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
+  maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK
 }) {
+  const resolvePositiveTimeout = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.max(1000, Math.floor(parsed));
+  };
+  const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
+  const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
+  const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
+  const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
+  const resolvedMaxDiagnosticUris = clampPositiveInt(maxDiagnosticUris, DEFAULT_MAX_DIAGNOSTIC_URIS);
+  const resolvedMaxDiagnosticsPerUri = clampPositiveInt(maxDiagnosticsPerUri, DEFAULT_MAX_DIAGNOSTICS_PER_URI);
+  const resolvedMaxDiagnosticsPerChunk = clampPositiveInt(maxDiagnosticsPerChunk, DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK);
+  const checks = [];
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      checks,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   const resolvedRoot = vfsRoot || rootDir;
@@ -213,7 +368,26 @@ export async function collectLspTypes({
   }
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      checks,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   let coldStartCache = null;
@@ -230,6 +404,45 @@ export async function collectLspTypes({
   }
 
   const diagnosticsByUri = new Map();
+  const checkFlags = {
+    diagnosticsPerUriTrimmed: false,
+    diagnosticsUriBufferTrimmed: false,
+    diagnosticsPerChunkTrimmed: false,
+    hoverTimedOut: false,
+    circuitOpened: false,
+    initializeFailed: false
+  };
+  const setDiagnosticsForUri = (uri, diagnostics) => {
+    const source = Array.isArray(diagnostics) ? diagnostics : [];
+    if (!uri) return;
+    const limited = source.length > resolvedMaxDiagnosticsPerUri
+      ? source.slice(0, resolvedMaxDiagnosticsPerUri)
+      : source;
+    if (source.length > resolvedMaxDiagnosticsPerUri && !checkFlags.diagnosticsPerUriTrimmed) {
+      checkFlags.diagnosticsPerUriTrimmed = true;
+      checks.push({
+        name: 'tooling_diagnostics_per_uri_capped',
+        status: 'warn',
+        message: `LSP diagnostics per URI capped at ${resolvedMaxDiagnosticsPerUri}.`,
+        count: source.length
+      });
+    }
+    if (diagnosticsByUri.has(uri)) diagnosticsByUri.delete(uri);
+    diagnosticsByUri.set(uri, limited);
+    while (diagnosticsByUri.size > resolvedMaxDiagnosticUris) {
+      const oldest = diagnosticsByUri.keys().next();
+      if (oldest.done) break;
+      diagnosticsByUri.delete(oldest.value);
+      if (!checkFlags.diagnosticsUriBufferTrimmed) {
+        checkFlags.diagnosticsUriBufferTrimmed = true;
+        checks.push({
+          name: 'tooling_diagnostics_uri_buffer_capped',
+          status: 'warn',
+          message: `LSP diagnostics URI buffer capped at ${resolvedMaxDiagnosticUris}.`
+        });
+      }
+    }
+  };
   const client = createLspClient({
     cmd,
     args,
@@ -241,7 +454,7 @@ export async function collectLspTypes({
       const uri = msg?.params?.uri;
       const diagnostics = msg?.params?.diagnostics;
       if (!uri || !Array.isArray(diagnostics)) return;
-      diagnosticsByUri.set(uri, diagnostics);
+      setDiagnosticsForUri(uri, diagnostics);
     }
   });
   const guard = createToolingGuard({
@@ -260,13 +473,52 @@ export async function collectLspTypes({
       timeoutMs: guardTimeout
     }), { label: 'initialize' });
   } catch (err) {
+    checkFlags.initializeFailed = true;
+    checks.push({
+      name: 'tooling_initialize_failed',
+      status: 'warn',
+      message: `${cmd} initialize failed: ${err?.message || err}`
+    });
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
-    return { byChunkUid: {}, diagnosticsByChunkUid: {}, enriched: 0, diagnosticsCount: 0 };
+    return {
+      byChunkUid: {},
+      diagnosticsByChunkUid: {},
+      enriched: 0,
+      diagnosticsCount: 0,
+      checks,
+      hoverMetrics: {
+        requested: 0,
+        succeeded: 0,
+        timedOut: 0,
+        skippedByBudget: 0,
+        skippedByKind: 0,
+        skippedByReturnSufficient: 0,
+        skippedByAdaptiveDisable: 0,
+        skippedByGlobalDisable: 0,
+        p50Ms: null,
+        p95Ms: null,
+        files: []
+      }
+    };
   }
 
   const byChunkUid = {};
   let enriched = 0;
+  const signatureParseCache = new Map();
+  const hoverFileStats = new Map();
+  const hoverLatencyMs = [];
+  const hoverMetrics = {
+    requested: 0,
+    succeeded: 0,
+    timedOut: 0,
+    skippedByBudget: 0,
+    skippedByKind: 0,
+    skippedByReturnSufficient: 0,
+    skippedByAdaptiveDisable: 0,
+    skippedByGlobalDisable: 0
+  };
+  let hoverDisabledGlobal = false;
   const openDocs = new Map();
   const diskPathMap = resolvedScheme === 'file'
     ? await ensureVirtualFilesBatch({
@@ -277,6 +529,8 @@ export async function collectLspTypes({
     })
     : null;
   for (const doc of docsToOpen) {
+    const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
+    hoverFileStats.set(doc.virtualPath, fileHoverStats);
     const docTargets = targetsByPath.get(doc.virtualPath) || [];
     const uri = await resolveDocumentUri({
       rootDir: resolvedRoot,
@@ -316,6 +570,16 @@ export async function collectLspTypes({
       );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
+      if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+        checkFlags.circuitOpened = true;
+        const state = guard.getState?.() || null;
+        checks.push({
+          name: 'tooling_circuit_open',
+          status: 'warn',
+          message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+          count: state?.tripCount ?? 1
+        });
+      }
       client.notify('textDocument/didClose', { textDocument: { uri } });
       if (guard.isOpen()) break;
       continue;
@@ -362,34 +626,133 @@ export async function collectLspTypes({
       return merged;
     };
 
+    const parseSignatureCached = (detailText, symbolName) => {
+      if (typeof parseSignature !== 'function') return null;
+      const normalizedDetail = normalizeSignatureCacheText(detailText);
+      if (!normalizedDetail) return null;
+      const cacheKey = `${doc.languageId || ''}::${normalizedDetail}`;
+      if (signatureParseCache.has(cacheKey)) {
+        return signatureParseCache.get(cacheKey);
+      }
+      const parsed = parseSignature(normalizedDetail, doc.languageId, symbolName) || null;
+      signatureParseCache.set(cacheKey, parsed);
+      return parsed;
+    };
+
     for (const symbol of flattened) {
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
       const detailText = symbol.detail || symbol.name;
-      let info = parseSignature ? parseSignature(detailText, doc.languageId, symbol.name) : null;
-      const paramNames = Array.isArray(info?.paramNames) ? info.paramNames : [];
-      const paramTypes = info?.paramTypes && typeof info.paramTypes === 'object' ? info.paramTypes : null;
-      const hasAnyParamTypes = !!paramTypes && Object.keys(paramTypes).length > 0;
-      const hasCompleteParamTypes = paramNames.length
-        ? paramNames.every((name) => paramTypes?.[name])
-        : hasAnyParamTypes;
+      let info = parseSignatureCached(detailText, symbol.name);
+      if (!hasParamTypes(info?.paramTypes)) {
+        const sourceSignature = buildSourceSignatureCandidate(
+          openEntry?.text || doc.text || '',
+          target?.virtualRange
+        );
+        if (sourceSignature) {
+          const sourceInfo = parseSignatureCached(sourceSignature, symbol.name);
+          if (hasParamTypes(sourceInfo?.paramTypes)) {
+            info = mergeSignatureInfo(info, sourceInfo);
+          }
+        }
+      }
       const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
       const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
-      const treatVoidAsMissing = info?.returnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      if (!info || !info.returnType || !hasCompleteParamTypes || treatVoidAsMissing) {
+      const normalizedReturnType = normalizeTypeText(info?.returnType);
+      const treatVoidAsMissing = normalizedReturnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
+      const ambiguousReturn = !normalizedReturnType
+        || /^unknown$/i.test(normalizedReturnType)
+        || /^any\b/i.test(normalizedReturnType)
+        || treatVoidAsMissing;
+      const needsHover = hoverRequireMissingReturn === true
+        ? ambiguousReturn
+        : (!info || !info.returnType || ambiguousReturn);
+      if (!needsHover) {
+        fileHoverStats.skippedByReturnSufficient += 1;
+        hoverMetrics.skippedByReturnSufficient += 1;
+      }
+      const symbolKindAllowed = !resolvedHoverKinds
+        || (Number.isInteger(symbol?.kind) && resolvedHoverKinds.has(symbol.kind));
+      if (!symbolKindAllowed) {
+        fileHoverStats.skippedByKind += 1;
+        hoverMetrics.skippedByKind += 1;
+      }
+      const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
+        && resolvedHoverMaxPerFile >= 0
+        && fileHoverStats.requested >= resolvedHoverMaxPerFile;
+      if (fileOverBudget) {
+        fileHoverStats.skippedByBudget += 1;
+        hoverMetrics.skippedByBudget += 1;
+      }
+      const adaptiveDisabled = hoverDisabledGlobal || fileHoverStats.disabledAdaptive;
+      if (adaptiveDisabled) {
+        if (hoverDisabledGlobal) {
+          fileHoverStats.skippedByGlobalDisable += 1;
+          hoverMetrics.skippedByGlobalDisable += 1;
+        } else {
+          fileHoverStats.skippedByAdaptiveDisable += 1;
+          hoverMetrics.skippedByAdaptiveDisable += 1;
+        }
+      }
+      if (hoverEnabled && needsHover && symbolKindAllowed && !fileOverBudget && !adaptiveDisabled) {
+        const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
+          ? resolvedHoverTimeout
+          : null;
+        fileHoverStats.requested += 1;
+        hoverMetrics.requested += 1;
+        const hoverStartMs = Date.now();
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
               textDocument: { uri },
               position: symbol.selectionRange?.start || symbol.range?.start
             }, { timeoutMs: guardTimeout }),
-            { label: 'hover', timeoutOverride: 8000 }
+            { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
           );
+          const hoverDurationMs = Date.now() - hoverStartMs;
+          hoverLatencyMs.push(hoverDurationMs);
+          fileHoverStats.latencyMs.push(hoverDurationMs);
+          fileHoverStats.succeeded += 1;
+          hoverMetrics.succeeded += 1;
           const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = parseSignature ? parseSignature(hoverText, doc.languageId, symbol.name) : null;
+          const hoverInfo = parseSignatureCached(hoverText, symbol.name);
           if (hoverInfo) info = mergeSignatureInfo(info, hoverInfo);
-        } catch {}
+        } catch (err) {
+          const message = String(err?.message || err || '').toLowerCase();
+          const isTimeout = message.includes('timeout');
+          if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+            checkFlags.circuitOpened = true;
+            const state = guard.getState?.() || null;
+            checks.push({
+              name: 'tooling_circuit_open',
+              status: 'warn',
+              message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+              count: state?.tripCount ?? 1
+            });
+          }
+          if (isTimeout) {
+            fileHoverStats.timedOut += 1;
+            hoverMetrics.timedOut += 1;
+            if (!checkFlags.hoverTimedOut) {
+              checkFlags.hoverTimedOut = true;
+              checks.push({
+                name: 'tooling_hover_timeout',
+                status: 'warn',
+                message: `${cmd} hover requests timed out; adaptive suppression may be enabled.`
+              });
+            }
+            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
+              && !fileHoverStats.disabledAdaptive) {
+              fileHoverStats.disabledAdaptive = true;
+            }
+            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
+              hoverDisabledGlobal = true;
+            }
+          }
+        }
       }
       if (!info) continue;
 
@@ -427,6 +790,7 @@ export async function collectLspTypes({
   }
 
   const diagnosticsByChunkUid = {};
+  const diagnosticsSeenByChunkUid = new Map();
   let diagnosticsCount = 0;
   if (captureDiagnostics && diagnosticsByUri.size) {
     for (const doc of docs) {
@@ -451,6 +815,24 @@ export async function collectLspTypes({
         if (!target?.chunkRef?.chunkUid) continue;
         const chunkUid = target.chunkRef.chunkUid;
         const existing = diagnosticsByChunkUid[chunkUid] || [];
+        if (existing.length >= resolvedMaxDiagnosticsPerChunk) {
+          if (!checkFlags.diagnosticsPerChunkTrimmed) {
+            checkFlags.diagnosticsPerChunkTrimmed = true;
+            checks.push({
+              name: 'tooling_diagnostics_per_chunk_capped',
+              status: 'warn',
+              message: `LSP diagnostics per chunk capped at ${resolvedMaxDiagnosticsPerChunk}.`
+            });
+          }
+          continue;
+        }
+        const seen = diagnosticsSeenByChunkUid.get(chunkUid) || new Set();
+        const key = diagnosticKey(diag);
+        if (key && seen.has(key)) continue;
+        if (key) {
+          seen.add(key);
+          diagnosticsSeenByChunkUid.set(chunkUid, seen);
+        }
         existing.push(diag);
         diagnosticsByChunkUid[chunkUid] = existing;
         diagnosticsCount += 1;
@@ -468,5 +850,47 @@ export async function collectLspTypes({
 
   await client.shutdownAndExit();
   client.kill();
-  return { byChunkUid, diagnosticsByChunkUid, enriched, diagnosticsCount };
+  const hoverSummary = summarizeLatencies(hoverLatencyMs);
+  const hoverFiles = Array.from(hoverFileStats.entries())
+    .map(([virtualPath, stats]) => ({
+      virtualPath,
+      requested: stats.requested,
+      succeeded: stats.succeeded,
+      timedOut: stats.timedOut,
+      skippedByBudget: stats.skippedByBudget,
+      skippedByKind: stats.skippedByKind,
+      skippedByReturnSufficient: stats.skippedByReturnSufficient,
+      skippedByAdaptiveDisable: stats.skippedByAdaptiveDisable,
+      skippedByGlobalDisable: stats.skippedByGlobalDisable,
+      disabledAdaptive: stats.disabledAdaptive === true,
+      ...summarizeLatencies(stats.latencyMs)
+    }))
+    .sort((a, b) => {
+      const timeoutCmp = (b.timedOut || 0) - (a.timedOut || 0);
+      if (timeoutCmp) return timeoutCmp;
+      const p95A = Number.isFinite(a.p95Ms) ? a.p95Ms : -1;
+      const p95B = Number.isFinite(b.p95Ms) ? b.p95Ms : -1;
+      if (p95B !== p95A) return p95B - p95A;
+      return String(a.virtualPath || '').localeCompare(String(b.virtualPath || ''));
+    });
+  return {
+    byChunkUid,
+    diagnosticsByChunkUid,
+    enriched,
+    diagnosticsCount,
+    checks,
+    hoverMetrics: {
+      requested: hoverMetrics.requested,
+      succeeded: hoverMetrics.succeeded,
+      timedOut: hoverMetrics.timedOut,
+      skippedByBudget: hoverMetrics.skippedByBudget,
+      skippedByKind: hoverMetrics.skippedByKind,
+      skippedByReturnSufficient: hoverMetrics.skippedByReturnSufficient,
+      skippedByAdaptiveDisable: hoverMetrics.skippedByAdaptiveDisable,
+      skippedByGlobalDisable: hoverMetrics.skippedByGlobalDisable,
+      p50Ms: hoverSummary.p50Ms,
+      p95Ms: hoverSummary.p95Ms,
+      files: hoverFiles
+    }
+  };
 }

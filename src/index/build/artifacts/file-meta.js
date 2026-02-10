@@ -122,9 +122,12 @@ export function buildFileMeta(state) {
   const files = discoveredFiles && discoveredFiles.length
     ? discoveredFiles.slice()
     : Array.from(fileDetails.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  const fileMembership = new Set(files);
   if (fileInfoByPath && typeof fileInfoByPath.keys === 'function') {
     for (const file of fileInfoByPath.keys()) {
-      if (!files.includes(file)) files.push(file);
+      if (fileMembership.has(file)) continue;
+      files.push(file);
+      fileMembership.add(file);
     }
   }
   for (const file of files) {

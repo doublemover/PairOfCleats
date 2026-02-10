@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { stringifyJsonValue } from '../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import {
@@ -26,10 +27,10 @@ const resolveLineBytes = (value) => {
   return Buffer.byteLength(line, 'utf8') + 1;
 };
 
-const ensureRunsDir = async (baseDir, current) => {
+const ensureRunsDir = async (baseDir, current, collectorId) => {
   if (current) return current;
   const root = baseDir || process.cwd();
-  const target = path.join(root, RUNS_DIR_NAME);
+  const target = path.join(root, RUNS_DIR_NAME, collectorId);
   await fs.mkdir(target, { recursive: true });
   return target;
 };
@@ -70,17 +71,34 @@ export const createVfsManifestCollector = ({
   maxBufferRows = DEFAULT_MAX_BUFFER_ROWS,
   log = null
 } = {}) => {
+  const collectorId = `collector-${crypto.randomUUID()}`;
   const buffer = [];
   let bufferBytes = 0;
   let runsDir = null;
   let runIndex = 0;
+  let cleaned = false;
   const runs = [];
   const stats = createStats();
+
+  const cleanupRunsDir = async () => {
+    if (cleaned) return;
+    cleaned = true;
+    if (runsDir) {
+      await fs.rm(runsDir, { recursive: true, force: true });
+      const parent = path.dirname(runsDir);
+      try {
+        const remaining = await fs.readdir(parent);
+        if (!remaining.length) {
+          await fs.rm(parent, { recursive: true, force: true });
+        }
+      } catch {}
+    }
+  };
 
   const spill = async () => {
     if (!buffer.length) return;
     buffer.sort(compareVfsManifestRows);
-    runsDir = await ensureRunsDir(buildRoot, runsDir);
+    runsDir = await ensureRunsDir(buildRoot, runsDir, collectorId);
     const runName = `vfs_manifest.run-${String(runIndex).padStart(5, '0')}.jsonl`;
     const runPath = path.join(runsDir, runName);
     runIndex += 1;
@@ -121,11 +139,7 @@ export const createVfsManifestCollector = ({
         kind: COLLECTOR_KIND,
         runs: runs.slice(),
         stats,
-        cleanup: async () => {
-          if (runsDir) {
-            await fs.rm(runsDir, { recursive: true, force: true });
-          }
-        }
+        cleanup: cleanupRunsDir
       };
     }
     if (buffer.length) {
@@ -135,11 +149,7 @@ export const createVfsManifestCollector = ({
       kind: COLLECTOR_KIND,
       rows: buffer,
       stats,
-      cleanup: async () => {
-        if (runsDir) {
-          await fs.rm(runsDir, { recursive: true, force: true });
-        }
-      }
+      cleanup: cleanupRunsDir
     };
   };
 
