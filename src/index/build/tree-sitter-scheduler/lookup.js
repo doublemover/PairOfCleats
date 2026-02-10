@@ -1,6 +1,9 @@
 import { compareStrings } from '../../../shared/sort.js';
 import { createLruCache } from '../../../shared/cache.js';
-import { readVfsManifestRowAtOffset } from '../../tooling/vfs.js';
+import {
+  createVfsManifestOffsetReader,
+  readVfsManifestRowsAtOffsets
+} from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
 const DEFAULT_ROW_CACHE_MAX = 50000;
@@ -30,34 +33,91 @@ export const createTreeSitterSchedulerLookup = ({
     name: 'tree-sitter-scheduler-miss',
     maxEntries: missCacheMax
   });
+  const readersByManifestPath = new Map();
+
+  const getReaderForManifest = (manifestPath) => {
+    if (readersByManifestPath.has(manifestPath)) {
+      return readersByManifestPath.get(manifestPath);
+    }
+    const reader = createVfsManifestOffsetReader({ manifestPath });
+    readersByManifestPath.set(manifestPath, reader);
+    return reader;
+  };
+
+  const close = async () => {
+    const readers = Array.from(readersByManifestPath.values());
+    readersByManifestPath.clear();
+    await Promise.all(readers.map(async (reader) => {
+      try {
+        await reader.close();
+      } catch {}
+    }));
+  };
 
   const loadRow = async (virtualPath) => {
-    if (!virtualPath) return null;
-    const cached = rowCache.get(virtualPath);
-    if (cached) return cached;
-    if (missCache.get(virtualPath)) return null;
-    const entry = index.get(virtualPath) || null;
-    if (!entry) {
-      missCache.set(virtualPath, true);
-      return null;
+    const [row] = await loadRows([virtualPath]);
+    return row || null;
+  };
+
+  const loadRows = async (virtualPaths) => {
+    const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
+    if (!keys.length) return [];
+    const rows = new Array(keys.length).fill(null);
+    const groups = new Map(); // manifestPath -> [{ index, entry }]
+
+    for (let i = 0; i < keys.length; i += 1) {
+      const virtualPath = keys[i];
+      if (!virtualPath) continue;
+      const cached = rowCache.get(virtualPath);
+      if (cached) {
+        rows[i] = cached;
+        continue;
+      }
+      if (missCache.get(virtualPath)) {
+        rows[i] = null;
+        continue;
+      }
+      const entry = index.get(virtualPath) || null;
+      if (!entry) {
+        missCache.set(virtualPath, true);
+        rows[i] = null;
+        continue;
+      }
+      const grammarKey = entry.grammarKey || null;
+      if (!grammarKey) {
+        missCache.set(virtualPath, true);
+        rows[i] = null;
+        continue;
+      }
+      const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
+      if (!groups.has(manifestPath)) groups.set(manifestPath, []);
+      groups.get(manifestPath).push({ index: i, virtualPath, entry });
     }
-    const grammarKey = entry.grammarKey || null;
-    if (!grammarKey) {
-      missCache.set(virtualPath, true);
-      return null;
+
+    for (const [manifestPath, list] of groups.entries()) {
+      const reader = getReaderForManifest(manifestPath);
+      const requests = list.map(({ entry }) => ({
+        offset: entry.offset,
+        bytes: entry.bytes
+      }));
+      const loadedRows = await readVfsManifestRowsAtOffsets({
+        manifestPath,
+        requests,
+        reader
+      });
+      for (let i = 0; i < list.length; i += 1) {
+        const { index: rowIndex, virtualPath } = list[i];
+        const row = loadedRows[i] || null;
+        rows[rowIndex] = row;
+        if (row) {
+          rowCache.set(virtualPath, row);
+        } else {
+          missCache.set(virtualPath, true);
+        }
+      }
     }
-    const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
-    const row = await readVfsManifestRowAtOffset({
-      manifestPath,
-      offset: entry.offset,
-      bytes: entry.bytes
-    });
-    if (!row) {
-      missCache.set(virtualPath, true);
-      return null;
-    }
-    rowCache.set(virtualPath, row);
-    return row;
+
+    return rows;
   };
 
   const loadChunks = async (virtualPath) => {
@@ -80,7 +140,9 @@ export const createTreeSitterSchedulerLookup = ({
     index,
     grammarKeys,
     loadRow,
+    loadRows,
     loadChunks,
+    close,
     stats: () => ({
       indexEntries: index.size,
       cacheEntries: rowCache.size(),
