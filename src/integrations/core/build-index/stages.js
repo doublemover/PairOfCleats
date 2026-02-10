@@ -361,21 +361,32 @@ export const runSqliteStage = async ({
       await markBuildPhase(runtime.buildRoot, 'stage4', 'done');
       stage4Done = true;
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
-      await markBuildPhase(runtime.buildRoot, 'promote', 'running');
-      promoteRunning = true;
-      await promoteBuild({
-        repoRoot: runtime.root,
-        userConfig: runtime.userConfig,
-        buildId: runtime.buildId,
-        buildRoot: runtime.buildRoot,
-        stage: 'stage4',
-        modes: sqliteModes,
-        configHash: runtime.configHash,
-        repoProvenance: runtime.repoProvenance,
-        compatibilityKey: runtime.compatibilityKey || null
-      });
-      await markBuildPhase(runtime.buildRoot, 'promote', 'done');
-      promoteDone = true;
+      const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
+      if (shouldPromote) {
+        await markBuildPhase(runtime.buildRoot, 'promote', 'running');
+        promoteRunning = true;
+        await promoteBuild({
+          repoRoot: runtime.root,
+          userConfig: runtime.userConfig,
+          buildId: runtime.buildId,
+          buildRoot: runtime.buildRoot,
+          stage: 'stage4',
+          modes: sqliteModes,
+          configHash: runtime.configHash,
+          repoProvenance: runtime.repoProvenance,
+          compatibilityKey: runtime.compatibilityKey || null
+        });
+        await markBuildPhase(runtime.buildRoot, 'promote', 'done');
+        promoteDone = true;
+      } else {
+        await markBuildPhase(
+          runtime.buildRoot,
+          'promote',
+          'done',
+          'skipped promotion for explicit stage4 --index-root'
+        );
+        log('[build] stage4 ran against explicit --index-root; skipping current.json promotion.');
+      }
       if (includeSqlite && overallProgressRef?.current?.advance) {
         for (const modeItem of sqliteModes) {
           overallProgressRef.current.advance({ message: `${modeItem} sqlite` });
