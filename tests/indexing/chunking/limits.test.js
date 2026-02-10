@@ -37,4 +37,16 @@ byteChunks.forEach((chunk) => {
   expect(Buffer.byteLength(slice, 'utf8') <= 4, 'Chunk exceeded maxBytes.');
 });
 
+const emojiText = 'a😀b😀c';
+const emojiChunks = applyChunkingLimits(
+  [{ start: 0, end: emojiText.length, name: 'emoji', kind: 'Section', meta: {} }],
+  emojiText,
+  { chunking: { maxBytes: 4 } }
+);
+expect(emojiChunks.length >= 2, 'Expected byte chunking to split emoji text.');
+emojiChunks.forEach((chunk) => {
+  const slice = emojiText.slice(chunk.start, chunk.end);
+  expect(Buffer.byteLength(slice, 'utf8') <= 4, 'Emoji chunk exceeded maxBytes.');
+});
+
 console.log('Chunking limits test passed.');

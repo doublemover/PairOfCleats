@@ -1,6 +1,10 @@
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
 const DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES = 200 * 1024;
+const HIGH_SURROGATE_MIN = 0xd800;
+const HIGH_SURROGATE_MAX = 0xdbff;
+const LOW_SURROGATE_MIN = 0xdc00;
+const LOW_SURROGATE_MAX = 0xdfff;
 
 const normalizeChunkLimit = (value) => {
   const num = Number(value);
@@ -33,6 +37,51 @@ const buildChunkWithRange = (chunk, start, end, lineIndex) => {
   return next;
 };
 
+const isHighSurrogate = (code) => code >= HIGH_SURROGATE_MIN && code <= HIGH_SURROGATE_MAX;
+const isLowSurrogate = (code) => code >= LOW_SURROGATE_MIN && code <= LOW_SURROGATE_MAX;
+
+const buildUtf8ByteMetrics = (text) => {
+  const length = text.length;
+  const prefix = new Uint32Array(length + 1);
+  for (let i = 0; i < length; i += 1) {
+    const code = text.charCodeAt(i);
+    const base = prefix[i];
+    if (isHighSurrogate(code) && i + 1 < length) {
+      const next = text.charCodeAt(i + 1);
+      if (isLowSurrogate(next)) {
+        prefix[i + 1] = base + 3;
+        prefix[i + 2] = base + 4;
+        i += 1;
+        continue;
+      }
+    }
+    if (code <= 0x7f) {
+      prefix[i + 1] = base + 1;
+    } else if (code <= 0x7ff) {
+      prefix[i + 1] = base + 2;
+    } else {
+      prefix[i + 1] = base + 3;
+    }
+  }
+  return { text, prefix };
+};
+
+const byteLengthByRange = (text, start, end, metrics = null) => {
+  if (end <= start) return 0;
+  if (!metrics || metrics.text !== text || !metrics.prefix) {
+    return Buffer.byteLength(text.slice(start, end), 'utf8');
+  }
+  let bytes = metrics.prefix[end] - metrics.prefix[start];
+  if (start > 0) {
+    const prev = text.charCodeAt(start - 1);
+    const current = text.charCodeAt(start);
+    if (isHighSurrogate(prev) && isLowSurrogate(current)) {
+      bytes += 2;
+    }
+  }
+  return bytes;
+};
+
 export const splitChunkByLines = (chunk, text, lineIndex, maxLines) => {
   if (!lineIndex || !maxLines) return [chunk];
   const start = Number.isFinite(chunk.start) ? chunk.start : 0;
@@ -63,13 +112,13 @@ export const splitChunkByLines = (chunk, text, lineIndex, maxLines) => {
   return output.length ? output : [chunk];
 };
 
-const resolveByteBoundary = (text, start, end, maxBytes) => {
+const resolveByteBoundary = (text, start, end, maxBytes, byteMetrics = null) => {
   let lo = start;
   let hi = end;
   let best = start;
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2);
-    const bytes = Buffer.byteLength(text.slice(start, mid), 'utf8');
+    const bytes = byteLengthByRange(text, start, mid, byteMetrics);
     if (bytes <= maxBytes) {
       best = mid;
       lo = mid + 1;
@@ -80,17 +129,17 @@ const resolveByteBoundary = (text, start, end, maxBytes) => {
   return best;
 };
 
-export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes) => {
+export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes, byteMetrics = null) => {
   if (!maxBytes) return [chunk];
   const start = Number.isFinite(chunk.start) ? chunk.start : 0;
   const end = Number.isFinite(chunk.end) ? chunk.end : start;
   if (end <= start) return [chunk];
-  const bytes = Buffer.byteLength(text.slice(start, end), 'utf8');
+  const bytes = byteLengthByRange(text, start, end, byteMetrics);
   if (bytes <= maxBytes) return [chunk];
   const output = [];
   let cursor = start;
   while (cursor < end) {
-    const next = resolveByteBoundary(text, cursor, end, maxBytes);
+    const next = resolveByteBoundary(text, cursor, end, maxBytes, byteMetrics);
     const safeNext = next > cursor ? next : Math.min(cursor + 1, end);
     output.push(buildChunkWithRange(chunk, cursor, safeNext, lineIndex));
     if (safeNext <= cursor) break;
@@ -102,11 +151,12 @@ export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes) => {
 export const applyChunkingLimits = (chunks, text, context) => {
   if (!Array.isArray(chunks) || !chunks.length) return chunks;
   const { maxBytes, maxLines } = resolveChunkingLimits(context);
+  const byteMetrics = maxBytes || !maxLines ? buildUtf8ByteMetrics(text) : null;
   const resolveChunkBytes = (chunk) => {
     const start = Number.isFinite(chunk.start) ? chunk.start : 0;
     const end = Number.isFinite(chunk.end) ? chunk.end : start;
     if (end <= start) return 0;
-    return Buffer.byteLength(text.slice(start, end), 'utf8');
+    return byteLengthByRange(text, start, end, byteMetrics);
   };
   const guardrailMaxBytes = (!maxBytes && !maxLines)
     ? chunks.some((chunk) => resolveChunkBytes(chunk) > DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES)
@@ -128,7 +178,7 @@ export const applyChunkingLimits = (chunks, text, context) => {
   if (effectiveMaxBytes) {
     const nextOutput = [];
     for (const chunk of output) {
-      const split = splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes);
+      const split = splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes, byteMetrics);
       for (const item of split) nextOutput.push(item);
     }
     output = nextOutput;
