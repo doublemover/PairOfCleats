@@ -203,7 +203,7 @@ Format:
 - Impact: Lower allocation pressure.
 - Risk: Keep deterministic dedupe/grouping behavior.
 
-6. Area: Scheduler subprocess startup overhead
+6. [x] Area: Scheduler subprocess startup overhead
 - Files: `src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/subprocess-exec.js`
 - Opportunity: Reuse long-lived worker process(es) instead of one fresh process per grammar key.
 - Impact: Lower startup/module-load overhead.

@@ -55,10 +55,11 @@ export const runTreeSitterScheduler = async ({
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
   const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
-  for (let i = 0; i < grammarKeys.length; i += 1) {
-    const grammarKey = grammarKeys[i];
-    if (log) log(`[tree-sitter:schedule] exec ${i + 1}/${grammarKeys.length}: ${grammarKey}`);
-    await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir, '--grammarKey', grammarKey], {
+  if (grammarKeys.length) {
+    if (log) {
+      log(`[tree-sitter:schedule] exec 1/1: ${grammarKeys.join(', ')}`);
+    }
+    await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir], {
       cwd: runtime?.root || undefined,
       env: runtimeEnv,
       stdio: 'inherit',
