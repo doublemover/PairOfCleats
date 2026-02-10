@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:44:53.3841764-05:00
+Last updated: 2026-02-09T22:03:59.5825755-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -951,14 +951,25 @@ D1.4 status update (2026-02-09T21:44:53.3841764-05:00):
 
 ### Subphase D1.5 — Atomic write + cache/process lifecycle primitives
 Tasks:
-- [ ] Task D1.5.a: Implement shared `atomicWriteJson` and `atomicWriteText` helpers.
+- [x] Task D1.5.a: Implement shared `atomicWriteJson` and `atomicWriteText` helpers.
 Details: Require temp-file + fsync + rename semantics with Windows-safe behavior and deterministic error surfaces.
-- [ ] Task D1.5.b: Implement shared cache policy contract helper.
+- [x] Task D1.5.b: Implement shared cache policy contract helper.
 Details: Every cache declares max entries/bytes, TTL, invalidation trigger, and shutdown cleanup hook.
-- [ ] Task D1.5.c: Implement shared lifecycle registry for timers/workers/promises.
+- [x] Task D1.5.c: Implement shared lifecycle registry for timers/workers/promises.
 Details: Support explicit `register` + `drain` + `close` flow for deterministic shutdown.
-- [ ] Task D1.5.d: Migrate high-fanout state/cache writes and lifecycle users to shared helpers.
+- [x] Task D1.5.d: Migrate high-fanout state/cache writes and lifecycle users to shared helpers.
 Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/watch/tooling modules.
+
+D1.5 status update (2026-02-09T22:03:59.5825755-05:00):
+- resolved: added `src/shared/io/atomic-write.js` with `atomicWriteJson` and `atomicWriteText` (temp-write + fsync + rename + deterministic error wrapping).
+- resolved: added `src/shared/cache/policy.js` with explicit cache policy contract (`maxEntries`, `maxBytes`, `ttlMs`, invalidation trigger, shutdown hook).
+- resolved: added `src/shared/lifecycle/registry.js` with `register`, `registerTimer`, `registerWorker`, `registerPromise`, `drain`, and `close`.
+- resolved: migrated priority state/cache/manifest/pointer writers to atomic write helper (`src/index/build/import-resolution-cache.js`, `src/index/build/incremental.js`, `tools/service/queue.js`, `src/retrieval/cli/run-search-session.js`, `src/index/build/build-state.js`, `src/index/build/promotion.js`).
+- resolved: migrated long-lived timer/promise flows to lifecycle registry in `src/index/build/build-state.js` and `tools/service/indexer-service.js`.
+- remaining: D2+ phase work remains (JSONL merge/writer scaffolding and later phases).
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "writeFileSync\(|writeFile\(|appendFile\(" src tools | rg -v "atomic-write|tests/"` and `rg "new Map\(|new Set\(" src | rg "cache|memo|seen|warn" | rg -v "max|ttl|limit|capacity|tests/"`.
 
 ### Exhaustive sweeps
 - [x] `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build`
@@ -967,8 +978,8 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [x] `rg "formatBytes\(|sizeOfPath\(" src tools`
 - [x] `rg "escapeRegex\(|pickMinLimit\(" src tools`
 - [x] `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`
-- [ ] `rg "writeFileSync\(|writeFile\(|appendFile\(" src tools | rg -v "atomic-write|tests/"`
-- [ ] `rg "new Map\(|new Set\(" src | rg "cache|memo|seen|warn" | rg -v "max|ttl|limit|capacity|tests/"`
+- [x] `rg "writeFileSync\(|writeFile\(|appendFile\(" src tools | rg -v "atomic-write|tests/"`
+- [x] `rg "new Map\(|new Set\(" src | rg "cache|memo|seen|warn" | rg -v "max|ttl|limit|capacity|tests/"`
 
 ### Tests
 - [x] `tests/shared/fs/find-upwards-contract.test.js` (new)
@@ -978,9 +989,9 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [x] `tests/shared/disk-space/format-bytes-contract.test.js` (new)
 - [x] `tests/shared/locks/file-lock-contract.test.js` (new)
 - [x] `tests/indexing/watch/watch-root-normalization.test.js` (new)
-- [ ] `tests/shared/io/atomic-write-contract.test.js` (new)
-- [ ] `tests/shared/cache/cache-policy-contract.test.js` (new)
-- [ ] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)
+- [x] `tests/shared/io/atomic-write-contract.test.js` (new)
+- [x] `tests/shared/cache/cache-policy-contract.test.js` (new)
+- [x] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)
 
 ### Exit criteria
 - [ ] No D1 duplicate helper bodies remain.

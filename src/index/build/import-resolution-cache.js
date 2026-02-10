@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 const CACHE_VERSION = 2;
 const CACHE_FILE = 'import-resolution-cache.json';
@@ -77,7 +78,7 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
     files: isObject(cache.files) ? cache.files : {}
   };
   try {
-    await fs.writeFile(cachePath, JSON.stringify(payload, null, 2));
+    await atomicWriteJson(cachePath, payload, { spaces: 2 });
   } catch {
     // ignore cache write failures
   }

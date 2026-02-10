@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
+import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 
@@ -82,7 +83,7 @@ export async function loadQueue(dirPath, queueName = null) {
 
 export async function saveQueue(dirPath, queue, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
-  await fs.writeFile(queuePath, JSON.stringify(queue, null, 2));
+  await atomicWriteJson(queuePath, queue, { spaces: 2 });
 }
 
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
@@ -176,11 +177,11 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     await saveQueue(dirPath, queue, queueName);
     const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
     try {
-      await fs.writeFile(reportPath, JSON.stringify({
+      await atomicWriteJson(reportPath, {
         updatedAt: new Date().toISOString(),
         status: job.status,
         job
-      }, null, 2));
+      }, { spaces: 2 });
     } catch {}
     return job;
   });

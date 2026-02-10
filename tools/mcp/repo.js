@@ -24,10 +24,52 @@ import {
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
+import { defineCachePolicy } from '../../src/shared/cache/policy.js';
 
-const repoCacheConfig = { maxEntries: 5, ttlMs: 15 * 60 * 1000 };
-const indexCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
-const sqliteCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
+const closeRepoCacheEntry = (entry) => {
+  entry?.indexCache?.clear?.();
+  entry?.sqliteCache?.closeAll?.();
+};
+
+const repoCachePolicy = defineCachePolicy({
+  name: 'mcp.repo',
+  maxEntries: 5,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: ['build-pointer-change', 'lru-eviction'],
+  shutdown: closeRepoCacheEntry
+});
+
+const indexCachePolicy = defineCachePolicy({
+  name: 'mcp.index',
+  maxEntries: 4,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: 'repo-cache-reset',
+  shutdown: () => {}
+});
+
+const sqliteCachePolicy = defineCachePolicy({
+  name: 'mcp.sqlite',
+  maxEntries: 4,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: 'repo-cache-reset',
+  shutdown: () => {}
+});
+
+const repoCacheConfig = {
+  maxEntries: repoCachePolicy.maxEntries,
+  ttlMs: repoCachePolicy.ttlMs
+};
+const indexCacheConfig = {
+  maxEntries: indexCachePolicy.maxEntries,
+  ttlMs: indexCachePolicy.ttlMs
+};
+const sqliteCacheConfig = {
+  maxEntries: sqliteCachePolicy.maxEntries,
+  ttlMs: sqliteCachePolicy.ttlMs
+};
 const repoCaches = new LRUCache({
   max: repoCacheConfig.maxEntries,
   ttl: repoCacheConfig.ttlMs > 0 ? repoCacheConfig.ttlMs : undefined,
@@ -35,8 +77,7 @@ const repoCaches = new LRUCache({
   updateAgeOnGet: true,
   dispose: (entry, _key, reason) => {
     try {
-      entry?.indexCache?.clear?.();
-      entry?.sqliteCache?.closeAll?.();
+      repoCachePolicy.shutdown(entry);
     } catch {}
     if (reason === 'evict' || reason === 'expire') {
       incCacheEviction({ cache: 'repo' });
@@ -73,8 +114,7 @@ const refreshBuildPointer = async (entry) => {
   entry.buildPointerMtimeMs = nextMtime;
   if (!stat) {
     if (entry.buildId) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
+      closeRepoCacheEntry(entry);
     }
     entry.buildId = null;
     return;
@@ -87,8 +127,7 @@ const refreshBuildPointer = async (entry) => {
       || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
       || (!entry.buildId && nextBuildId);
     if (changed) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
+      closeRepoCacheEntry(entry);
     }
     entry.buildId = nextBuildId;
   } catch {

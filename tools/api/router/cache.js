@@ -5,16 +5,51 @@ import { getRepoCacheRoot, loadUserConfig } from '../../shared/dict-utils.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../../src/retrieval/index-cache.js';
 import { incCacheEviction, setCacheSize } from '../../../src/shared/metrics.js';
+import { defineCachePolicy, resolveCachePolicy } from '../../../src/shared/cache/policy.js';
 
 export const normalizeCacheConfig = (value, defaults) => {
-  const maxEntries = Number.isFinite(Number(value?.maxEntries))
-    ? Math.max(0, Math.floor(Number(value.maxEntries)))
-    : defaults.maxEntries;
-  const ttlMs = Number.isFinite(Number(value?.ttlMs))
-    ? Math.max(0, Number(value.ttlMs))
-    : defaults.ttlMs;
-  return { maxEntries, ttlMs };
+  const policy = resolveCachePolicy(value, defaults);
+  return {
+    maxEntries: policy.maxEntries,
+    maxBytes: policy.maxBytes,
+    ttlMs: policy.ttlMs,
+    invalidationTrigger: policy.invalidationTrigger,
+    invalidationTriggers: policy.invalidationTriggers,
+    shutdown: policy.shutdown
+  };
 };
+
+const closeRepoCacheEntry = (entry) => {
+  entry?.indexCache?.clear?.();
+  entry?.sqliteCache?.closeAll?.();
+};
+
+const REPO_CACHE_POLICY_DEFAULTS = defineCachePolicy({
+  name: 'api.repo',
+  maxEntries: 5,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: ['build-pointer-change', 'lru-eviction'],
+  shutdown: closeRepoCacheEntry
+});
+
+const INDEX_CACHE_POLICY_DEFAULTS = defineCachePolicy({
+  name: 'api.index',
+  maxEntries: 4,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: 'repo-cache-reset',
+  shutdown: () => {}
+});
+
+const SQLITE_CACHE_POLICY_DEFAULTS = defineCachePolicy({
+  name: 'api.sqlite',
+  maxEntries: 4,
+  maxBytes: null,
+  ttlMs: 15 * 60 * 1000,
+  invalidationTrigger: 'repo-cache-reset',
+  shutdown: () => {}
+});
 
 export const createRepoCacheManager = ({
   defaultRepo,
@@ -22,19 +57,24 @@ export const createRepoCacheManager = ({
   indexCache = {},
   sqliteCache = {}
 }) => {
-  const repoCacheConfig = normalizeCacheConfig(repoCache, { maxEntries: 5, ttlMs: 15 * 60 * 1000 });
-  const indexCacheConfig = normalizeCacheConfig(indexCache, { maxEntries: 4, ttlMs: 15 * 60 * 1000 });
-  const sqliteCacheConfig = normalizeCacheConfig(sqliteCache, { maxEntries: 4, ttlMs: 15 * 60 * 1000 });
+  const repoCachePolicy = resolveCachePolicy(repoCache, REPO_CACHE_POLICY_DEFAULTS);
+  const indexCachePolicy = resolveCachePolicy(indexCache, INDEX_CACHE_POLICY_DEFAULTS);
+  const sqliteCachePolicy = resolveCachePolicy(sqliteCache, SQLITE_CACHE_POLICY_DEFAULTS);
+  const repoCacheConfig = normalizeCacheConfig(repoCachePolicy, REPO_CACHE_POLICY_DEFAULTS);
+  const indexCacheConfig = normalizeCacheConfig(indexCachePolicy, INDEX_CACHE_POLICY_DEFAULTS);
+  const sqliteCacheConfig = normalizeCacheConfig(sqliteCachePolicy, SQLITE_CACHE_POLICY_DEFAULTS);
+  const resetRepoEntry = (entry) => {
+    try {
+      repoCacheConfig.shutdown(entry);
+    } catch {}
+  };
   const repoCaches = new LRUCache({
     max: repoCacheConfig.maxEntries,
     ttl: repoCacheConfig.ttlMs > 0 ? repoCacheConfig.ttlMs : undefined,
     allowStale: false,
     updateAgeOnGet: true,
     dispose: (entry, _key, reason) => {
-      try {
-        entry?.indexCache?.clear?.();
-        entry?.sqliteCache?.closeAll?.();
-      } catch {}
+      resetRepoEntry(entry);
       if (reason === 'evict' || reason === 'expire') {
         incCacheEviction({ cache: 'repo' });
       }
@@ -46,8 +86,14 @@ export const createRepoCacheManager = ({
     const userConfig = loadUserConfig(repoPath);
     const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
     return {
-      indexCache: createIndexCache(indexCacheConfig),
-      sqliteCache: createSqliteDbCache(sqliteCacheConfig),
+      indexCache: createIndexCache({
+        maxEntries: indexCacheConfig.maxEntries,
+        ttlMs: indexCacheConfig.ttlMs
+      }),
+      sqliteCache: createSqliteDbCache({
+        maxEntries: sqliteCacheConfig.maxEntries,
+        ttlMs: sqliteCacheConfig.ttlMs
+      }),
       lastUsed: Date.now(),
       buildId: null,
       buildPointerPath: path.join(repoCacheRoot, 'builds', 'current.json'),
@@ -70,8 +116,7 @@ export const createRepoCacheManager = ({
     entry.buildPointerMtimeMs = nextMtime;
     if (!stat) {
       if (entry.buildId) {
-        entry.indexCache?.clear?.();
-        entry.sqliteCache?.closeAll?.();
+        resetRepoEntry(entry);
       }
       entry.buildId = null;
       return;
@@ -84,8 +129,7 @@ export const createRepoCacheManager = ({
         || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
         || (!entry.buildId && nextBuildId);
       if (changed) {
-        entry.indexCache?.clear?.();
-        entry.sqliteCache?.closeAll?.();
+        resetRepoEntry(entry);
       }
       entry.buildId = nextBuildId;
     } catch {
