@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T21:21:47.5908780-05:00",
+  "updatedAt": "2026-02-09T21:32:49.8741942-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -138,7 +138,7 @@
       "clusterId": "C13",
       "title": "Bytes/size formatting + traversal",
       "phase": "D1",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/shared/disk-space.js",
         "tools/analysis/map-iso-serve.js"
@@ -160,7 +160,7 @@
       "clusterId": "C15",
       "title": "Minified-file detection",
       "phase": "D1",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/build/file-scan.js",
         "src/index/build/watch/watch.js"
@@ -171,7 +171,7 @@
       "clusterId": "C16",
       "title": "Root normalization duplicates",
       "phase": "D1",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
         "src/index/build/watch/watch.js",
         "src/index/build/discovery.js"
@@ -356,10 +356,10 @@
     { "migrationId": "M010", "clusterId": "C10", "phase": "D1", "oldPathOrSymbol": "src/integrations/triage/index-records.js::isPathUnderDir", "newPathOrSymbol": "src/shared/path-normalize.js::isPathUnderDir", "status": "completed" },
     { "migrationId": "M011", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/git.js::findGitRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M012", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/index-cache.js::createIndexCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
-    { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "planned" },
+    { "migrationId": "M013", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/analysis/map-iso-serve.js::formatBytes", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
     { "migrationId": "M014", "clusterId": "C14", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::warnOnce (local Set)", "newPathOrSymbol": "src/shared/logging/warn-once.js::createWarnOnce", "status": "completed" },
-    { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "planned" },
-    { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "planned" },
+    { "migrationId": "M015", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/file-scan.js::MINIFIED_NAME_REGEX", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M016", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/watch.js::normalizeRoot", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
     { "migrationId": "M017", "clusterId": "C17", "phase": "D1", "oldPathOrSymbol": "src/index/build/indexer/lock.js::acquireIndexLock", "newPathOrSymbol": "src/shared/locks/file-lock.js::acquireLock", "status": "planned" },
     { "migrationId": "M018", "clusterId": "C18", "phase": "D6", "oldPathOrSymbol": "src/index/chunking/formats/markdown.js::buildChunksFromLineHeadings", "newPathOrSymbol": "src/index/chunking/helpers.js::buildChunksFromLineHeadings", "status": "planned" },
     { "migrationId": "M019", "clusterId": "C19", "phase": "D6", "oldPathOrSymbol": "src/index/risk-interprocedural/engine.js::SEVERITY_RANK", "newPathOrSymbol": "src/index/risk/shared.js::SEVERITY_RANK", "status": "planned" },
@@ -387,7 +387,18 @@
     { "migrationId": "M041", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/sqlite-cache.js::createSqliteDbCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
     { "migrationId": "M042", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/retrieval/query-plan-cache.js::createQueryPlanCache (local LRU wrapper)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
     { "migrationId": "M043", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/vfs-segment-hash-cache.js::createVfsSegmentHashCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
-    { "migrationId": "M044", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/tree-sitter-scheduler/lookup.js::rowCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" }
+    { "migrationId": "M044", "clusterId": "C12", "phase": "D1", "oldPathOrSymbol": "src/index/build/tree-sitter-scheduler/lookup.js::rowCache (manual Map LRU)", "newPathOrSymbol": "src/shared/cache.js::createLruCache", "status": "completed" },
+    { "migrationId": "M045", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "src/integrations/core/status.js::sizeOfPath (local recursive traversal)", "newPathOrSymbol": "src/shared/disk-space.js::sizeOfPath", "status": "completed" },
+    { "migrationId": "M046", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/index/cache-gc.js::sizeOfPath (local recursive traversal)", "newPathOrSymbol": "src/shared/disk-space.js::sizeOfPath", "status": "completed" },
+    { "migrationId": "M047", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/index/report-artifacts.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M048", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "src/index/build/artifacts/helpers.js::formatBytes (local helper export)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M049", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/bench/merge/spill-merge-compare.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M050", "clusterId": "C13", "phase": "D1", "oldPathOrSymbol": "tools/bench/merge/merge-core-throughput.js::formatBytes (local formatter)", "newPathOrSymbol": "src/shared/disk-space.js::formatBytes", "status": "completed" },
+    { "migrationId": "M051", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/discover.js::MINIFIED_NAME_REGEX (local copy)", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M052", "clusterId": "C15", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch.js::MINIFIED_NAME_REGEX (local copy)", "newPathOrSymbol": "src/index/build/watch/shared.js::MINIFIED_NAME_REGEX", "status": "completed" },
+    { "migrationId": "M053", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/discover.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M054", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/records.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" },
+    { "migrationId": "M055", "clusterId": "C16", "phase": "D1", "oldPathOrSymbol": "src/index/build/watch/guardrails.js::normalizeRoot (local helper)", "newPathOrSymbol": "src/index/build/watch/shared.js::normalizeRoot", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -424,6 +435,20 @@
       "scope": "src/retrieval/**,src/index/build/**",
       "pattern": "direct ad-hoc bounded LRU wrappers around Map/LRUCache",
       "replacement": "src/shared/cache.js::createLruCache"
+    },
+    {
+      "banId": "B015",
+      "phase": "D1",
+      "scope": "src/index/build/**",
+      "pattern": "local MINIFIED_NAME_REGEX or normalizeRoot helper bodies in watch/discover modules",
+      "replacement": "src/index/build/watch/shared.js::{MINIFIED_NAME_REGEX,normalizeRoot}"
+    },
+    {
+      "banId": "B016",
+      "phase": "D1",
+      "scope": "src/**,tools/**",
+      "pattern": "local formatBytes or sizeOfPath helper implementations",
+      "replacement": "src/shared/disk-space.js::{formatBytes,sizeOfPath}"
     }
   ],
   "exceptions": [],

@@ -4,7 +4,7 @@ import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
 import { encodeVarint64List } from '../../../../shared/artifact-io/varint.js';
 import { parseHash64 } from '../../../../shared/token-id.js';
-import { ensureDiskSpace } from '../../../../shared/disk-space.js';
+import { ensureDiskSpace, formatBytes } from '../../../../shared/disk-space.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
 import {
   writeJsonLinesFile,
@@ -103,18 +103,6 @@ const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   const parsed = Number(maxJsonBytes);
   if (!Number.isFinite(parsed) || parsed <= 0) return maxJsonBytes;
   return Math.floor(parsed);
-};
-
-const formatBytes = (bytes) => {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) return '0B';
-  if (value < 1024) return `${Math.round(value)}B`;
-  const kb = value / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)}KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}GB`;
 };
 
 const recordTrimmedField = (stats, field) => {

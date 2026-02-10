@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T21:21:47.5908780-05:00
+Last updated: 2026-02-09T21:32:49.8741942-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -913,14 +913,23 @@ D1.2 status update (2026-02-09T21:21:47.5908780-05:00):
 
 ### Subphase D1.3 — Bytes/size/minified/root normalization
 Tasks:
-- [ ] Task D1.3.a: Standardize `formatBytes` usage on `src/shared/disk-space.js`.
+- [x] Task D1.3.a: Standardize `formatBytes` usage on `src/shared/disk-space.js`.
 Details: Pick one output format and update docs/tests accordingly.
-- [ ] Task D1.3.b: Standardize directory size traversal helper.
+- [x] Task D1.3.b: Standardize directory size traversal helper.
 Details: Ensure same skip/exclude policy across tool and runtime.
-- [ ] Task D1.3.c: Move minified-name/root-normalization to watch shared helper.
+- [x] Task D1.3.c: Move minified-name/root-normalization to watch shared helper.
 Details: Delete local regex/function copies in discover/watch modules.
-- [ ] Task D1.3.d: Resolve `watch.js` `normalizeRoot` inconsistency during migration.
+- [x] Task D1.3.d: Resolve `watch.js` `normalizeRoot` inconsistency during migration.
 Details: Ensure watch uses imported helper only.
+
+D1.3 status update (2026-02-09T21:32:49.8741942-05:00):
+- resolved: centralized byte formatting and traversal on `src/shared/disk-space.js` via canonical `formatBytes` and `sizeOfPath`.
+- resolved: migrated `src/integrations/core/status.js`, `tools/index/cache-gc.js`, `tools/index/report-artifacts.js`, and merge bench scripts to the shared disk-space helper APIs.
+- resolved: extracted watch minified/root primitives to `src/index/build/watch/shared.js` and migrated discover/file-scan/watch/guardrails/records callsites.
+- remaining: D1.4–D1.5 locking, atomic-write, cache-policy, and lifecycle primitives.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build` and `rg "formatBytes\(|sizeOfPath\(" src tools`.
 
 ### Subphase D1.4 — Locking and misc primitive helpers
 Tasks:
@@ -943,10 +952,10 @@ Details: Support explicit `register` + `drain` + `close` flow for deterministic 
 Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/watch/tooling modules.
 
 ### Exhaustive sweeps
-- [ ] `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build`
+- [x] `rg "const normalizeRoot =|MINIFIED_NAME_REGEX" src/index/build`
 - [x] `rg "findGitRoot|findJjRoot|resolveNearestTsconfig|find-up" src tools`
 - [x] `rg "warned = new Set|warnOnce" src tools`
-- [ ] `rg "formatBytes\(|sizeOfPath\(" src tools`
+- [x] `rg "formatBytes\(|sizeOfPath\(" src tools`
 - [ ] `rg "escapeRegex\(|pickMinLimit\(" src tools`
 - [ ] `rg "index\.lock|queue\.lock|staleMs|tasklist" src tools`
 - [ ] `rg "writeFileSync\(|writeFile\(|appendFile\(" src tools | rg -v "atomic-write|tests/"`
@@ -957,9 +966,9 @@ Details: Prioritize queue/cache/manifest/pointer writers and long-lived service/
 - [x] `tests/shared/path-normalize/path-containment-contract.test.js` (new)
 - [x] `tests/shared/logging/warn-once.test.js` (new)
 - [x] `tests/shared/cache/lru-parity.test.js` (new)
-- [ ] `tests/shared/disk-space/format-bytes-contract.test.js` (new)
+- [x] `tests/shared/disk-space/format-bytes-contract.test.js` (new)
 - [ ] `tests/shared/locks/file-lock-contract.test.js` (new)
-- [ ] `tests/indexing/watch/watch-root-normalization.test.js` (new)
+- [x] `tests/indexing/watch/watch-root-normalization.test.js` (new)
 - [ ] `tests/shared/io/atomic-write-contract.test.js` (new)
 - [ ] `tests/shared/cache/cache-policy-contract.test.js` (new)
 - [ ] `tests/shared/lifecycle/lifecycle-registry-contract.test.js` (new)

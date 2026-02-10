@@ -5,36 +5,10 @@ import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRo
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
+import { sizeOfPath } from '../../shared/disk-space.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
-
-/**
- * Recursively compute the size of a file or directory.
- * @param {string} targetPath
- * @returns {Promise<number>}
- */
-async function sizeOfPath(targetPath) {
-  const stack = [targetPath];
-  let total = 0;
-  while (stack.length) {
-    const current = stack.pop();
-    try {
-      const stat = await fsPromises.lstat(current);
-      if (stat.isSymbolicLink()) continue;
-      if (stat.isFile()) {
-        total += stat.size;
-        continue;
-      }
-      if (!stat.isDirectory()) continue;
-      const entries = await fsPromises.readdir(current);
-      for (const entry of entries) {
-        stack.push(path.join(current, entry));
-      }
-    } catch {}
-  }
-  return total;
-}
 
 /**
  * Collect artifact sizes and health status for a repo.

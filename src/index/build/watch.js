@@ -36,12 +36,11 @@ import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndex
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
+import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const MINIFIED_NAME_REGEX = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
 
 /**
  * Watch for file changes and rebuild indexes incrementally.
