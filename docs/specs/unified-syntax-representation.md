@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
 Status: Draft v0.3
-Last updated: 2026-02-10T01:00:00Z
+Last updated: 2026-02-10T02:30:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 

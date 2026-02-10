@@ -364,6 +364,7 @@ Lane taxonomy (see `tests/run.rules.jsonc`):
 Placement guidance:
 - MCP SDK server tests should run in **mcp** (or **services** if explicitly grouped there).
 - API contract tests should run in **api**.
+- USR compatibility matrix scenarios (see `docs/specs/unified-syntax-representation.md` section 36) should run in **ci** for strict cases and **ci-long** for expanded non-strict pairwise cases.
 - Parity tests should be written to run in under ~30s total:
   - minimal fixture repo
   - stub embeddings
@@ -371,6 +372,10 @@ Placement guidance:
 - If parity tests become slow, split:
   - fast contract tests always on (ci/ci-lite)
   - heavier parity tests in ci-long/api/mcp as appropriate
+
+Compatibility matrix policy:
+- Strict scenarios (`BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`) are release-blocking.
+- Non-strict compatibility scenarios are warning-level by default but MUST still emit explicit diagnostics and matrix reports.
 
 ---
 
