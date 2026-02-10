@@ -8,6 +8,43 @@ export const OFFSETS_FORMAT = 'u64-le';
 export const OFFSETS_COMPRESSION = 'none';
 
 const OFFSET_BYTES = 8;
+const OFFSETS_VALIDATION_CACHE = new Map();
+const OFFSETS_VALIDATION_CACHE_MAX = 256;
+
+const buildValidationCacheKey = (jsonlPath, offsetsPath) => `${jsonlPath}::${offsetsPath}`;
+
+const getCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
+  if (!key) return null;
+  const cached = OFFSETS_VALIDATION_CACHE.get(key);
+  if (!cached) return null;
+  if (
+    cached.jsonlSize !== jsonlStat.size
+    || cached.jsonlMtimeMs !== jsonlStat.mtimeMs
+    || cached.offsetsSize !== offsetsStat.size
+    || cached.offsetsMtimeMs !== offsetsStat.mtimeMs
+  ) {
+    OFFSETS_VALIDATION_CACHE.delete(key);
+    return null;
+  }
+  OFFSETS_VALIDATION_CACHE.delete(key);
+  OFFSETS_VALIDATION_CACHE.set(key, cached);
+  return cached;
+};
+
+const setCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
+  if (!key) return;
+  OFFSETS_VALIDATION_CACHE.set(key, {
+    jsonlSize: jsonlStat.size,
+    jsonlMtimeMs: jsonlStat.mtimeMs,
+    offsetsSize: offsetsStat.size,
+    offsetsMtimeMs: offsetsStat.mtimeMs
+  });
+  while (OFFSETS_VALIDATION_CACHE.size > OFFSETS_VALIDATION_CACHE_MAX) {
+    const oldest = OFFSETS_VALIDATION_CACHE.keys().next().value;
+    if (oldest === undefined) break;
+    OFFSETS_VALIDATION_CACHE.delete(oldest);
+  }
+};
 
 const readOffsetValue = (buffer, index) => {
   const value = buffer.readBigUInt64LE(index * OFFSET_BYTES);
@@ -208,10 +245,15 @@ export const readJsonlRowsAt = async (
 };
 
 export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
-  const [offsets, jsonlStat] = await Promise.all([
+  const [offsets, jsonlStat, offsetsStat] = await Promise.all([
     readOffsetsFile(offsetsPath),
-    fs.stat(jsonlPath)
+    fs.stat(jsonlPath),
+    fs.stat(offsetsPath)
   ]);
+  const cacheKey = buildValidationCacheKey(jsonlPath, offsetsPath);
+  if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) {
+    return true;
+  }
   let last = -1;
   for (const offset of offsets) {
     if (!Number.isFinite(offset) || offset < 0) {
@@ -237,5 +279,6 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
       await handle.close();
     }
   }
+  setCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat);
   return true;
 };

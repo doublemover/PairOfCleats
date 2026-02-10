@@ -257,7 +257,7 @@ Format:
 - Impact: Less stream overhead.
 - Risk: Cap memory usage.
 
-15. Area: Offsets validation memoization
+15. [x] Area: Offsets validation memoization
 - Files: `src/shared/artifact-io/offsets.js`, `src/shared/artifact-io/loaders.js`
 - Opportunity: Persist validation cache keyed by size/mtime signatures.
 - Impact: Faster repeated startup/load paths.
