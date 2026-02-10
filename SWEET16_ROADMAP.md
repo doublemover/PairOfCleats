@@ -1575,16 +1575,8 @@ Tests:
 ---
 
 ## Post-Phase Tasks (For the next Roadmap)
-- Fix --help on `node tests/run.js --help`, it currently starts running tests after printing its help output
-- what generates artifacts directory? Just junit xml output? That should probably be emitted to a better location like in .testlogs
-- do we deliberately have an empty tools/perf/ folder? Let's get rid of that 
-- Confirm that when I see `[budget] symbol_edges exceeded budget 128.0MB by 58.2MB (trim).` It doesn't mean we're just chopping off all of the extra data. We can totally include all of this. 
-
 - Unify shard threshold normalization across writer/loader paths (ensure a single shared helper is used everywhere).
 - We need to evaluate the performance of indexing and searching on the repo itself to determine correct limits/safeguards/values
-- Have been seeing errors like `[tooling] Invalid virtualRange for tests/fixtures/languages/src/javascript_component.jsx (117-157); skipping target.`, let's ensure that is fixed by now
-- ensure we're wasming correctly
 - evaluate context window sizing
 - we need a 'merged' c8 coverage generation ci job
-- what is tools/dict-utils/, why is it named that? it seems like it does a lot of stuff completely unrelated to dictionaries and is referenced by a lot, perhaps that code should be moved to shared?
-- what is pairofcleats.json used for anymore? it doesn't seem necessary?
+
