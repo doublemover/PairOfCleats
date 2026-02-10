@@ -4,7 +4,6 @@ import { URL } from 'node:url';
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const DEFAULT_MAX_REDIRECTS = 5;
-const DEFAULT_TIMEOUT_MS = 30000;
 
 const toBoundedInteger = (value, fallback, { min = 0 } = {}) => {
   const parsed = Number(value);
@@ -13,6 +12,12 @@ const toBoundedInteger = (value, fallback, { min = 0 } = {}) => {
 };
 
 const toMaxBytes = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
+const toTimeoutMs = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.floor(parsed);
@@ -94,10 +99,12 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes }) => new
     });
   });
 
-  const timeoutHandle = setTimeout(() => {
-    timedOut = true;
-    req.destroy();
-  }, timeoutMs);
+  const timeoutHandle = timeoutMs == null
+    ? null
+    : setTimeout(() => {
+      timedOut = true;
+      req.destroy();
+    }, timeoutMs);
 
   req.on('error', (err) => {
     if (timedOut) {
@@ -107,7 +114,7 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes }) => new
     finish(reject, downloadError(url, err?.message || 'request error'));
   });
   req.on('close', () => {
-    clearTimeout(timeoutHandle);
+    if (timeoutHandle != null) clearTimeout(timeoutHandle);
   });
   req.end();
 });
@@ -129,7 +136,7 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
     : {};
   const responseType = options.responseType === 'stream' ? 'stream' : 'buffer';
   const maxRedirects = toBoundedInteger(options.maxRedirects, DEFAULT_MAX_REDIRECTS, { min: 0 });
-  const timeoutMs = toBoundedInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS, { min: 1 });
+  const timeoutMs = toTimeoutMs(options.timeoutMs);
   const maxBytes = toMaxBytes(options.maxBytes);
 
   let currentUrl;
