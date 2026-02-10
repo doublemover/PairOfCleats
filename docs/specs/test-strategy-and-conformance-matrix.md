@@ -16,6 +16,8 @@ USR decomposition linkage:
 - `docs/specs/usr-embedding-bridge-contract.md` is authoritative for bridge evidence and multi-surface segment invariants.
 - `docs/specs/usr-generated-provenance-contract.md` is authoritative for provenance attrs and mapping quality semantics.
 - `docs/specs/usr-registry-schema-contract.md` is authoritative for machine-readable matrix schema and cross-registry invariants.
+- `docs/specs/usr-observability-and-slo-contract.md` is authoritative for budget metrics and alert policy evaluation.
+- `docs/specs/usr-security-and-data-governance-contract.md` is authoritative for redaction and strict security gate behavior.
 
 Bench harness note:
 - Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.

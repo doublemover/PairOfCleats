@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T08:15:00Z
+Last rewritten: 2026-02-10T08:35:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v0.8 (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v0.9 (all checkboxes intentionally unchecked)
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.8).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.9).
 
 Primary shifts in this rewrite:
 
@@ -44,6 +44,8 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-generated-provenance-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
 - `docs/specs/usr-implementation-readiness-contract.md`
+- `docs/specs/usr-observability-and-slo-contract.md`
+- `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -103,6 +105,8 @@ If contradictions are found:
 - [ ] USR section 11.4 normalization mapping is table-driven and deterministic.
 - [ ] USR section 12.3 capability state machine transitions are validated.
 - [ ] USR section 16.4 determinism pass criteria are part of CI gates.
+- [ ] USR section 17 performance/resource requirements are enforced via blocking SLO budgets.
+- [ ] USR section 18 security/safety requirements are enforced via strict security gates and redaction policy.
 - [ ] USR section 33 diagnostic and resolution reason-code taxonomy is fully implemented and strict-validated.
 - [ ] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
 - [ ] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
@@ -111,6 +115,8 @@ If contradictions are found:
 - [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
 - [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
 - [ ] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
+- [ ] USR section 41 observability and SLO contract is enforced across required lanes.
+- [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
@@ -119,7 +125,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.8 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.9 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -181,6 +187,10 @@ If contradictions are found:
 - [ ] Create `tests/lang/matrix/usr-embedding-bridge-cases.json`.
 - [ ] Create `tests/lang/matrix/usr-generated-provenance-cases.json`.
 - [ ] Create `tests/lang/matrix/usr-parser-runtime-lock.json`.
+- [ ] Create `tests/lang/matrix/usr-slo-budgets.json`.
+- [ ] Create `tests/lang/matrix/usr-alert-policies.json`.
+- [ ] Create `tests/lang/matrix/usr-redaction-rules.json`.
+- [ ] Create `tests/lang/matrix/usr-security-gates.json`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
@@ -202,6 +212,8 @@ If contradictions are found:
 - [ ] Add framework profile referential integrity test.
 - [ ] Add unknown-key strictness test for all USR matrix files.
 - [ ] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
+- [ ] Add SLO/alert policy schema drift tests and scope-coverage checks.
+- [ ] Add redaction/security gate schema drift tests and enforcement-level coverage checks.
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 - [ ] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
@@ -349,11 +361,18 @@ If contradictions are found:
 - [ ] Implement generated/macro provenance attrs and mapping quality downgrade semantics.
 - [ ] Validate provenance diagnostics for exact/approximate/missing mapping classes.
 
-### 6.5 Exit criteria
+### 6.5 Security/data governance semantics
+
+- [ ] Implement deterministic redaction rules for diagnostics and attrs payloads.
+- [ ] Implement strict security gate enforcement for path safety and runtime identity.
+- [ ] Validate security audit artifact generation and gate blocking behavior.
+
+### 6.6 Exit criteria
 
 - [ ] C2/C3 requirements pass for required profiles.
 - [ ] Capability transition diagnostics are correct and complete.
 - [ ] Embedded/provenance semantics are validated for required language/framework profiles.
+- [ ] Security and redaction semantics are validated for required profiles and lanes.
 
 ---
 
@@ -399,12 +418,14 @@ If contradictions are found:
 - [ ] Define per-batch runtime/memory thresholds.
 - [ ] Add per-batch profiling and hotspot reporting.
 - [ ] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
+- [ ] Materialize SLO budget and alert policy evaluations in CI outputs.
 
 ### 8.4 Exit criteria
 
 - [ ] Determinism checks pass under repeated runs.
 - [ ] Cap-trigger tests pass with expected diagnostics.
 - [ ] Runtime thresholds meet target envelopes.
+- [ ] Blocking SLO budgets are met for required lanes.
 
 ---
 
@@ -442,7 +463,7 @@ If contradictions are found:
 - [ ] Materialize capability state machine checks in harness.
 - [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
 - [ ] Materialize canonical example bundle validator lane for section 34 references.
-- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness contracts).
+- [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness/observability/security contracts).
 - [ ] Materialize section 38 embedded-language bridge validators.
 - [ ] Materialize section 39 generated/macro provenance validators.
 - [ ] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
@@ -518,6 +539,8 @@ If contradictions are found:
 - [ ] Validate parser failure recovery paths.
 - [ ] Validate schema mismatch behavior.
 - [ ] Validate partial extraction behavior with diagnostics.
+- [ ] Validate redaction fail-safe behavior under forced sensitive payload fixtures.
+- [ ] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
 
 ### 14.3 Exit criteria
 
@@ -532,6 +555,8 @@ If contradictions are found:
 - [ ] Enforce Gate A, B1-B8, and C gates in CI.
 - [ ] Enforce C0-C4 conformance lane required checks.
 - [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
+- [ ] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
+- [ ] Enforce section 42 security gate fail-closed blocking policies.
 
 ### 15.2 Reporting
 
@@ -542,6 +567,8 @@ If contradictions are found:
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 - [ ] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
+- [ ] Emit SLO budget compliance and alert evaluation dashboards.
+- [ ] Emit redaction/security gate compliance dashboards.
 
 ### 15.3 Maintenance
 
@@ -574,6 +601,8 @@ If contradictions are found:
 | 12.4 | diagnostic severity mapping | 6, 10 |
 | 16.3 | level pass criteria | 11, 12, 13 |
 | 16.4 | determinism pass criteria | 8, 11, 12, 13 |
+| 17 | performance and resource requirements | 8, 15 |
+| 18 | security and safety requirements | 6, 14, 15 |
 | 23 | machine-readable registries | 1 |
 | 24 | schema package and validators | 1 |
 | 25 | framework applicability matrix | 5 |
@@ -589,6 +618,8 @@ If contradictions are found:
 | 38 | embedded-language bridge contract | 1, 3, 5, 6, 7, 10, 13, 14 |
 | 39 | generated/macro provenance contract | 1, 3, 4, 6, 7, 10, 12, 14 |
 | 40 | implementation readiness contract | 0, 1, 9, 10, 15 |
+| 41 | observability and SLO contract | 8, 15 |
+| 42 | security and data governance contract | 6, 14, 15 |
 
 ---
 
@@ -606,6 +637,8 @@ If contradictions are found:
 - [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
 - [ ] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
 - [ ] parser/runtime lock registry exists, validates, and covers parser sources referenced by language/framework profiles.
+- [ ] SLO budget/alert policy matrices exist, validate, and cover required lanes/scopes.
+- [ ] redaction/security gate matrices exist, validate, and cover required control classes.
 - [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
@@ -630,6 +663,8 @@ If contradictions are found:
 - [ ] backward-compat matrix strict scenarios are green in CI.
 - [ ] decomposed contract drift checks are green in CI.
 - [ ] implementation-readiness evidence validators are green for promotion target phase.
+- [ ] blocking SLO budgets are green for required lanes.
+- [ ] strict security gates are green in CI.
 
 ---
 
@@ -1183,6 +1218,7 @@ If contradictions are found:
 - [ ] Keep per-language contracts synchronized with language/profile matrix rows.
 - [ ] Keep framework and risk contracts synchronized with fixture and conformance lane implementations.
 - [ ] Keep registry schema and implementation-readiness contracts synchronized with CI validators and promotion policies.
+- [ ] Keep observability/SLO and security-governance contracts synchronized with CI dashboards and blocking gate policies.
 
 ---
 
@@ -1215,6 +1251,8 @@ If contradictions are found:
 | `docs/specs/usr-generated-provenance-contract.md` | generated/macro/transpile provenance semantics | 1, 3, 4, 6, 7, 10, 12, 14 |
 | `docs/specs/usr-registry-schema-contract.md` | machine-readable matrix schemas and cross-registry invariants | 1, 10, 15 |
 | `docs/specs/usr-implementation-readiness-contract.md` | promotion readiness domains, evidence, and blockers | 0, 9, 10, 15 |
+| `docs/specs/usr-observability-and-slo-contract.md` | lane/profile SLO budgets, alerts, and escalation policy | 8, 15 |
+| `docs/specs/usr-security-and-data-governance-contract.md` | redaction policy and strict security gate enforcement | 6, 14, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---
