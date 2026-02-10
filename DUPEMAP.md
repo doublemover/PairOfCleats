@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-10T00:04:55.9378494-05:00
+Last updated: 2026-02-10T00:08:55.4192957-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -67,7 +67,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D5 | [x] | Tooling + language parser/extractor consolidation |
 | D3 | [x] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [x] | Chunking + risk + import resolution + map consolidation |
-| D7 | [ ] | Test/bench dedupe and harness consolidation |
+| D7 | [@] | Test/bench dedupe and harness consolidation |
 | D8 | [ ] | AJV/fetch consolidation + CI hardening + closeout |
 | F0 | [x] | Findings phase mapping + ownership (no new audit tooling) |
 | F1 | [ ] | Build/runtime lifecycle correctness remediation |
@@ -1450,11 +1450,20 @@ Reduce duplicated tests and bench wiring while preserving scenario coverage and 
 
 ### Subphase D7.1 — Retrieval ANN pipeline tests
 Tasks:
-- [ ] Task D7.1.a: Extract shared ANN pipeline fixture/setup helper.
+- [x] Task D7.1.a: Extract shared ANN pipeline fixture/setup helper.
 Details: Create `tests/retrieval/pipeline/helpers/ann-scenarios.js`.
-- [ ] Task D7.1.b: Keep separate scenario assertions.
+- [x] Task D7.1.b: Keep separate scenario assertions.
 Details: Missing-provider and provider-failure remain distinct tests.
-- [ ] Task D7.1.c: Update test names to reflect scenario matrix clearly.
+- [x] Task D7.1.c: Update test names to reflect scenario matrix clearly.
+
+D7.1 status update (2026-02-10T00:08:55.4192957-05:00):
+- resolved: added shared ANN pipeline test fixture helper `tests/retrieval/pipeline/helpers/ann-scenarios.js` for common retrieval pipeline context/index setup.
+- resolved: migrated `tests/retrieval/pipeline/ann-optional-skip.test.js` and `tests/retrieval/pipeline/ann-preflight.test.js` to shared helper with scenario-specific assertions preserved.
+- resolved: standardized scenario naming in test output (`ann-missing-provider-fallback`, `ann-provider-preflight-failure-fallback`) while keeping missing-provider and provider-preflight-failure as separate tests.
+- remaining: D7.2-D7.6 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this test-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "ann-scenarios|ann-missing-provider-fallback|ann-provider-preflight-failure-fallback" tests/retrieval/pipeline`.
 
 ### Subphase D7.2 — Interprocedural flow cap tests
 Tasks:
