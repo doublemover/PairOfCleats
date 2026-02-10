@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createEmbedder } from '../../../src/index/embedding.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
@@ -29,6 +30,7 @@ import {
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
 import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import {
   getIndexDir,
   getMetricsDir,
@@ -70,8 +72,15 @@ import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 import { updateSqliteDense } from './sqlite-dense.js';
+import {
+  normalizeEmbeddingsMaintenanceConfig,
+  shouldQueueSqliteMaintenance
+} from './maintenance.js';
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
+
+const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
+const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
 
 let Database = null;
 try {
@@ -334,10 +343,53 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeDays = Number(embeddingsConfig.cache?.maxAgeDays);
   const cacheMaxBytes = Number.isFinite(cacheMaxGb) ? Math.max(0, cacheMaxGb) * 1024 * 1024 * 1024 : 0;
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
+  const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
+  const queuedMaintenance = new Set();
   const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
   const sqliteSharedDb = sqlitePaths?.codePath
     && sqlitePaths?.prosePath
     && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath);
+  const queueBackgroundSqliteMaintenance = ({ mode, denseCount }) => {
+    if (maintenanceConfig.background !== true || isTestingEnv()) return;
+    if (mode !== 'code' && mode !== 'prose') return;
+    const dbPath = mode === 'code' ? sqlitePaths?.codePath : sqlitePaths?.prosePath;
+    if (!dbPath || !fsSync.existsSync(dbPath)) return;
+    const walPath = `${dbPath}-wal`;
+    const dbBytes = Number(fsSync.statSync(dbPath).size) || 0;
+    const walBytes = fsSync.existsSync(walPath)
+      ? (Number(fsSync.statSync(walPath).size) || 0)
+      : 0;
+    const decision = shouldQueueSqliteMaintenance({
+      config: maintenanceConfig,
+      dbBytes,
+      walBytes,
+      denseCount
+    });
+    if (!decision.queue) return;
+    const key = `${mode}:${dbPath}`;
+    if (queuedMaintenance.has(key)) return;
+    queuedMaintenance.add(key);
+    log(
+      `[embeddings] ${mode}: queueing background sqlite maintenance ` +
+      `(reason=${decision.reason}, dbBytes=${dbBytes}, walBytes=${walBytes}, denseCount=${denseCount}).`
+    );
+    const args = [COMPACT_SQLITE_SCRIPT, '--repo', root, '--mode', mode];
+    void spawnSubprocess(process.execPath, args, {
+      cwd: root,
+      env: process.env,
+      stdio: 'ignore',
+      detached: true,
+      unref: true,
+      rejectOnNonZeroExit: false,
+      name: `background sqlite compact ${mode}`
+    })
+      .catch((err) => {
+        warn(`[embeddings] ${mode}: background sqlite maintenance failed: ${err?.message || err}`);
+      })
+      .finally(() => {
+        queuedMaintenance.delete(key);
+      });
+  };
 
   if (hasBuildState) {
     await markBuildPhase(indexRoot, 'stage3', 'running');
@@ -1279,6 +1331,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
               logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
             } catch {}
           }
+          queueBackgroundSqliteMaintenance({
+            mode,
+            denseCount: Number.isFinite(sqliteResult?.count) ? Number(sqliteResult.count) : totalChunks
+          });
         }
 
         const hnswTarget = resolveHnswTarget(mode, denseVectorMode);

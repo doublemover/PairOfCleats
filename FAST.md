@@ -452,7 +452,7 @@ Implementation policy for Sweep 3:
 - Rollout: `retrieval.ann.adaptiveProviders=true`; strict deterministic guardrails.
 - Target: improve p95 ANN latency without destabilizing result quality.
 
-18. Area: Background ANN maintenance/compaction
+18. [x] Area: Background ANN maintenance/compaction
 - Files: `tools/build/embeddings/runner.js`, `tools/build/compact-sqlite-index.js`, `src/retrieval/lancedb.js`
 - Decision: Add threshold-triggered background maintenance with atomic artifact swap.
 - Rollout: `embeddings.maintenance.background=true`; explicit thresholds for WAL growth, fragmentation, and drift.
