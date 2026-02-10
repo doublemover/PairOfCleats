@@ -96,7 +96,7 @@
     "chokidar": "^3.5.3",
     "cjs-module-lexer": "^2.2.0",
     "dockerfile-ast": "^0.7.1",
-    "es-module-lexer": "^1.6.0",
+    "es-module-lexer": "^2.0.0",
     "escomplex": "2.0.0-alpha",
     "eslint": "9.39.2",
     "esprima": "4.0.1",
