@@ -44,8 +44,7 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           else
-            echo "node_modules cache hit; using cached patched dependencies."
-            npm run rebuild:native
+            echo "node_modules cache hit; using cached patched dependencies and skipping native rebuild."
           fi
           node -v
           npm -v
