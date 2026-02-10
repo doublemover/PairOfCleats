@@ -386,7 +386,7 @@ Implementation policy for Sweep 3:
 - Rollout: `postings.phraseHash=true`; dual-write phrase strings + hashes until collision telemetry stays clean.
 - Target: 20%+ phrase build CPU reduction and lower phrase memory.
 
-7. Area: Ordered appender bucketed-watermark scheduler
+7. [x] Area: Ordered appender bucketed-watermark scheduler
 - Files: `src/index/build/indexer/steps/process-files/ordered.js`, `src/index/build/indexer/steps/process-files.js`
 - Decision: Add deterministic bucketed watermark flush policy to reduce long-tail stalls while preserving exact global order.
 - Rollout: `indexer.orderedBuckets=true`; enforce strict order assertions in tests.

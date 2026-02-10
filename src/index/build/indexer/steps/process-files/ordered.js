@@ -13,6 +13,9 @@
 // buffered results to queue concurrency.
 export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const debugOrdered = options.debugOrdered === true;
+  const bucketSize = Number.isFinite(options.bucketSize)
+    ? Math.max(0, Math.floor(options.bucketSize))
+    : 0;
   const pending = new Map();
   const startIndex = Number.isFinite(options.startIndex)
     ? Math.max(0, Math.floor(options.startIndex))
@@ -170,7 +173,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         }
       }
     }
-    while (pending.has(nextIndex)) {
+    const bucketUpperBound = bucketSize > 0
+      ? (Math.floor(nextIndex / bucketSize) + 1) * bucketSize
+      : Number.POSITIVE_INFINITY;
+    while (pending.has(nextIndex) && nextIndex < bucketUpperBound) {
       const entry = pending.get(nextIndex);
       pending.delete(nextIndex);
       try {
@@ -187,11 +193,20 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         advancePastSkipped();
       }
     }
+    if (bucketSize > 0 && pending.has(nextIndex)) {
+      debugLog('[ordered] bucket watermark yield', {
+        nextIndex,
+        bucketUpperBound,
+        pending: pending.size
+      });
+      flushRequested = true;
+    }
     debugLog('[ordered] flush complete', {
       nextIndex,
       pending: pending.size,
       expectedCount,
-      seenCount
+      seenCount,
+      bucketSize
     });
   };
 

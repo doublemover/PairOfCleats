@@ -234,6 +234,8 @@ export const processFiles = async ({
     {
       expectedCount: Array.isArray(entries) ? entries.length : null,
       startIndex: startOrderIndex,
+      bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
+        ?? Math.max(128, runtime.fileConcurrency * 32),
       log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
       stallMs: debugOrdered ? 5000 : undefined,
       debugOrdered
