@@ -27,35 +27,38 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     fileChargramN
   };
 
+  const addOne = (map, entry, id) => {
+    const key = String(entry || '').toLowerCase();
+    if (!key) return;
+    let bucket = map.get(key);
+    if (!bucket) {
+      bucket = new Set();
+      map.set(key, bucket);
+    }
+    bucket.add(id);
+  };
+
   const add = (map, value, id) => {
     if (!value) return;
-    const values = Array.isArray(value) ? value : [value];
-    for (const entry of values) {
-      const key = String(entry || '').toLowerCase();
-      if (!key) continue;
-      let bucket = map.get(key);
-      if (!bucket) {
-        bucket = new Set();
-        map.set(key, bucket);
-      }
-      bucket.add(id);
+    if (Array.isArray(value)) {
+      for (const entry of value) addOne(map, entry, id);
+      return;
     }
+    addOne(map, value, id);
   };
+
   const normalizeLang = (value) => {
     if (typeof value !== 'string') return null;
     const normalized = value.trim().toLowerCase();
     return normalized || null;
   };
   const resolveEffectiveLang = (chunk) => {
-    const candidates = [
-      chunk?.metaV2?.lang,
-      chunk?.metaV2?.effective?.languageId,
-      chunk?.lang
-    ];
-    for (const candidate of candidates) {
-      const normalized = normalizeLang(candidate);
-      if (normalized) return normalized;
-    }
+    let normalized = normalizeLang(chunk?.metaV2?.lang);
+    if (normalized) return normalized;
+    normalized = normalizeLang(chunk?.metaV2?.effective?.languageId);
+    if (normalized) return normalized;
+    normalized = normalizeLang(chunk?.lang);
+    if (normalized) return normalized;
     return 'unknown';
   };
 
