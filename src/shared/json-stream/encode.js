@@ -32,6 +32,46 @@ const untrackJsonTraversal = (value, seen, tracked) => {
   }
 };
 
+const TYPED_ARRAY_JSON_BATCH = 2048;
+
+const serializeTypedArraySlice = (array, start, end) => {
+  const size = end - start;
+  if (size <= 0) return '';
+  const parts = new Array(size);
+  for (let i = 0; i < size; i += 1) {
+    parts[i] = JSON.stringify(array[start + i]);
+  }
+  return parts.join(',');
+};
+
+const writeTypedArrayJson = async (stream, array) => {
+  await writeChunk(stream, '[');
+  if (!array.length) {
+    await writeChunk(stream, ']');
+    return;
+  }
+  let first = true;
+  for (let i = 0; i < array.length; i += TYPED_ARRAY_JSON_BATCH) {
+    const end = Math.min(array.length, i + TYPED_ARRAY_JSON_BATCH);
+    const chunk = serializeTypedArraySlice(array, i, end);
+    if (chunk.length) {
+      await writeChunk(stream, first ? chunk : `,${chunk}`);
+      first = false;
+    }
+  }
+  await writeChunk(stream, ']');
+};
+
+const stringifyTypedArrayJson = (array) => {
+  if (!array.length) return '[]';
+  const parts = [];
+  for (let i = 0; i < array.length; i += TYPED_ARRAY_JSON_BATCH) {
+    const end = Math.min(array.length, i + TYPED_ARRAY_JSON_BATCH);
+    parts.push(serializeTypedArraySlice(array, i, end));
+  }
+  return `[${parts.join(',')}]`;
+};
+
 const writeJsonValueInternal = async (stream, value, seen) => {
   const normalized = normalizeJsonValue(value);
   if (normalized === null || typeof normalized !== 'object') {
@@ -43,14 +83,7 @@ const writeJsonValueInternal = async (stream, value, seen) => {
     return;
   }
   if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
-    await writeChunk(stream, '[');
-    let first = true;
-    for (let i = 0; i < normalized.length; i += 1) {
-      if (!first) await writeChunk(stream, ',');
-      await writeChunk(stream, JSON.stringify(normalized[i]));
-      first = false;
-    }
-    await writeChunk(stream, ']');
+    await writeTypedArrayJson(stream, normalized);
     return;
   }
 
@@ -103,11 +136,7 @@ const stringifyJsonValueInternal = (value, seen) => {
     return JSON.stringify(normalized);
   }
   if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
-    const items = [];
-    for (let i = 0; i < normalized.length; i += 1) {
-      items.push(JSON.stringify(normalized[i]));
-    }
-    return `[${items.join(',')}]`;
+    return stringifyTypedArrayJson(normalized);
   }
 
   const tracked = trackJsonTraversal(normalized, seen);
