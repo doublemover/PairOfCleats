@@ -48,17 +48,16 @@ function run() {
   const patchPackageBin = resolvePatchPackageBin(cwd);
   const rebuildNativeScript = resolveRebuildNativeScript(cwd);
   const patchFilesPresent = hasPatchFiles(cwd);
-  const devDependenciesOmitted = isDevDependenciesOmitted();
 
   if (!fs.existsSync(patchPackageBin)) {
     if (patchFilesPresent) {
-      if (devDependenciesOmitted) {
-        console.warn('[postinstall] patch-package is unavailable in an omitted-dev install; skipping patch application.');
-        console.warn('[postinstall] To apply patches, install with dev dependencies and rerun postinstall.');
-        process.exit(0);
+      if (isDevDependenciesOmitted()) {
+        console.error('[postinstall] patch-package is unavailable in an omitted-dev install, but required patches exist.');
+        console.error('[postinstall] Install with dev dependencies (or make patch-package available) so patches are applied.');
+      } else {
+        console.error('[postinstall] patch-package is required because patch files exist under patches/.');
+        console.error('[postinstall] Install dev dependencies or run npm run patch before continuing.');
       }
-      console.error('[postinstall] patch-package is required because patch files exist under patches/.');
-      console.error('[postinstall] Install dev dependencies or run npm run patch before continuing.');
       process.exit(1);
     }
     console.log('[postinstall] patch-package not installed and no patch files found; skipping patch step.');

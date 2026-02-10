@@ -42,12 +42,12 @@ try {
   });
   assert.equal(
     missingPatchPkgWithPatchesOmittedDev.status,
-    0,
-    'postinstall should succeed when patches exist, patch-package is unavailable, and dev dependencies are omitted'
+    1,
+    'postinstall should fail when patches exist, patch-package is unavailable, and dev dependencies are omitted'
   );
   assert.match(
     `${missingPatchPkgWithPatchesOmittedDev.stdout || ''}\n${missingPatchPkgWithPatchesOmittedDev.stderr || ''}`,
-    /omitted-dev install; skipping patch application/i
+    /required patches exist/i
   );
 
   const missingPatchPkgNoPatches = spawnSync(process.execPath, [scriptPath], {
